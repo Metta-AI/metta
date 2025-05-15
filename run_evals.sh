@@ -35,7 +35,7 @@ for i in "${!POLICIES[@]}"; do
         sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://stats/navigation_db_main \
+        sim_job.stats_db_uri=wandb://stats/navigation_db \
 
     # python3 -m tools.sim \
     #     sim=multiagent \
@@ -48,20 +48,20 @@ for i in "${!POLICIES[@]}"; do
         sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://stats/memory_db_main \
+        sim_job.stats_db_uri=wandb://stats/memory_db \
 
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        +eval_db_uri=wandb://stats/objectuse_db_main \
+        sim_job.stats_db_uri=wandb://stats/objectuse_db \
 
 done
 
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db_main run=navigation_db_main ++dashboard.output_path=s3://softmax-public/policydash/navigation_main.html \
+python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html \
 
 # python3 -m tools.analyze +eval_db_uri=wandb://artifacts/multiagent_db_main run=multiagent_db_main ++analyzer.output_path=s3://softmax-public/policydash/multiagent_main.html
 
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db_main run=memory_db_main ++dashboard.output_path=s3://softmax-public/policydash/memory_main.html \
+python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db run=memory_db ++dashboard.output_path=s3://softmax-public/policydash/memory.html \
 
-python3 -m tools.dashboard +eval_db_uri=wandb://stats/objectuse_db_main run=objectuse_db_main ++dashboard.output_path=s3://softmax-public/policydash/objectuse_main.html \
+python3 -m tools.dashboard +eval_db_uri=wandb://stats/objectuse_db run=objectuse_db ++dashboard.output_path=s3://softmax-public/policydash/objectuse.html \
