@@ -7,8 +7,9 @@ game:
   num_agents: ${..num_agents}
 
 envs:
-  - /env/mettagrid/object_use/training/terrain_from_numpy
-  - /env/mettagrid/object_use/training/varied_terrain_sparse
-  - /env/mettagrid/object_use/training/varied_terrain_balanced
-  - /env/mettagrid/object_use/training/varied_terrain_maze
-  - /env/mettagrid/object_use/training/varied_terrain_dense
+  - /env/mettagrid/object_use/training/sequence_dr1
+  - /env/mettagrid/object_use/training/sequence_dr2
+  - /env/mettagrid/object_use/training/sequence_dr3
+  - /env/mettagrid/object_use/training/sequence_dr4
+  - /env/mettagrid/object_use/training/sequence_dr5
+  - /env/mettagrid/object_use/training/sequence_dr6
