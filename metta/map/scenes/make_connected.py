@@ -91,7 +91,9 @@ class MakeConnected(Scene):
                 current_distance -= 1
                 node.grid[*current_cell] = "empty"
 
-        assert len(self._make_components(node)) == 1
+        assert (
+            len(self._make_components(node)) == 1
+        ), "Map must end up with a single connected component"
 
     def _make_components(self, node: Node):
         # run BFS from each empty cell, find connected components

@@ -87,8 +87,10 @@ class Experience:
         self.truncateds_np: np.ndarray = np.asarray(self.truncateds)
         self.values_np: np.ndarray = np.asarray(self.values)
 
-        assert lstm is not None
-        assert lstm_total_agents > 0
+        assert lstm is not None, "LSTM instance is required for experience buffer"
+        assert (
+            lstm_total_agents > 0
+        ), f"lstm_total_agents must be positive, got {lstm_total_agents}"
         shape = (lstm.num_layers, lstm_total_agents, lstm.hidden_size)
         self.lstm_h: torch.Tensor = torch.zeros(shape).to(device, non_blocking=True)
         self.lstm_c: torch.Tensor = torch.zeros(shape).to(device, non_blocking=True)
