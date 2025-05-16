@@ -177,7 +177,7 @@ jobs:
       - name: Build FastGAE
         run: |
           # Build the main project
-          uv run --no-project python setup.py build_ext --inplace
+          make build
           uv pip install --system -e .
 
       - name: Build MettaGrid
