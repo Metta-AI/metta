@@ -15,12 +15,6 @@ interface MatrixRow {
   value: number
 }
 
-interface DashboardConfig {
-  metric: string
-  num_output_policies: number | 'all'
-  suite: string | null
-  eval_db_uri: string
-}
 
 // Initialize DuckDB
 async function initDuckDB() {
@@ -49,14 +43,12 @@ async function initDuckDB() {
 async function loadData(dbUri: string) {
   const db = await initDuckDB()
   
-  // Load the database file
-  const response = await fetch(dbUri)
-  const buffer = await response.arrayBuffer()
   const conn = await db.connect()
-  await conn.open(new Uint8Array(buffer))
+  await conn.send(`ATTACH DATABASE '${dbUri}' AS eval`);
+  await conn.send(`USE eval`);
   
   // Query data for heatmap
-  const matrix = await conn.query(`
+  const table = await conn.query(`
     WITH potential AS (
       SELECT 
         policy_key,
@@ -84,7 +76,9 @@ async function loadData(dbUri: string) {
     LEFT JOIN recorded
       USING (policy_key, policy_version, sim_env)
     ORDER BY policy_uri, eval_name
-  `) as MatrixRow[]
+  `)
+
+  const matrix = table.toArray();
   
   await conn.close()
   return matrix
