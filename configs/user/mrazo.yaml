@@ -10,4 +10,4 @@ trainer:
     uri: wandb://run/mrazo_object-use_generator_pretrained-none_v01
   evaluate_interval: 300
 
-run: mrazo_object-use_navigation_pretrained-generator_v01
+run: mrazo-aws_object-use_navigation_pretrained-generator_v01
