@@ -51,7 +51,7 @@ if [ "$1" = "smoke_test" ]; then
   #   ... because you're adding a new eval family on which we can't score well, please add the new eval
   #       family after the smoke test terminates.
   POLICIES=("b.daphne.navigation0:v12")
-  # Use a fixed seed to tests are deterministic. It's okay to change this seed if you have
+  # Use a fixed seed so tests are deterministic. It's okay to change this seed if you have
   # a reason -- we just don't want tests to fail spuriously.
   MAYBE_SMOKE_TEST="+sim_job.smoke_test=True seed=31415"
   MESSAGE="Running smoke test eval"
