@@ -632,12 +632,12 @@ Agent* MettaGrid::create_agent(int r,
 }
 
 py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
-    py::array_t<unsigned int> groups(_agents.size());
-    auto groups_view = groups.mutable_unchecked<1>();
-    for (size_t i = 0; i < _agents.size(); i++) {
-        groups_view(i) = _agents[i]->group;
-    }
-    return groups;
+  py::array_t<unsigned int> groups(_agents.size());
+  auto groups_view = groups.mutable_unchecked<1>();
+  for (size_t i = 0; i < _agents.size(); i++) {
+    groups_view(i) = _agents[i]->group;
+  }
+  return groups;
 }
 
 // Pybind11 module definition
