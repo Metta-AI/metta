@@ -117,7 +117,7 @@ class PufferTrainer:
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
         actions_names = metta_grid_env.action_names
-        actions_max_params = metta_grid_env._c_env.max_action_args
+        actions_max_params = metta_grid_env.max_action_args
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
