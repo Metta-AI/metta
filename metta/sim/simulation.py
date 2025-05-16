@@ -1,6 +1,6 @@
 # metta/sim/simulation.py
 """
-Vectorised simulation runner.
+Vectorized simulation runner.
 
 • Launches a MettaGrid vec-env batch
 • Each worker writes its own *.duckdb* shard
@@ -16,17 +16,20 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 import numpy as np
 import torch
+from omegaconf import OmegaConf
 
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
@@ -38,7 +41,7 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------- #
 class Simulation:
     """
-    A vectorised batch of MettaGrid environments sharing the same parameters.
+    A vectorized batch of MettaGrid environments sharing the same parameters.
     """
 
     # ------------------------------------------------------------------ #
@@ -62,7 +65,15 @@ class Simulation:
         self._id = uuid.uuid4().hex[:12]
 
         # ---------------- env config ----------------------------------- #
-        self._env_cfg = config_from_path(config.env, config.env_overrides)
+        logger.info(f"config.env {config.env}")
+        logger.info(f"config.env_overrides {config.env_overrides}")
+
+        if config.env_overrides is not None:
+            env_overrides = OmegaConf.create(config.env_overrides)
+        else:
+            env_overrides = None
+
+        self._env_cfg = config_from_path(config.env, env_overrides)
         self._env_name = config.env
 
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
@@ -75,8 +86,8 @@ class Simulation:
         self._device = device
 
         # ----------------
-        num_envs = min(config.num_episodes, os.cpu_count())
-        logger.debug(f"Creating vecenv with {num_envs} environments")
+        num_envs = min(config.num_episodes, os.cpu_count() or 1)
+        logger.info(f"Creating vecenv with {num_envs} environments")
         self._vecenv = make_vecenv(
             self._env_cfg,
             vectorization,
@@ -96,15 +107,24 @@ class Simulation:
         self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
 
+        metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv)
+
         # Let every policy know the active action-set of this env.
-        action_names = self._vecenv.driver_env.action_names
-        max_args = self._vecenv.driver_env._c_env.max_action_args
-        self._policy_pr.policy().activate_actions(action_names, max_args, self._device)
+        action_names = metta_grid_env.action_names
+        max_args = metta_grid_env.max_action_args
+
+        metta_agent: MettaAgent | DistributedMettaAgent = self._policy_pr.policy_as_metta_agent()
+        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent)), metta_agent
+        metta_agent.activate_actions(action_names, max_args, self._device)
+
         if self._npc_pr is not None:
-            self._npc_pr.policy().activate_actions(action_names, max_args, self._device)
+            npc_agent: MettaAgent | DistributedMettaAgent = self._npc_pr.policy_as_metta_agent()
+            assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent)), npc_agent
+            npc_agent.activate_actions(action_names, max_args, self._device)
 
         # ---------------- agent-index bookkeeping ---------------------- #
-        idx_matrix = torch.arange(self._vecenv.num_agents, device=self._device).reshape(
+        idx_matrix = torch.arange(metta_grid_env.num_agents, device=self._device).reshape(
             self._num_envs, self._agents_per_env
         )
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
@@ -220,9 +240,17 @@ class Simulation:
     # ------------------------- stats helpers -------------------------- #
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
-        agent_map: Dict[int, Tuple[str, int]] = {idx.item(): self._policy_pr for idx in self._policy_idxs}
+        # Make sure we're creating a dictionary of the right type
+        agent_map: Dict[int, PolicyRecord] = {}
+
+        # Add policy agents to the map
+        for idx in self._policy_idxs:
+            agent_map[int(idx.item())] = self._policy_pr
+
+        # Add NPC agents to the map if they exist
         if self._npc_pr is not None:
-            agent_map.update({idx.item(): self._npc_pr for idx in self._npc_idxs})
+            for idx in self._npc_idxs:
+                agent_map[int(idx.item())] = self._npc_pr
 
         suite_name = "" if self._suite is None else self._suite.name
         db = SimulationStatsDB.from_shards_and_context(
