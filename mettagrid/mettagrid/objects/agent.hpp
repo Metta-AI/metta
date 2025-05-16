@@ -111,6 +111,33 @@ public:
     return this->frozen;
   }
 
+  virtual size_t obs_tokens(ObservationTokens tokens, const std::vector<unsigned char>& feature_ids) const override {
+    // TODO: ablate 1-hot type_id encoding. Not ablating it now, since it should be easier to ablate once
+    // we've switched to the new observation format.
+    // Remove hp. Not removing it now for the same reason.
+    vector<uint8_t> basic_token_values = {1, group, hp, frozen, orientation, color};
+    size_t max_basic_tokens = tokens.size() > basic_token_values.size() ? basic_token_values.size() : tokens.size();
+    size_t max_total_tokens = tokens.size() > max_basic_tokens + InventoryItem::InventoryCount
+                                  ? max_basic_tokens + InventoryItem::InventoryCount
+                                  : tokens.size();
+    size_t max_inventory_tokens = max_total_tokens - max_basic_tokens;
+    size_t tokens_written = 0;
+    for (size_t i = 0; i < max_basic_tokens; i++) {
+      tokens[i].feature_id = feature_ids[i];
+      tokens[i].value = basic_token_values[i];
+      tokens_written++;
+    }
+    // TODO: don't write tokens if the inventory count is zero.
+    // For now we're still returning zero-valued tokens, so the data we give is
+    // the same as if we didn't ablate.
+    for (size_t i = 0; i < max_inventory_tokens; i++) {
+      tokens[max_basic_tokens + i].feature_id = feature_ids[max_basic_tokens + i];
+      tokens[max_basic_tokens + i].value = inventory[i];
+      tokens_written++;
+    }
+    return tokens_written;
+  }
+
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = group;
