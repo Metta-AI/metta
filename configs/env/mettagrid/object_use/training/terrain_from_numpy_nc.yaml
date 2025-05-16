@@ -22,3 +22,23 @@ game:
   objects:
       altar:
         initial_items: ${choose:0,1}
+        cooldown: ${sampling:1, 20, 10}
+
+      generator.red:
+        initial_items: ${choose:0,1}
+        cooldown: ${sampling:5, 20, 10}
+
+      generator.blue:
+        cooldown: ${sampling:3, 20, 10}
+
+      generator.green:
+        cooldown: ${sampling:3, 20, 10}
+
+      mine.red:
+        cooldown: ${sampling:5, 20, 10}
+
+      mine.blue:
+        cooldown: ${sampling:5, 20, 10}
+
+      mine.green:
+        cooldown: ${sampling:5, 20, 10}
