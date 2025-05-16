@@ -213,7 +213,7 @@ jobs:
         run: |
           uv run python setup.py build_ext --inplace
           uv run --directory mettagrid python setup.py build_ext --inplace
-          uv pip install-e mettagrid
+          uv pip install -e mettagrid
 
       - name: Check deps
         run: |
