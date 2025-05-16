@@ -3,8 +3,5 @@
 # This file is private property of Andre von Houck.
 # DO NOT MODIFY.
 
-run: andre_aws_22
-policy_uri: wandb://run/andre_aws_22
-
-trainer:
-  replay_interval: 10
+run: andre_local_2025_05_12_a
+policy_uri: wandb://run/andre_local_2025_05_12_a

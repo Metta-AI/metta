@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 20
+  num_agents: 1
   max_steps: 100
 
   agent:
@@ -21,12 +21,12 @@ game:
       cooldown: 255
 
   map_builder:
-    _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 20
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: 1
     border_width: 3
 
     room:
-      _target_: mettagrid.config.room.random.Random
+      _target_: mettagrid.room.random.Random
       width: 15
       height: 15
       border_width: 3

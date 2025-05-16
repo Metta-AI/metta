@@ -29,10 +29,11 @@ public:
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
-  void set_buffers(std::reference_wrapper<py::array_t<unsigned char>> observations,
-                   std::reference_wrapper<py::array_t<bool>> terminals,
-                   std::reference_wrapper<py::array_t<bool>> truncations,
-                   std::reference_wrapper<py::array_t<float>> rewards);
+  void set_buffers(py::array_t<unsigned char, py::array::c_style>& observations,
+                   py::array_t<bool, py::array::c_style>& terminals,
+                   py::array_t<bool, py::array::c_style>& truncations,
+                   py::array_t<float, py::array::c_style>& rewards);
+  void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
   unsigned int current_timestep();
@@ -85,6 +86,8 @@ private:
   // probably move ownership here.
   std::vector<Agent*> _agents;
 
+  // We'd prefer to store these as more raw c-style arrays, but we need to both
+  // operate on the memory directly and return them to python.
   py::array_t<unsigned char> _observations;
   py::array_t<bool> _terminals;
   py::array_t<bool> _truncations;

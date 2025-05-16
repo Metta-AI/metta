@@ -44,7 +44,10 @@ def train(cfg, wandb_run, logger: Logger):
     policy_store = PolicyStore(cfg, wandb_run)
 
     env_cfg = config_from_path(cfg.trainer.env, cfg.trainer.env_overrides)
-    upload_map_preview(env_cfg, train_job.map_preview_uri, wandb_run)
+    if env_cfg._target_ == "metta.env.mettagrid_env.MettaGridEnv":
+        # TODO: upload_map_preview() calls MettaGridEnv directly, which will break if our target is MettaGridEnvSet
+        # Should we upload a preview for MettaGridEnvSet?
+        upload_map_preview(env_cfg, train_job.map_preview_uri, wandb_run)
 
     trainer = hydra.utils.instantiate(
         cfg.trainer, cfg, wandb_run, policy_store=policy_store, sim_suite_config=train_job.evals

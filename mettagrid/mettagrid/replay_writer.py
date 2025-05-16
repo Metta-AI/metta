@@ -1,4 +1,3 @@
-# Generate a graphical trace of multiple runs.
 from __future__ import annotations
 
 import json
@@ -89,15 +88,19 @@ class EpisodeReplay:
             if grid_object[key][-1][1] != value:
                 grid_object[key].append([step, value])
 
-    def write_replay(self, path: str):
+    def get_replay_data(self):
+        """Gets full replay as a tree of plain python dictionaries."""
         self.replay_data["max_steps"] = self.step
         # Trim value changes to make them more compact.
         for grid_object in self.grid_objects:
             for key, changes in list(grid_object.items()):
                 if isinstance(changes, list) and len(changes) == 1:
                     grid_object[key] = changes[0][1]
+        return self.replay_data
 
-        replay_data = json.dumps(self.replay_data)  # Convert to JSON string
+    def write_replay(self, path: str):
+        """Writes a replay to a file."""
+        replay_data = json.dumps(self.get_replay_data())  # Convert to JSON string
         replay_bytes = replay_data.encode("utf-8")  # Encode to bytes
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
 

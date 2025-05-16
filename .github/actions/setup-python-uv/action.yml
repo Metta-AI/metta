@@ -1,0 +1,22 @@
+name: "Setup Python and uv"
+description: "Set up Python and uv with caching"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: "0.7.3"
+        enable-cache: true
+        cache-dependency-glob: "requirements*.txt"
+
+    - name: "Set up Python"
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: ".python-version"
+
+    - name: Install pip requirements
+      shell: bash
+      run: |
+        uv pip install --system -r requirements.txt

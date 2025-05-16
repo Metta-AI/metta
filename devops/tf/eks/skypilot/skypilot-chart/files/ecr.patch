@@ -1,0 +1,40 @@
+diff -ur sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
+--- sky/provision/docker_utils.py	2025-05-15 13:21:57
++++ sky-patched/provision/docker_utils.py	2025-05-15 13:21:09
+@@ -49,6 +49,23 @@
+ 
+     @classmethod
+     def from_env_vars(cls, d: Dict[str, str]) -> 'DockerLoginConfig':
++        server = d[constants.DOCKER_SERVER_ENV_VAR]
++        import re
++        import subprocess
++        match = re.match(r"(\d+).dkr.ecr.([a-z0-9-]+).amazonaws.com", server)
++        if match:
++            logger.info('Detected ECR server, fetching login password from AWS...')
++            password = subprocess.check_output(
++                ['aws', 'ecr', 'get-login-password', '--region',
++                 match.group(2)], encoding='utf-8')
++            logger.info('Successfully fetched login password from AWS')
++
++            return cls(
++                username="AWS",
++                password=password,
++                server=server,
++            )
++
+         return cls(
+             username=d[constants.DOCKER_USERNAME_ENV_VAR],
+             password=d[constants.DOCKER_PASSWORD_ENV_VAR],
+diff -ur sky/resources.py sky-patched/resources.py
+--- sky/resources.py	2025-05-15 13:21:12
++++ sky-patched/resources.py	2025-05-15 13:21:10
+@@ -1574,9 +1574,6 @@
+             config['disk_tier'] = self.disk_tier.value
+         add_if_not_none('ports', self.ports)
+         add_if_not_none('labels', self.labels)
+-        if self._docker_login_config is not None:
+-            config['_docker_login_config'] = dataclasses.asdict(
+-                self._docker_login_config)
+         if self._docker_username_for_runpod is not None:
+             config['_docker_username_for_runpod'] = (
+                 self._docker_username_for_runpod)
