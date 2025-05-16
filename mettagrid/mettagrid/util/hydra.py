@@ -27,4 +27,6 @@ def get_cfg(config_name: str):
 
     cfg = OmegaConf.load(f"{mettagrid_configs_root}/{config_name}.yaml")
     assert isinstance(cfg, DictConfig)
+
+    assert cfg.game is not None
     return cfg

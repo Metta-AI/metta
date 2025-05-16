@@ -49,9 +49,6 @@ def test_room_grid_with_layout(node):
     assert set(room_tags) == {"room1", "room2", "room3", "room4"}
 
 
-# === BENCHMARK TESTS ===
-
-
 def test_benchmark_room_grid_creation_small(benchmark):
     """Benchmark creating a small room grid (3x3)."""
 

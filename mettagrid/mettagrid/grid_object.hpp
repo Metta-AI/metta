@@ -1,37 +1,21 @@
 #ifndef GRID_OBJECT_HPP
 #define GRID_OBJECT_HPP
 
+#include <cstdint>
+#include <iostream>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-using namespace std;
-
-typedef unsigned short Layer;
-typedef unsigned short TypeId;
-typedef unsigned int GridCoord;
-typedef unsigned char ObsType;
-
-class GridLocation {
-public:
-  GridCoord r;
-  GridCoord c;
-  Layer layer;
-
-  inline GridLocation(GridCoord r, GridCoord c, Layer layer) : r(r), c(c), layer(layer) {}
-  inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c), layer(0) {}
-  inline GridLocation() : r(0), c(0), layer(0) {}
-};
-
-enum Orientation {
-  Up = 0,
-  Down = 1,
-  Left = 2,
-  Right = 3
-};
-
-typedef unsigned int GridObjectId;
+#include "constants.hpp"
+#include "types.hpp"
 
 class GridObject {
+private:
+  inline static std::unordered_map<std::string, int> _feature_map{};
+  inline static int _next_feature_index = 0;
+
 public:
   GridObjectId id;
   GridLocation location;
@@ -52,7 +36,30 @@ public:
     init(type_id, GridLocation(r, c, layer));
   }
 
-  virtual void obs(ObsType* obs, const vector<unsigned int>& offsets) const = 0;
+  // Pure virtual method to be implemented by derived classes
+  virtual void obs(c_observations_type* obs) const = 0;
+
+  // Get the observation size (total number of features)
+  static size_t get_observation_size() {
+    return static_cast<size_t>(GridFeature::COUNT);
+  }
+
+  // Get all feature names
+  static const std::vector<std::string>& get_feature_names() {
+    return GridFeatureNames;
+  }
+
+protected:
+  template <typename T>
+  void encode(c_observations_type* obs, GridFeature feature, T value) const {
+    // Set the value in the observation array at the specified feature index
+    obs[static_cast<size_t>(feature)] = static_cast<c_observations_type>(value);
+  }
+
+  // Special handling for boolean values
+  void encode(c_observations_type* obs, GridFeature feature, bool value) const {
+    encode(obs, feature, value ? 1 : 0);
+  }
 };
 
 #endif  // GRID_OBJECT_HPP

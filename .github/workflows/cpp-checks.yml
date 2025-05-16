@@ -79,7 +79,7 @@ jobs:
         id: check_cpp_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp"
+          patterns: "*.cpp,*.cxx,*.cc,*.h,*.hpp,*.pyx,*.pxd"
           directory_paths: "mettagrid/"
           specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}

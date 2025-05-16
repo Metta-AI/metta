@@ -1,8 +1,10 @@
 import logging
 import os
+import threading
 import time
 from collections import defaultdict
 from pathlib import Path
+from typing import TypeVar, Union, cast
 
 import numpy as np
 import pufferlib
@@ -30,12 +32,21 @@ from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 from mettagrid.mettagrid_env import MettaGridEnv
 
-torch.set_float32_matmul_precision("high")
+if torch.cuda.is_available():
+    torch.set_float32_matmul_precision("high")
 
 # Get rank for logger name
 rank = int(os.environ.get("RANK", 0))
 local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
+
+
+T = TypeVar("T", bound=Union["MettaAgent", "DistributedMettaAgent"])
+
+
+def compile_preserving_type(model: T, mode: str) -> T:
+    compiled_model = torch.compile(model, mode=mode)
+    return cast(T, compiled_model)
 
 
 class PufferTrainer:
@@ -61,11 +72,18 @@ class PufferTrainer:
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
-            self.device = f"cuda:{os.environ['LOCAL_RANK']}"
-            logger.info(f"Setting up distributed training on device {self.device}")
+            if torch.cuda.is_available() and "LOCAL_RANK" in os.environ:
+                self.device = f"cuda:{os.environ['LOCAL_RANK']}"
+                logger.info(f"Setting up distributed training on device {self.device}")
+            else:
+                self.device = "cpu"
+                logger.info("CUDA not available, using CPU instead")
 
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
+
+        self._timers = {"_rollout": self.profile.eval_misc, "_train": self.profile.train_misc}
+
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -73,7 +91,7 @@ class PufferTrainer:
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
         self._eval_grouped_scores = {}
-        self._eval_suite_avgs = {}
+        self._eval_suite_mean_values = {}
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
@@ -110,20 +128,25 @@ class PufferTrainer:
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
-        self.policy = policy_record.policy().to(self.device)
+
+        self.policy: MettaAgent | DistributedMettaAgent = policy_record.policy_as_metta_agent().to(self.device)
+        assert isinstance(self.policy, (MettaAgent, DistributedMettaAgent)), (
+            f"Expected MettaAgent or DistributedMettaAgent, got {type(self.policy)}"
+        )
+
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
-        actions_names = metta_grid_env.action_names()
-        actions_max_params = metta_grid_env._c_env.max_action_args()
+        actions_names = metta_grid_env.action_names
+        actions_max_params = metta_grid_env.max_action_args
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
-            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+            self.policy = compile_preserving_type(self.policy, mode=self.trainer_cfg.compile_mode)
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
 
@@ -148,13 +171,12 @@ class PufferTrainer:
         )
 
         # validate that policy matches environment
-        self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
         found_match = False
-        for component_name, component in self.metta_agent.components.items():
+        module_dict: torch.nn.ModuleDict = self.policy.components
+        for component_name, component in module_dict.items():
             if hasattr(component, "_obs_shape"):
                 found_match = True
                 component_shape = (
@@ -181,11 +203,11 @@ class PufferTrainer:
             )
 
         if checkpoint.agent_step > 0:
-            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict or {})
 
         if self.cfg.wandb.track and wandb_run and self._master:
             wandb_run.define_metric("train/agent_step")
-            for k in ["0verview", "env", "losses", "performance", "train"]:
+            for k in ["overview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
         self.replay_sim_config = SingleEnvSimulationConfig(
@@ -276,7 +298,7 @@ class PufferTrainer:
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
-            stats_dir=Path(self.cfg.run_dir) / "stats",
+            stats_dir=str(Path(self.cfg.run_dir) / "stats"),
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
@@ -286,7 +308,7 @@ class PufferTrainer:
         self._eval_categories = set()
         for sim_name in self.sim_suite_config.simulations.keys():
             self._eval_categories.add(sim_name.split("/")[0])
-        self._eval_suite_avgs = {}
+        self._eval_suite_mean_values = {}
 
         # Compute scores for each evaluation category
         for category in self._eval_categories:
@@ -294,9 +316,9 @@ class PufferTrainer:
             logger.info(f"{category} score: {score}")
             # Only add the score if we got a non-None result
             if score is not None:
-                self._eval_suite_avgs[f"{category}_score"] = score
+                self._eval_suite_mean_values[f"{category}_score"] = score
             else:
-                self._eval_suite_avgs[f"{category}_score"] = 0.0
+                self._eval_suite_mean_values[f"{category}_score"] = 0.0
 
         # Get overall score (average of all rewards)
         overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
@@ -441,6 +463,14 @@ class PufferTrainer:
 
             experience.flatten_batch(advantages_np)
 
+            # Add type assertions to help Pylance
+            assert experience.b_obs is not None, "b_obs must be initialized by flatten_batch"
+            assert experience.b_actions is not None, "b_actions must be initialized by flatten_batch"
+            assert experience.b_logprobs is not None, "b_logprobs must be initialized by flatten_batch"
+            assert experience.b_values is not None, "b_values must be initialized by flatten_batch"
+            assert experience.b_advantages is not None, "b_advantages must be initialized by flatten_batch"
+            assert experience.b_returns is not None, "b_returns must be initialized by flatten_batch"
+
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
@@ -558,7 +588,8 @@ class PufferTrainer:
             y_true = experience.returns_np
             var_y = np.var(y_true)
             explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-            self.losses.explained_variance = explained_var
+            if self.losses:
+                self.losses.explained_variance = explained_var
             self.epoch += 1
             profile.update(self.agent_step, self.trainer_cfg.total_timesteps, self._timers)
 
@@ -571,7 +602,7 @@ class PufferTrainer:
             self.agent_step,
             self.epoch,
             self.optimizer.state_dict(),
-            pr.local_path(),
+            pr.local_path() if pr else None,
             average_reward=self.average_reward,  # Save average reward state
         ).save(self.cfg.run_dir)
 
@@ -596,12 +627,12 @@ class PufferTrainer:
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
-                "action_names": metta_grid_env.action_names(),
+                "action_names": metta_grid_env.action_names,
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
                 "score": self._current_eval_score,
-                "eval_scores": self._eval_suite_avgs,
+                "eval_scores": self._eval_suite_mean_values,
             },
         )
         # this is hacky, but otherwise the initial_pr points
@@ -643,13 +674,15 @@ class PufferTrainer:
                 self.wandb_run.log(link_summary)
 
     def _process_stats(self):
-        for k in list(self.stats.keys()):
-            v = self.stats[k]
+        mean_stats = {}
+        for k, v in self.stats.items():
             try:
-                v = np.mean(v)
-                self.stats[k] = v
+                mean_stats[k] = np.mean(v)
             except (TypeError, ValueError):
-                del self.stats[k]
+                pass  # Skip keys that can't be averaged
+
+        # Replace the defaultdict with the new dictionary of means
+        self.stats = mean_stats
 
         # Now synchronize and aggregate stats across processes
         sps = self.profile.SPS
@@ -665,31 +698,40 @@ class PufferTrainer:
                 overview[v] = self.stats[k]
 
         for category in self._eval_categories:
-            score = self._eval_suite_avgs.get(f"{category}_score", None)
+            score = self._eval_suite_mean_values.get(f"{category}_score", None)
             if score is not None:
                 overview[f"{category}_evals"] = score
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
-            self.wandb_run.log(
-                {
-                    **{f"overview/{k}": v for k, v in overview.items()},
-                    **{f"losses/{k}": v for k, v in losses.items()},
-                    **{f"performance/{k}": v for k, v in performance.items()},
-                    **environment,
-                    **self._weights_helper.stats(),
-                    **self._eval_grouped_scores,
-                    "train/agent_step": agent_steps,
-                    "train/epoch": epoch,
-                    "train/learning_rate": learning_rate,
-                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
-                }
-            )
+            # Prepare all the data to log
+            log_data = {
+                **{f"overview/{k}": v for k, v in overview.items()},
+                **{f"losses/{k}": v for k, v in losses.items()},
+                **{f"performance/{k}": v for k, v in performance.items()},
+                **environment,
+                **self._weights_helper.stats(),
+                **self._eval_grouped_scores,
+                "train/agent_step": agent_steps,
+                "train/epoch": epoch,
+                "train/learning_rate": learning_rate,
+                "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+            }
+
+            # Launch wandb logging in a separate thread
+            threading.Thread(target=self._log_to_wandb, args=(log_data,), daemon=True).start()
 
         self._eval_grouped_scores = {}
         self._weights_helper.reset()
         self.stats.clear()
+
+    def _log_to_wandb(self, log_data):
+        """Helper method to log to wandb in a separate thread."""
+        try:
+            self.wandb_run.log(log_data)
+        except Exception as e:
+            print(f"Warning: Failed to log to wandb: {e}")
 
     def close(self):
         self.vecenv.close()
@@ -784,6 +826,41 @@ class PufferTrainer:
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy,
         )
+
+        # Log detailed information about the vecenv
+        logging.info("=" * 50)
+        logging.info("DETAILED VECENV INSPECTION")
+        logging.info("=" * 50)
+
+        # Basic properties
+        logging.info(f"vecenv.num_agents: {getattr(self.vecenv, 'num_agents', 'NOT FOUND')}")
+        logging.info(f"vecenv.num_environments: {getattr(self.vecenv, 'num_environments', 'NOT FOUND')}")
+        logging.info(f"vecenv.num_envs: {getattr(self.vecenv, 'num_envs', 'NOT FOUND')}")
+        logging.info(f"vecenv.num_workers: {getattr(self.vecenv, 'num_workers', 'NOT FOUND')}")
+
+        # Batch and agent properties
+        logging.info(f"vecenv.agents_per_batch: {getattr(self.vecenv, 'agents_per_batch', 'NOT FOUND')}")
+        logging.info(f"vecenv.workers_per_batch: {getattr(self.vecenv, 'workers_per_batch', 'NOT FOUND')}")
+        logging.info(f"vecenv.envs_per_worker: {getattr(self.vecenv, 'envs_per_worker', 'NOT FOUND')}")
+
+        # Observation and action spaces
+        logging.info(f"vecenv.obs_batch_shape: {getattr(self.vecenv, 'obs_batch_shape', 'NOT FOUND')}")
+        logging.info(f"vecenv.atn_batch_shape: {getattr(self.vecenv, 'atn_batch_shape', 'NOT FOUND')}")
+
+        # Our configuration
+        logging.info(f"self.target_batch_size: {self.target_batch_size}")
+        logging.info(f"self.batch_size: {self.batch_size}")
+        logging.info(f"num_envs passed to make_vecenv: {self.batch_size * self.trainer_cfg.async_factor}")
+
+        # Log the driver env properties if available
+        if hasattr(self.vecenv, "driver_env"):
+            metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+            assert isinstance(metta_grid_env, MettaGridEnv)
+
+            logging.info("MettaGridEnv properties:")
+            logging.info(f"  metta_grid_env.num_agents: {metta_grid_env.num_agents}")
+
+        logging.info("=" * 50)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)

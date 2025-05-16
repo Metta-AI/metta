@@ -1,23 +1,31 @@
 #ifndef NOOP_HPP
 #define NOOP_HPP
 
+#include <cstdint>
 #include <string>
 
-#include "action_handler.hpp"
+#include "actions/action_handler.hpp"
 #include "objects/agent.hpp"
-
+namespace Actions {
 class Noop : public ActionHandler {
 public:
   Noop(const ActionConfig& cfg) : ActionHandler(cfg, "noop") {}
 
-  unsigned char max_arg() const override {
+  uint8_t max_arg() const override {
     return 0;
   }
 
+  ActionHandler* clone() const override {
+    return new Noop(*this);
+  }
+
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(uint32_t actor_id, Agent* actor, c_actions_type arg) override {
+    // Null checks for actor and grid are already handled in the base class
+
+    // Noop always succeeds
     return true;
   }
 };
-
+}  // namespace Actions
 #endif  // NOOP_HPP
