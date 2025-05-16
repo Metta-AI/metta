@@ -55,7 +55,9 @@ if [ "$1" = "smoke_test" ]; then
   POLICIES=("b.daphne.navigation0:v12")
   # Use a fixed seed so tests are deterministic. It's okay to change this seed if you have
   # a reason -- we just don't want tests to fail spuriously.
-  MAYBE_SMOKE_TEST="+sim_job.smoke_test=True seed=31415"
+  # Use device=cpu since we're probably on github. We should probably address this via
+  # hardware=..., but for the most part this shouldn't matter for eval.
+  MAYBE_SMOKE_TEST="+sim_job.smoke_test=True seed=31415 device=cpu"
   MESSAGE="Running smoke test eval"
 elif [ -n "$1" ]; then
   echo "Invalid argument: $1"
