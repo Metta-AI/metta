@@ -62,7 +62,7 @@ for i in "${!POLICIES[@]}"; do
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/objectuse_db \
-        device=cpu \
+
 
     python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html \
 
