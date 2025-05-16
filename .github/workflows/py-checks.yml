@@ -316,7 +316,7 @@ jobs:
       - name: Run evals smoke test
         id: eval_smoke_test
         env:
-          WANDB_API_KEY: WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
