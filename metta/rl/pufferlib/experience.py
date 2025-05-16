@@ -23,7 +23,6 @@ import numpy as np
 import pufferlib
 import pufferlib.pytorch
 import torch
-from torch import nn
 
 
 class Experience:
@@ -41,7 +40,7 @@ class Experience:
         atn_dtype: np.dtype,
         cpu_offload: bool = False,
         device: str = "cuda",
-        lstm: Optional[nn.LSTM] = None,
+        lstm: Optional[torch.nn.LSTM] = None,
         lstm_total_agents: int = 0,
     ):
         if minibatch_size is None:

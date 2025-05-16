@@ -14,11 +14,10 @@ from omegaconf import DictConfig, OmegaConf
 from pufferlib.utils import unroll_nested_dict
 from typing_extensions import override
 
-from mettagrid.config.utils import simple_instantiate
+from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
-from mettagrid.util.debug import save_mettagrid_args
 
 # Rebuild the NumPy types using the exposed function
 np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
@@ -126,24 +125,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        if self._env_map is None:
-            self._map_builder = simple_instantiate(
-                self._env_cfg.game.map_builder,
-                recursive=self._env_cfg.game.get("recursive_map_builder", True),
-            )
-            env_map = self._map_builder.build()
-        else:
-            env_map = self._env_map
-
-        map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
-        assert self._env_cfg.game.num_agents == map_agents, (
-            f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
-        )
-
-        if self._debug:
-            save_mettagrid_args(self._env_cfg, env_map)
-
-        self._c_env = MettaGrid(self._env_cfg, env_map)
+        mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
+        config_dict, env_map = mettagrid_config.to_c_args()
+        self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 

@@ -3,10 +3,10 @@ import random
 import numpy as np
 import pytest
 
-from mettagrid.config.utils import get_cfg
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.tests.utils import generate_valid_random_actions
+from mettagrid.util.hydra import get_cfg
 
 # Rebuild the NumPy types using the exposed function
 np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))

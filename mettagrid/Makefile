@@ -42,7 +42,36 @@ DEVOPS_SCRIPTS_DIR = ../devops
 
 # Compiler settings
 CXX = g++
-CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR)
+
+# Get the project root directory (where the Makefile is located)
+PROJECT_ROOT := $(shell pwd)
+
+# Get Python paths directly using UV instead of virtual environment
+PYTHON_VERSION := $(shell python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.11")
+PYTHON_INCLUDE := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_path('include'))" 2>/dev/null)
+PYTHON_STDLIB := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_path('stdlib'))" 2>/dev/null)
+PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
+PYTHON_SITE_PACKAGES := $(shell uv run --active python -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
+PYTHON_LIB_DIR := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))" 2>/dev/null)
+PYBIND11_INCLUDES := $(shell uv run --active python -m pybind11 --includes 2>/dev/null)
+PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
+UV_ROOT := $(shell dirname $(PYTHON_STDLIB))
+
+# Print the paths for debugging
+$(info UV_ROOT: $(UV_ROOT))
+$(info PYTHON_STDLIB: $(PYTHON_STDLIB))
+$(info PYTHON_INCLUDE: $(PYTHON_INCLUDE))
+$(info PYTHON_SITE_PACKAGES: $(PYTHON_SITE_PACKAGES))
+$(info PYTHON_LIB_DIR: $(PYTHON_LIB_DIR))
+$(info PYBIND11_INCLUDE: $(PYBIND11_INCLUDE))
+
+# Update the Python library definitions
+PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
+
+# Define CXXFLAGS with all the necessary includes
+CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(PYTHON_INCLUDE) -I$(PYBIND11_INCLUDE) $(NUMPY_INCLUDE)
+# Add Python path definitions to CXXFLAGS
+CXXFLAGS += -DPYTHON_HOME=\"$(UV_ROOT)\" -DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
 
 # Conditionally add Pybind11 configurations
 ifeq ($(USE_PYBIND),1)
@@ -298,31 +327,24 @@ else
 test: check-test-tools clean-build-dir $(SRC_OBJECTS) $(TEST_EXECUTABLES)
 endif
 	$(call report_pybind_mode)
-	@if [ -n "$(p)" ]; then \
-		echo "Running tests matching pattern '$(p)'..."; \
-		found=0; \
-		for test in $(TEST_EXECUTABLES); do \
-			base_name=$$(basename $$test); \
-			if echo "$$base_name" | grep -q "$(p)"; then \
-				echo "Running $$test"; \
-				$$test --gtest_color=yes; \
-				found=1; \
-			fi; \
-		done; \
-		if [ $$found -eq 0 ]; then \
-			echo "No tests found matching pattern '$(p)'"; \
-			echo "Available tests:"; \
-			for test in $(TEST_EXECUTABLES); do \
-				echo "  $$(basename $$test)"; \
-			done; \
-		fi; \
-	else \
-		echo "Running all tests..."; \
-		for test in $(TEST_EXECUTABLES); do \
-			echo "Running $$test"; \
-			$$test --gtest_color=yes; \
-		done; \
-	fi
+	@echo "Running all tests with Python environment..."
+	@for f in $(TEST_EXECUTABLES); do \
+		echo "Running $$f"; \
+		PYTHONHOME="$(UV_ROOT)" \
+		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+		"$$f" --gtest_color=yes || exit 1; \
+	done
+
+# Test a specific test file - modified to use quotes
+test-%: check-test-tools $(BUILD_TEST_DIR)/%
+	@echo "Running test $*..."
+	PYTHONHOME="$(UV_ROOT)" \
+	PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+	LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+	DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+	"$(BUILD_TEST_DIR)/$*" --gtest_color=yes
 
 #-----------------------
 # Benchmarking
@@ -389,9 +411,13 @@ benchmark: check-bench-tools clean-build-dir $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
 endif
 	$(call report_pybind_mode)
 	@echo "Running all benchmarks..."
-	@for bench in $(BENCH_EXECUTABLES); do \
-		echo "Running $$bench"; \
-		$$bench; \
+	@for f in $(BENCH_EXECUTABLES); do \
+		echo "Running $$f"; \
+		PYTHONHOME="$(UV_ROOT)" \
+		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+		"$$f" || exit 1; \
 	done
 
 # Add this new target for JSON benchmark output
@@ -399,10 +425,14 @@ bench-json: check-bench-tools clean-build-dir $(SRC_OBJECTS) $(BENCH_EXECUTABLES
 	$(call report_pybind_mode)
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
-	@for bench in $(BENCH_EXECUTABLES); do \
-		echo "Running $$bench with JSON output..."; \
-		$$bench --benchmark_format=json > benchmark_output/$$(basename $$bench).json || \
-		echo "Error running $$bench with JSON format"; \
+	@for f in $(BENCH_EXECUTABLES); do \
+		echo "Running $$f with JSON output..."; \
+		PYTHONHOME="$(UV_ROOT)" \
+		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+		"$$f" --benchmark_format=json > benchmark_output/$$(basename "$$f").json || \
+		echo "Error running $$f with JSON format"; \
 	done
 	@echo "JSON outputs created in benchmark_output directory"
 
