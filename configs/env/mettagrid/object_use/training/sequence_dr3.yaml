@@ -49,7 +49,7 @@ game:
 
     generator.blue:
       hp: 30
-      input_ore.red: 1
+      input_ore.blue: 1
       output_battery.blue: 1
       color: 1
       max_output: 5

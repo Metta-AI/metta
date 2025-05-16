@@ -11,7 +11,7 @@ game:
 
     room:
       _target_: mettagrid.config.room.random.Random
-      width: ${sampling:10,25,20}
+      width: ${sampling:25,50,20}
       height: ${sampling:10,25,20}
       border_width: 3
 
