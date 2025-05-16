@@ -174,10 +174,18 @@ jobs:
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
-      - name: Build
+      - name: Build FastGAE
         run: |
+          # Build the main project
           uv run --no-project python setup.py build_ext --inplace
-          uv run --no-project --directory mettagrid python setup.py build_ext --inplace
+
+      - name: Build MettaGrid
+        run: |
+          # Build mettagrid extensions and install in development mode
+          cd mettagrid
+          uv run --no-project python setup.py build_ext --inplace
+          cd ..
+          uv pip install --system -e .
           uv pip install --system -e mettagrid
 
       - name: Run Pytest on core tests
