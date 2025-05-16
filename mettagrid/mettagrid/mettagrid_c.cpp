@@ -187,8 +187,8 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
                                 static_cast<ssize_t>(obs_width),
                                 static_cast<ssize_t>(_grid_features.size())};
   auto observations = py::array_t<unsigned char, py::array::c_style>(shape);
-  auto terminals = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
-  auto truncations = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
+  auto terminals = py::array_t<unsigned char, py::array::c_style>(static_cast<ssize_t>(num_agents));
+  auto truncations = py::array_t<unsigned char, py::array::c_style>(static_cast<ssize_t>(num_agents));
   auto rewards = py::array_t<float, py::array::c_style>(static_cast<ssize_t>(num_agents));
 
   set_buffers(observations, terminals, truncations, rewards);
@@ -324,8 +324,8 @@ void MettaGrid::_step(py::array_t<int> actions) {
 
   // Check for truncation
   if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
-    std::fill(static_cast<bool*>(_truncations.request().ptr),
-              static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+    std::fill(static_cast<unsigned char*>(_truncations.request().ptr),
+              static_cast<unsigned char*>(_truncations.request().ptr) + _truncations.size(),
               1);
   }
 }
@@ -409,8 +409,8 @@ void MettaGrid::validate_buffers() {
 }
 
 void MettaGrid::set_buffers(py::array_t<unsigned char, py::array::c_style>& observations,
-                            py::array_t<bool, py::array::c_style>& terminals,
-                            py::array_t<bool, py::array::c_style>& truncations,
+                            py::array_t<unsigned char, py::array::c_style>& terminals,
+                            py::array_t<unsigned char, py::array::c_style>& truncations,
                             py::array_t<float, py::array::c_style>& rewards) {
   _observations = observations;
   _terminals = terminals;

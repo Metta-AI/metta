@@ -138,6 +138,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         Reset the environment to an initial state and returns an initial observation.
         """
+
+        # Debug prints for expected types
+        print("Expected types from C++:")
+        print(f"observations: {np_observations_type}")
+        print(f"terminals: {np_terminals_type}")
+        print(f"truncations: {np_truncations_type}")
+        print(f"rewards: {np_rewards_type}")
+        print(f"actions: {np_actions_type}")
+        print(f"masks: {np_masks_type}")
+        print(f"success: {np_success_type}")
+
         self._env_cfg = self._get_new_env_cfg()
 
         self._reset_env()

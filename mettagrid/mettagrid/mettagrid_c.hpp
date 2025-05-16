@@ -33,8 +33,8 @@ public:
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
   void set_buffers(py::array_t<unsigned char, py::array::c_style>& observations,
-                   py::array_t<bool, py::array::c_style>& terminals,
-                   py::array_t<bool, py::array::c_style>& truncations,
+                   py::array_t<unsigned char, py::array::c_style>& terminals,
+                   py::array_t<unsigned char, py::array::c_style>& truncations,
                    py::array_t<float, py::array::c_style>& rewards);
   void validate_buffers();
   py::dict grid_objects();
@@ -90,8 +90,8 @@ private:
   // We'd prefer to store these as more raw c-style arrays, but we need to both
   // operate on the memory directly and return them to python.
   py::array_t<unsigned char> _observations;
-  py::array_t<bool> _terminals;
-  py::array_t<bool> _truncations;
+  py::array_t<unsigned char> _terminals;
+  py::array_t<unsigned char> _truncations;
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 
