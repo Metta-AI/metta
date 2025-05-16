@@ -39,6 +39,12 @@ POLICIES=(
     "george_sequence_varied"
     "george3_multienv_noincrement"
 
+    "daphne_objectuse_allobjs_multienv"
+    "daphne_objectuse_allobjs"
+    "b.daphne.object_use_mulitenv_pretrained"
+    "b.daphne.object_use_all_easy"
+    "b.daphne.object_use_multienv"
+
 
  )
 
