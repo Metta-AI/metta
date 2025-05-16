@@ -22,6 +22,8 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
+#include "types.hpp"
+
 // Used for utf32 -> utf8 conversion, which is needed for reading the map.
 // Hopefully this is temporary.
 #include <codecvt>
@@ -631,6 +633,19 @@ Agent* MettaGrid::create_agent(int r,
   return new Agent(r, c, group_name, group_id, agent_cfg, rewards);
 }
 
+std::string MettaGrid::cpp_get_numpy_type_name(const char* type_id) {
+  std::string str_type_id(type_id);
+
+  if (strcmp(type_id, "observations") == 0) return NUMPY_OBSERVATIONS_TYPE;
+  if (strcmp(type_id, "terminals") == 0) return NUMPY_TERMINALS_TYPE;
+  if (strcmp(type_id, "truncations") == 0) return NUMPY_TRUNCATIONS_TYPE;
+  if (strcmp(type_id, "rewards") == 0) return NUMPY_REWARDS_TYPE;
+  if (strcmp(type_id, "actions") == 0) return NUMPY_ACTIONS_TYPE;
+  if (strcmp(type_id, "masks") == 0) return NUMPY_MASKS_TYPE;
+  if (strcmp(type_id, "success") == 0) return NUMPY_SUCCESS_TYPE;
+  return "unknown";
+}
+
 // Pybind11 module definition
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
@@ -659,5 +674,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_success", &MettaGrid::action_success)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
-      .def("inventory_item_names", &MettaGrid::inventory_item_names);
+      .def("inventory_item_names", &MettaGrid::inventory_item_names)
+      .def_static("get_numpy_type_name", &MettaGrid::cpp_get_numpy_type_name, py::arg("type_id"));
 }

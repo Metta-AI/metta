@@ -56,6 +56,8 @@ public:
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
 
+  static std::string cpp_get_numpy_type_name(const char* type_id);
+
 private:
   // Member variables
   py::dict _cfg;
