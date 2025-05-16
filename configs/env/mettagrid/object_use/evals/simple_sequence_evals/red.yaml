@@ -11,7 +11,7 @@ game:
       heart: 1
 
   map_builder:
-    _target_: mettagrid.config.room.ascii.Ascii
+    _target_: mettagrid.room.ascii.Ascii
     border_width: 3
     uri: "configs/env/mettagrid/maps/simple_sequence/simple_sequence_red.map"
 
