@@ -1,6 +1,6 @@
 import numpy as np
 
-from mettagrid.config.room.room import Room
+from mettagrid.room.room import Room
 
 SYMBOLS = {
     "A": "agent.agent",

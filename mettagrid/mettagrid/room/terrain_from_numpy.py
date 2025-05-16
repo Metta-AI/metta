@@ -10,7 +10,7 @@ from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
 from omegaconf import DictConfig
 
-from mettagrid.config.room.room import Room
+from mettagrid.room.room import Room
 
 logger = logging.getLogger("terrain_from_numpy")
 
