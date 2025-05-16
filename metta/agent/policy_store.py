@@ -22,7 +22,7 @@ import wandb
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 
-from metta.agent.metta_agent import make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.rl.pufferlib.policy import load_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
@@ -53,6 +53,13 @@ class PolicyRecord:
             self._policy = pr.policy()
             self._local_path = pr.local_path()
         return self._policy
+
+    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
+        """Get the policy as a MettaAgent or DistributedMettaAgent."""
+        policy = self.policy()
+        if not isinstance(policy, (MettaAgent, DistributedMettaAgent)):
+            raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
+        return policy
 
     def num_params(self):
         return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
