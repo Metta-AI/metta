@@ -79,7 +79,9 @@ class PufferTrainer:
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        assert isinstance(metta_grid_env, MettaGridEnv), (
+            f"vecenv.driver_env type {type(metta_grid_env).__name__} is not MettaGridEnv"
+        )
 
         logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
@@ -138,7 +140,10 @@ class PufferTrainer:
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
 
-        assert self.trainer_cfg.optimizer.type in ("adam", "muon")
+        assert self.trainer_cfg.optimizer.type in (
+            "adam",
+            "muon",
+        ), f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
         opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
@@ -580,7 +585,7 @@ class PufferTrainer:
             return
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv for checkpointing"
 
         name = self.policy_store.make_model_name(self.epoch)
 
@@ -705,7 +710,9 @@ class PufferTrainer:
         Creates an Experience buffer for storing training data with appropriate dimensions.
         """
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        assert isinstance(metta_grid_env, MettaGridEnv), (
+            "vecenv.driver_env must be a MettaGridEnv for experience buffer"
+        )
 
         # Extract environment specifications
         obs_shape = metta_grid_env.single_observation_space.shape
