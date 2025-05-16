@@ -1,18 +1,28 @@
+import importlib.util
+import math
+import types
 from types import SimpleNamespace
+from typing import List
 
+import numpy as np
 import pufferlib.models
 import pufferlib.pytorch
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from pufferlib.cleanrl import sample_logits
 from torch import nn
+from torch.nn import functional as F
 
 
-class Recurrent(pufferlib.models.LSTMWrapper):
-    def __init__(self, env, policy, input_size=512, hidden_size=512):
+class Policy(pufferlib.models.LSTMWrapper):
+    def __init__(self, env, policy=None, input_size=512, hidden_size=512):
+        if policy is None:
+            policy = SubPolicy(env)
         super().__init__(env, policy, input_size, hidden_size)
 
 
-class Policy(nn.Module):
+class SubPolicy(nn.Module):
     def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
@@ -71,54 +81,3 @@ class Policy(nn.Module):
         logits = [dec(hidden) for dec in self.actor]
         value = self.value(hidden)
         return logits, value
-
-
-def load_policy(path: str, device: str = "cpu", policy_class: type = None):
-    weights = torch.load(path, map_location=device, weights_only=True)
-
-    # TODO -- fix all magic numbers
-    if policy_class is None:
-        num_actions, hidden_size = weights["policy.actor.0.weight"].shape
-        num_action_args, _ = weights["policy.actor.1.weight"].shape
-        cnn_channels, obs_channels, _, _ = weights["policy.network.0.weight"].shape
-    else:
-        num_actions, num_action_args = 9, 10
-        obs_channels = 34
-
-    # Create environment namespace
-    env = SimpleNamespace(
-        single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
-        single_observation_space=SimpleNamespace(shape=[obs_channels, 11, 11]),
-    )
-
-    if policy_class is None:
-        policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size)
-        policy = Recurrent(env, policy)
-    else:
-        policy = policy_class(env)
-        policy.to(device)
-
-    policy.load_state_dict(weights)
-    policy = PufferAgentWrapper(policy)
-    return policy
-
-
-class PufferAgentWrapper(nn.Module):
-    def __init__(self, policy: nn.Module):
-        super().__init__()
-        self.policy = policy
-
-    def forward(self, obs: torch.Tensor, state, action=None):
-        """Uses variable names from LSTMWrapper. Translating for Metta:
-        critic -> value
-        logprob -> logprob_act
-        hidden -> logits then, after sample_logits(), log_sftmx_logits
-        """
-        hidden, critic = self.policy(obs, state)  # using variable names from LSTMWrapper
-        action, logprob, logits_entropy = sample_logits(hidden, action)
-        # explanation of var names in the docstring above
-        return action, logprob, logits_entropy, critic, hidden
-
-    def activate_actions(self, actions_names, actions_max_params, device):
-        # TODO: this could implement a check that policy's action space matches the environment's
-        pass
