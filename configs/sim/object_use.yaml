@@ -31,3 +31,5 @@ simulations:
     env: env/mettagrid/object_use/evals/swap_out
   object_use/temple_use_free:
     env: env/mettagrid/object_use/evals/temple_use_free
+  object_use/full_sequence:
+    env: env/mettagrid/object_use/evals/full_sequence
