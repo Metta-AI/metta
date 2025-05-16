@@ -227,7 +227,7 @@ python -c "from metta.rl.fast_gae import compute_gae; print('✅ Found metta.rl.
 }
 
 # Check for mettagrid.mettagrid_env.MettaGridEnv
-echo-e "\nChecking import for mettagrid.mettagrid_env.MettaGridEnv..."
+echo -e "\nChecking import for mettagrid.mettagrid_env.MettaGridEnv..."
 python -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found mettagrid.mettagrid_env.MettaGridEnv')" || {
   echo "❌ Failed to import mettagrid.mettagrid_env.MettaGridEnv"
   exit 1
