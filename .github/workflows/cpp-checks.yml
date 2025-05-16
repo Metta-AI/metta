@@ -170,6 +170,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Python and uv (needed for venv and numpy libs)
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
+
       - name: Install C++ dependencies
         run: |
           sudo apt-get install -y g++ cmake
