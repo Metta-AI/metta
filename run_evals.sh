@@ -11,7 +11,7 @@ if [ "$1" = "smoke_test" ]; then
   # This should be a policy that gets a known score, so we can check
   # that the eval is working.
   POLICIES=("b.daphne.navigation0:v12")
-  MAYBE_SMOKE_TEST="+sim_job.smoke_test=True +sim_job.smoke_test_min_reward=0.9"
+  MAYBE_SMOKE_TEST="+sim_job.smoke_test=True +sim_job.smoke_test_min_reward=0.9 +seed=31415926535"
   MESSAGE="Running smoke test eval"
 elif [ -n "$1" ]; then
   echo "Invalid argument: $1"
