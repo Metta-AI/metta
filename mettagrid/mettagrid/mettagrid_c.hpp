@@ -26,6 +26,9 @@ public:
   MettaGrid(py::dict env_cfg, py::array map);
   ~MettaGrid();
 
+  unsigned short obs_width;
+  unsigned short obs_height;
+
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
@@ -79,9 +82,6 @@ private:
 
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
-
-  unsigned short _obs_width;
-  unsigned short _obs_height;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
