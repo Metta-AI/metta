@@ -1,14 +1,19 @@
 resources:
-  ordered:
+  any_of:
     - cloud: aws
       region: us-east-1
       use_spot: true
       accelerators: "L4:1"
     - cloud: aws
+      region: us-east-1
       use_spot: true
+      accelerators: "A10G:1"
+    - cloud: aws
+      region: us-east-1
       accelerators: "L4:1"
-    - cloud: lambda
-      accelerators: "A10:1"
+    - cloud: aws
+      region: us-east-1
+      accelerators: "A10G:1"
   cpus: 8+
   image_id: docker:metta:latest
 
@@ -52,7 +57,7 @@ file_mounts:
     mode: MOUNT
 
 envs:
-  METTA_RUN_ID:
+  METTA_RUN_ID: ""
   METTA_HARDWARE: aws
   METTA_CMD: train
   METTA_CMD_ARGS: ""
