@@ -18,6 +18,16 @@ public:
     this->_swappable = cfg["swappable"];
   }
 
+  void obs_tokens(ObsType* obs, ObsType prefix, const std::vector<unsigned char>& feature_ids, size_t max_tokens) const override {
+    vector<ObsType> basic_token_values = {1, this->hp, this->_swappable};
+    size_t max_basic_tokens = max_tokens > basic_token_values.size() ? basic_token_values.size() : max_tokens;
+    for (size_t i = 0; i < max_basic_tokens; i++) {
+      obs[3 * i] = prefix;
+      obs[3 * i + 1] = feature_ids[i];
+      obs[3 * i + 2] = basic_token_values[i];
+    }
+  }
+
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = this->hp;

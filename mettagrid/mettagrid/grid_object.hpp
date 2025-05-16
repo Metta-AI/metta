@@ -53,6 +53,15 @@ public:
     init(type_id, GridLocation(r, c, layer));
   }
 
+  // obs_tokens is used for the new observation format.
+  // `prefix` will prefix each token, but in practice should indicate the observation location.
+  // `feature_ids` should map to the features that the object is encoding, and should match the
+  // features exposed by feature_names.
+  // `max_tokens` is the maximum number of tokens that can be encoded. This should be used
+  // to stop us from overflowing the observation buffer. Note that each token is multiple bytes,
+  // so max_tokens should not just be the free space in the observation buffer.
+  virtual void obs_tokens(ObsType* obs, ObsType prefix, const vector<unsigned char>& feature_ids, size_t max_tokens) const = 0;
+
   virtual void obs(ObsType* obs, const vector<uint8_t>& offsets) const = 0;
 };
 
