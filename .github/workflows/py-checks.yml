@@ -205,14 +205,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Setup Python and uv
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
-      - name: Build
+      - name: Build FastGAE
         run: |
-          uv run python setup.py build_ext --inplace
-          uv run --directory mettagrid python setup.py build_ext --inplace
+          # Build the main project
+          make build
+          uv pip install -e .
+
+      - name: Build MettaGrid
+        run: |
+          # Build mettagrid extensions and install in development mode
+          cd mettagrid
+          make build
+          cd ..
           uv pip install -e mettagrid
 
       - name: Check deps
@@ -369,11 +378,19 @@ jobs:
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
-      - name: Build
+      - name: Build FastGAE
         run: |
-          uv run python setup.py build_ext --inplace
-          uv run --directory mettagrid python setup.py build_ext --inplace
-          uv pip install-e mettagrid
+          # Build the main project
+          make build
+          uv pip install -e .
+
+      - name: Build MettaGrid
+        run: |
+          # Build mettagrid extensions and install in development mode
+          cd mettagrid
+          make build
+          cd ..
+          uv pip install -e mettagrid
 
       - name: Download benchmark results from smoke-test train-benchmark-results job
         uses: actions/download-artifact@v4
