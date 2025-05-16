@@ -11,12 +11,9 @@ game:
       heart: 1
 
   map_builder:
-    _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 20
-    room:
-      _target_: mettagrid.config.room.ascii.Ascii
-      border_width: 3
-      uri: "configs/env/mettagrid/maps/simple_sequence/simple_sequence_red.map"
+    _target_: mettagrid.config.room.ascii.Ascii
+    border_width: 3
+    uri: "configs/env/mettagrid/maps/simple_sequence/simple_sequence_red.map"
 
   objects:
     altar:
