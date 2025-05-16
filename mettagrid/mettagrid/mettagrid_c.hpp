@@ -26,12 +26,15 @@ public:
   MettaGrid(py::dict env_cfg, py::array map);
   ~MettaGrid();
 
+  unsigned short obs_width;
+  unsigned short obs_height;
+
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
   void set_buffers(py::array_t<unsigned char, py::array::c_style>& observations,
-                   py::array_t<bool, py::array::c_style>& terminals,
-                   py::array_t<bool, py::array::c_style>& truncations,
+                   py::array_t<unsigned char, py::array::c_style>& terminals,
+                   py::array_t<unsigned char, py::array::c_style>& truncations,
                    py::array_t<float, py::array::c_style>& rewards);
   void validate_buffers();
   py::dict grid_objects();
@@ -56,6 +59,8 @@ public:
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
 
+  static std::string cpp_get_numpy_type_name(const char* type_id);
+
 private:
   // Member variables
   py::dict _cfg;
@@ -78,9 +83,6 @@ private:
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
 
-  unsigned short _obs_width;
-  unsigned short _obs_height;
-
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
   std::vector<Agent*> _agents;
@@ -88,8 +90,8 @@ private:
   // We'd prefer to store these as more raw c-style arrays, but we need to both
   // operate on the memory directly and return them to python.
   py::array_t<unsigned char> _observations;
-  py::array_t<bool> _terminals;
-  py::array_t<bool> _truncations;
+  py::array_t<unsigned char> _terminals;
+  py::array_t<unsigned char> _truncations;
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 

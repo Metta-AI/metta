@@ -7,8 +7,17 @@ NUM_AGENTS = 2
 OBS_HEIGHT = 3
 OBS_WIDTH = 3
 
+# Rebuild the NumPy types using the exposed function
+np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
+np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
+np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
+np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
+np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
+np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
+np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
 
-def create_minimal_mettagrid_env(max_steps=10, width=5, height=5):
+
+def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
     """Helper function to create a MettaGrid environment with minimal config."""
     # Define a simple map: empty with walls around perimeter
     game_map = np.full((height, width), "empty", dtype="<U50")
@@ -53,20 +62,28 @@ def create_minimal_mettagrid_env(max_steps=10, width=5, height=5):
         }
     }
 
-    return MettaGrid(env_config, game_map)
+    c_env = MettaGrid(env_config, game_map)
+    num_features = len(c_env.grid_features())
+    observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
+    terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
+    truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
+    rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
+    c_env.set_buffers(observations, terminals, truncations, rewards)
+
+    return c_env
 
 
 def test_truncation_at_max_steps():
     max_steps = 5
-    env = create_minimal_mettagrid_env(max_steps=max_steps)
-    obs, info = env.reset()
+    c_env = create_minimal_mettagrid_c_env(max_steps=max_steps)
+    obs, info = c_env.reset()
 
     # Noop until time runs out
-    noop_action_idx = env.action_names().index("noop")
+    noop_action_idx = c_env.action_names().index("noop")
     actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
 
     for step_num in range(1, max_steps + 1):
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        obs, rewards, terminals, truncations, info = c_env.step(actions)
         if step_num < max_steps:
             assert not np.any(truncations), f"Truncations should be False before max_steps at step {step_num}"
             assert not np.any(terminals), f"Terminals should be False before max_steps at step {step_num}"
@@ -77,7 +94,7 @@ def test_truncation_at_max_steps():
 
 
 def test_observation():
-    env = create_minimal_mettagrid_env()
+    env = create_minimal_mettagrid_c_env()
     wall_feature_idx = env.grid_features().index("wall")
     obs, info = env.reset()
     # Agent 0 starts at (1,1) and should see walls above and to the left
@@ -90,62 +107,66 @@ def test_observation():
 
 class TestSetBuffers:
     def test_set_buffers_wrong_shape(self):
-        env = create_minimal_mettagrid_env()
+        env = create_minimal_mettagrid_c_env()
         num_features = len(env.grid_features())
-        terminals = np.zeros(NUM_AGENTS, dtype=bool)
-        truncations = np.zeros(NUM_AGENTS, dtype=bool)
-        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+        terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
+        truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
+        rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
 
         # Wrong number of agents
-        observations = np.zeros((3, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np.uint8)
+        observations = np.zeros((3, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
         with pytest.raises(RuntimeError, match="observations"):
             env.set_buffers(observations, terminals, truncations, rewards)
 
         # Wrong observation height
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT + 1, OBS_WIDTH, num_features), dtype=np.uint8)
+        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT + 1, OBS_WIDTH, num_features), dtype=np_observations_type)
         with pytest.raises(RuntimeError, match="observations"):
             env.set_buffers(observations, terminals, truncations, rewards)
 
         # Wrong observation width
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH - 1, num_features), dtype=np.uint8)
+        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH - 1, num_features), dtype=np_observations_type)
         with pytest.raises(RuntimeError, match="observations"):
             env.set_buffers(observations, terminals, truncations, rewards)
 
         # Wrong number of features
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features + 1), dtype=np.uint8)
+        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features + 1), dtype=np_observations_type)
         with pytest.raises(RuntimeError, match="observations"):
             env.set_buffers(observations, terminals, truncations, rewards)
 
     def test_set_buffers_wrong_dtype(self):
-        env = create_minimal_mettagrid_env()
+        env = create_minimal_mettagrid_c_env()
         num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np.float32)
-        terminals = np.zeros(NUM_AGENTS, dtype=bool)
-        truncations = np.zeros(NUM_AGENTS, dtype=bool)
-        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+        wrong_type = np.float32
+        assert wrong_type != np_observations_type
+        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=wrong_type)
+        terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
+        truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
+        rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
 
         with pytest.raises(TypeError):
             env.set_buffers(observations, terminals, truncations, rewards)
 
     def test_set_buffers_non_contiguous(self):
-        env = create_minimal_mettagrid_env()
+        env = create_minimal_mettagrid_c_env()
         num_features = len(env.grid_features())
-        observations = np.asfortranarray(np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np.uint8))
-        terminals = np.zeros(NUM_AGENTS, dtype=bool)
-        truncations = np.zeros(NUM_AGENTS, dtype=bool)
-        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+        observations = np.asfortranarray(
+            np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
+        )
+        terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
+        truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
+        rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
 
         with pytest.raises(TypeError):
             env.set_buffers(observations, terminals, truncations, rewards)
 
     def test_set_buffers_happy_path(self):
-        env = create_minimal_mettagrid_env()
+        env = create_minimal_mettagrid_c_env()
         num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np.uint8)
-        terminals = np.zeros(NUM_AGENTS, dtype=bool)
-        truncations = np.zeros(NUM_AGENTS, dtype=bool)
-        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
+        terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
+        truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
+        rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
 
         env.set_buffers(observations, terminals, truncations, rewards)
-        observations_from_env, info = env.reset()
+        observations_from_env, _info = env.reset()
         np.testing.assert_array_equal(observations_from_env, observations)
