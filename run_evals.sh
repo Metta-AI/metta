@@ -10,7 +10,7 @@ MAYBE_SMOKETEST=""
 if [ "$1" = "smoketest" ]; then
   # This should be a policy that gets a known score, so we can check
   # that the eval is working.
-  POLICIES=("b.daphne.navigation0")
+  POLICIES=("b.daphne.navigation0:v12")
   MAYBE_SMOKETEST="+sim_job.maybe_smoketest=True"
   MESSAGE="Running smoketest eval"
 fi

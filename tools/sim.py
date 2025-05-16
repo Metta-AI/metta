@@ -74,7 +74,7 @@ def simulate_policy(
             vectorization=cfg.vectorization,
         )
         results = sim.simulate()
-        print(results)
+        print(results.stats_db.query("SELECT * FROM episode_stats"))
         if sim_job.maybe_smoketest:
             return
         # ------------------------------------------------------------------ #
