@@ -4,18 +4,21 @@
 POLICIES=(
   "b.daphne.navigation0"
 )
+MESSAGE="Running full sequence eval"
+POLICY_LIMIT_ARG="" # no limit
 
 if [ "$1" = "smoketest" ]; then
   # This should be a policy that gets a known score, so we can check
   # that the eval is working.
   POLICIES=("b.daphne.navigation0")
   POLICY_LIMIT_ARG="+sim_job.simulation_limit=1"
+  MESSAGE="Running smoketest eval"
 fi
 
 for i in "${!POLICIES[@]}"; do
   POLICY_URI=${POLICIES[$i]}
 
-  echo "Running full sequence eval for policy $POLICY_URI"
+  echo "$MESSAGE for policy $POLICY_URI"
   RANDOM_NUM=$((RANDOM % 1000))
   IDX="${IDX}_${RANDOM_NUM}"
   python3 -m tools.sim \
