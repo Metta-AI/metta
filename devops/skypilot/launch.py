@@ -87,7 +87,10 @@ def main():
     server_url = re.sub("https://.*@", "https://", server_url)
     job_url = f"{server_url}/dashboard/jobs/{job_id}"
     print("\nJob submitted successfully!")
-    print(f"\nOpen {blue(job_url)} to track your job.")
+
+    # Note: direct urls don't work in skypilot dashboard yet, this always opens clusters list.
+    # Hopefully this will be fixed soon.
+    print(f"Open {blue(job_url)} to track your job.")
     print("To sign in, use credentials from your ~/.skypilot/config.yaml file.")
 
 
