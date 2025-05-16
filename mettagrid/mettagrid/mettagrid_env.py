@@ -29,6 +29,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        # these debug controls allow you to export files with C++ interop data
+        # _save_mettagrid_args saves the cfg and map that are used to initialize MettaGrid
+        # _save_step_results saves the data we receive back from stepping the environment
         self._save_mettagrid_args = False
         self._save_step_results = False
         self._step_files_saved = 0
