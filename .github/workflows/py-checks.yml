@@ -178,14 +178,14 @@ jobs:
         run: |
           # Build the main project
           uv run --no-project python setup.py build_ext --inplace
+          uv pip install --system -e .
 
       - name: Build MettaGrid
         run: |
           # Build mettagrid extensions and install in development mode
           cd mettagrid
-          uv run --no-project python setup.py build_ext --inplace
+          make build
           cd ..
-          uv pip install --system -e .
           uv pip install --system -e mettagrid
 
       - name: Run Pytest on core tests
