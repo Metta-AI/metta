@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # Define the list of policy URIs
 POLICIES=(
   # "navigation_infinite_cooldown_sweep"
