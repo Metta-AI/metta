@@ -80,9 +80,11 @@ def simulate_policy(
         results = sim.simulate()
 
         if sim_job.smoke_test:
-            rewards_df = results.stats_db.query("SELECT AVG(value) FROM agent_metrics WHERE metric = 'reward'")
+            rewards_df = results.stats_db.query(
+                "SELECT AVG(value) AS avg_reward FROM agent_metrics WHERE metric = 'reward'"
+            )
             assert len(rewards_df) == 1, f"Expected 1 reward during a smoke test, got {len(rewards_df)}"
-            reward = rewards_df.iloc[0]["value"]
+            reward = rewards_df.iloc[0]["avg_reward"]
             logger.info("Reward is %s", reward)
             assert reward >= SMOKE_TEST_MIN_SCORE, f"Reward is {reward}, expected at least {SMOKE_TEST_MIN_SCORE}"
             return
