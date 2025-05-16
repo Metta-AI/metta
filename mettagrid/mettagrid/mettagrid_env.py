@@ -15,7 +15,6 @@ from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
-from mettagrid.util.debug import save_mettagrid_args, save_step_results
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
@@ -29,13 +28,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
-        # these debug controls allow you to export files with C++ interop data
-        # _debug_save_mettagrid_args saves the cfg and map that are used to initialize MettaGrid
-        # _debug_save_step_results saves the data we receive back from stepping the environment
-        self._debug_save_mettagrid_args = False
-        self._debug_save_step_results = False
-        self._debug_step_files_saved = 0
-
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
@@ -65,9 +57,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _reset_env(self):
         mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
         config_dict, env_map = mettagrid_config.to_c_args()
-
-        if self._debug_save_mettagrid_args:
-            save_mettagrid_args(self._env_cfg, env_map)
 
         self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
@@ -113,17 +102,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
             self.should_reset = True
-
-        if self._debug_save_step_results and self._debug_step_files_saved < 10:
-            save_step_results(
-                self.observations,
-                self.rewards,
-                self.terminals,
-                self.truncations,
-                infos,
-                step_count=self._debug_step_files_saved,
-            )
-            self._debug_step_files_saved += 1
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
