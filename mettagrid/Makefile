@@ -80,6 +80,36 @@ BENCH_CXXFLAGS = $(CXXFLAGS) $(BENCHMARK_INCLUDE)
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
 SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 
+
+$(BUILD_TEST_DIR):
+	@mkdir -p $(BUILD_TEST_DIR)
+
+TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
+TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
+TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
+
+debug-test-vars:
+	@echo "TEST_DIR = $(TEST_DIR)"
+	@echo "BUILD_TEST_DIR = $(BUILD_TEST_DIR)"
+	@echo "TEST_SOURCES = $(TEST_SOURCES)"
+	@echo "TEST_OBJECTS = $(TEST_OBJECTS)"
+	@echo "TEST_EXECUTABLES = $(TEST_EXECUTABLES)"
+
+
+$(BUILD_BENCH_DIR):
+	@mkdir -p $(BUILD_BENCH_DIR)
+
+BENCH_SOURCES := $(wildcard $(BENCH_DIR)/*.cpp $(BENCH_DIR)/**/*.cpp)
+BENCH_OBJECTS := $(patsubst $(BENCH_DIR)/%.cpp,$(BUILD_BENCH_DIR)/%.o,$(BENCH_SOURCES))
+BENCH_EXECUTABLES := $(patsubst $(BUILD_BENCH_DIR)/%.o,$(BUILD_BENCH_DIR)/%,$(BENCH_OBJECTS))
+
+debug-bench-vars:
+	@echo "BENCH_DIR = $(BENCH_DIR)"
+	@echo "BUILD_BENCH_DIR = $(BUILD_BENCH_DIR)"
+	@echo "BENCH_SOURCES = $(BENCH_SOURCES)"
+	@echo "BENCH_OBJECTS = $(BENCH_OBJECTS)"
+	@echo "BENCH_EXECUTABLES = $(BENCH_EXECUTABLES)"
+
 # Check if we're in a virtual environment
 check-venv:
 	@if [ -z "$$VIRTUAL_ENV" ]; then \
@@ -203,22 +233,6 @@ install-test-tools:
 		echo "  - See https://github.com/google/googletest for instructions."; \
 	fi
 
-# Create build directory for tests
-$(BUILD_TEST_DIR):
-	@mkdir -p $(BUILD_TEST_DIR)
-
-# Find all test source files
-TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
-TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
-TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
-
-# Add debug print statements
-debug-test-vars:
-	@echo "TEST_DIR = $(TEST_DIR)"
-	@echo "BUILD_TEST_DIR = $(BUILD_TEST_DIR)"
-	@echo "TEST_SOURCES = $(TEST_SOURCES)"
-	@echo "TEST_OBJECTS = $(TEST_OBJECTS)"
-	@echo "TEST_EXECUTABLES = $(TEST_EXECUTABLES)"
 
 # Compile individual test files
 $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
@@ -297,22 +311,6 @@ install-bench-tools:
 		echo "Unsupported OS. Please install Google Benchmark manually:"; \
 		echo "  - See https://github.com/google/benchmark for instructions."; \
 	fi
-
-# Create build directory for benchmarks
-$(BUILD_BENCH_DIR):
-	@mkdir -p $(BUILD_BENCH_DIR)
-
-# Find all benchmark source files
-BENCH_SOURCES := $(wildcard $(BENCH_DIR)/*.cpp $(BENCH_DIR)/**/*.cpp)
-BENCH_OBJECTS := $(patsubst $(BENCH_DIR)/%.cpp,$(BUILD_BENCH_DIR)/%.o,$(BENCH_SOURCES))
-BENCH_EXECUTABLES := $(patsubst $(BUILD_BENCH_DIR)/%.o,$(BUILD_BENCH_DIR)/%,$(BENCH_OBJECTS))
-
-debug-bench-vars:
-    @echo "BENCH_DIR = $(BENCH_DIR)"
-    @echo "BUILD_BENCH_DIR = $(BUILD_BENCH_DIR)"
-    @echo "BENCH_SOURCES = $(BENCH_SOURCES)"
-    @echo "BENCH_OBJECTS = $(BENCH_OBJECTS)"
-    @echo "BENCH_EXECUTABLES = $(BENCH_EXECUTABLES)"
 
 # Compile individual benchmark files
 $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
@@ -406,7 +404,6 @@ clean:
 	fi
 	
 	@echo "(MettaGrid) ✅ Clean completed successfully"
-
 
 # Run format and test
 all: format test
