@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Optional
 import requests
 
 
-def rgba(color: Dict[str, float]) -> str:
+def rgba(color: Dict[str, float], opacity=1) -> str:
     """
     Convert a Figma color object to CSS rgba color string.
 
@@ -19,7 +19,7 @@ def rgba(color: Dict[str, float]) -> str:
     r = round(color.get("r", 0) * 255)
     g = round(color.get("g", 0) * 255)
     b = round(color.get("b", 0) * 255)
-    a = color.get("a", 1)
+    a = color.get("a", 1) * opacity
 
     return f"rgba({r}, {g}, {b}, {a})"
 
@@ -49,9 +49,20 @@ def px(value: Any) -> str:
     return f"{rounded:.2f}px"
 
 
-def safe_class(element_name: str) -> str:
-    """Convert to lowercase and replace spaces with underscores"""
-    return element_name.lower().replace(" ", "_").replace(":", "_")
+def parse_name(name: str) -> tuple[str, str, str]:
+    """Parse figma name into tag, id or class"""
+    tags = ["input", "img", "textarea", "button", "a"]
+    tag = "div"
+    id = ""
+    cls = ""
+    for part in name.split("."):
+        if part in tags:
+            tag = part
+        if part.startswith("#"):
+            id = part
+        else:
+            cls = part
+    return (tag, id, cls)
 
 
 class DomNode:
@@ -507,7 +518,8 @@ html, body {
     def compute_text_properties(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
         """COmputes the text properties"""
         if "fills" in element:
-            css["color"] = rgba(element["fills"][0]["color"])
+            for fill in element["fills"]:
+                css["color"] = rgba(fill["color"], fill.get("opacity", 1.0))
 
         if "style" in element:
             style = element["style"]
@@ -619,7 +631,7 @@ html, body {
         element_name = element.get("name", "")
 
         # Combine classes if they're different
-        class_name = safe_class(element_name)
+        (tag, id, cls) = parse_name(element_name)
 
         # CSS rules for this element and its children
         css_rules = []
@@ -649,25 +661,45 @@ html, body {
             self.compute_effects(css, element)
 
         # Create CSS selector with parent hierarchy if applicable
-        selector = f".{class_name}"
+        selector = f".{cls}"
         if parent and parent["name"] and not parent["name"].endswith(".html"):
-            selector = f".{safe_class(parent['name'])} {selector}"
+            (_, _, parent_cls) = parse_name(parent["name"])
+            selector = f".{parent_cls} {selector}"
 
         # Initialize DOM element
         dom_element = None
 
         # Process based on element type
-        if element_type == "IMAGE" or "exportSettings" in element:
+        if tag == "input" or tag == "textarea":
+            dom_element = DomNode(tag, {"class": cls, "name": cls})
+
+            # Look for placeholder text
+            if "children" in element:
+                for child in element["children"]:
+                    if child["type"] == "TEXT":
+                        placeholder_css = {}
+                        self.compute_text_properties(placeholder_css, child)
+                        dom_element.attributes["placeholder"] = child.get("characters", "")
+                        css_rules.append({"selector": selector + "::placeholder", "styles": placeholder_css})
+                        # Copy some of the rules:
+                        self.compute_text_properties(css, child)
+                        for fill in child["fills"]:
+                            css["color"] = rgba(fill["color"])
+
+            # Add CSS rule
+            css_rules.append({"selector": selector, "styles": css})
+
+        elif element_type == "IMAGE" or "exportSettings" in element:
             # Create an img
             img_src = f"{self.default_image_path}/{element_name.replace(' ', '_')}.png"
-            dom_element = DomNode("img", {"class": class_name, "src": img_src, "alt": element_name})
+            dom_element = DomNode("img", {"class": cls, "src": img_src, "alt": element_name})
 
             # Add CSS rule
             css_rules.append({"selector": selector, "styles": css})
 
         elif element_type == "FRAME":
             # Create a div for the frame
-            dom_element = DomNode("div", {"class": class_name})
+            dom_element = DomNode(tag, {"class": cls})
 
             # Add CSS rule
             css_rules.append({"selector": selector, "styles": css})
@@ -692,7 +724,7 @@ html, body {
             text_content = element.get("characters", "")
 
             # Create a span for the text
-            dom_element = DomNode("span", {"class": class_name}, text_content)
+            dom_element = DomNode("span", {"class": cls}, text_content)
 
             # Add CSS rule
             css["display"] = "inline-block"
@@ -702,20 +734,20 @@ html, body {
             # Check if it's an image
             if "fills" in element and element["fills"] and element["fills"][0].get("type") == "IMAGE":
                 img_src = f"{self.default_image_path}/{element_name.replace(' ', '_')}.png"
-                dom_element = DomNode("img", {"class": class_name, "src": img_src, "alt": element_name})
+                dom_element = DomNode("img", {"class": cls, "src": img_src, "alt": element_name})
 
                 # Add CSS rule
                 css_rules.append({"selector": selector, "styles": css})
             else:
                 # Create a div for shapes
-                dom_element = DomNode("div", {"class": class_name})
+                dom_element = DomNode(tag, {"class": cls})
 
                 # Add CSS rule
                 css_rules.append({"selector": selector, "styles": css})
 
         else:
             # For other types, create a simple div
-            dom_element = DomNode("div", {"class": class_name})
+            dom_element = DomNode(tag, {"class": cls})
 
             # Add CSS rule
             css_rules.append({"selector": selector, "styles": css})
