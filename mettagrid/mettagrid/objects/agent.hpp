@@ -106,6 +106,26 @@ public:
     return this->frozen;
   }
 
+  virtual void obs_tokens(ObsType* obs, ObsType prefix, const std::vector<unsigned char>& feature_ids, size_t max_tokens) const override {
+    // TODO: ablate 1-hot type_id encoding. Not ablating it now, since it should be easier to ablate once
+    // we've switched to the new observation format.
+    // Remove hp. Not removing it now for the same reason.
+    vector<ObsType> basic_token_values = {1, group, hp, frozen, orientation, color};
+    size_t max_basic_tokens = max_tokens > basic_token_values.size() ? basic_token_values.size() : max_tokens;
+    size_t max_total_tokens = max_tokens > max_basic_tokens + InventoryItem::InventoryCount ? max_basic_tokens + InventoryItem::InventoryCount : max_tokens;
+    size_t max_inventory_tokens = max_total_tokens - max_basic_tokens;
+    for (size_t i = 0; i < max_basic_tokens; i++) {
+      obs[3 * i] = prefix;
+      obs[3 * i + 1] = feature_ids[i];
+      obs[3 * i + 2] = basic_token_values[i];
+    }
+    for (size_t i = 0; i < max_inventory_tokens; i++) {
+      obs[3 * max_basic_tokens + i] = prefix;
+      obs[3 * max_basic_tokens + i + 1] = feature_ids[max_basic_tokens + i];
+      obs[3 * max_basic_tokens + i + 2] = inventory[i];
+    }
+  }
+
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = group;

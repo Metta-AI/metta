@@ -133,6 +133,21 @@ public:
     this->maybe_start_converting();
   }
 
+  void obs_tokens(ObsType* obs, ObsType prefix, const std::vector<unsigned char>& feature_ids, size_t max_tokens) const override {
+    vector<ObsType> basic_token_values = {1, this->hp, this->color, this->converting || this->cooling_down};
+    size_t max_basic_tokens = max_tokens > basic_token_values.size() ? basic_token_values.size() : max_tokens;
+    for (size_t i = 0; i < max_basic_tokens; i++) {
+      obs[3 * i] = prefix;
+      obs[3 * i + 1] = feature_ids[i];
+      obs[3 * i + 2] = basic_token_values[i];
+    }
+    for (size_t i = 0; i < InventoryItem::InventoryCount; i++) {
+      obs[3 * max_basic_tokens + i] = prefix;
+      obs[3 * max_basic_tokens + i + 1] = feature_ids[max_basic_tokens + i];
+      obs[3 * max_basic_tokens + i + 2] = this->inventory[i];
+    }
+  }
+
   void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = this->hp;
