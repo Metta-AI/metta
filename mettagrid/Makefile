@@ -351,7 +351,7 @@ bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-va
 			PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
 			LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
 			DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
-			"$$f" --benchmark_format=json > benchmark_output/$(basename "$$f").json || \
+			"$$f" --benchmark_format=json > benchmark_output/$$(basename "$$f").json || \
 			echo "Error running $$f with JSON format"; \
 		else \
 			echo "ERROR: Benchmark executable $$f not found!"; \
