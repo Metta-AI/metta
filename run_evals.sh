@@ -28,17 +28,4 @@ for i in "${!POLICIES[@]}"; do
     +eval_db_uri=wandb://artifacts/navigation_db \
     $MAYBE_SMOKETEST
 
-  python3 -m tools.sim \
-    sim=multiagent \
-    run=multiagent$IDX \
-    policy_uri=wandb://run/$POLICY_URI \
-    +eval_db_uri=wandb://artifacts/multiagent_db \
-    $MAYBE_SMOKETEST
-
-  python3 -m tools.sim \
-    sim=memory \
-    run=memory$IDX \
-    policy_uri=wandb://run/$POLICY_URI \
-    +eval_db_uri=wandb://artifacts/memory_db \
-    $MAYBE_SMOKETEST
 done
