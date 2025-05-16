@@ -5,14 +5,17 @@ POLICIES=(
   "b.daphne.navigation0"
 )
 MESSAGE="Running full sequence eval"
-MAYBE_SMOKETEST=""
+MAYBE_SMOKE_TEST=""
 
-if [ "$1" = "smoketest" ]; then
+if [ "$1" = "smoke_test" ]; then
   # This should be a policy that gets a known score, so we can check
   # that the eval is working.
   POLICIES=("b.daphne.navigation0:v12")
-  MAYBE_SMOKETEST="+sim_job.maybe_smoketest=True"
-  MESSAGE="Running smoketest eval"
+  MAYBE_SMOKE_TEST="+sim_job.smoke_test=True +sim_job.smoke_test_min_reward=0.9"
+  MESSAGE="Running smoke test eval"
+elif [ -n "$1" ]; then
+  echo "Invalid argument: $1"
+  exit 1
 fi
 
 for i in "${!POLICIES[@]}"; do
@@ -26,6 +29,6 @@ for i in "${!POLICIES[@]}"; do
     run=navigation$IDX \
     policy_uri=wandb://run/$POLICY_URI \
     +eval_db_uri=wandb://artifacts/navigation_db \
-    $MAYBE_SMOKETEST
+    $MAYBE_SMOKE_TEST
 
 done

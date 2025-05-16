@@ -35,7 +35,8 @@ class SimJob(Config):
     stats_db_uri: str
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
-    maybe_smoketest: bool | None = None
+    smoke_test: bool = False
+    smoke_test_min_reward: float | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -75,11 +76,15 @@ def simulate_policy(
         )
         results = sim.simulate()
 
-        if sim_job.maybe_smoketest:
+        if sim_job.smoke_test:
             rewards_df = results.stats_db.query("SELECT value FROM agent_metrics WHERE metric = 'reward'")
-            assert len(rewards_df) == 1
+            assert len(rewards_df) == 1, f"Expected 1 reward during a smoke test, got {len(rewards_df)}"
             reward = rewards_df.iloc[0]["value"]
-            print(reward)
+            if sim_job.smoke_test_min_reward is not None:
+                logger.info("Reward is %s", reward)
+                assert reward >= sim_job.smoke_test_min_reward, (
+                    f"Reward is {reward}, expected at least {sim_job.smoke_test_min_reward}"
+                )
             return
         # ------------------------------------------------------------------ #
         # Export                                                             #
@@ -105,7 +110,7 @@ def main(cfg: DictConfig) -> None:
     sim_job = SimJob(cfg.sim_job)
     assert isinstance(sim_job, SimJob)
 
-    if sim_job.maybe_smoketest:
+    if sim_job.smoke_test:
         logger.info("Limiting simulations to 1")
         sim_job.simulation_suite.simulations = {
             k: v for i, (k, v) in enumerate(sim_job.simulation_suite.simulations.items()) if i in range(1)
