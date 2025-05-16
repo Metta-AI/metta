@@ -50,7 +50,6 @@ def _build_figure(
     matrix: pd.DataFrame,
     metric: str,
     *,
-    # colorscale,
     score_range: Tuple[float, float],
     height: int,
     width: int,
@@ -90,7 +89,6 @@ def _build_figure(
             customdata=customdata,
             x=short_names,  # Use short names for display on x-axis
             y=y_labels,
-            # colorscale=colorscale,
             zmin=score_range[0],
             zmax=score_range[1],
             colorbar=dict(title="Score"),
@@ -153,17 +151,6 @@ def create_heatmap_html_snippet(
         return "<p>No data available</p>"
 
     score_range = (0, 1)
-    colorscale = [
-        # Red
-        [0.0, "rgb(235, 40, 40)"],
-        [0.5, "rgb(235, 40, 40)"],
-        # Yellow
-        [0.8, "rgb(225,210,80)"],
-        # Light Green
-        [0.95, "rgb(195,230,80)"],
-        # Green
-        [1.0, "rgb(20, 230, 80)"],
-    ]
 
     fig = _build_figure(matrix, metric, score_range=score_range, height=height, width=width)
     uid = f"heat_{uuid.uuid4().hex[:8]}"

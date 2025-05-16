@@ -177,13 +177,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
             # TODO: Add groups
             groups = []
-            group_metrics = {}
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,
                 groups,
                 agent_metrics,
-                # group_metrics,
                 self._max_steps,
                 replay_url,
                 self._reset_at,
