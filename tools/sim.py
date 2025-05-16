@@ -74,9 +74,10 @@ def simulate_policy(
             vectorization=cfg.vectorization,
         )
         results = sim.simulate()
-        print(results.stats_db.tables())
-        print(results.stats_db.query("SELECT * FROM agent_metrics"))
+
         if sim_job.maybe_smoketest:
+            rewards = results.stats_db.query("SELECT reward FROM agent_metrics")
+            print(rewards)
             return
         # ------------------------------------------------------------------ #
         # Export                                                             #
