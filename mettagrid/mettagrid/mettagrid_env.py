@@ -30,11 +30,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         **kwargs,
     ):
         # these debug controls allow you to export files with C++ interop data
-        # _save_mettagrid_args saves the cfg and map that are used to initialize MettaGrid
-        # _save_step_results saves the data we receive back from stepping the environment
-        self._save_mettagrid_args = False
-        self._save_step_results = False
-        self._step_files_saved = 0
+        # _debug_save_mettagrid_args saves the cfg and map that are used to initialize MettaGrid
+        # _debug_save_step_results saves the data we receive back from stepping the environment
+        self._debug_save_mettagrid_args = False
+        self._debug_save_step_results = False
+        self._debug_step_files_saved = 0
 
         self._render_mode = render_mode
         self._cfg_template = env_cfg
@@ -66,7 +66,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
         config_dict, env_map = mettagrid_config.to_c_args()
 
-        if self._save_mettagrid_args:
+        if self._debug_save_mettagrid_args:
             save_mettagrid_args(self._env_cfg, env_map)
 
         self._c_env = MettaGrid(config_dict, env_map)
@@ -114,16 +114,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self.process_episode_stats(infos)
             self.should_reset = True
 
-        if self._save_step_results and self._step_files_saved < 10:
+        if self._debug_save_step_results and self._debug_step_files_saved < 10:
             save_step_results(
                 self.observations,
                 self.rewards,
                 self.terminals,
                 self.truncations,
                 infos,
-                step_count=self._step_files_saved,
+                step_count=self._debug_step_files_saved,
             )
-            self._step_files_saved += 1
+            self._debug_step_files_saved += 1
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
