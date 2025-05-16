@@ -76,7 +76,7 @@ def simulate_policy(
         results = sim.simulate()
 
         if sim_job.maybe_smoketest:
-            rewards = results.stats_db.query("SELECT reward FROM agent_metrics")
+            rewards = results.stats_db.query("SELECT value FROM agent_metrics WHERE metric = 'reward'")
             print(rewards)
             return
         # ------------------------------------------------------------------ #
