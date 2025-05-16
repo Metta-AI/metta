@@ -2,17 +2,22 @@
 
 import argparse
 import copy
-import sys
+import re
 import subprocess
+import sys
 
 import sky
 
-BLUE = "\033[1;34m"
-RESET = "\033[0;0m"
+
+def blue(text: str):
+    BLUE = "\033[1;34m"
+    RESET = "\033[0;0m"
+
+    return f"{BLUE}{text}{RESET}"
 
 
 def print_tip(text: str):
-    print(f"{BLUE}{text}{RESET}", file=sys.stderr)
+    print(blue(text), file=sys.stderr)
 
 
 def patch_task(task: sky.Task, cpus: int | None, gpus: int | None, nodes: int | None) -> sky.Task:
@@ -74,9 +79,16 @@ def main():
         print(task.to_yaml_config())
         return
 
-    result = sky.jobs.launch(task)
+    request_id = sky.jobs.launch(task)
+    (job_id, _) = sky.get(request_id)
 
-    print(result)
+    server_url = sky.server.common.get_server_url()
+    # strip username and password from server_url
+    server_url = re.sub("https://.*@", "https://", server_url)
+    job_url = f"{server_url}/dashboard/jobs/{job_id}"
+    print("\nJob submitted successfully!")
+    print(f"\nOpen {blue(job_url)} to track your job.")
+    print("To sign in, use credentials from your ~/.skypilot/config.yaml file.")
 
 
 if __name__ == "__main__":
