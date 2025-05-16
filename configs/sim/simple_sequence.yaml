@@ -1,0 +1,13 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: simple_sequence
+
+simulations:
+  simple_sequence/blue:
+    env: env/mettagrid/object_use/evals/simple_sequence_evals/blue
+  simple_sequence/green:
+    env: env/mettagrid/object_use/evals/simple_sequence_evals/green
+  simple_sequence/red:
+    env: env/mettagrid/object_use/evals/simple_sequence_evals/red

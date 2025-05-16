@@ -22,12 +22,12 @@ game:
       cooldown: 1
 
   map_builder:
-    _target_: mettagrid.config.room.multi_room.MultiRoom
+    _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 1
     border_width: 3
 
     room:
-      _target_: mettagrid.config.room.mean_distance.MeanDistance
+      _target_: mettagrid.room.mean_distance.MeanDistance
       width: 15
       height: 15
       mean_distance: 6
