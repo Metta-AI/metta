@@ -11,7 +11,7 @@ import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
-from mettagrid.config.utils import simple_instantiate
+from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
@@ -55,27 +55,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        if self._env_map is None:
-            self._map_builder = simple_instantiate(
-                self._env_cfg.game.map_builder,
-                recursive=self._env_cfg.game.get("recursive_map_builder", True),
-            )
-            env_map = self._map_builder.build()
-        else:
-            env_map = self._env_map
-
-        map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
-        assert self._env_cfg.game.num_agents == map_agents, (
-            f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
-        )
-
-        # I haven't figured out how to get C++ code to deal with fixed-length strings; so we convert
-        # to non-fixed length strings. This is obvious very silly, but OTOH we shouldn't be using a numpy array
-        # of strings here in the first place.
-        env_map_list = env_map.tolist()
-        env_map = np.array(env_map_list)
-
-        self._c_env = MettaGrid(OmegaConf.to_container(self._env_cfg), env_map)
+        mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
+        config_dict, env_map = mettagrid_config.to_c_args()
+        self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 
