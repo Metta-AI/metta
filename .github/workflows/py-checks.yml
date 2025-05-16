@@ -190,7 +190,7 @@ jobs:
           uv run --no-project pytest --maxfail=1 --disable-warnings -q
 
   smoke-test:
-    name: "Training Smoke Test"
+    name: "Smoke Tests"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
@@ -310,6 +310,35 @@ jobs:
           name: replay-benchmark-results
           path: |
             smoke_test_replay_benchmark_results.json
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Run evals smoke test
+        id: eval_smoke_test
+        env:
+          WANDB_API_KEY: set_but_not_used
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          source .github/scripts/benchmark.sh
+          benchmark "evals" "./run_evals.sh smoke_test"
+
+      - name: Save evals benchmark
+        id: save_evals_benchmark
+        if: steps.eval_smoke_test.outcome == 'success'
+        uses: ./.github/actions/save-benchmarks
+        with:
+          name: evals_smoke_test
+          metrics: '{"duration": ${{ steps.eval_smoke_test.outputs.duration }}, "memory_usage": ${{ steps.eval_smoke_test.outputs.memory_usage }}}'
+          filename: smoke_test_evals_benchmark_results.json
+
+      - name: Upload evals benchmark file
+        if: steps.save_evals_benchmark.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: evals-benchmark-results
+          path: |
+            smoke_test_evals_benchmark_results.json
           retention-days: 1
           if-no-files-found: warn
 
