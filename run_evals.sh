@@ -35,5 +35,25 @@ for i in "${!POLICIES[@]}"; do
     policy_uri=wandb://run/$POLICY_URI \
     +eval_db_uri=wandb://artifacts/navigation_db \
     $MAYBE_SMOKE_TEST
+  
+  python3 -m tools.sim \
+    sim=memory \
+    run=memory$IDX \
+    policy_uri=wandb://run/$POLICY_URI \
+    +eval_db_uri=wandb://artifacts/memory_db \
+    $MAYBE_SMOKE_TEST
+
+  if [ -n "$MAYBE_SMOKE_TEST" ]; then
+    continue
+  fi
+  # Tests below this line aren't part of smoke tests, since we either
+  # aren't scoring well enough to include them, or have some other reason.
+
+  python3 -m tools.sim \
+    sim=multiagent \
+    run=multiagent$IDX \
+    policy_uri=wandb://run/$POLICY_URI \
+    +eval_db_uri=wandb://artifacts/multiagent_db \
+    $MAYBE_SMOKE_TEST
 
 done
