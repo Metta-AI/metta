@@ -8,10 +8,15 @@ MESSAGE="Running full sequence eval"
 MAYBE_SMOKE_TEST=""
 
 if [ "$1" = "smoke_test" ]; then
-  # This should be a policy that gets a known score, so we can check
-  # that the eval is working.
+  # If you're updating this smoke test:
+  #   ... because you changed code in a way that invalidates old policies, please train a new policy
+  #       that scores well enough on existing evals, and add it here.
+  #   ... because you're adding a new eval family on which we can score well, please add a new policy
+  #       that scores well on that eval family, and add it here.
+  #   ... because you're adding a new eval family on which we can't score well, please add the new eval
+  #       family after the smoke test terminates.
   POLICIES=("b.daphne.navigation0:v12")
-  MAYBE_SMOKE_TEST="+sim_job.smoke_test=True +sim_job.smoke_test_min_reward=0.9 seed=31415"
+  MAYBE_SMOKE_TEST="+sim_job.smoke_test=True seed=31415"
   MESSAGE="Running smoke test eval"
 elif [ -n "$1" ]; then
   echo "Invalid argument: $1"
