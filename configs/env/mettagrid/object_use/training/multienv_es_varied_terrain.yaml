@@ -1,6 +1,6 @@
 _target_: metta.env.mettagrid_env_set.MettaGridEnvSet
 
-num_agents: 20
+num_agents: 10
 sampling: 1
 
 game:
