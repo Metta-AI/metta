@@ -1,0 +1,27 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: sequence
+
+simulations:
+  sequence/es1:
+    env: env/mettagrid/object_use/sequence_evals/es1
+  sequence/es2:
+    env: env/mettagrid/object_use/sequence_evals/es2
+  sequence/es3:
+    env: env/mettagrid/object_use/sequence_evals/es3
+  sequence/es4:
+    env: env/mettagrid/object_use/sequence_evals/es4
+  sequence/es5:
+    env: env/mettagrid/object_use/sequence_evals/es5
+  sequence/es6:
+    env: env/mettagrid/object_use/sequence_evals/es6
+  sequence/es7:
+    env: env/mettagrid/object_use/sequence_evals/es7
+  sequence/red:
+    env: env/mettagrid/object_use/sequence_evals/red
+  sequence/blue:
+    env: env/mettagrid/object_use/sequence_evals/blue
+  sequence/green:
+    env: env/mettagrid/object_use/sequence_evals/green
