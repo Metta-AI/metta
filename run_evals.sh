@@ -2,52 +2,83 @@
 
 # Define the list of policy URIs
 POLICIES=(
-  "b.daphne.terrain_prioritized_styles_pretrained_r"
-  "b.daphne.terrain_prioritized_styles2"
-  "terrain_prioritized_styles_pretrained_mpmc"
-  "terrain_prioritized_styles_pretrained"
-  "b.terrain_prioritized_styles_nb"
-  "b.terrain_prioritized_styles_pretrained_nb"
-  "b.terrain_prioritized_styles"
-  "b.terrain_prioritized_styles_pretrained"
-  "b.georgedeane.terrain_multienv"
-  "b.daphne.terrain_multienv_3_no_blocks3"
-  "terrain_multienv_3_single_agent"
-  "b.daphne.terrain_multienv_prioritized_multienv_cylinders2"
-  "b.daphne.terrain_multienv_prioritized_multienv_cylinders"
-  "b.georgedeane.terrain_massive_empty_world_pretrained"
-  "b.georgedeane.terrain_extra_hard:v1"
-  "b.daphne.terrain_varied_cyl_lab_pretrained"
-  "b.daphne.terrain_prioritized_styles"
-  "b.daphne.terrain_prioritized_styles_pretrained"
-  "george_memory_pretrained"
-  "b.daphne.terrain_multiagent_48_norewardsharing"
-  "b.daphne.terrain_multiagent_24_norewardsharing"
-  "b.daphne.terrain_multiagent_24_rewardsharing"
-  "b.daphne.terrain_multiagent_48_rewardsharing"
-)
+    # "daveey.dist.2x4"
+    # "navigation_training:v35"
+    # "b.daphne.navigation0"
+    # "daphne_navigation_train"
+    # "b.daphne.navigation1"
+    # "b.daphne.navigation3"
+    # "b.daphne.navigation4"
+    # "gd2_sharing24_03"
+    # "gd2_sharing24_06"
+    # "gd2_sharing_48"
+    # "gd2_sharing_24"
+    # "gd2_sharing48_03"
+    # "gd2_sharing48_06"
+    # "MRM_test_mettabox"
+    # "georged_48_no_sharing"
+    # "georged_24_no_sharing"
+    # "dd_object_use_easy2"
+    # "daphne.3object_use_no_colors"
+    # "daphne.3object_use_colors"
+    # "daphne.2object_use_colors_pretrained"
+    # "b.daphne.USER.navigation_before_refactor"
+
+    "b.daphne.object_use_colored_converters"
+    "b.daphne.object_use_onlyred"
+    "b.daphne.object_use_colored_converters_ent0.05"
+    "b.daphne.object_use_onlyred_ent0.05"
+
+    "b.georgedeane.george_sequence_no_increment"
+    "b.georgedeane.george_sequence_incremental"
+    "george_sequence_incremental"
+    "george2_multienv_noincrement"
+
+    "objectuse_nocolors"
+
+    "george_sequence_varied"
+    "george3_multienv_noincrement"
+
+    "daphne_objectuse_allobjs_multienv"
+    "daphne_objectuse_allobjs"
+    "b.daphne.object_use_mulitenv_pretrained"
+    "b.daphne.object_use_all_easy"
+    "b.daphne.object_use_multienv"
+
+
+ )
 
 for i in "${!POLICIES[@]}"; do
-  POLICY_URI=${POLICIES[$i]}
+    POLICY_URI=${POLICIES[$i]}
 
-  echo "Running full sequence eval for policy $POLICY_URI"
-  RANDOM_NUM=$((RANDOM % 1000))
-  IDX="${IDX}_${RANDOM_NUM}"
-  python3 -m tools.sim \
-    sim=navigation \
-    run=navigation$IDX \
-    policy_uri=wandb://run/$POLICY_URI \
-    +eval_db_uri=wandb://artifacts/navigation_db
+    echo "Running full sequence eval for policy $POLICY_URI"
+    RANDOM_NUM=$((RANDOM % 1000))
+    IDX="${IDX}_${RANDOM_NUM}"
+    python3 -m tools.sim \
+        sim=navigation \
+        run=navigation$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        sim_job.stats_db_uri=wandb://stats/navigation_db \
+        device=cpu \
 
-  python3 -m tools.sim \
-    sim=multiagent \
-    run=multiagent$IDX \
-    policy_uri=wandb://run/$POLICY_URI \
-    +eval_db_uri=wandb://artifacts/multiagent_db
+    python3 -m tools.sim \
+        sim=memory \
+        run=memory$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        sim_job.stats_db_uri=wandb://stats/memory_db \
+        device=cpu \
 
-  python3 -m tools.sim \
-    sim=memory \
-    run=memory$IDX \
-    policy_uri=wandb://run/$POLICY_URI \
-    +eval_db_uri=wandb://artifacts/memory_db
+    python3 -m tools.sim \
+        sim=object_use \
+        run=objectuse$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        sim_job.stats_db_uri=wandb://stats/objectuse_db \
+
+
+    python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html \
+
+    python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db run=memory_db ++dashboard.output_path=s3://softmax-public/policydash/memory.html \
+
+    python3 -m tools.dashboard +eval_db_uri=wandb://stats/objectuse_db run=objectuse_db ++dashboard.output_path=s3://softmax-public/policydash/objectuse.html \
+
 done
