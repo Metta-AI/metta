@@ -21,7 +21,7 @@ def rgba(color: Dict[str, float], opacity=1) -> str:
     b = round(color.get("b", 0) * 255)
     a = color.get("a", 1) * opacity
 
-    return f"rgba({r}, {g}, {b}, {a})"
+    return f"rgba({r}, {g}, {b}, {a:0.2f})"
 
 
 def px(value: Any) -> str:
@@ -49,9 +49,9 @@ def px(value: Any) -> str:
     return f"{rounded:.2f}px"
 
 
-def parse_name(name: str) -> tuple[str, str, str]:
+def parse_name(name: str) -> tuple[str, str, str, str]:
     """Parse figma name into tag, id or class"""
-    tags = ["input", "img", "textarea", "button", "a"]
+    tags = ["input", "img", "textarea", "button", "a", "canvas"]
     tag = "div"
     id = ""
     cls = ""
@@ -59,10 +59,17 @@ def parse_name(name: str) -> tuple[str, str, str]:
         if part in tags:
             tag = part
         if part.startswith("#"):
-            id = part
+            id = part[1:]
         else:
-            cls = part
-    return (tag, id, cls)
+            cls = part.lower().replace(" ", "_")
+    selector = ""
+    if tag and tag not in ["div", "span"]:
+        selector = tag
+    if id:
+        selector += "#" + id
+    if cls:
+        selector += "." + cls
+    return (tag, id, cls, selector)
 
 
 class DomNode:
@@ -387,13 +394,7 @@ html, body {
     def compute_auto_layout(
         self, css: Dict[str, Any], element: Dict[str, Any], parent: Optional[Dict[str, Any]]
     ) -> None:
-        """
-        Compute CSS Flexbox properties from Figma Auto Layout settings.
-
-        Args:
-            css: Dictionary to add CSS properties to
-            element: Figma element data containing Auto Layout properties
-        """
+        """Compute CSS Flexbox properties from Figma Auto Layout settings."""
 
         if "layoutMode" in element:
             # Set display to flex for auto layout containers
@@ -516,7 +517,7 @@ html, body {
                 css["height"] = "auto"
 
     def compute_text_properties(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
-        """COmputes the text properties"""
+        """Computes the text properties"""
         if "fills" in element:
             for fill in element["fills"]:
                 css["color"] = rgba(fill["color"], fill.get("opacity", 1.0))
@@ -534,7 +535,7 @@ html, body {
                 css["font-weight"] = style["fontWeight"]
 
             if "fontSize" in style:
-                css["font-size"] = f"{style['fontSize']}px"
+                css["font-size"] = px(style["fontSize"])
 
             if "textAlignHorizontal" in style:
                 css["text-align"] = style["textAlignHorizontal"].lower()
@@ -544,10 +545,10 @@ html, body {
                 css["vertical-align"] = style["textAlignVertical"].lower()
 
             if "letterSpacing" in style:
-                css["letter-spacing"] = f"{style['letterSpacing']}px"
+                css["letter-spacing"] = px(style["letterSpacing"])
 
             if "lineHeightPx" in style:
-                css["line-height"] = f"{round(style['lineHeightPx'], 2)}px"
+                css["line-height"] = px(round(style["lineHeightPx"], 2))
 
     def compute_background(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
         """Compute the background from a figma element."""
@@ -593,6 +594,13 @@ html, body {
                             + "which is not supported in HTML/CSS. Using INSIDE stroke instead."
                         )
 
+        if "individualStrokeWeights" in element:
+            weights = element["individualStrokeWeights"]
+            css["border-top-width"] = px(weights["top"])
+            css["border-right-width"] = px(weights["right"])
+            css["border-bottom-width"] = px(weights["bottom"])
+            css["border-left-width"] = px(weights["left"])
+
     def compute_effects(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
         """Computes the effects"""
         if "effects" in element:
@@ -617,21 +625,12 @@ html, body {
                 css["box-shadow"] = ", ".join(shadows)
 
     def process_element(self, element: Dict[str, Any], parent: Optional[Dict[str, Any]] = None) -> tuple:
-        """
-        Process a Figma element and convert it to HTML DOM node.
-
-        Args:
-            element: Element data from Figma API
-            parent: parent element, if any
-
-        Returns:
-            tuple: (DOM element, CSS rules)
-        """
+        """Process a Figma element and convert it to HTML DOM node."""
         element_type = element.get("type")
         element_name = element.get("name", "")
 
         # Combine classes if they're different
-        (tag, id, cls) = parse_name(element_name)
+        (tag, id, cls, selector) = parse_name(element_name)
 
         # CSS rules for this element and its children
         css_rules = []
@@ -661,19 +660,18 @@ html, body {
             self.compute_effects(css, element)
 
         # Create CSS selector with parent hierarchy if applicable
-        selector = f".{cls}"
         if parent and parent["name"] and not parent["name"].endswith(".html"):
-            (_, _, parent_cls) = parse_name(parent["name"])
-            selector = f".{parent_cls} {selector}"
+            (_, _, _, parent_selector) = parse_name(parent["name"])
+            selector = parent_selector + " " + selector
 
         # Initialize DOM element
         dom_element = None
 
         # Process based on element type
         if tag == "input" or tag == "textarea":
-            dom_element = DomNode(tag, {"class": cls, "name": cls})
+            dom_element = DomNode(tag, {"name": cls})
 
-            # Look for placeholder text
+            # Look for placeholder text which is what we will use as the text style.
             if "children" in element:
                 for child in element["children"]:
                     if child["type"] == "TEXT":
@@ -692,14 +690,14 @@ html, body {
         elif element_type == "IMAGE" or "exportSettings" in element:
             # Create an img
             img_src = f"{self.default_image_path}/{element_name.replace(' ', '_')}.png"
-            dom_element = DomNode("img", {"class": cls, "src": img_src, "alt": element_name})
+            dom_element = DomNode("img", {"src": img_src, "alt": element_name})
 
             # Add CSS rule
             css_rules.append({"selector": selector, "styles": css})
 
         elif element_type == "FRAME":
             # Create a div for the frame
-            dom_element = DomNode(tag, {"class": cls})
+            dom_element = DomNode(tag)
 
             # Add CSS rule
             css_rules.append({"selector": selector, "styles": css})
@@ -724,7 +722,7 @@ html, body {
             text_content = element.get("characters", "")
 
             # Create a span for the text
-            dom_element = DomNode("span", {"class": cls}, text_content)
+            dom_element = DomNode("span", {}, text_content)
 
             # Add CSS rule
             css["display"] = "inline-block"
@@ -734,20 +732,20 @@ html, body {
             # Check if it's an image
             if "fills" in element and element["fills"] and element["fills"][0].get("type") == "IMAGE":
                 img_src = f"{self.default_image_path}/{element_name.replace(' ', '_')}.png"
-                dom_element = DomNode("img", {"class": cls, "src": img_src, "alt": element_name})
+                dom_element = DomNode("img", {"src": img_src, "alt": element_name})
 
                 # Add CSS rule
                 css_rules.append({"selector": selector, "styles": css})
             else:
                 # Create a div for shapes
-                dom_element = DomNode(tag, {"class": cls})
+                dom_element = DomNode(tag)
 
                 # Add CSS rule
                 css_rules.append({"selector": selector, "styles": css})
 
         else:
             # For other types, create a simple div
-            dom_element = DomNode(tag, {"class": cls})
+            dom_element = DomNode(tag)
 
             # Add CSS rule
             css_rules.append({"selector": selector, "styles": css})
@@ -758,6 +756,11 @@ html, body {
                     child_element, child_css = self.process_element(child, element)
                     dom_element.append_child(child_element)
                     css_rules.extend(child_css)
+
+        if id:
+            dom_element.attributes["id"] = id
+        if cls:
+            dom_element.attributes["class"] = cls
 
         return dom_element, css_rules
 
@@ -834,10 +837,12 @@ html, body {
 
 
 if __name__ == "__main__":
-    TOKEN_FILE = "~/.figma_token"
-    TOKEN = open(os.path.expanduser(TOKEN_FILE)).read().strip()
-    FILE_URL = "https://www.figma.com/design/uIwRRHcgY6EWbUvRG6kYE8"
+    token = open(os.path.expanduser("~/.figma_token")).read().strip()
+    if len(sys.argv) < 2:
+        print("Usage: python gen_html.py <figma_file_url>", file=sys.stderr)
+        sys.exit(1)
+    file_url = sys.argv[1]
 
     # Create HTML generator with default settings
     generator = HtmlGenerator()
-    generator.gen_html(TOKEN, FILE_URL)
+    generator.gen_html(token, file_url)
