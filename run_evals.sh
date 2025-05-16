@@ -5,13 +5,13 @@ POLICIES=(
   "b.daphne.navigation0"
 )
 MESSAGE="Running full sequence eval"
-POLICY_LIMIT_ARG="" # no limit
+MAYBE_SMOKETEST=""
 
 if [ "$1" = "smoketest" ]; then
   # This should be a policy that gets a known score, so we can check
   # that the eval is working.
   POLICIES=("b.daphne.navigation0")
-  POLICY_LIMIT_ARG="+sim_job.simulation_limit=1"
+  MAYBE_SMOKETEST="+sim_job.maybe_smoketest=True"
   MESSAGE="Running smoketest eval"
 fi
 
@@ -26,19 +26,19 @@ for i in "${!POLICIES[@]}"; do
     run=navigation$IDX \
     policy_uri=wandb://run/$POLICY_URI \
     +eval_db_uri=wandb://artifacts/navigation_db \
-    $POLICY_LIMIT_ARG
+    $MAYBE_SMOKETEST
 
   python3 -m tools.sim \
     sim=multiagent \
     run=multiagent$IDX \
     policy_uri=wandb://run/$POLICY_URI \
     +eval_db_uri=wandb://artifacts/multiagent_db \
-    $POLICY_LIMIT_ARG
+    $MAYBE_SMOKETEST
 
   python3 -m tools.sim \
     sim=memory \
     run=memory$IDX \
     policy_uri=wandb://run/$POLICY_URI \
-    +eval_db_uri=wandb://artifacts/memory_db
-    $POLICY_LIMIT_ARG
+    +eval_db_uri=wandb://artifacts/memory_db \
+    $MAYBE_SMOKETEST
 done
