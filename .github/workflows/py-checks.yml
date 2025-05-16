@@ -172,17 +172,11 @@ jobs:
 
       - name: Build FastGAE
         run: |
-          # Build the main project
-          make build
           uv pip install -e .
 
       - name: Build MettaGrid
         run: |
-          # Build mettagrid extensions and install in development mode
-          cd mettagrid
-          make build
-          cd ..
-          uv pip install -e mettagrid
+          uv pip install -e ./mettagrid
 
       - name: Run Pytest on core tests
         run: |
@@ -212,17 +206,11 @@ jobs:
 
       - name: Build FastGAE
         run: |
-          # Build the main project
-          make build
           uv pip install -e .
 
       - name: Build MettaGrid
         run: |
-          # Build mettagrid extensions and install in development mode
-          cd mettagrid
-          make build
-          cd ..
-          uv pip install -e mettagrid
+          uv pip install -e ./mettagrid
 
       - name: Check deps
         run: |
@@ -380,17 +368,11 @@ jobs:
 
       - name: Build FastGAE
         run: |
-          # Build the main project
-          make build
           uv pip install -e .
 
       - name: Build MettaGrid
         run: |
-          # Build mettagrid extensions and install in development mode
-          cd mettagrid
-          make build
-          cd ..
-          uv pip install -e mettagrid
+          uv pip install -e ./mettagrid
 
       - name: Download benchmark results from smoke-test train-benchmark-results job
         uses: actions/download-artifact@v4
