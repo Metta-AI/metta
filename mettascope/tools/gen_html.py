@@ -236,10 +236,15 @@ html, body {
         css_rules = []
 
         # Get background color from frame
+        css = {}
         if "backgroundColor" in frame:
-            css_rules.append({"selector": "body", "styles": {"background-color": rgba(frame["backgroundColor"])}})
+            css["background-color"] = rgba(frame["backgroundColor"])
         elif "fills" in frame and frame["fills"] and frame["fills"][0].get("type") == "SOLID":
-            css_rules.append({"selector": "body", "styles": {"background-color": rgba(frame["fills"][0]["color"])}})
+            css["background-color"] = rgba(frame["fills"][0]["color"])
+        self.compute_auto_layout(css, frame, None)
+        css["min-width"] = "100vw"
+        css["min-height"] = "100vh"
+        css_rules.append({"selector": "body", "styles": css})
 
         # Process the frame children directly
         if "children" in frame:
@@ -286,10 +291,6 @@ html, body {
         horizontal_constraint = constraints.get("horizontal", "LEFT")
         vertical_constraint = constraints.get("vertical", "TOP")
 
-        print("doing ", element["name"])
-        print("  horizontal_constraint:", horizontal_constraint)
-        print("  vertical_constraint:", vertical_constraint)
-
         # Get the box dimensions
         width = box.get("width", 0)
         height = box.get("height", 0)
@@ -315,7 +316,6 @@ html, body {
 
         # Width and height are always needed for proper sizing
         css["display"] = "block"
-        css["position"] = "absolute"
         css["width"] = px(width)
         css["height"] = px(height)
 
@@ -359,9 +359,23 @@ html, body {
         if translate_x is not None or translate_y is not None:
             css["transform"] = f"translate({px(translate_x)}, {px(translate_y)})"
 
-        print("final css:", css)
+        if "minWidth" in element:
+            css["min-width"] = px(element["minWidth"])
+        if "maxWidth" in element:
+            css["max-width"] = px(element["maxWidth"])
+        if "minHeight" in element:
+            css["min-height"] = px(element["minHeight"])
+        if "maxHeight" in element:
+            css["max-height"] = px(element["maxHeight"])
 
-    def compute_auto_layout(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
+        if "width" in css and "minWidth" in element or "maxWidth" in element:
+            del css["width"]
+        if "height" in css and "minHeight" in element or "maxHeight" in element:
+            del css["height"]
+
+    def compute_auto_layout(
+        self, css: Dict[str, Any], element: Dict[str, Any], parent: Optional[Dict[str, Any]]
+    ) -> None:
         """
         Compute CSS Flexbox properties from Figma Auto Layout settings.
 
@@ -369,95 +383,98 @@ html, body {
             css: Dictionary to add CSS properties to
             element: Figma element data containing Auto Layout properties
         """
-        # Check if element has auto layout properties (is a parent container)
-        is_auto_layout_parent = "layoutMode" in element
 
-        if not is_auto_layout_parent:
-            return
+        if "layoutMode" in element:
+            # Set display to flex for auto layout containers
+            css["display"] = "flex"
 
-        # Set display to flex for auto layout containers
-        css["display"] = "flex"
-
-        # Set flex direction based on layoutMode
-        layout_mode = element.get("layoutMode")
-        if layout_mode == "HORIZONTAL":
-            css["flex-direction"] = "row"
-        elif layout_mode == "VERTICAL":
-            css["flex-direction"] = "column"
-
-        # Handle flex wrap
-        layout_wrap = element.get("layoutWrap")
-        if layout_wrap == "WRAP":
-            css["flex-wrap"] = "wrap"
-        else:
-            css["flex-wrap"] = "nowrap"
-
-        # Set gap between items
-        item_spacing = element.get("itemSpacing")
-        if item_spacing is not None:
-            css["gap"] = px(item_spacing)
-
-        # Set padding
-        padding_left = element.get("paddingLeft")
-        padding_right = element.get("paddingRight")
-        padding_top = element.get("paddingTop")
-        padding_bottom = element.get("paddingBottom")
-
-        # Only set padding if at least one value is provided
-        if any(p is not None for p in [padding_left, padding_right, padding_top, padding_bottom]):
-            padding_values = []
-            for p in [padding_top, padding_right, padding_bottom, padding_left]:
-                padding_values.append(px(p) if p is not None else "0px")
-            css["padding"] = " ".join(padding_values)
-
-        # Handle alignment properties
-        primary_axis_alignment = element.get("primaryAxisAlignItems")
-        if primary_axis_alignment == "MIN":
-            css["justify-content"] = "flex-start"
-        elif primary_axis_alignment == "CENTER":
-            css["justify-content"] = "center"
-        elif primary_axis_alignment == "MAX":
-            css["justify-content"] = "flex-end"
-        elif primary_axis_alignment == "SPACE_BETWEEN":
-            css["justify-content"] = "space-between"
-
-        counter_axis_alignment = element.get("counterAxisAlignItems")
-        if counter_axis_alignment == "MIN":
-            css["align-items"] = "flex-start"
-        elif counter_axis_alignment == "CENTER":
-            css["align-items"] = "center"
-        elif counter_axis_alignment == "MAX":
-            css["align-items"] = "flex-end"
-
-        # Handle sizing modes
-        primary_axis_sizing = element.get("primaryAxisSizingMode")
-        counter_axis_sizing = element.get("counterAxisSizingMode")
-
-        if primary_axis_sizing == "FIXED":
-            # Fixed size is handled by the width/height already set
-            pass
-        elif primary_axis_sizing == "AUTO":
+            # Set flex direction based on layoutMode
+            layout_mode = element.get("layoutMode")
             if layout_mode == "HORIZONTAL":
-                css["width"] = "auto"
+                css["flex-direction"] = "row"
+            elif layout_mode == "VERTICAL":
+                css["flex-direction"] = "column"
+
+            # Handle flex wrap
+            layout_wrap = element.get("layoutWrap")
+            if layout_wrap == "WRAP":
+                css["flex-wrap"] = "wrap"
             else:
-                css["height"] = "auto"
+                css["flex-wrap"] = "nowrap"
 
-        if counter_axis_sizing == "FIXED":
-            # Fixed size is handled by the width/height already set
-            pass
-        elif counter_axis_sizing == "AUTO":
-            if layout_mode == "HORIZONTAL":
-                css["height"] = "auto"
-            else:
-                css["width"] = "auto"
+            # Set gap between items
+            item_spacing = element.get("itemSpacing")
+            if item_spacing is not None:
+                css["gap"] = px(item_spacing)
 
-        # Handle auto layout child properties
-        layout_align = element.get("layoutAlign")
-        layout_grow = element.get("layoutGrow", 0)
-        layout_pos = element.get("layoutPositioning")
+            # Set padding
+            padding_left = element.get("paddingLeft")
+            padding_right = element.get("paddingRight")
+            padding_top = element.get("paddingTop")
+            padding_bottom = element.get("paddingBottom")
 
-        # Don't apply flex properties to absolutely positioned elements
-        if layout_pos != "ABSOLUTE":
+            # Only set padding if at least one value is provided
+            if any(p is not None for p in [padding_left, padding_right, padding_top, padding_bottom]):
+                padding_values = []
+                for p in [padding_top, padding_right, padding_bottom, padding_left]:
+                    padding_values.append(px(p) if p is not None else "0px")
+                css["padding"] = " ".join(padding_values)
+
+            # Handle alignment properties
+            primary_axis_alignment = element.get("primaryAxisAlignItems")
+            if primary_axis_alignment == "MIN":
+                css["justify-content"] = "flex-start"
+            elif primary_axis_alignment == "CENTER":
+                css["justify-content"] = "center"
+            elif primary_axis_alignment == "MAX":
+                css["justify-content"] = "flex-end"
+            elif primary_axis_alignment == "SPACE_BETWEEN":
+                css["justify-content"] = "space-between"
+
+            counter_axis_alignment = element.get("counterAxisAlignItems")
+            if counter_axis_alignment == "MIN":
+                css["align-items"] = "flex-start"
+            elif counter_axis_alignment == "CENTER":
+                css["align-items"] = "center"
+            elif counter_axis_alignment == "MAX":
+                css["align-items"] = "flex-end"
+
+            # Handle sizing modes
+            primary_axis_sizing = element.get("primaryAxisSizingMode")
+            counter_axis_sizing = element.get("counterAxisSizingMode")
+
+            if primary_axis_sizing == "FIXED":
+                # Fixed size is handled by the width/height already set
+                pass
+            elif primary_axis_sizing == "AUTO":
+                if layout_mode == "HORIZONTAL":
+                    css["width"] = "auto"
+                else:
+                    css["height"] = "auto"
+
+            if counter_axis_sizing == "FIXED":
+                # Fixed size is handled by the width/height already set
+                pass
+            elif counter_axis_sizing == "AUTO":
+                if layout_mode == "HORIZONTAL":
+                    css["height"] = "auto"
+                else:
+                    css["width"] = "auto"
+
+        if parent and "layoutMode" in parent:
+            # Handle auto layout child properties
+            layout_pos = element.get("layoutPositioning")
+            if layout_pos == "ABSOLUTE":
+                # Don't apply flex properties to absolutely positioned elements
+                return
+
+            layout_align = element.get("layoutAlign")
+            layout_grow = element.get("layoutGrow", 0)
+            layout_align = element.get("layoutAlign")
+            layout_grow = element.get("layoutGrow", 0)
+
+            del css["position"]
+
             if layout_align == "STRETCH":
                 css["align-self"] = "stretch"
             elif layout_align == "CENTER":
@@ -487,20 +504,11 @@ html, body {
             elif v_sizing == "HUG":
                 css["height"] = "auto"
 
-        # If this is an auto layout child but also a parent, we need to handle the positioning context
-        if not is_auto_layout_parent and layout_pos != "ABSOLUTE" and "position" in css:
-            # Change from position:absolute to position:relative for flex items
-            css["position"] = "relative"
-
-            # Remove top/left/right/bottom since they'll be handled by flex
-            for prop in ["top", "left", "right", "bottom"]:
-                if prop in css:
-                    del css[prop]
-
     def compute_text_properties(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
         """COmputes the text properties"""
-        if "backgroundColor" in element:
-            css["color"] = rgba(element["backgroundColor"])
+        if "fills" in element:
+            css["color"] = rgba(element["fills"][0]["color"])
+
         if "style" in element:
             style = element["style"]
             if "fontFamily" in style:
@@ -573,6 +581,29 @@ html, body {
                             + "which is not supported in HTML/CSS. Using INSIDE stroke instead."
                         )
 
+    def compute_effects(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
+        """Computes the effects"""
+        if "effects" in element:
+            shadows = []
+            for effect in element["effects"]:
+                if not effect.get("visible", True):
+                    continue  # skip invisible effects
+
+                offset_x = effect["offset"]["x"]
+                offset_y = effect["offset"]["y"]
+                blur_radius = effect.get("radius", 0)
+                css_color = rgba(effect["color"])
+
+                if effect["type"] == "DROP_SHADOW":
+                    shadows.append(f"{offset_x}px {offset_y}px {blur_radius}px {css_color}")
+                elif effect["type"] == "INNER_SHADOW":
+                    shadows.append(f"inset {offset_x}px {offset_y}px {blur_radius}px {css_color}")
+                else:
+                    print("Effect:", effect["type"], "not supported")
+
+            if shadows:
+                css["box-shadow"] = ", ".join(shadows)
+
     def process_element(self, element: Dict[str, Any], parent: Optional[Dict[str, Any]] = None) -> tuple:
         """
         Process a Figma element and convert it to HTML DOM node.
@@ -600,7 +631,7 @@ html, body {
         self.compute_constraints(css, element, parent)
 
         # Compute auto layout
-        self.compute_auto_layout(css, element)
+        self.compute_auto_layout(css, element, parent)
 
         if element_type == "TEXT":
             self.compute_text_properties(css, element)
@@ -613,6 +644,9 @@ html, body {
 
             # Process stroke (border) properties
             self.compute_stroke(css, element)
+
+            # Process effects.
+            self.compute_effects(css, element)
 
         # Create CSS selector with parent hierarchy if applicable
         selector = f".{class_name}"
