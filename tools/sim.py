@@ -95,9 +95,7 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
     sim_job = SimJob(cfg.sim_job)
-    assert isinstance(
-        sim_job, SimJob
-    ), f"Expected SimJob instance, got {type(sim_job).__name__}"
+    assert isinstance(sim_job, SimJob), f"Expected SimJob instance, got {type(sim_job).__name__}"
 
     for policy_uri in sim_job.policy_uris:
         simulate_policy(sim_job, policy_uri, cfg, logger)
