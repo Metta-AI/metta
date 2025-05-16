@@ -5,8 +5,8 @@ import random
 import numpy as np
 import psutil
 
-from mettagrid.config.utils import get_cfg
 from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.util.hydra import get_cfg
 
 # Define a constant seed for deterministic behavior
 TEST_SEED = 42
