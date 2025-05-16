@@ -24,7 +24,7 @@ def find_source_files(directory):
 
 
 # Get all CPP files (only .cpp files are used for sources)
-cpp_sources = find_source_files("mettagrid/mettagrid")
+cpp_sources = find_source_files("mettagrid")
 print(f"Found {len(cpp_sources)} source files: {cpp_sources}")
 
 
@@ -35,7 +35,7 @@ class CustomBuildExt(build_ext):
 
         # Add includes
         for ext in self.extensions:
-            ext.include_dirs.extend([numpy_include, pybind11_include, "mettagrid/mettagrid"])
+            ext.include_dirs.extend([numpy_include, pybind11_include, "mettagrid"])
             ext.extra_compile_args.extend(extra_compile_args)
             ext.extra_link_args.extend(extra_link_args)
 
@@ -47,7 +47,7 @@ ext_modules = [
     Extension(
         "mettagrid.mettagrid_c",
         sources=cpp_sources,  # Use all found cpp sources
-        include_dirs=[numpy_include, pybind11_include, "mettagrid/mettagrid"],
+        include_dirs=[numpy_include, pybind11_include, "mettagrid"],
         extra_compile_args=["-std=c++17"],
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
     )

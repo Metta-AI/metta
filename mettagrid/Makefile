@@ -1,4 +1,4 @@
-# Makefile for code formatting, linting, and testing 
+# Makefile for code formatting, linting, and testing (UV venv optimized)
 .PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci
 
 # Default target when just running 'make'
@@ -29,50 +29,31 @@ BUILD_SRC_DIR = $(BUILD_DIR)/mettagrid
 BUILD_TEST_DIR = $(BUILD_DIR)/tests
 BUILD_BENCH_DIR = $(BUILD_DIR)/benchmarks
 
-DEVOPS_SCRIPTS_DIR = ../devops
-
-ifdef CI
-    # In CI, use system Python
-    PYTHON3 := python3
-    IS_CI := true
-else
-    # For local development, use the venv from repo root
-    REPO_ROOT := $(realpath ..)
-    PYTHON3 := "$(REPO_ROOT)/.venv/bin/python"
-    IS_CI := false
-endif
+# Use UV venv at repo root
+REPO_ROOT := $(realpath ..)
+PYTHON3 := "$(REPO_ROOT)/.venv/bin/python"
 
 # Compiler settings
 CXX = g++
 
-# Get Python paths using the appropriate Python executable
-PYTHON_VERSION := $(shell $(PYTHON3) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.11")
-PYTHON_INCLUDE := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_path('include'))" 2>/dev/null)
-PYTHON_STDLIB := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_path('stdlib'))" 2>/dev/null)
+# Get Python paths from the UV venv
+PYTHON_VERSION := $(shell $(PYTHON3) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+PYTHON_INCLUDE := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_path('include'))")
+PYTHON_STDLIB := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_path('stdlib'))")
 PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
-PYTHON_SITE_PACKAGES := $(shell $(PYTHON3) -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
-PYTHON_LIB_DIR := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))" 2>/dev/null)
-PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes 2>/dev/null)
+PYTHON_SITE_PACKAGES := $(shell $(PYTHON3) -c "import site; print(site.getsitepackages()[0])")
+PYTHON_LIB_DIR := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
+PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes)
 PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
-UV_ROOT := $(shell $(PYTHON3) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))" 2>/dev/null)
-
-# Print the paths for debugging
-$(info PYTHON3: $(PYTHON3))
-$(info IS_CI: $(IS_CI))
-$(info UV_ROOT: $(UV_ROOT))
-$(info PYTHON_STDLIB: $(PYTHON_STDLIB))
-$(info PYTHON_INCLUDE: $(PYTHON_INCLUDE))
-$(info PYTHON_SITE_PACKAGES: $(PYTHON_SITE_PACKAGES))
-$(info PYTHON_LIB_DIR: $(PYTHON_LIB_DIR))
-$(info PYBIND11_INCLUDE: $(PYBIND11_INCLUDE))
+PYTHON_HOME := $(shell $(PYTHON3) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))")
 
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 
 # Define CXXFLAGS with all the necessary includes
-CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(PYTHON_INCLUDE) -I$(PYBIND11_INCLUDE) $(NUMPY_INCLUDE)
+CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(PYTHON_INCLUDE) -I$(PYBIND11_INCLUDE)
 # Add Python path definitions to CXXFLAGS
-CXXFLAGS += -DPYTHON_HOME=\"$(UV_ROOT)\" -DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
+CXXFLAGS += -DPYTHON_HOME=\"$(PYTHON_HOME)\" -DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
 
 # Add RPATH settings for macOS
 ifeq ($(shell uname), Darwin)
@@ -81,7 +62,7 @@ else
     RPATH_FLAGS =
 endif
 
-# Google Test settings - with detection for different install locations
+# Google Test settings
 GTEST_INCLUDE = $(shell pkg-config --cflags gtest 2>/dev/null || echo "-I/opt/homebrew/Cellar/googletest/1.17.0/include")
 GTEST_LIBS = $(shell pkg-config --libs gtest_main 2>/dev/null || echo "-L/opt/homebrew/Cellar/googletest/1.17.0/lib -lgtest -lgtest_main -pthread")
 
@@ -99,11 +80,22 @@ BENCH_CXXFLAGS = $(CXXFLAGS) $(BENCHMARK_INCLUDE)
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
 SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 
+# Check if we're in a virtual environment
+check-venv:
+	@if [ -z "$$VIRTUAL_ENV" ]; then \
+		echo "ERROR: Not in a virtual environment!"; \
+		echo "Please activate the virtual environment first with:"; \
+		echo "  source .venv/bin/activate"; \
+		exit 1; \
+	else \
+		echo "... in active virtual environment: $$VIRTUAL_ENV"; \
+	fi
+
 #-----------------------
 # CI Build Target
 #-----------------------
 
-# Build all test and benchmark executables without running them (for CI environments)
+# Build all test and benchmark executables without running them
 build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 	@echo "Built all source files, test executables, and benchmark executables"
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
@@ -114,10 +106,10 @@ build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 # Build
 #-----------------------
 
-# Build target that calls the build_mettagrid.sh script
+# Build target that calls the setup.py script with UV venv activated
 build:
 	@echo "Building mettagrid..."
-	(cd .. && $(PYTHON3) mettagrid/setup.py build_ext --inplace)
+	$(PYTHON3) setup.py build_ext --inplace
 
 # Build with clean option
 build-clean: clean build
@@ -220,6 +212,14 @@ TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
 TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
 TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
 
+# Add debug print statements
+debug-test-vars:
+	@echo "TEST_DIR = $(TEST_DIR)"
+	@echo "BUILD_TEST_DIR = $(BUILD_TEST_DIR)"
+	@echo "TEST_SOURCES = $(TEST_SOURCES)"
+	@echo "TEST_OBJECTS = $(TEST_OBJECTS)"
+	@echo "TEST_EXECUTABLES = $(TEST_EXECUTABLES)"
+
 # Compile individual test files
 $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 	@mkdir -p $(dir $@)
@@ -230,26 +230,41 @@ $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
 	$(CXX) $^ -o $@ $(GTEST_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
-# Run all tests - modified to use quotes around the executable path
-test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES)
-	@echo "Running all tests with Python environment..."
+# Run all tests
+test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
+	@echo "Running all C++ tests..."
+	@[ -z "$(TEST_EXECUTABLES)" ] && echo "WARNING: No test executables found!" || true
 	@for f in $(TEST_EXECUTABLES); do \
-		echo "Running $$f"; \
-		PYTHONHOME="$(UV_ROOT)" \
+		if [ -f "$$f" ]; then \
+			echo "Running $$f"; \
+			PYTHONHOME="$(PYTHON_HOME)" \
+			PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+			LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+			DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+			"$$f" --gtest_color=yes || exit 1; \
+		else \
+			echo "ERROR: Test executable $$f not found!"; \
+			exit 1; \
+		fi; \
+	done
+
+# Test a specific test file
+test-%: check-test-tools $(BUILD_TEST_DIR)/%
+	@echo "Running test $*..."
+	@if [ -f "$(BUILD_TEST_DIR)/$*" ]; then \
+		PYTHONHOME="$(PYTHON_HOME)" \
 		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
 		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
 		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
-		"$$f" --gtest_color=yes || exit 1; \
-	done
+		"$(BUILD_TEST_DIR)/$*" --gtest_color=yes; \
+	else \
+		echo "ERROR: Test executable $(BUILD_TEST_DIR)/$* not found!"; \
+		exit 1; \
+	fi
 
-# Test a specific test file - modified to use quotes
-test-%: check-test-tools $(BUILD_TEST_DIR)/%
-	@echo "Running test $*..."
-	PYTHONHOME="$(UV_ROOT)" \
-	PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-	LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-	DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
-	"$(BUILD_TEST_DIR)/$*" --gtest_color=yes
+test-python: check-venv
+	@echo "Running python tests with coverage"
+	pytest --cov=metta --cov-report=term-missing
 
 #-----------------------
 # Benchmarking
@@ -292,6 +307,13 @@ BENCH_SOURCES := $(wildcard $(BENCH_DIR)/*.cpp $(BENCH_DIR)/**/*.cpp)
 BENCH_OBJECTS := $(patsubst $(BENCH_DIR)/%.cpp,$(BUILD_BENCH_DIR)/%.o,$(BENCH_SOURCES))
 BENCH_EXECUTABLES := $(patsubst $(BUILD_BENCH_DIR)/%.o,$(BUILD_BENCH_DIR)/%,$(BENCH_OBJECTS))
 
+debug-bench-vars:
+    @echo "BENCH_DIR = $(BENCH_DIR)"
+    @echo "BUILD_BENCH_DIR = $(BUILD_BENCH_DIR)"
+    @echo "BENCH_SOURCES = $(BENCH_SOURCES)"
+    @echo "BENCH_OBJECTS = $(BENCH_OBJECTS)"
+    @echo "BENCH_EXECUTABLES = $(BENCH_EXECUTABLES)"
+
 # Compile individual benchmark files
 $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 	@mkdir -p $(dir $@)
@@ -301,30 +323,42 @@ $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
 	$(CXX) $^ -o $@ $(BENCHMARK_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
-# Run all benchmarks - modified to use quotes
-benchmark: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
+# Run all benchmarks
+benchmark: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks..."
+	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
-		echo "Running $$f"; \
-		PYTHONHOME="$(UV_ROOT)" \
-		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
-		"$$f" || exit 1; \
+		if [ -f "$$f" ]; then \
+			echo "Running $$f"; \
+			PYTHONHOME="$(PYTHON_HOME)" \
+			PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+			LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+			DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+			"$$f" || exit 1; \
+		else \
+			echo "ERROR: Benchmark executable $$f not found!"; \
+			exit 1; \
+		fi; \
 	done
 
-# Add this new target for JSON benchmark output - modified to use quotes and better shell syntax
-bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
+# Add target for JSON benchmark output
+bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
+	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
-		echo "Running $$f with JSON output..."; \
-		PYTHONHOME="$(UV_ROOT)" \
-		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
-		"$$f" --benchmark_format=json > benchmark_output/$$(basename "$$f").json || \
-		echo "Error running $$f with JSON format"; \
+		if [ -f "$$f" ]; then \
+			echo "Running $$f with JSON output..."; \
+			PYTHONHOME="$(PYTHON_HOME)" \
+			PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
+			LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
+			DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
+			"$$f" --benchmark_format=json > benchmark_output/$(basename "$$f").json || \
+			echo "Error running $$f with JSON format"; \
+		else \
+			echo "ERROR: Benchmark executable $$f not found!"; \
+			exit 1; \
+		fi; \
 	done
 	@echo "JSON outputs created in benchmark_output directory"
 
@@ -334,27 +368,44 @@ bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
 
 # Clean build files
 clean:
-	@echo "Cleaning build files..."
-	@rm -rf $(BUILD_DIR)
-	@echo "Removing any accidental venvs..."
-
+	@echo "(MettaGrid) Removing any accidental venvs (preserving UV venvs)..."
 	@bash -c '\
 		VENV_PATHS=(".venv" "venv" ".env" "env" "virtualenv" ".virtualenv"); \
 		for venv_name in "$${VENV_PATHS[@]}"; do \
 			venv_path="$$(pwd)/$$venv_name"; \
 			if [ -d "$$venv_path" ]; then \
-				if [ -f "$$venv_path/pyvenv.cfg" ] && grep -q "UV_VENV" "$$venv_path/pyvenv.cfg"; then \
-					echo "Preserving $$venv_name as it appears to be a UV virtual environment"; \
+				if [ -f "$$venv_path/pyvenv.cfg" ] && grep -q "UV_VENV" "$$venv_path/pyvenv.cfg" 2>/dev/null; then \
+					echo "(MettaGrid) ✓ Preserving $$venv_name (UV virtual environment)"; \
 				else \
-					echo "Removing $$venv_name virtual environment..."; \
+					echo "(MettaGrid) Removing $$venv_name virtual environment..."; \
 					rm -rf "$$venv_path"; \
-					echo "✅ Removed $$venv_name virtual environment"; \
+					echo "(MettaGrid) ✅ Removed $$venv_name virtual environment"; \
 				fi; \
 			fi; \
 		done'
 
-	@find mettagrid -name "*.so" -type f -delete
-	@echo "Removed .so files from mettagrid directory"
+	@echo "(MettaGrid) Cleaning build files..."
+	@if [ -d "$(BUILD_DIR)" ]; then \
+		rm -rf $(BUILD_DIR); \
+		echo "(MettaGrid) ✅ Removed $(BUILD_DIR)"; \
+	else \
+		echo "(MettaGrid) ✓ No build directory to clean"; \
+	fi
+
+	@echo "(MettaGrid) Cleaning .so files from mettagrid directory..."
+	@if [ -d "mettagrid" ]; then \
+		found_files=$$(find mettagrid -name "*.so" -type f | wc -l); \
+		if [ $$found_files -gt 0 ]; then \
+			find mettagrid -name "*.so" -type f -delete; \
+			echo "(MettaGrid) ✅ Removed $$found_files .so files from mettagrid"; \
+		else \
+			echo "(MettaGrid) ✓ No .so files found in mettagrid"; \
+		fi; \
+	else \
+		echo "(MettaGrid) ✓ No mettagrid directory found, skipping .so cleanup"; \
+	fi
+	
+	@echo "(MettaGrid) ✅ Clean completed successfully"
 
 
 # Run format and test

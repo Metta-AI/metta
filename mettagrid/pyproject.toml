@@ -7,7 +7,7 @@ name = "mettagrid"
 version = "0.1.6"
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
-license = { text = "MIT" }
+license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
 keywords = [
