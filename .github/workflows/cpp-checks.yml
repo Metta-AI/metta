@@ -233,6 +233,13 @@ jobs:
         run: |
           sudo apt-get install -y g++ libgtest-dev
 
+      - name: Build GoogleTest (required for linking)
+        run: |
+          cd /usr/src/gtest
+          sudo cmake .
+          sudo make
+          sudo cp lib/*.a /usr/lib
+
       - name: Restore from build cache
         id: test-cache-cpp
         uses: actions/cache@v3

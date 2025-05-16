@@ -64,7 +64,16 @@ endif
 
 # Google Test settings
 GTEST_INCLUDE = $(shell pkg-config --cflags gtest 2>/dev/null || echo "-I/opt/homebrew/Cellar/googletest/1.17.0/include")
-GTEST_LIBS = $(shell pkg-config --libs gtest_main 2>/dev/null || echo "-L/opt/homebrew/Cellar/googletest/1.17.0/lib -lgtest -lgtest_main -pthread")
+
+GTEST_LIBS := $(shell \
+	if pkg-config --exists gtest_main; then \
+		pkg-config --libs gtest_main; \
+	elif [ -f /usr/lib/libgtest.a ]; then \
+		echo "-L/usr/lib -lgtest -lgtest_main -pthread"; \
+	else \
+		echo "-lgtest -lgtest_main -pthread"; \
+	fi)
+
 
 # Add gtest includes to CXXFLAGS
 CXXFLAGS += $(GTEST_INCLUDE)
@@ -80,7 +89,6 @@ BENCH_CXXFLAGS = $(CXXFLAGS) $(BENCHMARK_INCLUDE)
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
 SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 
-
 $(BUILD_TEST_DIR):
 	@mkdir -p $(BUILD_TEST_DIR)
 
@@ -94,7 +102,6 @@ debug-test-vars:
 	@echo "TEST_SOURCES = $(TEST_SOURCES)"
 	@echo "TEST_OBJECTS = $(TEST_OBJECTS)"
 	@echo "TEST_EXECUTABLES = $(TEST_EXECUTABLES)"
-
 
 $(BUILD_BENCH_DIR):
 	@mkdir -p $(BUILD_BENCH_DIR)
