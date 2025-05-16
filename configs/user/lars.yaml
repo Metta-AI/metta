@@ -12,9 +12,5 @@ trainer:
   env: /env/mettagrid/diversity/multi_left_or_right
   evaluate_interval: 0
 
-sim:
-  env: /env/mettagrid/diversity/multi_left_or_right
-  policy_uri: wandb://run/b.lars.diversity.eval.additivebonus.enabled.coefs10
-
-run: 14-05-left-right-eval-additive-bonus-on
-policy_uri: wandb://run/b.lars.diversity.eval.additivebonus.enabled.coefs10
+run: 16-05-left-right-eval-additive-bonus-on
+# policy_uri: wandb://run/b.lars.diversity.eval.additivebonus.enabled.coefs10
