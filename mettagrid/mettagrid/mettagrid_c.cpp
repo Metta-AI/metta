@@ -338,16 +338,16 @@ py::tuple MettaGrid::reset() {
   // direct memory operations for speed.
 
   std::fill(static_cast<bool*>(_terminals.request().ptr),
-            static_cast<bool*>(_terminals.request().ptr) + _terminals.size(), 0);
+            static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
+            0);
   std::fill(static_cast<bool*>(_truncations.request().ptr),
             static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
             0);
   std::fill(static_cast<float*>(_episode_rewards.request().ptr),
-            static_cast<float*>(_episode_rewards.request().ptr) +
-                _episode_rewards.size(),
+            static_cast<float*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
             0.0f);
-  std::fill(static_cast<float*>(_rewards.request().ptr),
-            static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
+  std::fill(
+      static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
 
   // Clear observations
   auto obs_ptr = static_cast<unsigned char*>(_observations.request().ptr);
