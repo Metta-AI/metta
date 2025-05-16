@@ -35,6 +35,11 @@ POLICIES=(
     "george2_multienv_noincrement"
 
     "objectuse_nocolors"
+
+    "george_sequence_varied"
+    "george3_multienv_noincrement"
+
+
  )
 
 for i in "${!POLICIES[@]}"; do
