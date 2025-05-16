@@ -192,5 +192,7 @@ if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   echo "✅ setup_build.sh completed successfully!"
 fi
 
-# ========== INSTALL METTASCOPE ==========
-bash "mettascope/install.sh"
+if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
+  # ========== INSTALL METTASCOPE ==========
+  bash "mettascope/install.sh"
+fi

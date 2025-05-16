@@ -18,7 +18,19 @@ from mettagrid.mettagrid_env import MettaGridEnv
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
+def make_policy(env: MettaGridEnv, cfg: Union[ListConfig, DictConfig]) -> "MettaAgent":
+    """
+    Create a policy instance based on environment and configuration.
+    This factory function instantiates a MettaAgent for the given MettaGrid environment
+    using the provided configuration parameters. It creates the necessary observation
+    space wrapper that combines grid observations with global variables.
+    Args:
+        env: The MettaGrid environment that the agent will interact with
+        cfg: Configuration parameters containing agent architecture settings
+             and hyperparameters under the 'agent' key
+    Returns:
+        An initialized MettaAgent policy ready to process observations and generate actions
+    """
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
