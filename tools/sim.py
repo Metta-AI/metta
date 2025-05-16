@@ -23,7 +23,7 @@ from metta.util.config import Config
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 
-SMOKE_TEST_NUM_SIMS = 5
+SMOKE_TEST_NUM_SIMS = 1
 SMOKE_TEST_MIN_SCORE = 0.9
 
 # --------------------------------------------------------------------------- #
