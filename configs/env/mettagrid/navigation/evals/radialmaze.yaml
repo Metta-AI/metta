@@ -11,10 +11,10 @@ game:
       heart: 0.333
 
   map_builder:
-    _target_: mettagrid.config.room.multi_room.MultiRoom
+    _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 1
     room:
-      _target_: mettagrid.config.room.cognitive_evals.radial_maze.RadialMaze
+      _target_: mettagrid.room.cognitive_evals.radial_maze.RadialMaze
       width: 20
       height: 20
       radial_params:

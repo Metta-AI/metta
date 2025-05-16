@@ -35,6 +35,6 @@ tensordict==0.8.2
 termcolor==2.4.0
 torchrl==0.8.0
 tqdm==4.67.1
-uvicorn==0.32.1
+uvicorn[standard]==0.32.1
 wandb-core==0.17.0b11
 wandb==0.19.11
