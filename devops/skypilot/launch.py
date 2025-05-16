@@ -7,7 +7,7 @@ import subprocess
 
 import sky
 
-BLUE  = "\033[1;34m"
+BLUE = "\033[1;34m"
 RESET = "\033[0;0m"
 
 
@@ -57,12 +57,14 @@ def main():
         git_ref = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
-    task = task.update_envs(dict(
-        METTA_RUN_ID=args.run,
-        METTA_CMD=args.cmd,
-        METTA_CMD_ARGS=" ".join(cmd_args),
-        METTA_GIT_REF=git_ref,
-    ))
+    task = task.update_envs(
+        dict(
+            METTA_RUN_ID=args.run,
+            METTA_CMD=args.cmd,
+            METTA_CMD_ARGS=" ".join(cmd_args),
+            METTA_GIT_REF=git_ref,
+        )
+    )
 
     task = patch_task(task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes)
 
