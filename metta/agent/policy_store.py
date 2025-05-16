@@ -15,19 +15,21 @@ import os
 import random
 import sys
 import warnings
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, TypeVar, Union
 
 import torch
 import wandb
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 
-from metta.agent.metta_agent import make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.rl.pufferlib.policy import load_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger("policy_store")
+
+T = TypeVar("T", bound=nn.Module)
 
 
 class PolicySelectorConfig(Config):
@@ -37,7 +39,7 @@ class PolicySelectorConfig(Config):
 
 class PolicyRecord:
     def __init__(self, policy_store: "PolicyStore", name: str, uri: str, metadata: dict):
-        self._policy_store = policy_store
+        self._policy_store: Optional[PolicyStore] = policy_store
         self.name = name
         self.uri = uri
         self.metadata = metadata
@@ -48,11 +50,35 @@ class PolicyRecord:
             self._local_path = self.uri[len("file://") :]
 
     def policy(self) -> nn.Module:
+        """
+        Returns the policy module, loading it if not already loaded.
+
+        Returns:
+            nn.Module: The loaded policy module
+
+        Raises:
+            ValueError: If policy store is not initialized
+            RuntimeError: If policy loading fails
+        """
         if self._policy is None:
-            pr = self._policy_store.load_from_uri(self.uri)
-            self._policy = pr.policy()
-            self._local_path = pr.local_path()
+            if self._policy_store is None:
+                raise ValueError("Policy store has not been initialized")
+
+            try:
+                pr = self._policy_store.load_from_uri(self.uri)
+                self._policy = pr.policy()
+                self._local_path = pr.local_path()
+            except Exception as e:
+                raise RuntimeError(f"Failed to load policy from URI {self.uri}: {str(e)}") from e
+
         return self._policy
+
+    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
+        """Get the policy as a MettaAgent or DistributedMettaAgent."""
+        policy = self.policy()
+        if not isinstance(policy, (MettaAgent, DistributedMettaAgent)):
+            raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
+        return policy
 
     def num_params(self):
         return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
@@ -333,7 +359,7 @@ class PolicyStore:
             path,
             policy,
             {
-                "action_names": env.action_names(),
+                "action_names": env.action_names,
                 "agent_step": 0,
                 "epoch": 0,
                 "generation": 0,
@@ -357,19 +383,72 @@ class PolicyStore:
         self._cached_prs[path] = pr
         return pr
 
-    def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
+    def add_to_wandb_run(
+        self, run_id: str, pr: Optional[PolicyRecord], additional_files: Optional[List[str]] = None
+    ) -> Optional[str]:
+        """
+        Add policy record to a W&B run.
+
+        Args:
+            run_id: The W&B run ID
+            pr: The PolicyRecord to add
+            additional_files: Optional list of additional file paths to include
+
+        Returns:
+            The qualified name of the created artifact or None if no record was provided
+        """
+        if pr is None:
+            # Early exit - this is reasonable if calling code might legitimately pass None
+            # and we want to handle that gracefully without an error
+            return None
+
         local_path = pr.local_path()
         if local_path is None:
             raise ValueError("PolicyRecord has no local path")
+
         return self.add_to_wandb_artifact(run_id, "model", pr.metadata, local_path, additional_files)
 
-    def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files=None):
+    def add_to_wandb_sweep(
+        self, sweep_name: str, pr: PolicyRecord, additional_files: Optional[List[str]] = None
+    ) -> str:
+        """
+        Add policy record to a W&B sweep.
+
+        Args:
+            sweep_name: The W&B sweep name
+            pr: The PolicyRecord to add (required, not optional)
+            additional_files: Optional list of additional file paths to include
+
+        Returns:
+            The qualified name of the created artifact
+        """
         local_path = pr.local_path()
         if local_path is None:
             raise ValueError("PolicyRecord has no local path")
+
         return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, local_path, additional_files)
 
-    def add_to_wandb_artifact(self, name: str, type: str, metadata: dict, local_path: str, additional_files=None):
+    def add_to_wandb_artifact(
+        self,
+        name: str,
+        type: str,
+        metadata: Dict[str, Any],
+        local_path: str,
+        additional_files: Optional[List[str]] = None,
+    ) -> str:
+        """
+        Add an artifact to W&B.
+
+        Args:
+            name: The artifact name
+            type: The artifact type
+            metadata: The metadata dictionary
+            local_path: Path to the main model file
+            additional_files: Optional list of additional file paths to include
+
+        Returns:
+            The qualified name of the created artifact
+        """
         if self._wandb_run is None:
             raise ValueError("PolicyStore was not initialized with a wandb run")
 
@@ -383,6 +462,8 @@ class PolicyStore:
         artifact.wait()
         logger.info(f"Added artifact {artifact.qualified_name}")
         self._wandb_run.log_artifact(artifact)
+
+        return artifact.qualified_name
 
     def _prs_from_path(self, path: str) -> List[PolicyRecord]:
         paths = []
