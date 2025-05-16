@@ -11,10 +11,11 @@ import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
-from mettagrid.config import MettaGridConfig, calculate_diversity_bonus
+from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from mettagrid.util.diversity import calculate_diversity_bonus
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
