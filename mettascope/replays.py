@@ -45,12 +45,12 @@ def create_simulation(cfg):
 
 
 def generate_replay(sim) -> dict:
-    assert len(sim._vecenv.envs) == 1
+    assert len(sim._vecenv.envs) == 1, "Replay generation requires a single environment"
     start = time.time()
     sim.simulate()
     end = time.time()
     print("Simulate time", end - start)
-    assert len(sim._replay_writer.episodes) == 1
+    assert len(sim._replay_writer.episodes) == 1, "Expected exactly one replay episode"
     for _, episode_replay in sim._replay_writer.episodes.items():
         return episode_replay.get_replay_data()
     return {}

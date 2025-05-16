@@ -152,12 +152,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         replay_url = None
         if self._replay_writer:
-            assert self._episode_id is not None
+            assert self._episode_id is not None, "Episode ID must be set before writing a replay"
             replay_url = self._replay_writer.write_replay(self._episode_id)
         infos["replay_url"] = replay_url
 
         if self._stats_writer:
-            assert self._episode_id is not None
+            assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
             attributes = {
                 "seed": self._current_seed,

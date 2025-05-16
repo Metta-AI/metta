@@ -334,29 +334,25 @@ py::tuple MettaGrid::reset() {
   }
 
   // Reset all buffers
-  auto terminals_view = _terminals.mutable_unchecked<1>();
-  auto truncations_view = _truncations.mutable_unchecked<1>();
-  auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
-  auto observations_view = _observations.mutable_unchecked<4>();
-  auto rewards_view = _rewards.mutable_unchecked<1>();
+  // Views are created only for validating types; actual clearing is done via
+  // direct memory operations for speed.
 
-  for (py::ssize_t i = 0; i < terminals_view.shape(0); i++) {
-    terminals_view(i) = 0;
-    truncations_view(i) = 0;
-    episode_rewards_view(i) = 0;
-    rewards_view(i) = 0;
-  }
+  std::fill(static_cast<bool*>(_terminals.request().ptr),
+            static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
+            0);
+  std::fill(static_cast<bool*>(_truncations.request().ptr),
+            static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+            0);
+  std::fill(static_cast<float*>(_episode_rewards.request().ptr),
+            static_cast<float*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
+            0.0f);
+  std::fill(
+      static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
 
   // Clear observations
-  for (py::ssize_t i = 0; i < observations_view.shape(0); i++) {
-    for (py::ssize_t j = 0; j < observations_view.shape(1); j++) {
-      for (py::ssize_t k = 0; k < observations_view.shape(2); k++) {
-        for (py::ssize_t l = 0; l < observations_view.shape(3); l++) {
-          observations_view(i, j, k, l) = 0;
-        }
-      }
-    }
-  }
+  auto obs_ptr = static_cast<unsigned char*>(_observations.request().ptr);
+  auto obs_size = _observations.size();
+  std::fill(obs_ptr, obs_ptr + obs_size, 0);
 
   // Compute initial observations
   std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
