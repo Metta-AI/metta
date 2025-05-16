@@ -1,18 +1,13 @@
 # @package __global__
 
 defaults:
+  - /sim/navigation_generator@sim
   - _self_
 
 trainer:
-  env: env/mettagrid/object_use/generator/training/generator_varied_terrain.yaml
-  # initial_policy:
-  #   uri: wandb://run/MRM_test_mettabox
+  env: env/mettagrid/navigation/training/multienv
+  initial_policy:
+    uri: wandb://run/mrazo_object-use_generator_pretrained-none_v01
   evaluate_interval: 300
 
-sim: /sim/navigation_generator
-
-train_job:
-  evals: ${sim}
-
-sim_job:
-  simulation_suite: ${sim}
+run: mrazo_object-use_navigation_pretrained-generator_v01
