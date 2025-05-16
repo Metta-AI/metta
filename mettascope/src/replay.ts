@@ -315,11 +315,11 @@ export function loadReplayStep(replayStep: any) {
 export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl);
   state.ws.onmessage = (event) => {
-
     const data = JSON.parse(event.data);
     console.log("Received message: ", data.type);
     if (data.type === "replay") {
       loadReplayJson(wsUrl, data.replay);
+      Common.closeModal();
     } else if (data.type === "replay_step") {
       loadReplayStep(data.replay_step);
     } else if (data.type === "message") {
@@ -327,13 +327,22 @@ export function initWebSocket(wsUrl: string) {
     }
   };
   state.ws.onopen = () => {
-    console.log("WebSocket opened");
+    Common.showModal("info",
+      "Starting environment",
+      "Please wait while live environment is starting for playing..."
+    );
   };
   state.ws.onclose = () => {
-    console.log("WebSocket closed");
+    Common.showModal("error",
+      "WebSocket closed",
+      "Please check your connection and refresh this page."
+    );
   };
   state.ws.onerror = (event) => {
-    console.log("WebSocket error: ", event);
+    Common.showModal("error",
+      "WebSocket error",
+      "Websocket error: " + event
+    );
   };
 }
 

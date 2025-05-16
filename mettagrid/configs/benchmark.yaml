@@ -11,12 +11,12 @@ game:
   num_agents: 24
 
   map_builder:
-    _target_: mettagrid.config.room.multi_room.MultiRoom
+    _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
     border_width: 6
 
     room:
-      _target_: mettagrid.config.room.random.Random
+      _target_: mettagrid.room.random.Random
       width: 25
       height: 25
       border_width: 0
