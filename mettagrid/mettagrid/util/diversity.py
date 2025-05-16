@@ -9,14 +9,14 @@ def calculate_diversity_bonus(
     similarity_coef: float,
     diversity_coef: float,
 ) -> np.ndarray:
-    """Calculate diversity bonus for each agent based on their rewards and group.
+    """Calculate diversity scaling factor for each agent based on their rewards and group.
 
-    The bonus encourages agents to be similar to their own group but different from other groups.
+    The scaling factor encourages agents to be similar to their own group but different from other groups.
     For each agent:
     1. Calculate normalized distance to own group mean
     2. Calculate normalized distance to each other group's mean
     3. Convert distances to similarity and diversity scores
-    4. Combine scores with coefficients to get final bonus
+    4. Combine scores with coefficients to get final scaling factor
 
     Args:
         episode_rewards: Array of rewards for each agent
@@ -25,7 +25,7 @@ def calculate_diversity_bonus(
         diversity_coef: Coefficient for between-group diversity
 
     Returns:
-        Array of bonus values to add to each agent's reward
+        Array of scaling factors to multiply each agent's reward by
     """
     # Get number of agents and their group IDs
     num_agents = len(agent_groups)
@@ -36,10 +36,10 @@ def calculate_diversity_bonus(
     group_means = {g: np.mean(episode_rewards[group_ids == g]) for g in unique_groups}
     group_stds = {g: np.std(episode_rewards[group_ids == g]) + 1e-6 for g in unique_groups}
 
-    # Initialize bonus array (0 means no bonus)
-    diversity_bonuses = np.zeros_like(episode_rewards)
+    # Initialize scaling factors array
+    diversity_factors = np.ones_like(episode_rewards)
 
-    # Calculate bonus for each agent
+    # Calculate scaling factor for each agent
     for agent_idx in range(num_agents):
         group_id = group_ids[agent_idx]
         agent_reward = episode_rewards[agent_idx]
@@ -64,7 +64,7 @@ def calculate_diversity_bonus(
         # Average the diversity scores across other groups
         diversity_score = np.mean(diversity_scores) if diversity_scores else 0
 
-        # Calculate final bonus (now additive instead of multiplicative)
-        diversity_bonuses[agent_idx] = similarity_coef * similarity_score + diversity_coef * diversity_score
+        # Calculate final scaling factor (multiplicative)
+        diversity_factors[agent_idx] = 1 + similarity_coef * similarity_score + diversity_coef * diversity_score
 
-    return diversity_bonuses
+    return diversity_factors
