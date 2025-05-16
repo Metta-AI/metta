@@ -12,9 +12,9 @@ game:
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-      ore.red: ${sampling:0.005,1, 0.01}
-      ore.blue: ${sampling:0.005,1, 0.01}
-      ore.green: ${sampling:0.005,1, 0.01}
+      ore.red: ${sampling:0.005,0.1, 0.01}
+      ore.blue: ${sampling:0.005,0.1, 0.01}
+      ore.green: ${sampling:0.005,0.1, 0.01}
       battery: ${sampling:0.01,1, 0.1}
       battery_max: 5
       heart: 1
@@ -61,10 +61,10 @@ game:
         cooldown: ${sampling:3, 20, 10}
 
       mine.red:
-        cooldown: ${sampling:5, 20, 10}
+        cooldown: ${sampling:15, 50, 10}
 
       mine.blue:
-        cooldown: ${sampling:5, 20, 10}
+        cooldown: ${sampling:15, 50, 10}
 
       mine.green:
-        cooldown: ${sampling:5, 20, 10}
+        cooldown: ${sampling:15, 50, 10}
