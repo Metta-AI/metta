@@ -21,7 +21,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ./devops/setup_build.sh
 
 # Rebuild only mettagrid component
-./devops/build_mettagrid.sh
+cd mettagrid
+make build
 ```
 
 ## Common Commands

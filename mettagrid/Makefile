@@ -31,24 +31,34 @@ BUILD_BENCH_DIR = $(BUILD_DIR)/benchmarks
 
 DEVOPS_SCRIPTS_DIR = ../devops
 
+ifdef CI
+    # In CI, use system Python
+    PYTHON3 := python3
+    IS_CI := true
+else
+    # For local development, use the venv from repo root
+    REPO_ROOT := $(realpath ..)
+    PYTHON3 := "$(REPO_ROOT)/.venv/bin/python"
+    IS_CI := false
+endif
+
 # Compiler settings
 CXX = g++
 
-# Get the project root directory (where the Makefile is located)
-PROJECT_ROOT := $(shell pwd)
-
-# Get Python paths directly using UV instead of virtual environment
-PYTHON_VERSION := $(shell python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.11")
-PYTHON_INCLUDE := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_path('include'))" 2>/dev/null)
-PYTHON_STDLIB := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_path('stdlib'))" 2>/dev/null)
+# Get Python paths using the appropriate Python executable
+PYTHON_VERSION := $(shell $(PYTHON3) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.11")
+PYTHON_INCLUDE := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_path('include'))" 2>/dev/null)
+PYTHON_STDLIB := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_path('stdlib'))" 2>/dev/null)
 PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
-PYTHON_SITE_PACKAGES := $(shell uv run --active python -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
-PYTHON_LIB_DIR := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))" 2>/dev/null)
-PYBIND11_INCLUDES := $(shell uv run --active python -m pybind11 --includes 2>/dev/null)
+PYTHON_SITE_PACKAGES := $(shell $(PYTHON3) -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
+PYTHON_LIB_DIR := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))" 2>/dev/null)
+PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes 2>/dev/null)
 PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
-UV_ROOT := $(shell dirname $(PYTHON_STDLIB))
+UV_ROOT := $(shell $(PYTHON3) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))" 2>/dev/null)
 
 # Print the paths for debugging
+$(info PYTHON3: $(PYTHON3))
+$(info IS_CI: $(IS_CI))
 $(info UV_ROOT: $(UV_ROOT))
 $(info PYTHON_STDLIB: $(PYTHON_STDLIB))
 $(info PYTHON_INCLUDE: $(PYTHON_INCLUDE))
@@ -107,24 +117,10 @@ build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 # Build target that calls the build_mettagrid.sh script
 build:
 	@echo "Building mettagrid..."
-	@if [ -f $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh ]; then \
-		$(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh; \
-	else \
-		echo "Error: build_mettagrid.sh script not found"; \
-		echo "Expected path: $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh"; \
-		exit 1; \
-	fi
+	(cd .. && $(PYTHON3) mettagrid/setup.py build_ext --inplace)
 
 # Build with clean option
-build-clean:
-	@echo "Building mettagrid with clean option..."
-	@if [ -f $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh ]; then \
-		$(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh --clean; \
-	else \
-		echo "Error: build_mettagrid.sh script not found"; \
-		echo "Expected path: $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh"; \
-		exit 1; \
-	fi
+build-clean: clean build
 
 #-----------------------
 # Formatting
@@ -340,8 +336,26 @@ bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
 clean:
 	@echo "Cleaning build files..."
 	@rm -rf $(BUILD_DIR)
+	@echo "Removing any accidental venvs..."
+
+	@bash -c '\
+		VENV_PATHS=(".venv" "venv" ".env" "env" "virtualenv" ".virtualenv"); \
+		for venv_name in "$${VENV_PATHS[@]}"; do \
+			venv_path="$$(pwd)/$$venv_name"; \
+			if [ -d "$$venv_path" ]; then \
+				if [ -f "$$venv_path/pyvenv.cfg" ] && grep -q "UV_VENV" "$$venv_path/pyvenv.cfg"; then \
+					echo "Preserving $$venv_name as it appears to be a UV virtual environment"; \
+				else \
+					echo "Removing $$venv_name virtual environment..."; \
+					rm -rf "$$venv_path"; \
+					echo "✅ Removed $$venv_name virtual environment"; \
+				fi; \
+			fi; \
+		done'
+
 	@find mettagrid -name "*.so" -type f -delete
 	@echo "Removed .so files from mettagrid directory"
+
 
 # Run format and test
 all: format test
