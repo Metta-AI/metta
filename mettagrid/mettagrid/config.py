@@ -72,3 +72,8 @@ class MettaGridConfig:
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(self.env_cfg))
 
         return config_dict, env_map
+
+    def map_labels(self) -> list[str]:
+        if self._map_builder is None:
+            return []
+        return self._map_builder.labels or []
