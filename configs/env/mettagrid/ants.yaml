@@ -16,8 +16,8 @@ game:
     root:
       _target_: metta.map.scenes.room_grid.RoomGrid
 
-      rows: ${sampling:4,8,4}
-      columns: ${sampling:4,8,4}
+      rows: ${sampling:4,7,4}
+      columns: ${sampling:4,7,4}
 
       border_width: 0
 
