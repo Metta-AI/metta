@@ -45,9 +45,9 @@ class EpisodeReplay:
         self.total_rewards = np.zeros(env.num_agents)
         self.replay_data = {
             "version": 1,
-            "action_names": env.action_names(),
-            "inventory_items": env.inventory_item_names(),
-            "object_types": env.object_type_names(),
+            "action_names": env.action_names,
+            "inventory_items": env.inventory_item_names,
+            "object_types": env.object_type_names,
             "map_size": [env.map_width, env.map_height],
             "num_agents": env.num_agents,
             "max_steps": env._max_steps,

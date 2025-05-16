@@ -116,8 +116,8 @@ class PufferTrainer:
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
-        actions_names = metta_grid_env.action_names()
-        actions_max_params = metta_grid_env._c_env.max_action_args()
+        actions_names = metta_grid_env.action_names
+        actions_max_params = metta_grid_env._c_env.max_action_args
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
@@ -596,7 +596,7 @@ class PufferTrainer:
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
-                "action_names": metta_grid_env.action_names(),
+                "action_names": metta_grid_env.action_names,
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,

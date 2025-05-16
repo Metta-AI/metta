@@ -97,8 +97,8 @@ class Simulation:
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
 
         # Let every policy know the active action-set of this env.
-        action_names = self._vecenv.driver_env.action_names()
-        max_args = self._vecenv.driver_env._c_env.max_action_args()
+        action_names = self._vecenv.driver_env.action_names
+        max_args = self._vecenv.driver_env._c_env.max_action_args
         self._policy_pr.policy().activate_actions(action_names, max_args, self._device)
         if self._npc_pr is not None:
             self._npc_pr.policy().activate_actions(action_names, max_args, self._device)
