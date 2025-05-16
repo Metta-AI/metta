@@ -37,6 +37,10 @@ class SimJob(Config):
     replay_dir: str  # where to store replays
 
 
+class PossiblyLimitedSimJob(SimJob):
+    simulation_limit: int | None = None  # a way to retroactively limit the number of simulations. Used for testing.
+
+
 # --------------------------------------------------------------------------- #
 # Helpers                                                                     #
 # --------------------------------------------------------------------------- #
@@ -73,6 +77,7 @@ def simulate_policy(
             vectorization=cfg.vectorization,
         )
         results = sim.simulate()
+        print(results)
         # ------------------------------------------------------------------ #
         # Export                                                             #
         # ------------------------------------------------------------------ #
@@ -94,8 +99,14 @@ def main(cfg: DictConfig) -> None:
     logger = setup_mettagrid_logger("metta.tools.sim")
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
-    sim_job = SimJob(cfg.sim_job)
+    sim_job = PossiblyLimitedSimJob(cfg.sim_job)
     assert isinstance(sim_job, SimJob)
+
+    if sim_job.simulation_limit is not None:
+        logger.info(f"Limiting simulations to {sim_job.simulation_limit}")
+        sim_job.simulation_suite.simulations = {
+            k: v for k, v in sim_job.simulation_suite.simulations.items() if k in range(sim_job.simulation_limit)
+        }
 
     for policy_uri in sim_job.policy_uris:
         simulate_policy(sim_job, policy_uri, cfg, logger)
