@@ -57,7 +57,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _reset_env(self):
         mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
         config_dict, env_map = mettagrid_config.to_c_args()
-
         self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
@@ -71,6 +70,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def reset(self, seed=None, options=None):
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
+
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         self._episode_id = self._make_episode_id()
