@@ -9,22 +9,21 @@ from setuptools.command.build_ext import build_ext as BuildExtCommand
 
 multiprocessing.freeze_support()
 
-
 try:
-    # Try to get from the current environment first
     site_packages = site.getsitepackages()[0]
-except IndexError:
-    # Fallback if site-packages not found
+except IndexError as err:
     site_packages = os.path.join(os.path.dirname(os.__file__), "site-packages")
+    if not os.path.exists(site_packages):
+        raise ImportError("site_packages is not available") from err
 
-# Better numpy include path handling
 try:
     import numpy
 
     numpy_include = numpy.get_include()
-except ImportError:
-    # Fallback if numpy not yet installed
+except ImportError as err:
     numpy_include = os.path.join(site_packages, "numpy/core/include")
+    if not os.path.exists(numpy_include):
+        raise ImportError("numpy is required but not available") from err
 
 print(f"Using NumPy include path: {numpy_include}")
 
