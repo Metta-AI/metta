@@ -5,6 +5,8 @@
     "addinivalue",
     "addopts",
     "allclose",
+    "autostop",
+    "autostops",
     "bint",
     "boundscheck",
     "bptt",
