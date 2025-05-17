@@ -7,13 +7,14 @@ resource "tailscale_tailnet_key" "efs_proxy" {
   depends_on    = [tailscale_acl.acl] # won't work until the tag is mentioned in ACL
 }
 
-# TODO: there can be only one ACL per tailnet. So after we add more terraform
-# stacks than shared-efs, this should be moved there.
+# Note: there can be only one ACL per tailnet. So this stack is the only one
+# that can be used to manage Tailscale ACL.
 
 resource "tailscale_acl" "acl" {
   acl = jsonencode({
     tagOwners : {
       "tag:efs-proxy" : ["autogroup:admin"]
+      "tag:mettabox" : ["autogroup:admin"]
     },
     autoApprovers : {
       routes : {
