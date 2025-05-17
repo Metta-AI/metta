@@ -248,6 +248,11 @@ check-dependencies:
 		echo "  PYBIND11_INCLUDE     = ❌ not found -- run \"make install-dependencies\""; \
 		exit 1; \
 	fi
+
+	@echo "🔍 Python import test for numpy..."
+	@$(PYTHON_BIN) -c "import numpy; print('✓ numpy imported successfully')" || \
+		{ echo "❌ Failed to import numpy — possibly missing .so or metadata files"; exit 1; }
+
 	@if [ -n "$(NUMPY_INCLUDE)" ]; then \
 		echo "  NUMPY_INCLUDE        = $(NUMPY_INCLUDE)"; \
 	else \

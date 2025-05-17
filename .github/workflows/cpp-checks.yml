@@ -87,23 +87,40 @@ jobs:
       - name: Set cache paths
         id: set-cache-paths
         shell: bash
-        run: |  
+        run: |
           VIRTUAL_ENV="$GITHUB_WORKSPACE/.venv"
+          SITE_PKGS="$VIRTUAL_ENV/lib/python3.11/site-packages"
           echo "VIRTUAL_ENV is: $VIRTUAL_ENV"
           echo "Ensuring cache paths exist..."
 
-          # Ensure directories exist to prevent cache save failure
+          # Always include build dir
           mkdir -p mettagrid/build
-          mkdir -p "$VIRTUAL_ENV/lib/python3.11/site-packages/numpy"
-          mkdir -p "$VIRTUAL_ENV/lib/python3.11/site-packages/pybind11"
-          mkdir -p "$VIRTUAL_ENV/lib/python3.11/site-packages/numpy/core/include"
-          
-          # Write the list to GitHub Actions output
+
+          # Ensure numpy/pybind11 paths exist for cache save
+          mkdir -p "$SITE_PKGS/numpy"
+          mkdir -p "$SITE_PKGS/numpy/core/include"
+          mkdir -p "$SITE_PKGS/numpy/.libs"
+          mkdir -p "$SITE_PKGS/pybind11"
+          mkdir -p "$SITE_PKGS/pybind11/include"
+
+          # Begin multiline output
           echo "cache_paths<<EOF" >> "$GITHUB_OUTPUT"
           echo "mettagrid/build" >> "$GITHUB_OUTPUT"
-          echo "$VIRTUAL_ENV/lib/python3.11/site-packages/pybind11" >> "$GITHUB_OUTPUT"
-          echo "$VIRTUAL_ENV/lib/python3.11/site-packages/numpy" >> "$GITHUB_OUTPUT"
-          echo "$VIRTUAL_ENV/lib/python3.11/site-packages/numpy/core/include" >> "$GITHUB_OUTPUT"
+
+          # Add pybind11 include + module
+          echo "$SITE_PKGS/pybind11" >> "$GITHUB_OUTPUT"
+          echo "$SITE_PKGS/pybind11/include" >> "$GITHUB_OUTPUT"
+
+          # Add numpy core and headers
+          echo "$SITE_PKGS/numpy" >> "$GITHUB_OUTPUT"
+          echo "$SITE_PKGS/numpy/core/include" >> "$GITHUB_OUTPUT"
+          echo "$SITE_PKGS/numpy/.libs" >> "$GITHUB_OUTPUT"
+
+          # Include dist-info metadata (optional but improves pip compatibility)
+          for info in "$SITE_PKGS"/numpy-*.dist-info "$SITE_PKGS"/pybind11-*.dist-info; do
+            [ -d "$info" ] && echo "$info" >> "$GITHUB_OUTPUT"
+          done
+
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Debug cache paths
@@ -223,20 +240,19 @@ jobs:
           echo "VIRTUAL_ENV is: $VIRTUAL_ENV"
 
           echo "Verifying cache paths..."
+          echo "Cache paths input:"
+          echo "${{ needs.setup-checks.outputs.cache_paths }}"
 
-          for path in mettagrid/build \
-              $VIRTUAL_ENV/lib/python3.11/site-packages/pybind11 \
-              $VIRTUAL_ENV/lib/python3.11/site-packages/numpy
-          do
+          echo "${{ needs.setup-checks.outputs.cache_paths }}" | while read -r path; do
             echo "==> $path"
             if [[ -d "$path" ]]; then
               echo "✓ Exists: $path"
-              ls -l "$path"
+              ls "$path"
             else
               echo "❌ MISSING: $path"
             fi
+            echo ""
           done
-
 
       - name: Save build cache
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
