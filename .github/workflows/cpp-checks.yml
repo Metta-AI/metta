@@ -169,7 +169,7 @@ jobs:
         uses: ./.github/actions/setup-python-uv
             
       - name: Restore from dependencies cache
-        id: apt-cache
+        id: deps-cache
         uses: actions/cache@v4
         with:
           path: |
@@ -179,13 +179,24 @@ jobs:
             /usr/include/benchmark
             /usr/lib/x86_64-linux-gnu/libgtest*
             /usr/lib/x86_64-linux-gnu/libbenchmark*
-          key: ${{ runner.os }}-apt-cache-${{ hashFiles('mettagrid/Makefile') }}
+            .venv/lib/python*/site-packages/pybind11
+            .venv/lib/python*/site-packages/numpy
+            .venv/lib/python*/site-packages/pybind11-*
+            .venv/lib/python*/site-packages/numpy-*
+          key: ${{ runner.os }}-dependencies-${{ hashFiles('mettagrid/Makefile') }}
+
 
       - name: Install C++ dependencies (cache miss fallback)
-        if: steps.apt-cache.outputs.cache-hit != 'true'
+        if: steps.deps-cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-format cmake googletest libgtest-dev libbenchmark-dev
+
+      - name: Install Python dependencies (cache miss fallback)
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          cd mettagrid
+          uv pip install pybind11 numpy
 
       - name: Restore from build cache
         id: build-cache-cpp
