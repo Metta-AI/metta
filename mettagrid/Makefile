@@ -1,7 +1,7 @@
-# Makefile for code formatting, linting, and testing (UV venv optimized)
-.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci info install-build-deps build-for-ci-internal
+MAKEFLAGS += --no-builtin-rules
 
 # Default target when just running 'make'
+.PHONY: help
 help:
 	@echo "Available targets:"
 	@echo "  build             - Build mettagrid using the rebuild script"
@@ -46,8 +46,6 @@ PYTHON_LIB_DIR := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_c
 PYTHON_HOME := $(shell $(PYTHON3) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))")
 PYTHON_CFLAGS := $(shell $(PYTHON3) -m pybind11 --includes)
 PYTHON_LDFLAGS := $(PYTHON_LIBS)
-PYBIND11_INCLUDE ?=
-NUMPY_INCLUDE ?=
 
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
@@ -58,6 +56,12 @@ CXXFLAGS = -std=c++23 -Wall -g \
 	-DPYTHON_HOME=\"$(PYTHON_HOME)\" \
 	-DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
 
+
+PYBIND11_INCLUDE = $(shell $(PYTHON3) -m pybind11 --includes 2>/dev/null | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
+NUMPY_INCLUDE = $(shell $(PYTHON3) -c "import numpy; print(numpy.get_include())" 2>/dev/null)
+
+CXXFLAGS += -I$(PYBIND11_INCLUDE)
+CXXFLAGS += -I$(NUMPY_INCLUDE)
 
 # Add RPATH settings for macOS
 ifeq ($(shell uname), Darwin)
@@ -100,6 +104,7 @@ TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
 TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
 TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
 
+.PHONY: debug-test-vars
 debug-test-vars:
 	@echo "TEST_DIR = $(TEST_DIR)"
 	@echo "BUILD_TEST_DIR = $(BUILD_TEST_DIR)"
@@ -114,6 +119,7 @@ BENCH_SOURCES := $(wildcard $(BENCH_DIR)/*.cpp $(BENCH_DIR)/**/*.cpp)
 BENCH_OBJECTS := $(patsubst $(BENCH_DIR)/%.cpp,$(BUILD_BENCH_DIR)/%.o,$(BENCH_SOURCES))
 BENCH_EXECUTABLES := $(patsubst $(BUILD_BENCH_DIR)/%.o,$(BUILD_BENCH_DIR)/%,$(BENCH_OBJECTS))
 
+.PHONY: debug-bench-vars
 debug-bench-vars:
 	@echo "BENCH_DIR = $(BENCH_DIR)"
 	@echo "BUILD_BENCH_DIR = $(BUILD_BENCH_DIR)"
@@ -122,6 +128,7 @@ debug-bench-vars:
 	@echo "BENCH_EXECUTABLES = $(BENCH_EXECUTABLES)"
 
 # Check if we're in a virtual environment
+.PHONY: check-venv
 check-venv:
 	@if [ -z "$$VIRTUAL_ENV" ]; then \
 		echo "ERROR: Not in a virtual environment!"; \
@@ -136,39 +143,18 @@ check-venv:
 # CI Build Target
 #-----------------------
 
+.PHONY: install-build-deps
 install-build-deps:
 	@echo "Installing C++ build dependencies using uv..."
 	@uv pip install --python $(PYTHON3) pybind11 numpy
 	
-collect-build-deps:
-	@echo "📦 Collecting build dependencies..."
-
-	$(eval PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes 2>/dev/null))
-	$(eval PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//'))
-	@if [ -z "$(PYBIND11_INCLUDE)" ]; then \
-		echo "⚠️  pybind11 include path not found! Did you run 'make install-build-deps'?"; \
-		exit 1; \
-	else \
-		echo "🔁 PYBIND11_INCLUDE set to: $(PYBIND11_INCLUDE)"; \
-	fi
-	$(eval CXXFLAGS := $(CXXFLAGS) -I$(PYBIND11_INCLUDE))
-
-	$(eval NUMPY_INCLUDE := $(shell $(PYTHON3) -c "import numpy; print(numpy.get_include())" 2>/dev/null))
-	@if [ -z "$(NUMPY_INCLUDE)" ]; then \
-		echo "⚠️  NumPy include path not found! Did you run 'make install-build-deps'?"; \
-		exit 1; \
-	else \
-		echo "🔁 NUMPY_INCLUDE set to: $(NUMPY_INCLUDE)"; \
-	fi
-	$(eval CXXFLAGS := $(CXXFLAGS) -I$(NUMPY_INCLUDE))
-	$(eval CXXFLAGS := $(sort $(CXXFLAGS)))
-
-
-info: 
+.PHONY: info
+info:
 	@echo "🔧 Environment Info"
 	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
 	@echo "  PYTHON               = $(PYTHON3)"
 	@echo "  Python version       = $(PYTHON_VERSION)"
+	@echo "  Reinvoked make?      = $(REINVOKE_MAKE)"
 	@echo ""
 	@echo "📦 Python Includes"
 	@echo "  PYTHON_INCLUDE       = $(PYTHON_INCLUDE)"
@@ -199,19 +185,17 @@ info:
 	@echo "  PYTHON_LIBS          = $(PYTHON_LIBS)"
 	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
 
-build-for-ci-internal: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
-	@echo "✅ Build completed."
-
-build-for-ci-with-deps:
-	$(MAKE) collect-build-deps
+.PHONY: build-for-ci-internal
+build-for-ci-internal: info $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
 	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
 	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
-	$(MAKE) info
-	$(MAKE) build-for-ci-internal
+	@echo "✅ Build completed."
 
+.PHONY: build-for-ci
 build-for-ci: install-build-deps
-	@$(MAKE) build-for-ci-with-deps
+	@echo "🔁 Re-invoking make with include paths set..."
+	@$(MAKE) build-for-ci-internal REINVOKE_MAKE=yes
 
 
 #-----------------------
@@ -219,11 +203,13 @@ build-for-ci: install-build-deps
 #-----------------------
 
 # Build target that calls the setup.py script with UV venv activated
-build:
+.PHONY: build
+build: 
 	@echo "Building mettagrid..."
 	uv pip install -e .
 
 # Build with clean option
+.PHONY: build-clean
 build-clean: clean build
 
 #-----------------------
@@ -231,6 +217,7 @@ build-clean: clean build
 #-----------------------
 
 # Check if the required formatting tools are installed
+.PHONY: check-tools
 check-tools:
 	@echo "Checking for required formatting tools..."
 	@which clang-format >/dev/null 2>&1 || \
@@ -240,6 +227,7 @@ check-tools:
 	@echo "All required formatting tools are installed."
 
 # Install formatting tools on macOS
+.PHONY: install-tools
 install-tools:
 	@echo "Installing required formatting tools..."
 	@if [ "$(shell uname)" = "Darwin" ]; then \
@@ -251,6 +239,7 @@ install-tools:
 	fi
 
 # Format only C/C++ code and skip Cython files entirely
+.PHONY: format
 format: check-tools
 	@echo "Formatting C/C++ code only (skipping all Cython files)..."
 	@find . -type f \( -name "*.c" -o -name "*.h" -o -name "*.cpp" -o -name "*.hpp" \) \
@@ -283,6 +272,7 @@ $(BUILD_DIR)/libmettagrid.a: $(SRC_OBJECTS)
 #-----------------------
 
 # Check if testing tools are installed
+.PHONY: check-test-tools
 check-test-tools:
 	@echo "Checking for required testing tools..."
 	@which g++ >/dev/null 2>&1 || \
@@ -299,6 +289,7 @@ check-test-tools:
 	@echo "All required testing tools are installed."
 
 # Install testing tools
+.PHONY: install-test-tools
 install-test-tools:
 	@echo "Installing required testing tools..."
 	@if [ "$(shell uname)" = "Darwin" ]; then \
@@ -326,8 +317,8 @@ $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
 	$(CXX) $^ -o $@ $(GTEST_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
-# Run all tests
-test: check-test-tools collect-build-deps $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
+.PHONY: _test
+_test: check-test-tools info $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
 	@echo "Running all C++ tests..."
 	@[ -z "$(TEST_EXECUTABLES)" ] && echo "WARNING: No test executables found!" || true
 	@for f in $(TEST_EXECUTABLES); do \
@@ -344,8 +335,16 @@ test: check-test-tools collect-build-deps $(SRC_OBJECTS) $(TEST_EXECUTABLES) deb
 		fi; \
 	done
 
+# Run all tests
+.PHONY: test
+test: install-build-deps
+	@echo "🔁 Re-invoking make with include paths set..."
+	@$(MAKE) _test REINVOKE_MAKE=yes
+
+
 # Test a specific test file
-test-%: check-test-tools collect-build-deps $(BUILD_TEST_DIR)/%
+.PHONY: _test-%
+_test-%: check-test-tools info $(BUILD_TEST_DIR)/%
 	@echo "Running test $*..."
 	@if [ -f "$(BUILD_TEST_DIR)/$*" ]; then \
 		PYTHONHOME="$(PYTHON_HOME)" \
@@ -358,6 +357,12 @@ test-%: check-test-tools collect-build-deps $(BUILD_TEST_DIR)/%
 		exit 1; \
 	fi
 
+.PHONY: test-%
+test-%: install-build-deps
+	@echo "🔁 Re-invoking make with include paths set..."
+	@$(MAKE) _test-% REINVOKE_MAKE=yes
+
+.PHONY: test-python
 test-python: check-venv
 	@echo "Running python tests with coverage"
 	pytest --cov=metta --cov-report=term-missing
@@ -367,6 +372,7 @@ test-python: check-venv
 #-----------------------
 
 # Check if benchmark tools are installed
+.PHONY: check-bench-tools
 check-bench-tools:
 	@echo "Checking for required benchmark tools..."
 	@which g++ >/dev/null 2>&1 || \
@@ -381,6 +387,7 @@ check-bench-tools:
 	@echo "All required benchmark tools are installed."
 
 # Install benchmark tools
+.PHONY: install-bench-tools
 install-bench-tools:
 	@echo "Installing required benchmark tools..."
 	@if [ "$(shell uname)" = "Darwin" ]; then \
@@ -404,7 +411,8 @@ $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
 	$(CXX) $^ -o $@ $(BENCHMARK_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
 # Run all benchmarks
-benchmark: check-bench-tools collect-build-deps  $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+.PHONY: _benchmark
+_benchmark: check-bench-tools info $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks..."
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
@@ -421,8 +429,13 @@ benchmark: check-bench-tools collect-build-deps  $(SRC_OBJECTS) $(BENCH_EXECUTAB
 		fi; \
 	done
 
-# Add target for JSON benchmark output
-bench-json: check-bench-tools collect-build-deps $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+.PHONY: benchmark
+benchmark: install-build-deps
+	@echo "🔁 Re-invoking make with include paths set..."
+	@$(MAKE) _benchmark_test REINVOKE_MAKE=yes
+
+.PHONY: _bench-json
+_bench-json: check-bench-tools info $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
@@ -442,11 +455,16 @@ bench-json: check-bench-tools collect-build-deps $(SRC_OBJECTS) $(BENCH_EXECUTAB
 	done
 	@echo "JSON outputs created in benchmark_output directory"
 
+.PHONY: bench-json
+bench-json: install-build-deps
+	@echo "🔁 Re-invoking make with include paths set..."
+	@$(MAKE) _bench-json REINVOKE_MAKE=yes
+
 #-----------------------
 # Other targets
 #-----------------------
 
-# Clean build files
+.PHONY: clean
 clean:
 	@echo "(MettaGrid) Removing any accidental venvs (preserving UV venvs)..."
 	@bash -c '\
@@ -488,5 +506,6 @@ clean:
 	@echo "(MettaGrid) ✅ Clean completed successfully"
 
 # Run format and test
+.PHONY: all
 all: format test
 	@echo "All tasks completed."
