@@ -29,7 +29,7 @@ class MultiLeftAndRight(Scene):
                     "scene": RoomGrid(
                         rows=rows,
                         columns=columns,
-                        border_width=1,
+                        border_width=6,
                         children=[
                             {
                                 # This scene is mostly identical to `left_or_right.yaml`.

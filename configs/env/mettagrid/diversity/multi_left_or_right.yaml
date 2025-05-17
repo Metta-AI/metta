@@ -5,18 +5,22 @@ defaults:
   - _self_
 
 game:
-  num_agents: 32
+  num_agents: 64
   # Enough time to pick one direction, but not to dilly-dally.
   max_steps: 25
+  diversity_bonus:
+    enabled: true
+    similarity_coef: 10  # Coefficient for within-group similarity
+    diversity_coef: 10   # Coefficient for between-group diversity
 
   map_builder:
     _target_: metta.map.mapgen.MapGen
 
-    width: 200
+    width: 300
     height: 100
-    border_width: 1
+    border_width: 6
 
     root:
       _target_: metta.map.scenes.multi_left_and_right.MultiLeftAndRight
-      rows: 4
+      rows: 8
       columns: 8

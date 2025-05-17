@@ -15,6 +15,7 @@ from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from mettagrid.util.diversity import calculate_diversity_bonus
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
@@ -102,6 +103,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
+            if self._env_cfg.game.diversity_bonus.enabled:
+                self.rewards *= calculate_diversity_bonus(
+                    self._c_env.get_episode_rewards(),
+                    self._c_env.get_agent_groups(),
+                    self._env_cfg.game.diversity_bonus.similarity_coef,
+                    self._env_cfg.game.diversity_bonus.diversity_coef,
+                )
+
             self.process_episode_stats(infos)
             self.should_reset = True
 
