@@ -7,7 +7,6 @@ import sky
 
 sys.path.insert(0, ".")
 
-from devops.skypilot.utils import dashboard_url
 from metta.util.colorama import blue, green, yellow
 
 
@@ -43,24 +42,37 @@ def main():
             elif cluster["status"].name == "STOPPED":
                 message = " (stopped)"
             print(f"  {yellow(cluster['name'])}{message}")
-        print(f"\nLaunch an additional sandbox: {green('./devops/skypilot/launch_sandbox.py --new')}")
+
+        print("\nLaunch an additional sandbox:")
+        print(f"  {green('./devops/skypilot/launch_sandbox.py --new')}")
+
+        first_stopped_cluster_name = next(
+            (cluster["name"] for cluster in existing_clusters if cluster["status"].name == "STOPPED"), None
+        )
+        if first_stopped_cluster_name:
+            print("Restart a stopped sandbox:")
+            print(f"  {green(f'sky start {first_stopped_cluster_name}')}")
+
         first_cluster_name = existing_clusters[0]["name"]
-        print(f"Connect to a sandbox: {green(f'sky status {first_cluster_name} && ssh {first_cluster_name}')}")
+        print("Connect to a sandbox:")
+        print(f"  {green(f'ssh {first_cluster_name}')}")
+
+        print("Delete a sandbox:")
+        print(f"  {green(f'sky down {first_cluster_name}')}")
+
         return
 
     cluster_name = get_next_name(existing_clusters)
-    print(f"Launching {cluster_name}...")
+    print(f"Launching {blue(cluster_name)}... This will take a few minutes.")
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sandbox.yaml")
-    request_id = sky.launch(task, cluster_name=cluster_name)
+    request_id = sky.launch(task, cluster_name=cluster_name, idle_minutes_to_autostop=48 * 60)
+    sky.stream_and_get(request_id)
 
-    short_request_id = request_id.split("-")[0]
-    print(blue(f"Cluster {cluster_name} is launching"))
-    print(
-        f"Follow the launch logs with: {green(f'sky api logs {short_request_id}')}, "
-        f"or on the dashboard: {blue(f'{dashboard_url()}')}"
-    )
-    print(f"When the sandbox is ready, connect with: {green(f'sky status {cluster_name} && ssh {cluster_name}')}")
+    print("\nConnect to the sandbox:")
+    print(f"  {green(f'sky status {cluster_name} && ssh {cluster_name}')}")
+    print("The cluster will be automatically stopped after 48 hours. If you want to disable autostops, run:")
+    print(f"  {green(f'sky autostop --cancel {cluster_name}')}")
 
 
 if __name__ == "__main__":
