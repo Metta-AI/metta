@@ -25,7 +25,15 @@ def find_repo_root(start_path=None):
 
 
 def process_workspace_file(file_path):
-    """Extract words from workspace file and clear the list."""
+    """
+    Extract words from repository code.workspace file and clear the list.
+
+    vscode json rules are lax so it's easier to just use regex.
+
+    """
+
+    assert "code-workspace" in file_path
+
     try:
         # Read the file as text
         with open(file_path, "r") as file:
@@ -148,5 +156,6 @@ def main():
         sys.exit(1)
 
 
+# python -m devops.sandbox.merge_cspell
 if __name__ == "__main__":
     main()
