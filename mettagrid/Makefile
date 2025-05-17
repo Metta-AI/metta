@@ -21,12 +21,19 @@ help:
 	@echo ""
 	@echo "If build fails, try: make check-dependencies"
 
+
+# Use UV venv at repo root
+REPO_ROOT := $(realpath ..)
+PYTHON_BIN := $(REPO_ROOT)/.venv/bin/python
+
+PROJECT_ROOT := $(REPO_ROOT)/mettagrid
+
 # Directories
-SRC_DIR = mettagrid
-THIRD_PARTY_DIR = third_party
-TEST_DIR = tests
-BENCH_DIR = benchmarks
-BUILD_DIR = build
+SRC_DIR = $(PROJECT_ROOT)/mettagrid
+THIRD_PARTY_DIR = $(PROJECT_ROOT)/third_party
+TEST_DIR = $(PROJECT_ROOT)/tests
+BENCH_DIR = $(PROJECT_ROOT)/benchmarks
+BUILD_DIR = $(PROJECT_ROOT)/build
 BUILD_SRC_DIR = $(BUILD_DIR)/mettagrid
 BUILD_TEST_DIR = $(BUILD_DIR)/tests
 BUILD_BENCH_DIR = $(BUILD_DIR)/benchmarks
@@ -34,10 +41,6 @@ BUILD_BENCH_DIR = $(BUILD_DIR)/benchmarks
 DEPS_INSTALL_DIR := $(BUILD_DIR)/deps
 GTEST_DIR := $(DEPS_INSTALL_DIR)/gtest
 GBENCHMARK_DIR := $(DEPS_INSTALL_DIR)/gbenchmark
-
-# Use UV venv at repo root
-REPO_ROOT := $(realpath ..)
-PYTHON_BIN := "$(REPO_ROOT)/.venv/bin/python"
 
 # Compiler settings
 CXX = g++
@@ -198,6 +201,11 @@ check-dependencies:
 	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
 	@echo "  PYTHON               = $(PYTHON_BIN)"
 	@echo "  Python version       = $(PYTHON_VERSION)"
+	@echo "  REPO_ROOT     	      = $(REPO_ROOT)"
+	@echo "  PROJECT_ROOT         = $(PROJECT_ROOT)"
+	@echo "  PYTHON_BIN           = $(PYTHON_BIN)"
+	@echo "  SRC_DIR              = $(SRC_DIR)"
+	@echo "  BENCH_DIR            = $(BENCH_DIR)"
 	@echo ""
 	@echo "📦 Python Includes"
 	@echo "  PYTHON_INCLUDE       = $(PYTHON_INCLUDE)"
