@@ -85,7 +85,7 @@ endif
 CXXFLAGS += -I$(GTEST_DIR)/include
 CXXFLAGS += -I$(GBENCHMARK_DIR)/include
 
-LDFLAGS += -L$(GBENCHMARK_DIR)/lib -lbenchmark -lbenchmark_main \
+LDFLAGS += -L$(GBENCHMARK_DIR)/lib -lbenchmark_main -lbenchmark \
            -L$(GTEST_DIR)/lib -lgtest -lgtest_main
 
 # Source files for mettagrid core library
