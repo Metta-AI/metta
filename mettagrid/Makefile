@@ -60,6 +60,8 @@ ifeq ($(UNAME_S), Darwin)
 
 endif
 
+FIND_EXECUTABLE := $(if $(filter Darwin,$(UNAME_S)),-perm -111,-executable)
+
 # Compiler settings
 CXX = g++
 
@@ -113,7 +115,7 @@ ifeq ($(shell uname), Darwin)
     LDFLAGS  += -L/opt/homebrew/lib
 endif
 
-CXXFLAGS_MGRID = $(CXXFLAGS) -fvisibility=hidden -O3
+CXXFLAGS_METTAGRID = $(CXXFLAGS) -fvisibility=hidden -O3
 
 # Source files for mettagrid core library
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
@@ -323,17 +325,18 @@ check-dependencies:
 
 build-src: $(SRC_OBJECTS)
 	@echo "🔧 Built $(words $(SRC_OBJECTS)) source object(s):"
-	@find $(BUILD_SRC_DIR) -name '*.o' -exec ls -lh {} \;
+	@echo $(FIND_EXECUTABLE)
+	@find $(BUILD_SRC_DIR) -name '*.o' $(FIND_EXECUTABLE) -exec ls -lh {} \;
 	@echo "✅ Finished building source files"
 
 build-tests: $(TEST_EXECUTABLES)
 	@echo "🧪 Built $(words $(TEST_EXECUTABLES)) test executable(s):"
-	@find $(BUILD_TEST_DIR) -type f -executable -exec ls -lh {} \;
+	@find $(BUILD_TEST_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
 	@echo "✅ Finished building test executables"
 
 build-bench: $(BENCH_EXECUTABLES)
 	@echo "📈 Built $(words $(BENCH_EXECUTABLES)) benchmark executable(s):"
-	@find $(BUILD_BENCH_DIR) -type f -executable -exec ls -lh {} \;
+	@find $(BUILD_BENCH_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
 	@echo "✅ Finished building benchmark executables"
 
 .PHONY: build-for-ci
@@ -428,7 +431,7 @@ $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 # Link test executables with the mettagrid library
 $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
-	$(CXX) $^ -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS) $(PYBIND11_LIBS)
+	$(CXX) $^ -Wl,-force_load,$(GTEST_DIR)/lib/libgtest_main.a -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS) $(PYBIND11_LIBS)
 
 # Run C++ tests
 .PHONY: test
@@ -483,7 +486,7 @@ check-bench-tools:
 # Compile individual benchmark files
 $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 	@mkdir -p $(dir $@)
-	$(CXX) $(BENCH_CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Link benchmark executables with the mettagrid library
 $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
