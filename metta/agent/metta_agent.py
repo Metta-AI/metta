@@ -1,5 +1,5 @@
 import logging
-from typing import List, Union
+from typing import List, Optional, Union
 
 import gymnasium as gym
 import hydra
@@ -137,10 +137,15 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def activate_actions(self, action_names, action_max_params, device):
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Run this at the beginning of training."""
+
+        assert isinstance(action_max_params, list), "action_max_params must be a list"
+
         self.device = device
-        self.actions_max_params = action_max_params
+        self.action_max_params = action_max_params
+        self.action_names = action_names
+
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
         # Precompute cumulative sums for faster conversion
@@ -169,7 +174,7 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def forward(self, x, state: PolicyState, action=None):
+    def forward(self, x, state: PolicyState, action: Optional[torch.Tensor] = None):
         """
         Forward pass of the MettaAgent.
 
@@ -217,8 +222,11 @@ class MettaAgent(nn.Module):
         return action, logprob_act, entropy, value, log_sftmx_logits
 
     def _convert_action_to_logit_index(self, action):
-        """Convert action pairs (action_type, action_param) to single discrete action logit indices using vectorized
-        operations"""
+        """
+        Convert (action_type, action_param) pairs to discrete action indices
+        using precomputed offsets.
+        Assumes `cum_action_max_params` maps action types to start indices.
+        """
         action = action.reshape(-1, 2)
 
         # Extract action components
@@ -231,7 +239,7 @@ class MettaAgent(nn.Module):
         # Vectorized addition
         action_logit_index = action_type_numbers + cumulative_sum + action_params
 
-        return action_logit_index.reshape(-1, 1)
+        return action_logit_index.view(-1)  # shape: [B] or [B*T]
 
     def _convert_logit_index_to_action(self, action_logit_index, td):
         """Convert logit indices back to action pairs using tensor indexing"""
