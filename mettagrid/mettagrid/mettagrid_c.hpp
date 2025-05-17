@@ -1,6 +1,12 @@
 #ifndef METTAGRID_C_HPP
 #define METTAGRID_C_HPP
 
+#if defined(_WIN32)
+#define METTAGRID_API __declspec(dllexport)
+#else
+#define METTAGRID_API __attribute__((visibility("default")))
+#endif
+
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -21,7 +27,7 @@ class GridObject;
 
 namespace py = pybind11;
 
-class MettaGrid {
+class METTAGRID_API MettaGrid {
 public:
   MettaGrid(py::dict env_cfg, py::array map);
   ~MettaGrid();
