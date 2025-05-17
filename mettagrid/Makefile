@@ -143,31 +143,26 @@ install-build-deps:
 collect-build-deps:
 	@echo "📦 Collecting build dependencies..."
 
-	# Detect pybind11 include path
 	$(eval PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes 2>/dev/null))
 	$(eval PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//'))
-
 	@if [ -z "$(PYBIND11_INCLUDE)" ]; then \
 		echo "⚠️  pybind11 include path not found! Did you run 'make install-build-deps'?"; \
 		exit 1; \
 	else \
 		echo "🔁 PYBIND11_INCLUDE set to: $(PYBIND11_INCLUDE)"; \
 	fi
-	ifeq (,$(findstring -I$(PYBIND11_INCLUDE),$(CXXFLAGS)))
-		$(eval CXXFLAGS := $(CXXFLAGS) -I$(PYBIND11_INCLUDE))
-	endif
+	$(eval CXXFLAGS := $(CXXFLAGS) -I$(PYBIND11_INCLUDE))
 
-	# Detect NumPy include path
 	$(eval NUMPY_INCLUDE := $(shell $(PYTHON3) -c "import numpy; print(numpy.get_include())" 2>/dev/null))
-
 	@if [ -z "$(NUMPY_INCLUDE)" ]; then \
 		echo "⚠️  NumPy include path not found! Did you run 'make install-build-deps'?"; \
 		exit 1; \
 	else \
 		echo "🔁 NUMPY_INCLUDE set to: $(NUMPY_INCLUDE)"; \
-	ifeq (,$(findstring -I$(NUMPY_INCLUDE),$(CXXFLAGS)))
-		$(eval CXXFLAGS := $(CXXFLAGS) -I$(NUMPY_INCLUDE))
-	endif
+	fi
+	$(eval CXXFLAGS := $(CXXFLAGS) -I$(NUMPY_INCLUDE))
+	$(eval CXXFLAGS := $(sort $(CXXFLAGS)))
+
 
 info: 
 	@echo "🔧 Environment Info"
