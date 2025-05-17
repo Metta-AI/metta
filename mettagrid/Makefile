@@ -42,6 +42,24 @@ DEPS_INSTALL_DIR := $(BUILD_DIR)/deps
 GTEST_DIR := $(DEPS_INSTALL_DIR)/gtest
 GBENCHMARK_DIR := $(DEPS_INSTALL_DIR)/gbenchmark
 
+# Detect platform
+UNAME_S := $(shell uname)
+
+ifeq ($(UNAME_S), Darwin)
+	HOMEBREW_PREFIX := $(shell brew --prefix)
+
+	# Use Homebrew googletest if available
+	ifneq ($(wildcard $(HOMEBREW_PREFIX)/opt/googletest/include/gtest/gtest.h),)
+		GTEST_DIR := $(HOMEBREW_PREFIX)/opt/googletest
+	endif
+
+	# Use Homebrew google-benchmark if available
+	ifneq ($(wildcard $(HOMEBREW_PREFIX)/opt/google-benchmark/include/benchmark/benchmark.h),)
+		GBENCHMARK_DIR := $(HOMEBREW_PREFIX)/opt/google-benchmark
+	endif
+
+endif
+
 # Compiler settings
 CXX = g++
 
@@ -164,7 +182,7 @@ install-format-tools:
 install-test-tools:
 	@echo "Installing GoogleTest..."
 	@if [ "$(shell uname)" = "Darwin" ]; then \
-		brew install googletest || echo "Failed to install googletest. Please install manually."; \
+		brew install googletest || echo "Failed to install googletest via homebrew."; \
 	else \
 		@echo "Building GoogleTest from source..."; \
 		mkdir -p $(GTEST_DIR); \
@@ -181,7 +199,7 @@ install-test-tools:
 install-bench-tools:
 	@echo "Installing Google Benchmark..."
 	@if [ "$(shell uname)" = "Darwin" ]; then \
-		brew install google-benchmark || echo "Failed to install google-benchmark. Please install manually."; \
+		brew install google-benchmark || echo "Failed to install google-benchmark via homebrew."; \
 	else \
 		@echo "Building Google Benchmark from source..."; \
 		mkdir -p $(GBENCHMARK_DIR); \
@@ -203,7 +221,7 @@ install-bench-tools:
 .PHONY: install-dependencies
 install-dependencies:
 	@echo "📦 Installing pybind11 and numpy using uv..."
-	@uv pip install --python $(PYTHON_BIN) pybind11 numpy
+	@uv pip install --python $(PYTHON_BIN) pybind11[numpy] numpy
 	@echo "📦 Installing clang-format"
 	@$(MAKE) install-format-tools
 	@echo "📦 Installing googletest"
@@ -222,11 +240,13 @@ check-dependencies:
 	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
 	@echo "  PYTHON               = $(PYTHON_BIN)"
 	@echo "  Python version       = $(PYTHON_VERSION)"
-	@echo "  REPO_ROOT     	      = $(REPO_ROOT)"
+	@echo "  REPO_ROOT            = $(REPO_ROOT)"
 	@echo "  PROJECT_ROOT         = $(PROJECT_ROOT)"
 	@echo "  PYTHON_BIN           = $(PYTHON_BIN)"
 	@echo "  SRC_DIR              = $(SRC_DIR)"
 	@echo "  BENCH_DIR            = $(BENCH_DIR)"
+	@echo "  GTEST_DIR            = $(GTEST_DIR)"
+	@echo "  GBENCHMARK_DIR       = $(GBENCHMARK_DIR)"
 	@echo ""
 	@echo "📦 Python Includes"
 	@echo "  PYTHON_INCLUDE       = $(PYTHON_INCLUDE)"
@@ -249,22 +269,34 @@ check-dependencies:
 		echo "  NUMPY_INCLUDE        = ❌ not found -- run \"make install-dependencies\""; \
 		exit 1; \
 	fi
+
 	@echo "Checking for Google Test headers..."
 	@if [ ! -f "$(GTEST_DIR)/include/gtest/gtest.h" ]; then \
-		echo "❌ gtest/gtest.h not found at $(GTEST_DIR)/include/gtest/gtest.h"; \
-		echo "   Run 'make install-test-tools' to install Google Test."; \
-		exit 1; \
+		if [ -f "$$(brew --prefix)/opt/googletest/include/gtest/gtest.h" ]; then \
+			echo "✅ Found gtest headers in Homebrew path"; \
+		else \
+			echo "❌ gtest/gtest.h not found at $(GTEST_DIR)/include/gtest/gtest.h"; \
+			echo "   Run 'make install-test-tools' or check Homebrew setup."; \
+			exit 1; \
+		fi; \
 	else \
 		echo "✓ Found gtest headers in $(GTEST_DIR)/include"; \
 	fi
+
 	@echo "Checking for Google Benchmark headers..."
 	@if [ ! -f "$(GBENCHMARK_DIR)/include/benchmark/benchmark.h" ]; then \
-		echo "❌ benchmark/benchmark.h not found at $(GBENCHMARK_DIR)/include"; \
-		echo "   Run 'make install-bench-tools' to install Google Benchmark."; \
-		exit 1; \
+		if [ -f "$$(brew --prefix)/opt/benchmark/include/benchmark/benchmark.h" ]; then \
+			echo "✅ Found benchmark headers in Homebrew path"; \
+		else \
+			echo "❌ benchmark/benchmark.h not found at $(GBENCHMARK_DIR)/include/benchmark/benchmark.h"; \
+			echo "   Run 'make install-bench-tools' or check Homebrew setup."; \
+			exit 1; \
+		fi; \
 	else \
 		echo "✓ Found benchmark headers in $(GBENCHMARK_DIR)/include"; \
 	fi
+
+
 	@echo "🔧 Tooling Checks"
 	@which g++ >/dev/null 2>&1 || { echo "❌ g++ not found"; exit 1; }
 	@which cmake >/dev/null 2>&1 || { echo "❌ cmake not found"; exit 1; }
