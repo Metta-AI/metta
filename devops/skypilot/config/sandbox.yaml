@@ -1,7 +1,7 @@
 resources:
   cloud: aws
   region: us-east-1
-  accelerators: ["L4:1", "A10G:1"]
+  accelerators: "L4:1"
   cpus: 8+
   image_id: docker:metta:latest
 
@@ -16,17 +16,7 @@ setup: |
 
   echo 'cd /workspace/metta' >> ~/.bashrc
   echo '. .venv/bin/activate' >> ~/.bashrc
-
-run: |
-  cd /workspace/metta
-  source ./devops/env.sh
-
-  echo "Running sandbox"
-
-  while true; do
-    echo "Running sandbox"
-    sleep 100
-  done
+  echo '. devops/env.sh' >> ~/.bashrc
 
 file_mounts:
   # Wandb Credentials

@@ -6,6 +6,8 @@
     "addopts",
     "allclose",
     "autogroup",
+    "autostop",
+    "autostops",
     "bint",
     "boundscheck",
     "bptt",
