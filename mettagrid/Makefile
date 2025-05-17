@@ -135,14 +135,14 @@ check-venv:
 
 install-build-deps:
 	@echo "Installing C++ build dependencies using uv..."
-	@uv pip install pybind11 numpy
-
+	@uv pip install --python $(PYTHON3) pybind11 numpy
+	
 collect-build-deps:
 	@echo "📦 Collecting build dependencies..."
 	$(eval PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes 2>/dev/null))
 	$(eval PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//'))
 	@if [ -z "$(PYBIND11_INCLUDE)" ]; then \
-		echo "⚠️  pybind11 include path not found! Did you run 'uv pip install pybind11'?"; \
+		echo "⚠️  pybind11 include path not found! Did you run 'make install-build-deps'?"; \
 		exit 1; \
 	else \
 		echo "🔁 PYBIND11_INCLUDE set to: $(PYBIND11_INCLUDE)"; \
