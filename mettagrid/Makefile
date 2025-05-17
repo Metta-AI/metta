@@ -62,6 +62,7 @@ endif
 
 FIND_EXECUTABLE := $(if $(filter Darwin,$(UNAME_S)),-perm -111,-executable)
 
+GTEST_LIB_DIR := $(GTEST_DIR)/lib 
 ifeq ($(UNAME_S), Darwin)
     FORCE_GTEST_MAIN := -Wl,-force_load,$(GTEST_LIB_DIR)/libgtest_main.a
 else
