@@ -86,9 +86,19 @@ jobs:
 
       - name: Set cache paths
         id: set-cache-paths
-        run: echo "paths=mettagrid/build,
-          .venv/lib/python*/site-packages/pybind11*,
-          .venv/lib/python*/site-packages/numpy*" >> $GITHUB_OUTPUT
+        shell: bash
+        run: |
+          PYBIND11_PATH=$(find .venv/lib -type d -path "*/site-packages/pybind11*" | head -n 1 || echo "")
+          NUMPY_PATH=$(find .venv/lib -type d -path "*/site-packages/numpy*" | head -n 1 || echo "")
+
+          echo "PYBIND11_PATH=$PYBIND11_PATH"
+          echo "NUMPY_PATH=$NUMPY_PATH"
+
+          CACHE_PATHS="mettagrid/build"
+          if [[ -d "$PYBIND11_PATH" ]]; then CACHE_PATHS="$CACHE_PATHS,$PYBIND11_PATH"; fi
+          if [[ -d "$NUMPY_PATH" ]]; then CACHE_PATHS="$CACHE_PATHS,$NUMPY_PATH"; fi
+
+          echo "cache_paths=$CACHE_PATHS" >> $GITHUB_OUTPUT
 
       - name: Generate cache key
         id: set-cache-key
@@ -190,30 +200,6 @@ jobs:
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           uv pip install pybind11 numpy
-
-      - name: Debug benchmark library contents
-        run: |
-          echo "Inspecting benchmark library contents..."
-          if [ -f mettagrid/build/deps/gbenchmark/lib/libbenchmark.a ]; then
-            echo "✅ libbenchmark.a found:"
-            ls -lh mettagrid/build/deps/gbenchmark/lib/libbenchmark.a
-            echo "📦 Symbols in libbenchmark.a:"
-            nm -g mettagrid/build/deps/gbenchmark/lib/libbenchmark.a | grep 'benchmark::' || echo "❌ No benchmark symbols found"
-          else
-            echo "❌ libbenchmark.a is missing"
-            exit 1
-          fi
-
-          echo "Inspecting libbenchmark_main.a..."
-          if [ -f mettagrid/build/deps/gbenchmark/lib/libbenchmark_main.a ]; then
-            echo "✅ libbenchmark_main.a found:"
-            ls -lh mettagrid/build/deps/gbenchmark/lib/libbenchmark_main.a
-            echo "📦 Symbols in libbenchmark_main.a:"
-            nm -g mettagrid/build/deps/gbenchmark/lib/libbenchmark_main.a | grep 'benchmark::' || echo "⚠️ No benchmark_main symbols found"
-          else
-            echo "❌ libbenchmark_main.a is missing"
-            exit 1
-          fi
 
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
