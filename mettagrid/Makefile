@@ -1,5 +1,5 @@
 # Makefile for code formatting, linting, and testing (UV venv optimized)
-.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci info
+.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci info install-build-deps
 
 # Default target when just running 'make'
 help:
@@ -133,6 +133,11 @@ check-venv:
 # CI Build Target
 #-----------------------
 
+
+install-build-deps:
+	@echo "Installing C++ build dependencies using uv..."
+	@uv pip install pybind11 numpy
+
 info:
 	@echo "🔧 Environment Info"
 	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
@@ -158,7 +163,7 @@ info:
 	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
 
 # Build all test and benchmark executables without running them
-build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
+build-for-ci: install-build-deps info $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 	@echo "Built all source files, test executables, and benchmark executables"
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
 	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
