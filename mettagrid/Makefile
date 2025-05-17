@@ -44,6 +44,7 @@ PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
 PYTHON_SITE_PACKAGES := $(shell $(PYTHON3) -c "import site; print(site.getsitepackages()[0])")
 PYTHON_LIB_DIR := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
 PYTHON_HOME := $(shell $(PYTHON3) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))")
+PYBIND11_INCLUDE := # collected later
 
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
@@ -136,6 +137,19 @@ install-build-deps:
 	@echo "Installing C++ build dependencies using uv..."
 	@uv pip install pybind11 numpy
 
+collect-build-deps:
+	@echo "📦 Collecting build dependencies..."
+	$(eval PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes 2>/dev/null))
+	$(eval PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//'))
+	@if [ -z "$(PYBIND11_INCLUDE)" ]; then \
+		echo "⚠️  pybind11 include path not found! Did you run 'uv pip install pybind11'?"; \
+		exit 1; \
+	else \
+		echo "🔁 PYBIND11_INCLUDE set to: $(PYBIND11_INCLUDE)"; \
+	fi
+	$(eval CXXFLAGS := $(CXXFLAGS) -I$(PYBIND11_INCLUDE))
+
+
 info:
 	@echo "🔧 Environment Info"
 	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
@@ -167,10 +181,7 @@ build-for-ci: install-build-deps
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
 	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
 	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
-	$(eval PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes))
-	$(eval PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//'))
-	$(eval CXXFLAGS := $(CXXFLAGS) -I$(PYBIND11_INCLUDE))
-	@echo "🔁 Refreshed PYBIND11_INCLUDE: $(PYBIND11_INCLUDE)"
+	$(MAKE) collect-build-deps
 	$(MAKE) build-for-ci-internal
 
 
@@ -287,7 +298,7 @@ $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	$(CXX) $^ -o $@ $(GTEST_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
 # Run all tests
-test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
+test: check-test-tools collect-build-deps $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
 	@echo "Running all C++ tests..."
 	@[ -z "$(TEST_EXECUTABLES)" ] && echo "WARNING: No test executables found!" || true
 	@for f in $(TEST_EXECUTABLES); do \
@@ -305,7 +316,7 @@ test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
 	done
 
 # Test a specific test file
-test-%: check-test-tools $(BUILD_TEST_DIR)/%
+test-%: check-test-tools collect-build-deps $(BUILD_TEST_DIR)/%
 	@echo "Running test $*..."
 	@if [ -f "$(BUILD_TEST_DIR)/$*" ]; then \
 		PYTHONHOME="$(PYTHON_HOME)" \
@@ -364,7 +375,7 @@ $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
 	$(CXX) $^ -o $@ $(BENCHMARK_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
 # Run all benchmarks
-benchmark: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+benchmark: check-bench-tools collect-build-deps  $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks..."
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
@@ -382,7 +393,7 @@ benchmark: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-var
 	done
 
 # Add target for JSON benchmark output
-bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+bench-json: check-bench-tools collect-build-deps $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
