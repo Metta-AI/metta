@@ -88,39 +88,11 @@ jobs:
         id: set-cache-paths
         shell: bash
         run: |
-          VIRTUAL_ENV="$GITHUB_WORKSPACE/.venv"
-          SITE_PKGS="$VIRTUAL_ENV/lib/python3.11/site-packages"
-          echo "VIRTUAL_ENV is: $VIRTUAL_ENV"
-          echo "Ensuring cache paths exist..."
-
-          # Always include build dir
           mkdir -p mettagrid/build
-
-          # Ensure numpy/pybind11 paths exist for cache save
-          mkdir -p "$SITE_PKGS/numpy"
-          mkdir -p "$SITE_PKGS/numpy/core/include"
-          mkdir -p "$SITE_PKGS/numpy/.libs"
-          mkdir -p "$SITE_PKGS/pybind11"
-          mkdir -p "$SITE_PKGS/pybind11/include"
 
           # Begin multiline output
           echo "cache_paths<<EOF" >> "$GITHUB_OUTPUT"
           echo "mettagrid/build" >> "$GITHUB_OUTPUT"
-
-          # Add pybind11 include + module
-          echo "$SITE_PKGS/pybind11" >> "$GITHUB_OUTPUT"
-          echo "$SITE_PKGS/pybind11/include" >> "$GITHUB_OUTPUT"
-
-          # Add numpy core and headers
-          echo "$SITE_PKGS/numpy" >> "$GITHUB_OUTPUT"
-          echo "$SITE_PKGS/numpy/core/include" >> "$GITHUB_OUTPUT"
-          echo "$SITE_PKGS/numpy/.libs" >> "$GITHUB_OUTPUT"
-
-          # Include dist-info metadata (optional but improves pip compatibility)
-          for info in "$SITE_PKGS"/numpy-*.dist-info "$SITE_PKGS"/pybind11-*.dist-info; do
-            [ -d "$info" ] && echo "$info" >> "$GITHUB_OUTPUT"
-          done
-
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Debug cache paths
@@ -208,6 +180,10 @@ jobs:
         uses: ./.github/actions/setup-python-uv
         with:
           skip_requirements: "true"
+
+      - name: Install Python dependencies
+        run: |
+          uv pip install --python .venv/bin/python pybind11 numpy
 
       - name: Restore from build cache
         id: test-cache-cpp
@@ -301,6 +277,10 @@ jobs:
         with:
           skip_requirements: "true"
 
+      - name: Install Python dependencies
+        run: |
+          uv pip install --python .venv/bin/python pybind11 numpy
+
       - name: Restore from build cache
         id: test-cache-cpp
         uses: actions/cache@v4
@@ -343,6 +323,10 @@ jobs:
         uses: ./.github/actions/setup-python-uv
         with:
           skip_requirements: "true"
+
+      - name: Install Python dependencies
+        run: |
+          uv pip install --python .venv/bin/python pybind11 numpy
 
       - name: Restore from build cache
         id: benchmark-cache-cpp
