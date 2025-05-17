@@ -270,14 +270,13 @@ build-src: $(SRC_OBJECTS)
 
 build-tests: $(TEST_EXECUTABLES)
 	@echo "🧪 Built $(words $(TEST_EXECUTABLES)) test executable(s):"
-	@find $(BUILD_TEST_DIR) -type f -perm +111 -exec ls -lh {} \;
+	@find $(BUILD_TEST_DIR) -type f -executable -exec ls -lh {} \;
 	@echo "✅ Finished building test executables"
 
 build-bench: $(BENCH_EXECUTABLES)
 	@echo "📈 Built $(words $(BENCH_EXECUTABLES)) benchmark executable(s):"
-	@find $(BUILD_BENCH_DIR) -type f -perm +111 -exec ls -lh {} \;
+	@find $(BUILD_BENCH_DIR) -type f -executable -exec ls -lh {} \;
 	@echo "✅ Finished building benchmark executables"
-
 
 .PHONY: build-for-ci
 build-for-ci: check-dependencies build-src build-tests build-bench
