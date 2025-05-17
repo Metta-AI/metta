@@ -54,7 +54,6 @@ PYTHON_CFLAGS := $(shell $(PYTHON_BIN) -m pybind11 --includes)
 
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
-PYTHON_LDFLAGS := $(PYTHON_LIBS)
 
 CXXFLAGS = -std=c++20 -Wall -g fvisibility=hidden \
 	-I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) \
@@ -80,12 +79,13 @@ else
     RPATH_FLAGS =
 endif
 
-
 CXXFLAGS += -I$(GTEST_DIR)/include
-GTEST_LIBS = -L$(GTEST_DIR)/lib -lgtest -lgtest_main -pthread
-
 CXXFLAGS += -I$(GBENCHMARK_DIR)/include
-BENCHMARK_LIBS = -L$(GBENCHMARK_DIR)/lib -lbenchmark -pthread
+
+BENCHMARK_LIBS = -L$(GBENCHMARK_DIR)/lib -lbenchmark -lbenchmark_main
+GTEST_LIBS     = -L$(GTEST_DIR)/lib -lgtest -lgtest_main
+
+LDFLAGS += $(BENCHMARK_LIBS) $(GTEST_LIBS)
 
 # Source files for mettagrid core library
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
@@ -172,8 +172,6 @@ install-bench-tools:
 		cmake -DCMAKE_INSTALL_PREFIX=$(abspath $(GBENCHMARK_DIR)) -DCMAKE_BUILD_TYPE=Release .. && \
 		make -j$$(nproc) && make install
 
-
-
 .PHONY: install-dependencies
 install-dependencies:
 	@echo "📦 Installing pybind11 and numpy using uv..."
@@ -185,7 +183,6 @@ install-dependencies:
 	@echo "📦 Installing google-benchmark"
 	@$(MAKE) install-bench-tools
 	@echo "✅ All dependencies installed."
-
 
 #-----------------------
 # Check Dependencies
@@ -205,7 +202,6 @@ check-dependencies:
 	@echo "  PYTHON_SITE_PACKAGES = $(PYTHON_SITE_PACKAGES)"
 	@echo "  PYTHON_HOME          = $(PYTHON_HOME)"
 	@echo "  PYTHON_CFLAGS        = $(PYTHON_CFLAGS)"
-	@echo "  PYTHON_LDFLAGS       = $(PYTHON_LDFLAGS)"
 	@echo ""
 	@echo "🧱 Build dependencies"
 	@if [ -n "$(PYBIND11_INCLUDE)" ]; then \
@@ -235,6 +231,7 @@ check-dependencies:
 	@echo ""
 	@echo "📚 Linking"
 	@echo "  PYTHON_LIBS          = $(PYTHON_LIBS)"
+	@echo "  LDFLAGS	          = $(LDFLAGS)"
 	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
 
 #-----------------------
@@ -350,7 +347,7 @@ $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 # Link test executables with the mettagrid library
 $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
-	$(CXX) $^ -o $@ $(GTEST_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS) $(PYBIND11_LIBS)
 
 # Run C++ tests
 .PHONY: test
@@ -409,7 +406,7 @@ $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 
 # Link benchmark executables with the mettagrid library
 $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
-	$(CXX) $^ -o $@ $(BENCHMARK_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS) $(PYBIND11_LIBS)
 
 # Run all benchmarks
 .PHONY: benchmark
