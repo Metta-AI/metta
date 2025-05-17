@@ -88,6 +88,7 @@ jobs:
         id: set-cache-paths
         shell: bash
         run: |  
+          VIRTUAL_ENV="$GITHUB_WORKSPACE/.venv"
           echo "VIRTUAL_ENV is: $VIRTUAL_ENV"
           echo "Ensuring cache paths exist..."
 
@@ -212,6 +213,7 @@ jobs:
       - name: Check cache paths before saving
         shell: bash
         run: |
+          VIRTUAL_ENV="$GITHUB_WORKSPACE/.venv"
           echo "VIRTUAL_ENV is: $VIRTUAL_ENV"
 
           echo "Verifying cache paths..."
