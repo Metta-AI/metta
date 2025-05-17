@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 import os
+import subprocess
 import sys
 
 import sky
+import sky.cli
 
 sys.path.insert(0, ".")
 
@@ -65,13 +67,28 @@ def main():
     cluster_name = get_next_name(existing_clusters)
     print(f"Launching {blue(cluster_name)}... This will take a few minutes.")
 
+    autostop_hours = 48
+
+    # Launch the cluster
     task = sky.Task.from_yaml("./devops/skypilot/config/sandbox.yaml")
-    request_id = sky.launch(task, cluster_name=cluster_name, idle_minutes_to_autostop=48 * 60)
+    request_id = sky.launch(task, cluster_name=cluster_name, idle_minutes_to_autostop=autostop_hours * 60)
     sky.stream_and_get(request_id)
 
-    print("\nConnect to the sandbox:")
-    print(f"  {green(f'sky status {cluster_name} && ssh {cluster_name}')}")
-    print("The cluster will be automatically stopped after 48 hours. If you want to disable autostops, run:")
+    # Cluster is up but the setup job is still starting
+    print("Waiting for setup job to start...")
+    setup_result = sky.tail_logs(cluster_name, job_id=1, follow=True)
+    if setup_result != 0:
+        print(f"Setup job failed with exit code {setup_result}")
+        return
+
+    # Force ssh setup
+    subprocess.run(["sky", "status", cluster_name], check=True)
+
+    print("\nSandbox is ready. Connect to the sandbox:")
+    print(f"  {green(f'ssh {cluster_name}')}")
+    print(
+        f"The cluster will be automatically stopped after {autostop_hours} hours. If you want to disable autostops, run:"
+    )
     print(f"  {green(f'sky autostop --cancel {cluster_name}')}")
 
 

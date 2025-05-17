@@ -5,6 +5,19 @@ resources:
   cpus: 8+
   image_id: docker:metta:latest
 
+file_mounts:
+  # Wandb Credentials
+  ~/.netrc: ~/.netrc
+
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT
+
+  /workspace/metta/train_dir:
+    name: softmax-train-dir
+    store: s3
+    mode: MOUNT
+
 setup: |
   cd /workspace/metta
   git fetch
@@ -18,18 +31,7 @@ setup: |
   echo '. .venv/bin/activate' >> ~/.bashrc
   echo '. devops/env.sh' >> ~/.bashrc
 
-file_mounts:
-  # Wandb Credentials
-  ~/.netrc: ~/.netrc
-
-  /mnt/s3/softmax-public:
-    source: s3://softmax-public
-    mode: MOUNT
-
-  /workspace/metta/train_dir:
-    name: softmax-train-dir
-    store: s3
-    mode: MOUNT
+  echo "Sandbox is ready"
 
 envs:
   METTA_GIT_REF: main
