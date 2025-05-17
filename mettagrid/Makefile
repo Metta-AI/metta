@@ -88,6 +88,11 @@ CXXFLAGS += -I$(GBENCHMARK_DIR)/include
 LDFLAGS += -L$(GBENCHMARK_DIR)/lib -lbenchmark_main -lbenchmark \
            -L$(GTEST_DIR)/lib -lgtest -lgtest_main
 
+ifeq ($(shell uname), Darwin)
+    CXXFLAGS += -I/opt/homebrew/include
+    LDFLAGS  += -L/opt/homebrew/lib
+endif
+
 # Source files for mettagrid core library
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
 SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
@@ -153,20 +158,30 @@ install-format-tools:
 # Install testing tools
 .PHONY: install-test-tools
 install-test-tools:
-	@echo "Installing GoogleTest to $(GTEST_DIR)..."
-	@mkdir -p $(GTEST_DIR)
-	@cd $(BUILD_DIR) && \
+	@echo "Installing GoogleTest..."
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		brew install googletest || echo "Failed to install googletest. Please install manually."; \
+	else \
+		@echo "Building GoogleTest from source..."; \
+		mkdir -p $(GTEST_DIR); \
+		cd $(BUILD_DIR) && \
 		git clone --depth 1 --branch release-1.12.1 https://github.com/google/googletest.git && \
 		mkdir -p googletest/build && cd googletest/build && \
 		cmake -DCMAKE_INSTALL_PREFIX=$(abspath $(GTEST_DIR)) .. && \
-		make -j$$(nproc) && make install
+		make -j$$(nproc) && make install; \
+	fi
+
 
 # Install benchmark tools
 .PHONY: install-bench-tools
 install-bench-tools:
-	@echo "Installing Google Benchmark to $(GBENCHMARK_DIR)..."
-	@mkdir -p $(GBENCHMARK_DIR)
-	@cd $(BUILD_DIR) && \
+	@echo "Installing Google Benchmark..."
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		brew install google-benchmark || echo "Failed to install google-benchmark. Please install manually."; \
+	else \
+		@echo "Building Google Benchmark from source..."; \
+		mkdir -p $(GBENCHMARK_DIR); \
+		cd $(BUILD_DIR) && \
 		rm -rf benchmark && \
 		git clone --depth 1 https://github.com/google/benchmark.git && \
 		git clone --depth 1 https://github.com/google/googletest.git benchmark/googletest && \
@@ -177,7 +192,9 @@ install-bench-tools:
 		      -DBENCHMARK_ENABLE_LTO=OFF \
 		      -DBENCHMARK_BUILD_32_BITS=OFF \
 		      .. && \
-		make -j$$(nproc) && make install
+		make -j$$(nproc) && make install; \
+	fi
+
 
 .PHONY: install-dependencies
 install-dependencies:
@@ -228,7 +245,22 @@ check-dependencies:
 		echo "  NUMPY_INCLUDE        = ❌ not found -- run \"make install-dependencies\""; \
 		exit 1; \
 	fi
-
+	@echo "Checking for Google Test headers..."
+	@if [ ! -f "$(GTEST_DIR)/include/gtest/gtest.h" ]; then \
+		echo "❌ gtest/gtest.h not found at $(GTEST_DIR)/include/gtest/gtest.h"; \
+		echo "   Run 'make install-test-tools' to install Google Test."; \
+		exit 1; \
+	else \
+		echo "✓ Found gtest headers in $(GTEST_DIR)/include"; \
+	fi
+	@echo "Checking for Google Benchmark headers..."
+	@if [ ! -f "$(GBENCHMARK_DIR)/include/benchmark/benchmark.h" ]; then \
+		echo "❌ benchmark/benchmark.h not found at $(GBENCHMARK_DIR)/include"; \
+		echo "   Run 'make install-bench-tools' to install Google Benchmark."; \
+		exit 1; \
+	else \
+		echo "✓ Found benchmark headers in $(GBENCHMARK_DIR)/include"; \
+	fi
 	@echo "🔧 Tooling Checks"
 	@which g++ >/dev/null 2>&1 || { echo "❌ g++ not found"; exit 1; }
 	@which cmake >/dev/null 2>&1 || { echo "❌ cmake not found"; exit 1; }
