@@ -362,7 +362,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Setup Python and uv
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv

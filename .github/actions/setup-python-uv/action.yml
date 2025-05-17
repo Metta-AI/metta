@@ -12,7 +12,7 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version-file: ".python-version"
-    
+
     # Set up uv - different settings based on whether we're skipping requirements
     - name: Install uv
       uses: astral-sh/setup-uv@v5
@@ -20,14 +20,14 @@ runs:
         version: "0.7.3"
         enable-cache: ${{ inputs.skip_requirements != 'true' }}
         cache-dependency-glob: ${{ inputs.skip_requirements != 'true' && 'requirements*.txt' || '' }}
-    
+
     - name: Create virtual environment with uv
       shell: bash
       run: |
         uv venv .venv
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
-      
+
     - name: Install pip requirements in venv
       if: ${{ inputs.skip_requirements != 'true' }}
       shell: bash
