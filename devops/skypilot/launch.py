@@ -1,23 +1,14 @@
 #!/usr/bin/env python3
-
 import argparse
 import copy
-import re
 import subprocess
 import sys
 
 import sky
 
+sys.path.insert(0, ".")
 
-def blue(text: str):
-    BLUE = "\033[1;34m"
-    RESET = "\033[0;0m"
-
-    return f"{BLUE}{text}{RESET}"
-
-
-def print_tip(text: str):
-    print(blue(text), file=sys.stderr)
+from devops.skypilot.utils import launch_task
 
 
 def patch_task(task: sky.Task, cpus: int | None, gpus: int | None, nodes: int | None) -> sky.Task:
@@ -73,25 +64,7 @@ def main():
 
     task = patch_task(task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes)
 
-    if args.dry_run:
-        print_tip("DRY RUN.")
-        print_tip("Tip: Pipe this command to `| yq -P .` to get the pretty yaml config.\n")
-        print(task.to_yaml_config())
-        return
-
-    request_id = sky.jobs.launch(task)
-    (job_id, _) = sky.get(request_id)
-
-    server_url = sky.server.common.get_server_url()
-    # strip username and password from server_url
-    server_url = re.sub("https://.*@", "https://", server_url)
-    job_url = f"{server_url}/dashboard/jobs/{job_id}"
-    print("\nJob submitted successfully!")
-
-    # Note: direct urls don't work in skypilot dashboard yet, this always opens clusters list.
-    # Hopefully this will be fixed soon.
-    print(f"Open {blue(job_url)} to track your job.")
-    print("To sign in, use credentials from your ~/.skypilot/config.yaml file.")
+    launch_task(task, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
