@@ -336,13 +336,13 @@ jobs:
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
       - name: Install C++ dependencies (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make install-dependencies
 
       - name: Build C++ artifacts (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make build-for-ci
