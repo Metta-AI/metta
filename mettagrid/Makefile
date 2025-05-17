@@ -230,7 +230,7 @@ install-bench-tools:
 .PHONY: install-dependencies
 install-dependencies:
 	@echo "📦 Installing pybind11 and numpy using uv..."
-	@uv pip install --python $(PYTHON_BIN) pybind11[numpy] numpy
+	@uv pip install --python $(PYTHON_BIN) pybind11 numpy
 	@echo "📦 Installing clang-format"
 	@$(MAKE) install-format-tools
 	@echo "📦 Installing googletest"

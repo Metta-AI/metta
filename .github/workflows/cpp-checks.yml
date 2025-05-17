@@ -180,9 +180,6 @@ jobs:
         with:
           skip_requirements: "true"
 
-      - name: Debug cache paths
-        run: echo "${{ needs.setup-checks.outputs.cache_paths }}"
-
       - name: Restore from build cache
         id: test-cache-cpp
         uses: actions/cache@v4
@@ -196,18 +193,18 @@ jobs:
           cd mettagrid
           make install-dependencies
 
-      - name: Install Python dependencies (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          uv pip install pybind11 numpy
-
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
-          make check-dependencies
-          echo "Running build-for-ci target with explicit paths..."
           make build-for-ci
+
+      - name: Sanity check
+        run: |
+          cd mettagrid
+          make check-dependencies
+          make check-test-tools
+          make check-bench-tools
 
       - name: Save build cache
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
@@ -269,11 +266,6 @@ jobs:
           cd mettagrid
           make install-dependencies
 
-      - name: Install Python dependencies (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          uv pip install pybind11 numpy
-
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
@@ -312,18 +304,13 @@ jobs:
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
       - name: Install C++ dependencies (cache miss fallback)
-        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make install-dependencies
 
-      - name: Install Python dependencies (cache miss fallback)
-        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          uv pip install pybind11 numpy
-
       - name: Build C++ artifacts (cache miss fallback)
-        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make build-for-ci
