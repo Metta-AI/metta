@@ -191,6 +191,30 @@ jobs:
         run: |
           uv pip install pybind11 numpy
 
+      - name: Debug benchmark library contents
+        run: |
+          echo "Inspecting benchmark library contents..."
+          if [ -f mettagrid/build/deps/gbenchmark/lib/libbenchmark.a ]; then
+            echo "✅ libbenchmark.a found:"
+            ls -lh mettagrid/build/deps/gbenchmark/lib/libbenchmark.a
+            echo "📦 Symbols in libbenchmark.a:"
+            nm -g mettagrid/build/deps/gbenchmark/lib/libbenchmark.a | grep 'benchmark::' || echo "❌ No benchmark symbols found"
+          else
+            echo "❌ libbenchmark.a is missing"
+            exit 1
+          fi
+
+          echo "Inspecting libbenchmark_main.a..."
+          if [ -f mettagrid/build/deps/gbenchmark/lib/libbenchmark_main.a ]; then
+            echo "✅ libbenchmark_main.a found:"
+            ls -lh mettagrid/build/deps/gbenchmark/lib/libbenchmark_main.a
+            echo "📦 Symbols in libbenchmark_main.a:"
+            nm -g mettagrid/build/deps/gbenchmark/lib/libbenchmark_main.a | grep 'benchmark::' || echo "⚠️ No benchmark_main symbols found"
+          else
+            echo "❌ libbenchmark_main.a is missing"
+            exit 1
+          fi
+
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
