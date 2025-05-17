@@ -58,7 +58,9 @@ PYTHON_CFLAGS := $(shell $(PYTHON_BIN) -m pybind11 --includes)
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 
-CXXFLAGS = -std=c++20 -Wall -g -fvisibility=hidden \
+CXXFLAGS_MGRID = 
+
+CXXFLAGS = -std=c++20 -Wall -g \
 	-I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) \
 	-I$(PYTHON_INCLUDE) \
 	-DPYTHON_HOME=\"$(PYTHON_HOME)\" \
@@ -92,6 +94,8 @@ ifeq ($(shell uname), Darwin)
     CXXFLAGS += -I/opt/homebrew/include
     LDFLAGS  += -L/opt/homebrew/lib
 endif
+
+CXXFLAGS_MGRID = $(CXXFLAGS) -fvisibility=hidden -O3
 
 # Source files for mettagrid core library
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
@@ -271,7 +275,8 @@ check-dependencies:
 	@echo ""
 	@echo "⚙️ Compiler"
 	@echo "  CXX                  = $(CXX)"
-	@echo "  CXXFLAGS             = $(CXXFLAGS)"
+	@echo "  CXXFLAGS             = $(CXXFLAGS)" 
+	@echo "  CXXFLAGS_METTAGRID   = $(CXXFLAGS_METTAGRID)"
 	@echo ""
 	@echo "📚 Linking"
 	@echo "  PYTHON_LIBS          = $(PYTHON_LIBS)"
@@ -355,7 +360,7 @@ $(BUILD_SRC_DIR):
 # Compile individual source files
 $(BUILD_SRC_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_SRC_DIR)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS_METTAGRID) -c $< -o $@
 
 # Build a static library from all source files
 $(BUILD_DIR)/libmettagrid.a: $(SRC_OBJECTS)
