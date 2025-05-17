@@ -89,10 +89,10 @@ jobs:
         run: |
           # Ensure paths exist so caching doesn't fail
           mkdir -p mettagrid/build
-          mkdir -p .venv/lib/python3.11/site-packages/pybind11_placeholder
-          mkdir -p .venv/lib/python3.11/site-packages/numpy_placeholder
+          mkdir -p .venv/lib/python3.11/site-packages/pybind11
+          mkdir -p .venv/lib/python3.11/site-packages/numpy
 
-          echo "cache_paths=mettagrid/build,.venv/lib/python3.11/site-packages/pybind11_placeholder,.venv/lib/python3.11/site-packages/numpy_placeholder" >> $GITHUB_OUTPUT
+          echo "cache_paths=mettagrid/build,.venv/lib/python3.11/site-packages/pybind11,.venv/lib/python3.11/site-packages/numpy" >> $GITHUB_OUTPUT
 
       - name: Debug cache paths
         run: echo "${{ steps.set-cache-paths.outputs.cache_paths }}"
