@@ -83,7 +83,7 @@ jobs:
           directory_paths: "mettagrid/"
           specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Set cache paths
         id: set-cache-paths
         run: |
@@ -93,6 +93,9 @@ jobs:
           mkdir -p .venv/lib/python3.11/site-packages/numpy_placeholder
 
           echo "cache_paths=mettagrid/build,.venv/lib/python3.11/site-packages/pybind11_placeholder,.venv/lib/python3.11/site-packages/numpy_placeholder" >> $GITHUB_OUTPUT
+
+      - name: Debug cache paths
+        run: echo "${{ steps.set-cache-paths.outputs.cache_paths }}"
 
       - name: Generate cache key
         id: set-cache-key
@@ -176,6 +179,9 @@ jobs:
         uses: ./.github/actions/setup-python-uv
         with:
           skip_requirements: "true"
+
+      - name: Debug cache paths
+        run: echo "${{ needs.setup-checks.outputs.cache_paths }}"
 
       - name: Restore from build cache
         id: test-cache-cpp
