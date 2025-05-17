@@ -204,6 +204,24 @@ jobs:
           cd mettagrid
           make check-dependencies
 
+      - name: Debug cache paths
+        shell: bash
+        run: |
+          echo "Debugging cache paths..."
+
+          echo "== mettagrid/build =="
+          if [[ -d "mettagrid/build" ]]; then
+            ls -R mettagrid/build
+          else
+            echo "Directory not found: mettagrid/build"
+          fi
+
+          echo "== pybind11 in .venv =="
+          find .venv/lib -type d -name "pybind11*" || echo "pybind11 not found"
+
+          echo "== numpy in .venv =="
+          find .venv/lib -type d -name "numpy*" || echo "numpy not found"
+
       - name: Save build cache
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4

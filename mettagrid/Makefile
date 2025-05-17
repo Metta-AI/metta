@@ -400,6 +400,17 @@ $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	$(CXX) $^ $(FORCE_GTEST_MAIN) -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS)
 
 # Run C++ tests
+
+.PHONY: debug-test-vars
+debug-test-vars:
+	@echo ""
+	@echo "TEST_DIR = $(TEST_DIR)"
+	@echo "BUILD_TEST_DIR = $(BUILD_TEST_DIR)"
+	@echo "TEST_SOURCES = $(TEST_SOURCES)"
+	@echo "TEST_OBJECTS = $(TEST_OBJECTS)"
+	@echo "TEST_EXECUTABLES = $(TEST_EXECUTABLES)"
+	@echo ""
+
 .PHONY: test
 test: check-dependencies $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
 	@echo "Running all C++ tests..."
@@ -444,6 +455,16 @@ $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
 	$(CXX) $^ -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS) $(PYBIND11_LIBS)
 
 # Run all benchmarks
+.PHONY: debug-bench-vars
+debug-bench-vars:
+	@echo ""
+	@echo "BENCH_DIR = $(BENCH_DIR)"
+	@echo "BUILD_BENCH_DIR = $(BUILD_BENCH_DIR)"
+	@echo "BENCH_SOURCES = $(BENCH_SOURCES)"
+	@echo "BENCH_OBJECTS = $(BENCH_OBJECTS)"
+	@echo "BENCH_EXECUTABLES = $(BENCH_EXECUTABLES)"
+	@echo ""
+
 .PHONY: benchmark
 benchmark: check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks..."
