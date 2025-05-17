@@ -31,6 +31,10 @@ BUILD_SRC_DIR = $(BUILD_DIR)/mettagrid
 BUILD_TEST_DIR = $(BUILD_DIR)/tests
 BUILD_BENCH_DIR = $(BUILD_DIR)/benchmarks
 
+DEPS_INSTALL_DIR := $(BUILD_DIR)/deps
+GTEST_DIR := $(DEPS_INSTALL_DIR)/gtest
+GBENCHMARK_DIR := $(DEPS_INSTALL_DIR)/gbenchmark
+
 # Use UV venv at repo root
 REPO_ROOT := $(realpath ..)
 PYTHON_BIN := "$(REPO_ROOT)/.venv/bin/python"
@@ -76,27 +80,12 @@ else
     RPATH_FLAGS =
 endif
 
-# Google Test settings
-GTEST_INCLUDE = $(shell pkg-config --cflags gtest 2>/dev/null || echo "-I/opt/homebrew/Cellar/googletest/1.17.0/include")
 
-GTEST_LIBS := $(shell \
-	if pkg-config --exists gtest_main; then \
-		pkg-config --libs gtest_main; \
-	elif [ -f /usr/lib/libgtest.a ]; then \
-		echo "-L/usr/lib -lgtest -lgtest_main -pthread"; \
-	else \
-		echo "-lgtest -lgtest_main -pthread"; \
-	fi)
+CXXFLAGS += -I$(GTEST_DIR)/include
+GTEST_LIBS = -L$(GTEST_DIR)/lib -lgtest -lgtest_main -pthread
 
-# Add gtest includes to CXXFLAGS
-CXXFLAGS += $(GTEST_INCLUDE)
-
-# Google Benchmark settings
-BENCHMARK_INCLUDE = $(shell pkg-config --cflags benchmark 2>/dev/null || echo "-I/usr/local/include -I/usr/include")
-BENCHMARK_LIBS = $(shell pkg-config --libs benchmark 2>/dev/null || echo "-lbenchmark -lpthread")
-
-# Add benchmark includes to CXXFLAGS when needed
-BENCH_CXXFLAGS = $(CXXFLAGS) $(BENCHMARK_INCLUDE)
+CXXFLAGS += -I$(GBENCHMARK_DIR)/include
+BENCHMARK_LIBS = -L$(GBENCHMARK_DIR)/lib -lbenchmark -pthread
 
 # Source files for mettagrid core library
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
@@ -163,35 +152,26 @@ install-format-tools:
 # Install testing tools
 .PHONY: install-test-tools
 install-test-tools:
-	@echo "Installing required testing tools..."
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		echo "Detected macOS. Installing tools via Homebrew..."; \
-		brew install googletest || echo "Failed to install googletest. Please install manually."; \
-	elif [ -f /etc/debian_version ]; then \
-		echo "Detected Debian/Ubuntu. Installing tools via apt..."; \
-		sudo apt-get update && sudo apt-get install -y libgtest-dev cmake; \
-		cd /usr/src/gtest && sudo cmake CMakeLists.txt && sudo make && \
-		sudo cp lib/*.a /usr/lib || \
-		echo "Failed to build googletest. Please install manually."; \
-	else \
-		echo "Unsupported OS. Please install Google Test manually:"; \
-		echo "  - See https://github.com/google/googletest for instructions."; \
-	fi
+	@echo "Installing GoogleTest to $(GTEST_DIR)..."
+	@mkdir -p $(GTEST_DIR)
+	@cd $(BUILD_DIR) && \
+		git clone --depth 1 --branch release-1.12.1 https://github.com/google/googletest.git && \
+		mkdir -p googletest/build && cd googletest/build && \
+		cmake -DCMAKE_INSTALL_PREFIX=$(abspath $(GTEST_DIR)) .. && \
+		make -j$$(nproc) && make install
 
 # Install benchmark tools
 .PHONY: install-bench-tools
 install-bench-tools:
-	@echo "Installing required benchmark tools..."
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		echo "Detected macOS. Installing tools via Homebrew..."; \
-		brew install google-benchmark || echo "Failed to install google-benchmark. Please install manually."; \
-	elif [ -f /etc/debian_version ]; then \
-		echo "Detected Debian/Ubuntu. Installing tools via apt..."; \
-		sudo apt-get update && sudo apt-get install -y libbenchmark-dev; \
-	else \
-		echo "Unsupported OS. Please install Google Benchmark manually:"; \
-		echo "  - See https://github.com/google/benchmark for instructions."; \
-	fi
+	@echo "Installing Google Benchmark to $(GBENCHMARK_DIR)..."
+	@mkdir -p $(GBENCHMARK_DIR)
+	@cd $(BUILD_DIR) && \
+		git clone --depth 1 https://github.com/google/benchmark.git && \
+		git clone --depth 1 https://github.com/google/googletest.git benchmark/googletest && \
+		mkdir -p benchmark/build && cd benchmark/build && \
+		cmake -DCMAKE_INSTALL_PREFIX=$(abspath $(GBENCHMARK_DIR)) -DCMAKE_BUILD_TYPE=Release .. && \
+		make -j$$(nproc) && make install
+
 
 
 .PHONY: install-dependencies

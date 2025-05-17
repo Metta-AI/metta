@@ -86,7 +86,9 @@ jobs:
 
       - name: Set cache paths
         id: set-cache-paths
-        run: echo "paths=mettagrid/build,~/.cache/pip" >> $GITHUB_OUTPUT
+        run: echo "paths=mettagrid/build,
+            .venv/lib/python*/site-packages/pybind11*,
+            .venv/lib/python*/site-packages/numpy*" >> $GITHUB_OUTPUT
 
       - name: Generate cache key
         id: set-cache-key
@@ -105,8 +107,9 @@ jobs:
             sha256sum requirements_pinned.txt >> /tmp/file_hashes.txt
           fi
 
-          # Add the cache paths to the hash calculation
-          echo "${{ steps.set-cache-paths.outputs.paths }}" | sha256sum >> /tmp/file_hashes.txt
+          # Add the cache paths string to the key hash
+          echo "${{ steps.set-cache-paths.outputs.paths }}" | tr -d '\n' | sha256sum | cut -d' ' -f1 > /tmp/path_hash.txt
+          cat /tmp/path_hash.txt >> /tmp/file_hashes.txt
 
           # Create the final hash
           if [ -s "/tmp/file_hashes.txt" ]; then
@@ -170,59 +173,39 @@ jobs:
         with:
           skip_requirements: 'true'
       
-      - name: Restore from dependencies and build cache
-        id: cache
+      - name: Restore from build cache
+        id: test-cache-cpp
         uses: actions/cache@v4
         with:
-          path: |
-            mettagrid/build
-            /var/cache/apt/archives
-            /var/lib/apt/lists
-            /usr/include/gtest
-            /usr/include/benchmark
-            /usr/lib/x86_64-linux-gnu/libgtest*
-            /usr/lib/x86_64-linux-gnu/libbenchmark*
-            .venv/lib/python*/site-packages/pybind11
-            .venv/lib/python*/site-packages/numpy
-            .venv/lib/python*/site-packages/pybind11-*
-            .venv/lib/python*/site-packages/numpy-*
-            ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ runner.os }}-cpp-${{ github.sha }}-${{ hashFiles('mettagrid/**/*.cpp', 'mettagrid/**/*.h', 'mettagrid/Makefile') }}
-          restore-keys: |
-            ${{ runner.os }}-cpp-
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
+          key: ${{ needs.setup-checks.outputs.cache_key }}
 
       - name: Install C++ dependencies (cache miss fallback)
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-format cmake googletest libgtest-dev libbenchmark-dev
+          cd mettagrid
+          make install-dependencies
 
       - name: Install Python dependencies (cache miss fallback)
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           uv pip install pybind11 numpy
 
-      - name: Debug directory structure
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Directory listing:"
-          ls -la
-          echo "Mettagrid directory listing:"
-          ls -la mettagrid
-
-      - name: Debug before build
-        run: |
-          cd mettagrid
-          pwd
-          echo "Contents of current directory:"
-          ls -la
-
-      - name: Build C++ artifacts
+      - name: Build C++ artifacts (cache miss fallback)
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make check-dependencies
           echo "Running build-for-ci target with explicit paths..."
           make build-for-ci
+
+      - name: Save build cache
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
+          key: ${{ needs.setup-checks.outputs.cache_key }}
+
 
   lint:
     name: "C++ Lint"
@@ -261,11 +244,8 @@ jobs:
       - name: Setup Python and uv 
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
-      
-      - name: Install C++ dependencies
-        run: |
-          cd mettagrid
-          make install-dependencies
+        with:
+          skip_requirements: 'true'
 
       - name: Restore from build cache
         id: test-cache-cpp
@@ -274,13 +254,24 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
+      - name: Install C++ dependencies (cache miss fallback)
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        run: |
+          cd mettagrid
+          make install-dependencies
+
+      - name: Install Python dependencies (cache miss fallback)
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        run: |
+          uv pip install pybind11 numpy
+
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make build-for-ci
 
-      - name: Build and run C++ tests
+      - name: Run C++ tests
         run: |
           cd mettagrid
           make test
@@ -301,21 +292,29 @@ jobs:
       - name: Setup Python and uv 
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
-      
-      - name: Install C++ dependencies
+        with:
+          skip_requirements: 'true'
+
+      - name: Restore from build cache
+        id: test-cache-cpp
+        uses: actions/cache@v4
+        with:
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
+          key: ${{ needs.setup-checks.outputs.cache_key }}  
+
+      - name: Install C++ dependencies (cache miss fallback)
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make install-dependencies
 
-      - name: Restore from build cache
-        id: benchmark-cache-cpp
-        uses: actions/cache@v3
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
+      - name: Install Python dependencies (cache miss fallback)
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        run: |
+          uv pip install pybind11 numpy
 
       - name: Build C++ artifacts (cache miss fallback)
-        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make build-for-ci
