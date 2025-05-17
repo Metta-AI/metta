@@ -49,7 +49,6 @@ for arg in "$@"; do
   esac
 done
 
-
 sky jobs launch \
   --gpus L4:$gpus \
   --num-nodes $nodes \

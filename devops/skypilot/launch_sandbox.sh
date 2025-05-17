@@ -49,7 +49,6 @@ for arg in "$@"; do
   esac
 done
 
-
 AWS_PROFILE=softmax-db-admin sky launch \
   --gpus L4:$gpus \
   --num-nodes $nodes \

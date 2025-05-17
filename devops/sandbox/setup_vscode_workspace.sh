@@ -18,7 +18,7 @@ if [ -d "$PROJECT_DIR/.venv" ]; then
     # Windows path
     SITE_PACKAGES_PATH="$PROJECT_DIR/.venv/Lib/site-packages"
   fi
-  
+
   if [ -n "$SITE_PACKAGES_PATH" ]; then
     SYMLINK_PATH="/var/tmp/metta/venv-site-packages"
     ln -sf "$SITE_PACKAGES_PATH" "$SYMLINK_PATH"
