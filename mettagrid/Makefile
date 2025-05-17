@@ -64,11 +64,10 @@ FIND_EXECUTABLE := $(if $(filter Darwin,$(UNAME_S)),-perm -111,-executable)
 
 GTEST_LIB_DIR := $(GTEST_DIR)/lib 
 ifeq ($(UNAME_S), Darwin)
-    FORCE_GTEST_MAIN := -Wl,-force_load,$(GTEST_LIB_DIR)/libgtest_main.a
+  FORCE_GTEST_MAIN := $(shell GTEST_LIB_DIR=$(GTEST_LIB_DIR) ; echo -Wl,-force_load,$${GTEST_LIB_DIR}/libgtest_main.a)
 else
-    FORCE_GTEST_MAIN := -Wl,--whole-archive $(GTEST_LIB_DIR)/libgtest_main.a -Wl,--no-whole-archive
+  FORCE_GTEST_MAIN := $(shell GTEST_LIB_DIR=$(GTEST_LIB_DIR) ; echo -Wl,--whole-archive $${GTEST_LIB_DIR}/libgtest_main.a -Wl,--no-whole-archive)
 endif
-
 
 # Compiler settings
 CXX = g++
@@ -436,10 +435,10 @@ $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Link test executables with the mettagrid library
 $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
-	$(CXX) $^ $(FORCE_GTEST_MAIN) -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS) $(PYBIND11_LIBS)
+	@echo "[LINK] $(CXX) $^ $(FORCE_GTEST_MAIN) -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS)"
+	$(CXX) $^ $(FORCE_GTEST_MAIN) -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS)
 
 # Run C++ tests
 .PHONY: test
