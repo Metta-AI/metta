@@ -96,12 +96,14 @@ jobs:
           mkdir -p mettagrid/build
           mkdir -p "$VIRTUAL_ENV/lib/python3.11/site-packages/numpy"
           mkdir -p "$VIRTUAL_ENV/lib/python3.11/site-packages/pybind11"
-
+          mkdir -p "$VIRTUAL_ENV/lib/python3.11/site-packages/numpy/core/include"
+          
           # Write the list to GitHub Actions output
           echo "cache_paths<<EOF" >> "$GITHUB_OUTPUT"
           echo "mettagrid/build" >> "$GITHUB_OUTPUT"
           echo "$VIRTUAL_ENV/lib/python3.11/site-packages/pybind11" >> "$GITHUB_OUTPUT"
           echo "$VIRTUAL_ENV/lib/python3.11/site-packages/numpy" >> "$GITHUB_OUTPUT"
+          echo "$VIRTUAL_ENV/lib/python3.11/site-packages/numpy/core/include" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Debug cache paths
