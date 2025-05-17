@@ -1,19 +1,7 @@
 resources:
-  any_of:
-    - cloud: aws
-      region: us-east-1
-      use_spot: true
-      accelerators: "L4:1"
-    - cloud: aws
-      region: us-east-1
-      use_spot: true
-      accelerators: "A10G:1"
-    - cloud: aws
-      region: us-east-1
-      accelerators: "L4:1"
-    - cloud: aws
-      region: us-east-1
-      accelerators: "A10G:1"
+  cloud: aws
+  region: us-east-1
+  accelerators: ["L4:1", "A10G:1"]
   cpus: 8+
   image_id: docker:metta:latest
 
@@ -26,20 +14,19 @@ setup: |
 
   mkdir -p $WANDB_DIR
 
+  echo 'cd /workspace/metta' >> ~/.bashrc
+  echo '. .venv/bin/activate' >> ~/.bashrc
+
 run: |
   cd /workspace/metta
   source ./devops/env.sh
 
-  export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
-  export NUM_NODES=$SKYPILOT_NUM_NODES
-  export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
-  export MASTER_PORT=8008
-  export NODE_INDEX=$SKYPILOT_NODE_RANK
+  echo "Running sandbox"
 
-  ./devops/$METTA_CMD.sh \
-    +hardware=$METTA_HARDWARE \
-    run=$METTA_RUN_ID \
-    $METTA_CMD_ARGS
+  while true; do
+    echo "Running sandbox"
+    sleep 100
+  done
 
 file_mounts:
   # Wandb Credentials
@@ -55,10 +42,6 @@ file_mounts:
     mode: MOUNT
 
 envs:
-  METTA_RUN_ID: ""
-  METTA_HARDWARE: aws
-  METTA_CMD: train
-  METTA_CMD_ARGS: ""
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
 
