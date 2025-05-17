@@ -257,17 +257,13 @@ check-dependencies:
 # CI Build Target
 #-----------------------
 
-.PHONY: build-for-ci-internal
-build-for-ci-internal: info $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
+.PHONY: build-for-ci
+build-for-ci: check-dependencies
+	$(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
 	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
 	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
 	@echo "✅ Build completed."
-
-.PHONY: build-for-ci
-build-for-ci: check-dependencies
-	@$(MAKE) build-for-ci-internal
-
 
 #-----------------------
 # Build with setup-tools
