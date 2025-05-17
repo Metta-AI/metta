@@ -41,17 +41,36 @@ class LayerBase(nn.Module):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, name, sources=None, nn_params=None, **cfg):
+    def __init__(self, name=None, sources=None, nn_params=None, **cfg):
         super().__init__()
+
+        # Extract name from cfg if not provided directly
+        if name is None and "name" in cfg:
+            name = cfg.pop("name")  # Using pop to remove it from cfg
         self._name = name
+
+        # Extract sources from cfg if not provided directly
+        if sources is None and "sources" in cfg:
+            sources = cfg.pop("sources")
         self._sources = sources
         if self._sources is not None:
             # convert from omegaconf's list class
             self._sources = list(self._sources)
-        self._net = None
-        self._ready = False
+
+        # Extract nn_params from cfg if not provided directly
+        if nn_params is None and "_nn_params" in cfg:
+            nn_params = cfg.pop("_nn_params")
+
+        # Initialize _nn_params
         if not hasattr(self, "_nn_params"):
             self._nn_params = nn_params if nn_params is not None else {}
+        else:
+            # If _nn_params already exists, update it with new values if provided
+            if nn_params is not None:
+                self._nn_params.update(nn_params)
+
+        self._net = None
+        self._ready = False
 
     @property
     def ready(self):
