@@ -1,5 +1,5 @@
 # Makefile for code formatting, linting, and testing (UV venv optimized)
-.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci info install-build-deps
+.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci info install-build-deps build-for-ci-internal
 
 # Default target when just running 'make'
 help:
@@ -43,15 +43,13 @@ PYTHON_STDLIB := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_pa
 PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
 PYTHON_SITE_PACKAGES := $(shell $(PYTHON3) -c "import site; print(site.getsitepackages()[0])")
 PYTHON_LIB_DIR := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
-PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes)
-PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
 PYTHON_HOME := $(shell $(PYTHON3) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))")
 
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 
 # Define CXXFLAGS with all the necessary includes
-CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(PYTHON_INCLUDE) -I$(PYBIND11_INCLUDE)
+CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(PYTHON_INCLUDE)
 
 # Add Python path definitions to CXXFLAGS
 CXXFLAGS += -DPYTHON_HOME=\"$(PYTHON_HOME)\" -DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
@@ -162,12 +160,23 @@ info:
 	@echo "  PYTHON_LIBS          = $(PYTHON_LIBS)"
 	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
 
-# Build all test and benchmark executables without running them
-build-for-ci: install-build-deps info $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
+build-for-ci-internal: info $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
+	@echo "✅ Build completed."
+	@echo "Source objects: $(words $(SRC_OBJECTS))"
+	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
+	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
+
+build-for-ci: install-build-deps
 	@echo "Built all source files, test executables, and benchmark executables"
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
 	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
 	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
+	$(eval PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes))
+	$(eval PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//'))
+	$(eval CXXFLAGS := $(CXXFLAGS) -I$(PYBIND11_INCLUDE))
+	@echo "🔁 Refreshed PYBIND11_INCLUDE: $(PYBIND11_INCLUDE)"
+	$(MAKE) build-for-ci-internal
+
 
 #-----------------------
 # Build
