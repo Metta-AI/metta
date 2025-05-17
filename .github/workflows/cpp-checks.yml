@@ -70,7 +70,7 @@ jobs:
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
       run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
       cache_key: ${{ steps.set-cache-key.outputs.cache_key }}
-      cache_paths: ${{ steps.set-cache-paths.outputs.paths }}
+      cache_paths: ${{ steps.set-cache-paths.outputs.cache_paths }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
