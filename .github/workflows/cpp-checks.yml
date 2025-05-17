@@ -189,6 +189,7 @@ jobs:
         if: steps.build-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
+          make info
           make build-for-ci
 
   lint:
@@ -251,7 +252,8 @@ jobs:
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
-          make build
+          make info
+          make build-for-ci
 
       - name: Build and run tests
         run: |
@@ -290,7 +292,8 @@ jobs:
         if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
-          make build
+          make info
+          make build-for-ci
 
       - name: Build and run benchmarks with JSON output
         run: |

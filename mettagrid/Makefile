@@ -1,5 +1,5 @@
 # Makefile for code formatting, linting, and testing (UV venv optimized)
-.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci
+.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci info
 
 # Default target when just running 'make'
 help:
@@ -52,6 +52,7 @@ PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 
 # Define CXXFLAGS with all the necessary includes
 CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(PYTHON_INCLUDE) -I$(PYBIND11_INCLUDE)
+
 # Add Python path definitions to CXXFLAGS
 CXXFLAGS += -DPYTHON_HOME=\"$(PYTHON_HOME)\" -DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
 
@@ -132,6 +133,30 @@ check-venv:
 # CI Build Target
 #-----------------------
 
+info:
+	@echo "🔧 Environment Info"
+	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
+	@echo "  PYTHON               = $(PYTHON3)"
+	@echo "  Python version       = $(PYTHON_VERSION)"
+	@echo ""
+	@echo "📦 Python Include Paths"
+	@echo "  PYTHON_INCLUDE       = $(PYTHON_INCLUDE)"
+	@echo "  PYTHON_STDLIB        = $(PYTHON_STDLIB)"
+	@echo "  PYTHON_DYNLOAD       = $(PYTHON_DYNLOAD)"
+	@echo "  PYTHON_SITE_PACKAGES = $(PYTHON_SITE_PACKAGES)"
+	@echo "  PYTHON_HOME          = $(PYTHON_HOME)"
+	@echo ""
+	@echo "🧱 pybind11"
+	@echo "  PYBIND11_INCLUDE     = $(PYBIND11_INCLUDE)"
+	@echo ""
+	@echo "⚙️ Compiler"
+	@echo "  CXX                  = $(CXX)"
+	@echo "  CXXFLAGS             = $(CXXFLAGS)"
+	@echo ""
+	@echo "📚 Linking"
+	@echo "  PYTHON_LIBS          = $(PYTHON_LIBS)"
+	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
+
 # Build all test and benchmark executables without running them
 build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 	@echo "Built all source files, test executables, and benchmark executables"
@@ -147,7 +172,6 @@ build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 build:
 	@echo "Building mettagrid..."
 	uv pip install -e .
-
 
 # Build with clean option
 build-clean: clean build
