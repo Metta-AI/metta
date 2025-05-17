@@ -62,6 +62,13 @@ endif
 
 FIND_EXECUTABLE := $(if $(filter Darwin,$(UNAME_S)),-perm -111,-executable)
 
+ifeq ($(UNAME_S), Darwin)
+    FORCE_GTEST_MAIN := -Wl,-force_load,$(GTEST_LIB_DIR)/libgtest_main.a
+else
+    FORCE_GTEST_MAIN := -Wl,--whole-archive $(GTEST_LIB_DIR)/libgtest_main.a -Wl,--no-whole-archive
+endif
+
+
 # Compiler settings
 CXX = g++
 
@@ -431,7 +438,7 @@ $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 # Link test executables with the mettagrid library
 $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
-	$(CXX) $^ -Wl,-force_load,$(GTEST_DIR)/lib/libgtest_main.a -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS) $(PYBIND11_LIBS)
+	$(CXX) $^ $(FORCE_GTEST_MAIN) -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS) $(PYBIND11_LIBS)
 
 # Run C++ tests
 .PHONY: test
