@@ -5,22 +5,14 @@ help:
 	@echo "  install-dependencies - Install Python and C++ dependencies"
 	@echo "  check-dependencies   - Verify system readiness to build"
 	@echo "  build                - Build mettagrid using the rebuild script"
-	@echo "  build-clean          - Build mettagrid with clean option"
-	@echo "  build-for-ci         - Build all source, test, and benchmark files without running tests (for CI)"
+	@echo "  build-for-ci         - Build all source, test, and benchmark files (for CI)"
 	@echo "  format               - Format C++/C files"
-	@echo "  check-tools          - Check if required formatting tools are installed"
-	@echo "  install-tools        - Install required formatting tools (macOS only)"
 	@echo "  test                 - Run all unit tests"
-	@echo "  check-test-tools     - Check if required testing tools are installed"
-	@echo "  install-test-tools   - Install required testing tools"
 	@echo "  benchmark            - Run all benchmarks"
-	@echo "  check-bench-tools    - Check if required benchmark tools are installed"
-	@echo "  install-bench-tools  - Install required benchmark tools"
 	@echo "  clean                - Clean build and test files"
 	@echo "  all                  - Run format and test"
 	@echo ""
 	@echo "If build fails, try: make check-dependencies"
-
 
 # Use UV venv at repo root
 REPO_ROOT := $(realpath ..)
@@ -135,28 +127,12 @@ TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
 TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
 TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
 
-.PHONY: debug-test-vars
-debug-test-vars:
-	@echo "TEST_DIR = $(TEST_DIR)"
-	@echo "BUILD_TEST_DIR = $(BUILD_TEST_DIR)"
-	@echo "TEST_SOURCES = $(TEST_SOURCES)"
-	@echo "TEST_OBJECTS = $(TEST_OBJECTS)"
-	@echo "TEST_EXECUTABLES = $(TEST_EXECUTABLES)"
-
 $(BUILD_BENCH_DIR):
 	@mkdir -p $(BUILD_BENCH_DIR)
 
 BENCH_SOURCES := $(wildcard $(BENCH_DIR)/*.cpp $(BENCH_DIR)/**/*.cpp)
 BENCH_OBJECTS := $(patsubst $(BENCH_DIR)/%.cpp,$(BUILD_BENCH_DIR)/%.o,$(BENCH_SOURCES))
 BENCH_EXECUTABLES := $(patsubst $(BUILD_BENCH_DIR)/%.o,$(BUILD_BENCH_DIR)/%,$(BENCH_OBJECTS))
-
-.PHONY: debug-bench-vars
-debug-bench-vars:
-	@echo "BENCH_DIR = $(BENCH_DIR)"
-	@echo "BUILD_BENCH_DIR = $(BUILD_BENCH_DIR)"
-	@echo "BENCH_SOURCES = $(BENCH_SOURCES)"
-	@echo "BENCH_OBJECTS = $(BENCH_OBJECTS)"
-	@echo "BENCH_EXECUTABLES = $(BENCH_EXECUTABLES)"
 
 # Check if we're in a virtual environment
 .PHONY: check-venv
@@ -370,19 +346,19 @@ build:
 #-----------------------
 
 # Check if the required formatting tools are installed
-.PHONY: check-tools
-check-tools:
+.PHONY: check-format-tools
+check-format-tools:
 	@echo "Checking for required formatting tools..."
 	@which clang-format >/dev/null 2>&1 || \
 		{ echo "clang-format is not installed. On macOS use 'brew install clang-format'"; \
 		  echo "On Linux use 'apt-get install clang-format'"; \
-		  echo "Or run 'make install-tools' on macOS"; exit 1; }
+		  echo "Or run 'make install-format-tools' on macOS"; exit 1; }
 	@echo "All required formatting tools are installed."
 
 
 # Format only C/C++ code and skip Cython files entirely
 .PHONY: format
-format: check-tools
+format: check-format-tools
 	@echo "Formatting C/C++ code only (skipping all Cython files)..."
 	@find . -type f \( -name "*.c" -o -name "*.h" -o -name "*.cpp" -o -name "*.hpp" \) \
 		-not -path "*/\.*" -not -path "*/build/*" -not -path "*/venv/*" -not -path "*/dist/*" \
@@ -413,23 +389,6 @@ $(BUILD_DIR)/libmettagrid.a: $(SRC_OBJECTS)
 # Testing
 #-----------------------
 
-# Check if testing tools are installed
-.PHONY: check-test-tools
-check-test-tools:
-	@echo "Checking for required testing tools..."
-	@which g++ >/dev/null 2>&1 || \
-		{ echo "g++ compiler not found. On macOS use 'brew install gcc'"; \
-		  echo "On Linux use 'apt-get install g++'"; exit 1; }
-	@echo "Checking for Google Test library..."
-	@(ldconfig -p 2>/dev/null | grep -q libgtest.so) || \
-		(test -f /usr/local/lib/libgtest.a) || \
-		(test -f /usr/local/lib/libgtest.dylib) || \
-		(test -f /opt/homebrew/Cellar/googletest/1.17.0/lib/libgtest.a) || \
-		(test -f /opt/homebrew/Cellar/googletest/1.17.0/lib/libgtest.dylib) || \
-		(pkg-config --exists gtest 2>/dev/null) || \
-		{ echo "Google Test library not found. Run 'make install-test-tools' to install."; exit 1; }
-	@echo "All required testing tools are installed."
-
 # Compile individual test files
 $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 	@mkdir -p $(dir $@)
@@ -442,7 +401,7 @@ $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 
 # Run C++ tests
 .PHONY: test
-test: check-test-tools check-dependencies $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
+test: check-dependencies $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
 	@echo "Running all C++ tests..."
 	@[ -z "$(TEST_EXECUTABLES)" ] && echo "WARNING: No test executables found!" || true
 	@for f in $(TEST_EXECUTABLES); do \
@@ -457,7 +416,7 @@ test: check-test-tools check-dependencies $(SRC_OBJECTS) $(TEST_EXECUTABLES) deb
 
 # Test a specific test file
 .PHONY: test-%
-test-%: check-test-tools check-dependencies $(BUILD_TEST_DIR)/%
+test-%: check-dependencies $(BUILD_TEST_DIR)/%
 	@echo "Running test $*..."
 	@if [ -f "$(BUILD_TEST_DIR)/$*" ]; then \
 		"$(BUILD_TEST_DIR)/$*" --gtest_color=yes; \
@@ -475,21 +434,6 @@ test-python: check-venv
 # Benchmarking
 #-----------------------
 
-# Check if benchmark tools are installed
-.PHONY: check-bench-tools
-check-bench-tools:
-	@echo "Checking for required benchmark tools..."
-	@which g++ >/dev/null 2>&1 || \
-		{ echo "g++ compiler not found. On macOS use 'brew install gcc'"; \
-		  echo "On Linux use 'apt-get install g++'"; exit 1; }
-	@echo "Checking for Google Benchmark library..."
-	@(ldconfig -p 2>/dev/null | grep -q libbenchmark.so) || \
-		(test -f /usr/local/lib/libbenchmark.a) || \
-		(test -f /usr/local/lib/libbenchmark.dylib) || \
-		(pkg-config --exists benchmark 2>/dev/null) || \
-		{ echo "Google Benchmark library not found. Run 'make install-bench-tools' to install."; exit 1; }
-	@echo "All required benchmark tools are installed."
-
 # Compile individual benchmark files
 $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 	@mkdir -p $(dir $@)
@@ -501,7 +445,7 @@ $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
 
 # Run all benchmarks
 .PHONY: benchmark
-benchmark: check-bench-tools check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+benchmark: check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks..."
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
@@ -516,7 +460,7 @@ benchmark: check-bench-tools check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABL
 
 
 .PHONY: bench-json
-bench-json: check-bench-tools check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+bench-json: check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true

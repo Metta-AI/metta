@@ -203,8 +203,6 @@ jobs:
         run: |
           cd mettagrid
           make check-dependencies
-          make check-test-tools
-          make check-bench-tools
 
       - name: Save build cache
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
