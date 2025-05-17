@@ -54,7 +54,7 @@ endif
 
 FIND_EXECUTABLE := $(if $(filter Darwin,$(UNAME_S)),-perm -111,-executable)
 
-GTEST_LIB_DIR := $(GTEST_DIR)/lib 
+GTEST_LIB_DIR := $(GTEST_DIR)/lib
 ifeq ($(UNAME_S), Darwin)
   FORCE_GTEST_MAIN := $(shell GTEST_LIB_DIR=$(GTEST_LIB_DIR) ; echo -Wl,-force_load,$${GTEST_LIB_DIR}/libgtest_main.a)
 else
@@ -417,7 +417,7 @@ debug-test-vars:
 	@echo ""
 
 .PHONY: test
-test: check-dependencies $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
+test: $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
 	@echo "Running all C++ tests..."
 	@[ -z "$(TEST_EXECUTABLES)" ] && echo "WARNING: No test executables found!" || true
 	@for f in $(TEST_EXECUTABLES); do \
@@ -432,7 +432,7 @@ test: check-dependencies $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
 
 # Test a specific test file
 .PHONY: test-%
-test-%: check-dependencies $(BUILD_TEST_DIR)/%
+test-%: $(BUILD_TEST_DIR)/%
 	@echo "Running test $*..."
 	@if [ -f "$(BUILD_TEST_DIR)/$*" ]; then \
 		"$(BUILD_TEST_DIR)/$*" --gtest_color=yes; \
@@ -471,7 +471,7 @@ debug-bench-vars:
 	@echo ""
 
 .PHONY: benchmark
-benchmark: check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+benchmark: $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks..."
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
@@ -486,7 +486,7 @@ benchmark: check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-va
 
 
 .PHONY: bench-json
-bench-json: check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+bench-json: $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
