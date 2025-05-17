@@ -296,25 +296,25 @@ jobs:
           skip_requirements: 'true'
 
       - name: Restore from build cache
-        id: test-cache-cpp
+        id: benchmark-cache-cpp
         uses: actions/cache@v4
         with:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}  
 
       - name: Install C++ dependencies (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make install-dependencies
 
       - name: Install Python dependencies (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
         run: |
           uv pip install pybind11 numpy
 
       - name: Build C++ artifacts (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make build-for-ci
