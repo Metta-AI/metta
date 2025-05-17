@@ -15,7 +15,6 @@ else
   export IS_DOCKER=false
 fi
 
-
 # Verify uv is available
 if ! command -v uv &> /dev/null; then
   # Try to find uv directly in common installation locations
@@ -48,16 +47,16 @@ fi
 is_uv_venv() {
   # Check if we're in a virtual environment
   if [ -z "$VIRTUAL_ENV" ]; then
-    return 1  # Not in any virtual environment
+    return 1 # Not in any virtual environment
   fi
-  
+
   # Check if it's a UV virtual environment by looking for UV marker files
   if [ -f "$VIRTUAL_ENV/pyvenv.cfg" ] && grep -q "uv" "$VIRTUAL_ENV/pyvenv.cfg"; then
-    return 0  # It's a UV venv
+    return 0 # It's a UV venv
   elif [ -d "$VIRTUAL_ENV/.uv" ]; then
-    return 0  # It has a .uv directory
+    return 0 # It has a .uv directory
   else
-    return 1  # Not a UV venv
+    return 1 # Not a UV venv
   fi
 }
 
@@ -67,13 +66,13 @@ REQUIRED_PYTHON_VERSION="3.11.7"
 # Exit if we're not in a UV venv and not in Docker
 if ! $IS_DOCKER && ! is_uv_venv; then
   echo "⚠️ Recreating virtual environment with Python version ($REQUIRED_PYTHON_VERSION)..."
-  
+
   # Create a new environment with the correct Python version
   uv venv .venv --python $REQUIRED_PYTHON_VERSION || {
     echo "Error: Failed to create new virtual environment with uv command."
     exit 1
   }
-  
+
   # Activate the new environment
   source .venv/bin/activate
   echo "✅ New virtual environment '.venv' created and activated with Python $REQUIRED_PYTHON_VERSION"
@@ -83,35 +82,34 @@ fi
 if [ -z "$CI" ]; then
   # ========== REPORT RESIDUAL CONDA VENV ==========
   if command -v conda &> /dev/null; then
-      echo "Checking for conda environments associated with this project..."
-      PROJECT_NAME=$(basename "$PROJECT_DIR")
-      CONDA_ENVS=$(conda env list | grep "$PROJECT_NAME" | awk '{print $1}')
-      if [ -n "$CONDA_ENVS" ]; then
-          echo "⚠️  Found the following conda environments that might be related to this project:"
-          echo "$CONDA_ENVS"
-          echo "⚠️  You may want to manually remove these if they're no longer needed (conda env remove -n ENV_NAME)"
-      fi
+    echo "Checking for conda environments associated with this project..."
+    PROJECT_NAME=$(basename "$PROJECT_DIR")
+    CONDA_ENVS=$(conda env list | grep "$PROJECT_NAME" | awk '{print $1}')
+    if [ -n "$CONDA_ENVS" ]; then
+      echo "⚠️  Found the following conda environments that might be related to this project:"
+      echo "$CONDA_ENVS"
+      echo "⚠️  You may want to manually remove these if they're no longer needed (conda env remove -n ENV_NAME)"
+    fi
   fi
 
   # ========== REPORT Non-UV VENV ==========
   VENV_PATHS=(".venv" "venv" ".env" "env" "virtualenv" ".virtualenv")
   for venv_name in "${VENV_PATHS[@]}"; do
-      venv_path="$PROJECT_DIR/$venv_name"
-      if [ -d "$venv_path" ]; then
-          if is_uv_venv "$venv_path"; then
-              echo "Preserving $venv_name as it appears to be a UV virtual environment"
-          else
-              echo "Removing $venv_name virtual environment..."
-              rm -rf "$venv_path"
-              echo "✅ Removed $venv_name virtual environment"
-          fi
+    venv_path="$PROJECT_DIR/$venv_name"
+    if [ -d "$venv_path" ]; then
+      if is_uv_venv "$venv_path"; then
+        echo "Preserving $venv_name as it appears to be a UV virtual environment"
+      else
+        echo "Removing $venv_name virtual environment..."
+        rm -rf "$venv_path"
+        echo "✅ Removed $venv_name virtual environment"
       fi
+    fi
   done
 
   # ========== CLEAN ALL BUILD ARTIFACTS ==========
   make clean
 fi
-
 
 # ========== Main Project ==========
 cd "$SCRIPT_DIR/.."
@@ -143,7 +141,7 @@ make build
 
 # ========== INSTALL SKYPILOT ==========
 echo -e "\nInstalling Skypilot..."
-uv tool install skypilot  --from 'skypilot[aws,vast,lambda]'
+uv tool install skypilot --from 'skypilot[aws,vast,lambda]'
 
 PYTHON="uv run -- python"
 
@@ -163,21 +161,21 @@ done
 
 # Check for metta.rl.fast_gae.compute_gae
 echo -e "\nChecking import for metta.rl.fast_gae.compute_gae..."
-  $PYTHON -c "from metta.rl.fast_gae import compute_gae; print('✅ Found metta.rl.fast_gae.compute_gae')" || {
+$PYTHON -c "from metta.rl.fast_gae import compute_gae; print('✅ Found metta.rl.fast_gae.compute_gae')" || {
   echo "❌ Failed to import metta.rl.fast_gae.compute_gae"
   exit 1
 }
 
 # Check for mettagrid.mettagrid_env.MettaGridEnv
 echo -e "\nChecking import for mettagrid.mettagrid_env.MettaGridEnv..."
-  $PYTHON -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found mettagrid.mettagrid_env.MettaGridEnv')" || {
+$PYTHON -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found mettagrid.mettagrid_env.MettaGridEnv')" || {
   echo "❌ Failed to import mettagrid.mettagrid_env.MettaGridEnv"
   exit 1
 }
 
 # Check for mettagrid.mettagrid_c.MettaGrid
 echo -e "\nChecking import for mettagrid.mettagrid_c.MettaGrid..."
-  $PYTHON -c  "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettagrid.mettagrid_c.MettaGrid')" || {
+$PYTHON -c "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettagrid.mettagrid_c.MettaGrid')" || {
   echo "❌ Failed to import mettagrid.mettagrid_c.MettaGrid"
   exit 1
 }
