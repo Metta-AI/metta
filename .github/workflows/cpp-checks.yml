@@ -115,7 +115,7 @@ jobs:
           fi
 
           # Add the cache paths string to the key hash
-          echo "${{ steps.set-cache-paths.outputs.paths }}" | tr -d '\n' | sha256sum | cut -d' ' -f1 > /tmp/path_hash.txt
+          echo "${{ steps.set-cache-paths.outputs.cache_paths }}" | tr -d '\n' | sha256sum | cut -d' ' -f1 > /tmp/path_hash.txt
           cat /tmp/path_hash.txt >> /tmp/file_hashes.txt
 
           # Create the final hash
