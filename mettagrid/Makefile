@@ -194,11 +194,11 @@ install-bench-tools:
 install-dependencies:
 	@echo "📦 Installing pybind11 and numpy using uv..."
 	@uv pip install --python $(PYTHON3) pybind11 numpy
-	@echo "📦 Installing clang-format 
+	@echo "📦 Installing clang-format"
 	@$(MAKE) install-format-tools
-	@echo "📦 Installing googletest 
+	@echo "📦 Installing googletest"
 	@$(MAKE) install-test-tools
-	@echo "📦 Installing google-benchmark
+	@echo "📦 Installing google-benchmark"
 	@$(MAKE) install-bench-tools
 	@echo "✅ All dependencies installed."
 
