@@ -164,17 +164,17 @@ install-bench-tools:
 	@echo "Installing Google Benchmark to $(GBENCHMARK_DIR)..."
 	@mkdir -p $(GBENCHMARK_DIR)
 	@cd $(BUILD_DIR) && \
+		rm -rf benchmark && \
 		git clone --depth 1 https://github.com/google/benchmark.git && \
 		git clone --depth 1 https://github.com/google/googletest.git benchmark/googletest && \
 		mkdir -p benchmark/build && cd benchmark/build && \
 		cmake -DCMAKE_INSTALL_PREFIX=$(abspath $(GBENCHMARK_DIR)) \
 		      -DCMAKE_BUILD_TYPE=Release \
-		      -DBENCHMARK_ENABLE_TESTING=OFF .. && \
-		make -j$$(nproc) && make install && \
-		ls -lh $(abspath $(GBENCHMARK_DIR))/lib/libbenchmark.a || \
-			{ echo "❌ libbenchmark.a not found!"; exit 1; }
-
-
+		      -DBENCHMARK_ENABLE_TESTING=OFF \
+		      -DBENCHMARK_ENABLE_LTO=OFF \
+		      -DBENCHMARK_BUILD_32_BITS=OFF \
+		      .. && \
+		make -j$$(nproc) && make install
 
 .PHONY: install-dependencies
 install-dependencies:
