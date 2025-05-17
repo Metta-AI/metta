@@ -33,24 +33,24 @@ BUILD_BENCH_DIR = $(BUILD_DIR)/benchmarks
 
 # Use UV venv at repo root
 REPO_ROOT := $(realpath ..)
-PYTHON3 := "$(REPO_ROOT)/.venv/bin/python"
+PYTHON_BIN := "$(REPO_ROOT)/.venv/bin/python"
 
 # Compiler settings
 CXX = g++
 
 # Get Python paths from the UV venv
-PYTHON_VERSION := $(shell $(PYTHON3) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-PYTHON_INCLUDE := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_path('include'))")
-PYTHON_STDLIB := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_path('stdlib'))")
+PYTHON_VERSION := $(shell $(PYTHON_BIN) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+PYTHON_INCLUDE := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_path('include'))")
+PYTHON_STDLIB := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_path('stdlib'))")
 PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
-PYTHON_SITE_PACKAGES := $(shell $(PYTHON3) -c "import site; print(site.getsitepackages()[0])")
-PYTHON_LIB_DIR := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
-PYTHON_HOME := $(shell $(PYTHON3) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))")
-PYTHON_CFLAGS := $(shell $(PYTHON3) -m pybind11 --includes)
-PYTHON_LDFLAGS := $(PYTHON_LIBS)
+PYTHON_SITE_PACKAGES := $(shell $(PYTHON_BIN) -c "import site; print(site.getsitepackages()[0])")
+PYTHON_LIB_DIR := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
+PYTHON_HOME := $(shell $(PYTHON_BIN) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))")
+PYTHON_CFLAGS := $(shell $(PYTHON_BIN) -m pybind11 --includes)
 
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
+PYTHON_LDFLAGS := $(PYTHON_LIBS)
 
 CXXFLAGS = -std=c++23 -Wall -g \
 	-I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) \
@@ -58,12 +58,16 @@ CXXFLAGS = -std=c++23 -Wall -g \
 	-DPYTHON_HOME=\"$(PYTHON_HOME)\" \
 	-DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
 
-
-PYBIND11_INCLUDE = $(shell $(PYTHON3) -m pybind11 --includes 2>/dev/null | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
-NUMPY_INCLUDE = $(shell $(PYTHON3) -c "import numpy; print(numpy.get_include())" 2>/dev/null)
+PYBIND11_INCLUDE = $(shell $(PYTHON_BIN) -m pybind11 --includes 2>/dev/null | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
+NUMPY_INCLUDE = $(shell $(PYTHON_BIN) -c "import numpy; print(numpy.get_include())" 2>/dev/null)
 
 CXXFLAGS += -I$(PYBIND11_INCLUDE)
 CXXFLAGS += -I$(NUMPY_INCLUDE)
+
+export LD_LIBRARY_PATH := $(PYTHON_LIB_DIR):$(LD_LIBRARY_PATH)
+export DYLD_LIBRARY_PATH := $(PYTHON_LIB_DIR):$(DYLD_LIBRARY_PATH)
+export PYTHONHOME := $(PYTHON_HOME)
+export PYTHONPATH := $(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)
 
 # Add RPATH settings for macOS
 ifeq ($(shell uname), Darwin)
@@ -193,7 +197,7 @@ install-bench-tools:
 .PHONY: install-dependencies
 install-dependencies:
 	@echo "📦 Installing pybind11 and numpy using uv..."
-	@uv pip install --python $(PYTHON3) pybind11 numpy
+	@uv pip install --python $(PYTHON_BIN) pybind11 numpy
 	@echo "📦 Installing clang-format"
 	@$(MAKE) install-format-tools
 	@echo "📦 Installing googletest"
@@ -211,7 +215,7 @@ install-dependencies:
 check-dependencies:
 	@echo "Environment Info"
 	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
-	@echo "  PYTHON               = $(PYTHON3)"
+	@echo "  PYTHON               = $(PYTHON_BIN)"
 	@echo "  Python version       = $(PYTHON_VERSION)"
 	@echo ""
 	@echo "📦 Python Includes"
@@ -257,13 +261,32 @@ check-dependencies:
 # CI Build Target
 #-----------------------
 
+.PHONY: build-src build-tests build-bench
+
+build-src: $(SRC_OBJECTS)
+	@echo "🔧 Built $(words $(SRC_OBJECTS)) source object(s):"
+	@find $(BUILD_SRC_DIR) -name '*.o' -exec ls -lh {} \;
+	@echo "✅ Finished building source files"
+
+build-tests: $(TEST_EXECUTABLES)
+	@echo "🧪 Built $(words $(TEST_EXECUTABLES)) test executable(s):"
+	@find $(BUILD_TEST_DIR) -type f -perm +111 -exec ls -lh {} \;
+	@echo "✅ Finished building test executables"
+
+build-bench: $(BENCH_EXECUTABLES)
+	@echo "📈 Built $(words $(BENCH_EXECUTABLES)) benchmark executable(s):"
+	@find $(BUILD_BENCH_DIR) -type f -perm +111 -exec ls -lh {} \;
+	@echo "✅ Finished building benchmark executables"
+
+
 .PHONY: build-for-ci
-build-for-ci: check-dependencies
-	$(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
-	@echo "Source objects: $(words $(SRC_OBJECTS))"
-	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
-	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
-	@echo "✅ Build completed."
+build-for-ci: check-dependencies build-src build-tests build-bench
+	@echo "🏁 CI Build Summary"
+	@echo "  Source objects   : $(words $(SRC_OBJECTS))"
+	@echo "  Test executables : $(words $(TEST_EXECUTABLES))"
+	@echo "  Benchmarks       : $(words $(BENCH_EXECUTABLES))"
+	@echo "✅ Full build completed successfully."
+
 
 #-----------------------
 # Build with setup-tools
@@ -358,10 +381,6 @@ test: check-test-tools check-dependencies $(SRC_OBJECTS) $(TEST_EXECUTABLES) deb
 	@for f in $(TEST_EXECUTABLES); do \
 		if [ -f "$$f" ]; then \
 			echo "Running $$f"; \
-			PYTHONHOME="$(PYTHON_HOME)" \
-			PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-			LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-			DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
 			"$$f" --gtest_color=yes || exit 1; \
 		else \
 			echo "ERROR: Test executable $$f not found!"; \
@@ -374,10 +393,6 @@ test: check-test-tools check-dependencies $(SRC_OBJECTS) $(TEST_EXECUTABLES) deb
 test-%: check-test-tools check-dependencies $(BUILD_TEST_DIR)/%
 	@echo "Running test $*..."
 	@if [ -f "$(BUILD_TEST_DIR)/$*" ]; then \
-		PYTHONHOME="$(PYTHON_HOME)" \
-		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
 		"$(BUILD_TEST_DIR)/$*" --gtest_color=yes; \
 	else \
 		echo "ERROR: Test executable $(BUILD_TEST_DIR)/$* not found!"; \
@@ -425,10 +440,6 @@ benchmark: check-bench-tools check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABL
 	@for f in $(BENCH_EXECUTABLES); do \
 		if [ -f "$$f" ]; then \
 			echo "Running $$f"; \
-			PYTHONHOME="$(PYTHON_HOME)" \
-			PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-			LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-			DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
 			"$$f" || exit 1; \
 		else \
 			echo "ERROR: Benchmark executable $$f not found!"; \
@@ -445,10 +456,6 @@ bench-json: check-bench-tools check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTAB
 	@for f in $(BENCH_EXECUTABLES); do \
 		if [ -f "$$f" ]; then \
 			echo "Running $$f with JSON output..."; \
-			PYTHONHOME="$(PYTHON_HOME)" \
-			PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-			LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-			DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
 			"$$f" --benchmark_format=json > benchmark_output/$$(basename "$$f").json || \
 			echo "Error running $$f with JSON format"; \
 		else \
