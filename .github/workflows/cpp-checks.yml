@@ -157,8 +157,8 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true' ||
-       needs.setup-checks.outputs.run_test == 'true' ||
-       needs.setup-checks.outputs.run_benchmark == 'true')
+      needs.setup-checks.outputs.run_test == 'true' ||
+      needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -167,11 +167,25 @@ jobs:
       - name: Setup Python and uv 
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
-      
-      - name: Install C++ dependencies
+            
+      - name: Restore from dependencies cache
+        id: apt-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives
+            /var/lib/apt/lists
+            /usr/include/gtest
+            /usr/include/benchmark
+            /usr/lib/x86_64-linux-gnu/libgtest*
+            /usr/lib/x86_64-linux-gnu/libbenchmark*
+          key: ${{ runner.os }}-apt-cache-${{ hashFiles('mettagrid/Makefile') }}
+
+      - name: Install C++ dependencies (cache miss fallback)
+        if: steps.apt-cache.outputs.cache-hit != 'true'
         run: |
-          cd mettagrid
-          make install-dependencies
+          sudo apt-get update
+          sudo apt-get install -y clang-format cmake googletest libgtest-dev libbenchmark-dev
 
       - name: Restore from build cache
         id: build-cache-cpp
