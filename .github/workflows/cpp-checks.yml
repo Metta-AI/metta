@@ -164,14 +164,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install C++ dependencies
-        run: |
-          sudo apt-get install -y g++ cmake
-
       - name: Setup Python and uv 
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
-
+      
+      - name: Install C++ dependencies
+        run: |
+          cd mettagrid
+          make install-test-tools
+          
       - name: Restore from build cache
         id: build-cache-cpp
         uses: actions/cache@v4
@@ -226,20 +227,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install C++ dependencies
-        run: |
-          sudo apt-get install -y g++ libgtest-dev
-
       - name: Setup Python and uv 
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
-
-      - name: Build GoogleTest (required for linking)
+      
+      - name: Install C++ dependencies
         run: |
-          cd /usr/src/gtest
-          sudo cmake .
-          sudo make
-          sudo cp lib/*.a /usr/lib
+          cd mettagrid
+          make install-test-tools
 
       - name: Restore from build cache
         id: test-cache-cpp
@@ -272,13 +267,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install C++ dependencies
-        run: |
-          sudo apt-get install -y g++ libbenchmark-dev jq
-
       - name: Setup Python and uv 
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
+      
+      - name: Install C++ dependencies
+        run: |
+          cd mettagrid
+          make install-bench-tools
 
       - name: Restore from build cache
         id: benchmark-cache-cpp
