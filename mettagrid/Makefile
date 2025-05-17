@@ -55,7 +55,7 @@ PYTHON_CFLAGS := $(shell $(PYTHON_BIN) -m pybind11 --includes)
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 
-CXXFLAGS = -std=c++20 -Wall -g fvisibility=hidden \
+CXXFLAGS = -std=c++20 -Wall -g -fvisibility=hidden \
 	-I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) \
 	-I$(PYTHON_INCLUDE) \
 	-DPYTHON_HOME=\"$(PYTHON_HOME)\" \
