@@ -7,15 +7,13 @@ if [ -z "$BASH_VERSION" ]; then
   exit 1
 fi
 
-if [ $# -lt 2 ]; then
-  echo "Usage: $0 CMD RUN_ID"
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 RUN_ID"
   exit 1
 fi
 
-CMD=$1
-RUN_ID=$2
-shift 2
-CMD_ARGS="$@"
+SANDBOX_ID=$1
+shift 1
 
 # Defaults
 export METTA_GIT_REF=$(git rev-parse HEAD)
@@ -48,17 +46,13 @@ for arg in "$@"; do
       ;;
   esac
 done
-
-
-AWS_PROFILE=softmax-db-admin sky launch \
-  --gpus L4:$gpus \
+sky launch \
+  --gpus A100:8 \
   --num-nodes $nodes \
   --cpus $cpus\+ \
-  --cluster $RUN_ID \
-  ./devops/skypilot/config/train.yaml \
+  --cluster $SANDBOX_ID \
+  ./devops/skypilot/config/sk_sanbox.yaml \
   --env METTA_RUN_ID=$RUN_ID \
-  --env METTA_CMD=$CMD \
-  --env METTA_CMD_ARGS="$CMD_ARGS" \
   --env METTA_GIT_REF \
   --detach-run \
   --async \

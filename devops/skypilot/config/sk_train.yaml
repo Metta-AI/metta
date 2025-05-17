@@ -1,20 +1,42 @@
 resources:
-  cloud: aws
-  region: us-east-1
-  use_spot: true
-  accelerators: { L4: 1 }
-  cpus: 8+
   image_id: docker:metta:latest
+  ordered:
+    - cloud: aws
+      accelerators: A10G:4
+      region: us-east-1
+      # use_spot: true
+    # - cloud: aws
+    #   accelerators: A10G:4
+    #   region: us-east-1
+          # - cloud: aws
+    #   accelerators: A10G:4
+    #   region: us-west-1
+    #   use_spot: true
+    # - cloud: aws
+    #   accelerators: A10G:4
+    #   region: us-west-2
+    # - cloud: aws
+    #   accelerators: A10G:4
+    # - cloud: aws
+    #   accelerators: L4:4
+    # - cloud: lambda
+    #   accelerators: A10G:4
+
+    # - instance_type: g6.12xlarge
+    # - instance_type: g5.12xlarge
+    # - cloud: lambda
+
+  # cloud: aws
+  # region: us-east-1
+  # accelerators: { L4: 1 }
+  cpus: 8+
+
 
 setup: |
   cd /workspace/metta
   git fetch
   git checkout $METTA_GIT_REF
-  uv pip install -r requirements.txt
-  python setup.py build_ext --inplace
-  uv pip install -e .
-
-  uv run --active --directory mettagrid python setup.py build_ext --inplace
+  make install
   mkdir -p $WANDB_DIR
 
 run: |
@@ -38,12 +60,12 @@ file_mounts:
 
   /mnt/s3/softmax-public:
     source: s3://softmax-public
-    mode: MOUNT
+    mode: MOUNT_CACHED
 
   /workspace/metta/train_dir:
     name: softmax-train-dir
     store: s3
-    mode: MOUNT
+    mode: MOUNT_CACHED
 
 envs:
   METTA_RUN_ID:
@@ -54,6 +76,6 @@ envs:
   WANDB_DIR: ./wandb
 
   # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
-  SKYPILOT_DOCKER_USERNAME: +
-  SKYPILOT_DOCKER_PASSWORD: +
+  SKYPILOT_DOCKER_USERNAME: x
+  SKYPILOT_DOCKER_PASSWORD: x
   SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
