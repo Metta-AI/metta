@@ -1,6 +1,5 @@
 boto3==1.38.13
 colorama==0.4.6
-cython==3.0.12
 duckdb==1.2.0
 einops==0.8.1
 fastapi==0.115.5
@@ -16,7 +15,6 @@ pandas==2.2.3
 pettingzoo==1.25.0
 plotly==6.0.1
 pixie-python==4.3.0
-pybind11==2.10.4
 pydantic==2.11.4
 pynvml==11.5.3
 pyright==1.1.400

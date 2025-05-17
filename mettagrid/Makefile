@@ -146,7 +146,8 @@ build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 # Build target that calls the setup.py script with UV venv activated
 build:
 	@echo "Building mettagrid..."
-	$(PYTHON3) setup.py build_ext --inplace
+	uv pip install -e .
+
 
 # Build with clean option
 build-clean: clean build

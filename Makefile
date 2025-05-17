@@ -34,6 +34,8 @@ clean:
 	else \
 		echo "(Metta) mettagrid directory not found, skipping"; \
 	fi
+	@echo "(Metta) Cleaning uv build cache..."
+	rm -rf ~/.cache/uv/builds-v0
 	@echo "(Metta) Clean completed successfully"
 
 # Install all project dependencies and external components
@@ -52,5 +54,5 @@ all: clean install check-venv test
 # Build the project using setup.py
 build: check-venv
 	@echo "Building metta..."
-	python setup.py build_ext --inplace
+	uv pip install -e .
 	@echo "Build complete."
