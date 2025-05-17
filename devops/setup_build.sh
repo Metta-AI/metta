@@ -146,7 +146,7 @@ uv run python setup.py build_ext --inplace
 
 # ========== INSTALL SKYPILOT ==========
 echo -e "\n\nInstalling Skypilot...\n\n"
-uv tool install skypilot  --from 'skypilot[aws,vast,lambda]'
+uv tool install skypilot --from 'skypilot[aws,vast,lambda]'
 
 # ========== SANITY CHECK ==========
 echo -e "\n\nSanity check: verifying all local deps are importable\n\n"
