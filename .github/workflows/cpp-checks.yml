@@ -181,18 +181,18 @@ jobs:
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
       - name: Install C++ dependencies (cache miss fallback)
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make install-dependencies
 
       - name: Install Python dependencies (cache miss fallback)
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           uv pip install pybind11 numpy
 
       - name: Build C++ artifacts (cache miss fallback)
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           make check-dependencies
