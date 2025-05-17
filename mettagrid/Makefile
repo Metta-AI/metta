@@ -162,12 +162,8 @@ info:
 
 build-for-ci-internal: info $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 	@echo "✅ Build completed."
-	@echo "Source objects: $(words $(SRC_OBJECTS))"
-	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
-	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
 
 build-for-ci: install-build-deps
-	@echo "Built all source files, test executables, and benchmark executables"
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
 	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
 	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
