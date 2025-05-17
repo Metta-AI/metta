@@ -203,19 +203,41 @@ jobs:
           cd mettagrid
           uv pip install pybind11 numpy
 
-      - name: Create build directories (if not restored from cache)
-        if: steps.cache.outputs.cache-hit != 'true'
+      - name: Debug directory structure
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Directory listing:"
+          ls -la
+          echo "Mettagrid directory listing:"
+          ls -la mettagrid
+          echo "Creating build directories..."
+
+      - name: Create build directories
         run: |
           mkdir -p mettagrid/build/mettagrid
           mkdir -p mettagrid/build/tests
           mkdir -p mettagrid/build/benchmarks
+          echo "Build directories created. Listing them:"
+          ls -la mettagrid/build
+          ls -la mettagrid/build/mettagrid
+          ls -la mettagrid/build/tests
+          ls -la mettagrid/build/benchmarks
 
-      - name: Build C++ artifacts (cache miss fallback)
-        if: steps.cache.outputs.cache-hit != 'true'
+      - name: Debug before build
+        run: |
+          cd mettagrid
+          pwd
+          echo "Contents of current directory:"
+          ls -la
+          echo "Build directory structure:"
+          find build -type d | sort
+
+      - name: Build C++ artifacts
         run: |
           cd mettagrid
           make check-dependencies
-          make build-for-ci
+          echo "Running build-for-ci target with explicit paths..."
+          make BUILD_DIR=$(pwd)/build build-for-ci
 
   lint:
     name: "C++ Lint"
