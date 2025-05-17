@@ -149,7 +149,7 @@ jobs:
           echo "run lint? ${RUN_LINT}"
           echo "run test? ${RUN_TEST}"
           echo "run benchmark? ${RUN_BENCHMARK}"
-
+            
   # Build and cache the C++ artifacts
   build-cpp:
     name: "Build C++ artifacts"
@@ -163,16 +163,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Python and uv 
+        
+      - name: Setup Python and uv
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
-            
-      - name: Restore from dependencies cache
-        id: deps-cache
+        with:
+          skip_requirements: 'true'
+      
+      - name: Restore from dependencies and build cache
+        id: cache
         uses: actions/cache@v4
         with:
           path: |
+            mettagrid/build
             /var/cache/apt/archives
             /var/lib/apt/lists
             /usr/include/gtest
@@ -183,40 +186,36 @@ jobs:
             .venv/lib/python*/site-packages/numpy
             .venv/lib/python*/site-packages/pybind11-*
             .venv/lib/python*/site-packages/numpy-*
-          key: ${{ runner.os }}-dependencies-${{ hashFiles('mettagrid/Makefile') }}
-
+            ${{ needs.setup-checks.outputs.cache_paths }}
+          key: ${{ runner.os }}-cpp-${{ github.sha }}-${{ hashFiles('mettagrid/**/*.cpp', 'mettagrid/**/*.h', 'mettagrid/Makefile') }}
+          restore-keys: |
+            ${{ runner.os }}-cpp-
 
       - name: Install C++ dependencies (cache miss fallback)
-        if: steps.deps-cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y clang-format cmake googletest libgtest-dev libbenchmark-dev
 
       - name: Install Python dependencies (cache miss fallback)
-        if: steps.deps-cache.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
           uv pip install pybind11 numpy
 
-      - name: Restore from build cache
-        id: build-cache-cpp
-        uses: actions/cache@v4
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
+      - name: Create build directories (if not restored from cache)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p mettagrid/build/mettagrid
+          mkdir -p mettagrid/build/tests
+          mkdir -p mettagrid/build/benchmarks
 
       - name: Build C++ artifacts (cache miss fallback)
-        if: steps.build-cache-cpp.outputs.cache-hit != 'true'
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
+          make check-dependencies
           make build-for-ci
-
-      - name: Save build cache
-        if: steps.build-cache-cpp.outputs.cache-hit != 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
 
   lint:
     name: "C++ Lint"
