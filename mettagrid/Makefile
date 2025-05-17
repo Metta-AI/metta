@@ -44,16 +44,20 @@ PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
 PYTHON_SITE_PACKAGES := $(shell $(PYTHON3) -c "import site; print(site.getsitepackages()[0])")
 PYTHON_LIB_DIR := $(shell $(PYTHON3) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
 PYTHON_HOME := $(shell $(PYTHON3) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))")
-PYBIND11_INCLUDE := # collected later
+PYTHON_CFLAGS := $(shell $(PYTHON3) -m pybind11 --includes)
+PYTHON_LDFLAGS := $(PYTHON_LIBS)
+PYBIND11_INCLUDE ?=
+NUMPY_INCLUDE ?=
 
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 
-# Define CXXFLAGS with all the necessary includes
-CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(PYTHON_INCLUDE)
+CXXFLAGS = -std=c++23 -Wall -g \
+	-I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) \
+	-I$(PYTHON_INCLUDE) \
+	-DPYTHON_HOME=\"$(PYTHON_HOME)\" \
+	-DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
 
-# Add Python path definitions to CXXFLAGS
-CXXFLAGS += -DPYTHON_HOME=\"$(PYTHON_HOME)\" -DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
 
 # Add RPATH settings for macOS
 ifeq ($(shell uname), Darwin)
@@ -132,40 +136,66 @@ check-venv:
 # CI Build Target
 #-----------------------
 
-
 install-build-deps:
 	@echo "Installing C++ build dependencies using uv..."
 	@uv pip install --python $(PYTHON3) pybind11 numpy
 	
 collect-build-deps:
 	@echo "📦 Collecting build dependencies..."
+
+	# Detect pybind11 include path
 	$(eval PYBIND11_INCLUDES := $(shell $(PYTHON3) -m pybind11 --includes 2>/dev/null))
 	$(eval PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//'))
+
 	@if [ -z "$(PYBIND11_INCLUDE)" ]; then \
 		echo "⚠️  pybind11 include path not found! Did you run 'make install-build-deps'?"; \
 		exit 1; \
 	else \
 		echo "🔁 PYBIND11_INCLUDE set to: $(PYBIND11_INCLUDE)"; \
 	fi
-	$(eval CXXFLAGS := $(CXXFLAGS) -I$(PYBIND11_INCLUDE))
+	ifeq (,$(findstring -I$(PYBIND11_INCLUDE),$(CXXFLAGS)))
+		$(eval CXXFLAGS := $(CXXFLAGS) -I$(PYBIND11_INCLUDE))
+	endif
 
+	# Detect NumPy include path
+	$(eval NUMPY_INCLUDE := $(shell $(PYTHON3) -c "import numpy; print(numpy.get_include())" 2>/dev/null))
 
-info:
+	@if [ -z "$(NUMPY_INCLUDE)" ]; then \
+		echo "⚠️  NumPy include path not found! Did you run 'make install-build-deps'?"; \
+		exit 1; \
+	else \
+		echo "🔁 NUMPY_INCLUDE set to: $(NUMPY_INCLUDE)"; \
+	ifeq (,$(findstring -I$(NUMPY_INCLUDE),$(CXXFLAGS)))
+		$(eval CXXFLAGS := $(CXXFLAGS) -I$(NUMPY_INCLUDE))
+	endif
+
+info: 
 	@echo "🔧 Environment Info"
 	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
 	@echo "  PYTHON               = $(PYTHON3)"
 	@echo "  Python version       = $(PYTHON_VERSION)"
 	@echo ""
-	@echo "📦 Python Include Paths"
+	@echo "📦 Python Includes"
 	@echo "  PYTHON_INCLUDE       = $(PYTHON_INCLUDE)"
 	@echo "  PYTHON_STDLIB        = $(PYTHON_STDLIB)"
 	@echo "  PYTHON_DYNLOAD       = $(PYTHON_DYNLOAD)"
 	@echo "  PYTHON_SITE_PACKAGES = $(PYTHON_SITE_PACKAGES)"
 	@echo "  PYTHON_HOME          = $(PYTHON_HOME)"
+	@echo "  PYTHON_CFLAGS        = $(PYTHON_CFLAGS)"
+	@echo "  PYTHON_LDFLAGS       = $(PYTHON_LDFLAGS)"
 	@echo ""
-	@echo "🧱 pybind11"
-	@echo "  PYBIND11_INCLUDE     = $(PYBIND11_INCLUDE)"
-	@echo ""
+	@echo "🧱 Build dependencies"
+	@if [ -n "$(PYBIND11_INCLUDE)" ]; then \
+		echo "  PYBIND11_INCLUDE     = $(PYBIND11_INCLUDE)"; \
+	else \
+		echo "  PYBIND11_INCLUDE     = ❌ not found"; \
+	fi
+	@if [ -n "$(NUMPY_INCLUDE)" ]; then \
+		echo "  NUMPY_INCLUDE        = $(NUMPY_INCLUDE)"; \
+	else \
+		echo "  NUMPY_INCLUDE        = ❌ not found"; \
+	fi
+	echo ""
 	@echo "⚙️ Compiler"
 	@echo "  CXX                  = $(CXX)"
 	@echo "  CXXFLAGS             = $(CXXFLAGS)"
@@ -174,15 +204,19 @@ info:
 	@echo "  PYTHON_LIBS          = $(PYTHON_LIBS)"
 	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
 
-build-for-ci-internal: info $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
+build-for-ci-internal: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
 	@echo "✅ Build completed."
 
-build-for-ci: install-build-deps
+build-for-ci-with-deps:
+	$(MAKE) collect-build-deps
 	@echo "Source objects: $(words $(SRC_OBJECTS))"
 	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
 	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
-	$(MAKE) collect-build-deps
+	$(MAKE) info
 	$(MAKE) build-for-ci-internal
+
+build-for-ci: install-build-deps
+	@$(MAKE) build-for-ci-with-deps
 
 
 #-----------------------
