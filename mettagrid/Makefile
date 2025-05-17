@@ -1,23 +1,25 @@
-MAKEFLAGS += --no-builtin-rules
-
 # Default target when just running 'make'
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  build             - Build mettagrid using the rebuild script"
-	@echo "  build-clean       - Build mettagrid with clean option"
-	@echo "  build-for-ci      - Build all source, test, and benchmark files without running tests (for CI)"
-	@echo "  format            - Format C++/C files"
-	@echo "  check-tools       - Check if required formatting tools are installed"
-	@echo "  install-tools     - Install required formatting tools (macOS only)"
-	@echo "  test              - Run all unit tests"
-	@echo "  check-test-tools  - Check if required testing tools are installed"
-	@echo "  install-test-tools - Install required testing tools"
-	@echo "  benchmark         - Run all benchmarks"
-	@echo "  check-bench-tools - Check if required benchmark tools are installed"
-	@echo "  install-bench-tools - Install required benchmark tools"
-	@echo "  clean             - Clean build and test files"
-	@echo "  all               - Run format and test"
+	@echo "  install-dependencies - Install Python and C++ dependencies"
+	@echo "  check-dependencies   - Verify system readiness to build"
+	@echo "  build                - Build mettagrid using the rebuild script"
+	@echo "  build-clean          - Build mettagrid with clean option"
+	@echo "  build-for-ci         - Build all source, test, and benchmark files without running tests (for CI)"
+	@echo "  format               - Format C++/C files"
+	@echo "  check-tools          - Check if required formatting tools are installed"
+	@echo "  install-tools        - Install required formatting tools (macOS only)"
+	@echo "  test                 - Run all unit tests"
+	@echo "  check-test-tools     - Check if required testing tools are installed"
+	@echo "  install-test-tools   - Install required testing tools"
+	@echo "  benchmark            - Run all benchmarks"
+	@echo "  check-bench-tools    - Check if required benchmark tools are installed"
+	@echo "  install-bench-tools  - Install required benchmark tools"
+	@echo "  clean                - Clean build and test files"
+	@echo "  all                  - Run format and test"
+	@echo ""
+	@echo "If build fails, try: make check-dependencies"
 
 # Directories
 SRC_DIR = mettagrid
@@ -82,7 +84,6 @@ GTEST_LIBS := $(shell \
 		echo "-lgtest -lgtest_main -pthread"; \
 	fi)
 
-
 # Add gtest includes to CXXFLAGS
 CXXFLAGS += $(GTEST_INCLUDE)
 
@@ -140,21 +141,78 @@ check-venv:
 	fi
 
 #-----------------------
-# CI Build Target
+# Install Dependencies
 #-----------------------
 
-.PHONY: install-build-deps
-install-build-deps:
-	@echo "Installing C++ build dependencies using uv..."
+# Install formatting tools on macOS
+.PHONY: install-format-tools
+install-format-tools:
+	@echo "Installing required formatting tools..."
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		echo "Detected macOS. Installing tools via Homebrew..."; \
+		brew install clang-format || echo "Failed to install clang-format. Please install manually."; \
+	else \
+		echo "This command only works on macOS. Please install tools manually:"; \
+		echo "  - clang-format: apt-get install clang-format (Linux)"; \
+	fi
+
+# Install testing tools
+.PHONY: install-test-tools
+install-test-tools:
+	@echo "Installing required testing tools..."
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		echo "Detected macOS. Installing tools via Homebrew..."; \
+		brew install googletest || echo "Failed to install googletest. Please install manually."; \
+	elif [ -f /etc/debian_version ]; then \
+		echo "Detected Debian/Ubuntu. Installing tools via apt..."; \
+		sudo apt-get update && sudo apt-get install -y libgtest-dev cmake; \
+		cd /usr/src/gtest && sudo cmake CMakeLists.txt && sudo make && \
+		sudo cp lib/*.a /usr/lib || \
+		echo "Failed to build googletest. Please install manually."; \
+	else \
+		echo "Unsupported OS. Please install Google Test manually:"; \
+		echo "  - See https://github.com/google/googletest for instructions."; \
+	fi
+
+# Install benchmark tools
+.PHONY: install-bench-tools
+install-bench-tools:
+	@echo "Installing required benchmark tools..."
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		echo "Detected macOS. Installing tools via Homebrew..."; \
+		brew install google-benchmark || echo "Failed to install google-benchmark. Please install manually."; \
+	elif [ -f /etc/debian_version ]; then \
+		echo "Detected Debian/Ubuntu. Installing tools via apt..."; \
+		sudo apt-get update && sudo apt-get install -y libbenchmark-dev; \
+	else \
+		echo "Unsupported OS. Please install Google Benchmark manually:"; \
+		echo "  - See https://github.com/google/benchmark for instructions."; \
+	fi
+
+
+.PHONY: install-dependencies
+install-dependencies:
+	@echo "📦 Installing pybind11 and numpy using uv..."
 	@uv pip install --python $(PYTHON3) pybind11 numpy
-	
-.PHONY: info
-info:
-	@echo "🔧 Environment Info"
+	@echo "📦 Installing clang-format 
+	@$(MAKE) install-format-tools
+	@echo "📦 Installing googletest 
+	@$(MAKE) install-test-tools
+	@echo "📦 Installing google-benchmark
+	@$(MAKE) install-bench-tools
+	@echo "✅ All dependencies installed."
+
+
+#-----------------------
+# Check Dependencies
+#-----------------------
+
+.PHONY: check-dependencies
+check-dependencies:
+	@echo "Environment Info"
 	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
 	@echo "  PYTHON               = $(PYTHON3)"
 	@echo "  Python version       = $(PYTHON_VERSION)"
-	@echo "  Reinvoked make?      = $(REINVOKE_MAKE)"
 	@echo ""
 	@echo "📦 Python Includes"
 	@echo "  PYTHON_INCLUDE       = $(PYTHON_INCLUDE)"
@@ -169,14 +227,24 @@ info:
 	@if [ -n "$(PYBIND11_INCLUDE)" ]; then \
 		echo "  PYBIND11_INCLUDE     = $(PYBIND11_INCLUDE)"; \
 	else \
-		echo "  PYBIND11_INCLUDE     = ❌ not found"; \
+		echo "  PYBIND11_INCLUDE     = ❌ not found -- run \"make install-dependencies\""; \
+		exit 1; \
 	fi
 	@if [ -n "$(NUMPY_INCLUDE)" ]; then \
 		echo "  NUMPY_INCLUDE        = $(NUMPY_INCLUDE)"; \
 	else \
-		echo "  NUMPY_INCLUDE        = ❌ not found"; \
+		echo "  NUMPY_INCLUDE        = ❌ not found -- run \"make install-dependencies\""; \
+		exit 1; \
 	fi
-	echo ""
+
+	@echo "🔧 Tooling Checks"
+	@which g++ >/dev/null 2>&1 || { echo "❌ g++ not found"; exit 1; }
+	@which cmake >/dev/null 2>&1 || { echo "❌ cmake not found"; exit 1; }
+	@which uv >/dev/null 2>&1 || { echo "❌ uv not found"; exit 1; }
+	@echo "  ✓ g++ found"
+	@echo "  ✓ cmake found"
+	@echo "  ✓ uv found"
+	@echo ""
 	@echo "⚙️ Compiler"
 	@echo "  CXX                  = $(CXX)"
 	@echo "  CXXFLAGS             = $(CXXFLAGS)"
@@ -184,6 +252,10 @@ info:
 	@echo "📚 Linking"
 	@echo "  PYTHON_LIBS          = $(PYTHON_LIBS)"
 	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
+
+#-----------------------
+# CI Build Target
+#-----------------------
 
 .PHONY: build-for-ci-internal
 build-for-ci-internal: info $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
@@ -193,13 +265,12 @@ build-for-ci-internal: info $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABL
 	@echo "✅ Build completed."
 
 .PHONY: build-for-ci
-build-for-ci: install-build-deps
-	@echo "🔁 Re-invoking make with include paths set..."
-	@$(MAKE) build-for-ci-internal REINVOKE_MAKE=yes
+build-for-ci: check-dependencies
+	@$(MAKE) build-for-ci-internal
 
 
 #-----------------------
-# Build
+# Build with setup-tools
 #-----------------------
 
 # Build target that calls the setup.py script with UV venv activated
@@ -207,10 +278,6 @@ build-for-ci: install-build-deps
 build: 
 	@echo "Building mettagrid..."
 	uv pip install -e .
-
-# Build with clean option
-.PHONY: build-clean
-build-clean: clean build
 
 #-----------------------
 # Formatting
@@ -226,17 +293,6 @@ check-tools:
 		  echo "Or run 'make install-tools' on macOS"; exit 1; }
 	@echo "All required formatting tools are installed."
 
-# Install formatting tools on macOS
-.PHONY: install-tools
-install-tools:
-	@echo "Installing required formatting tools..."
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		echo "Detected macOS. Installing tools via Homebrew..."; \
-		brew install clang-format || echo "Failed to install clang-format. Please install manually."; \
-	else \
-		echo "This command only works on macOS. Please install tools manually:"; \
-		echo "  - clang-format: apt-get install clang-format (Linux)"; \
-	fi
 
 # Format only C/C++ code and skip Cython files entirely
 .PHONY: format
@@ -288,25 +344,6 @@ check-test-tools:
 		{ echo "Google Test library not found. Run 'make install-test-tools' to install."; exit 1; }
 	@echo "All required testing tools are installed."
 
-# Install testing tools
-.PHONY: install-test-tools
-install-test-tools:
-	@echo "Installing required testing tools..."
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		echo "Detected macOS. Installing tools via Homebrew..."; \
-		brew install googletest || echo "Failed to install googletest. Please install manually."; \
-	elif [ -f /etc/debian_version ]; then \
-		echo "Detected Debian/Ubuntu. Installing tools via apt..."; \
-		sudo apt-get update && sudo apt-get install -y libgtest-dev cmake; \
-		cd /usr/src/gtest && sudo cmake CMakeLists.txt && sudo make && \
-		sudo cp lib/*.a /usr/lib || \
-		echo "Failed to build googletest. Please install manually."; \
-	else \
-		echo "Unsupported OS. Please install Google Test manually:"; \
-		echo "  - See https://github.com/google/googletest for instructions."; \
-	fi
-
-
 # Compile individual test files
 $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 	@mkdir -p $(dir $@)
@@ -317,8 +354,9 @@ $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
 	$(CXX) $^ -o $@ $(GTEST_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
-.PHONY: _test
-_test: check-test-tools info $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
+# Run C++ tests
+.PHONY: test
+test: check-test-tools check-dependencies $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
 	@echo "Running all C++ tests..."
 	@[ -z "$(TEST_EXECUTABLES)" ] && echo "WARNING: No test executables found!" || true
 	@for f in $(TEST_EXECUTABLES); do \
@@ -335,16 +373,9 @@ _test: check-test-tools info $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
 		fi; \
 	done
 
-# Run all tests
-.PHONY: test
-test: install-build-deps
-	@echo "🔁 Re-invoking make with include paths set..."
-	@$(MAKE) _test REINVOKE_MAKE=yes
-
-
 # Test a specific test file
-.PHONY: _test-%
-_test-%: check-test-tools info $(BUILD_TEST_DIR)/%
+.PHONY: test-%
+test-%: check-test-tools check-dependencies $(BUILD_TEST_DIR)/%
 	@echo "Running test $*..."
 	@if [ -f "$(BUILD_TEST_DIR)/$*" ]; then \
 		PYTHONHOME="$(PYTHON_HOME)" \
@@ -356,11 +387,6 @@ _test-%: check-test-tools info $(BUILD_TEST_DIR)/%
 		echo "ERROR: Test executable $(BUILD_TEST_DIR)/$* not found!"; \
 		exit 1; \
 	fi
-
-.PHONY: test-%
-test-%: install-build-deps
-	@echo "🔁 Re-invoking make with include paths set..."
-	@$(MAKE) _test-% REINVOKE_MAKE=yes
 
 .PHONY: test-python
 test-python: check-venv
@@ -386,21 +412,6 @@ check-bench-tools:
 		{ echo "Google Benchmark library not found. Run 'make install-bench-tools' to install."; exit 1; }
 	@echo "All required benchmark tools are installed."
 
-# Install benchmark tools
-.PHONY: install-bench-tools
-install-bench-tools:
-	@echo "Installing required benchmark tools..."
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		echo "Detected macOS. Installing tools via Homebrew..."; \
-		brew install google-benchmark || echo "Failed to install google-benchmark. Please install manually."; \
-	elif [ -f /etc/debian_version ]; then \
-		echo "Detected Debian/Ubuntu. Installing tools via apt..."; \
-		sudo apt-get update && sudo apt-get install -y libbenchmark-dev; \
-	else \
-		echo "Unsupported OS. Please install Google Benchmark manually:"; \
-		echo "  - See https://github.com/google/benchmark for instructions."; \
-	fi
-
 # Compile individual benchmark files
 $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 	@mkdir -p $(dir $@)
@@ -411,8 +422,8 @@ $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
 	$(CXX) $^ -o $@ $(BENCHMARK_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
 
 # Run all benchmarks
-.PHONY: _benchmark
-_benchmark: check-bench-tools info $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+.PHONY: benchmark
+benchmark: check-bench-tools check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks..."
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
@@ -429,13 +440,9 @@ _benchmark: check-bench-tools info $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-ben
 		fi; \
 	done
 
-.PHONY: benchmark
-benchmark: install-build-deps
-	@echo "🔁 Re-invoking make with include paths set..."
-	@$(MAKE) _benchmark_test REINVOKE_MAKE=yes
 
-.PHONY: _bench-json
-_bench-json: check-bench-tools info $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+.PHONY: bench-json
+bench-json: check-bench-tools check-dependencies $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
@@ -455,10 +462,6 @@ _bench-json: check-bench-tools info $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-be
 	done
 	@echo "JSON outputs created in benchmark_output directory"
 
-.PHONY: bench-json
-bench-json: install-build-deps
-	@echo "🔁 Re-invoking make with include paths set..."
-	@$(MAKE) _bench-json REINVOKE_MAKE=yes
 
 #-----------------------
 # Other targets
