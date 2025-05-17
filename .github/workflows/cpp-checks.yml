@@ -86,13 +86,7 @@ jobs:
 
       - name: Set cache paths
         id: set-cache-paths
-        run: |
-          PATHS="mettagrid/build
-          ~/.cache/pip
-          "
-          echo "paths<<EOF" >> $GITHUB_OUTPUT
-          echo "$PATHS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+        run: echo "paths=mettagrid/build,~/.cache/pip" >> $GITHUB_OUTPUT
 
       - name: Generate cache key
         id: set-cache-key
@@ -174,15 +168,13 @@ jobs:
         run: |
           sudo apt-get install -y g++ cmake
 
-      - name: Install uv (used by makefile to install build dependencies)
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "0.7.3"
-          enable-cache: false
+      - name: Setup Python and uv 
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
       - name: Restore from build cache
         id: build-cache-cpp
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
@@ -192,6 +184,13 @@ jobs:
         run: |
           cd mettagrid
           make build-for-ci
+
+      - name: Save build cache
+        if: steps.build-cache-cpp.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ needs.setup-checks.outputs.cache_paths }}
+          key: ${{ needs.setup-checks.outputs.cache_key }}
 
   lint:
     name: "C++ Lint"
@@ -231,11 +230,9 @@ jobs:
         run: |
           sudo apt-get install -y g++ libgtest-dev
 
-      - name: Install uv (used by makefile to install build dependencies)
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "0.7.3"
-          enable-cache: false
+      - name: Setup Python and uv 
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
       - name: Build GoogleTest (required for linking)
         run: |
@@ -246,7 +243,7 @@ jobs:
 
       - name: Restore from build cache
         id: test-cache-cpp
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
@@ -279,11 +276,9 @@ jobs:
         run: |
           sudo apt-get install -y g++ libbenchmark-dev jq
 
-      - name: Install uv (used by makefile to install build dependencies)
-        uses: astral-sh/setup-uv@v5
-        with:
-          version: "0.7.3"
-          enable-cache: false
+      - name: Setup Python and uv 
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
       - name: Restore from build cache
         id: benchmark-cache-cpp
