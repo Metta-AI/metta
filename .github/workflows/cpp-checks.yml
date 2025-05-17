@@ -83,22 +83,16 @@ jobs:
           directory_paths: "mettagrid/"
           specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
+          
       - name: Set cache paths
         id: set-cache-paths
-        shell: bash
         run: |
-          PYBIND11_PATH=$(find .venv/lib -type d -path "*/site-packages/pybind11*" | head -n 1 || echo "")
-          NUMPY_PATH=$(find .venv/lib -type d -path "*/site-packages/numpy*" | head -n 1 || echo "")
+          # Ensure paths exist so caching doesn't fail
+          mkdir -p mettagrid/build
+          mkdir -p .venv/lib/python3.11/site-packages/pybind11_placeholder
+          mkdir -p .venv/lib/python3.11/site-packages/numpy_placeholder
 
-          echo "PYBIND11_PATH=$PYBIND11_PATH"
-          echo "NUMPY_PATH=$NUMPY_PATH"
-
-          CACHE_PATHS="mettagrid/build"
-          if [[ -d "$PYBIND11_PATH" ]]; then CACHE_PATHS="$CACHE_PATHS,$PYBIND11_PATH"; fi
-          if [[ -d "$NUMPY_PATH" ]]; then CACHE_PATHS="$CACHE_PATHS,$NUMPY_PATH"; fi
-
-          echo "cache_paths=$CACHE_PATHS" >> $GITHUB_OUTPUT
+          echo "cache_paths=mettagrid/build,.venv/lib/python3.11/site-packages/pybind11_placeholder,.venv/lib/python3.11/site-packages/numpy_placeholder" >> $GITHUB_OUTPUT
 
       - name: Generate cache key
         id: set-cache-key
