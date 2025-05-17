@@ -42,13 +42,10 @@ class CustomBuildExt(build_ext):
         build_ext.build_extensions(self)
 
 
-# Define the extension with all cpp sources
 ext_modules = [
     Extension(
         "mettagrid.mettagrid_c",
-        sources=cpp_sources,  # Use all found cpp sources
-        include_dirs=[numpy_include, pybind11_include, "mettagrid"],
-        extra_compile_args=["-std=c++17"],
+        sources=cpp_sources,
         define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
     )
 ]

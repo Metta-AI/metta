@@ -52,7 +52,7 @@ PYTHON_CFLAGS := $(shell $(PYTHON_BIN) -m pybind11 --includes)
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 PYTHON_LDFLAGS := $(PYTHON_LIBS)
 
-CXXFLAGS = -std=c++23 -Wall -g \
+CXXFLAGS = -std=c++20 -Wall -g fvisibility=hidden \
 	-I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) \
 	-I$(PYTHON_INCLUDE) \
 	-DPYTHON_HOME=\"$(PYTHON_HOME)\" \
