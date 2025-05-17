@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -73,7 +74,7 @@ class PufferTrainer:
         self.average_reward = 0.0  # Initialize average reward estimate
         self._current_eval_score = None
         self._eval_grouped_scores = {}
-        self._eval_suite_avgs = {}
+        self._eval_suite_mean_values = {}
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
         self._make_vecenv()
@@ -291,7 +292,7 @@ class PufferTrainer:
         self._eval_categories = set()
         for sim_name in self.sim_suite_config.simulations.keys():
             self._eval_categories.add(sim_name.split("/")[0])
-        self._eval_suite_avgs = {}
+        self._eval_suite_mean_values = {}
 
         # Compute scores for each evaluation category
         for category in self._eval_categories:
@@ -299,9 +300,9 @@ class PufferTrainer:
             logger.info(f"{category} score: {score}")
             # Only add the score if we got a non-None result
             if score is not None:
-                self._eval_suite_avgs[f"{category}_score"] = score
+                self._eval_suite_mean_values[f"{category}_score"] = score
             else:
-                self._eval_suite_avgs[f"{category}_score"] = 0.0
+                self._eval_suite_mean_values[f"{category}_score"] = 0.0
 
         # Get overall score (average of all rewards)
         overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
@@ -606,7 +607,7 @@ class PufferTrainer:
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
                 "score": self._current_eval_score,
-                "eval_scores": self._eval_suite_avgs,
+                "eval_scores": self._eval_suite_mean_values,
             },
         )
         # this is hacky, but otherwise the initial_pr points
@@ -648,13 +649,15 @@ class PufferTrainer:
                 self.wandb_run.log(link_summary)
 
     def _process_stats(self):
-        for k in list(self.stats.keys()):
-            v = self.stats[k]
+        mean_stats = {}
+        for k, v in self.stats.items():
             try:
-                v = np.mean(v)
-                self.stats[k] = v
+                mean_stats[k] = np.mean(v)
             except (TypeError, ValueError):
-                del self.stats[k]
+                pass  # Skip keys that can't be averaged
+
+        # Replace the defaultdict with the new dictionary of means
+        self.stats = mean_stats
 
         # Now synchronize and aggregate stats across processes
         sps = self.profile.SPS
@@ -670,31 +673,40 @@ class PufferTrainer:
                 overview[v] = self.stats[k]
 
         for category in self._eval_categories:
-            score = self._eval_suite_avgs.get(f"{category}_score", None)
+            score = self._eval_suite_mean_values.get(f"{category}_score", None)
             if score is not None:
                 overview[f"{category}_evals"] = score
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         if self.wandb_run and self.cfg.wandb.track and self._master:
-            self.wandb_run.log(
-                {
-                    **{f"overview/{k}": v for k, v in overview.items()},
-                    **{f"losses/{k}": v for k, v in losses.items()},
-                    **{f"performance/{k}": v for k, v in performance.items()},
-                    **environment,
-                    **self._weights_helper.stats(),
-                    **self._eval_grouped_scores,
-                    "train/agent_step": agent_steps,
-                    "train/epoch": epoch,
-                    "train/learning_rate": learning_rate,
-                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
-                }
-            )
+            # Prepare all the data to log
+            log_data = {
+                **{f"overview/{k}": v for k, v in overview.items()},
+                **{f"losses/{k}": v for k, v in losses.items()},
+                **{f"performance/{k}": v for k, v in performance.items()},
+                **environment,
+                **self._weights_helper.stats(),
+                **self._eval_grouped_scores,
+                "train/agent_step": agent_steps,
+                "train/epoch": epoch,
+                "train/learning_rate": learning_rate,
+                "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+            }
+
+            # Launch wandb logging in a separate thread
+            threading.Thread(target=self._log_to_wandb, args=(log_data,), daemon=True).start()
 
         self._eval_grouped_scores = {}
         self._weights_helper.reset()
         self.stats.clear()
+
+    def _log_to_wandb(self, log_data):
+        """Helper method to log to wandb in a separate thread."""
+        try:
+            self.wandb_run.log(log_data)
+        except Exception as e:
+            print(f"Warning: Failed to log to wandb: {e}")
 
     def close(self):
         self.vecenv.close()
@@ -791,6 +803,41 @@ class PufferTrainer:
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy,
         )
+
+        # Log detailed information about the vecenv
+        logging.info("=" * 50)
+        logging.info("DETAILED VECENV INSPECTION")
+        logging.info("=" * 50)
+
+        # Basic properties
+        logging.info(f"vecenv.num_agents: {getattr(self.vecenv, 'num_agents', 'NOT FOUND')}")
+        logging.info(f"vecenv.num_environments: {getattr(self.vecenv, 'num_environments', 'NOT FOUND')}")
+        logging.info(f"vecenv.num_envs: {getattr(self.vecenv, 'num_envs', 'NOT FOUND')}")
+        logging.info(f"vecenv.num_workers: {getattr(self.vecenv, 'num_workers', 'NOT FOUND')}")
+
+        # Batch and agent properties
+        logging.info(f"vecenv.agents_per_batch: {getattr(self.vecenv, 'agents_per_batch', 'NOT FOUND')}")
+        logging.info(f"vecenv.workers_per_batch: {getattr(self.vecenv, 'workers_per_batch', 'NOT FOUND')}")
+        logging.info(f"vecenv.envs_per_worker: {getattr(self.vecenv, 'envs_per_worker', 'NOT FOUND')}")
+
+        # Observation and action spaces
+        logging.info(f"vecenv.obs_batch_shape: {getattr(self.vecenv, 'obs_batch_shape', 'NOT FOUND')}")
+        logging.info(f"vecenv.atn_batch_shape: {getattr(self.vecenv, 'atn_batch_shape', 'NOT FOUND')}")
+
+        # Our configuration
+        logging.info(f"self.target_batch_size: {self.target_batch_size}")
+        logging.info(f"self.batch_size: {self.batch_size}")
+        logging.info(f"num_envs passed to make_vecenv: {self.batch_size * self.trainer_cfg.async_factor}")
+
+        # Log the driver env properties if available
+        if hasattr(self.vecenv, "driver_env"):
+            metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+            assert isinstance(metta_grid_env, MettaGridEnv)
+
+            logging.info("MettaGridEnv properties:")
+            logging.info(f"  metta_grid_env.num_agents: {metta_grid_env.num_agents}")
+
+        logging.info("=" * 50)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
