@@ -82,10 +82,8 @@ endif
 CXXFLAGS += -I$(GTEST_DIR)/include
 CXXFLAGS += -I$(GBENCHMARK_DIR)/include
 
-BENCHMARK_LIBS = -L$(GBENCHMARK_DIR)/lib -lbenchmark -lbenchmark_main
-GTEST_LIBS     = -L$(GTEST_DIR)/lib -lgtest -lgtest_main
-
-LDFLAGS += $(BENCHMARK_LIBS) $(GTEST_LIBS)
+LDFLAGS += -L$(GBENCHMARK_DIR)/lib -lbenchmark -lbenchmark_main \
+           -L$(GTEST_DIR)/lib -lgtest -lgtest_main
 
 # Source files for mettagrid core library
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
@@ -169,8 +167,11 @@ install-bench-tools:
 		git clone --depth 1 https://github.com/google/benchmark.git && \
 		git clone --depth 1 https://github.com/google/googletest.git benchmark/googletest && \
 		mkdir -p benchmark/build && cd benchmark/build && \
-		cmake -DCMAKE_INSTALL_PREFIX=$(abspath $(GBENCHMARK_DIR)) -DCMAKE_BUILD_TYPE=Release .. && \
+		cmake -DCMAKE_INSTALL_PREFIX=$(abspath $(GBENCHMARK_DIR)) \
+		      -DCMAKE_BUILD_TYPE=Release \
+		      -DBENCHMARK_ENABLE_TESTING=OFF .. && \
 		make -j$$(nproc) && make install
+
 
 .PHONY: install-dependencies
 install-dependencies:
