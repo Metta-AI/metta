@@ -7,5 +7,5 @@ resource "tailscale_tailnet_key" "mettabox" {
 }
 
 output "mettabox_tailscale_key" {
-  value = tailscale_tailnet_key.mettabox.key
+  value = nonsensitive(tailscale_tailnet_key.mettabox.key)
 }
