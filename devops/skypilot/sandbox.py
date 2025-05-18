@@ -87,7 +87,8 @@ def main():
     print("\nSandbox is ready. Connect to the sandbox:")
     print(f"  {green(f'ssh {cluster_name}')}")
     print(
-        f"The cluster will be automatically stopped after {autostop_hours} hours. If you want to disable autostops, run:"
+        f"The cluster will be automatically stopped after {autostop_hours} hours. "
+        "If you want to disable autostops, run:"
     )
     print(f"  {green(f'sky autostop --cancel {cluster_name}')}")
 
