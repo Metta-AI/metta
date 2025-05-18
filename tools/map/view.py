@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--show-mode", choices=get_args(ShowMode), help="Show the map in the specified mode", default="ascii"
+        "--show-mode", choices=get_args(ShowMode), help="Show the map in the specified mode", default="mettascope"
     )
     parser.add_argument("uri", type=str, help="URI of the map to view")
     args = parser.parse_args()
