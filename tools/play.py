@@ -9,9 +9,9 @@ import mettascope.server as server
 
 @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
 def main(cfg):
-    server.app.cfg = cfg
+    app = server.make_app(cfg)
 
-    uvicorn.run(server.app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
 if __name__ == "__main__":

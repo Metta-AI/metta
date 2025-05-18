@@ -78,6 +78,7 @@
     "memcpy",
     "metta",
     "mettagrid",
+    "mettascope",
     "minibatch",
     "minibatches",
     "multinomial",
