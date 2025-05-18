@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import webbrowser
 
 import hydra
 import numpy as np
@@ -109,11 +110,22 @@ def make_app(cfg: DictConfig):
     return app
 
 
-@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
-def main(cfg):
+def run(cfg: DictConfig, open_url: str | None = None):
     app = make_app(cfg)
 
+    if open_url:
+        server_url = "http://localhost:8000"
+
+        @app.on_event("startup")
+        async def _open_browser():
+            webbrowser.open(f"{server_url}{open_url}")
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+@hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
+def main(cfg):
+    run(cfg)
 
 
 if __name__ == "__main__":

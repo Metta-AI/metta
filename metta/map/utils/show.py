@@ -1,9 +1,7 @@
-import webbrowser
 from typing import Any, Literal, cast
 
 import hydra
 import numpy as np
-import uvicorn
 from omegaconf.omegaconf import OmegaConf
 
 import mettascope.server
@@ -27,15 +25,11 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
         env = MettaGridEnv(cast(Any, env_cfg), env_map=storable_map.grid, render_mode="none")
 
         file_path = write_local_map_preview(env)
-        server_url = "http://localhost:8000"
         url_path = file_path.split("mettascope/")[-1]
-
-        webbrowser.open(f"{server_url}/?replayUrl={url_path}")
 
         with hydra.initialize(version_base=None, config_path="../../../configs"):
             cfg = hydra.compose(config_name="replay_job")
-            app = mettascope.server.make_app(cfg)
-            uvicorn.run(app, host="0.0.0.0", port=8000)
+            mettascope.server.run(cfg, open_url=f"?replayUrl={url_path}")
 
     elif mode == "ascii":
         ascii_lines = grid_to_ascii(storable_map.grid)
