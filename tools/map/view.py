@@ -5,6 +5,7 @@ from typing import get_args
 from metta.map.load_random import get_random_map_uri
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
+from metta.util.resolvers import register_resolvers
 from tools.map.gen import uri_is_file
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,8 @@ def main():
     )
     parser.add_argument("uri", type=str, help="URI of the map to view")
     args = parser.parse_args()
+
+    register_resolvers()
 
     uri = args.uri
 
