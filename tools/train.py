@@ -19,6 +19,7 @@ from metta.util.wandb.wandb_context import WandbContext
 
 # TODO: populate this more
 class TrainJob(Config):
+    __init__ = Config.__init__
     evals: SimulationSuiteConfig
     map_preview_uri: Optional[str] = None
 
