@@ -20,6 +20,7 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
+from metta.rl.pufferlib.policy import PufferAgentWrapper 
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
@@ -154,30 +155,31 @@ class PufferTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)), self.metta_agent
+        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgentWrapper)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        found_match = False
-        for component_name, component in self.metta_agent.components.items():
-            if hasattr(component, "_obs_shape"):
-                found_match = True
-                component_shape = (
-                    tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                )
-                if component_shape != environment_shape:
-                    raise ValueError(
-                        f"Observation space mismatch error:\n"
-                        f"component_name: {component_name}\n"
-                        f"component_shape: {component_shape}\n"
-                        f"environment_shape: {environment_shape}\n"
+        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
+            found_match = False
+            for component_name, component in self.metta_agent.components.items():
+                if hasattr(component, "_obs_shape"):
+                    found_match = True
+                    component_shape = (
+                        tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
                     )
+                    if component_shape != environment_shape:
+                        raise ValueError(
+                            f"Observation space mismatch error:\n"
+                            f"component_name: {component_name}\n"
+                            f"component_shape: {component_shape}\n"
+                            f"environment_shape: {environment_shape}\n"
+                        )
 
-        if not found_match:
-            raise ValueError(
-                "No component with observation shape found in policy. "
-                f"Environment observation shape: {environment_shape}"
-            )
+            if not found_match:
+                raise ValueError(
+                    "No component with observation shape found in policy. "
+                    f"Environment observation shape: {environment_shape}"
+                )
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:

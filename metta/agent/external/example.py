@@ -10,6 +10,7 @@ import pufferlib.pytorch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange 
 from pufferlib.cleanrl import sample_logits
 from torch import nn
 from torch.nn import functional as F
@@ -71,6 +72,8 @@ class Policy(nn.Module):
         return (actions, value), hidden
 
     def encode_observations(self, observations, state=None):
+        if len(observations.shape) == 5:
+            observations = rearrange(observations, 'b t h w c -> (b t) h w c')
         features = observations.permute(0, 3, 1, 2).float() / self.max_vec
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
