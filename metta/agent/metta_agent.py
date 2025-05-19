@@ -297,7 +297,7 @@ class MettaAgent(nn.Module):
 
         return output_action, action_log_prob, entropy, value, log_probs
 
-    def _convert_action_to_logit_index(self, action: torch.Tensor):
+    def _convert_action_to_logit_index(self, action: torch.Tensor) -> torch.Tensor:
         """
         Convert (action_type, action_param) pairs to discrete action indices
         using precomputed offsets.
@@ -311,22 +311,19 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action, ("BT", 2), "action")
 
-        # Extract action components directly
         action_type_numbers = action[:, 0].long()
         action_params = action[:, 1].long()
 
         # Use precomputed cumulative sum with vectorized indexing
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
-
-        # Vectorized addition
-        action_logit_indices = cumulative_sum + action_params
+        action_logit_indices = action_type_numbers + cumulative_sum + action_params
 
         if __debug__:
             assert_shape(action_logit_indices, ("BT",), "action_logit_indices")
 
         return action_logit_indices  # shape: [B*T]
 
-    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor):
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """
         Convert logit indices back to action pairs using tensor indexing.
 

@@ -377,23 +377,23 @@ def test_convert_logit_index_to_action(create_metta_agent):
 
     # Test single conversions
     # logit index 0 should map to action (0,0)
-    logit = torch.tensor([[0]])
-    result = agent._convert_logit_index_to_action(logit, {})
+    logit_indices = torch.tensor([0])
+    result = agent._convert_logit_index_to_action(logit_indices)
     assert torch.all(result == torch.tensor([0, 0]))
 
     # logit index 1 should map to action (0,1)
-    logit = torch.tensor([[1]])
-    result = agent._convert_logit_index_to_action(logit, {})
+    logit_indices = torch.tensor([1])
+    result = agent._convert_logit_index_to_action(logit_indices)
     assert torch.all(result == torch.tensor([0, 1]))
 
     # logit index 4 should map to action (1,2)
-    logit = torch.tensor([[4]])
-    result = agent._convert_logit_index_to_action(logit, {})
+    logit_indices = torch.tensor([4])
+    result = agent._convert_logit_index_to_action(logit_indices)
     assert torch.all(result == torch.tensor([1, 2]))
 
     # Test batch conversion
-    logits = torch.tensor([[0], [4], [5]])
-    result = agent._convert_logit_index_to_action(logits, {})
+    logit_indices = torch.tensor([0, 4, 5])
+    result = agent._convert_logit_index_to_action(logit_indices)
     expected = torch.tensor([[0, 0], [1, 2], [2, 0]])
     assert torch.all(result == expected)
 
@@ -422,7 +422,7 @@ def test_bidirectional_action_conversion(create_metta_agent):
     logit_indices = agent._convert_action_to_logit_index(original_actions)
 
     # Convert back to actions
-    reconstructed_actions = agent._convert_logit_index_to_action(logit_indices, {})
+    reconstructed_actions = agent._convert_logit_index_to_action(logit_indices)
 
     # Check that we get the original actions back
     assert torch.all(reconstructed_actions == original_actions)
@@ -436,10 +436,12 @@ def test_action_conversion_edge_cases(create_metta_agent):
     action_max_params = []
     agent.activate_actions(action_names, action_max_params, "cpu")
 
-    # Test with empty tensor - should not raise errors
+    # Test with empty tensor - should raise a ValueError about invalid size
     empty_actions = torch.zeros((0, 2), dtype=torch.long)
-    result = agent._convert_action_to_logit_index(empty_actions)
-    assert result.shape[0] == 0
+    with pytest.raises(
+        ValueError, match=r"'action' dimension 0 \('BT'\) has invalid size 0, expected a positive value"
+    ):
+        agent._convert_action_to_logit_index(empty_actions)
 
     # Setup with single action type that has many parameters
     action_names = ["action0"]
@@ -452,8 +454,8 @@ def test_action_conversion_edge_cases(create_metta_agent):
     assert result.item() == 9
 
     # Convert back
-    logit = torch.tensor([[9]])
-    result = agent._convert_logit_index_to_action(logit, {})
+    logit_indices = torch.tensor([9])
+    result = agent._convert_logit_index_to_action(logit_indices)
     assert torch.all(result == torch.tensor([0, 9]))
 
 
@@ -504,8 +506,7 @@ def test_action_use(create_metta_agent):
     assert torch.all(action_logit_indices == expected_indices)
 
     # Test _convert_logit_index_to_action (reverse mapping)
-    dummy_td = {}
-    reconstructed_actions = agent._convert_logit_index_to_action(expected_indices, dummy_td)
+    reconstructed_actions = agent._convert_logit_index_to_action(expected_indices)
     assert torch.all(reconstructed_actions == actions)
 
     # Now let's test sample_logits with our converted actions
@@ -538,7 +539,7 @@ def test_action_use(create_metta_agent):
     assert torch.all(sampled_indices2 == expected_indices)
 
     # Convert sampled indices back to actions
-    sampled_actions = agent._convert_logit_index_to_action(sampled_indices2, dummy_td)
+    sampled_actions = agent._convert_logit_index_to_action(sampled_indices2)
     assert torch.all(sampled_actions == actions)
 
     # Test with a different batch
@@ -568,7 +569,7 @@ def test_action_use(create_metta_agent):
     assert torch.all(sampled_indices3 == expected_indices2)
 
     # Convert back to actions and verify
-    sampled_actions2 = agent._convert_logit_index_to_action(sampled_indices3, dummy_td)
+    sampled_actions2 = agent._convert_logit_index_to_action(sampled_indices3)
     assert torch.all(sampled_actions2 == test_actions2)
 
     # Finally, test the whole flow as it would happen in forward:
@@ -592,7 +593,7 @@ def test_action_use(create_metta_agent):
     assert torch.all(sampled_indices4 == logit_indices)
 
     # Convert back to actions
-    reconstructed_actions4 = agent._convert_logit_index_to_action(sampled_indices4, dummy_td)
+    reconstructed_actions4 = agent._convert_logit_index_to_action(sampled_indices4)
 
     # Verify round-trip conversion
     assert torch.all(reconstructed_actions4 == test_actions3)
