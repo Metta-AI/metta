@@ -95,7 +95,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
   init_action_handlers();
 
   auto groups = cfg["groups"].cast<py::dict>();
-  _group_rewards = py::array_t<double>(groups.size());
 
   for (const auto& [key, value] : groups) {
     auto group = value.cast<py::dict>();
@@ -423,13 +422,13 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
   // Clear group rewards
-  auto group_rewards_view = _group_rewards.mutable_unchecked<1>();
-  for (py::ssize_t i = 0; i < group_rewards_view.shape(0); i++) {
-    group_rewards_view(i) = 0;
-  }
 
   // Handle group rewards
   bool share_rewards = false;
+  // TODO: We're creating this vector every time we step, even though reward
+  // should be sparse, and so we're unlikely to use it. We could decide to only
+  // create it if we need it, but that would increase complexity.
+  std::vector<double> group_rewards(_group_sizes.size());
   for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
     if (rewards_view(agent_idx) != 0) {
       share_rewards = true;
@@ -437,7 +436,7 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
       unsigned int group_id = agent->group;
       float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
       rewards_view(agent_idx) -= group_reward;
-      group_rewards_view(group_id) += group_reward / _group_sizes[group_id];
+      group_rewards[group_id] += group_reward / _group_sizes[group_id];
     }
   }
 
@@ -445,7 +444,7 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       auto& agent = _agents[agent_idx];
       unsigned int group_id = agent->group;
-      float group_reward = group_rewards_view(group_id);
+      float group_reward = group_rewards[group_id];
       rewards_view(agent_idx) += group_reward;
     }
   }
