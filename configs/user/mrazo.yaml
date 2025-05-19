@@ -7,7 +7,7 @@ defaults:
 trainer:
   env: env/mettagrid/object_use/training/large_multienv
   initial_policy:
-    uri: wandb://run/b.daphne.object_use_allobs_multienv:v94
+    uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
   evaluate_interval: 100
 
 run: mrazo_object-use_allobs_large-multienv_v01
