@@ -9,5 +9,6 @@ trainer:
   initial_policy:
     uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
   evaluate_interval: 100
+  checkpoint_interval: 100
 
 run: mrazo_object-use_allobs_large-multienv_v01
