@@ -1,8 +1,8 @@
 # @package __global__
 
 defaults:
-  - /hardware: macbook
-  - override /agent: simple
+  - /hardware: mac_parallel
+  - /agent: simple
   - _self_
 
 run_id: 1

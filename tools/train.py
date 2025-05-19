@@ -11,7 +11,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from metta.agent.policy_store import PolicyStore
 from metta.sim.map_preview import upload_map_preview
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.config import Config, config_from_path, setup_metta_environment
+from metta.util.config import Config, setup_metta_environment
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
@@ -43,15 +43,14 @@ def train(cfg, wandb_run, logger: Logger):
 
     policy_store = PolicyStore(cfg, wandb_run)
 
-    env_cfg = config_from_path(cfg.trainer.env, cfg.trainer.env_overrides)
-    if env_cfg._target_ == "metta.env.mettagrid_env.MettaGridEnv":
-        # TODO: upload_map_preview() calls MettaGridEnv directly, which will break if our target is MettaGridEnvSet
-        # Should we upload a preview for MettaGridEnvSet?
-        upload_map_preview(env_cfg, train_job.map_preview_uri, wandb_run)
-
     trainer = hydra.utils.instantiate(
         cfg.trainer, cfg, wandb_run, policy_store=policy_store, sim_suite_config=train_job.evals
     )
+    if train_job.map_preview_uri and trainer.env_cfg._target_ == "metta.env.mettagrid_env.MettaGridEnv":
+        # TODO: upload_map_preview() calls MettaGridEnv directly, which will break if our target is MettaGridEnvSet
+        # Should we upload a preview for MettaGridEnvSet?
+        upload_map_preview(trainer.env_cfg, train_job.map_preview_uri, wandb_run)
+
     trainer.train()
     trainer.close()
 
