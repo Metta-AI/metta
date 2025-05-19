@@ -167,10 +167,10 @@ for venv_name in "${VENV_PATHS[@]}"; do
   fi
 done
 
-# ========== CLEAN ALL BUILD ARTIFACTS ==========
-if [ "$CLEAN" -eq 1 ]; then
-  make clean
-fi
+# # ========== CLEAN ALL BUILD ARTIFACTS ==========
+# if [ "$CLEAN" -eq 1 ]; then
+#   make clean
+# fi
 
 # ========== Main Project ==========
 cd "$SCRIPT_DIR/.."
