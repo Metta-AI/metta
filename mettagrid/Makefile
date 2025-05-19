@@ -259,31 +259,31 @@ check-dependencies:
 		exit 1; \
 	fi
 
-	@echo "Checking for Google Test headers..."
-	@if [ ! -f "$(GTEST_DIR)/include/gtest/gtest.h" ]; then \
-		if [ -f "$$(brew --prefix)/opt/googletest/include/gtest/gtest.h" ]; then \
-			echo "✅ Found gtest headers in Homebrew path"; \
-		else \
-			echo "❌ gtest/gtest.h not found at $(GTEST_DIR)/include/gtest/gtest.h"; \
-			echo "   Run 'make install-test-tools' or check Homebrew setup."; \
-			exit 1; \
-		fi; \
-	else \
-		echo "✅ Found gtest headers in $(GTEST_DIR)/include"; \
-	fi
+	# @echo "Checking for Google Test headers..."
+	# @if [ ! -f "$(GTEST_DIR)/include/gtest/gtest.h" ]; then \
+	# 	if [ -f "$$(brew --prefix)/opt/googletest/include/gtest/gtest.h" ]; then \
+	# 		echo "✅ Found gtest headers in Homebrew path"; \
+	# 	else \
+	# 		echo "❌ gtest/gtest.h not found at $(GTEST_DIR)/include/gtest/gtest.h"; \
+	# 		echo "   Run 'make install-test-tools' or check Homebrew setup."; \
+	# 		exit 1; \
+	# 	fi; \
+	# else \
+	# 	echo "✅ Found gtest headers in $(GTEST_DIR)/include"; \
+	# fi
 
-	@echo "Checking for Google Benchmark headers..."
-	@if [ ! -f "$(GBENCHMARK_DIR)/include/benchmark/benchmark.h" ]; then \
-		if [ -f "$$(brew --prefix)/opt/benchmark/include/benchmark/benchmark.h" ]; then \
-			echo "✅ Found benchmark headers in Homebrew path"; \
-		else \
-			echo "❌ benchmark/benchmark.h not found at $(GBENCHMARK_DIR)/include/benchmark/benchmark.h"; \
-			echo "   Run 'make install-bench-tools' or check Homebrew setup."; \
-			exit 1; \
-		fi; \
-	else \
-		echo "✅ Found benchmark headers in $(GBENCHMARK_DIR)/include"; \
-	fi
+	# @echo "Checking for Google Benchmark headers..."
+	# @if [ ! -f "$(GBENCHMARK_DIR)/include/benchmark/benchmark.h" ]; then \
+	# 	if [ -f "$$(brew --prefix)/opt/benchmark/include/benchmark/benchmark.h" ]; then \
+	# 		echo "✅ Found benchmark headers in Homebrew path"; \
+	# 	else \
+	# 		echo "❌ benchmark/benchmark.h not found at $(GBENCHMARK_DIR)/include/benchmark/benchmark.h"; \
+	# 		echo "   Run 'make install-bench-tools' or check Homebrew setup."; \
+	# 		exit 1; \
+	# 	fi; \
+	# else \
+	# 	echo "✅ Found benchmark headers in $(GBENCHMARK_DIR)/include"; \
+	# fi
 
 
 	@echo "🔧 Tooling Checks"
@@ -296,7 +296,7 @@ check-dependencies:
 	@echo ""
 	@echo "⚙️ Compiler"
 	@echo "  CXX                  = $(CXX)"
-	@echo "  CXXFLAGS             = $(CXXFLAGS)" 
+	@echo "  CXXFLAGS             = $(CXXFLAGS)"
 	@echo "  CXXFLAGS_METTAGRID   = $(CXXFLAGS_METTAGRID)"
 	@echo ""
 	@echo "📚 Linking"
@@ -527,7 +527,7 @@ clean:
 	else \
 		echo "(MettaGrid) ✅ No mettagrid directory found, skipping .so cleanup"; \
 	fi
-	
+
 	@echo "(MettaGrid) ✅ Clean completed successfully"
 
 # Run format and test

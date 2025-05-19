@@ -72,6 +72,17 @@ if ! command -v uv &> /dev/null; then
   fi
 fi
 
+if [ "$IS_DOCKER" = "true" ]; then
+  source .venv/bin/activate
+  # Setup build (installs requirements)
+  uv pip install -r requirements.txt
+  python setup.py build_ext --inplace
+  uv pip install .
+  uv run --active --directory mettagrid make build
+  uv pip install mettagrid
+  exit 0
+fi
+
 # Required Python version
 REQUIRED_PYTHON_VERSION="3.11.7"
 VENV_PATH="$PROJECT_DIR/.venv"
@@ -162,18 +173,24 @@ if [ -z "$CI" ]; then
     fi
   fi
 
-  # ========== REPORT Non-UV VENV ==========
-  VENV_PATHS=(".venv" "venv" ".env" "env" "virtualenv" ".virtualenv")
-  for venv_name in "${VENV_PATHS[@]}"; do
-    venv_path="$PROJECT_DIR/$venv_name"
-    if [ -d "$venv_path" ]; then
-      if ! is_uv_venv "$venv_path"; then
-        echo "⚠️  Found a non UV virtual environments:"
-        echo "$venv_name"
-        echo "⚠️  You may want to manually remove if they're no longer needed"
-      fi
-    fi
-  done
+# ========== REPORT Non-UV VENV ==========
+# VENV_PATHS=(".venv" "venv" ".env" "env" "virtualenv" ".virtualenv")
+# for venv_name in "${VENV_PATHS[@]}"; do
+#   venv_path="$PROJECT_DIR/$venv_name"
+#   if [ -d "$venv_path" ]; then
+#     if is_uv_venv "$venv_path"; then
+#       echo "Preserving $venv_name as it appears to be a UV virtual environment"
+#     else
+#       echo "Removing $venv_name virtual environment..."
+#       rm -rf "$venv_path"
+#       echo "✅ Removed $venv_name virtual environment"
+#     fi
+#   fi
+# done
+
+# ========== CLEAN ALL BUILD ARTIFACTS ==========
+if [ "$CLEAN" -eq 1 ]; then
+  make clean
 fi
 
 # ========== Main Project ==========
@@ -248,7 +265,7 @@ $PYTHON -c "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettag
   exit 1
 }
 
-if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
+if [ "$IS_DOCKER" = "true" ]; then
   # ========== VS CODE INTEGRATION ==========
   echo -e "\nSetting up VSCode integration..."
   source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
