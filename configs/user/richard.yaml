@@ -7,28 +7,23 @@ defaults:
   # - override /agent: non_robust_puffer
   - _self_
 
-    #policy_uri: puffer://deps/devpl/experiments/metta-bc817736/model_019074.pt
-policy_uri: puffer://deps/devpl/experiments/metta-cc749e4d/model_019074.pt
-policy_class: metta.agent.external.example.Recurrent
+    #policy_uri: puffer://puffer_checkpoints/metta-example/model_019074.pt
+policy_uri: puffer://puffer_checkpoints/metta-wombo/model_019074.pt
+policy_class: metta.agent.external.wombo.Recurrent
 npc_policy_uri: null
 
 trainer:
   checkpoint_interval: 10
   evaluate_interval: 10
-  env: /env/mettagrid/navigation/training/multienv
+    #env: /env/mettagrid/navigation/training/multienv
   initial_policy:
-    #uri: puffer://deps/devpl/experiments/metta-bc817736/model_019074.pt
-    uri: puffer://deps/devpl/experiments/metta-cc749e4d/model_019074.pt
+    #uri: puffer://puffer_checkpoints/metta-example/model_019074.pt
+    uri: puffer://puffer_checkpoints/metta-wombo/model_019074.pt
 
 eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
   #eval_db_uri: train_dir/richard.dummy.1/
 
-wandb:
-  enabled: true
-  track: true
-  checkpoint_interval: 1
-
 run: ${oc.env:USER}.local.${run_id}
-  #trained_policy_uri: puffer://deps/devpl/experiments/metta-bc817736/model_019074.pt
+  #trained_policy_uri: puffer://puffer_checkpoints/metta-example/model_019074.pt
