@@ -10,7 +10,7 @@
 #navigation_poisson_sparser_pretrained.r.6
 
 defaults:
-  - /hardware: macbook
+  # - /hardware: macbook
   - _self_
 
 # Basic config variables

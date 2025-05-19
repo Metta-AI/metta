@@ -22,7 +22,7 @@ gamma: 0.977
 #   learning_rate: 0.000238167
 
 optimizer:
-  type: muon
+  type: adam
   beta1: 0.862440463915262
   beta2: 0.9995722874745067
   eps: 9.852709528951554e-13
