@@ -10,7 +10,7 @@ typedef std::map<std::string, int> ObjectConfig;
 
 class MettaObject : public GridObject {
 public:
-  unsigned int hp;
+  uint8_t hp;
 
   void init_mo(ObjectConfig cfg) {
     this->hp = cfg["hp"];

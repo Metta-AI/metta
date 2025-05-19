@@ -4,19 +4,30 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-
+#include <span>
 using namespace std;
 
 typedef unsigned short Layer;
 typedef unsigned short TypeId;
 typedef unsigned int GridCoord;
 using ObsType = uint8_t;
-using RelativeLocation = uint8_t;
-using FeatureId = uint8_t;
-using FeatureValue = uint8_t;
-using ObsToken = uint8_t[3];
 
-template <typename T> class GridLocation {
+// These may make more sense in observation_encoder.hpp, but we need to include that
+// header in a lot of places, and it's nice to have these types defined in one place.
+struct alignas(1) ObservationToken {
+  uint8_t prefix;
+  uint8_t feature_id;
+  uint8_t value;
+};
+
+// The alignas should make sure of this, but let's be explicit.
+// We're going to be reinterpret_casting things to this type, so
+// it'll be bad if the compiler pads this type.
+static_assert(sizeof(ObservationToken) == 3, "ObservationToken must be 3 bytes");
+
+using ObservationTokens = std::span<ObservationToken>;
+
+class GridLocation {
 public:
   GridCoord r;
   GridCoord c;
@@ -58,13 +69,10 @@ public:
   }
 
   // obs_tokens is used for the new observation format.
-  // `prefix` will prefix each token, but in practice should indicate the observation location.
   // `feature_ids` should map to the features that the object is encoding, and should match the
   // features exposed by feature_names.
-  // `max_tokens` is the maximum number of tokens that can be encoded. This should be used
-  // to stop us from overflowing the observation buffer. Note that each token is multiple bytes,
-  // so max_tokens should not just be the free space in the observation buffer.
-  virtual void obs_tokens(ObsType* obs, ObsType prefix, const vector<unsigned char>& feature_ids, size_t max_tokens) const = 0;
+  virtual size_t obs_tokens(ObservationTokens tokens,
+                             const vector<unsigned char>& feature_ids) const = 0;
 
   virtual void obs(ObsType* obs, const vector<uint8_t>& offsets) const = 0;
 };

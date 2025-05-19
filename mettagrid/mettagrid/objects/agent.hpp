@@ -9,6 +9,7 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
+
 class Agent : public MettaObject {
 public:
   unsigned char group;
@@ -112,7 +113,9 @@ public:
     // Remove hp. Not removing it now for the same reason.
     vector<uint8_t> basic_token_values = {1, group, hp, frozen, orientation, color};
     size_t max_basic_tokens = tokens.size() > basic_token_values.size() ? basic_token_values.size() : tokens.size();
-    size_t max_total_tokens = tokens.size() > max_basic_tokens + InventoryItem::InventoryCount ? max_basic_tokens + InventoryItem::InventoryCount : tokens.size();
+    size_t max_total_tokens = tokens.size() > max_basic_tokens + InventoryItem::InventoryCount
+                                  ? max_basic_tokens + InventoryItem::InventoryCount
+                                  : tokens.size();
     size_t max_inventory_tokens = max_total_tokens - max_basic_tokens;
     size_t tokens_written = 0;
     for (size_t i = 0; i < max_basic_tokens; i++) {
