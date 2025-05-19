@@ -7,9 +7,18 @@ defaults:
   # - override /agent: non_robust_puffer
   - _self_
 
+    #policy_uri: puffer://deps/devpl/experiments/metta-bc817736/model_019074.pt
 policy_uri: puffer://deps/devpl/experiments/metta-cc749e4d/model_019074.pt
 policy_class: metta.agent.external.example.Recurrent
 npc_policy_uri: null
+
+trainer:
+  checkpoint_interval: 10
+  evaluate_interval: 10
+  env: /env/mettagrid/navigation/training/multienv
+  initial_policy:
+    #uri: puffer://deps/devpl/experiments/metta-bc817736/model_019074.pt
+    uri: puffer://deps/devpl/experiments/metta-cc749e4d/model_019074.pt
 
 eval:
   policy_uri: ${..policy_uri}
@@ -22,4 +31,4 @@ wandb:
   checkpoint_interval: 1
 
 run: ${oc.env:USER}.local.${run_id}
-trained_policy_uri: puffer://deps/devpl/experiments/metta-bc817736/model_019074.pt
+  #trained_policy_uri: puffer://deps/devpl/experiments/metta-bc817736/model_019074.pt

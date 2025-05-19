@@ -107,6 +107,8 @@ class PufferAgentWrapper(nn.Module):
     def __init__(self, policy: nn.Module):
         super().__init__()
         self.policy = policy
+        self.hidden_size = policy.hidden_size
+        self.lstm = policy
 
     def forward(self, obs: torch.Tensor, state, action=None):
         """Uses variable names from LSTMWrapper. Translating for Metta:
@@ -114,6 +116,13 @@ class PufferAgentWrapper(nn.Module):
         logprob -> logprob_act
         hidden -> logits then, after sample_logits(), log_sftmx_logits
         """
+        if state.lstm_h is not None and state.lstm_c is not None:
+            state = SimpleNamespace(
+                        lstm_h = state.lstm_h.squeeze(),
+                        lstm_c = state.lstm_c.squeeze(),
+                    )
+        else:
+            state = SimpleNamespace(lstm_h = None, lstm_c = None)
         hidden, critic = self.policy(obs, state)  # using variable names from LSTMWrapper
         action, logprob, logits_entropy = sample_logits(hidden, action)
         # explanation of var names in the docstring above
