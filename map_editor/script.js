@@ -17,6 +17,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let isDrawingMode = true; // true for draw wall, false for delete wall
     let isMouseDown = false;
 
+    let isConfirmingReset = false;
+    let resetTimeoutId = null;
+    const originalCreateBtnText = createGridBtn.textContent;
+    const originalCreateBtnBgColor = window.getComputedStyle(createGridBtn).backgroundColor;
+
     function initializeGrid(width, height) {
         gridWidth = width;
         gridHeight = height;
@@ -163,14 +168,57 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     createGridBtn.addEventListener('click', () => {
-        const newWidth = parseInt(widthInput.value);
-        const newHeight = parseInt(heightInput.value);
-        if (newWidth >= 3 && newHeight >= 3 && newWidth <= 100 && newHeight <= 100) {
-            initializeGrid(newWidth, newHeight);
+        if (isConfirmingReset) {
+            // Clear confirmation state
+            clearTimeout(resetTimeoutId);
+            document.removeEventListener('click', handleOutsideClickForReset, true);
+            resetCreateButtonState();
+            isConfirmingReset = false;
+
+            // Proceed with reset
+            const newWidth = parseInt(widthInput.value);
+            const newHeight = parseInt(heightInput.value);
+            if (newWidth >= 3 && newHeight >= 3 && newWidth <= 100 && newHeight <= 100) {
+                initializeGrid(newWidth, newHeight);
+            } else {
+                alert('Width and Height must be between 3 and 100.');
+            }
         } else {
-            alert('Width and Height must be between 3 and 100.');
+            // Enter confirmation state
+            isConfirmingReset = true;
+            createGridBtn.textContent = 'Are you sure?';
+            createGridBtn.style.backgroundColor = 'red';
+
+            // Set timeout to revert
+            resetTimeoutId = setTimeout(() => {
+                resetCreateButtonState();
+                isConfirmingReset = false;
+                document.removeEventListener('click', handleOutsideClickForReset, true);
+            }, 5000);
+
+            // Add listener for outside click
+            // Use `true` for capture phase to ensure it runs before other click listeners
+            // that might stop propagation.
+            document.addEventListener('click', handleOutsideClickForReset, true);
         }
     });
+
+    function resetCreateButtonState() {
+        createGridBtn.textContent = originalCreateBtnText;
+        createGridBtn.style.backgroundColor = originalCreateBtnBgColor;
+        if (resetTimeoutId) {
+            clearTimeout(resetTimeoutId);
+            resetTimeoutId = null;
+        }
+    }
+
+    function handleOutsideClickForReset(event) {
+        if (isConfirmingReset && event.target !== createGridBtn) {
+            resetCreateButtonState();
+            isConfirmingReset = false;
+            document.removeEventListener('click', handleOutsideClickForReset, true);
+        }
+    }
 
     // Initial setup
     initializeGrid(gridWidth, gridHeight);
