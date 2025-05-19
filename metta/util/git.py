@@ -67,3 +67,16 @@ def get_branch_commit(branch_name, repo_path=None):
         return result.stdout.strip()
     except subprocess.CalledProcessError:
         return None
+
+
+def get_commit_message(commit_hash):
+    """Get the commit message for a specific commit hash."""
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["git", "log", "-1", "--pretty=%B", commit_hash], capture_output=True, text=True, check=True
+        )
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
