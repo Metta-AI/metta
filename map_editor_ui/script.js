@@ -7,12 +7,74 @@ document.addEventListener('DOMContentLoaded', () => {
     const createGridBtn = document.getElementById('createGridBtn');
     const asciiPreviewTextarea = document.getElementById('asciiPreview');
     const copyAsciiBtn = document.getElementById('copyAsciiBtn');
+    const loadAsciiBtn = document.getElementById('loadAsciiBtn');
     const copyStatusMessage = document.getElementById('copyStatusMessage');
+    const entitySelector = document.getElementById('entitySelector');
 
     let gridWidth = parseInt(widthInput.value);
     let gridHeight = parseInt(heightInput.value);
     const cellSize = 20; // Size of each cell in pixels
-    let grid = []; // Stores the internal drawable map (0 for empty, 1 for wall)
+    let grid = []; // Stores the internal drawable map
+    let selectedEntity = 'wall';
+
+    const asciiSymbols = {
+        empty: ' ',
+        wall: '#',
+        'agent.agent': 'A',
+        mine: 'g',
+        generator: 'c',
+        altar: 'a',
+        armory: 'r',
+        lasery: 'l',
+        lab: 'b',
+        factory: 'f',
+        temple: 't'
+    };
+    const asciiToObject = {};
+    for (const [obj, ch] of Object.entries(asciiSymbols)) {
+        asciiToObject[ch] = obj;
+    }
+    // Support old wall character
+    asciiToObject['W'] = 'wall';
+
+    const objectIcons = {
+        wall: '../mettascope/data/objects/wall.png',
+        'agent.agent': '../mettascope/data/objects/agent.png',
+        mine: '../mettascope/data/objects/mine.png',
+        generator: '../mettascope/data/objects/generator.png',
+        altar: '../mettascope/data/objects/altar.png',
+        armory: '../mettascope/data/objects/armory.png',
+        lasery: '../mettascope/data/objects/lasery.png',
+        lab: '../mettascope/data/objects/lab.png',
+        factory: '../mettascope/data/objects/factory.png',
+        temple: '../mettascope/data/objects/temple.png'
+    };
+
+    const objectImages = {};
+    for (const [obj, src] of Object.entries(objectIcons)) {
+        const img = new Image();
+        img.src = src;
+        objectImages[obj] = img;
+    }
+
+    function createEntityButtons() {
+        Object.entries(objectIcons).forEach(([obj, src], index) => {
+            const btn = document.createElement('button');
+            btn.className = 'entity-btn';
+            btn.dataset.entity = obj;
+            const img = document.createElement('img');
+            img.src = src;
+            img.alt = obj;
+            btn.appendChild(img);
+            btn.addEventListener('click', () => {
+                selectedEntity = obj;
+                document.querySelectorAll('.entity-btn').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+            });
+            entitySelector.appendChild(btn);
+            if (index === 0) btn.classList.add('selected');
+        });
+    }
 
     let mouseButtonPressed = null; // null = no button, 0 = left, 2 = right
     let lastProcessedCell = { row: null, col: null };
@@ -25,7 +87,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeGrid(width, height) {
         gridWidth = width;
         gridHeight = height;
-        grid = Array(gridHeight).fill(null).map(() => Array(gridWidth).fill(0));
+        grid = Array(gridHeight)
+            .fill(null)
+            .map(() => Array(gridWidth).fill(asciiSymbols.empty));
 
         // Canvas size includes the outer border
         canvas.width = (gridWidth + 2) * cellSize;
@@ -38,22 +102,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawCanvas() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw grid cells
         for (let r = 0; r < gridHeight + 2; r++) {
             for (let c = 0; c < gridWidth + 2; c++) {
-                ctx.fillStyle = '#555555'; // Wall color
-
+                let obj;
                 if (r === 0 || r === gridHeight + 1 || c === 0 || c === gridWidth + 1) {
-                    // Outer border wall
-                    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+                    obj = 'wall';
                 } else {
-                    // Inner grid
-                    if (grid[r - 1][c - 1] === 1) { // Wall
-                        ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
-                    } else { // Empty
-                        ctx.fillStyle = '#e0e0e0'; // Empty cell color
-                        ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
-                    }
+                    const char = grid[r - 1][c - 1];
+                    obj = asciiToObject[char] || 'empty';
+                }
+
+                if (obj === 'empty') {
+                    ctx.fillStyle = '#e0e0e0';
+                    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+                } else if (objectImages[obj]) {
+                    ctx.drawImage(objectImages[obj], c * cellSize, r * cellSize, cellSize, cellSize);
+                } else {
+                    ctx.fillStyle = '#555555';
+                    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
                 }
             }
         }
@@ -77,19 +143,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateAsciiPreview() {
         let ascii = '';
-        // Top border
-        ascii += 'W'.repeat(gridWidth + 2) + '\n';
+        const wallChar = asciiSymbols.wall;
+        ascii += wallChar.repeat(gridWidth + 2) + '\n';
 
         for (let r = 0; r < gridHeight; r++) {
-            ascii += 'W'; // Left border
+            ascii += wallChar;
             for (let c = 0; c < gridWidth; c++) {
-                ascii += grid[r][c] === 1 ? 'W' : ' ';
+                ascii += grid[r][c];
             }
-            ascii += 'W\n'; // Right border
+            ascii += wallChar + '\n';
         }
 
-        // Bottom border
-        ascii += 'W'.repeat(gridWidth + 2) + '\n';
+        ascii += wallChar.repeat(gridWidth + 2) + '\n';
         asciiPreviewTextarea.value = ascii.trim();
 
         // Adjust textarea attributes and style for full content visibility
@@ -98,6 +163,31 @@ document.addEventListener('DOMContentLoaded', () => {
         // Adjust textarea height to fit content
         asciiPreviewTextarea.style.height = 'auto'; // Reset height for accurate scrollHeight calculation
         asciiPreviewTextarea.style.height = (asciiPreviewTextarea.scrollHeight) + 'px';
+    }
+
+    function loadFromAscii(text) {
+        const lines = text.trim().split(/\r?\n/).filter(l => l.length);
+        if (lines.length < 3) {
+            return false;
+        }
+        const innerWidth = lines[0].length - 2;
+        const innerHeight = lines.length - 2;
+        if (innerWidth <= 0 || innerHeight <= 0) {
+            return false;
+        }
+        for (const line of lines) {
+            if (line.length !== innerWidth + 2) return false;
+        }
+        initializeGrid(innerWidth, innerHeight);
+        for (let r = 0; r < innerHeight; r++) {
+            const row = lines[r + 1];
+            for (let c = 0; c < innerWidth; c++) {
+                grid[r][c] = row[c + 1];
+            }
+        }
+        drawCanvas();
+        updateAsciiPreview();
+        return true;
     }
 
     function getMouseGridPos(event) {
@@ -157,9 +247,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let cellValueToSet;
         if (mouseButtonPressed === 0) { // Left button for drawing
-            cellValueToSet = 1;
+            cellValueToSet = asciiSymbols[selectedEntity];
         } else if (mouseButtonPressed === 2) { // Right button for erasing
-            cellValueToSet = 0;
+            cellValueToSet = asciiSymbols.empty;
         } else {
             return; // No button we care about is pressed
         }
@@ -295,6 +385,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    loadAsciiBtn.addEventListener('click', () => {
+        const text = asciiPreviewTextarea.value;
+        if (!loadFromAscii(text)) {
+            alert('Invalid ASCII map format.');
+        }
+    });
+
     // Initial setup
     initializeGrid(gridWidth, gridHeight);
+    createEntityButtons();
 });

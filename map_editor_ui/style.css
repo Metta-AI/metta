@@ -49,6 +49,32 @@ body {
     text-align: center; /* Center the info text */
 }
 
+.entity-selector {
+    margin-top: 15px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+}
+
+.entity-btn {
+    background: transparent;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    padding: 2px;
+    cursor: pointer;
+}
+
+.entity-btn.selected {
+    border-color: #007bff;
+}
+
+.entity-btn img {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+
 #mapCanvas {
     border: 1px solid #333;
     cursor: crosshair;
@@ -94,6 +120,22 @@ body {
     background-color: #28a745;
     color: white;
     transition: background-color 0.2s;
+}
+
+#loadAsciiBtn {
+    display: block;
+    margin: 10px auto;
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: #6c757d;
+    color: white;
+    transition: background-color 0.2s;
+}
+
+#loadAsciiBtn:hover {
+    background-color: #5a6268;
 }
 
 #copyAsciiBtn:hover {
