@@ -390,12 +390,6 @@ void MettaGrid::validate_buffers() {
       throw std::runtime_error(ss.str());
     }
     if (shape[0] != num_agents || shape[2] != 3) {
-    if (observation_info.ndim != 3) {
-      std::stringstream ss;
-      ss << "observations has " << observation_info.ndim << " dimensions but expected 3";
-      throw std::runtime_error(ss.str());
-    }
-    if (shape[0] != num_agents || shape[2] != 3) {
       std::stringstream ss;
       ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["
          << num_agents << ", [something], 3]";
@@ -595,7 +589,7 @@ py::object MettaGrid::observation_space() {
   } else {
     return spaces.attr("Box")(0,
                               255,
-                              py::make_tuple(_obs_height, _obs_width, _grid_features.size()),
+                              py::make_tuple(obs_height, obs_width, _grid_features.size()),
                               py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
   }
 }
