@@ -125,7 +125,9 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
             eval_value = task_arg.split("=", 1)[1]
             critical_files.append(f"./configs/eval/{eval_value}.yaml")
 
-    divider = "=" * 40
+    divider_length = 60
+
+    divider = "=" * divider_length
     print(f"\n{divider}")
     all_files_exist = True
     for file in critical_files:
@@ -168,7 +170,7 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
     if commit_message:
         first_line = commit_message.split("\n")[0]
         print(f"Commit Message: {yellow(first_line)}")
-    print(f"{'-' * 40}")
+    print(f"{'-' * divider_length}")
     print(f"Command: {args.cmd}")
     if task_args:
         print(yellow("\nTask Arguments:"))
