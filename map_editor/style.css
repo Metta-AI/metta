@@ -1,0 +1,94 @@
+body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px;
+    background-color: #f0f0f0;
+}
+
+.controls {
+    margin-bottom: 20px;
+    padding: 10px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.controls label {
+    margin-right: 5px;
+}
+
+.controls input[type="number"] {
+    width: 60px;
+    margin-right: 15px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.controls button {
+    padding: 8px 15px;
+    margin-left: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    transition: background-color 0.2s;
+}
+
+.controls button:hover {
+    background-color: #0056b3;
+}
+
+#mapCanvas {
+    border: 1px solid #333;
+    cursor: crosshair;
+    background-color: #e0e0e0; /* Light grey for empty cells */
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.preview-container {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.preview-container h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #333;
+}
+
+#asciiPreview {
+    width: 90%;
+    min-height: 100px; /* Minimum height */
+    max-height: 300px; /* Maximum height before scroll */
+    overflow-y: auto; /* Add scroll for overflow */
+    font-family: monospace;
+    font-size: 14px; /* Slightly larger for readability */
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f9f9f9;
+    resize: vertical; /* Allow vertical resize */
+    margin-bottom: 10px;
+}
+
+#copyAsciiBtn {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    background-color: #28a745;
+    color: white;
+    transition: background-color 0.2s;
+}
+
+#copyAsciiBtn:hover {
+    background-color: #1e7e34;
+}
