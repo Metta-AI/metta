@@ -1,9 +1,9 @@
 #ifndef GRID_OBJECT_HPP
 #define GRID_OBJECT_HPP
 
+#include <cstdint>
 #include <string>
 #include <vector>
-#include <cstdint>
 
 using namespace std;
 
