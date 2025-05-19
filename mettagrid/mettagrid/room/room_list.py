@@ -10,7 +10,9 @@ class RoomList(Room):
         super().__init__(border_width=border_width, border_object=border_object)
         self._room_configs = rooms
         self._layout = layout
-        assert self._layout in ["grid", "column", "row"]
+        assert self._layout in ["grid", "column", "row"], (
+            f"Invalid layout: {self._layout}. Must be 'grid', 'column', or 'row'"
+        )
 
     def _build(self):
         rooms = []
