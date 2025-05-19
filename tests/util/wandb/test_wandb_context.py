@@ -58,7 +58,7 @@ def dummy_init(monkeypatch):
 
 def test_enter_disabled_does_not_init(monkeypatch):
     # Prepare disabled config
-    cfg_off = OmegaConf.create(dict(enabled=False, track=False))
+    cfg_off = OmegaConf.create(dict(enabled=False))
     # Spy on wandb.init
     init_called = False
 
@@ -76,7 +76,7 @@ def test_enter_disabled_does_not_init(monkeypatch):
 
 def test_structured_config(monkeypatch, dummy_init):
     # Prepare config that's already validated
-    cfg_off = WandbConfigOff(enabled=False, track=False)
+    cfg_off = WandbConfigOff(enabled=False)
 
     ctx = WandbContext(cfg_off, OmegaConf.create())
     run = ctx.__enter__()
@@ -90,7 +90,6 @@ def test_run_fields(monkeypatch, dummy_init, tmp_path):
     cfg_on = OmegaConf.create(
         dict(
             enabled=True,
-            track=True,
             project="proj",
             entity="ent",
             group="grp",
@@ -125,7 +124,6 @@ def test_exit_finishes_run(monkeypatch, dummy_init):
     # Prepare enabled config
     cfg_on = WandbConfigOn(
         enabled=True,
-        track=True,
         project="p",
         entity="e",
         group="g",

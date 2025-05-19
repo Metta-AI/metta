@@ -83,12 +83,12 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
 
     def init_run():
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            if wandb_run:
-                wandb_run_id = wandb_run.id
-                wandb_run.name = run_name
-                if not wandb_run.tags:
-                    wandb_run.tags = ()
-                wandb_run.tags += (f"sweep_id:{sweep_cfg.wandb_sweep_id}", f"sweep_name:{sweep_cfg.sweep}")
+            assert wandb_run, "Wandb should be enabled"
+            wandb_run_id = wandb_run.id
+            wandb_run.name = run_name
+            if not wandb_run.tags:
+                wandb_run.tags = ()
+            wandb_run.tags += (f"sweep_id:{sweep_cfg.wandb_sweep_id}", f"sweep_name:{sweep_cfg.sweep}")
 
             carbs = MettaCarbs(cfg, wandb_run)
             logger.info("Config:")

@@ -24,7 +24,6 @@ WandbRun = wandb.sdk.wandb_run.Run
 class WandbConfigOn(Config):
     enabled: Literal[True] = True
 
-    track: bool
     project: str
     entity: str
     group: str
@@ -36,7 +35,6 @@ class WandbConfigOn(Config):
 
 class WandbConfigOff(Config, extra="allow"):
     enabled: Literal[False] = False
-    track: Literal[False] | None
 
 
 WandbConfig = Annotated[Union[WandbConfigOff, WandbConfigOn], Field(discriminator="enabled")]

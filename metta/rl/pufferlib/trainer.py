@@ -188,7 +188,7 @@ class PufferTrainer:
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
-        if self.cfg.wandb.track and wandb_run and self._master:
+        if wandb_run and self._master:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
@@ -676,7 +676,7 @@ class PufferTrainer:
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        if self.wandb_run and self.cfg.wandb.track and self._master:
+        if self.wandb_run and self._master:
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
