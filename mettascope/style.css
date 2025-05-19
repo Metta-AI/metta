@@ -362,7 +362,7 @@ body {
   border: 2px solid white;
   font-family: sans-serif;
   font-size: 18px;
-  max-width: 300px;
+  max-width: 500px;
   text-align: center;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   z-index: 1000;

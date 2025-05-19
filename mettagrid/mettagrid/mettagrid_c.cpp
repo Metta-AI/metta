@@ -95,7 +95,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
   init_action_handlers();
 
   auto groups = cfg["groups"].cast<py::dict>();
-  _group_rewards = py::array_t<double>(groups.size());
 
   for (const auto& [key, value] : groups) {
     auto group = value.cast<py::dict>();
@@ -334,29 +333,25 @@ py::tuple MettaGrid::reset() {
   }
 
   // Reset all buffers
-  auto terminals_view = _terminals.mutable_unchecked<1>();
-  auto truncations_view = _truncations.mutable_unchecked<1>();
-  auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
-  auto observations_view = _observations.mutable_unchecked<4>();
-  auto rewards_view = _rewards.mutable_unchecked<1>();
+  // Views are created only for validating types; actual clearing is done via
+  // direct memory operations for speed.
 
-  for (py::ssize_t i = 0; i < terminals_view.shape(0); i++) {
-    terminals_view(i) = 0;
-    truncations_view(i) = 0;
-    episode_rewards_view(i) = 0;
-    rewards_view(i) = 0;
-  }
+  std::fill(static_cast<bool*>(_terminals.request().ptr),
+            static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
+            0);
+  std::fill(static_cast<bool*>(_truncations.request().ptr),
+            static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+            0);
+  std::fill(static_cast<float*>(_episode_rewards.request().ptr),
+            static_cast<float*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
+            0.0f);
+  std::fill(
+      static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
 
   // Clear observations
-  for (py::ssize_t i = 0; i < observations_view.shape(0); i++) {
-    for (py::ssize_t j = 0; j < observations_view.shape(1); j++) {
-      for (py::ssize_t k = 0; k < observations_view.shape(2); k++) {
-        for (py::ssize_t l = 0; l < observations_view.shape(3); l++) {
-          observations_view(i, j, k, l) = 0;
-        }
-      }
-    }
-  }
+  auto obs_ptr = static_cast<unsigned char*>(_observations.request().ptr);
+  auto obs_size = _observations.size();
+  std::fill(obs_ptr, obs_ptr + obs_size, 0);
 
   // Compute initial observations
   std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
@@ -427,13 +422,13 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
   // Clear group rewards
-  auto group_rewards_view = _group_rewards.mutable_unchecked<1>();
-  for (py::ssize_t i = 0; i < group_rewards_view.shape(0); i++) {
-    group_rewards_view(i) = 0;
-  }
 
   // Handle group rewards
   bool share_rewards = false;
+  // TODO: We're creating this vector every time we step, even though reward
+  // should be sparse, and so we're unlikely to use it. We could decide to only
+  // create it if we need it, but that would increase complexity.
+  std::vector<double> group_rewards(_group_sizes.size());
   for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
     if (rewards_view(agent_idx) != 0) {
       share_rewards = true;
@@ -441,7 +436,7 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
       unsigned int group_id = agent->group;
       float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
       rewards_view(agent_idx) -= group_reward;
-      group_rewards_view(group_id) += group_reward / _group_sizes[group_id];
+      group_rewards[group_id] += group_reward / _group_sizes[group_id];
     }
   }
 
@@ -449,7 +444,7 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       auto& agent = _agents[agent_idx];
       unsigned int group_id = agent->group;
-      float group_reward = group_rewards_view(group_id);
+      float group_reward = group_rewards[group_id];
       rewards_view(agent_idx) += group_reward;
     }
   }
