@@ -4,6 +4,7 @@
 
 # Exit immediately if a command exits with a non-zero status
 set -e
+set -o pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")" # (root)/devops
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"        # (root)
@@ -96,22 +97,56 @@ if [ "$CLEAN" -eq 1 ]; then
   fi
 fi
 
+VENV_PATH="$PROJECT_DIR/.venv"
+
+# Check if we're already in a UV venv
 if ! is_uv_venv; then
-  echo "⚠️ Recreating virtual environment with Python version ($REQUIRED_PYTHON_VERSION)..."
+  # Check if a virtual environment exists but is not activated
+  if [ -d "$VENV_PATH" ]; then
+    echo "Found existing virtual environment at $VENV_PATH"
 
-  uv venv .venv --python $REQUIRED_PYTHON_VERSION || {
-    echo "Error: Failed to create virtual environment with uv command."
-    exit 1
-  }
+    # Check if it's a UV venv before activating
+    if [ -f "$VENV_PATH/pyvenv.cfg" ] && grep -q "uv" "$VENV_PATH/pyvenv.cfg"; then
+      echo "Existing environment appears to be a UV environment, activating it"
+      source "$VENV_PATH/bin/activate"
+      echo "✅ Virtual environment '$VENV_PATH' activated"
+    elif [ -d "$VENV_PATH/.uv" ]; then
+      echo "Existing environment appears to be a UV environment, activating it"
+      source "$VENV_PATH/bin/activate"
+      echo "✅ Virtual environment '$VENV_PATH' activated"
+    else
+      echo "⚠️ Existing environment is not a UV environment, recreating it"
 
-  # Activate the virtual environment
-  if [[ -d ".venv" ]]; then
-    # Activate the venv
-    source .venv/bin/activate
-    echo "✅ Virtual environment '.venv' created and activated"
+      # Remove the existing environment
+      rm -rf "$VENV_PATH"
+
+      # Create a new environment
+      echo "Creating new virtual environment with Python version ($REQUIRED_PYTHON_VERSION)..."
+      uv venv "$VENV_PATH" --python $REQUIRED_PYTHON_VERSION || {
+        echo "Error: Failed to create virtual environment with uv command."
+        exit 1
+      }
+
+      # Activate the environment
+      source "$VENV_PATH/bin/activate"
+      echo "✅ Virtual environment '$VENV_PATH' created and activated"
+    fi
   else
-    echo "❌ Failed to create virtual environment with uv"
-    exit 1
+    # No existing environment, create a new one
+    echo "Creating new virtual environment with Python version ($REQUIRED_PYTHON_VERSION)..."
+    uv venv "$VENV_PATH" --python $REQUIRED_PYTHON_VERSION || {
+      echo "Error: Failed to create virtual environment with uv command."
+      exit 1
+    }
+
+    # Activate the environment
+    if [[ -d "$VENV_PATH" ]]; then
+      source "$VENV_PATH/bin/activate"
+      echo "✅ Virtual environment '$VENV_PATH' created and activated"
+    else
+      echo "❌ Failed to create virtual environment with uv"
+      exit 1
+    fi
   fi
 fi
 
