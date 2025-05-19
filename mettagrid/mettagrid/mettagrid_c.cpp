@@ -237,7 +237,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
           ObservationTokens agent_obs_tokens(
               reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0)),
               observation_view.shape(1) - tokens_written);
-          const obj_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+          obj_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens);
           for (size_t i = tokens_written; i < tokens_written + obj_tokens_written; i++) {
             agent_obs_tokens[i].location = location;
           }

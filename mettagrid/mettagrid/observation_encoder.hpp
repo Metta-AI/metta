@@ -60,8 +60,8 @@ public:
     }
   }
 
-  void encode_tokens(const GridObject* obj, ObservationTokens tokens) {
-    obj->obs_tokens(tokens, _offsets[obj->_type_id]);
+  size_t encode_tokens(const GridObject* obj, ObservationTokens tokens) {
+    return obj->obs_tokens(tokens, _offsets[obj->_type_id]);
   }
 
   void encode(const GridObject* obj, ObsType* obs) {
