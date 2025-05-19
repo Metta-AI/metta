@@ -67,7 +67,6 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, Li
             attributes,
             groups,
             agent_metrics,
-            {},
             step_count=100,
             replay_url=None,
             created_at=created_at,
