@@ -50,9 +50,6 @@ simulations:
   object_use/altar_use_free:
     env: env/mettagrid/object_use/evals/altar_use_free
     policy_agents_pct: 1.0
-  object_use/altar_use:
-    env: env/mettagrid/object_use/evals/altar_use
-    policy_agents_pct: 1.0
   object_use/armory_use_free:
     env: env/mettagrid/object_use/evals/armory_use_free
     policy_agents_pct: 1.0
