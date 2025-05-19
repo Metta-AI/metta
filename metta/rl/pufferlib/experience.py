@@ -46,20 +46,40 @@ class Experience:
         if minibatch_size is None:
             minibatch_size = batch_size
 
-        obs_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]
-        atn_dtype = pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_dtype]
+        # Convert numpy dtypes to torch dtypes
+        obs_dtype_torch = pufferlib.pytorch.numpy_to_torch_dtype_dict[obs_dtype]
+        atn_dtype_torch = pufferlib.pytorch.numpy_to_torch_dtype_dict[atn_dtype]
         pin = device == "cuda" and cpu_offload
-        self.obs = torch.zeros(
-            batch_size, *obs_shape, dtype=obs_dtype, pin_memory=pin, device=device if not pin else "cpu"
-        )
-        self.actions = torch.zeros(batch_size, *atn_shape, dtype=atn_dtype, pin_memory=pin)
-        self.logprobs = torch.zeros(batch_size, pin_memory=pin)
-        self.rewards = torch.zeros(batch_size, pin_memory=pin)
-        self.dones = torch.zeros(batch_size, pin_memory=pin)
-        self.truncateds = torch.zeros(batch_size, pin_memory=pin)
-        self.values = torch.zeros(batch_size, pin_memory=pin)
+
+        # Create tensors without using *args unpacking to make Pylance happy
+        tensor_device = "cpu" if pin else device
+
+        # Create a fully specified size tuple for each tensor
+        obs_size = (batch_size,) + obs_shape  # Explicitly create a new tuple
+        atn_size = (batch_size,) + atn_shape  # Explicitly create a new tuple
+
+        # Create tensors with explicit size tuples
+        self.obs = torch.zeros(size=obs_size, dtype=obs_dtype_torch, device=tensor_device)
+        self.actions = torch.zeros(size=atn_size, dtype=atn_dtype_torch, device="cpu")
+        self.logprobs = torch.zeros(size=(batch_size,), device="cpu")
+        self.rewards = torch.zeros(size=(batch_size,), device="cpu")
+        self.dones = torch.zeros(size=(batch_size,), device="cpu")
+        self.truncateds = torch.zeros(size=(batch_size,), device="cpu")
+        self.values = torch.zeros(size=(batch_size,), device="cpu")
+
+        # Apply pin_memory if needed
+        if pin:
+            self.obs = self.obs.pin_memory()
+            self.actions = self.actions.pin_memory()
+            self.logprobs = self.logprobs.pin_memory()
+            self.rewards = self.rewards.pin_memory()
+            self.dones = self.dones.pin_memory()
+            self.truncateds = self.truncateds.pin_memory()
+            self.values = self.values.pin_memory()
+
         self.e3b_inv = 10 * torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
 
+        # Create numpy views with explicit types
         self.actions_np: np.ndarray = np.asarray(self.actions)
         self.logprobs_np: np.ndarray = np.asarray(self.logprobs)
         self.rewards_np: np.ndarray = np.asarray(self.rewards)
