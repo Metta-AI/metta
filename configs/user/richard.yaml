@@ -1,0 +1,25 @@
+# @package __global__
+
+seed: null
+
+defaults:
+  # - override /env/mettagrid@env: simple
+  # - override /agent: non_robust_puffer
+  - _self_
+
+policy_uri: puffer://deps/devpl/experiments/metta-cc749e4d/model_019074.pt
+policy_class: metta.agent.external.example.Recurrent
+npc_policy_uri: null
+
+eval:
+  policy_uri: ${..policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+  #eval_db_uri: train_dir/richard.dummy.1/
+
+wandb:
+  enabled: true
+  track: true
+  checkpoint_interval: 1
+
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: puffer://deps/devpl/experiments/metta-bc817736/model_019074.pt

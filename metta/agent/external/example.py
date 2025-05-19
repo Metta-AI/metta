@@ -15,14 +15,14 @@ from torch import nn
 from torch.nn import functional as F
 
 
-class Policy(pufferlib.models.LSTMWrapper):
+class Recurrent(pufferlib.models.LSTMWrapper):
     def __init__(self, env, policy=None, input_size=512, hidden_size=512):
         if policy is None:
-            policy = SubPolicy(env)
+            policy = Policy(env)
         super().__init__(env, policy, input_size, hidden_size)
 
 
-class SubPolicy(nn.Module):
+class Policy(nn.Module):
     def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
