@@ -50,7 +50,7 @@ body {
 }
 
 .preview-container {
-    margin-top: 20px;
+    margin-top: 40px;
     padding: 15px;
     background-color: #fff;
     border-radius: 8px;
@@ -65,17 +65,15 @@ body {
 }
 
 #asciiPreview {
-    width: 90%;
-    min-height: 100px; /* Minimum height */
-    max-height: 300px; /* Maximum height before scroll */
-    overflow-y: auto; /* Add scroll for overflow */
+    width: auto;
+    overflow: hidden;
+    white-space: pre;
     font-family: monospace;
-    font-size: 14px; /* Slightly larger for readability */
+    font-size: 14px;
     padding: 10px;
     border: 1px solid #ccc;
     border-radius: 4px;
     background-color: #f9f9f9;
-    resize: vertical; /* Allow vertical resize */
     margin-bottom: 10px;
 }
 
@@ -91,4 +89,10 @@ body {
 
 #copyAsciiBtn:hover {
     background-color: #1e7e34;
+}
+
+.copy-status {
+    margin-left: 10px;
+    font-size: 0.9em;
+    color: #28a745; /* Same green as the button */
 }

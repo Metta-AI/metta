@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const modeToggleBtn = document.getElementById('modeToggleBtn');
     const asciiPreviewTextarea = document.getElementById('asciiPreview');
     const copyAsciiBtn = document.getElementById('copyAsciiBtn');
+    const copyStatusMessage = document.getElementById('copyStatusMessage');
 
     let gridWidth = parseInt(widthInput.value);
     let gridHeight = parseInt(heightInput.value);
@@ -91,21 +92,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Bottom border
         ascii += 'W'.repeat(gridWidth + 2) + '\n';
         asciiPreviewTextarea.value = ascii.trim();
-        // Adjust textarea height, respecting CSS max-height
-        asciiPreviewTextarea.style.height = 'auto'; // Reset height for scrollHeight calculation
-        const scrollHeight = asciiPreviewTextarea.scrollHeight;
-        const computedStyle = window.getComputedStyle(asciiPreviewTextarea);
-        const maxHeightString = computedStyle.maxHeight;
 
-        let newHeight = scrollHeight;
-        if (maxHeightString && maxHeightString !== 'none') {
+        // Adjust textarea attributes and style for full content visibility
+        // asciiPreviewTextarea.cols = gridWidth + 2; // Removed, as CSS now handles width via white-space: pre and width: auto
 
-            const maxHeight = parseInt(maxHeightString, 10);
-            if (!isNaN(maxHeight) && maxHeight > 0 && scrollHeight > maxHeight) {
-                newHeight = maxHeight;
-            }
-        }
-        asciiPreviewTextarea.style.height = newHeight + 'px';
+        // Adjust textarea height to fit content
+        asciiPreviewTextarea.style.height = 'auto'; // Reset height for accurate scrollHeight calculation
+        asciiPreviewTextarea.style.height = (asciiPreviewTextarea.scrollHeight) + 'px';
     }
 
     function getMouseGridPos(event) {
@@ -163,8 +156,21 @@ document.addEventListener('DOMContentLoaded', () => {
     copyAsciiBtn.addEventListener('click', () => {
         asciiPreviewTextarea.select();
         navigator.clipboard.writeText(asciiPreviewTextarea.value)
-            .then(() => alert('ASCII map copied to clipboard!'))
-            .catch(err => console.error('Failed to copy ASCII map: ', err));
+            .then(() => {
+                copyStatusMessage.textContent = 'Copied!';
+                setTimeout(() => {
+                    copyStatusMessage.textContent = '';
+                }, 2000); // Clear message after 2 seconds
+            })
+            .catch(err => {
+                copyStatusMessage.textContent = 'Failed to copy!';
+                copyStatusMessage.style.color = 'red'; // Indicate error
+                console.error('Failed to copy ASCII map: ', err);
+                setTimeout(() => {
+                    copyStatusMessage.textContent = '';
+                    copyStatusMessage.style.color = ''; // Reset color
+                }, 3000); // Clear error message after 3 seconds
+            });
     });
 
     createGridBtn.addEventListener('click', () => {
