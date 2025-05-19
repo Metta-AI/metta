@@ -1,1 +1,1 @@
-# This file makes the lib directory a Python package
+# This file makes this a Python package

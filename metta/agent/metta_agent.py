@@ -73,8 +73,7 @@ class MettaAgent(nn.Module):
         )
         obs_key = cfg.observations.obs_key  # typically "grid_obs"
 
-        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")  # obs_w, obs_h, num_objects
-        num_objects = obs_shape[2]
+        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
 
         self.agent_attributes = {
             "clip_range": self.clip_range,
@@ -82,7 +81,6 @@ class MettaAgent(nn.Module):
             "grid_features": grid_features,
             "obs_key": cfg.observations.obs_key,
             "obs_shape": obs_shape,
-            "num_objects": num_objects,
             "hidden_size": self.hidden_size,
             "core_num_layers": self.core_num_layers,
         }
@@ -127,6 +125,8 @@ class MettaAgent(nn.Module):
         # recursively setup all source components
         if component._sources is not None:
             for source in component._sources:
+                print(f"setting up source {source}")
+                print(f"with name {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
         # setup the current component and pass in the source components
@@ -231,7 +231,9 @@ class MettaAgent(nn.Module):
 
             if __debug__:
                 assert A == 2, f"Action dimensionality should be 2, got {A}"
-                assert_shape(x, (B, T, obs_w, obs_h, features), "x")
+                # need to read from env whether we are grabbing a token or a grid
+                # or we can just come back to this once we decide on the obs space (likely token: B, T, M, 3)
+                # assert_shape(x, (B, T, obs_w, obs_h, features), "x")
 
             # Flatten batch and time dimensions for both action and x
             bptt_action = einops.rearrange(bptt_action, "b t c -> (b t) c")
@@ -239,11 +241,15 @@ class MettaAgent(nn.Module):
 
             if __debug__:
                 assert_shape(bptt_action, (B * T, 2), "flattened action")
-                assert_shape(x, (B * T, obs_w, obs_h, features), "flattened x")
-        else:
-            # inference
-            if __debug__:
-                assert_shape(x, ("BT", obs_w, obs_h, features), "x")
+                # need to read from the env whether we are grabbing a token or a grid
+                # or we can just come back to this once we decide on the obs space (likely token: B, T, M, 3)
+                # assert_shape(x, (B * T, obs_w, obs_h, features), "flattened x")
+        # else:
+        # below needs to read from the env whether we are grabbing a token or a grid
+        # or we can just come back to this once we decide on the obs space (likely token: B, M, 3)
+        # inference
+        # if __debug__:
+        #     assert_shape(x, ("BT", obs_w, obs_h, features), "x")
 
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}

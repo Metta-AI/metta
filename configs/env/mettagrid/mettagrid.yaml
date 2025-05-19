@@ -13,7 +13,7 @@ game:
   num_agents: ???
   obs_width: 11
   obs_height: 11
-  use_observation_tokens: true
+  use_observation_tokens: false
   num_observation_tokens: 100
   tile_size: 16
   max_steps: 1000
