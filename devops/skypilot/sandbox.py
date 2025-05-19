@@ -46,7 +46,7 @@ def main():
             print(f"  {yellow(cluster['name'])}{message}")
 
         print("\nLaunch an additional sandbox:")
-        print(f"  {green('./devops/skypilot/launch_sandbox.py --new')}")
+        print(f"  {green('./devops/skypilot/sandbox.py --new')}")
 
         first_stopped_cluster_name = next(
             (cluster["name"] for cluster in existing_clusters if cluster["status"].name == "STOPPED"), None

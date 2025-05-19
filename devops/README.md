@@ -7,7 +7,7 @@ Scripts for setting up a Metta AI development environment and launching cloud jo
 To set up a new Mac machine:
 
 ```bash
-python devops/aws/setup_machine.py
+python devops/macos/setup_machine.py
 ```
 
 ## Git Hooks
