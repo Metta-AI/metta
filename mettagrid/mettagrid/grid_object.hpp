@@ -10,9 +10,13 @@ using namespace std;
 typedef unsigned short Layer;
 typedef unsigned short TypeId;
 typedef unsigned int GridCoord;
-typedef unsigned char ObsType;
+using ObsType = uint8_t;
+using RelativeLocation = uint8_t;
+using FeatureId = uint8_t;
+using FeatureValue = uint8_t;
+using ObsToken = uint8_t[3];
 
-class GridLocation {
+template <typename T> class GridLocation {
 public:
   GridCoord r;
   GridCoord c;
