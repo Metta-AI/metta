@@ -67,10 +67,18 @@ components:
     nn_params:
       num_layers: 2
 
+  core_words:
+    _target_: metta.agent.lib.lstm.LSTMWords
+    sources:
+      - name: _core_
+    nn_params:
+      num_embeddings: 100
+      embedding_dim: 128 # need a linear to map to dims different from core
+
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: _core_
+      - name: core_words
     nn_params:
       out_features: 1024
     nonlinearity: nn.Tanh
@@ -87,7 +95,7 @@ components:
   actor_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: _core_
+      - name: core_words
     nn_params:
       out_features: 512
 

@@ -1,7 +1,10 @@
 import torch
 import torch.nn as nn
+from einops import repeat
 from tensordict import TensorDict
+from torch.nn import functional as F
 
+from metta.agent.lib import nn_layer_library
 from metta.agent.lib.metta_layer import LayerBase
 
 
@@ -88,4 +91,50 @@ class LSTM(LayerBase):
         td[self._name] = hidden
         td["state"] = state
 
+        return td
+
+
+class LSTMWords(nn_layer_library.Embedding):
+    def __init__(self, hidden_size, **cfg):
+        super().__init__(**cfg)
+        self.initial_words = [n for n in range(50)]
+        self.num_words = len(self.initial_words)
+        self._nn_params["embedding_dim"] = hidden_size
+
+        self.register_buffer("words", torch.tensor(self.initial_words))
+
+    def update_words(self, words):
+        pass
+
+    def _make_net(self):
+        self._out_tensor_shape = [self._nn_params["embedding_dim"]]
+        return nn.Embedding(self.num_words, self._nn_params["embedding_dim"])
+
+    def _forward(self, td: TensorDict):
+        B_TT = td["_BxTT_"]
+        hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
+
+        # get embeddings then expand to match the batch size
+        # words = repeat(self._net(self.words), "a e -> b a e", b=B_TT)
+        words = self._net(self.words)
+        words_reshaped = repeat(words, "k e -> n k e", n=B_TT)
+
+        # Reshape inputs similar to Rev2 for bilinear calculation
+        # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
+        # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
+        # hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_words)  # shape: [B*TT, num_words, hidden]
+        # hidden_reshaped = rearrange(hidden_reshaped, "b a h -> (b a) h")  # shape: [N, H]
+        # word_reshaped = rearrange(words, "b a e -> (b a) e")  # shape: [N, E]
+
+        hidden_reshaped = hidden.unsqueeze(1)
+        scores = F.cosine_similarity(hidden_reshaped, words_reshaped, dim=2)  # Shape: [B_TT, self.num_words]
+
+        # Apply Gumbel-Softmax
+        # tau is the temperature; lower tau -> sharper distribution
+        # hard=True makes the output one-hot like (or close to it)
+        tau = 1.0  # This could be a parameter or configured
+        gumbel_output = F.gumbel_softmax(scores, tau=tau, hard=True, dim=-1)
+
+        selected_embedding = torch.matmul(gumbel_output, words)
+        td[self._name] = selected_embedding
         return td

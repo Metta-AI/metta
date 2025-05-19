@@ -567,6 +567,8 @@ class PufferTrainer:
             self.epoch += 1
             profile.update(self.agent_step, self.trainer_cfg.total_timesteps, self._timers)
 
+            self.policy.reset_noise()
+
     def _checkpoint_trainer(self):
         if not self._master:
             return

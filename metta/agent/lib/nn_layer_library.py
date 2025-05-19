@@ -21,6 +21,7 @@ from math import prod
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+from torchrl.modules import NoisyLinear 
 
 from metta.agent.lib.metta_layer import LayerBase, ParamLayer
 
@@ -42,6 +43,27 @@ class Linear(ParamLayer):
             "_input_tensor_shape for Linear should be 1d (ignoring batch dimension)"
         )
         return nn.Linear(self._in_tensor_shapes[0][0], **self._nn_params)
+    
+class MettaNoisyLinear(LayerBase):
+    """
+    Applies a noisy linear transformation to the incoming data: y = xA^T + b
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
+
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+
+    def reset_noise(self):
+        self._net.reset_noise()
+
+    def _make_net(self):
+        self._out_tensor_shape = [self._nn_params.out_features]
+        assert len(self._in_tensor_shapes[0]) == 1, (
+            "_input_tensor_shape for Linear should be 1d (ignoring batch dimension)"
+        )
+        return NoisyLinear(self._in_tensor_shapes[0][0], **self._nn_params)
 
 
 class ReLU(LayerBase):

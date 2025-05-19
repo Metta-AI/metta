@@ -1,12 +1,13 @@
 from typing import Optional, Tuple
 
 import torch
-import torch.jit
+
+# import torch.jit
 import torch.nn.functional as F
 from torch import Tensor
 
 
-@torch.jit.script
+# @torch.jit.script
 def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
     Sample actions from logits and compute log probabilities and entropy.

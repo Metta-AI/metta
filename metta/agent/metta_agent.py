@@ -231,7 +231,11 @@ class MettaAgent(nn.Module):
         # Vectorized addition
         action_logit_index = action_type_numbers + cumulative_sum + action_params
 
-        return action_logit_index.reshape(-1, 1)
+        return action_logit_index.view(-1) #.reshape(-1, 1)
+    
+    def reset_noise(self):
+        self.components["_action_"].reset_noise()
+        self.components["actor_1"].reset_noise()
 
     def _convert_logit_index_to_action(self, action_logit_index, td):
         """Convert logit indices back to action pairs using tensor indexing"""
