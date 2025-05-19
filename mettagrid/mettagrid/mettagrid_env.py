@@ -57,19 +57,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def _reset_env(self):
         mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
-
         self._map_labels = mettagrid_config.map_labels()
-
         config_dict, env_map = mettagrid_config.to_c_args()
         self._c_env = MettaGrid(config_dict, env_map)
+        
+        # Disable reward sharing if diversity bonus is enabled
+        if self._env_cfg.game.diversity_bonus.enabled:
+            self._c_env.set_reward_sharing_enabled(False)
+            
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
-
-        env = self._grid_env
-
-        self._env = env
-        # self._env = RewardTracker(self._env)
-        # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
+        self._env = self._grid_env
 
     def reset(self, seed=None, options=None):
         self._env_cfg = self._get_new_env_cfg()

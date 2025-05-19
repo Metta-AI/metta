@@ -432,25 +432,27 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
     group_rewards_view(i) = 0;
   }
 
-  // Handle group rewards
-  bool share_rewards = false;
-  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    if (rewards_view(agent_idx) != 0) {
-      share_rewards = true;
-      auto& agent = _agents[agent_idx];
-      unsigned int group_id = agent->group;
-      float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
-      rewards_view(agent_idx) -= group_reward;
-      group_rewards_view(group_id) += group_reward / _group_sizes[group_id];
-    }
-  }
-
-  if (share_rewards) {
+  // Handle group rewards only if reward sharing is enabled
+  if (_reward_sharing_enabled) {
+    bool share_rewards = false;
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-      auto& agent = _agents[agent_idx];
-      unsigned int group_id = agent->group;
-      float group_reward = group_rewards_view(group_id);
-      rewards_view(agent_idx) += group_reward;
+      if (rewards_view(agent_idx) != 0) {
+        share_rewards = true;
+        auto& agent = _agents[agent_idx];
+        unsigned int group_id = agent->group;
+        float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
+        rewards_view(agent_idx) -= group_reward;
+        group_rewards_view(group_id) += group_reward / _group_sizes[group_id];
+      }
+    }
+
+    if (share_rewards) {
+      for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+        auto& agent = _agents[agent_idx];
+        unsigned int group_id = agent->group;
+        float group_reward = group_rewards_view(group_id);
+        rewards_view(agent_idx) += group_reward;
+      }
     }
   }
 

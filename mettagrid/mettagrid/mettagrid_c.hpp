@@ -57,6 +57,8 @@ public:
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
 
+  void set_reward_sharing_enabled(bool enabled) { _reward_sharing_enabled = enabled; }
+
 private:
   // Member variables
   py::dict _cfg;
@@ -97,6 +99,8 @@ private:
   std::vector<std::string> _grid_features;
 
   std::vector<bool> _action_success;
+
+  bool _reward_sharing_enabled = true;  // Default to true for backward compatibility
 
   void init_action_handlers();
   void add_agent(Agent* agent);
