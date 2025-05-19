@@ -9,8 +9,10 @@ defaults:
 
     #policy_uri: puffer://puffer_checkpoints/metta-example/model_019074.pt
 policy_uri: puffer://puffer_checkpoints/metta-wombo/model_019074.pt
-policy_class: metta.agent.external.lstm_transformer.Recurrent
 npc_policy_uri: null
+
+agent:
+  policy_class: metta.agent.external.lstm_transformer.Recurrent
 
 trainer:
   checkpoint_interval: 10

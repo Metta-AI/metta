@@ -10,7 +10,7 @@ import pufferlib.pytorch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange 
+from einops import rearrange
 from pufferlib.cleanrl import sample_logits
 from torch import nn
 from torch.nn import functional as F
