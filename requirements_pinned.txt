@@ -9,7 +9,7 @@ hydra-core==1.4.0dev1
 imageio==2.37.0
 jmespath==1.0.1
 matplotlib==3.10.3
-numpy==2.2.5
+numpy==2.2.6
 omegaconf==2.4.0.dev3
 pandas==2.2.3
 pettingzoo==1.25.0
