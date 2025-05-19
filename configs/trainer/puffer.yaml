@@ -9,7 +9,7 @@ use_e3b: false
 
 total_timesteps: 50_000_000_000
 
-clip_coef: 0.1
+clip_coef: 0.17341499774391853
 ent_coef: 0.0021
 gae_lambda: 0.916
 gamma: 0.977
@@ -22,16 +22,21 @@ gamma: 0.977
 #   learning_rate: 0.000238167
 
 optimizer:
-  type: adam
-  beta1: 0.9
-  beta2: 0.999
-  eps: 1e-12
+  type: muon
+  beta1: 0.862440463915262
+  beta2: 0.9995722874745067
+  eps: 9.852709528951554e-13
   learning_rate: 0.0004573146765703167
+
+prio_alpha: 0.8264083959224604
+prio_beta0: 0.09999999999999998
 
 lr_scheduler:
   enabled: false
 
-max_grad_norm: 0.5
+max_grad_norm: 1.4335801872034548
+max_minibatch_size: 32768
+
 vf_clip_coef: 0.1
 vf_coef: 0.44
 l2_reg_loss_coef: 0
@@ -45,14 +50,15 @@ zero_copy: true
 require_contiguous_env_ids: false
 verbose: true
 
-batch_size: 262144
+batch_size: 524288
 # minibatch_size: 32768
 minibatch_size: 16384
-bptt_horizon: 64
+bptt_horizon: auto
 update_epochs: 1
 
 cpu_offload: false
 compile: false
+# compile_fullgraph: true
 compile_mode: reduce-overhead
 profiler_interval_epochs: 10000
 

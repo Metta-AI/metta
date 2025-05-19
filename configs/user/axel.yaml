@@ -10,12 +10,22 @@
 #navigation_poisson_sparser_pretrained.r.6
 
 defaults:
+  - /hardware: macbook
   - _self_
+
+# Basic config variables
+run: axel.test_train
+data_dir: ./train_dir
+run_dir: ${data_dir}/${run}
 
 trainer:
   env: /env/mettagrid/simple
   evaluate_interval: 10
-  num_runners: 1
+  num_workers: 1
+  forward_pass_minibatch_target_size: 2
+  async_factor: 1
+  batch_size: 1024
+  minibatch_size: 1024
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
@@ -46,10 +56,16 @@ wandb:
   track: true
   checkpoint_interval: 1
 
-run_id: 3
-run: ${oc.env:USER}.local.${run_id}
+run_id: test_train
 trained_policy_uri: ${run_dir}/checkpoints
+
+# Optional: Set a fixed seed for reproducibility
+seed: 42
+
+# Hardware-specific settings (these will be merged with macbook.yaml)
+device: cpu
+vectorization: serial
+torch_deterministic: true
 
 sweep_params: "sweep/fast"
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
-seed: null
