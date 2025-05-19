@@ -187,6 +187,14 @@ class MettaAgent(nn.Module):
         Returns:
             Tuple of (action, logprob_act, entropy, value, log_sftmx_logits)
         """
+
+        # TODO - where is action coming from with shape (B, T, 2)?
+        if action is not None and len(action.shape) == 3:
+            action = action.reshape(-1, action.shape[-1])  # Reshape to (B*T, 2)
+
+        if __debug__ and action is not None:
+            assert_shape(action, ("BT", 2), "action")
+
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
 
@@ -217,6 +225,17 @@ class MettaAgent(nn.Module):
 
         if __debug__:
             assert_shape(logits, ("BT", "A"), "logits")
+            # Add validation for action_logit_index
+            if action_logit_index is not None:
+                action_space_size = logits.shape[-1]  # 'A' dimension size
+                max_index = action_logit_index.max().item()
+                min_index = action_logit_index.min().item()
+                if max_index >= action_space_size or min_index < 0:
+                    raise ValueError(
+                        f"Invalid action_logit_index: contains values outside the valid range"
+                        f" [0, {action_space_size - 1}]. "
+                        f"Found values in range [{min_index}, {max_index}]"
+                    )
 
         action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
 
@@ -231,8 +250,9 @@ class MettaAgent(nn.Module):
             action = self._convert_logit_index_to_action(action_logit_index)
 
         if __debug__:
-            assert_shape(action, ("BT",), "action")
-            assert_shape(value, ("BT",), "value")
+            assert_shape(action, ("BT", 2), "action")
+            # TODO -- why does value have this shape?
+            assert_shape(value, ("BT", 1), "value")
 
         return action, logprob_act, entropy, value, log_sftmx_logits
 
@@ -278,12 +298,12 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "action_logit_index")
 
-        actions = self.action_index_tensor[action_logit_index]
+        action = self.action_index_tensor[action_logit_index]
 
         if __debug__:
-            assert_shape(actions, ("BT", 2), "actions")
+            assert_shape(action, ("BT", 2), "actions")
 
-        return actions
+        return action
 
     def _apply_to_components(self, method_name, *args, **kwargs) -> List[torch.Tensor]:
         """

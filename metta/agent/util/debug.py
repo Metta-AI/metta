@@ -33,7 +33,10 @@ def assert_shape(tensor: torch.Tensor, expected_shape: Tuple[Union[int, str], ..
 
     # Check number of dimensions
     if len(tensor_shape) != len(expected_shape):
-        raise ValueError(f"{tensor_name} has {len(tensor_shape)} dimensions, expected {len(expected_shape)}")
+        raise ValueError(
+            f"{tensor_name} has shape {tensor_shape} with {len(tensor_shape)} dimensions."
+            f" We expected {len(expected_shape)} dimensions."
+        )
 
     # Check each dimension
     for i, (actual, expected) in enumerate(zip(tensor_shape, expected_shape, strict=False)):
