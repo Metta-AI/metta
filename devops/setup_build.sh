@@ -152,7 +152,6 @@ if command -v conda &> /dev/null; then
   fi
 fi
 
-
 # ========== REPORT Non-UV VENV ==========
 VENV_PATHS=(".venv" "venv" ".env" "env" "virtualenv" ".virtualenv")
 for venv_name in "${VENV_PATHS[@]}"; do
@@ -172,7 +171,6 @@ done
 if [ "$CLEAN" -eq 1 ]; then
   make clean
 fi
-
 
 # ========== Main Project ==========
 cd "$SCRIPT_DIR/.."
@@ -210,8 +208,6 @@ make build
 # ========== INSTALL SKYPILOT ==========
 echo -e "\nInstalling Skypilot..."
 uv tool install skypilot --from 'skypilot[aws,vast,lambda]'
-
-
 
 if [ "$CLEAN" -eq 1 ]; then
   PYTHON="uv run -- python"
