@@ -27,6 +27,7 @@ optimizer:
   beta2: 0.9995722874745067
   eps: 9.852709528951554e-13
   learning_rate: 0.0004573146765703167
+  caution: true
 
 prio_alpha: 0.8264083959224604
 prio_beta0: 0.09999999999999998
@@ -53,7 +54,7 @@ verbose: true
 batch_size: 524288
 # minibatch_size: 32768
 minibatch_size: 16384
-bptt_horizon: auto
+bptt_horizon: 8
 update_epochs: 1
 
 cpu_offload: false

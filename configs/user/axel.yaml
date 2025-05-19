@@ -11,16 +11,19 @@
 
 defaults:
   - /hardware: macbook
+  - /trainer/puffer
   - _self_
 
 # Basic config variables
 run: axel.test_train
 data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
+caution: false
 
 trainer:
   env: /env/mettagrid/simple
-  evaluate_interval: 10
+  checkpoint_interval: 10
+  evaluate_interval: 20
   num_workers: 1
   forward_pass_minibatch_target_size: 2
   async_factor: 1
@@ -53,8 +56,8 @@ policy_uri: wandb://run/b.daphne.terrain_prioritized_styles_pretrained_r:v1
 
 wandb:
   enabled: true
-  track: true
-  checkpoint_interval: 1
+  # track: true 
+  # checkpoint_interval: 1
 
 run_id: test_train
 trained_policy_uri: ${run_dir}/checkpoints

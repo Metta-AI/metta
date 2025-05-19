@@ -145,12 +145,22 @@ class PufferTrainer:
             "muon",
         ), f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
         opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
-        self.optimizer = opt_cls(
-            self.policy.parameters(),
-            lr=self.trainer_cfg.optimizer.learning_rate,
-            betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
-            eps=self.trainer_cfg.optimizer.eps,
-        )
+        optimizer_kwargs = {
+            "lr": self.trainer_cfg.optimizer.learning_rate,
+            "betas": (self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
+            "eps": self.trainer_cfg.optimizer.eps,
+            "foreach": True,  # Ensure foreach is set to True
+        }
+        if self.trainer_cfg.optimizer.type != "adam":
+            optimizer_kwargs["caution"] = bool(self.trainer_cfg.optimizer.caution)
+
+        self.optimizer = opt_cls(self.policy.parameters(), **optimizer_kwargs)
+
+        # Set caution in parameter groups for ForeachMuon
+        if self.trainer_cfg.optimizer.type != "adam":
+            for group in self.optimizer.param_groups:
+                group["caution"] = bool(self.trainer_cfg.optimizer.caution)
+                group["foreach"] = True  # Ensure foreach is set to True
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
