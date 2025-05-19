@@ -10,6 +10,7 @@ import boto3
 from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
 from metta.util.git import (
     get_branch_commit,
+    get_commit_message,
     get_current_branch,
     get_current_commit,
     has_unstaged_changes,
@@ -147,6 +148,7 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
 
     # Get the git reference
     git_ref = args.git_commit if args.git_commit else args.git_branch
+    commit_message = get_commit_message(args.git_commit) if args.git_commit else None
 
     # Display job details
     print(f"\n{divider}")
@@ -163,6 +165,8 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
     print(f"vCPUs per GPU: {args.gpu_cpus}")
     print(f"RAM per Node: {args.node_ram_gb} GB")
     print(f"Git Reference: {git_ref}")
+    if commit_message:
+        print(f"Commit Message: {yellow(commit_message.split('\n')[0])}")
     print(f"{'-' * 40}")
     print(f"Command: {args.cmd}")
     if task_args:
