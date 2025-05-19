@@ -15,7 +15,7 @@ using ObsType = uint8_t;
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.
 struct alignas(1) ObservationToken {
-  uint8_t prefix;
+  uint8_t location;
   uint8_t feature_id;
   uint8_t value;
 };
