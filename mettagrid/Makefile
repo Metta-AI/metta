@@ -1,68 +1,99 @@
-# Makefile for code formatting, linting, and testing 
-.PHONY: help format check-tools install-tools test benchmark clean check-test-tools install-test-tools check-bench-tools install-bench-tools build build-clean all build-for-ci
-
 # Default target when just running 'make'
+.PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  build             - Build mettagrid using the rebuild script"
-	@echo "  build-clean       - Build mettagrid with clean option"
-	@echo "  build-for-ci      - Build all source, test, and benchmark files without running tests (for CI)"
-	@echo "  format            - Format C++/C files"
-	@echo "  check-tools       - Check if required formatting tools are installed"
-	@echo "  install-tools     - Install required formatting tools (macOS only)"
-	@echo "  test              - Run all unit tests"
-	@echo "  check-test-tools  - Check if required testing tools are installed"
-	@echo "  install-test-tools - Install required testing tools"
-	@echo "  benchmark         - Run all benchmarks"
-	@echo "  check-bench-tools - Check if required benchmark tools are installed"
-	@echo "  install-bench-tools - Install required benchmark tools"
-	@echo "  clean             - Clean build and test files"
-	@echo "  all               - Run format and test"
+	@echo "  install-dependencies - Install all Python and C++ build dependencies"
+	@echo "  check-dependencies   - Verify system is ready to build"
+	@echo "  build                - Build mettagrid using setup-tools"
+	@echo "  build-tests          - Build all test files"
+	@echo "  build-benchmarks     - Build all benchmark files"
+	@echo "  format               - Format C++/C files"
+	@echo "  test                 - Run all unit tests"
+	@echo "  benchmark            - Run all benchmarks"
+	@echo "  clean                - Clean build and test files"
+	@echo "  all                  - Run format and test"
+	@echo ""
+	@echo "If build fails, try: make check-dependencies"
+
+# Use UV venv at repo root
+REPO_ROOT := $(realpath ..)
+PYTHON_BIN := $(REPO_ROOT)/.venv/bin/python
+
+PROJECT_ROOT := $(REPO_ROOT)/mettagrid
 
 # Directories
-SRC_DIR = mettagrid
-THIRD_PARTY_DIR = third_party
-TEST_DIR = tests
-BENCH_DIR = benchmarks
-BUILD_DIR = build
+SRC_DIR = $(PROJECT_ROOT)/mettagrid
+THIRD_PARTY_DIR = $(PROJECT_ROOT)/third_party
+TEST_DIR = $(PROJECT_ROOT)/tests
+BENCH_DIR = $(PROJECT_ROOT)/benchmarks
+BUILD_DIR = $(PROJECT_ROOT)/build
 BUILD_SRC_DIR = $(BUILD_DIR)/mettagrid
 BUILD_TEST_DIR = $(BUILD_DIR)/tests
 BUILD_BENCH_DIR = $(BUILD_DIR)/benchmarks
 
-DEVOPS_SCRIPTS_DIR = ../devops
+DEPS_INSTALL_DIR := $(BUILD_DIR)/deps
+GTEST_DIR := $(DEPS_INSTALL_DIR)/gtest
+GBENCHMARK_DIR := $(DEPS_INSTALL_DIR)/gbenchmark
+
+# Detect platform
+UNAME_S := $(shell uname)
+
+ifeq ($(UNAME_S), Darwin)
+	HOMEBREW_PREFIX := $(shell brew --prefix)
+
+	# Use Homebrew googletest if available
+	ifneq ($(wildcard $(HOMEBREW_PREFIX)/opt/googletest/include/gtest/gtest.h),)
+		GTEST_DIR := $(HOMEBREW_PREFIX)/opt/googletest
+	endif
+
+	# Use Homebrew google-benchmark if available
+	ifneq ($(wildcard $(HOMEBREW_PREFIX)/opt/google-benchmark/include/benchmark/benchmark.h),)
+		GBENCHMARK_DIR := $(HOMEBREW_PREFIX)/opt/google-benchmark
+	endif
+
+endif
+
+FIND_EXECUTABLE := $(if $(filter Darwin,$(UNAME_S)),-perm -111,-executable)
+
+GTEST_LIB_DIR := $(GTEST_DIR)/lib
+ifeq ($(UNAME_S), Darwin)
+  FORCE_GTEST_MAIN := $(shell GTEST_LIB_DIR=$(GTEST_LIB_DIR) ; echo -Wl,-force_load,$${GTEST_LIB_DIR}/libgtest_main.a)
+else
+  FORCE_GTEST_MAIN := $(shell GTEST_LIB_DIR=$(GTEST_LIB_DIR) ; echo -Wl,--whole-archive $${GTEST_LIB_DIR}/libgtest_main.a -Wl,--no-whole-archive)
+endif
 
 # Compiler settings
 CXX = g++
 
-# Get the project root directory (where the Makefile is located)
-PROJECT_ROOT := $(shell pwd)
-
-# Get Python paths directly using UV instead of virtual environment
-PYTHON_VERSION := $(shell python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "3.11")
-PYTHON_INCLUDE := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_path('include'))" 2>/dev/null)
-PYTHON_STDLIB := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_path('stdlib'))" 2>/dev/null)
+# Get Python paths from the UV venv
+PYTHON_VERSION := $(shell $(PYTHON_BIN) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+PYTHON_INCLUDE := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_path('include'))")
+PYTHON_STDLIB := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_path('stdlib'))")
 PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
-PYTHON_SITE_PACKAGES := $(shell uv run --active python -c "import site; print(site.getsitepackages()[0])" 2>/dev/null)
-PYTHON_LIB_DIR := $(shell uv run --active python -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))" 2>/dev/null)
-PYBIND11_INCLUDES := $(shell uv run --active python -m pybind11 --includes 2>/dev/null)
-PYBIND11_INCLUDE := $(shell echo "$(PYBIND11_INCLUDES)" | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
-UV_ROOT := $(shell dirname $(PYTHON_STDLIB))
-
-# Print the paths for debugging
-$(info UV_ROOT: $(UV_ROOT))
-$(info PYTHON_STDLIB: $(PYTHON_STDLIB))
-$(info PYTHON_INCLUDE: $(PYTHON_INCLUDE))
-$(info PYTHON_SITE_PACKAGES: $(PYTHON_SITE_PACKAGES))
-$(info PYTHON_LIB_DIR: $(PYTHON_LIB_DIR))
-$(info PYBIND11_INCLUDE: $(PYBIND11_INCLUDE))
+PYTHON_SITE_PACKAGES := $(shell $(PYTHON_BIN) -c "import site; print(site.getsitepackages()[0])")
+PYTHON_LIB_DIR := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
+PYTHON_HOME := $(shell $(PYTHON_BIN) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))")
+PYTHON_CFLAGS := $(shell $(PYTHON_BIN) -m pybind11 --includes)
 
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 
-# Define CXXFLAGS with all the necessary includes
-CXXFLAGS = -std=c++23 -Wall -g -I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) -I$(PYTHON_INCLUDE) -I$(PYBIND11_INCLUDE) $(NUMPY_INCLUDE)
-# Add Python path definitions to CXXFLAGS
-CXXFLAGS += -DPYTHON_HOME=\"$(UV_ROOT)\" -DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
+CXXFLAGS = -std=c++20 -Wall -g \
+	-I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) \
+	-I$(PYTHON_INCLUDE) \
+	-DPYTHON_HOME=\"$(PYTHON_HOME)\" \
+	-DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
+
+PYBIND11_INCLUDE = $(shell $(PYTHON_BIN) -m pybind11 --includes 2>/dev/null | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
+NUMPY_INCLUDE = $(shell $(PYTHON_BIN) -c "import numpy; print(numpy.get_include())" 2>/dev/null)
+
+CXXFLAGS += -I$(PYBIND11_INCLUDE)
+CXXFLAGS += -I$(NUMPY_INCLUDE)
+
+export LD_LIBRARY_PATH := $(PYTHON_LIB_DIR):$(LD_LIBRARY_PATH)
+export DYLD_LIBRARY_PATH := $(PYTHON_LIB_DIR):$(DYLD_LIBRARY_PATH)
+export PYTHONHOME := $(PYTHON_HOME)
+export PYTHONPATH := $(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)
 
 # Add RPATH settings for macOS
 ifeq ($(shell uname), Darwin)
@@ -71,76 +102,56 @@ else
     RPATH_FLAGS =
 endif
 
-# Google Test settings - with detection for different install locations
-GTEST_INCLUDE = $(shell pkg-config --cflags gtest 2>/dev/null || echo "-I/opt/homebrew/Cellar/googletest/1.17.0/include")
-GTEST_LIBS = $(shell pkg-config --libs gtest_main 2>/dev/null || echo "-L/opt/homebrew/Cellar/googletest/1.17.0/lib -lgtest -lgtest_main -pthread")
+CXXFLAGS += -I$(GTEST_DIR)/include
+CXXFLAGS += -I$(GBENCHMARK_DIR)/include
 
-# Add gtest includes to CXXFLAGS
-CXXFLAGS += $(GTEST_INCLUDE)
+LDFLAGS += -L$(GBENCHMARK_DIR)/lib -lbenchmark_main -lbenchmark \
+           -L$(GTEST_DIR)/lib -lgtest -lgtest_main
 
-# Google Benchmark settings
-BENCHMARK_INCLUDE = $(shell pkg-config --cflags benchmark 2>/dev/null || echo "-I/usr/local/include -I/usr/include")
-BENCHMARK_LIBS = $(shell pkg-config --libs benchmark 2>/dev/null || echo "-lbenchmark -lpthread")
+ifeq ($(shell uname), Darwin)
+    CXXFLAGS += -I/opt/homebrew/include
+    LDFLAGS  += -L/opt/homebrew/lib
+endif
 
-# Add benchmark includes to CXXFLAGS when needed
-BENCH_CXXFLAGS = $(CXXFLAGS) $(BENCHMARK_INCLUDE)
+CXXFLAGS_METTAGRID = $(CXXFLAGS) -fvisibility=hidden -O3
 
 # Source files for mettagrid core library
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
 SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 
-#-----------------------
-# CI Build Target
-#-----------------------
+$(BUILD_TEST_DIR):
+	@mkdir -p $(BUILD_TEST_DIR)
 
-# Build all test and benchmark executables without running them (for CI environments)
-build-for-ci: $(SRC_OBJECTS) $(TEST_EXECUTABLES) $(BENCH_EXECUTABLES)
-	@echo "Built all source files, test executables, and benchmark executables"
-	@echo "Source objects: $(words $(SRC_OBJECTS))"
-	@echo "Test executables: $(words $(TEST_EXECUTABLES))"
-	@echo "Benchmark executables: $(words $(BENCH_EXECUTABLES))"
+TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
+TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
+TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
 
-#-----------------------
-# Build
-#-----------------------
+$(BUILD_BENCH_DIR):
+	@mkdir -p $(BUILD_BENCH_DIR)
 
-# Build target that calls the build_mettagrid.sh script
-build:
-	@echo "Building mettagrid..."
-	@if [ -f $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh ]; then \
-		$(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh; \
-	else \
-		echo "Error: build_mettagrid.sh script not found"; \
-		echo "Expected path: $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh"; \
+BENCH_SOURCES := $(wildcard $(BENCH_DIR)/*.cpp $(BENCH_DIR)/**/*.cpp)
+BENCH_OBJECTS := $(patsubst $(BENCH_DIR)/%.cpp,$(BUILD_BENCH_DIR)/%.o,$(BENCH_SOURCES))
+BENCH_EXECUTABLES := $(patsubst $(BUILD_BENCH_DIR)/%.o,$(BUILD_BENCH_DIR)/%,$(BENCH_OBJECTS))
+
+# Check if we're in a virtual environment
+.PHONY: check-venv
+check-venv:
+	@if [ -z "$$VIRTUAL_ENV" ]; then \
+		echo "ERROR: Not in a virtual environment!"; \
+		echo "Please activate the virtual environment first with:"; \
+		echo "  source .venv/bin/activate"; \
 		exit 1; \
-	fi
-
-# Build with clean option
-build-clean:
-	@echo "Building mettagrid with clean option..."
-	@if [ -f $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh ]; then \
-		$(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh --clean; \
 	else \
-		echo "Error: build_mettagrid.sh script not found"; \
-		echo "Expected path: $(DEVOPS_SCRIPTS_DIR)/build_mettagrid.sh"; \
-		exit 1; \
+		echo "... in active virtual environment: $$VIRTUAL_ENV"; \
 	fi
 
 #-----------------------
-# Formatting
+# Install Dependencies
 #-----------------------
-
-# Check if the required formatting tools are installed
-check-tools:
-	@echo "Checking for required formatting tools..."
-	@which clang-format >/dev/null 2>&1 || \
-		{ echo "clang-format is not installed. On macOS use 'brew install clang-format'"; \
-		  echo "On Linux use 'apt-get install clang-format'"; \
-		  echo "Or run 'make install-tools' on macOS"; exit 1; }
-	@echo "All required formatting tools are installed."
 
 # Install formatting tools on macOS
-install-tools:
+.PHONY: install-format-tools
+install-format-tools:
 	@echo "Installing required formatting tools..."
 	@if [ "$(shell uname)" = "Darwin" ]; then \
 		echo "Detected macOS. Installing tools via Homebrew..."; \
@@ -150,8 +161,191 @@ install-tools:
 		echo "  - clang-format: apt-get install clang-format (Linux)"; \
 	fi
 
+# Install testing tools
+.PHONY: install-test-tools
+install-test-tools:
+	@echo "Installing GoogleTest..."
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		brew install googletest || echo "Failed to install googletest via homebrew."; \
+	else \
+		@echo "Building GoogleTest from source..."; \
+		mkdir -p $(GTEST_DIR); \
+		cd $(BUILD_DIR) && \
+		git clone --depth 1 --branch release-1.12.1 https://github.com/google/googletest.git && \
+		mkdir -p googletest/build && cd googletest/build && \
+		cmake -DCMAKE_INSTALL_PREFIX=$(abspath $(GTEST_DIR)) .. && \
+		make -j$$(nproc) && make install; \
+	fi
+
+
+# Install benchmark tools
+.PHONY: install-bench-tools
+install-bench-tools:
+	@echo "Installing Google Benchmark..."
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		brew install google-benchmark || echo "Failed to install google-benchmark via homebrew."; \
+	else \
+		@echo "Building Google Benchmark from source..."; \
+		mkdir -p $(GBENCHMARK_DIR); \
+		cd $(BUILD_DIR) && \
+		rm -rf benchmark && \
+		git clone --depth 1 https://github.com/google/benchmark.git && \
+		git clone --depth 1 https://github.com/google/googletest.git benchmark/googletest && \
+		mkdir -p benchmark/build && cd benchmark/build && \
+		cmake -DCMAKE_INSTALL_PREFIX=$(abspath $(GBENCHMARK_DIR)) \
+		      -DCMAKE_BUILD_TYPE=Release \
+		      -DBENCHMARK_ENABLE_TESTING=OFF \
+		      -DBENCHMARK_ENABLE_LTO=OFF \
+		      -DBENCHMARK_BUILD_32_BITS=OFF \
+		      .. && \
+		make -j$$(nproc) && make install; \
+	fi
+
+
+.PHONY: install-dependencies
+install-dependencies:
+	@echo "📦 Installing pybind11 and numpy using uv..."
+	@uv pip install --python $(PYTHON_BIN) pybind11 numpy
+	@echo "📦 Installing clang-format"
+	@$(MAKE) install-format-tools
+	@echo "📦 Installing googletest"
+	@$(MAKE) install-test-tools
+	@echo "📦 Installing google-benchmark"
+	@$(MAKE) install-bench-tools
+	@echo "✅ All dependencies installed."
+
+#-----------------------
+# Check Dependencies
+#-----------------------
+
+.PHONY: check-dependencies
+check-dependencies:
+	@echo "Environment Info"
+	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
+	@echo "  PYTHON               = $(PYTHON_BIN)"
+	@echo "  PYTHON_VERSION       = $(PYTHON_VERSION)"
+	@echo "  REPO_ROOT            = $(REPO_ROOT)"
+	@echo "  PROJECT_ROOT         = $(PROJECT_ROOT)"
+	@echo "  PYTHON_BIN           = $(PYTHON_BIN)"
+	@echo "  SRC_DIR              = $(SRC_DIR)"
+	@echo "  BENCH_DIR            = $(BENCH_DIR)"
+	@echo "  GTEST_DIR            = $(GTEST_DIR)"
+	@echo "  GBENCHMARK_DIR       = $(GBENCHMARK_DIR)"
+	@echo ""
+	@echo "📦 Python Includes"
+	@echo "  PYTHON_INCLUDE       = $(PYTHON_INCLUDE)"
+	@echo "  PYTHON_STDLIB        = $(PYTHON_STDLIB)"
+	@echo "  PYTHON_DYNLOAD       = $(PYTHON_DYNLOAD)"
+	@echo "  PYTHON_SITE_PACKAGES = $(PYTHON_SITE_PACKAGES)"
+	@echo "  PYTHON_HOME          = $(PYTHON_HOME)"
+	@echo "  PYTHON_CFLAGS        = $(PYTHON_CFLAGS)"
+	@echo ""
+	@echo "🧱 Build dependencies"
+	@if [ -n "$(PYBIND11_INCLUDE)" ]; then \
+		echo "  PYBIND11_INCLUDE     = $(PYBIND11_INCLUDE)"; \
+	else \
+		echo "  PYBIND11_INCLUDE     = ❌ not found -- run \"make install-dependencies\""; \
+		exit 1; \
+	fi
+
+	@echo "🔍 Python import test for numpy..."
+	@$(PYTHON_BIN) -c "import numpy; print('✅ numpy imported successfully')" || \
+		{ echo "❌ Failed to import numpy — possibly missing .so or metadata files"; exit 1; }
+
+	@if [ -n "$(NUMPY_INCLUDE)" ]; then \
+		echo "  NUMPY_INCLUDE        = $(NUMPY_INCLUDE)"; \
+	else \
+		echo "  NUMPY_INCLUDE        = ❌ not found -- run \"make install-dependencies\""; \
+		exit 1; \
+	fi
+
+	@echo "Checking for Google Test headers..."
+	@if [ ! -f "$(GTEST_DIR)/include/gtest/gtest.h" ]; then \
+		if [ -f "$$(brew --prefix)/opt/googletest/include/gtest/gtest.h" ]; then \
+			echo "✅ Found gtest headers in Homebrew path"; \
+		else \
+			echo "❌ gtest/gtest.h not found at $(GTEST_DIR)/include/gtest/gtest.h"; \
+			echo "   Run 'make install-test-tools' or check Homebrew setup."; \
+			exit 1; \
+		fi; \
+	else \
+		echo "✅ Found gtest headers in $(GTEST_DIR)/include"; \
+	fi
+
+	@echo "Checking for Google Benchmark headers..."
+	@if [ ! -f "$(GBENCHMARK_DIR)/include/benchmark/benchmark.h" ]; then \
+		if [ -f "$$(brew --prefix)/opt/benchmark/include/benchmark/benchmark.h" ]; then \
+			echo "✅ Found benchmark headers in Homebrew path"; \
+		else \
+			echo "❌ benchmark/benchmark.h not found at $(GBENCHMARK_DIR)/include/benchmark/benchmark.h"; \
+			echo "   Run 'make install-bench-tools' or check Homebrew setup."; \
+			exit 1; \
+		fi; \
+	else \
+		echo "✅ Found benchmark headers in $(GBENCHMARK_DIR)/include"; \
+	fi
+
+
+	@echo "🔧 Tooling Checks"
+	@which g++ >/dev/null 2>&1 || { echo "❌ g++ not found"; exit 1; }
+	@which cmake >/dev/null 2>&1 || { echo "❌ cmake not found"; exit 1; }
+	@which uv >/dev/null 2>&1 || { echo "❌ uv not found"; exit 1; }
+	@echo "  ✅ Found g++"
+	@echo "  ✅ Found cmake"
+	@echo "  ✅ Found uv"
+	@echo ""
+	@echo "⚙️ Compiler"
+	@echo "  CXX                  = $(CXX)"
+	@echo "  CXXFLAGS             = $(CXXFLAGS)" 
+	@echo "  CXXFLAGS_METTAGRID   = $(CXXFLAGS_METTAGRID)"
+	@echo ""
+	@echo "📚 Linking"
+	@echo "  PYTHON_LIBS          = $(PYTHON_LIBS)"
+	@echo "  LDFLAGS	          = $(LDFLAGS)"
+	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
+
+#-----------------------
+# Build Targets
+#-----------------------
+
+# Build target that calls the setup.py script with UV venv activated
+.PHONY: build
+build: check-dependencies
+	@echo "🔨 Building mettagrid using setup-tools..."
+	@uv pip install -e .
+	@echo "✅ Build completed successfully."
+
+# Build just the test files
+.PHONY: build-tests
+build-tests: $(TEST_EXECUTABLES)
+	@echo "🧪 Built $(words $(TEST_EXECUTABLES)) test executable(s):"
+	@find $(BUILD_TEST_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
+	@echo "✅ Finished building test executables"
+
+# Build just the benchmark files
+.PHONY: build-benchmarks
+build-benchmarks: $(BENCH_EXECUTABLES)
+	@echo "📈 Built $(words $(BENCH_EXECUTABLES)) benchmark executable(s):"
+	@find $(BUILD_BENCH_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
+	@echo "✅ Finished building benchmark executables"
+
+#-----------------------
+# Formatting
+#-----------------------
+
+# Check if the required formatting tools are installed
+.PHONY: check-format-tools
+check-format-tools:
+	@echo "Checking for required formatting tools..."
+	@which clang-format >/dev/null 2>&1 || \
+		{ echo "clang-format is not installed. On macOS use 'brew install clang-format'"; \
+		  echo "On Linux use 'apt-get install clang-format'"; \
+		  echo "Or run 'make install-format-tools' on macOS"; exit 1; }
+	@echo "All required formatting tools are installed."
+
 # Format only C/C++ code and skip Cython files entirely
-format: check-tools
+.PHONY: format
+format: check-format-tools
 	@echo "Formatting C/C++ code only (skipping all Cython files)..."
 	@find . -type f \( -name "*.c" -o -name "*.h" -o -name "*.cpp" -o -name "*.hpp" \) \
 		-not -path "*/\.*" -not -path "*/build/*" -not -path "*/venv/*" -not -path "*/dist/*" \
@@ -171,7 +365,7 @@ $(BUILD_SRC_DIR):
 # Compile individual source files
 $(BUILD_SRC_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_SRC_DIR)
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS_METTAGRID) -c $< -o $@
 
 # Build a static library from all source files
 $(BUILD_DIR)/libmettagrid.a: $(SRC_OBJECTS)
@@ -182,167 +376,161 @@ $(BUILD_DIR)/libmettagrid.a: $(SRC_OBJECTS)
 # Testing
 #-----------------------
 
-# Check if testing tools are installed
-check-test-tools:
-	@echo "Checking for required testing tools..."
-	@which g++ >/dev/null 2>&1 || \
-		{ echo "g++ compiler not found. On macOS use 'brew install gcc'"; \
-		  echo "On Linux use 'apt-get install g++'"; exit 1; }
-	@echo "Checking for Google Test library..."
-	@(ldconfig -p 2>/dev/null | grep -q libgtest.so) || \
-		(test -f /usr/local/lib/libgtest.a) || \
-		(test -f /usr/local/lib/libgtest.dylib) || \
-		(test -f /opt/homebrew/Cellar/googletest/1.17.0/lib/libgtest.a) || \
-		(test -f /opt/homebrew/Cellar/googletest/1.17.0/lib/libgtest.dylib) || \
-		(pkg-config --exists gtest 2>/dev/null) || \
-		{ echo "Google Test library not found. Run 'make install-test-tools' to install."; exit 1; }
-	@echo "All required testing tools are installed."
-
-# Install testing tools
-install-test-tools:
-	@echo "Installing required testing tools..."
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		echo "Detected macOS. Installing tools via Homebrew..."; \
-		brew install googletest || echo "Failed to install googletest. Please install manually."; \
-	elif [ -f /etc/debian_version ]; then \
-		echo "Detected Debian/Ubuntu. Installing tools via apt..."; \
-		sudo apt-get update && sudo apt-get install -y libgtest-dev cmake; \
-		cd /usr/src/gtest && sudo cmake CMakeLists.txt && sudo make && \
-		sudo cp lib/*.a /usr/lib || \
-		echo "Failed to build googletest. Please install manually."; \
-	else \
-		echo "Unsupported OS. Please install Google Test manually:"; \
-		echo "  - See https://github.com/google/googletest for instructions."; \
-	fi
-
-# Create build directory for tests
-$(BUILD_TEST_DIR):
-	@mkdir -p $(BUILD_TEST_DIR)
-
-# Find all test source files
-TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
-TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
-TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
-
 # Compile individual test files
 $(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Link test executables with the mettagrid library
 $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
-	$(CXX) $^ -o $@ $(GTEST_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
+	@echo "[LINK] $(CXX) $^ $(FORCE_GTEST_MAIN) -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS)"
+	$(CXX) $^ $(FORCE_GTEST_MAIN) -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS)
 
-# Run all tests - modified to use quotes around the executable path
-test: check-test-tools $(SRC_OBJECTS) $(TEST_EXECUTABLES)
-	@echo "Running all tests with Python environment..."
+# Run C++ tests
+
+.PHONY: debug-test-vars
+debug-test-vars:
+	@echo ""
+	@echo "TEST_DIR = $(TEST_DIR)"
+	@echo "BUILD_TEST_DIR = $(BUILD_TEST_DIR)"
+	@echo "TEST_SOURCES = $(TEST_SOURCES)"
+	@echo "TEST_OBJECTS = $(TEST_OBJECTS)"
+	@echo "TEST_EXECUTABLES = $(TEST_EXECUTABLES)"
+	@echo ""
+
+.PHONY: test
+test: build build-tests debug-test-vars
+	@echo "Running all C++ tests..."
+	@[ -z "$(TEST_EXECUTABLES)" ] && echo "WARNING: No test executables found!" || true
 	@for f in $(TEST_EXECUTABLES); do \
-		echo "Running $$f"; \
-		PYTHONHOME="$(UV_ROOT)" \
-		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
-		"$$f" --gtest_color=yes || exit 1; \
+		if [ -f "$$f" ]; then \
+			echo "Running $$f"; \
+			"$$f" --gtest_color=yes || exit 1; \
+		else \
+			echo "ERROR: Test executable $$f not found!"; \
+			exit 1; \
+		fi; \
 	done
 
-# Test a specific test file - modified to use quotes
-test-%: check-test-tools $(BUILD_TEST_DIR)/%
+# Test a specific test file
+.PHONY: test-%
+test-%: build $(BUILD_TEST_DIR)/%
 	@echo "Running test $*..."
-	PYTHONHOME="$(UV_ROOT)" \
-	PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-	LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-	DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
-	"$(BUILD_TEST_DIR)/$*" --gtest_color=yes
+	@if [ -f "$(BUILD_TEST_DIR)/$*" ]; then \
+		"$(BUILD_TEST_DIR)/$*" --gtest_color=yes; \
+	else \
+		echo "ERROR: Test executable $(BUILD_TEST_DIR)/$* not found!"; \
+		exit 1; \
+	fi
+
+.PHONY: test-python
+test-python: build check-venv
+	@echo "Running python tests with coverage"
+	pytest --cov=metta --cov-report=term-missing
 
 #-----------------------
 # Benchmarking
 #-----------------------
 
-# Check if benchmark tools are installed
-check-bench-tools:
-	@echo "Checking for required benchmark tools..."
-	@which g++ >/dev/null 2>&1 || \
-		{ echo "g++ compiler not found. On macOS use 'brew install gcc'"; \
-		  echo "On Linux use 'apt-get install g++'"; exit 1; }
-	@echo "Checking for Google Benchmark library..."
-	@(ldconfig -p 2>/dev/null | grep -q libbenchmark.so) || \
-		(test -f /usr/local/lib/libbenchmark.a) || \
-		(test -f /usr/local/lib/libbenchmark.dylib) || \
-		(pkg-config --exists benchmark 2>/dev/null) || \
-		{ echo "Google Benchmark library not found. Run 'make install-bench-tools' to install."; exit 1; }
-	@echo "All required benchmark tools are installed."
-
-# Install benchmark tools
-install-bench-tools:
-	@echo "Installing required benchmark tools..."
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		echo "Detected macOS. Installing tools via Homebrew..."; \
-		brew install google-benchmark || echo "Failed to install google-benchmark. Please install manually."; \
-	elif [ -f /etc/debian_version ]; then \
-		echo "Detected Debian/Ubuntu. Installing tools via apt..."; \
-		sudo apt-get update && sudo apt-get install -y libbenchmark-dev; \
-	else \
-		echo "Unsupported OS. Please install Google Benchmark manually:"; \
-		echo "  - See https://github.com/google/benchmark for instructions."; \
-	fi
-
-# Create build directory for benchmarks
-$(BUILD_BENCH_DIR):
-	@mkdir -p $(BUILD_BENCH_DIR)
-
-# Find all benchmark source files
-BENCH_SOURCES := $(wildcard $(BENCH_DIR)/*.cpp $(BENCH_DIR)/**/*.cpp)
-BENCH_OBJECTS := $(patsubst $(BENCH_DIR)/%.cpp,$(BUILD_BENCH_DIR)/%.o,$(BENCH_SOURCES))
-BENCH_EXECUTABLES := $(patsubst $(BUILD_BENCH_DIR)/%.o,$(BUILD_BENCH_DIR)/%,$(BENCH_OBJECTS))
-
 # Compile individual benchmark files
 $(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
 	@mkdir -p $(dir $@)
-	$(CXX) $(BENCH_CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Link benchmark executables with the mettagrid library
 $(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
-	$(CXX) $^ -o $@ $(BENCHMARK_LIBS) $(PYTHON_LIBS) $(PYBIND11_LIBS) $(RPATH_FLAGS)
+	$(CXX) $^ -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS) $(PYBIND11_LIBS)
 
-# Run all benchmarks - modified to use quotes
-benchmark: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
+# Run all benchmarks
+.PHONY: debug-bench-vars
+debug-bench-vars:
+	@echo ""
+	@echo "BENCH_DIR = $(BENCH_DIR)"
+	@echo "BUILD_BENCH_DIR = $(BUILD_BENCH_DIR)"
+	@echo "BENCH_SOURCES = $(BENCH_SOURCES)"
+	@echo "BENCH_OBJECTS = $(BENCH_OBJECTS)"
+	@echo "BENCH_EXECUTABLES = $(BENCH_EXECUTABLES)"
+	@echo ""
+
+.PHONY: benchmark
+benchmark: build build-benchmarks debug-bench-vars
 	@echo "Running all benchmarks..."
+	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
-		echo "Running $$f"; \
-		PYTHONHOME="$(UV_ROOT)" \
-		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
-		"$$f" || exit 1; \
+		if [ -f "$$f" ]; then \
+			echo "Running $$f"; \
+			"$$f" || exit 1; \
+		else \
+			echo "ERROR: Benchmark executable $$f not found!"; \
+			exit 1; \
+		fi; \
 	done
 
-# Add this new target for JSON benchmark output - modified to use quotes and better shell syntax
-bench-json: check-bench-tools $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
+
+.PHONY: bench-json
+bench-json: build build-benchmarks debug-bench-vars
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
+	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
-		echo "Running $$f with JSON output..."; \
-		PYTHONHOME="$(UV_ROOT)" \
-		PYTHONPATH="$(PYTHON_STDLIB):$(PYTHON_DYNLOAD):$(PYTHON_SITE_PACKAGES)" \
-		LD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$LD_LIBRARY_PATH" \
-		DYLD_LIBRARY_PATH="$(PYTHON_LIB_DIR):$$DYLD_LIBRARY_PATH" \
-		"$$f" --benchmark_format=json > benchmark_output/$$(basename "$$f").json || \
-		echo "Error running $$f with JSON format"; \
+		if [ -f "$$f" ]; then \
+			echo "Running $$f with JSON output..."; \
+			"$$f" --benchmark_format=json > benchmark_output/$$(basename "$$f").json || \
+			echo "Error running $$f with JSON format"; \
+		else \
+			echo "ERROR: Benchmark executable $$f not found!"; \
+			exit 1; \
+		fi; \
 	done
 	@echo "JSON outputs created in benchmark_output directory"
+
 
 #-----------------------
 # Other targets
 #-----------------------
 
-# Clean build files
+.PHONY: clean
 clean:
-	@echo "Cleaning build files..."
-	@rm -rf $(BUILD_DIR)
-	@find mettagrid -name "*.so" -type f -delete
-	@echo "Removed .so files from mettagrid directory"
+	@echo "(MettaGrid) Removing any accidental venvs (preserving UV venvs)..."
+	@bash -c '\
+		VENV_PATHS=(".venv" "venv" ".env" "env" "virtualenv" ".virtualenv"); \
+		for venv_name in "$${VENV_PATHS[@]}"; do \
+			venv_path="$$(pwd)/$$venv_name"; \
+			if [ -d "$$venv_path" ]; then \
+				if [ -f "$$venv_path/pyvenv.cfg" ] && grep -q "UV_VENV" "$$venv_path/pyvenv.cfg" 2>/dev/null; then \
+					echo "(MettaGrid) ✅ Preserving $$venv_name (UV virtual environment)"; \
+				else \
+					echo "(MettaGrid) Removing $$venv_name virtual environment..."; \
+					rm -rf "$$venv_path"; \
+					echo "(MettaGrid) ✅ Removed $$venv_name virtual environment"; \
+				fi; \
+			fi; \
+		done'
+
+	@echo "(MettaGrid) Cleaning build files..."
+	@if [ -d "$(BUILD_DIR)" ]; then \
+		rm -rf $(BUILD_DIR); \
+		echo "(MettaGrid) ✅ Removed $(BUILD_DIR)"; \
+	else \
+		echo "(MettaGrid) ✅ No build directory to clean"; \
+	fi
+
+	@echo "(MettaGrid) Cleaning .so files from mettagrid directory..."
+	@if [ -d "mettagrid" ]; then \
+		found_files=$$(find mettagrid -name "*.so" -type f | wc -l); \
+		if [ $$found_files -gt 0 ]; then \
+			find mettagrid -name "*.so" -type f -delete; \
+			echo "(MettaGrid) ✅ Removed $$found_files .so files from mettagrid"; \
+		else \
+			echo "(MettaGrid) ✅ No .so files found in mettagrid"; \
+		fi; \
+	else \
+		echo "(MettaGrid) ✅ No mettagrid directory found, skipping .so cleanup"; \
+	fi
+	
+	@echo "(MettaGrid) ✅ Clean completed successfully"
 
 # Run format and test
+.PHONY: all
 all: format test
 	@echo "All tasks completed."
