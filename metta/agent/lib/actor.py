@@ -116,6 +116,7 @@ class NoisyMettaActorSingleHead(LayerBase):
 
     def __init__(self, **cfg):
         super().__init__(**cfg)
+        self._noise_layer = True
 
     def _make_net(self):
         self.hidden = self._in_tensor_shapes[0][0]  # input_1 dim

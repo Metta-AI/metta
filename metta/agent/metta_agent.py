@@ -234,8 +234,9 @@ class MettaAgent(nn.Module):
         return action_logit_index.view(-1) #.reshape(-1, 1)
     
     def reset_noise(self):
-        self.components["_action_"].reset_noise()
-        self.components["actor_1"].reset_noise()
+        for name, component in self.components.items():
+            if hasattr(component, "reset_noise"):
+                component.reset_noise()
 
     def _convert_logit_index_to_action(self, action_logit_index, td):
         """Convert logit indices back to action pairs using tensor indexing"""

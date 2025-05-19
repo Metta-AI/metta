@@ -54,6 +54,7 @@ class MettaNoisyLinear(LayerBase):
 
     def __init__(self, **cfg):
         super().__init__(**cfg)
+        self._noise_layer = True
 
     def reset_noise(self):
         self._net.reset_noise()
