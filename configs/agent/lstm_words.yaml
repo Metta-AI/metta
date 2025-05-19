@@ -71,6 +71,9 @@ components:
     _target_: metta.agent.lib.lstm.LSTMWords
     sources:
       - name: _core_
+    initial_words_len: 500
+    gumbel_tau: 2.0
+    gumbel_hard: true
     nn_params:
       num_embeddings: 100
       embedding_dim: 128 # need a linear to map to dims different from core

@@ -123,18 +123,17 @@ class NoisyMettaActorSingleHead(LayerBase):
         self.embed_dim = self._in_tensor_shapes[1][1]  # input_2 dim (_action_embeds_)
 
         # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
-        self.W = nn.Parameter(torch.Tensor(1, self.hidden, self.embed_dim))
         self.noisy_linear = NoisyLinear(self.hidden, self.embed_dim)
-        self.bias = nn.Parameter(torch.Tensor(1))
         self._tanh = nn.Tanh()
         self._init_weights()
+        self.bias = nn.Parameter(torch.Tensor(1))
 
     def _init_weights(self):
         """Kaiming (He) initialization"""
         bound = 1 / math.sqrt(self.hidden) if self.hidden > 0 else 0
-        nn.init.uniform_(self.W, -bound, bound)
-        if self.bias is not None:
-            nn.init.uniform_(self.bias, -bound, bound)
+        nn.init.uniform_(self.noisy_linear.weight, -bound, bound)
+        if self.noisy_linear.bias is not None:
+            nn.init.uniform_(self.noisy_linear.bias, -bound, bound)
 
     def reset_noise(self):
         self.noisy_linear.reset_noise()
