@@ -158,18 +158,21 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.clipboard.writeText(asciiPreviewTextarea.value)
             .then(() => {
                 copyStatusMessage.textContent = 'Copied!';
+                copyStatusMessage.style.color = '#28a745'; // Ensure default color
+                copyStatusMessage.style.visibility = 'visible';
                 setTimeout(() => {
-                    copyStatusMessage.textContent = '';
-                }, 2000); // Clear message after 2 seconds
+                    copyStatusMessage.style.visibility = 'hidden';
+                }, 2000); // Hide message after 2 seconds
             })
             .catch(err => {
                 copyStatusMessage.textContent = 'Failed to copy!';
                 copyStatusMessage.style.color = 'red'; // Indicate error
+                copyStatusMessage.style.visibility = 'visible';
                 console.error('Failed to copy ASCII map: ', err);
                 setTimeout(() => {
-                    copyStatusMessage.textContent = '';
-                    copyStatusMessage.style.color = ''; // Reset color
-                }, 3000); // Clear error message after 3 seconds
+                    copyStatusMessage.style.visibility = 'hidden';
+                    // copyStatusMessage.style.color = ''; // Color will be reset on next success
+                }, 3000); // Hide error message after 3 seconds
             });
     });
 

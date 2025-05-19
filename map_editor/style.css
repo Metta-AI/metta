@@ -78,6 +78,8 @@ body {
 }
 
 #copyAsciiBtn {
+    display: block; /* Make button block-level */
+    margin: 10px auto; /* Center block button and add some top/bottom margin */
     padding: 8px 15px;
     border: none;
     border-radius: 4px;
@@ -92,7 +94,11 @@ body {
 }
 
 .copy-status {
-    margin-left: 10px;
+    display: block; /* Make status message block-level */
+    text-align: center; /* Center the text within the status message block */
+    min-height: 1em;       /* Approximate height of one line of text */
+    /* margin-left: 10px; Removed, no longer needed */
     font-size: 0.9em;
     color: #28a745; /* Same green as the button */
+    visibility: hidden; /* Hidden by default, but occupies space */
 }
