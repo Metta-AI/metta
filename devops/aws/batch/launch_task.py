@@ -166,7 +166,8 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
     print(f"RAM per Node: {args.node_ram_gb} GB")
     print(f"Git Reference: {git_ref}")
     if commit_message:
-        print(f"Commit Message: {yellow(commit_message.split('\n')[0])}")
+        first_line = commit_message.split("\n")[0]
+        print(f"Commit Message: {yellow(first_line)}")
     print(f"{'-' * 40}")
     print(f"Command: {args.cmd}")
     if task_args:
