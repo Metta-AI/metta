@@ -234,9 +234,9 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
           uint8_t location = obs_r << 4 | obs_c;
           size_t obj_tokens_written = 0;
-          ObservationTokens agent_obs_tokens(
-              reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0)),
-              observation_view.shape(1) - tokens_written);
+          static_assert(sizeof(observation_view.mutable_data(agent_idx, tokens_written, 0)) == 3, "ObservationToken must be 3 bytes");
+          ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0));
+          ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
           obj_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens);
           for (size_t i = tokens_written; i < tokens_written + obj_tokens_written; i++) {
             agent_obs_tokens[i].location = location;
