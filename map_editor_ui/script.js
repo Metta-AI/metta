@@ -1,4 +1,22 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Feature detection for required browser features
+    const unsupportedFeatures = [];
+    
+    if (!window.FileReader) unsupportedFeatures.push("FileReader API");
+    if (!navigator.clipboard || !navigator.clipboard.writeText) unsupportedFeatures.push("Clipboard API");
+    if (!window.HTMLCanvasElement) unsupportedFeatures.push("Canvas");
+    
+    if (unsupportedFeatures.length > 0) {
+        console.warn("Browser missing required features:", unsupportedFeatures);
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            const loadingText = loadingOverlay.querySelector('p');
+            if (loadingText) {
+                loadingText.innerHTML = `<strong>Warning:</strong> Your browser may not support all features:<br>${unsupportedFeatures.join(", ")}<br><br>The app will try to run with limited functionality.`;
+            }
+        }
+    }
+    
     const canvas = document.getElementById('mapCanvas');
     const ctx = canvas.getContext('2d');
 
@@ -70,6 +88,24 @@ document.addEventListener('DOMContentLoaded', () => {
     // Stores HTMLImageElement objects, used for drawing on canvas
     const objectImages = {};
 
+    // Create SVG fallback for entities with missing images
+    function createSvgFallback(entityName) {
+        const color = entityName.startsWith('agent.team') 
+            ? teamColors[entityName] || '#000000'
+            : '#3498db'; // Default blue for other entities
+        
+        // Generate simple SVG with the first letter of the entity name
+        const firstChar = entityName.split('.').pop().charAt(0).toUpperCase();
+        const svgData = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="${cellSize}" height="${cellSize}" viewBox="0 0 ${cellSize} ${cellSize}">
+                <rect width="${cellSize}" height="${cellSize}" fill="${color}" />
+                <text x="${cellSize / 2}" y="${cellSize * 0.7}" font-family="sans-serif" font-size="${cellSize * 0.6}" 
+                      text-anchor="middle" fill="white">${firstChar}</text>
+            </svg>
+        `;
+        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgData.trim())}`;
+    }
+
     function prepareTeamIcons() {
         // Create simple colored squares for team icons using SVG data URLs
         Object.entries(teamColors).forEach(([obj, color]) => {
@@ -121,9 +157,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const obj = asciiToObject[char] || 'empty';
                 const imgToDraw = objectImages[obj];
 
+                // Background fill regardless of what we're drawing
+                ctx.fillStyle = '#e0e0e0';
+                ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+
                 if (asciiEditMode) {
-                    ctx.fillStyle = '#e0e0e0';
-                    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
                     if (char !== asciiSymbols.empty) {
                         ctx.fillStyle = '#000';
                         ctx.font = '16px monospace';
@@ -132,28 +170,31 @@ document.addEventListener('DOMContentLoaded', () => {
                         ctx.fillText(char, c * cellSize + cellSize / 2, r * cellSize + cellSize / 2);
                     }
                 } else if (obj !== 'empty' && imgToDraw && imgToDraw.complete && imgToDraw.naturalWidth !== 0) {
+                    // Draw the image if it's loaded properly
                     ctx.drawImage(imgToDraw, c * cellSize, r * cellSize, cellSize, cellSize);
-                } else { // Fallback for missing/unloaded images or 'empty' cells
-                    ctx.fillStyle = '#e0e0e0'; // Default background
-                    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
-                    if (char !== asciiSymbols.empty && obj === 'empty') { // If it was an unknown char, draw it
-                        ctx.fillStyle = '#000';
-                        ctx.font = '16px monospace';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText(char, c * cellSize + cellSize / 2, r * cellSize + cellSize / 2);
-                    } else if (obj !== 'empty' && !(imgToDraw && imgToDraw.complete && imgToDraw.naturalWidth !== 0)) {
-                        // Image was expected but not ready, draw placeholder text
-                        ctx.fillStyle = '#888';
-                        ctx.font = '10px sans-serif';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText(obj.substring(0,3), c * cellSize + cellSize / 2, r * cellSize + cellSize / 2);
-                    }
+                } else if (char !== asciiSymbols.empty && obj === 'empty') { 
+                    // If it was an unknown char, draw it
+                    ctx.fillStyle = '#000';
+                    ctx.font = '16px monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(char, c * cellSize + cellSize / 2, r * cellSize + cellSize / 2);
+                } else if (obj !== 'empty') {
+                    // Draw a fallback representation for image that didn't load properly
+                    // Get the first character of the object type
+                    const objName = obj.split('.').pop();
+                    const label = objName.charAt(0).toUpperCase();
+                    
+                    ctx.fillStyle = '#888';
+                    ctx.font = '16px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(label, c * cellSize + cellSize / 2, r * cellSize + cellSize / 2);
                 }
             }
         }
 
+        // Grid lines
         ctx.strokeStyle = '#ccc';
         ctx.lineWidth = 1;
         for (let r = 0; r <= gridHeight + 2; r++) {
@@ -376,17 +417,65 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     copyAsciiBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(asciiPreviewTextarea.value)
-            .then(() => {
-                copyStatusMessage.textContent = 'Copied!'; copyStatusMessage.style.color = '#28a745';
+        // Show immediate feedback before the copy operation completes
+        const originalText = copyAsciiBtn.textContent;
+        copyAsciiBtn.textContent = 'Copying...';
+        copyStatusMessage.textContent = '';
+        copyStatusMessage.style.visibility = 'hidden';
+        
+        // Fallback copy method using selection
+        function fallbackCopy() {
+            try {
+                asciiPreviewTextarea.select();
+                const success = document.execCommand('copy');
+                
+                if (success) {
+                    copyStatusMessage.textContent = 'Copied!'; 
+                    copyStatusMessage.style.color = '#28a745';
+                } else {
+                    copyStatusMessage.textContent = 'Please press Ctrl+C to copy'; 
+                    copyStatusMessage.style.color = '#f0ad4e';
+                }
+                
                 copyStatusMessage.style.visibility = 'visible';
-                setTimeout(() => { copyStatusMessage.style.visibility = 'hidden'; }, 2000);
-            })
-            .catch(err => {
-                copyStatusMessage.textContent = 'Failed to copy!'; copyStatusMessage.style.color = 'red';
-                copyStatusMessage.style.visibility = 'visible'; console.error('Failed to copy: ', err);
-                setTimeout(() => { copyStatusMessage.style.visibility = 'hidden'; copyStatusMessage.style.color = '#28a745'; }, 3000);
-            });
+                copyAsciiBtn.textContent = originalText;
+                
+                setTimeout(() => { 
+                    copyStatusMessage.style.visibility = 'hidden';
+                    copyStatusMessage.style.color = '#28a745';
+                }, 3000);
+            } catch (err) {
+                copyStatusMessage.textContent = 'Failed to copy. Please select and copy manually.'; 
+                copyStatusMessage.style.color = 'red';
+                copyStatusMessage.style.visibility = 'visible';
+                copyAsciiBtn.textContent = originalText;
+                
+                console.error('Fallback copy failed: ', err);
+            }
+        }
+        
+        // Try using the clipboard API first
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(asciiPreviewTextarea.value)
+                .then(() => {
+                    copyStatusMessage.textContent = 'Copied!'; 
+                    copyStatusMessage.style.color = '#28a745';
+                    copyStatusMessage.style.visibility = 'visible';
+                    copyAsciiBtn.textContent = 'Copied!';
+                    
+                    setTimeout(() => { 
+                        copyStatusMessage.style.visibility = 'hidden';
+                        copyAsciiBtn.textContent = originalText;
+                    }, 2000);
+                })
+                .catch(err => {
+                    console.error('Failed to copy: ', err);
+                    fallbackCopy();
+                });
+        } else {
+            // Fallback for browsers without clipboard API
+            fallbackCopy();
+        }
     });
 
     createGridBtn.addEventListener('click', () => {
@@ -438,16 +527,28 @@ document.addEventListener('DOMContentLoaded', () => {
             const btn = document.createElement('button');
             btn.className = 'entity-btn';
             btn.dataset.entity = objKey;
+            
+            // Create a user-friendly name for the tooltip
+            const displayName = objKey.split('.').pop() // Get the last part after any dots
+                                     .replace(/([A-Z])/g, ' $1') // Add space before capitals (camelCase to words)
+                                     .toLowerCase() // Convert to lowercase
+                                     .split(' ') // Split into words
+                                     .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalize first letter
+                                     .join(' '); // Join back with spaces
+                                     
+            // Add tooltip
+            btn.title = displayName;
+            
             const imgElementForButton = document.createElement('img');
             imgElementForButton.src = srcOrDataUrl;
-            imgElementForButton.alt = objKey;
+            imgElementForButton.alt = displayName;
             imgElementForButton.style.width = cellSize + 'px';
             imgElementForButton.style.height = cellSize + 'px';
             imgElementForButton.onerror = () => { // Add error handler for button images
-                imgElementForButton.alt = `${objKey} (failed to load)`;
+                imgElementForButton.alt = `${displayName} (failed to load)`;
                 imgElementForButton.src = ''; // Clear src to prevent broken image icon
                 // Optionally, display placeholder text or style differently
-                btn.title = `Image for ${objKey} failed to load. Path: ${srcOrDataUrl}`;
+                btn.title = `${displayName} (image failed to load)`;
             };
             btn.appendChild(imgElementForButton);
             btn.addEventListener('click', () => {
@@ -490,6 +591,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         createEntityButtons(); // Create buttons based on final objectIcons and selectedEntity
         initializeGrid(gridWidth, gridHeight); // Initialize and draw the grid
+        
+        // Hide loading overlay
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        if (loadingOverlay) {
+            loadingOverlay.style.opacity = '0';
+            setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+            }, 300); // Match transition duration
+        }
     }
 
     function loadAndInitialize() {
@@ -522,23 +632,57 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // Set a timeout to continue initialization even if images take too long to load
+        const loadTimeoutId = setTimeout(() => {
+            console.warn("Some images are taking too long to load, continuing with initialization");
+            if (imagesLoadedCount < imagesToLoadCount) {
+                // Create fallbacks for any images that haven't loaded yet
+                pathBasedImageKeys.forEach(objKey => {
+                    if (!objectImages[objKey] || !objectImages[objKey].complete) {
+                        console.log(`Creating fallback for timed-out image: ${objKey}`);
+                        const fallbackSvg = createSvgFallback(objKey);
+                        const fallbackImg = new Image();
+                        fallbackImg.src = fallbackSvg;
+                        objectImages[objKey] = fallbackImg;
+                        objectIcons[objKey] = fallbackSvg;
+                    }
+                });
+                performInitialization();
+            }
+        }, 3000); // 3 second timeout
+
         pathBasedImageKeys.forEach(objKey => {
             const img = new Image();
             img.onload = () => {
+                console.log(`Successfully loaded image: ${objKey} from ${objectIcons[objKey]}`);
                 imagesLoadedCount++;
                 if (imagesLoadedCount === imagesToLoadCount) {
+                    clearTimeout(loadTimeoutId);
                     performInitialization();
                 }
             };
             img.onerror = () => {
-                imagesLoadedCount++; // Count as "resolved" to not hang
                 console.error(`Failed to load image: ${objKey} from ${objectIcons[objKey]}`);
-                // objectImages[objKey] will still be this errored image object.
+                console.log(`Image load error details - src: ${img.src}, complete: ${img.complete}`);
+                
+                // Create fallback SVG image if loading fails
+                const fallbackSvg = createSvgFallback(objKey);
+                console.log(`Creating fallback SVG for ${objKey}`);
+                
+                // Use the fallback SVG instead
+                const fallbackImg = new Image();
+                fallbackImg.src = fallbackSvg;
+                objectImages[objKey] = fallbackImg;
+                objectIcons[objKey] = fallbackSvg; // Update objectIcons as well
+                
+                imagesLoadedCount++; // Count as "resolved" to not hang
                 // drawCanvas needs to handle this (e.g., by drawing a placeholder).
                 if (imagesLoadedCount === imagesToLoadCount) {
+                    clearTimeout(loadTimeoutId);
                     performInitialization();
                 }
             };
+            console.log(`Attempting to load image: ${objKey} from ${objectIcons[objKey]}`);
             img.src = objectIcons[objKey];
             objectImages[objKey] = img;
         });
