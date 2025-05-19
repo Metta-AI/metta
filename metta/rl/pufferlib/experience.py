@@ -194,7 +194,23 @@ class Experience:
             .transpose(0, 1)
             .reshape(self.num_minibatches, self.minibatch_size)
         )
+
         self.returns_np = advantages_np + self.values_np
+
+        # Create b_obs with explicit shape for minibatches
+        # This assumes b_idxs_obs has shape [num_minibatches, minibatch_rows, bptt_horizon]
+        # We need to reshape it to [num_minibatches, minibatch_size, *obs_shape]
+        raw_obs = self.obs[self.b_idxs_obs]
+
+        # Check if we need to reshape
+        if len(raw_obs.shape) == 4:  # [num_minibatches, minibatch_rows, bptt_horizon, *obs_shape]
+            # Reshape to [num_minibatches, minibatch_size, *obs_shape]
+            self.b_obs = raw_obs.reshape(self.num_minibatches, self.minibatch_size, *raw_obs.shape[3:])
+        else:
+            # If the shape is already appropriate, just use it directly
+            self.b_obs = raw_obs
+
+        # Process the rest of the batch data
         self.b_obs = self.obs[self.b_idxs_obs]
         self.b_actions = self.b_actions[b_idxs].contiguous()
         self.b_logprobs = self.b_logprobs[b_idxs]
