@@ -1,7 +1,7 @@
 # @package __global__
 
 defaults:
-  - /sim/navigation_object-use@train_job.evals
+  - /sim/navigation_object-use
   - _self_
 
 trainer:
@@ -10,5 +10,8 @@ trainer:
     uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
   evaluate_interval: 100
   checkpoint_interval: 100
+
+train_job:
+  evals: /sim/navigation_object-use
 
 run: mrazo_object-use_allobs_large-multienv_v01
