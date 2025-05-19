@@ -2,6 +2,7 @@ import copy
 import logging
 import os
 import socket
+from typing import Annotated, Literal, Union, cast
 
 import pkg_resources
 import requests
@@ -10,11 +11,35 @@ import wandb.errors
 import wandb.sdk.wandb_run
 import wandb.util
 from omegaconf import OmegaConf
+from pydantic import Field, TypeAdapter
+
+from metta.util.config import Config
 
 logger = logging.getLogger(__name__)
 
 # Alias type for easier usage (other modules can import this type)
 WandbRun = wandb.sdk.wandb_run.Run
+
+
+class WandbConfigOn(Config):
+    enabled: Literal[True] = True
+
+    track: bool
+    project: str
+    entity: str
+    group: str
+    name: str
+    run_id: str
+    data_dir: str
+    job_type: str
+
+
+class WandbConfigOff(Config, extra="allow"):
+    enabled: Literal[False] = False
+    track: Literal[False] | None
+
+
+WandbConfig = Annotated[Union[WandbConfigOff, WandbConfigOn], Field(discriminator="enabled")]
 
 
 def check_wandb_version() -> bool:
@@ -52,14 +77,32 @@ def check_wandb_version() -> bool:
 
 
 class WandbContext:
-    def __init__(self, cfg, job_type=None, resume=True, name=None, run_id=None, data_dir=None, timeout=30):
-        self.cfg = cfg
-        self.resume = resume
-        self.name = name or cfg.wandb.name
-        self.run_id = cfg.wandb.run_id or self.cfg.run or wandb.util.generate_id()
+    """
+    Context manager for Wandb.
+
+    Usually initialized in the following way:
+
+        with WandbContext(cfg.wandb, cfg) as wandb_run:
+            ...
+    """
+
+    def __init__(
+        self,
+        # Either a `DictConfig` from Hydra, or already validated `WandbConfig` object.
+        cfg: object,
+        # Global Hydra config, needed because we store it to WanDB.
+        global_cfg: object,
+        timeout: int = 30,
+    ):
+        if isinstance(cfg, (WandbConfigOn, WandbConfigOff)):
+            self.cfg = cfg
+        else:
+            # validate
+            self.cfg = TypeAdapter(WandbConfig).validate_python(cfg)
+
+        self.global_cfg = global_cfg
+
         self.run = None
-        self.data_dir = data_dir or self.cfg.run_dir
-        self.job_type = job_type
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
@@ -67,9 +110,10 @@ class WandbContext:
         check_wandb_version()
 
     def __enter__(self) -> WandbRun | None:
-        if not self.cfg.wandb.enabled:
-            assert not self.cfg.wandb.track, "wandb.track won't work if wandb.enabled is False"
+        if not self.cfg.enabled:
             return None
+
+        assert isinstance(self.cfg, WandbConfigOn)
 
         # Check internet connection before proceeding
         try:
@@ -81,30 +125,30 @@ class WandbContext:
             logger.info("Continuing without W&B logging")
             return None
 
-        cfg = copy.deepcopy(self.cfg)
+        global_cfg = copy.deepcopy(self.global_cfg)
         logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
         try:
             self.run = wandb.init(
-                id=self.run_id,
-                job_type=self.job_type,
-                project=self.cfg.wandb.project,
-                entity=self.cfg.wandb.entity,
-                config=OmegaConf.to_container(cfg, resolve=False),
-                group=self.cfg.wandb.group,
+                id=self.cfg.run_id,
+                job_type=self.cfg.job_type,
+                project=self.cfg.project,
+                entity=self.cfg.entity,
+                config=cast(dict, OmegaConf.to_container(global_cfg, resolve=False)),
+                group=self.cfg.group,
                 allow_val_change=True,
-                name=self.name,
+                name=self.cfg.name,
                 monitor_gym=True,
                 save_code=True,
-                resume=self.resume,
+                resume=True,
                 tags=["user:" + os.environ.get("METTA_USER", "unknown")],
                 settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
             )
 
             # Save config and set up file syncing only if wandb init succeeded
-            OmegaConf.save(cfg, os.path.join(self.data_dir, "config.yaml"))
-            wandb.save(os.path.join(self.data_dir, "*.log"), base_path=self.data_dir, policy="live")
-            wandb.save(os.path.join(self.data_dir, "*.yaml"), base_path=self.data_dir, policy="live")
+            OmegaConf.save(global_cfg, os.path.join(self.cfg.data_dir, "config.yaml"))
+            wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
+            wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
         except (TimeoutError, wandb.errors.CommError) as e:
@@ -121,11 +165,7 @@ class WandbContext:
         return self.run
 
     @staticmethod
-    def make_run(cfg, resume=True, name=None):
-        return WandbContext(cfg, resume=resume, name=name).__enter__()
-
-    @staticmethod
-    def cleanup_run(run):
+    def cleanup_run(run: WandbRun | None):
         if run:
             try:
                 wandb.finish()

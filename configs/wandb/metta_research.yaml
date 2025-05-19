@@ -1,7 +1,12 @@
-name: ${run}
 enabled: true
 track: true
+
 project: metta
 entity: metta-research
-group: ${.name}
-run_id: null
+group: ${run}
+name: ${run}
+run_id: ${run}
+
+data_dir: ${run_dir}
+
+job_type: ${cmd}
