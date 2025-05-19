@@ -13,6 +13,6 @@ game:
 
     room:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:20,50,30}
-      height: ${sampling:20,50,30}
-      style: maze
+      width: ${sampling:50,120,30}
+      height: ${sampling:50,120,30}
+      style: sparse
