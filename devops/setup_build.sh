@@ -203,6 +203,7 @@ echo -e "\nBuilding MettaGrid..."
 cd mettagrid
 make install-dependencies
 make build
+cd ..
 
 # ========== INSTALL SKYPILOT ==========
 echo -e "\nInstalling Skypilot..."
