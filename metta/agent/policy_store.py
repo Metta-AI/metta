@@ -485,11 +485,12 @@ class PolicyStore:
                     modules_queue.append(submodule_name)
 
     def _load_from_puffer(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        if self._cfg.policy_module is not None:
+        if self._cfg.policy_class is not None:
             policy_class = None
             try:
-                module = importlib.import_module(self._cfg.policy_module)
-                policy_class = getattr(module, 'Policy')
+                policy_module = self._cfg.policy_class.rsplit(".", 1)[0]
+                module = importlib.import_module(policy_module)
+                policy_class = getattr(module, self._cfg.policy_class.rsplit(".", 1)[1])
                 print(f"Successfully imported: {policy_class}")
             except (ModuleNotFoundError, AttributeError) as e:
                 print(f"Error importing Policy class: {e}")
