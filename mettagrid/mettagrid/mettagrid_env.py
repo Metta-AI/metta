@@ -33,7 +33,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._env_cfg = self._get_new_env_cfg()
         self._env_map = env_map
         self._renderer = None
-        self._map_builder = None
+        self._map_labels = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
         self._episode_id = None
@@ -56,7 +56,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def _reset_env(self):
         mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
+
         config_dict, env_map = mettagrid_config.to_c_args()
+        self._map_labels = mettagrid_config.map_labels()
+
         self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
@@ -119,13 +122,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
-        if self._map_builder is not None and self._map_builder.labels is not None:
-            for label in self._map_builder.labels:
-                infos.update(
-                    {
-                        f"rewards/map:{label}": episode_rewards_mean,
-                    }
-                )
+        for label in self._map_labels:
+            infos.update(
+                {
+                    f"rewards/map:{label}": episode_rewards_mean,
+                }
+            )
 
         if self.labels is not None:
             for label in self.labels:
@@ -150,12 +152,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         replay_url = None
         if self._replay_writer:
-            assert self._episode_id is not None
+            assert self._episode_id is not None, "Episode ID must be set before writing a replay"
             replay_url = self._replay_writer.write_replay(self._episode_id)
         infos["replay_url"] = replay_url
 
         if self._stats_writer:
-            assert self._episode_id is not None
+            assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
             attributes = {
                 "seed": self._current_seed,

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # Define the list of policy URIs
 POLICIES=(
   "b.daphne.terrain_prioritized_styles_pretrained_r"

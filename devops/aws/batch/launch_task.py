@@ -10,6 +10,7 @@ import boto3
 from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
 from metta.util.git import (
     get_branch_commit,
+    get_commit_message,
     get_current_branch,
     get_current_commit,
     has_unstaged_changes,
@@ -124,7 +125,9 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
             eval_value = task_arg.split("=", 1)[1]
             critical_files.append(f"./configs/eval/{eval_value}.yaml")
 
-    divider = "=" * 40
+    divider_length = 60
+
+    divider = "=" * divider_length
     print(f"\n{divider}")
     all_files_exist = True
     for file in critical_files:
@@ -147,6 +150,7 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
 
     # Get the git reference
     git_ref = args.git_commit if args.git_commit else args.git_branch
+    commit_message = get_commit_message(args.git_commit) if args.git_commit else None
 
     # Display job details
     print(f"\n{divider}")
@@ -163,7 +167,10 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
     print(f"vCPUs per GPU: {args.gpu_cpus}")
     print(f"RAM per Node: {args.node_ram_gb} GB")
     print(f"Git Reference: {git_ref}")
-    print(f"{'-' * 40}")
+    if commit_message:
+        first_line = commit_message.split("\n")[0]
+        print(f"Commit Message: {yellow(first_line)}")
+    print(f"{'-' * divider_length}")
     print(f"Command: {args.cmd}")
     if task_args:
         print(yellow("\nTask Arguments:"))
@@ -258,7 +265,7 @@ def main():
     parser.add_argument("--gpu-cpus", type=int)
     parser.add_argument("--node-ram-gb", type=int)
     parser.add_argument("--copies", type=int, default=1)
-    parser.add_argument("--profile", default="stem")
+    parser.add_argument("--profile", default="softmax-db")
     parser.add_argument("--job-queue", default="metta-jq")
     parser.add_argument("--skip-push-check", action="store_true")
     parser.add_argument("--no-color", action="store_true")

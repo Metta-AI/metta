@@ -46,13 +46,12 @@ protected:
         // collect resources from a converter that's in the middle of processing a queue.
         continue;
       }
-      // Only take resources if the converter has some.
-      if (converter->inventory[i] > 0) {
-        // The actor will destroy anything it can't hold. That's not intentional, so feel free
-        // to fix it.
-        actor->stats.add(InventoryItemNames[i], "get", converter->inventory[i]);
-        actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
-        converter->update_inventory(static_cast<InventoryItem>(i), -converter->inventory[i]);
+      unsigned char can_take = std::min<unsigned char>(actor->max_items - actor->inventory[i], converter->inventory[i]);
+
+      if (can_take > 0) {
+        actor->stats.add(InventoryItemNames[i], "get", can_take);
+        actor->update_inventory(static_cast<InventoryItem>(i), can_take);
+        converter->update_inventory(static_cast<InventoryItem>(i), -can_take);
         items_taken = true;
       }
     }
