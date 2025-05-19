@@ -70,6 +70,8 @@ def main():
             METTA_GIT_REF=git_ref,
         )
     )
+    task.name = args.run
+    task.validate_name()
 
     task = patch_task(task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes)
 
