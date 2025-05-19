@@ -69,6 +69,7 @@ mkdir -p /home/metta/data_dir
 
 # Completion message with instructions
 echo -e "Installation complete.\nTo complete installation:\n\
-1) Initialize Tailscale:\n\
-   - tailscale up\n\
-2) Reboot the machine."
+1) Grab the Tailscale auth key from Spacelift: https://metta-ai.app.spacelift.io/stack/efs/outputs\n\
+2) Initialize Tailscale:\n\
+   - sudo tailscale up --auth-key=<auth-key> --advertise-tags=tag:mettabox\n\
+3) Reboot the machine."
