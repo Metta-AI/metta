@@ -127,7 +127,7 @@ class TestSampleLogits:
         actions = torch.tensor([0, 1, 2][:batch_size])
 
         # Sample with provided actions
-        action, logprob, _, normalized_logits = sample_logits(batch_logits, action=actions)
+        action, logprob, _, normalized_logits = sample_logits(batch_logits, actions)
 
         # Check actions were used
         assert torch.equal(action, actions), f"Expected actions {actions}, got {action}"
