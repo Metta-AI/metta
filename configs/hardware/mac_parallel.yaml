@@ -8,7 +8,7 @@
 # The multiprocessing approach parallelizes environment simulation across workers,
 # which is different from GPU parallelization.
 
-device: cpu
+device: mps
 
 vectorization: multiprocessing
 
