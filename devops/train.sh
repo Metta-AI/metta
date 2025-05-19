@@ -32,6 +32,6 @@ torchrun \
   --node-rank=$NODE_INDEX \
   tools/train.py \
   trainer.num_workers=$NUM_CPUS \
-  wandb.enabled=true \
-  wandb.track=true \
+  +wandb.enabled=true \
+  +wandb.track=true \
   $args
