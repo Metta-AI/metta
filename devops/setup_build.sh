@@ -140,52 +140,39 @@ if [ "$CLEAN" -eq 1 ]; then
   fi
 fi
 
-# Exit if we're not in a UV venv and not in Docker
-if ! $IS_DOCKER && ! is_uv_venv; then
-  echo "⚠️ Recreating virtual environment with Python version ($REQUIRED_PYTHON_VERSION)..."
-
-  # Create a new environment with the correct Python version
-  uv venv .venv --python $REQUIRED_PYTHON_VERSION || {
-    echo "Error: Failed to create new virtual environment with uv command."
-    exit 1
-  }
-
-  # Activate the new environment
-  source .venv/bin/activate
-  echo "✅ New virtual environment '.venv' created and activated with Python $REQUIRED_PYTHON_VERSION"
+# ========== REPORT RESIDUAL CONDA VENV ==========
+if command -v conda &> /dev/null; then
+  echo "Checking for conda environments associated with this project..."
+  PROJECT_NAME=$(basename "$PROJECT_DIR")
+  CONDA_ENVS=$(conda env list | grep "$PROJECT_NAME" | awk '{print $1}')
+  if [ -n "$CONDA_ENVS" ]; then
+    echo "⚠️  Found the following conda environments that might be related to this project:"
+    echo "$CONDA_ENVS"
+    echo "⚠️  You may want to manually remove these if they're no longer needed (conda env remove -n ENV_NAME)"
+  fi
 fi
 
-if [ -z "$CI" ]; then
-  # ========== REPORT RESIDUAL CONDA VENV ==========
-  if command -v conda &> /dev/null; then
-    echo "Checking for conda environments associated with this project..."
-    PROJECT_NAME=$(basename "$PROJECT_DIR")
-    CONDA_ENVS=$(conda env list | grep "$PROJECT_NAME" | awk '{print $1}')
-    if [ -n "$CONDA_ENVS" ]; then
-      echo "⚠️  Found the following conda environments that might be related to this project:"
-      echo "$CONDA_ENVS"
-      echo "⚠️  You may want to manually remove these if they're no longer needed (conda env remove -n ENV_NAME)"
+
+# ========== REPORT Non-UV VENV ==========
+VENV_PATHS=(".venv" "venv" ".env" "env" "virtualenv" ".virtualenv")
+for venv_name in "${VENV_PATHS[@]}"; do
+  venv_path="$PROJECT_DIR/$venv_name"
+  if [ -d "$venv_path" ]; then
+    if is_uv_venv "$venv_path"; then
+      echo "Preserving $venv_name as it appears to be a UV virtual environment"
+    else
+      echo "Removing $venv_name virtual environment..."
+      rm -rf "$venv_path"
+      echo "✅ Removed $venv_name virtual environment"
     fi
   fi
+done
 
-  # ========== REPORT Non-UV VENV ==========
-  VENV_PATHS=(".venv" "venv" ".env" "env" "virtualenv" ".virtualenv")
-  for venv_name in "${VENV_PATHS[@]}"; do
-    venv_path="$PROJECT_DIR/$venv_name"
-    if [ -d "$venv_path" ]; then
-      if is_uv_venv "$venv_path"; then
-        echo "Preserving $venv_name as it appears to be a UV virtual environment"
-      else
-        echo "Removing $venv_name virtual environment..."
-        rm -rf "$venv_path"
-        echo "✅ Removed $venv_name virtual environment"
-      fi
-    fi
-  done
-
-  # ========== CLEAN ALL BUILD ARTIFACTS ==========
+# ========== CLEAN ALL BUILD ARTIFACTS ==========
+if [ "$CLEAN" -eq 1 ]; then
   make clean
 fi
+
 
 # ========== Main Project ==========
 cd "$SCRIPT_DIR/.."
@@ -208,8 +195,13 @@ uv pip install -r requirements.txt || {
 # ========== BUILD METTAGRID ==========
 echo -e "\nBuilding mettagrid..."
 cd mettagrid
+if [ "$CLEAN" -eq 1 ]; then
+  make clean
+  make install-dependencies
+fi
 make build
 cd ..
+uv pip install mettagrid
 
 # ========== BUILD FAST_GAE ==========
 echo -e "\nBuilding FastGAE..."
@@ -219,44 +211,48 @@ make build
 echo -e "\nInstalling Skypilot..."
 uv tool install skypilot --from 'skypilot[aws,vast,lambda]'
 
-PYTHON="uv run -- python"
 
-# ========== SANITY CHECK ==========
-echo -e "\nSanity check: verifying all local deps are importable..."
 
-$PYTHON -c "import sys; print('Python path:', sys.path);"
+if [ "$CLEAN" -eq 1 ]; then
+  PYTHON="uv run -- python"
 
-for dep in \
-  "pufferlib" \
-  "carbs" \
-  "wandb_carbs"; do
-  echo -e "\nChecking import for $dep..."
-  $PYTHON -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
-    echo "❌ Failed to import $dep"
+  # ========== SANITY CHECK ==========
+  echo -e "\nSanity check: verifying all local deps are importable..."
+
+  $PYTHON -c "import sys; print('Python path:', sys.path);"
+
+  for dep in \
+    "pufferlib" \
+    "carbs" \
+    "wandb_carbs"; do
+    echo -e "\nChecking import for $dep..."
+    $PYTHON -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
+      echo "❌ Failed to import $dep"
+      exit 1
+    }
+  done
+
+  # Check for metta.rl.fast_gae.compute_gae
+  echo -e "\nChecking import for metta.rl.fast_gae.compute_gae..."
+  $PYTHON -c "from metta.rl.fast_gae import compute_gae; print('✅ Found metta.rl.fast_gae.compute_gae')" || {
+    echo "❌ Failed to import metta.rl.fast_gae.compute_gae"
     exit 1
   }
-done
 
-# Check for metta.rl.fast_gae.compute_gae
-echo -e "\nChecking import for metta.rl.fast_gae.compute_gae..."
-$PYTHON -c "from metta.rl.fast_gae import compute_gae; print('✅ Found metta.rl.fast_gae.compute_gae')" || {
-  echo "❌ Failed to import metta.rl.fast_gae.compute_gae"
-  exit 1
-}
+  # Check for mettagrid.mettagrid_env.MettaGridEnv
+  echo -e "\nChecking import for mettagrid.mettagrid_env.MettaGridEnv..."
+  $PYTHON -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found mettagrid.mettagrid_env.MettaGridEnv')" || {
+    echo "❌ Failed to import mettagrid.mettagrid_env.MettaGridEnv"
+    exit 1
+  }
 
-# Check for mettagrid.mettagrid_env.MettaGridEnv
-echo -e "\nChecking import for mettagrid.mettagrid_env.MettaGridEnv..."
-$PYTHON -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found mettagrid.mettagrid_env.MettaGridEnv')" || {
-  echo "❌ Failed to import mettagrid.mettagrid_env.MettaGridEnv"
-  exit 1
-}
-
-# Check for mettagrid.mettagrid_c.MettaGrid
-echo -e "\nChecking import for mettagrid.mettagrid_c.MettaGrid..."
-$PYTHON -c "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettagrid.mettagrid_c.MettaGrid')" || {
-  echo "❌ Failed to import mettagrid.mettagrid_c.MettaGrid"
-  exit 1
-}
+  # Check for mettagrid.mettagrid_c.MettaGrid
+  echo -e "\nChecking import for mettagrid.mettagrid_c.MettaGrid..."
+  $PYTHON -c "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettagrid.mettagrid_c.MettaGrid')" || {
+    echo "❌ Failed to import mettagrid.mettagrid_c.MettaGrid"
+    exit 1
+  }
+fi
 
 if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   # ========== VS CODE INTEGRATION ==========
