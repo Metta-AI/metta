@@ -73,21 +73,21 @@ class MettaAgent(nn.Module):
         )
         obs_key = cfg.observations.obs_key  # typically "grid_obs"
 
-        self.obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")  # obs_w, obs_h, num_objects
-        num_objects = self.obs_shape[2]
+        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")  # obs_w, obs_h, num_objects
+        num_objects = obs_shape[2]
 
-        agent_attributes = {
+        self.agent_attributes = {
             "clip_range": self.clip_range,
             "action_space": action_space,
             "grid_features": grid_features,
             "obs_key": cfg.observations.obs_key,
-            "obs_shape": self.obs_shape,
+            "obs_shape": obs_shape,
             "num_objects": num_objects,
             "hidden_size": self.hidden_size,
             "core_num_layers": self.core_num_layers,
         }
 
-        logging.info(f"agent_attributes: {agent_attributes}")
+        logging.info(f"agent_attributes: {self.agent_attributes}")
 
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
@@ -100,7 +100,7 @@ class MettaAgent(nn.Module):
             component_name = str(component_key)
             component_cfgs[component_key]["name"] = component_name
             logger.info(f"calling hydra instantiate from MettaAgent __init__ for {component_name}")
-            component = hydra.utils.instantiate(component_cfgs[component_key], **agent_attributes)
+            component = hydra.utils.instantiate(component_cfgs[component_key], **self.agent_attributes)
             self.components[component_name] = component
 
         component = self.components["_value_"]
@@ -205,12 +205,7 @@ class MettaAgent(nn.Module):
         del action
 
         # TODO - obs_shape is not yet available in reloaded policies - we should fix this by storing the data
-        if self.obs_shape:
-            obs_w, obs_h, features = self.obs_shape
-        else:
-            obs_w = "W"
-            obs_h = "H"
-            features = "F"
+        obs_w, obs_h, features = self.agent_attributes["obs_shape"]
 
         if bptt_action is not None:
             # BPTT
@@ -250,7 +245,9 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         value = td["_value_"]
 
-        # TODO -- why does value have this shape?
+        # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
+        # This design supports potential future extensions like distributional value functions
+        # or multi-head value networks which would require more than a scalar per state
         if __debug__:
             assert_shape(value, ("BT", 1), "value")
 

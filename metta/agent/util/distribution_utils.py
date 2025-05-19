@@ -12,12 +12,15 @@ def sample_logits(logits: Tensor, bptt_logit_index: Optional[Tensor] = None) -> 
     Sample actions from logits and compute log probabilities and entropy.
 
     Args:
+
         logits: Unnormalized log probabilities of shape [B*T, 2].
-        action_index: Optional tensor of shape [B*T] specifying actions to evaluate.
-               If provided, it must contain valid indices in the range [0, A).
+
+        bptt_logit_index: Optional tensor of shape [B*T] specifying actions to evaluate.
+            If provided, it must contain valid indices in the range [0, A).
 
     Returns:
         A tuple of:
+
         action_index: Tensor of shape [B*T]
         log_prob: Log-probabilities of selected actions ()
         entropy: Entropy of the action distribution (same shape as `action`)
