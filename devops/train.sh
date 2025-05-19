@@ -24,7 +24,7 @@ echo "NODE_INDEX: $NODE_INDEX"
 echo "Running train with args: $args"
 PYTHONPATH=$PYTHONPATH:.
 
-torchrun \
+PYTHONOPTIMIZE=1 torchrun \
   --nnodes=$NUM_NODES \
   --nproc-per-node=$NUM_GPUS \
   --master-addr=$MASTER_ADDR \
@@ -33,5 +33,4 @@ torchrun \
   tools/train.py \
   trainer.num_workers=$NUM_CPUS \
   wandb.enabled=true \
-  wandb.track=true \
   $args
