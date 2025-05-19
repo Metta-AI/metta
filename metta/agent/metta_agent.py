@@ -1,6 +1,7 @@
 import logging
 from typing import List, Optional, Union
 
+import einops
 import gymnasium as gym
 import hydra
 import numpy as np
@@ -72,17 +73,15 @@ class MettaAgent(nn.Module):
         )
         obs_key = cfg.observations.obs_key  # typically "grid_obs"
 
-        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
-        obs_input_shape = obs_shape[1:]  # typ. obs_width, obs_height, number of observations
-        num_objects = obs_shape[2]  # typ. number of observations
+        self.obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")  # obs_w, obs_h, num_objects
+        num_objects = self.obs_shape[2]
 
         agent_attributes = {
-            "obs_shape": obs_shape,
             "clip_range": self.clip_range,
             "action_space": action_space,
             "grid_features": grid_features,
             "obs_key": cfg.observations.obs_key,
-            "obs_input_shape": obs_input_shape,
+            "obs_shape": self.obs_shape,
             "num_objects": num_objects,
             "hidden_size": self.hidden_size,
             "core_num_layers": self.core_num_layers,
@@ -175,25 +174,66 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def forward(self, x, state: PolicyState, action: Optional[torch.Tensor] = None):
+    def forward(self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None):
         """
         Forward pass of the MettaAgent.
+
+        1. Inference mode (action=None): sample new actions based on the policy
+        - x shape: (BT, *self.obs_shape)
+        - Output action shape: (BT, 1) -- we return the action index rather than the (type, arg) tuple
+
+        2. BPTT training mode (action is provided): evaluate the policy on past actions
+        - x shape: (B, T, *self.obs_shape)
+        - action shape: (B, T, 2)
+        - Output action shape: (B, T, 2) -- we return the (type, arg) tuple
 
         Args:
             x: Input observation tensor
             state: Policy state containing LSTM hidden and cell states
-            action: Optional action tensor
+            action: Optional action tensor for BPTT
 
         Returns:
-            Tuple of (action, logprob_act, entropy, value, log_sftmx_logits)
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Sampled output action (inference) or same as input action (BPTT)
+            - action_log_prob: Log probability of the output action, shape (BT,)
+            - entropy: Entropy of the action distribution, shape (BT,)
+            - value: Value estimate, shape (BT,)
+            - log_probs: Log-softmax of logits, shape (BT, A) where A is the size of the action space
         """
+        # rename parameter
+        bptt_action = action
+        del action
 
-        # TODO - where is action coming from with shape (B, T, 2)?
-        if action is not None and len(action.shape) == 3:
-            action = action.reshape(-1, action.shape[-1])  # Reshape to (B*T, 2)
+        # TODO - obs_shape is not yet available in reloaded policies - we should fix this by storing the data
+        if self.obs_shape:
+            obs_w, obs_h, features = self.obs_shape
+        else:
+            obs_w = "W"
+            obs_h = "H"
+            features = "F"
 
-        if __debug__ and action is not None:
-            assert_shape(action, ("BT", 2), "action")
+        if bptt_action is not None:
+            # BPTT
+            if __debug__:
+                assert_shape(bptt_action, ("B", "T", 2), "bptt_action")
+
+            B, T, A = bptt_action.shape
+
+            if __debug__:
+                assert A == 2, f"Action dimensionality should be 2, got {A}"
+                assert_shape(x, (B, T, obs_w, obs_h, features), "x")
+
+            # Flatten batch and time dimensions for both action and x
+            bptt_action = einops.rearrange(bptt_action, "b t c -> (b t) c")
+            x = einops.rearrange(x, "b t ... -> (b t) ...")
+
+            if __debug__:
+                assert_shape(bptt_action, (B * T, 2), "flattened action")
+                assert_shape(x, (B * T, obs_w, obs_h, features), "flattened x")
+        else:
+            # inference
+            if __debug__:
+                assert_shape(x, ("BT", obs_w, obs_h, features), "x")
 
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
@@ -203,7 +243,6 @@ class MettaAgent(nn.Module):
             # Ensure states are on the same device as input
             lstm_h = state.lstm_h.to(x.device)
             lstm_c = state.lstm_c.to(x.device)
-
             # Concatenate LSTM states along dimension 0
             td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
 
@@ -211,9 +250,17 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         value = td["_value_"]
 
+        # TODO -- why does value have this shape?
+        if __debug__:
+            assert_shape(value, ("BT", 1), "value")
+
         # Forward pass through action network
         self.components["_action_"](td)
         logits = td["_action_"]
+
+        if __debug__:
+            # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
+            assert_shape(logits, ("BT", "A"), "logits")
 
         # Update LSTM states
         split_size = self.core_num_layers
@@ -221,15 +268,14 @@ class MettaAgent(nn.Module):
         state.lstm_c = td["state"][split_size:]
 
         # Sample actions
-        action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
+        if bptt_action is not None:
+            # BPTT
+            bptt_action_index = self._convert_action_to_logit_index(bptt_action)
 
-        if __debug__:
-            assert_shape(logits, ("BT", "A"), "logits")
-            # Add validation for action_logit_index
-            if action_logit_index is not None:
+            if __debug__:
                 action_space_size = logits.shape[-1]  # 'A' dimension size
-                max_index = action_logit_index.max().item()
-                min_index = action_logit_index.min().item()
+                max_index = bptt_action_index.max().item()
+                min_index = bptt_action_index.min().item()
                 if max_index >= action_space_size or min_index < 0:
                     raise ValueError(
                         f"Invalid action_logit_index: contains values outside the valid range"
@@ -237,24 +283,22 @@ class MettaAgent(nn.Module):
                         f"Found values in range [{min_index}, {max_index}]"
                     )
 
-        action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
+            action_index, action_log_prob, entropy, log_probs = sample_logits(logits, bptt_action_index)
+        else:
+            # inference
+            action_index, action_log_prob, entropy, log_probs = sample_logits(logits, None)
 
         if __debug__:
-            assert_shape(action_logit_index, ("BT",), "action_logit_index")
-            assert_shape(logprob_act, ("BT",), "logprob_act")
+            assert_shape(action_index, ("BT",), "action_index")
+            assert_shape(action_log_prob, ("BT",), "action_log_prob")
             assert_shape(entropy, ("BT",), "entropy")
-            assert_shape(log_sftmx_logits, ("BT", "A"), "log_sftmx_logits")
+            assert_shape(log_probs, ("BT", "A"), "log_probs")
 
-        # Convert logit index to action if no action was provided
-        if action is None:
-            action = self._convert_logit_index_to_action(action_logit_index)
-
+        output_action = self._convert_logit_index_to_action(action_index)
         if __debug__:
-            assert_shape(action, ("BT", 2), "action")
-            # TODO -- why does value have this shape?
-            assert_shape(value, ("BT", 1), "value")
+            assert_shape(output_action, ("BT", 2), "output_action")
 
-        return action, logprob_act, entropy, value, log_sftmx_logits
+        return output_action, action_log_prob, entropy, value, log_probs
 
     def _convert_action_to_logit_index(self, action: torch.Tensor):
         """
