@@ -68,12 +68,13 @@ class MettaGridConfig:
         if self.env_map is None:
             raise ValueError("generate_map failed to create a valid env_map")
 
+        env_map = self.generate_map() if self.env_map is None else self.env_map
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(self.env_cfg))
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        return config_dict, self.env_map.tolist()
+        return config_dict, env_map.tolist()
 
     def map_labels(self) -> list[str]:
         if self._map_builder is None:
