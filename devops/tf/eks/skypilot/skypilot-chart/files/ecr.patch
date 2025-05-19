@@ -1,33 +1,33 @@
 diff -ur sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
---- sky/provision/docker_utils.py	2025-05-15 13:21:57
-+++ sky-patched/provision/docker_utils.py	2025-05-15 13:21:09
-@@ -49,6 +49,23 @@
- 
-     @classmethod
-     def from_env_vars(cls, d: Dict[str, str]) -> 'DockerLoginConfig':
-+        server = d[constants.DOCKER_SERVER_ENV_VAR]
-+        import re
-+        import subprocess
-+        match = re.match(r"(\d+).dkr.ecr.([a-z0-9-]+).amazonaws.com", server)
-+        if match:
-+            logger.info('Detected ECR server, fetching login password from AWS...')
-+            password = subprocess.check_output(
-+                ['aws', 'ecr', 'get-login-password', '--region',
-+                 match.group(2)], encoding='utf-8')
-+            logger.info('Successfully fetched login password from AWS')
-+
-+            return cls(
-+                username="AWS",
-+                password=password,
-+                server=server,
-+            )
-+
-         return cls(
-             username=d[constants.DOCKER_USERNAME_ENV_VAR],
-             password=d[constants.DOCKER_PASSWORD_ENV_VAR],
+--- sky/provision/docker_utils.py	2025-05-19 14:08:18
++++ sky-patched/provision/docker_utils.py	2025-05-19 14:08:16
+@@ -234,6 +234,23 @@
+                     f'--password {shlex.quote(docker_login_config.password)} '
+                     f'{shlex.quote(docker_login_config.server)}',
+                     wait_for_docker_daemon=True)
++            elif docker_login_config.server.endswith(".amazonaws.com") and ".ecr." in docker_login_config.server:
++                # Handle AWS ECR authentication
++                server = docker_login_config.server
++                if server.endswith(".amazonaws.com") and ".ecr." in server:
++                    self._run('apt install -y amazon-ecr-credential-helper')
++                    # Create the docker config directory if it doesn't exist
++                    self._run('mkdir -p ~/.docker')
++                    # Create or update the docker config.json file with ECR credentials helper
++                    config_json = {
++                        "credHelpers": {
++                            server: "ecr-login"
++                        }
++                    }
++                    # Write the config to a temporary file and move it to the right location
++                    import json
++                    self._run(f'echo \'{json.dumps(config_json, indent=2)}\' > /tmp/docker_config.json && '
++                              f'mv /tmp/docker_config.json ~/.docker/config.json')
+             elif docker_login_config.server.endswith('-docker.pkg.dev'):
+                 # Docker image server is on GCR, we need to do additional setup
+                 # to pull the image.
 diff -ur sky/resources.py sky-patched/resources.py
---- sky/resources.py	2025-05-15 13:21:12
-+++ sky-patched/resources.py	2025-05-15 13:21:10
+--- sky/resources.py	2025-05-19 14:08:18
++++ sky-patched/resources.py	2025-05-19 14:08:16
 @@ -1574,9 +1574,6 @@
              config['disk_tier'] = self.disk_tier.value
          add_if_not_none('ports', self.ports)
