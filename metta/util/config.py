@@ -171,11 +171,11 @@ def setup_metta_environment(cfg: ListConfig | DictConfig, require_aws: bool = Tr
             print("aws sso login --profile softmax")
             print("Alternatively, set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your environment.")
             exit(1)
-    if cfg.wandb.track and require_wandb:
+    if cfg.wandb.enabled and require_wandb:
         # Check that W&B is good to go.
         if not check_wandb_credentials():
             print("W&B is not configured, please install:")
-            print("pip install wandb")
+            print("uv pip install wandb")
             print("and run:")
             print("wandb login")
             print("Alternatively, set WANDB_API_KEY or copy ~/.netrc from another machine that has it configured.")

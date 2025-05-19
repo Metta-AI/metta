@@ -42,9 +42,6 @@ else
   echo "No git reference specified, using current branch"
 fi
 
-pip uninstall -y termcolor
-pip install termcolor==2.4.0
-
 # Setup build (installs requirements)
 ./devops/setup_build.sh
 

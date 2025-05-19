@@ -79,7 +79,7 @@ def main(cfg: ListConfig | DictConfig) -> int:
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":
-        with WandbContext(cfg, job_type="train") as wandb_run:
+        with WandbContext(cfg.wandb, cfg) as wandb_run:
             train(cfg, wandb_run, logger)
     else:
         train(cfg, None, logger)

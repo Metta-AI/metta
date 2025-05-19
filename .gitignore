@@ -24,7 +24,7 @@ gpu_names_cache.json
 stderr.log
 sweep_id
 personal/
-wandb/
+/wandb
 /deps/*
 terrain_maps_nohearts*
 .idea

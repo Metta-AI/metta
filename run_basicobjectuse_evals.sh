@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # Define the list of policy URIs
 POLICIES=(
   "b.daveey.t.8.rdr9.3"

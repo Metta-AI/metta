@@ -13,10 +13,10 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
 from metta.util.config import config_from_path
-from metta.util.efs_lock import efs_lock
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
 from metta.util.wandb.wandb_context import WandbContext
+from mettagrid.util.file import efs_lock
 
 
 @hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
@@ -79,11 +79,15 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
     run_dir = os.path.join(cfg.runs_dir, run_name)
     os.makedirs(run_dir, exist_ok=True)
     cfg.run = run_name
+    cfg.run_dir = run_dir
 
     def init_run():
-        with WandbContext(cfg, data_dir=run_dir) as wandb_run:
+        with WandbContext(cfg.wandb, cfg) as wandb_run:
+            assert wandb_run, "Wandb should be enabled"
             wandb_run_id = wandb_run.id
             wandb_run.name = run_name
+            if not wandb_run.tags:
+                wandb_run.tags = ()
             wandb_run.tags += (f"sweep_id:{sweep_cfg.wandb_sweep_id}", f"sweep_name:{sweep_cfg.sweep}")
 
             carbs = MettaCarbs(cfg, wandb_run)
@@ -150,8 +154,6 @@ def apply_carbs_suggestion(config: DictConfig | ListConfig, suggestion: DictConf
         config: The configuration object to modify
         suggestion: The suggestions to apply
     """
-    from omegaconf import OmegaConf
-
     for key, value in suggestion.items():
         if key == "suggestion_uuid":
             continue

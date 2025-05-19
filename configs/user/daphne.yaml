@@ -42,7 +42,6 @@ policy_uri: wandb://run/b.daphne.terrain_prioritized_styles_pretrained_r:v1
 
 wandb:
   enabled: true
-  track: true
   checkpoint_interval: 1
 
 run_id: 3

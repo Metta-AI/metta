@@ -112,23 +112,18 @@
 			"functional": "cpp"
 		},
 
-		// IntelliSense may not automatically resolve packages from your Conda environment.
-		// To fix this, first activate the environment and then create a symlink to your
-		// environment's site-packages directory somewhere where we can find it at an
-		// absolute path.
+		// IntelliSense may not automatically resolve packages from your virtual environment.
+		// The setup script will automatically create a symlink to your virtual environment's 
+		// site-packages directory at /var/tmp/metta/venv-site-packages
 		//
-		// run:
-		//     conda activate metta
-		//     ln -s "$CONDA_PREFIX/lib/python3.11/site-packages" /var/tmp/metta/conda-site-packages
-		//
-		// Then ensure "/var/tmp/metta/conda-site-packages" is included in the extraPaths lists below.
+		// Then ensure "/var/tmp/metta/venv-site-packages" is included in the extraPaths lists below.
 
 		"python.analysis.extraPaths": [
-			"/var/tmp/metta/conda-site-packages",
+			"/var/tmp/metta/venv-site-packages",
 			"mettagrid",
 		],
 		"python.autoComplete.extraPaths": [
-			"/var/tmp/metta/conda-site-packages",
+			"/var/tmp/metta/venv-site-packages",
 			"mettagrid",
 		],
 		"python.analysis.exclude": [
@@ -190,43 +185,6 @@
 		},
 		"terminal.integrated.cwd": "${workspaceFolder}",
 		"terminal.integrated.splitCwd": "workspaceRoot",
-		"cSpell.words": [
-			"bptt",
-			"clipfrac",
-			"coef",
-			"cooldown",
-			"cpus",
-			"daveey",
-			"dones",
-			"heavyball",
-			"kickstarter",
-			"Kruskal",
-			"lasery",
-			"lexsort",
-			"logratio",
-			"metta",
-			"mettagrid",
-			"minibatch",
-			"minibatches",
-			"newlogprob",
-			"nvec",
-			"pufferlib",
-			"pytest",
-			"PYTHONPATH",
-			"relu",
-			"skypilot",
-			"softmax",
-			"tensorclass",
-			"tensordict",
-			"timestep",
-			"timesteps",
-			"truncateds",
-			"unclipped",
-			"vecenv",
-			"venv",
-			"vloss",
-			"wandb",
-			"xlarge"
-		]
+		"cSpell.words": []
 	}
 }
