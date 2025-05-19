@@ -33,5 +33,4 @@ torchrun \
     tools/train.py \
     trainer.num_workers=$NUM_CPUS \
     wandb.enabled=true \
-    wandb.track=true \
     $args

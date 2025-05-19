@@ -42,7 +42,6 @@ policy_uri: wandb://run/b.georgedeane.george_sequence_no_increment
 
 wandb:
   enabled: true
-  track: true
   checkpoint_interval: 1
 
 run_id: 1

@@ -1,6 +1,8 @@
 #!/bin/bash
 
-# Define the list of policy URIs
+set -e
+
+# Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
     # "daveey.dist.2x4"
     # "navigation_training:v35"
