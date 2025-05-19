@@ -219,7 +219,33 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
-  if (normal) {
+  if (_use_observation_tokens) {
+    size_t tokens_written = 0;
+    // TODO: Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
+    for (unsigned int r = r_start; r < r_end; r++) {
+      for (unsigned int c = c_start; c < c_end; c++) {
+        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+          GridLocation object_loc(r, c, layer);
+          auto obj = _grid->object_at(object_loc);
+          if (!obj) continue;
+
+          int obs_r = object_loc.r + obs_height_radius - observer_row;
+          int obs_c = object_loc.c + obs_width_radius - observer_col;
+
+          uint8_t location = obs_r << 4 | obs_c;
+          size_t obj_tokens_written = 0;
+          ObservationTokens agent_obs_tokens(
+              reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0)),
+              observation_view.shape(1) - tokens_written);
+          const obj_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+          for (size_t i = tokens_written; i < tokens_written + obj_tokens_written; i++) {
+            agent_obs_tokens[i].location = location;
+          }
+          tokens_written += obj_tokens_written;
+        }
+      }
+    }
+  } else {
     for (unsigned int r = r_start; r < r_end; r++) {
       for (unsigned int c = c_start; c < c_end; c++) {
         for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
@@ -233,30 +259,6 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
           auto agent_obs = observation_view.mutable_data(agent_idx, obs_r, obs_c, 0);
           _obs_encoder->encode(obj, agent_obs);
         }
-      }
-    }
-  }
-} else {
-  size_t tokens_written = 0;
-  // TODO: Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
-  for (unsigned int r = r_start; r < r_end; r++) {
-    for (unsigned int c = c_start; c < c_end; c++) {
-      for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
-        GridLocation object_loc(r, c, layer);
-        auto obj = _grid->object_at(object_loc);
-        if (!obj) continue;
-
-        int obs_r = object_loc.r + obs_height_radius - observer_row;
-        int obs_c = object_loc.c + obs_width_radius - observer_col;
-
-        uint8_t location = obs_r << 4 | obs_c;
-        size_t obj_tokens_written = 0;
-        ObservationTokens agent_obs_tokens(reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0)), observation_view.shape(1) - tokens_written);
-        const obj_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens);
-        for (size_t i = tokens_written; i < tokens_written + obj_tokens_written; i++) {
-          agent_obs_tokens[i].location = location;
-        }
-        tokens_written += obj_tokens_written;
       }
     }
   }
@@ -369,7 +371,16 @@ void MettaGrid::validate_buffers() {
   // data types and contiguity are handled by pybind11. We still need to check
   // shape.
   unsigned int num_agents = _agents.size();
-  {
+  if (_use_observation_tokens) {
+    auto observation_info = _observations.request();
+    auto shape = observation_info.shape;
+    if (observation_info.ndim != 3 || shape[0] != num_agents || shape[2] != 3) {
+      std::stringstream ss;
+      ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["
+         << num_agents << ", [something], 3]";
+      throw std::runtime_error(ss.str());
+    }
+  } else {
     auto observation_info = _observations.request();
     auto shape = observation_info.shape;
     if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != _obs_height || shape[2] != _obs_width ||
@@ -553,6 +564,7 @@ py::object MettaGrid::action_space() {
                                       py::arg("dtype") = py::module_::import("numpy").attr("int64"));
 }
 
+// xcxc
 py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");

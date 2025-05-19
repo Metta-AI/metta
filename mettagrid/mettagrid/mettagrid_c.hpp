@@ -81,6 +81,7 @@ private:
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
 
+  bool _use_observation_tokens;
   unsigned short _obs_width;
   unsigned short _obs_height;
 

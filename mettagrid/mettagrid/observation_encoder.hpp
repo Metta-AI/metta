@@ -12,19 +12,6 @@
 #include "objects/converter.hpp"
 #include "objects/wall.hpp"
 
-struct alignas(1) ObservationToken {
-  uint8_t prefix;
-  uint8_t feature_id;
-  uint8_t value;
-};
-
-// The alignas should make sure of this, but let's be explicit.
-// We're going to be reinterpret_casting things to this type, so
-// it'll be bad if the compiler pads this type.
-static_assert(sizeof(ObservationToken) == 3, "ObservationToken must be 3 bytes");
-
-using ObservationTokens = std::span<ObservationToken>;
-
 class ObservationEncoder {
 public:
   ObservationEncoder() {
@@ -73,8 +60,8 @@ public:
     }
   }
 
-  size_t encode_tokens(const GridObject* obj, ObservationTokens tokens) {
-    return obj->obs_tokens(tokens, _offsets[obj->_type_id]);
+  void encode_tokens(const GridObject* obj, ObservationTokens tokens) {
+    obj->obs_tokens(tokens, _offsets[obj->_type_id]);
   }
 
   void encode(const GridObject* obj, ObsType* obs) {

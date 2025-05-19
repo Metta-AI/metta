@@ -136,7 +136,9 @@ public:
   size_t obs_tokens(ObservationTokens tokens, const std::vector<unsigned char>& feature_ids) const override {
     vector<uint8_t> basic_token_values = {1, this->hp, this->color, this->converting || this->cooling_down};
     size_t max_basic_tokens = tokens.size() > basic_token_values.size() ? basic_token_values.size() : tokens.size();
-    size_t max_total_tokens = tokens.size() > max_basic_tokens + InventoryItem::InventoryCount ? max_basic_tokens + InventoryItem::InventoryCount : tokens.size();
+    size_t max_total_tokens = tokens.size() > max_basic_tokens + InventoryItem::InventoryCount
+                                  ? max_basic_tokens + InventoryItem::InventoryCount
+                                  : tokens.size();
     size_t max_inventory_tokens = max_total_tokens - max_basic_tokens;
     size_t tokens_written = 0;
     for (size_t i = 0; i < max_basic_tokens; i++) {
