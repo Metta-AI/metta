@@ -642,6 +642,10 @@ py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
   return groups;
 }
 
+void MettaGrid::set_reward_sharing_enabled(bool enabled) {
+  _reward_sharing_enabled = enabled;
+}
+
 // Pybind11 module definition
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
@@ -671,5 +675,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
       .def("inventory_item_names", &MettaGrid::inventory_item_names)
-      .def("get_agent_groups", &MettaGrid::get_agent_groups);
+      .def("get_agent_groups", &MettaGrid::get_agent_groups)
+      .def("set_reward_sharing_enabled", &MettaGrid::set_reward_sharing_enabled);
 }

@@ -50,14 +50,13 @@ public:
   py::list object_type_names();
   py::list inventory_item_names();
   py::array_t<unsigned int> get_agent_groups() const;
+  void set_reward_sharing_enabled(bool enabled);
   static Agent* create_agent(int r,
                              int c,
                              const std::string& group_name,
                              unsigned int group_id,
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
-
-  void set_reward_sharing_enabled(bool enabled) { _reward_sharing_enabled = enabled; }
 
 private:
   // Member variables
