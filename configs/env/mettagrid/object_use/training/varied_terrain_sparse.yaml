@@ -15,4 +15,4 @@ game:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
       width: ${sampling:20,50,30}
       height: ${sampling:20,50,30}
-      style: sparse
+      style: all-sparse
