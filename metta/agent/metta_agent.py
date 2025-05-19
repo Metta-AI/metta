@@ -200,12 +200,27 @@ class MettaAgent(nn.Module):
             - value: Value estimate, shape (BT,)
             - log_probs: Log-softmax of logits, shape (BT, A) where A is the size of the action space
         """
-        # rename parameter
+        # rename parameter for clarity
         bptt_action = action
         del action
 
-        # TODO - obs_shape is not yet available in reloaded policies - we should fix this by storing the data
-        obs_w, obs_h, features = self.agent_attributes["obs_shape"]
+        # TODO - obs_shape is not available in the eval smoke test policies so we can't
+        # check exact dimensions
+
+        # Default values in case obs_shape is not available
+        obs_w, obs_h, features = "W", "H", "F"
+
+        # Check if agent_attributes exists, is not None, and contains obs_shape
+        if (
+            hasattr(self, "agent_attributes")
+            and self.agent_attributes is not None
+            and "obs_shape" in self.agent_attributes
+        ):
+            # Get obs_shape and ensure it has the expected format
+            obs_shape = self.agent_attributes["obs_shape"]
+            if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
+                obs_w, obs_h, features = obs_shape
+            # If the format is unexpected, we keep the default values
 
         if bptt_action is not None:
             # BPTT
