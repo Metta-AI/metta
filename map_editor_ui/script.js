@@ -295,15 +295,30 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!asciiEditorInput) {
             asciiEditorInput = document.createElement('input');
             asciiEditorInput.maxLength = 1;
+            asciiEditorInput.id = 'ascii-editor-input';
             Object.assign(asciiEditorInput.style, {
                 position: 'absolute', textAlign: 'center', fontFamily: 'monospace',
                 padding: '0', margin: '0', border: '1px solid #666', boxSizing: 'border-box'
             });
             asciiEditorInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') closeAsciiEditor(true);
-                else if (e.key === 'Escape') closeAsciiEditor(false);
+                if (e.key === 'Enter') {
+                    e.preventDefault(); // Prevent default to avoid submitting forms
+                    closeAsciiEditor(true);
+                }
+                else if (e.key === 'Escape') {
+                    e.preventDefault(); // Prevent default to avoid browser actions
+                    closeAsciiEditor(false);
+                }
             });
-            asciiEditorInput.addEventListener('blur', () => closeAsciiEditor(true));
+            // Use a timeout to avoid race conditions with other event handlers
+            asciiEditorInput.addEventListener('blur', () => {
+                // Small delay to prevent race conditions with Enter/Escape key handlers
+                setTimeout(() => {
+                    if (editingCell) { // Only close if still editing
+                        closeAsciiEditor(true);
+                    }
+                }, 10);
+            });
         }
         Object.assign(asciiEditorInput.style, {
             width: cellSize + 'px', height: cellSize + 'px',
@@ -311,43 +326,69 @@ document.addEventListener('DOMContentLoaded', () => {
             top: canvas.offsetTop + (row + 1) * cellSize + 'px'
         });
         asciiEditorInput.value = grid[row][col];
+        
+        // Remove any existing instance first to avoid duplicates
+        const existingInput = document.getElementById('ascii-editor-input');
+        if (existingInput && existingInput !== asciiEditorInput) {
+            existingInput.remove();
+        }
+        
         document.body.appendChild(asciiEditorInput);
         asciiEditorInput.focus();
         asciiEditorInput.select();
     }
 
     function closeAsciiEditor(commit) {
-        // Guard against calls when no edit is active or input element is missing.
-        if (!editingCell || !asciiEditorInput) {
-            // If asciiEditorInput still exists and editingCell is null (e.g. a late blur event after Enter press),
-            // ensure it's removed if it's still in the DOM to clean up.
-            if (asciiEditorInput && asciiEditorInput.parentNode && !editingCell) {
-                // console.log("closeAsciiEditor: Stray event, ensuring input is removed.");
-                asciiEditorInput.remove();
+        // Use a try-catch to handle any potential DOM errors
+        try {
+            // Guard against calls when no edit is active or input element is missing.
+            if (!editingCell || !asciiEditorInput) {
+                // If asciiEditorInput still exists and editingCell is null (e.g. a late blur event after Enter press),
+                // ensure it's removed if it's still in the DOM to clean up.
+                if (asciiEditorInput && document.getElementById('ascii-editor-input')) {
+                    try {
+                        document.getElementById('ascii-editor-input').remove();
+                    } catch (e) {
+                        console.log("Failed to remove stray input element:", e);
+                    }
+                }
+                return;
             }
-            return;
-        }
 
-        const currentEditingCell = editingCell; // Capture before nulling
-        const currentValue = asciiEditorInput.value; // Capture value before input might be removed
+            const currentEditingCell = editingCell; // Capture before nulling
+            const currentValue = asciiEditorInput.value; // Capture value before input might be removed
 
-        editingCell = null; // Mark editing as finished immediately to prevent re-entrancy from subsequent events
+            editingCell = null; // Mark editing as finished immediately to prevent re-entrancy from subsequent events
 
-        if (commit) {
-            const ch = currentValue ? currentValue[0] : asciiSymbols.empty;
-            if (currentEditingCell.row < gridHeight && currentEditingCell.col < gridWidth) { // Check bounds
-                 grid[currentEditingCell.row][currentEditingCell.col] = ch;
+            if (commit) {
+                const ch = currentValue ? currentValue[0] : asciiSymbols.empty;
+                if (currentEditingCell.row < gridHeight && currentEditingCell.col < gridWidth) { // Check bounds
+                    grid[currentEditingCell.row][currentEditingCell.col] = ch;
+                }
+                updateAsciiPreview();
+                drawCanvas();
             }
-            updateAsciiPreview();
-            drawCanvas();
-        }
 
-        // Remove the input element if it's still part of the DOM.
-        // This check is crucial because another event might have already removed it.
-        if (asciiEditorInput.parentNode) {
-            asciiEditorInput.remove();
+            // Use safer DOM query to find and remove the element
+            const inputElement = document.getElementById('ascii-editor-input');
+            if (inputElement) {
+                inputElement.remove();
+            }
+            // Do NOT null out asciiEditorInput itself, as it's a shared DOM element that gets reused.
+        } catch (err) {
+            console.error("Error in closeAsciiEditor:", err);
+            // Try to recover by resetting state
+            editingCell = null;
+            // Try one more time to remove the element if it exists
+            try {
+                const inputElement = document.getElementById('ascii-editor-input');
+                if (inputElement) {
+                    inputElement.remove();
+                }
+            } catch (e) {
+                // Last resort, just ignore
+            }
         }
-        // Do NOT null out asciiEditorInput itself, as it's a shared DOM element that gets reused.
     }
 
     function handleInteraction(event) {
