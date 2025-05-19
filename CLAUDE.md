@@ -20,9 +20,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Run setup script (creates virtual environment automatically)
 ./devops/setup_build.sh
 
-# Rebuild only mettagrid component
-cd mettagrid
-make build
 ```
 
 ## Common Commands

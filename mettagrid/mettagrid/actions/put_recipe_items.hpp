@@ -29,16 +29,17 @@ protected:
     // #Converter_and_HasInventory_are_the_same_thing
     Converter* converter = static_cast<Converter*>(target);
 
-    for (size_t i = 0; i < converter->recipe_input.size(); i++) {
-      if (converter->recipe_input[i] > actor->inventory[i]) {
-        return false;
-      }
-    }
+    // for (size_t i = 0; i < converter->recipe_input.size(); i++) {
+    //   if (converter->recipe_input[i] > actor->inventory[i]) {
+    //     return false;
+    //   }
+    // }
 
     for (size_t i = 0; i < converter->recipe_input.size(); i++) {
-      actor->update_inventory(static_cast<InventoryItem>(i), -converter->recipe_input[i]);
-      converter->update_inventory(static_cast<InventoryItem>(i), converter->recipe_input[i]);
-      actor->stats.add(InventoryItemNames[i], "put", converter->recipe_input[i]);
+      unsigned int inv = std::min(converter->recipe_input[i], actor->inventory[i]);
+      actor->update_inventory(static_cast<InventoryItem>(i), -inv);
+      converter->update_inventory(static_cast<InventoryItem>(i), inv);
+      actor->stats.add(InventoryItemNames[i], "put", inv);
     }
 
     return true;

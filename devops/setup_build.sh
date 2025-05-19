@@ -8,6 +8,84 @@ set -e
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Parse command line arguments
+CLEAN=0
+for arg in "$@"; do
+case $arg in
+  --clean)
+    CLEAN=1
+    shift
+    ;;
+esac
+done
+
+# ========== CLEAN BUILD ==========
+if [ "$CLEAN" -eq 1 ]; then 
+
+
+ # first deactivate the venv
+
+
+  echo -e "\n\nCleaning build artifacts...\n\n"
+
+  # Remove virtual environments
+  if [ -d "$PROJECT_DIR/.venv" ]; then
+    echo "Removing .venv virtual environment..."
+    rm -rf "$PROJECT_DIR/.venv"
+    echo "✅ Removed .venv virtual environment"
+  fi
+  if [ -d "$PROJECT_DIR/venv" ]; then
+    echo "Removing venv virtual environment..."
+    rm -rf "$PROJECT_DIR/venv"
+    echo "✅ Removed venv virtual environment"
+  fi
+
+  # Clean root directory artifacts
+  find "$PROJECT_DIR" -type f -name '*.so' -delete
+  find "$PROJECT_DIR" -type d -name 'build' -exec rm -rf {} +
+  echo "✅ Cleaned root directory build artifacts"
+
+  # Clean mettagrid artifacts if directory exists
+  if [ -d "$PROJECT_DIR/mettagrid" ]; then
+    echo "Cleaning mettagrid build artifacts..."
+    find "$PROJECT_DIR/mettagrid" -name "*.so" -type f -delete
+    echo "✅ Removed .so files from mettagrid directory"
+  fi
+
+
+
+
+  echo "Creating a virtual environment with uv..."
+
+  # Check and remove existing venv directories if needed
+  if [ -d ".venv" ]; then
+    echo "Removing existing .venv directory..."
+    rm -rf .venv
+  fi
+  if [ -d "venv" ]; then
+    echo "Removing existing venv directory..."
+    rm -rf venv
+  fi
+
+  echo "Creating new virtual environment..."
+  uv venv .venv --python 3.11.7 || {
+    echo "Error: Failed to create virtual environment with uv command."
+    exit 1
+  }
+
+  # Activate the virtual environment
+  if [[ -d ".venv" ]]; then
+    # Activate the venv
+    source .venv/bin/activate
+    echo "✅ Virtual environment '.venv' created and activated"
+  else
+    echo "❌ Failed to create virtual environment with uv"
+    exit 1
+  fi
+
+
+fi
+
 # check if we're in docker
 if [ -f /.dockerenv ]; then
   export IS_DOCKER=true
@@ -133,6 +211,18 @@ uv pip install -r requirements.txt || {
 cd mettagrid
 make build
 cd ..
+
+
+
+
+# Always install requirements
+uv pip install -r requirements.txt || {
+    echo "❌ Failed to install packages. Please check the error message above."
+    exit 1
+}
+
+echo -e "\n\nBuilding mettagrid...\n\n"
+uv run --active --directory mettagrid python setup.py build_ext --inplace
 uv pip install -e mettagrid
 
 # ========== BUILD FAST_GAE ==========
@@ -155,9 +245,28 @@ for dep in \
   echo -e "\nChecking import for $dep..."
   $PYTHON -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
     echo "❌ Failed to import $dep"
+if [ "$CLEAN" -eq 1 ]; then
+  echo -e "\n\nSanity check: verifying all local deps are importable\n\n"
+
+  python -c "import sys; print('Python path:', sys.path);"
+
+  for dep in \
+    "pufferlib" \
+    "carbs" \
+    "wandb_carbs"; do
+    echo "Checking import for $dep..."
+    python -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
+      echo "❌ Failed to import $dep"
+      exit 1
+    }
+  done
+
+  # Check for metta.rl.fast_gae.compute_gae
+  echo "Checking import for metta.rl.fast_gae.compute_gae..."
+  python -c "from metta.rl.fast_gae import compute_gae; print('✅ Found metta.rl.fast_gae.compute_gae')" || {
+    echo "❌ Failed to import metta.rl.fast_gae.compute_gae"
     exit 1
   }
-done
 
 # Check for metta.rl.fast_gae.compute_gae
 echo -e "\nChecking import for metta.rl.fast_gae.compute_gae..."
