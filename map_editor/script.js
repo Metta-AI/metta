@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let grid = []; // Stores the internal drawable map (0 for empty, 1 for wall)
 
     let mouseButtonPressed = null; // null = no button, 0 = left, 2 = right
+    let lastProcessedCell = { row: null, col: null };
 
     let isConfirmingReset = false;
     let resetTimeoutId = null;
@@ -111,57 +112,111 @@ document.addEventListener('DOMContentLoaded', () => {
         return { row: row - 1, col: col - 1 };
     }
 
-    function handleCellChange(event) {
-        const { row, col } = getMouseGridPos(event);
+    // Function to apply change to a single cell
+    function applyToCell(row, col, cellValueToSet) {
+        if (row >= 0 && row < gridHeight && col >= 0 && col < gridWidth) {
+            if (grid[row][col] !== cellValueToSet) {
+                grid[row][col] = cellValueToSet;
+                return true; // Indicates a change was made
+            }
+        }
+        return false; // No change
+    }
 
-        // Determine action based on which mouse button is logically down for this event stream
+    // Bresenham's line algorithm or similar simple grid line interpolation
+    function drawLine(r0, c0, r1, c1, cellValueToSet) {
+        let changed = false;
+        const dr = Math.abs(r1 - r0);
+        const dc = Math.abs(c1 - c0);
+        const sr = (r0 < r1) ? 1 : -1;
+        const sc = (c0 < c1) ? 1 : -1;
+        let err = dr - dc;
+
+        let r = r0;
+        let c = c0;
+
+        while (true) {
+            if (applyToCell(r, c, cellValueToSet)) changed = true;
+            if (r === r1 && c === c1) break;
+            const e2 = 2 * err;
+            if (e2 > -dc) {
+                err -= dc;
+                r += sr;
+            }
+            if (e2 < dr) {
+                err += dr;
+                c += sc;
+            }
+        }
+        return changed;
+    }
+
+    function handleInteraction(event) {
+        const { row, col } = getMouseGridPos(event);
+        let needsRedraw = false;
+
         let cellValueToSet;
-        if (event.type === 'contextmenu' || mouseButtonPressed === 2) { // Erasing for initial right-click or right-drag
-            cellValueToSet = 0;
-        } else if (event.type === 'mousedown' || mouseButtonPressed === 0) { // Drawing for initial left-click or left-drag
+        if (mouseButtonPressed === 0) { // Left button for drawing
             cellValueToSet = 1;
+        } else if (mouseButtonPressed === 2) { // Right button for erasing
+            cellValueToSet = 0;
         } else {
-            return; // Should not happen if mouseButtonPressed is correctly managed
+            return; // No button we care about is pressed
         }
 
-        // Check if within the internal drawable grid
-        if (row >= 0 && row < gridHeight && col >= 0 && col < gridWidth) {
-            const currentVal = grid[row][col];
-            if (currentVal !== cellValueToSet) {
-                grid[row][col] = cellValueToSet;
-                drawCanvas();
-                updateAsciiPreview();
+        if (event.type === 'mousedown' || event.type === 'contextmenu') {
+            // Single point for initial click
+            if (applyToCell(row, col, cellValueToSet)) {
+                needsRedraw = true;
             }
+            lastProcessedCell = { row, col };
+        } else if (event.type === 'mousemove' && mouseButtonPressed !== null) {
+            if (lastProcessedCell.row !== null && (lastProcessedCell.row !== row || lastProcessedCell.col !== col)) {
+                if (drawLine(lastProcessedCell.row, lastProcessedCell.col, row, col, cellValueToSet)) {
+                    needsRedraw = true;
+                }
+                lastProcessedCell = { row, col };
+            } else if (lastProcessedCell.row === null) { // Mouse moved onto canvas while button already pressed
+                 if (applyToCell(row, col, cellValueToSet)) {
+                    needsRedraw = true;
+                 }
+                 lastProcessedCell = { row, col };
+            }
+        }
+
+        if (needsRedraw) {
+            drawCanvas();
+            updateAsciiPreview();
         }
     }
 
     canvas.addEventListener('mousedown', (event) => {
         if (event.button === 0) { // Primary (left) button
             mouseButtonPressed = 0;
-            handleCellChange(event);
+            handleInteraction(event);
         }
-        // Middle button (event.button === 1) is ignored
     });
 
     canvas.addEventListener('contextmenu', (event) => {
         event.preventDefault(); // Prevent context menu
         mouseButtonPressed = 2; // Right button
-        handleCellChange(event);
+        handleInteraction(event);
     });
 
     canvas.addEventListener('mousemove', (event) => {
         if (mouseButtonPressed !== null) { // If left or right button is held down
-            handleCellChange(event);
+            handleInteraction(event);
         }
     });
 
     canvas.addEventListener('mouseup', (event) => {
-        // Check which button was released if needed, but generally reset for any mouseup
         mouseButtonPressed = null;
+        lastProcessedCell = { row: null, col: null };
     });
 
     canvas.addEventListener('mouseleave', () => {
-        mouseButtonPressed = null; // Stop drawing/erasing if mouse leaves canvas while pressed
+        mouseButtonPressed = null;
+        lastProcessedCell = { row: null, col: null };
     });
 
     copyAsciiBtn.addEventListener('click', () => {

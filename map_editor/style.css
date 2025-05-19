@@ -42,6 +42,13 @@ body {
     background-color: #0056b3;
 }
 
+.controls-info {
+    font-size: 0.8em;
+    color: #555;
+    margin-top: 10px;
+    text-align: center; /* Center the info text */
+}
+
 #mapCanvas {
     border: 1px solid #333;
     cursor: crosshair;
