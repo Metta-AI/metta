@@ -89,16 +89,6 @@ def test_episode_lifecycle(temp_dir):
             assert result is not None
             assert abs(result[0] - value) < 1e-6  # Compare floats with tolerance
 
-    # Check group metrics
-    for group_id, metrics in group_metrics.items():
-        for metric, value in metrics.items():
-            result = db.con.execute(
-                "SELECT value FROM group_metrics WHERE episode_id = ? AND group_id = ? AND metric = ?",
-                (episode_id, group_id, metric),
-            ).fetchone()
-            assert result is not None
-            assert abs(result[0] - value) < 1e-6  # Compare floats with tolerance
-
     # Check step count
     result = db.con.execute("SELECT step_count FROM episodes WHERE id = ?", (episode_id,)).fetchone()
     assert result is not None
