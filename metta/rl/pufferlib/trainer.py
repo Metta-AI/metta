@@ -49,7 +49,7 @@ class PufferTrainer:
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
-        self._env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
+        self.env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
         self.sim_suite_config = sim_suite_config
 
         self._master = True
@@ -772,7 +772,7 @@ class PufferTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         # Create the vectorized environment
-        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self._env_cfg.game.num_agents
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.env_cfg.game.num_agents
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
@@ -786,7 +786,7 @@ class PufferTrainer:
             )
 
         self.vecenv = make_vecenv(
-            self._env_cfg,
+            self.env_cfg,
             self.cfg.vectorization,
             num_envs=num_envs,
             batch_size=self.batch_size,
