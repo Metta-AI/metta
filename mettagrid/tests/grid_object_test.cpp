@@ -91,7 +91,7 @@ TEST_F(GridObjectTest, InitWithCoordinatesAndLayer) {
 // Test obs method
 TEST_F(GridObjectTest, ObsMethod) {
   ObsType observations[1] = {0};
-  vector<unsigned int> offsets = {0};
+  vector<uint8_t> offsets = {0};
 
   obj.obs(observations, offsets);
 
