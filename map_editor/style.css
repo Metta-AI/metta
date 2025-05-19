@@ -96,8 +96,8 @@ body {
 .copy-status {
     display: block; /* Make status message block-level */
     text-align: center; /* Center the text within the status message block */
-    min-height: 1em;       /* Approximate height of one line of text */
-    /* margin-left: 10px; Removed, no longer needed */
+    height: 1.2em;       /* Fixed height, 1.2 times its own font-size (0.9em of parent) */
+    line-height: 1.2;    /* Match height for vertical centering and consistent spacing */
     font-size: 0.9em;
     color: #28a745; /* Same green as the button */
     visibility: hidden; /* Hidden by default, but occupies space */
