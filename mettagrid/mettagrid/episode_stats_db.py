@@ -42,18 +42,6 @@ EPISODE_DB_TABLES = {
         PRIMARY KEY (episode_id, group_id, agent_id)
     );
     """,
-<<<<<<< HEAD
-    # "group_metrics": """
-    # CREATE TABLE IF NOT EXISTS group_metrics (
-    #     episode_id TEXT,
-    #     group_id INTEGER,
-    #     metric TEXT,
-    #     value REAL,
-    #     PRIMARY KEY (episode_id, group_id, metric)
-    # );
-    # """,
-=======
->>>>>>> 59f4cbe8028a67b20272c920aa88e3490bf76abe
     "agent_metrics": """
     CREATE TABLE IF NOT EXISTS agent_metrics (
         episode_id TEXT,
