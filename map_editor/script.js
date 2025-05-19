@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const widthInput = document.getElementById('mapWidth');
     const heightInput = document.getElementById('mapHeight');
     const createGridBtn = document.getElementById('createGridBtn');
-    const modeToggleBtn = document.getElementById('modeToggleBtn');
     const asciiPreviewTextarea = document.getElementById('asciiPreview');
     const copyAsciiBtn = document.getElementById('copyAsciiBtn');
     const copyStatusMessage = document.getElementById('copyStatusMessage');
@@ -15,8 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const cellSize = 20; // Size of each cell in pixels
     let grid = []; // Stores the internal drawable map (0 for empty, 1 for wall)
 
-    let isDrawingMode = true; // true for draw wall, false for delete wall
-    let isMouseDown = false;
+    let mouseButtonPressed = null; // null = no button, 0 = left, 2 = right
 
     let isConfirmingReset = false;
     let resetTimeoutId = null;
@@ -116,12 +114,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleCellChange(event) {
         const { row, col } = getMouseGridPos(event);
 
+        // Determine action based on which mouse button is logically down for this event stream
+        let cellValueToSet;
+        if (event.type === 'contextmenu' || mouseButtonPressed === 2) { // Erasing for initial right-click or right-drag
+            cellValueToSet = 0;
+        } else if (event.type === 'mousedown' || mouseButtonPressed === 0) { // Drawing for initial left-click or left-drag
+            cellValueToSet = 1;
+        } else {
+            return; // Should not happen if mouseButtonPressed is correctly managed
+        }
+
         // Check if within the internal drawable grid
         if (row >= 0 && row < gridHeight && col >= 0 && col < gridWidth) {
             const currentVal = grid[row][col];
-            const newVal = isDrawingMode ? 1 : 0;
-            if (currentVal !== newVal) {
-                grid[row][col] = newVal;
+            if (currentVal !== cellValueToSet) {
+                grid[row][col] = cellValueToSet;
                 drawCanvas();
                 updateAsciiPreview();
             }
@@ -129,28 +136,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     canvas.addEventListener('mousedown', (event) => {
-        isMouseDown = true;
+        if (event.button === 0) { // Primary (left) button
+            mouseButtonPressed = 0;
+            handleCellChange(event);
+        }
+        // Middle button (event.button === 1) is ignored
+    });
+
+    canvas.addEventListener('contextmenu', (event) => {
+        event.preventDefault(); // Prevent context menu
+        mouseButtonPressed = 2; // Right button
         handleCellChange(event);
     });
 
     canvas.addEventListener('mousemove', (event) => {
-        if (isMouseDown) {
+        if (mouseButtonPressed !== null) { // If left or right button is held down
             handleCellChange(event);
         }
     });
 
-    canvas.addEventListener('mouseup', () => {
-        isMouseDown = false;
+    canvas.addEventListener('mouseup', (event) => {
+        // Check which button was released if needed, but generally reset for any mouseup
+        mouseButtonPressed = null;
     });
 
     canvas.addEventListener('mouseleave', () => {
-        isMouseDown = false; // Stop drawing if mouse leaves canvas while pressed
-    });
-
-    modeToggleBtn.addEventListener('click', () => {
-        isDrawingMode = !isDrawingMode;
-        modeToggleBtn.textContent = isDrawingMode ? 'Mode: Draw Wall' : 'Mode: Erase Wall';
-        modeToggleBtn.style.backgroundColor = isDrawingMode ? '#007bff' : '#dc3545';
+        mouseButtonPressed = null; // Stop drawing/erasing if mouse leaves canvas while pressed
     });
 
     copyAsciiBtn.addEventListener('click', () => {
