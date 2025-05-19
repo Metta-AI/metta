@@ -13,15 +13,19 @@
         <label for="mapHeight">Height:</label>
         <input type="number" id="mapHeight" value="30" min="3" max="100">
         <button id="createGridBtn">Create/Reset Grid</button>
-        <p class="controls-info">Left-click/Tap: Draw Wall | Right-click/Two-finger Tap: Erase Wall</p>
+        <button id="toggleAsciiEditBtn">ASCII Edit Mode</button>
+        <p class="controls-info">Left-click/Tap: Draw | Right-click/Two-finger Tap: Erase</p>
     </div>
+
+    <div class="entity-selector" id="entitySelector"></div>
 
     <canvas id="mapCanvas"></canvas>
 
     <div class="preview-container">
         <h3>ASCII Preview:</h3>
-        <textarea id="asciiPreview" readonly rows="10" cols="50"></textarea>
+        <textarea id="asciiPreview" rows="10" cols="50"></textarea>
         <button id="copyAsciiBtn">Copy ASCII</button>
+        <button id="loadAsciiBtn">Load ASCII</button>
         <span id="copyStatusMessage" class="copy-status"></span>
     </div>
 

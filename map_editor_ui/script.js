@@ -7,12 +7,115 @@ document.addEventListener('DOMContentLoaded', () => {
     const createGridBtn = document.getElementById('createGridBtn');
     const asciiPreviewTextarea = document.getElementById('asciiPreview');
     const copyAsciiBtn = document.getElementById('copyAsciiBtn');
+    const loadAsciiBtn = document.getElementById('loadAsciiBtn');
     const copyStatusMessage = document.getElementById('copyStatusMessage');
+    const entitySelector = document.getElementById('entitySelector');
+    const toggleAsciiEditBtn = document.getElementById('toggleAsciiEditBtn');
 
     let gridWidth = parseInt(widthInput.value);
     let gridHeight = parseInt(heightInput.value);
     const cellSize = 20; // Size of each cell in pixels
-    let grid = []; // Stores the internal drawable map (0 for empty, 1 for wall)
+    let grid = []; // Stores the internal drawable map
+    let selectedEntity = 'wall';
+    let asciiEditMode = false;
+    let asciiEditorInput = null;
+    let editingCell = null;
+
+    const asciiSymbols = {
+        empty: ' ',
+        wall: '#',
+        'agent.agent': 'A',
+        mine: 'g',
+        generator: 'c',
+        altar: 'a',
+        armory: 'r',
+        lasery: 'l',
+        lab: 'b',
+        factory: 'f',
+        temple: 't',
+        'agent.team_1': 'Q',
+        'agent.team_2': 'E',
+        'agent.team_3': 'R',
+        'agent.team_4': 'T'
+    };
+    const asciiToObject = {};
+    for (const [obj, ch] of Object.entries(asciiSymbols)) {
+        asciiToObject[ch] = obj;
+    }
+    // Support old wall character
+    asciiToObject['W'] = 'wall';
+
+    const objectIcons = {
+        wall: '../mettascope/data/objects/wall.png',
+        'agent.agent': '../mettascope/data/objects/agent.png',
+        mine: '../mettascope/data/objects/mine.png',
+        generator: '../mettascope/data/objects/generator.png',
+        altar: '../mettascope/data/objects/altar.png',
+        armory: '../mettascope/data/objects/armory.png',
+        lasery: '../mettascope/data/objects/lasery.png',
+        lab: '../mettascope/data/objects/lab.png',
+        factory: '../mettascope/data/objects/factory.png',
+        temple: '../mettascope/data/objects/temple.png'
+    };
+
+    const teamColors = {
+        'agent.team_1': '#d9534f', // red
+        'agent.team_2': '#0275d8', // blue
+        'agent.team_3': '#5cb85c', // green
+        'agent.team_4': '#f0ad4e'  // orange
+    };
+
+    const objectImages = {};
+    for (const [obj, src] of Object.entries(objectIcons)) {
+        const img = new Image();
+        img.src = src;
+        objectImages[obj] = img;
+    }
+
+    function prepareTeamIcons(callback) {
+        const baseSrc = objectIcons['agent.agent'];
+        const baseImg = new Image();
+        baseImg.src = baseSrc;
+        baseImg.onload = () => {
+            Object.entries(teamColors).forEach(([obj, color]) => {
+                const canvasEl = document.createElement('canvas');
+                canvasEl.width = baseImg.width;
+                canvasEl.height = baseImg.height;
+                const ictx = canvasEl.getContext('2d');
+                ictx.drawImage(baseImg, 0, 0);
+                ictx.globalCompositeOperation = 'source-atop';
+                ictx.fillStyle = color;
+                ictx.fillRect(0, 0, canvasEl.width, canvasEl.height);
+                const img = new Image();
+                img.src = canvasEl.toDataURL();
+                objectImages[obj] = img;
+                objectIcons[obj] = img.src;
+            });
+            if (typeof callback === 'function') callback();
+        };
+        baseImg.onerror = () => {
+            if (typeof callback === 'function') callback();
+        };
+    }
+
+    function createEntityButtons() {
+        Object.entries(objectIcons).forEach(([obj, src], index) => {
+            const btn = document.createElement('button');
+            btn.className = 'entity-btn';
+            btn.dataset.entity = obj;
+            const img = document.createElement('img');
+            img.src = src;
+            img.alt = obj;
+            btn.appendChild(img);
+            btn.addEventListener('click', () => {
+                selectedEntity = obj;
+                document.querySelectorAll('.entity-btn').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+            });
+            entitySelector.appendChild(btn);
+            if (index === 0) btn.classList.add('selected');
+        });
+    }
 
     let mouseButtonPressed = null; // null = no button, 0 = left, 2 = right
     let lastProcessedCell = { row: null, col: null };
@@ -25,7 +128,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeGrid(width, height) {
         gridWidth = width;
         gridHeight = height;
-        grid = Array(gridHeight).fill(null).map(() => Array(gridWidth).fill(0));
+        grid = Array(gridHeight)
+            .fill(null)
+            .map(() => Array(gridWidth).fill(asciiSymbols.empty));
 
         // Canvas size includes the outer border
         canvas.width = (gridWidth + 2) * cellSize;
@@ -38,21 +143,34 @@ document.addEventListener('DOMContentLoaded', () => {
     function drawCanvas() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw grid cells
         for (let r = 0; r < gridHeight + 2; r++) {
             for (let c = 0; c < gridWidth + 2; c++) {
-                ctx.fillStyle = '#555555'; // Wall color
+                const char = (r === 0 || r === gridHeight + 1 || c === 0 || c === gridWidth + 1)
+                    ? asciiSymbols.wall
+                    : grid[r - 1][c - 1];
+                const obj = asciiToObject[char] || 'empty';
 
-                if (r === 0 || r === gridHeight + 1 || c === 0 || c === gridWidth + 1) {
-                    // Outer border wall
+                if (asciiEditMode) {
+                    ctx.fillStyle = '#e0e0e0';
                     ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+                    if (char !== asciiSymbols.empty) {
+                        ctx.fillStyle = '#000';
+                        ctx.font = '16px monospace';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(char, c * cellSize + cellSize / 2, r * cellSize + cellSize / 2);
+                    }
+                } else if (obj !== 'empty' && objectImages[obj]) {
+                    ctx.drawImage(objectImages[obj], c * cellSize, r * cellSize, cellSize, cellSize);
                 } else {
-                    // Inner grid
-                    if (grid[r - 1][c - 1] === 1) { // Wall
-                        ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
-                    } else { // Empty
-                        ctx.fillStyle = '#e0e0e0'; // Empty cell color
-                        ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+                    ctx.fillStyle = '#e0e0e0';
+                    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+                    if (char !== asciiSymbols.empty) {
+                        ctx.fillStyle = '#000';
+                        ctx.font = '16px monospace';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(char, c * cellSize + cellSize / 2, r * cellSize + cellSize / 2);
                     }
                 }
             }
@@ -77,19 +195,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateAsciiPreview() {
         let ascii = '';
-        // Top border
-        ascii += 'W'.repeat(gridWidth + 2) + '\n';
+        const wallChar = asciiSymbols.wall;
+        ascii += wallChar.repeat(gridWidth + 2) + '\n';
 
         for (let r = 0; r < gridHeight; r++) {
-            ascii += 'W'; // Left border
+            ascii += wallChar;
             for (let c = 0; c < gridWidth; c++) {
-                ascii += grid[r][c] === 1 ? 'W' : ' ';
+                ascii += grid[r][c];
             }
-            ascii += 'W\n'; // Right border
+            ascii += wallChar + '\n';
         }
 
-        // Bottom border
-        ascii += 'W'.repeat(gridWidth + 2) + '\n';
+        ascii += wallChar.repeat(gridWidth + 2) + '\n';
         asciiPreviewTextarea.value = ascii.trim();
 
         // Adjust textarea attributes and style for full content visibility
@@ -98,6 +215,31 @@ document.addEventListener('DOMContentLoaded', () => {
         // Adjust textarea height to fit content
         asciiPreviewTextarea.style.height = 'auto'; // Reset height for accurate scrollHeight calculation
         asciiPreviewTextarea.style.height = (asciiPreviewTextarea.scrollHeight) + 'px';
+    }
+
+    function loadFromAscii(text) {
+        const lines = text.trim().split(/\r?\n/).filter(l => l.length);
+        if (lines.length < 3) {
+            return false;
+        }
+        const innerWidth = lines[0].length - 2;
+        const innerHeight = lines.length - 2;
+        if (innerWidth <= 0 || innerHeight <= 0) {
+            return false;
+        }
+        for (const line of lines) {
+            if (line.length !== innerWidth + 2) return false;
+        }
+        initializeGrid(innerWidth, innerHeight);
+        for (let r = 0; r < innerHeight; r++) {
+            const row = lines[r + 1];
+            for (let c = 0; c < innerWidth; c++) {
+                grid[r][c] = row[c + 1];
+            }
+        }
+        drawCanvas();
+        updateAsciiPreview();
+        return true;
     }
 
     function getMouseGridPos(event) {
@@ -151,15 +293,60 @@ document.addEventListener('DOMContentLoaded', () => {
         return changed;
     }
 
+    function openAsciiEditor(row, col) {
+        closeAsciiEditor(false);
+        editingCell = { row, col };
+        if (!asciiEditorInput) {
+            asciiEditorInput = document.createElement('input');
+            asciiEditorInput.maxLength = 1;
+            asciiEditorInput.style.position = 'absolute';
+            asciiEditorInput.style.textAlign = 'center';
+            asciiEditorInput.style.fontFamily = 'monospace';
+            asciiEditorInput.style.padding = '0';
+            asciiEditorInput.style.margin = '0';
+            asciiEditorInput.style.border = '1px solid #666';
+            asciiEditorInput.style.boxSizing = 'border-box';
+            asciiEditorInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    closeAsciiEditor(true);
+                } else if (e.key === 'Escape') {
+                    closeAsciiEditor(false);
+                }
+            });
+            asciiEditorInput.addEventListener('blur', () => closeAsciiEditor(true));
+        }
+        asciiEditorInput.style.width = cellSize + 'px';
+        asciiEditorInput.style.height = cellSize + 'px';
+        asciiEditorInput.style.left = canvas.offsetLeft + (col + 1) * cellSize + 'px';
+        asciiEditorInput.style.top = canvas.offsetTop + (row + 1) * cellSize + 'px';
+        asciiEditorInput.value = grid[row][col];
+        document.body.appendChild(asciiEditorInput);
+        asciiEditorInput.focus();
+        asciiEditorInput.select();
+    }
+
+    function closeAsciiEditor(commit) {
+        if (!editingCell) return;
+        if (commit) {
+            const ch = asciiEditorInput.value ? asciiEditorInput.value[0] : asciiSymbols.empty;
+            grid[editingCell.row][editingCell.col] = ch;
+            updateAsciiPreview();
+            drawCanvas();
+        }
+        asciiEditorInput.remove();
+        editingCell = null;
+    }
+
     function handleInteraction(event) {
+        if (asciiEditMode) return;
         const { row, col } = getMouseGridPos(event);
         let needsRedraw = false;
 
         let cellValueToSet;
         if (mouseButtonPressed === 0) { // Left button for drawing
-            cellValueToSet = 1;
+            cellValueToSet = asciiSymbols[selectedEntity];
         } else if (mouseButtonPressed === 2) { // Right button for erasing
-            cellValueToSet = 0;
+            cellValueToSet = asciiSymbols.empty;
         } else {
             return; // No button we care about is pressed
         }
@@ -191,6 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     canvas.addEventListener('mousedown', (event) => {
+        if (asciiEditMode) return;
         if (event.button === 0) { // Primary (left) button
             mouseButtonPressed = 0;
             handleInteraction(event);
@@ -198,12 +386,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     canvas.addEventListener('contextmenu', (event) => {
+        if (asciiEditMode) return;
         event.preventDefault(); // Prevent context menu
         mouseButtonPressed = 2; // Right button
         handleInteraction(event);
     });
 
     canvas.addEventListener('mousemove', (event) => {
+        if (asciiEditMode) return;
         if (mouseButtonPressed !== null) { // If left or right button is held down
             handleInteraction(event);
         }
@@ -217,6 +407,14 @@ document.addEventListener('DOMContentLoaded', () => {
     canvas.addEventListener('mouseleave', () => {
         mouseButtonPressed = null;
         lastProcessedCell = { row: null, col: null };
+    });
+
+    canvas.addEventListener('click', (event) => {
+        if (!asciiEditMode) return;
+        const { row, col } = getMouseGridPos(event);
+        if (row >= 0 && row < gridHeight && col >= 0 && col < gridWidth) {
+            openAsciiEditor(row, col);
+        }
     });
 
     copyAsciiBtn.addEventListener('click', () => {
@@ -295,6 +493,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    loadAsciiBtn.addEventListener('click', () => {
+        const text = asciiPreviewTextarea.value;
+        if (!loadFromAscii(text)) {
+            alert('Invalid ASCII map format.');
+        }
+    });
+
+    toggleAsciiEditBtn.addEventListener('click', () => {
+        asciiEditMode = !asciiEditMode;
+        toggleAsciiEditBtn.classList.toggle('active', asciiEditMode);
+        if (!asciiEditMode) {
+            closeAsciiEditor(true);
+        }
+        drawCanvas();
+    });
+
     // Initial setup
-    initializeGrid(gridWidth, gridHeight);
+    prepareTeamIcons(() => {
+        createEntityButtons();
+        initializeGrid(gridWidth, gridHeight);
+    });
 });
