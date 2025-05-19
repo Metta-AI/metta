@@ -58,10 +58,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
 
         config_dict, env_map = mettagrid_config.to_c_args()
-<<<<<<< HEAD
-
-=======
->>>>>>> 59f4cbe8028a67b20272c920aa88e3490bf76abe
         self._map_labels = mettagrid_config.map_labels()
 
         self._c_env = MettaGrid(config_dict, env_map)
