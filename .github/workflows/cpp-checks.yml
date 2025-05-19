@@ -202,7 +202,7 @@ jobs:
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
-          make build-for-ci
+          make build
 
       - name: Sanity check
         run: |
@@ -298,7 +298,12 @@ jobs:
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
-          make build-for-ci
+          make build
+
+      - name: Build C++ tests
+        run: |
+          cd mettagrid
+          make build-tests
 
       - name: Run C++ tests
         run: |
@@ -345,9 +350,14 @@ jobs:
         if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
         run: |
           cd mettagrid
-          make build-for-ci
+          make build
 
-      - name: Build and run benchmarks with JSON output
+      - name: Build C++ benchmarks
+        run: |
+          cd mettagrid
+          make build-benchmarks
+
+      - name: Run benchmarks with JSON output
         run: |
           cd mettagrid
           mkdir -p benchmark_output

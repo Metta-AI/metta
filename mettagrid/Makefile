@@ -2,10 +2,11 @@
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  install-dependencies - Install Python and C++ dependencies"
-	@echo "  check-dependencies   - Verify system readiness to build"
-	@echo "  build                - Build mettagrid using the rebuild script"
-	@echo "  build-for-ci         - Build all source, test, and benchmark files (for CI)"
+	@echo "  install-dependencies - Install all Python and C++ build dependencies"
+	@echo "  check-dependencies   - Verify system is ready to build"
+	@echo "  build                - Build mettagrid using setup-tools"
+	@echo "  build-tests          - Build all test files"
+	@echo "  build-benchmarks     - Build all benchmark files"
 	@echo "  format               - Format C++/C files"
 	@echo "  test                 - Run all unit tests"
 	@echo "  benchmark            - Run all benchmarks"
@@ -76,8 +77,6 @@ PYTHON_CFLAGS := $(shell $(PYTHON_BIN) -m pybind11 --includes)
 
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
-
-CXXFLAGS_MGRID = 
 
 CXXFLAGS = -std=c++20 -Wall -g \
 	-I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) \
@@ -224,7 +223,7 @@ check-dependencies:
 	@echo "Environment Info"
 	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
 	@echo "  PYTHON               = $(PYTHON_BIN)"
-	@echo "  Python version       = $(PYTHON_VERSION)"
+	@echo "  PYTHON_VERSION       = $(PYTHON_VERSION)"
 	@echo "  REPO_ROOT            = $(REPO_ROOT)"
 	@echo "  PROJECT_ROOT         = $(PROJECT_ROOT)"
 	@echo "  PYTHON_BIN           = $(PYTHON_BIN)"
@@ -250,7 +249,7 @@ check-dependencies:
 	fi
 
 	@echo "🔍 Python import test for numpy..."
-	@$(PYTHON_BIN) -c "import numpy; print('✓ numpy imported successfully')" || \
+	@$(PYTHON_BIN) -c "import numpy; print('✅ numpy imported successfully')" || \
 		{ echo "❌ Failed to import numpy — possibly missing .so or metadata files"; exit 1; }
 
 	@if [ -n "$(NUMPY_INCLUDE)" ]; then \
@@ -270,7 +269,7 @@ check-dependencies:
 			exit 1; \
 		fi; \
 	else \
-		echo "✓ Found gtest headers in $(GTEST_DIR)/include"; \
+		echo "✅ Found gtest headers in $(GTEST_DIR)/include"; \
 	fi
 
 	@echo "Checking for Google Benchmark headers..."
@@ -283,7 +282,7 @@ check-dependencies:
 			exit 1; \
 		fi; \
 	else \
-		echo "✓ Found benchmark headers in $(GBENCHMARK_DIR)/include"; \
+		echo "✅ Found benchmark headers in $(GBENCHMARK_DIR)/include"; \
 	fi
 
 
@@ -291,9 +290,9 @@ check-dependencies:
 	@which g++ >/dev/null 2>&1 || { echo "❌ g++ not found"; exit 1; }
 	@which cmake >/dev/null 2>&1 || { echo "❌ cmake not found"; exit 1; }
 	@which uv >/dev/null 2>&1 || { echo "❌ uv not found"; exit 1; }
-	@echo "  ✓ g++ found"
-	@echo "  ✓ cmake found"
-	@echo "  ✓ uv found"
+	@echo "  ✅ Found g++"
+	@echo "  ✅ Found cmake"
+	@echo "  ✅ Found uv"
 	@echo ""
 	@echo "⚙️ Compiler"
 	@echo "  CXX                  = $(CXX)"
@@ -306,45 +305,29 @@ check-dependencies:
 	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
 
 #-----------------------
-# CI Build Target
+# Build Targets
 #-----------------------
 
-.PHONY: build-src build-tests build-bench
+# Build target that calls the setup.py script with UV venv activated
+.PHONY: build
+build: check-dependencies
+	@echo "🔨 Building mettagrid using setup-tools..."
+	@uv pip install -e .
+	@echo "✅ Build completed successfully."
 
-build-src: $(SRC_OBJECTS)
-	@echo "🔧 Built $(words $(SRC_OBJECTS)) source object(s):"
-	@echo $(FIND_EXECUTABLE)
-	@find $(BUILD_SRC_DIR) -name '*.o' $(FIND_EXECUTABLE) -exec ls -lh {} \;
-	@echo "✅ Finished building source files"
-
+# Build just the test files
+.PHONY: build-tests
 build-tests: $(TEST_EXECUTABLES)
 	@echo "🧪 Built $(words $(TEST_EXECUTABLES)) test executable(s):"
 	@find $(BUILD_TEST_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
 	@echo "✅ Finished building test executables"
 
-build-bench: $(BENCH_EXECUTABLES)
+# Build just the benchmark files
+.PHONY: build-benchmarks
+build-benchmarks: $(BENCH_EXECUTABLES)
 	@echo "📈 Built $(words $(BENCH_EXECUTABLES)) benchmark executable(s):"
 	@find $(BUILD_BENCH_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
 	@echo "✅ Finished building benchmark executables"
-
-.PHONY: build-for-ci
-build-for-ci: check-dependencies build-src build-tests build-bench
-	@echo "🏁 CI Build Summary"
-	@echo "  Source objects   : $(words $(SRC_OBJECTS))"
-	@echo "  Test executables : $(words $(TEST_EXECUTABLES))"
-	@echo "  Benchmarks       : $(words $(BENCH_EXECUTABLES))"
-	@echo "✅ Full build completed successfully."
-
-
-#-----------------------
-# Build with setup-tools
-#-----------------------
-
-# Build target that calls the setup.py script with UV venv activated
-.PHONY: build
-build: 
-	@echo "Building mettagrid..."
-	uv pip install -e .
 
 #-----------------------
 # Formatting
@@ -359,7 +342,6 @@ check-format-tools:
 		  echo "On Linux use 'apt-get install clang-format'"; \
 		  echo "Or run 'make install-format-tools' on macOS"; exit 1; }
 	@echo "All required formatting tools are installed."
-
 
 # Format only C/C++ code and skip Cython files entirely
 .PHONY: format
@@ -417,7 +399,7 @@ debug-test-vars:
 	@echo ""
 
 .PHONY: test
-test: $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
+test: build build-tests debug-test-vars
 	@echo "Running all C++ tests..."
 	@[ -z "$(TEST_EXECUTABLES)" ] && echo "WARNING: No test executables found!" || true
 	@for f in $(TEST_EXECUTABLES); do \
@@ -432,7 +414,7 @@ test: $(SRC_OBJECTS) $(TEST_EXECUTABLES) debug-test-vars
 
 # Test a specific test file
 .PHONY: test-%
-test-%: $(BUILD_TEST_DIR)/%
+test-%: build $(BUILD_TEST_DIR)/%
 	@echo "Running test $*..."
 	@if [ -f "$(BUILD_TEST_DIR)/$*" ]; then \
 		"$(BUILD_TEST_DIR)/$*" --gtest_color=yes; \
@@ -442,7 +424,7 @@ test-%: $(BUILD_TEST_DIR)/%
 	fi
 
 .PHONY: test-python
-test-python: check-venv
+test-python: build check-venv
 	@echo "Running python tests with coverage"
 	pytest --cov=metta --cov-report=term-missing
 
@@ -471,7 +453,7 @@ debug-bench-vars:
 	@echo ""
 
 .PHONY: benchmark
-benchmark: $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+benchmark: build build-benchmarks debug-bench-vars
 	@echo "Running all benchmarks..."
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
@@ -486,7 +468,7 @@ benchmark: $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
 
 
 .PHONY: bench-json
-bench-json: $(SRC_OBJECTS) $(BENCH_EXECUTABLES) debug-bench-vars
+bench-json: build build-benchmarks debug-bench-vars
 	@echo "Running all benchmarks with JSON output..."
 	@mkdir -p benchmark_output
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
@@ -516,7 +498,7 @@ clean:
 			venv_path="$$(pwd)/$$venv_name"; \
 			if [ -d "$$venv_path" ]; then \
 				if [ -f "$$venv_path/pyvenv.cfg" ] && grep -q "UV_VENV" "$$venv_path/pyvenv.cfg" 2>/dev/null; then \
-					echo "(MettaGrid) ✓ Preserving $$venv_name (UV virtual environment)"; \
+					echo "(MettaGrid) ✅ Preserving $$venv_name (UV virtual environment)"; \
 				else \
 					echo "(MettaGrid) Removing $$venv_name virtual environment..."; \
 					rm -rf "$$venv_path"; \
@@ -530,7 +512,7 @@ clean:
 		rm -rf $(BUILD_DIR); \
 		echo "(MettaGrid) ✅ Removed $(BUILD_DIR)"; \
 	else \
-		echo "(MettaGrid) ✓ No build directory to clean"; \
+		echo "(MettaGrid) ✅ No build directory to clean"; \
 	fi
 
 	@echo "(MettaGrid) Cleaning .so files from mettagrid directory..."
@@ -540,10 +522,10 @@ clean:
 			find mettagrid -name "*.so" -type f -delete; \
 			echo "(MettaGrid) ✅ Removed $$found_files .so files from mettagrid"; \
 		else \
-			echo "(MettaGrid) ✓ No .so files found in mettagrid"; \
+			echo "(MettaGrid) ✅ No .so files found in mettagrid"; \
 		fi; \
 	else \
-		echo "(MettaGrid) ✓ No mettagrid directory found, skipping .so cleanup"; \
+		echo "(MettaGrid) ✅ No mettagrid directory found, skipping .so cleanup"; \
 	fi
 	
 	@echo "(MettaGrid) ✅ Clean completed successfully"
