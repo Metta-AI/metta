@@ -19,7 +19,6 @@ class WanDb(DashboardComponent):
             wandb_status = "Disabled"
 
         if wandb.run:
-            wandb_status = "(not tracking)" if not self.wandb_cfg.track else ""
             wandb_status += f" {wandb.run.get_url()}"
         table.add_row(f" {c1}WandDb: {b2}{wandb_status}")
         return table
