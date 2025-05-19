@@ -1,0 +1,13 @@
+# @package __global__
+
+defaults:
+  - /sim/navigation_generator@train_job.evals
+  - _self_
+
+trainer:
+  env: env/mettagrid/navigation/training/multienv
+  initial_policy:
+    uri: wandb://run/mrazo_object-use_generator_pretrained-none_v01
+  evaluate_interval: 300
+
+run: mrazo-aws_object-use_navigation_pretrained-generator_v01
