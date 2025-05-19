@@ -97,7 +97,17 @@ class Experience:
     def full(self) -> bool:
         return self.ptr >= self.batch_size
 
-    def store(self, obs, value, action, logprob, reward, done, env_id, mask):
+    def store(
+        self,
+        obs: torch.Tensor,
+        value: torch.Tensor,
+        action: torch.Tensor,
+        logprob: torch.Tensor,
+        reward: torch.Tensor,
+        done: torch.Tensor,
+        env_id: torch.Tensor,
+        mask: torch.Tensor,
+    ) -> None:
         # Mask learner and Ensure indices do not exceed batch size
         ptr = self.ptr
         indices = np.where(mask)[0]
@@ -121,7 +131,11 @@ class Experience:
         if isinstance(env_id, slice):
             self.sort_keys[dst, 1] = np.arange(cpu_inds.start, cpu_inds.stop, dtype=np.int32)
         else:
-            self.sort_keys[dst, 1] = env_id[cpu_inds]
+            # Move env_id to CPU before indexing and converting to numpy
+            if isinstance(env_id, torch.Tensor) and env_id.device.type == "cuda":
+                self.sort_keys[dst, 1] = env_id.cpu()[cpu_inds].numpy()
+            else:
+                self.sort_keys[dst, 1] = env_id[cpu_inds]
 
         self.sort_keys[dst, 2] = self.step
         self.ptr = end
