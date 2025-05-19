@@ -322,7 +322,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source .github/scripts/benchmark.sh
-          chmod +x run_evals.sh
           benchmark "evals" "./run_evals.sh smoke_test"
 
       - name: Save evals benchmark
