@@ -204,9 +204,8 @@ if [ "$CLEAN" -eq 1 ]; then
   make clean
   make install-dependencies
 fi
+make install-dependencies
 make build
-cd ..
-uv pip install mettagrid
 
 # ========== BUILD FAST_GAE ==========
 echo -e "\nBuilding FastGAE..."
