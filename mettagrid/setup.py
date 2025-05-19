@@ -60,4 +60,5 @@ setup(
     packages=["mettagrid"],
     ext_modules=ext_modules,
     cmdclass={"build_ext": CustomBuildExt},
+    python_requires="==3.11.7",
 )
