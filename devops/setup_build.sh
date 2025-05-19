@@ -74,6 +74,7 @@ fi
 
 # Required Python version
 REQUIRED_PYTHON_VERSION="3.11.7"
+VENV_PATH="$PROJECT_DIR/.venv"
 
 # ========== CLEAN BUILD ==========
 if [ "$CLEAN" -eq 1 ]; then
@@ -96,8 +97,6 @@ if [ "$CLEAN" -eq 1 ]; then
     echo "✅ Removed .venv virtual environment"
   fi
 fi
-
-VENV_PATH="$PROJECT_DIR/.venv"
 
 # Check if we're already in a UV venv
 if ! is_uv_venv; then
@@ -168,19 +167,17 @@ if [ -z "$CI" ]; then
   for venv_name in "${VENV_PATHS[@]}"; do
     venv_path="$PROJECT_DIR/$venv_name"
     if [ -d "$venv_path" ]; then
-      if is_uv_venv "$venv_path"; then
-        echo "Preserving $venv_name as it appears to be a UV virtual environment"
-      else
-        echo "Removing $venv_name virtual environment..."
-        rm -rf "$venv_path"
-        echo "✅ Removed $venv_name virtual environment"
+      if ! is_uv_venv "$venv_path"; then
+        echo "⚠️  Found a non UV virtual environments:"
+        echo "$venv_name"
+        echo "⚠️  You may want to manually remove if they're no longer needed"
       fi
     fi
   done
 fi
 
 # ========== Main Project ==========
-cd "$SCRIPT_DIR/.."
+cd "$PROJECT_DIR"
 
 # Install packages
 echo -e "\nInstalling project requirements..."
@@ -197,25 +194,21 @@ uv pip install -r requirements.txt || {
   fi
 }
 
-# ========== BUILD METTAGRID ==========
-echo -e "\nBuilding mettagrid..."
-cd mettagrid
-if [ "$CLEAN" -eq 1 ]; then
-  make clean
-  make install-dependencies
-fi
-make install-dependencies
-make build
-
 # ========== BUILD FAST_GAE ==========
 echo -e "\nBuilding FastGAE..."
+make build
+
+# ========== BUILD METTAGRID ==========
+echo -e "\nBuilding MettaGrid..."
+cd mettagrid
+make install-dependencies
 make build
 
 # ========== INSTALL SKYPILOT ==========
 echo -e "\nInstalling Skypilot..."
 uv tool install skypilot --from 'skypilot[aws,vast,lambda]'
 
-PYTHON="uv run -- python"
+PYTHON="uv run --active python"
 
 # ========== SANITY CHECK ==========
 echo -e "\nSanity check: verifying all local deps are importable..."
