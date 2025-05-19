@@ -349,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         document.getElementById('ascii-editor-input').remove();
                     } catch (e) {
-                        console.log("Failed to remove stray input element:", e);
+                        // Silent fail
                     }
                 }
                 return;
@@ -376,7 +376,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             // Do NOT null out asciiEditorInput itself, as it's a shared DOM element that gets reused.
         } catch (err) {
-            console.error("Error in closeAsciiEditor:", err);
             // Try to recover by resetting state
             editingCell = null;
             // Try one more time to remove the element if it exists
@@ -695,7 +694,6 @@ document.addEventListener('DOMContentLoaded', () => {
         pathBasedImageKeys.forEach(objKey => {
             const img = new Image();
             img.onload = () => {
-                console.log(`Successfully loaded image: ${objKey} from ${objectIcons[objKey]}`);
                 imagesLoadedCount++;
                 if (imagesLoadedCount === imagesToLoadCount) {
                     clearTimeout(loadTimeoutId);
@@ -704,11 +702,9 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             img.onerror = () => {
                 console.error(`Failed to load image: ${objKey} from ${objectIcons[objKey]}`);
-                console.log(`Image load error details - src: ${img.src}, complete: ${img.complete}`);
                 
                 // Create fallback SVG image if loading fails
                 const fallbackSvg = createSvgFallback(objKey);
-                console.log(`Creating fallback SVG for ${objKey}`);
                 
                 // Use the fallback SVG instead
                 const fallbackImg = new Image();
@@ -723,7 +719,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     performInitialization();
                 }
             };
-            console.log(`Attempting to load image: ${objKey} from ${objectIcons[objKey]}`);
             img.src = objectIcons[objKey];
             objectImages[objKey] = img;
         });
