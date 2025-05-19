@@ -10,6 +10,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.policy_state import PolicyState
+from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
@@ -213,23 +214,43 @@ class MettaAgent(nn.Module):
 
         # Sample actions
         action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
+
+        if __debug__:
+            assert_shape(logits, ("BT", "A"), "logits")
+
         action_logit_index, logprob_act, entropy, log_sftmx_logits = sample_logits(logits, action_logit_index)
+
+        if __debug__:
+            assert_shape(action_logit_index, ("BT",), "action_logit_index")
+            assert_shape(logprob_act, ("BT",), "logprob_act")
+            assert_shape(entropy, ("BT",), "entropy")
+            assert_shape(log_sftmx_logits, ("BT", "A"), "log_sftmx_logits")
 
         # Convert logit index to action if no action was provided
         if action is None:
-            action = self._convert_logit_index_to_action(action_logit_index, td)
+            action = self._convert_logit_index_to_action(action_logit_index)
+
+        if __debug__:
+            assert_shape(action, ("BT",), "action")
+            assert_shape(value, ("BT",), "value")
 
         return action, logprob_act, entropy, value, log_sftmx_logits
 
-    def _convert_action_to_logit_index(self, action):
+    def _convert_action_to_logit_index(self, action: torch.Tensor):
         """
         Convert (action_type, action_param) pairs to discrete action indices
         using precomputed offsets.
-        Assumes `cum_action_max_params` maps action types to start indices.
-        """
-        action = action.reshape(-1, 2)
 
-        # Extract action components
+        Args:
+            action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
+
+        Returns:
+            action_logit_indices: Tensor of shape [B*T] containing flattened action indices
+        """
+        if __debug__:
+            assert_shape(action, ("BT", 2), "action")
+
+        # Extract action components directly
         action_type_numbers = action[:, 0].long()
         action_params = action[:, 1].long()
 
@@ -237,14 +258,32 @@ class MettaAgent(nn.Module):
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
 
         # Vectorized addition
-        action_logit_index = action_type_numbers + cumulative_sum + action_params
+        action_logit_indices = cumulative_sum + action_params
 
-        return action_logit_index.view(-1)  # shape: [B] or [B*T]
+        if __debug__:
+            assert_shape(action_logit_indices, ("BT",), "action_logit_indices")
 
-    def _convert_logit_index_to_action(self, action_logit_index, td):
-        """Convert logit indices back to action pairs using tensor indexing"""
-        # direct tensor indexing on precomputed action_index_tensor
-        return self.action_index_tensor[action_logit_index.reshape(-1)]
+        return action_logit_indices  # shape: [B*T]
+
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor):
+        """
+        Convert logit indices back to action pairs using tensor indexing.
+
+        Args:
+            action_logit_index: Tensor of shape [B*T] containing flattened action indices
+
+        Returns:
+            action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
+        """
+        if __debug__:
+            assert_shape(action_logit_index, ("BT",), "action_logit_index")
+
+        actions = self.action_index_tensor[action_logit_index]
+
+        if __debug__:
+            assert_shape(actions, ("BT", 2), "actions")
+
+        return actions
 
     def _apply_to_components(self, method_name, *args, **kwargs) -> List[torch.Tensor]:
         """
