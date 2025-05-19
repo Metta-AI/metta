@@ -17,6 +17,8 @@ Key features:
 - Manages minibatch creation for training
 """
 
+from typing import Optional, Tuple
+
 import numpy as np
 import pufferlib
 import pufferlib.pytorch
@@ -29,18 +31,18 @@ class Experience:
 
     def __init__(
         self,
-        batch_size,
-        bptt_horizon,
-        minibatch_size,
-        hidden_size,
-        obs_shape,
-        obs_dtype,
-        atn_shape,
-        atn_dtype,
-        cpu_offload=False,
-        device="cuda",
-        lstm=None,
-        lstm_total_agents=0,
+        batch_size: int,
+        bptt_horizon: int,
+        minibatch_size: Optional[int],
+        hidden_size: int,
+        obs_shape: Tuple[int, ...],
+        obs_dtype: np.dtype,
+        atn_shape: Tuple[int, ...],
+        atn_dtype: np.dtype,
+        cpu_offload: bool = False,
+        device: str = "cuda",
+        lstm: Optional[torch.nn.LSTM] = None,
+        lstm_total_agents: int = 0,
     ):
         if minibatch_size is None:
             minibatch_size = batch_size
@@ -73,12 +75,12 @@ class Experience:
         self.lstm_c = torch.zeros(shape).to(device, non_blocking=True)
 
         num_minibatches = batch_size / minibatch_size
-        self.num_minibatches = int(num_minibatches)
+        self.num_minibatches: int = int(num_minibatches)
         if self.num_minibatches != num_minibatches:
             raise ValueError(f"batch_size {batch_size} must be divisible by minibatch_size {minibatch_size}")
 
         minibatch_rows = minibatch_size / bptt_horizon
-        self.minibatch_rows = int(minibatch_rows)
+        self.minibatch_rows: int = int(minibatch_rows)
         if self.minibatch_rows != minibatch_rows:
             raise ValueError(f"minibatch_size {minibatch_size} must be divisible by bptt_horizon {bptt_horizon}")
 
@@ -88,11 +90,11 @@ class Experience:
         self.device = device
         self.sort_keys = np.zeros((batch_size, 3), dtype=np.int32)
         self.sort_keys[:, 0] = np.arange(batch_size)
-        self.ptr = 0
-        self.step = 0
+        self.ptr: int = 0
+        self.step: int = 0
 
     @property
-    def full(self):
+    def full(self) -> bool:
         return self.ptr >= self.batch_size
 
     def store(self, obs, value, action, logprob, reward, done, env_id, mask):
@@ -125,8 +127,8 @@ class Experience:
         self.ptr = end
         self.step += 1
 
-    def sort_training_data(self):
-        idxs = np.lexsort((self.sort_keys[:, 2], self.sort_keys[:, 1]))
+    def sort_training_data(self) -> np.ndarray:
+        idxs: np.ndarray = np.lexsort((self.sort_keys[:, 2], self.sort_keys[:, 1]))
         self.b_idxs_obs = (
             torch.as_tensor(
                 idxs.reshape(self.minibatch_rows, self.num_minibatches, self.bptt_horizon).transpose(1, 0, -1)
@@ -139,7 +141,7 @@ class Experience:
         self.sort_keys[:, 1:] = 0
         return idxs
 
-    def flatten_batch(self, advantages_np):
+    def flatten_batch(self, advantages_np: np.ndarray) -> None:
         advantages = torch.as_tensor(advantages_np).to(self.device, non_blocking=True)
         b_idxs, b_flat = self.b_idxs, self.b_idxs_flat
         self.b_actions = self.actions.to(self.device, non_blocking=True, dtype=torch.long)

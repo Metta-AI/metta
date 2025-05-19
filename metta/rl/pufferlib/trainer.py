@@ -7,11 +7,10 @@ from pathlib import Path
 import numpy as np
 import pufferlib
 import torch
-import torch.distributed as dist
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from pufferlib.utils import unroll_nested_dict
+from pufferlib.utils import profile, unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -56,9 +55,9 @@ class PufferTrainer:
         self._master = True
         self._world_size = 1
         self.device = cfg.device
-        if dist.is_initialized():
+        if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
-            self._world_size = dist.get_world_size()
+            self._world_size = torch.distributed.get_world_size()
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
@@ -128,7 +127,7 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
 
-        if dist.is_initialized():
+        if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             # Store the original policy for cleanup purposes
             self._original_policy = self.policy
@@ -318,7 +317,7 @@ class PufferTrainer:
     def _on_train_step(self):
         pass
 
-    @pufferlib.utils.profile
+    @profile
     def _rollout(self):
         experience, profile = self.experience, self.profile
 
@@ -331,24 +330,12 @@ class PufferTrainer:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
-                # Zero-copy indexing for contiguous env_id
-
-                # This was originally self.config.env_batch_size == 1, but you have scaling
-                # configured differently in metta. You want the whole forward pass batch to come
-                # from one core to reduce indexing overhead.
-                # contiguous_env_ids = self.vecenv.agents_per_batch == metta_grid_env.agents_per_env[0]
-                contiguous_env_ids = self.trainer_cfg.async_factor == self.trainer_cfg.num_workers
-                contiguous_env_ids = False
-                if contiguous_env_ids:
-                    gpu_env_id = cpu_env_id = slice(env_id[0], env_id[-1] + 1)
-                else:
-                    if self.trainer_cfg.require_contiguous_env_ids:
-                        raise ValueError(
-                            "Env ids are not contiguous. "
-                            f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
-                        )
-                    cpu_env_id = env_id
-                    gpu_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
+                if self.trainer_cfg.require_contiguous_env_ids:
+                    raise ValueError(
+                        "We are assuming contiguous eng id is always False. async_factor == num_workers = "
+                        f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
+                    )
+                training_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
             with profile.eval_misc:
                 num_steps = sum(mask)
@@ -360,10 +347,22 @@ class PufferTrainer:
                 d = torch.as_tensor(d)
 
             with profile.eval_forward, torch.no_grad():
-                state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
+                assert training_env_id.dtype in [torch.int32, torch.int64], "training_env_id must be integer type"
+                assert training_env_id.device == lstm_h.device, "training_env_id must be on the same device as lstm_h"
+                assert training_env_id.dim() == 1, "training_env_id should be 1D (list of env indices)"
+                assert training_env_id.max() < lstm_h.shape[1], "Index out of bounds for lstm_h"
+                assert training_env_id.min() >= 0, "Negative index in training_env_id"
+
+                state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
+
                 actions, logprob, _, value, _ = policy(o_device, state)
-                lstm_h[:, gpu_env_id] = state.lstm_h
-                lstm_c[:, gpu_env_id] = state.lstm_c
+
+                lstm_h[:, training_env_id] = (
+                    state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
+                )
+                lstm_c[:, training_env_id] = (
+                    state.lstm_c if state.lstm_c is not None else torch.zeros_like(lstm_c[:, training_env_id])
+                )
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
@@ -373,7 +372,7 @@ class PufferTrainer:
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, logprob, r, d, cpu_env_id, mask)
+                self.experience.store(o, value, actions, logprob, r, d, training_env_id, mask)
 
                 for i in info:
                     for k, v in unroll_nested_dict(i):
@@ -398,7 +397,7 @@ class PufferTrainer:
         experience.step = 0
         return self.stats, infos
 
-    @pufferlib.utils.profile
+    @profile
     def _train(self):
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
