@@ -24,10 +24,10 @@ POLICIES=(
     # "daphne.2object_use_colors_pretrained"
     # "b.daphne.USER.navigation_before_refactor"
 
-    "b.daphne.object_use_colored_converters"
-    "b.daphne.object_use_onlyred"
-    "b.daphne.object_use_colored_converters_ent0.05"
-    "b.daphne.object_use_onlyred_ent0.05"
+    # "b.daphne.object_use_colored_converters"
+    # "b.daphne.object_use_onlyred"
+    # "b.daphne.object_use_colored_converters_ent0.05"
+    # "b.daphne.object_use_onlyred_ent0.05"
 
     "b.georgedeane.george_sequence_no_increment"
     "b.georgedeane.george_sequence_incremental"
@@ -44,6 +44,7 @@ POLICIES=(
     "b.daphne.object_use_mulitenv_pretrained"
     "b.daphne.object_use_all_easy"
     "b.daphne.object_use_multienv"
+    "b.daphne.object_use_multienv2"
 
 
  )
@@ -54,25 +55,26 @@ for i in "${!POLICIES[@]}"; do
     echo "Running full sequence eval for policy $POLICY_URI"
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
-    python3 -m tools.sim \
-        sim=navigation \
-        run=navigation$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/navigation_db \
-        device=cpu \
+    # python3 -m tools.sim \
+    #     sim=navigation \
+    #     run=navigation$IDX \
+    #     policy_uri=wandb://run/$POLICY_URI \
+    #     sim_job.stats_db_uri=wandb://stats/navigation_db \
+    #     device=cpu \
 
-    python3 -m tools.sim \
-        sim=memory \
-        run=memory$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/memory_db \
-        device=cpu \
+    # python3 -m tools.sim \
+    #     sim=memory \
+    #     run=memory$IDX \
+    #     policy_uri=wandb://run/$POLICY_URI \
+    #     sim_job.stats_db_uri=wandb://stats/memory_db \
+    #     device=cpu \
 
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/objectuse_db \
+        device=cpu \
 
 
     python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html \

@@ -8,6 +8,7 @@ game:
   agent:
     rewards:
       heart: 1
+      ore.red: 0
       battery: 0
 
   objects:
