@@ -1,24 +1,73 @@
 import multiprocessing
 import os
+import site
 import sys
-from typing import Optional
 
-import numpy
 from Cython.Build import cythonize
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext as BuildExtCommand
 
 multiprocessing.freeze_support()
 
+try:
+    site_packages = site.getsitepackages()[0]
+except IndexError as err:
+    site_packages = os.path.join(os.path.dirname(os.__file__), "site-packages")
+    if not os.path.exists(site_packages):
+        raise ImportError("site_packages is not available") from err
+
+try:
+    import numpy
+
+    numpy_include = numpy.get_include()
+except ImportError as err:
+    numpy_include = os.path.join(site_packages, "numpy/core/include")
+    if not os.path.exists(numpy_include):
+        raise ImportError("numpy is required but not available") from err
+
+print(f"Using NumPy include path: {numpy_include}")
+
 # Debug flag to easily toggle development vs production settings
 DEBUG = os.environ.get("DEBUG", "").lower() in ("true", "1", "t", "yes")
+print(f"Building in {'DEBUG' if DEBUG else 'RELEASE'} mode")
 
 
 class CustomBuildExt(BuildExtCommand):
     def build_extensions(self):
+        # Detect compiler type and add appropriate flags
+        compiler_type = self.compiler.compiler_type  # ignore
+
+        if compiler_type == "unix":
+            # GCC/Clang flags
+            for ext in self.extensions:
+                ext.extra_compile_args.extend(["-std=c++20", "-Wno-unreachable-code"])
+                if DEBUG:
+                    ext.extra_compile_args.extend(["-g", "-O0"])
+                else:
+                    ext.extra_compile_args.extend(["-O3"])
+
+        elif compiler_type == "msvc":
+            # MSVC flags
+            for ext in self.extensions:
+                ext.extra_compile_args.extend(["/std:c++14", "/EHsc"])
+                if DEBUG:
+                    ext.extra_compile_args.extend(["/Od", "/Zi"])
+                else:
+                    ext.extra_compile_args.extend(["/O2"])
+
         # Remove -DNDEBUG from compiler flags to enable assertions when in debug mode
-        if DEBUG and "-DNDEBUG" in self.compiler.compiler_so:
-            self.compiler.compiler_so.remove("-DNDEBUG")
+        if DEBUG and hasattr(self.compiler, "compiler_so"):
+            try:
+                if "-DNDEBUG" in self.compiler.compiler_so:
+                    self.compiler.compiler_so.remove("-DNDEBUG")
+            except (AttributeError, TypeError):
+                pass  # Skip if compiler structure is different
+
+        # Add include directories to all extensions
+        for ext in self.extensions:
+            if numpy_include not in ext.include_dirs:
+                ext.include_dirs.append(numpy_include)
+
         super().build_extensions()
 
 
@@ -31,8 +80,8 @@ ext_modules = [
             ("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION"),
             ("DEBUG", "1" if DEBUG else "0"),  # Add DEBUG macro to C++ code
         ],
-        include_dirs=[numpy.get_include()],
-        extra_compile_args=["-Wno-unreachable-code"],
+        include_dirs=[numpy_include],  # Add numpy_include here explicitly
+        extra_compile_args=[],  # Will be filled by CustomBuildExt
         # Specify C++ language
         language="c++",
     )
@@ -42,7 +91,13 @@ ext_modules = [
 BUILD_DIR = "build_debug" if DEBUG else "build"
 os.makedirs(BUILD_DIR, exist_ok=True)
 
-num_threads: Optional[int] = multiprocessing.cpu_count() if sys.platform == "linux" else None
+# Use appropriate number of threads based on platform
+if sys.platform == "linux":
+    num_threads = multiprocessing.cpu_count()
+elif sys.platform == "darwin":  # macOS
+    num_threads = max(1, multiprocessing.cpu_count() - 1)  # Leave one core free
+else:
+    num_threads = None  # Let Cython decide
 
 # Configure compiler directives based on DEBUG setting
 compiler_directives = {
@@ -90,17 +145,21 @@ setup(
     name="metta",
     version="0.1",  # match pyproject.toml
     packages=find_packages(),
-    include_dirs=[numpy.get_include()],
-    package_data={"metta": ["*.so"]},
+    include_dirs=[numpy_include],
+    package_data={
+        "metta": ["*.so"],
+        "metta.rl.fast_gae": ["*.so", "*.pyx", "*.pxd"],
+    },
     zip_safe=False,
     cmdclass={"build_ext": CustomBuildExt},  # Use our custom build_ext class
     ext_modules=cythonize(
         ext_modules,
         build_dir=BUILD_DIR,
-        nthreads=num_threads,  # type: ignore[reportArgumentType] -- Pylance is wrong.
-        annotate=False,  # Generate annotated HTML files to see Python → C translation
+        nthreads=num_threads,
+        annotate=DEBUG,  # Generate annotated HTML files only in debug mode
         compiler_directives=compiler_directives,
     ),
-    description="",
+    description="Metta: AI Research Framework",
     url="https://github.com/Metta-AI/metta",
+    python_requires="==3.11.7",
 )

@@ -114,8 +114,8 @@ def oc_scale(
         The scaled value in the output range
     """
 
-    assert in_min < in_max
-    assert out_min <= out_max
+    assert in_min < in_max, "in_min must be less than in_max"
+    assert out_min <= out_max, "out_min must be less than or equal to out_max"
 
     if out_min == out_max:
         return out_min
