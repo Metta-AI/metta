@@ -55,7 +55,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
                 return 1
         return 0
 
-    with WandbContext(cfg) as wandb_run:
+    with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
             policy_pr = policy_store.policy("wandb://run/" + cfg.run)

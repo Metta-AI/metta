@@ -5,10 +5,8 @@ defaults:
   - override /agent: simple
   - _self_
 
-run: train5
-
-wandb:
-  entity: berekuk-personal
+run_id: 1
+run: ${oc.env:USER}.local.${run_id}
 
 policy_uri: wandb://run/${run}
 
