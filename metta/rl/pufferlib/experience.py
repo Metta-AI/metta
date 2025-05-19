@@ -22,7 +22,6 @@ from typing import Optional, Tuple
 import numpy as np
 import pufferlib
 import pufferlib.pytorch
-import pufferlib.utils
 import torch
 
 
@@ -61,18 +60,18 @@ class Experience:
         self.values = torch.zeros(batch_size, pin_memory=pin)
         self.e3b_inv = 10 * torch.eye(hidden_size).repeat(lstm_total_agents, 1, 1).to(device)
 
-        self.actions_np = np.asarray(self.actions)
-        self.logprobs_np = np.asarray(self.logprobs)
-        self.rewards_np = np.asarray(self.rewards)
-        self.dones_np = np.asarray(self.dones)
-        self.truncateds_np = np.asarray(self.truncateds)
-        self.values_np = np.asarray(self.values)
+        self.actions_np: np.ndarray = np.asarray(self.actions)
+        self.logprobs_np: np.ndarray = np.asarray(self.logprobs)
+        self.rewards_np: np.ndarray = np.asarray(self.rewards)
+        self.dones_np: np.ndarray = np.asarray(self.dones)
+        self.truncateds_np: np.ndarray = np.asarray(self.truncateds)
+        self.values_np: np.ndarray = np.asarray(self.values)
 
         assert lstm is not None
         assert lstm_total_agents > 0
         shape = (lstm.num_layers, lstm_total_agents, lstm.hidden_size)
-        self.lstm_h = torch.zeros(shape).to(device, non_blocking=True)
-        self.lstm_c = torch.zeros(shape).to(device, non_blocking=True)
+        self.lstm_h: torch.Tensor = torch.zeros(shape).to(device, non_blocking=True)
+        self.lstm_c: torch.Tensor = torch.zeros(shape).to(device, non_blocking=True)
 
         num_minibatches = batch_size / minibatch_size
         self.num_minibatches: int = int(num_minibatches)
@@ -84,14 +83,30 @@ class Experience:
         if self.minibatch_rows != minibatch_rows:
             raise ValueError(f"minibatch_size {minibatch_size} must be divisible by bptt_horizon {bptt_horizon}")
 
-        self.batch_size = batch_size
-        self.bptt_horizon = bptt_horizon
-        self.minibatch_size = minibatch_size
-        self.device = device
-        self.sort_keys = np.zeros((batch_size, 3), dtype=np.int32)
+        # Store parameters
+        self.batch_size: int = batch_size
+        self.bptt_horizon: int = bptt_horizon
+        self.minibatch_size: int = minibatch_size
+        self.device: str = device
+
+        # Initialize sort keys
+        self.sort_keys: np.ndarray = np.zeros((batch_size, 3), dtype=np.int32)
         self.sort_keys[:, 0] = np.arange(batch_size)
         self.ptr: int = 0
         self.step: int = 0
+
+        # Batch indices will be set by sort_training_data
+        self.b_idxs_obs: Optional[torch.Tensor] = None
+        self.b_idxs: Optional[torch.Tensor] = None
+        self.b_idxs_flat: Optional[torch.Tensor] = None
+        self.b_actions: Optional[torch.Tensor] = None
+        self.b_logprobs: Optional[torch.Tensor] = None
+        self.b_dones: Optional[torch.Tensor] = None
+        self.b_values: Optional[torch.Tensor] = None
+        self.b_advantages: Optional[torch.Tensor] = None
+        self.b_obs: Optional[torch.Tensor] = None
+        self.b_returns: Optional[torch.Tensor] = None
+        self.returns_np: Optional[np.ndarray] = None
 
     @property
     def full(self) -> bool:
@@ -108,12 +123,14 @@ class Experience:
         env_id: torch.Tensor,
         mask: torch.Tensor,
     ) -> None:
-        # Mask learner and Ensure indices do not exceed batch size
-        ptr = self.ptr
-        indices = np.where(mask)[0]
-        num_indices = indices.size
-        end = ptr + num_indices
-        dst = slice(ptr, end)
+        mask_np: np.ndarray = mask.cpu().numpy()
+
+        # Get current pointer and calculate indices
+        ptr: int = self.ptr
+        indices: np.ndarray = np.where(mask_np)[0]
+        num_indices: int = indices.size
+        end: int = ptr + num_indices
+        dst: slice = slice(ptr, end)
 
         # Zero-copy indexing for contiguous env_id
         if num_indices == mask.size and isinstance(env_id, slice):
@@ -138,6 +155,8 @@ class Experience:
                 self.sort_keys[dst, 1] = env_id[cpu_inds]
 
         self.sort_keys[dst, 2] = self.step
+
+        # Update pointer and step
         self.ptr = end
         self.step += 1
 
@@ -156,12 +175,20 @@ class Experience:
         return idxs
 
     def flatten_batch(self, advantages_np: np.ndarray) -> None:
-        advantages = torch.as_tensor(advantages_np).to(self.device, non_blocking=True)
+        advantages: torch.Tensor = torch.as_tensor(advantages_np).to(self.device, non_blocking=True)
+
+        if self.b_idxs_obs is None:
+            raise ValueError("b_idxs_obs is None - call sort_training_data first")
+
         b_idxs, b_flat = self.b_idxs, self.b_idxs_flat
+
+        # Process the batch data
         self.b_actions = self.actions.to(self.device, non_blocking=True, dtype=torch.long)
         self.b_logprobs = self.logprobs.to(self.device, non_blocking=True)
         self.b_dones = self.dones.to(self.device, non_blocking=True)
         self.b_values = self.values.to(self.device, non_blocking=True)
+
+        # Reshape advantages for minibatches
         self.b_advantages = (
             advantages.reshape(self.minibatch_rows, self.num_minibatches, self.bptt_horizon)
             .transpose(0, 1)

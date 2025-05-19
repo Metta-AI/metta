@@ -335,6 +335,7 @@ class PufferTrainer:
                         "We are assuming contiguous eng id is always False. async_factor == num_workers = "
                         f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
                     )
+
                 training_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
             with profile.eval_misc:
@@ -354,7 +355,6 @@ class PufferTrainer:
                 assert training_env_id.min() >= 0, "Negative index in training_env_id"
 
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
-
                 actions, logprob, _, value, _ = policy(o_device, state)
 
                 lstm_h[:, training_env_id] = (
@@ -385,12 +385,19 @@ class PufferTrainer:
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
                     v = v.tolist()
-                try:
-                    iter(v)
-                except TypeError:
-                    self.stats[k].append(v)
+
+                if isinstance(v, list):
+                    if k not in self.stats:
+                        self.stats[k] = []
+                    self.stats[k].extend(v)
                 else:
-                    self.stats[k] += v
+                    if k not in self.stats:
+                        self.stats[k] = v
+                    else:
+                        try:
+                            self.stats[k] += v
+                        except TypeError:
+                            self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
