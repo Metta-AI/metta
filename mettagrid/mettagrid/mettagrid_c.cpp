@@ -219,6 +219,26 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
+  if (normal) {
+    for (unsigned int r = r_start; r < r_end; r++) {
+      for (unsigned int c = c_start; c < c_end; c++) {
+        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+          GridLocation object_loc(r, c, layer);
+          auto obj = _grid->object_at(object_loc);
+          if (!obj) continue;
+
+          int obs_r = object_loc.r + obs_height_radius - observer_row;
+          int obs_c = object_loc.c + obs_width_radius - observer_col;
+
+          auto agent_obs = observation_view.mutable_data(agent_idx, obs_r, obs_c, 0);
+          _obs_encoder->encode(obj, agent_obs);
+        }
+      }
+    }
+  }
+} else {
+  size_t tokens_written = 0;
+  // TODO: Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
   for (unsigned int r = r_start; r < r_end; r++) {
     for (unsigned int c = c_start; c < c_end; c++) {
       for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
@@ -229,8 +249,14 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
         int obs_r = object_loc.r + obs_height_radius - observer_row;
         int obs_c = object_loc.c + obs_width_radius - observer_col;
 
-        auto agent_obs = observation_view.mutable_data(agent_idx, obs_r, obs_c, 0);
-        _obs_encoder->encode(obj, agent_obs);
+        uint8_t location = obs_r << 4 | obs_c;
+        size_t obj_tokens_written = 0;
+        ObservationTokens agent_obs_tokens(reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, tokens_written, 0)), observation_view.shape(1) - tokens_written);
+        const obj_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+        for (size_t i = tokens_written; i < tokens_written + obj_tokens_written; i++) {
+          agent_obs_tokens[i].location = location;
+        }
+        tokens_written += obj_tokens_written;
       }
     }
   }
