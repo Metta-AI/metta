@@ -1,0 +1,25 @@
+_target_: metta.env.mettagrid_env_set.SamplingPrioritizedEnvSet
+
+num_agents: 4
+sampling: 1
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/object_use/training/terrain_from_numpy
+  - /env/mettagrid/object_use/training/varied_terrain_sparse
+  - /env/mettagrid/object_use/training/varied_terrain_balanced
+  - /env/mettagrid/object_use/training/varied_terrain_maze
+  - /env/mettagrid/object_use/training/varied_terrain_dense
+  - /env/mettagrid/object_use/training/easy_all_objects
+  - /env/mettagrid/object_use/training/varied_terrain_sparse_big
+  - /env/mettagrid/object_use/training/varied_terrain_balanced_big
+  - /env/mettagrid/object_use/training/varied_terrain_maze_big
+  - /env/mettagrid/object_use/training/varied_terrain_dense_big
+  - /env/mettagrid/navigation/training/terrain_from_numpy
+  - /env/mettagrid/navigation/training/cylinder_world
+  - /env/mettagrid/navigation/training/varied_terrain_sparse
+  - /env/mettagrid/navigation/training/varied_terrain_balanced
+  - /env/mettagrid/navigation/training/varied_terrain_maze
+  - /env/mettagrid/navigation/training/varied_terrain_dense

@@ -7,13 +7,10 @@ POLICIES=(
     "b.daphne.object_use_multienv_pretrained"
     "b.daphne.object_use_multienv2"
     "daphne_objectuse_bigandsmall"
-    "daphne_objectuse_allobjs_multienv"
-    "daphne_objectuse_bigandsmall"
-    "b.daphne.object_use_bigandsmall"
-    "b.daphne.object_use_bigandsmall_pretrained"
-    "mrazo_object-use_allobs_large-multienv_v01"
 )
 #!/bin/bash
+
+
 
 for i in "${!POLICIES[@]}"; do
     POLICY_URI=${POLICIES[$i]}
