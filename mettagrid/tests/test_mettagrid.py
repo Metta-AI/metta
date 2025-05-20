@@ -49,6 +49,7 @@ def create_minimal_mettagrid_env(max_steps=10, width=5, height=5):
             },
             "agent": {
                 "inventory_size": 0,
+                "hp": 100,
             },
         }
     }
@@ -100,18 +101,18 @@ def test_grid_objects():
 
     common_properties = {"r", "c", "layer", "type", "id"}
     
-    for obj_id, obj in objects.items():
-        print(obj)
+    for obj in objects.values():
         if obj.get("wall"):
             assert set(obj) == {"wall", "hp", "swappable"} | common_properties
             assert obj["wall"] == 1, "Wall should have type 1"
             assert obj["hp"] == 100, "Wall should have 100 hp"
         if obj.get("agent"):
-            assert set(obj) == {"agent", "group", "hp", "frozen", "orientation", "color"} | common_properties
+            # agents will also have various inventory, which we don't list here
+            assert set(obj).issuperset({"agent", "agent:group", "hp", "agent:frozen", "agent:orientation", "agent:color", "agent:inv:heart"} | common_properties)
             assert obj["agent"] == 1, "Agent should have type 1"
-            assert obj["group"] == 0, "Agent should be in group 0"
+            assert obj["agent:group"] == 0, "Agent should be in group 0"
             assert obj["hp"] == 100, "Agent should have 100 hp"
-            assert obj["frozen"] == 0, "Agent should not be frozen"
+            assert obj["agent:frozen"] == 0, "Agent should not be frozen"
 
 
 class TestSetBuffers:
