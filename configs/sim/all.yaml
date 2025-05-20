@@ -85,23 +85,3 @@ simulations:
     policy_agents_pct: 1.0
   object_use/full_sequence:
     env: env/mettagrid/object_use/evals/full_sequence
-  extended_sequence/es1:
-    env: env/mettagrid/object_use/extended_sequence_evals/es1
-  extended_sequence/es2:
-    env: env/mettagrid/object_use/extended_sequence_evals/es2
-  extended_sequence/es3:
-    env: env/mettagrid/object_use/extended_sequence_evals/es3
-  extended_sequence/es4:
-    env: env/mettagrid/object_use/extended_sequence_evals/es4
-  extended_sequence/es5:
-    env: env/mettagrid/object_use/extended_sequence_evals/es5
-  extended_sequence/es6:
-    env: env/mettagrid/object_use/extended_sequence_evals/es6
-  extended_sequence/es7:
-    env: env/mettagrid/object_use/extended_sequence_evals/es7
-  simple_sequence/blue:
-    env: env/mettagrid/object_use/simple_sequence_evals/blue
-  simple_sequence/green:
-    env: env/mettagrid/object_use/simple_sequence_evals/green
-  simple_sequence/red:
-    env: env/mettagrid/object_use/simple_sequence_evals/red
