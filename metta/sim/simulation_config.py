@@ -10,6 +10,8 @@ from metta.util.config import Config
 class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
+    __init__ = Config.__init__
+
     # Core simulation config
     num_episodes: int
     max_time_s: int = 120
@@ -20,6 +22,8 @@ class SimulationConfig(Config):
 
 class SingleEnvSimulationConfig(SimulationConfig):
     """Configuration for a single simulation run."""
+
+    __init__ = SimulationConfig.__init__
 
     env: str
     env_overrides: Optional[dict] = None
