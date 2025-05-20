@@ -33,9 +33,6 @@ class Linear(ParamLayer):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = [self._nn_params.out_features]
         assert len(self._in_tensor_shapes[0]) == 1, (
@@ -52,9 +49,6 @@ class ReLU(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.ReLU()
@@ -68,9 +62,6 @@ class LayerNorm(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.LayerNorm(self._in_tensor_shapes[0][0], **self._nn_params)
@@ -83,9 +74,6 @@ class Bilinear(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
-
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
 
     def _make_net(self):
         self._out_tensor_shape = [self._nn_params.out_features]
@@ -120,9 +108,6 @@ class Embedding(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         # output shape [0] is the number of indices used in the forward pass which can change
         # no child layer should be sensitive to this dimension
@@ -149,9 +134,6 @@ class Conv2d(ParamLayer):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
-
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
 
     def _make_net(self):
         self._set_conv_dims()
@@ -190,9 +172,6 @@ class MaxPool1d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.MaxPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
@@ -205,9 +184,6 @@ class MaxPool2d(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
-
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -222,9 +198,6 @@ class AdaptiveAvgPool1d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AdaptiveAvgPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
@@ -237,9 +210,6 @@ class AdaptiveAvgPool2d(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
-
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -254,9 +224,6 @@ class AdaptiveMaxPool1d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AdaptiveMaxPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
@@ -269,9 +236,6 @@ class AdaptiveMaxPool2d(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
-
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -286,9 +250,6 @@ class AvgPool1d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AvgPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
@@ -301,9 +262,6 @@ class AvgPool2d(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
-
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -318,9 +276,6 @@ class Dropout(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.Dropout(**self._nn_params)
@@ -333,9 +288,6 @@ class Dropout2d(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
-
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -350,9 +302,6 @@ class AlphaDropout(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AlphaDropout(**self._nn_params)
@@ -365,9 +314,6 @@ class BatchNorm1d(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
-
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -382,9 +328,6 @@ class BatchNorm2d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.BatchNorm2d(self._in_tensor_shapes[0][0], **self._nn_params)
@@ -398,9 +341,6 @@ class Flatten(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self._out_tensor_shape = [prod(self._in_tensor_shapes[0])]
         return nn.Flatten()
@@ -413,9 +353,6 @@ class Identity(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
-
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
