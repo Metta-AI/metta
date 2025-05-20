@@ -13,6 +13,6 @@ sim_job:
   simulation_suite: ${sim}
   stats_dir: ${run_dir}/stats
   stats_db_uri: ${run_dir}/stats.db
-  replay_dir: ${run_dir}/replay_dir
+  replay_dir: ${run_dir}/replays/evals
 
 cmd: sim

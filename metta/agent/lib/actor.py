@@ -113,9 +113,6 @@ class MettaActorSingleHead(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self.hidden = self._in_tensor_shapes[0][0]  # input_1 dim
         self.embed_dim = self._in_tensor_shapes[1][1]  # input_2 dim (_action_embeds_)
