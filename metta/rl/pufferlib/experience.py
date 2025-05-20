@@ -143,37 +143,35 @@ class Experience:
         env_id: torch.Tensor,
         mask: torch.Tensor,
     ) -> None:
-        mask_np: np.ndarray = mask.cpu().numpy()
+        assert not isinstance(env_id, slice), (
+            f"TypeError: env_id expected to be a tensor, not a slice. Got {type(env_id).__name__} instead. "
+        )
 
         # Get current pointer and calculate indices
-        ptr: int = self.ptr
-        indices: np.ndarray = np.where(mask_np)[0]
-        num_indices: int = indices.size
-        end: int = ptr + num_indices
-        dst: slice = slice(ptr, end)
+        ptr = self.ptr
 
-        # Zero-copy indexing for contiguous env_id
-        if num_indices == mask.size and isinstance(env_id, slice):
-            cpu_inds = slice(0, min(self.batch_size - ptr, num_indices))
-        else:
-            cpu_inds = indices[: self.batch_size - ptr]
-            torch.as_tensor(indices).to(self.obs.device, non_blocking=True)
+        mask_np: np.ndarray = mask.cpu().numpy()
+        indices = np.where(mask_np)[0]
+        num_indices = indices.size
+
+        assert ptr + num_indices <= self.batch_size, (
+            f"Buffer overrun detected: trying to store {num_indices} elements at position {ptr}, "
+            f"but buffer capacity is {self.batch_size}. Total would be {ptr + num_indices}."
+        )
+
+        end = ptr + num_indices
+        dst = slice(ptr, end)
+
+        cpu_inds = indices[: self.batch_size - ptr]
 
         self.obs[dst] = obs.to(self.obs.device, non_blocking=True)[cpu_inds]
         self.values_np[dst] = value.cpu().numpy()[cpu_inds]
-        self.actions_np[dst] = action[cpu_inds]
+        self.actions_np[dst] = action.cpu().numpy()[cpu_inds]
         self.logprobs_np[dst] = logprob.cpu().numpy()[cpu_inds]
         self.rewards_np[dst] = reward.cpu().numpy()[cpu_inds]
         self.dones_np[dst] = done.cpu().numpy()[cpu_inds]
-        if isinstance(env_id, slice):
-            self.sort_keys[dst, 1] = np.arange(cpu_inds.start, cpu_inds.stop, dtype=np.int32)
-        else:
-            # Move env_id to CPU before indexing and converting to numpy
-            if isinstance(env_id, torch.Tensor) and env_id.device.type == "cuda":
-                self.sort_keys[dst, 1] = env_id.cpu()[cpu_inds].numpy()
-            else:
-                self.sort_keys[dst, 1] = env_id[cpu_inds]
 
+        self.sort_keys[dst, 1] = env_id.cpu().numpy()[cpu_inds]
         self.sort_keys[dst, 2] = self.step
 
         # Update pointer and step
