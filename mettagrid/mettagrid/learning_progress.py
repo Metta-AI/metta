@@ -119,12 +119,12 @@ class BidirectionalLearningProgess:
 
         return abs(fast - slow)
 
-    def _reweight(self, p: np.ndarray, p_theta: float = 0.1) -> float:
+    def _reweight(self, p: np.ndarray) -> float:
         """
         Reweight the given success rate using the reweighting function from the paper.
         """
-        numerator = p * (1.0 - p_theta)
-        denominator = p + p_theta * (1.0 - 2.0 * p)
+        numerator = p * (1.0 - self.p_theta)
+        denominator = p + self.p_theta * (1.0 - 2.0 * p)
         return numerator / denominator
 
     def _sigmoid(self, x: np.ndarray):
