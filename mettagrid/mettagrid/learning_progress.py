@@ -216,6 +216,7 @@ class MettaGridEnvLPSet(MettaGridEnv):
         self._env_cfgs = env_cfg.envs
         self._num_agents_global = env_cfg.num_agents
         self._num_envs = len(self._env_cfgs)
+        self._episode_count = 0
 
         # Learning progress parameters
         self._ema_alpha = ema_alpha
@@ -298,6 +299,8 @@ class MettaGridEnvLPSet(MettaGridEnv):
         """
         # Increment episode counter
         self._episode_count += 1
+        if self._episode_count > self._num_envs:
+            self.send_lp_metrics = True
         # Standard reset procedure which
         #  will call the overloaded _get_new_env_cfg method 
         #  to select a new environment according to lp
