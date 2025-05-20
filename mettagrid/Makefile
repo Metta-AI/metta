@@ -285,14 +285,28 @@ check-dependencies:
 		echo "✅ Found benchmark headers in $(GBENCHMARK_DIR)/include"; \
 	fi
 
-
 	@echo "🔧 Tooling Checks"
-	@which g++ >/dev/null 2>&1 || { echo "❌ g++ not found"; exit 1; }
-	@which cmake >/dev/null 2>&1 || { echo "❌ cmake not found"; exit 1; }
-	@which uv >/dev/null 2>&1 || { echo "❌ uv not found"; exit 1; }
-	@echo "  ✅ Found g++"
-	@echo "  ✅ Found cmake"
-	@echo "  ✅ Found uv"
+	@if which g++ >/dev/null 2>&1; then \
+		echo "  ✅ Found g++"; \
+	else \
+		echo "  ❌ g++ not found -- install with your package manager (e.g., 'apt install g++' or 'brew install gcc')"; \
+		exit 1; \
+	fi
+
+	@if which cmake >/dev/null 2>&1; then \
+		echo "  ✅ Found cmake"; \
+	else \
+		echo "  ❌ cmake not found -- install with your package manager (e.g., 'apt install cmake' or 'brew install cmake')"; \
+		exit 1; \
+	fi
+
+	@if which uv >/dev/null 2>&1; then \
+		echo "  ✅ Found uv"; \
+	else \
+		echo "  ❌ uv not found -- install with 'pip install uv' or check https://github.com/astral-sh/uv for installation instructions"; \
+		exit 1; \
+	fi
+
 	@echo ""
 	@echo "⚙️ Compiler"
 	@echo "  CXX                  = $(CXX)"
