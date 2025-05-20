@@ -73,7 +73,7 @@ class Policy(nn.Module):
 
     def encode_observations(self, observations, state=None):
         if len(observations.shape) == 5:
-            observations = rearrange(observations, 'b t h w c -> (b t) h w c')
+            observations = rearrange(observations, "b t h w c -> (b t) h w c")
         features = observations.permute(0, 3, 1, 2).float() / self.max_vec
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
