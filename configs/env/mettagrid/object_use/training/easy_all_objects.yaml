@@ -24,10 +24,14 @@ game:
     num_rooms: 4
     border_width: 6
 
+
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      width: ${sampling:20,50,30}
+      height: ${sampling:20,50,30}
       border_width: ${sampling:1,6,3}
       agents: 1
+      style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
         mine: ${sampling:1,20,10}
         generator: ${sampling:1,10,2}
@@ -40,6 +44,7 @@ game:
 
         block: ${sampling:5,50,20}
         wall: ${sampling:5,50,20}
+
   objects:
       altar:
         initial_items: ${choose:0,1}
