@@ -9,7 +9,7 @@ import datetime
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 import duckdb
 import pandas as pd
@@ -86,7 +86,6 @@ class EpisodeStatsDB:
         self,
         episode_id: str,
         attributes: Dict[str, str],
-        groups: List[List[int]],
         agent_metrics: Dict[int, Dict[str, float]],
         step_count: int,
         replay_url: str | None,
