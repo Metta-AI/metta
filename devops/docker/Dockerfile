@@ -17,7 +17,9 @@ RUN git clone --recursive https://github.com/Metta-AI/metta.git metta
 WORKDIR /workspace/metta
 
 RUN git checkout ${BRANCH}
-RUN ./devops/setup_build.sh
+RUN uv pip install -r requirements.txt
+RUN uv pip install -e .
+RUN uv --directory mettagrid pip install -e .
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 
 WORKDIR /workspace/metta/

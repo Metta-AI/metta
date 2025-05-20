@@ -139,6 +139,7 @@
     "vecenv",
     "vectorizer",
     "venv",
+    "virtualenv",
     "vloss",
     "wandb",
     "xlarge"
