@@ -3,6 +3,8 @@ import numpy as np
 import pytest
 import torch
 
+from metta.agent.lib.action import ActionEmbedding
+
 # Import the actual class
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.util.distribution_utils import sample_logits
@@ -34,22 +36,23 @@ def create_metta_agent():
                 "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
                 "sources": None,
             },
-            "obs_normalizer": {
+            "_obs_normalizer_": {
                 "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
                 "sources": [{"name": "_obs_"}],
+                "grid_features": grid_features,
             },
-            "obs_flattener": {
+            "_obs_flattener_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Flatten",
-                "sources": [{"name": "obs_normalizer"}],
+                "sources": [{"name": "_obs_normalizer_"}],
             },
-            "encoded_obs": {
+            "_encoded_obs_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "obs_flattener"}],
+                "sources": [{"name": "_obs_flattener_"}],
                 "nn_params": {"out_features": 64},
             },
             "_core_": {
                 "_target_": "metta.agent.lib.lstm.LSTM",
-                "sources": [{"name": "encoded_obs"}],
+                "sources": [{"name": "_encoded_obs_"}],
                 "output_size": 64,
                 "nn_params": {"num_layers": 1},
             },
@@ -58,18 +61,18 @@ def create_metta_agent():
                 "sources": None,
                 "nn_params": {"num_embeddings": 50, "embedding_dim": 8},
             },
-            "actor_layer": {
+            "_actor_layer_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
                 "sources": [{"name": "_core_"}],
                 "nn_params": {"out_features": 128},
             },
             "_action_": {
                 "_target_": "metta.agent.lib.actor.MettaActorBig",
-                "sources": [{"name": "actor_layer"}, {"name": "_action_embeds_"}],
+                "sources": [{"name": "_actor_layer_"}, {"name": "_action_embeds_"}],
                 "bilinear_output_dim": 32,
                 "mlp_hidden_dim": 128,
             },
-            "critic_layer": {
+            "_critic_layer_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
                 "sources": [{"name": "_core_"}],
                 "nn_params": {"out_features": 64},
@@ -77,7 +80,7 @@ def create_metta_agent():
             },
             "_value_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "critic_layer"}],
+                "sources": [{"name": "_critic_layer_"}],
                 "nn_params": {"out_features": 1},
                 "nonlinearity": None,
             },
@@ -86,7 +89,11 @@ def create_metta_agent():
 
     # Create the agent with minimal config needed for the tests
     agent = MettaAgent(
-        obs_space=obs_space, action_space=action_space, grid_features=grid_features, device="cpu", **config_dict
+        obs_space=obs_space,
+        action_space=action_space,
+        grid_features=grid_features,
+        device="cpu",
+        **config_dict,
     )
 
     # Create test components that have clip_weights method for testing
@@ -110,14 +117,15 @@ def create_metta_agent():
             return x
 
     # Create a mock ActionEmbedding component that has the activate_actions method
-    class MockActionEmbeds(torch.nn.Module):
+    class MockActionEmbeds(ActionEmbedding):
         def __init__(self):
-            super().__init__()
+            super().__init__(name="_action_embeds_", sources=None, nn_params={"num_embeddings": 50, "embedding_dim": 8})
             self.embedding = torch.nn.Embedding(50, 8)  # Matches config
-            self.ready = True
-            self._sources = None
+            self.setup(None)
+            self._sources = []
             self.clipped = False
-            self.action_names = None
+            self.action_names = {}
+            self.action_to_idx = {}
             self.device = None
 
         def setup(self, source_components):
@@ -200,12 +208,12 @@ def test_clip_weights_raises_attribute_error(create_metta_agent):
     agent.components["bad_comp"] = IncompleteComponent()
 
     # Verify that an AttributeError is raised
-    with pytest.raises(AttributeError) as excinfo:
+    with pytest.raises(AttributeError) as exception:
         agent.clip_weights()
 
     # Check the error message
-    assert "bad_comp" in str(excinfo.value)
-    assert "clip_weights" in str(excinfo.value)
+    assert "bad_comp" in str(exception.value)
+    assert "clip_weights" in str(exception.value)
 
 
 def test_clip_weights_with_non_callable(create_metta_agent):
@@ -215,11 +223,11 @@ def test_clip_weights_with_non_callable(create_metta_agent):
     comp1.clip_weights = "Not a function"
 
     # Verify a TypeError is raised
-    with pytest.raises(TypeError) as excinfo:
+    with pytest.raises(TypeError) as exception:
         agent.clip_weights()
 
     # Check the error message
-    assert "not callable" in str(excinfo.value)
+    assert "not callable" in str(exception.value)
 
 
 def test_l2_reg_loss_sums_component_losses(create_metta_agent):
@@ -260,12 +268,12 @@ def test_l2_reg_loss_raises_attribute_error(create_metta_agent):
     agent.components["_core_"] = IncompleteComponent()
 
     # Verify that an AttributeError is raised
-    with pytest.raises(AttributeError) as excinfo:
+    with pytest.raises(AttributeError) as exception:
         agent.l2_reg_loss()
 
     # Check the error message mentions the missing method
     # Don't rely on a specific component name in the error message
-    error_msg = str(excinfo.value)
+    error_msg = str(exception.value)
     assert "does not have method 'l2_reg_loss'" in error_msg
 
 
@@ -277,11 +285,11 @@ def test_l2_reg_loss_raises_error_for_different_shapes(create_metta_agent):
     comp2.l2_reg_loss = lambda: torch.tensor(0.5)  # scalar tensor
 
     # Verify that a RuntimeError is raised due to different tensor shapes
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(RuntimeError) as exception:
         agent.l2_reg_loss()
 
     # Check that the error message mentions the tensor shape mismatch
-    assert "expects each tensor to be equal size" in str(excinfo.value)
+    assert "expects each tensor to be equal size" in str(exception.value)
 
 
 def test_l2_init_loss_raises_error_for_different_shapes(create_metta_agent):
@@ -292,11 +300,11 @@ def test_l2_init_loss_raises_error_for_different_shapes(create_metta_agent):
     comp2.l2_init_loss = lambda: torch.tensor(0.5)  # scalar tensor
 
     # Verify that a RuntimeError is raised due to different tensor shapes
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(RuntimeError) as exception:
         agent.l2_init_loss()
 
     # Check that the error message mentions the tensor shape mismatch
-    assert "expects each tensor to be equal size" in str(excinfo.value)
+    assert "expects each tensor to be equal size" in str(exception.value)
 
 
 def test_l2_reg_loss_with_non_callable(create_metta_agent):
@@ -306,11 +314,11 @@ def test_l2_reg_loss_with_non_callable(create_metta_agent):
     comp1.l2_reg_loss = "Not a function"
 
     # Verify a TypeError is raised
-    with pytest.raises(TypeError) as excinfo:
+    with pytest.raises(TypeError) as exception:
         agent.l2_reg_loss()
 
     # Check the error message
-    assert "not callable" in str(excinfo.value)
+    assert "not callable" in str(exception.value)
 
 
 def test_l2_reg_loss_empty_components(create_metta_agent):
@@ -320,11 +328,11 @@ def test_l2_reg_loss_empty_components(create_metta_agent):
     agent.components = torch.nn.ModuleDict({})
 
     # Verify an assertion error is raised when no components exist
-    with pytest.raises(AssertionError) as excinfo:
+    with pytest.raises(AssertionError) as exception:
         agent.l2_reg_loss()
 
     # Check the error message
-    assert "No components available" in str(excinfo.value)
+    assert "No components available" in str(exception.value)
 
 
 def test_convert_action_to_logit_index(create_metta_agent):

@@ -22,7 +22,6 @@ class EventManager;
 class StatsTracker;
 class ActionHandler;
 class Agent;
-class ObservationEncoder;
 class GridObject;
 
 namespace py = pybind11;
@@ -78,7 +77,6 @@ private:
   unsigned char _max_action_arg;
   unsigned char _max_action_priority;
 
-  std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
 
   unsigned short _obs_width;

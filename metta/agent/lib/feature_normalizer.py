@@ -1,9 +1,12 @@
+from typing import Any, Dict, Union
+
 import omegaconf
 import torch
-from tensordict import TensorDict
 from torch import nn
+from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.util.running_mean_std import RunningMeanStdInPlace
 
 
@@ -17,7 +20,7 @@ class FeatureListNormalizer(LayerBase):
     for each feature in the grid_features list provided by the metta_agent. Normalization is
     performed in-place using the RunningMeanStdInPlace class.
 
-    The normalized features are stacked together and stored in the TensorDict under the layer's name.
+    The normalized features are stacked together and stored under the layer's name.
 
     Note: This class is currently marked as not working.
 
@@ -25,8 +28,11 @@ class FeatureListNormalizer(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
+    metta_agent: Union[MettaAgent, DistributedMettaAgent]
+
+    # TODO -- maybe the intention here to pass in a MettaGridEnv?
     def __init__(self, metta_agent, **cfg):
-        super().__init__()
+        super().__init__(**cfg)
         cfg = omegaconf.OmegaConf.create(cfg)
         object.__setattr__(self, "metta_agent", metta_agent)
         self.cfg = cfg
@@ -34,6 +40,7 @@ class FeatureListNormalizer(LayerBase):
         self.name = self.cfg.name
         self.input_source = self.cfg.input_source
         self.output_size = None
+
         self._feature_names = self.metta_agent.grid_features
         self.input_shape = self.metta_agent.obs_shape
         self._norms_dict = nn.ModuleDict(
@@ -43,16 +50,17 @@ class FeatureListNormalizer(LayerBase):
         )
         self._normalizers = [self._norms_dict[k] for k in self._feature_names]
 
-    def forward(self, td: TensorDict):
-        if self.name in td:
-            return td[self.name]
+    @override
+    def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if self.name in data:
+            return data[self.name]
 
-        self.metta_agent_components[self.input_source].forward(td)
+        self.metta_agent_components[self.input_source].forward(data)
 
         with torch.no_grad():
             normalized_values = []
             for fidx, norm in enumerate(self._normalizers):
-                normalized_values.append(norm(td[self.input_source][:, fidx, :, :]))
-            td[self.name] = torch.stack(normalized_values, dim=1)
+                normalized_values.append(norm(data[self.input_source][:, fidx, :, :]))
+            data[self.name] = torch.stack(normalized_values, dim=1)
 
-        return td
+        return data

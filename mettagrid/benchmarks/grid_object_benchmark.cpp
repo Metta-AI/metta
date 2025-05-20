@@ -80,7 +80,7 @@ static void BM_GridObjectObs(benchmark::State& state) {
     offsets[i] = i;
   }
 
-  std::vector<ObsType> observations(numOffsets, 0);
+  std::vector<c_observations_type> observations(numOffsets, 0);
 
   for (auto _ : state) {
     obj.obs(observations.data(), offsets);
