@@ -3,7 +3,6 @@
 help:
 	@echo "Available targets:"
 	@echo "  install-dependencies - Install all Python and C++ build dependencies"
-	@echo "  check-dependencies   - Verify system is ready to build"
 	@echo "  build                - Build mettagrid using setup-tools"
 	@echo "  build-tests          - Build all test files"
 	@echo "  build-benchmarks     - Build all benchmark files"
@@ -218,8 +217,10 @@ install-dependencies:
 # Check Dependencies
 #-----------------------
 
-.PHONY: check-dependencies
-check-dependencies:
+.PHONY: info check-common-dependencies check-test-dependencies check-build-dependencies check-benchmark-dependencies
+
+# Main dependency check target that calls all others
+info:
 	@echo "Environment Info"
 	@echo "  VIRTUAL_ENV          = $(VIRTUAL_ENV)"
 	@echo "  PYTHON               = $(PYTHON_BIN)"
@@ -240,7 +241,31 @@ check-dependencies:
 	@echo "  PYTHON_HOME          = $(PYTHON_HOME)"
 	@echo "  PYTHON_CFLAGS        = $(PYTHON_CFLAGS)"
 	@echo ""
+	@echo ""
+	@echo "⚙️ Compiler"
+	@echo "  CXX                  = $(CXX)"
+	@echo "  CXXFLAGS             = $(CXXFLAGS)" 
+	@echo "  CXXFLAGS_METTAGRID   = $(CXXFLAGS_METTAGRID)"
+	@echo ""
+	@echo "📚 Linking"
+	@echo "  PYTHON_LIBS          = $(PYTHON_LIBS)"
+	@echo "  LDFLAGS	          = $(LDFLAGS)"
+	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
+
+# Build-specific dependencies
+check-build-dependencies: info
+	@echo ""
 	@echo "🧱 Build dependencies"
+
+	@echo "🔍 Checking for uv..."
+	@if which uv >/dev/null 2>&1; then \
+		echo "  ✅ Found uv"; \
+	else \
+		echo "  ❌ uv not found -- install with 'pip install uv' or check https://github.com/astral-sh/uv for installation instructions"; \
+		exit 1; \
+	fi
+
+	@echo "🔍 Checking for pybind11..."
 	@if [ -n "$(PYBIND11_INCLUDE)" ]; then \
 		echo "  PYBIND11_INCLUDE     = $(PYBIND11_INCLUDE)"; \
 	else \
@@ -248,8 +273,8 @@ check-dependencies:
 		exit 1; \
 	fi
 
-	@echo "🔍 Python import test for numpy..."
-	@$(PYTHON_BIN) -c "import numpy; print('✅ numpy imported successfully')" || \
+	@echo "🔍 Checking for numpy..."
+	@if $(PYTHON_BIN) -c "import numpy; print('✅ numpy imported successfully - version', numpy.__version__)" 2>/dev/null; then \
 		{ echo "❌ Failed to import numpy — possibly missing .so or metadata files"; exit 1; }
 
 	@if [ -n "$(NUMPY_INCLUDE)" ]; then \
@@ -259,6 +284,27 @@ check-dependencies:
 		exit 1; \
 	fi
 
+# Common dependencies needed for test and benchmark
+check-common-dependencies: info
+	@echo "🔍 Checking for g++..."
+	@if which g++ >/dev/null 2>&1; then \
+		echo "  ✅ Found g++"; \
+	else \
+		echo "  ❌ g++ not found -- install with your package manager (e.g., 'apt install g++' or 'brew install gcc')"; \
+		exit 1; \
+	fi
+	@echo "🔍 Checking for cmake..."
+	@if which cmake >/dev/null 2>&1; then \
+		echo "  ✅ Found cmake"; \
+	else \
+		echo "  ❌ cmake not found -- install with your package manager (e.g., 'apt install cmake' or 'brew install cmake')"; \
+		exit 1; \
+	fi
+
+# Test-specific dependencies
+check-test-dependencies: check-common-dependencies
+	@echo ""
+	@echo "🧪 Test dependencies"
 	@echo "Checking for Google Test headers..."
 	@if [ ! -f "$(GTEST_DIR)/include/gtest/gtest.h" ]; then \
 		if [ -f "$$(brew --prefix)/opt/googletest/include/gtest/gtest.h" ]; then \
@@ -272,6 +318,10 @@ check-dependencies:
 		echo "✅ Found gtest headers in $(GTEST_DIR)/include"; \
 	fi
 
+# Benchmark-specific dependencies
+check-benchmark-dependencies: check-common-dependencies
+	@echo ""
+	@echo "⏱️ Benchmark dependencies"
 	@echo "Checking for Google Benchmark headers..."
 	@if [ ! -f "$(GBENCHMARK_DIR)/include/benchmark/benchmark.h" ]; then \
 		if [ -f "$$(brew --prefix)/opt/benchmark/include/benchmark/benchmark.h" ]; then \
@@ -285,59 +335,26 @@ check-dependencies:
 		echo "✅ Found benchmark headers in $(GBENCHMARK_DIR)/include"; \
 	fi
 
-	@echo "🔧 Tooling Checks"
-	@if which g++ >/dev/null 2>&1; then \
-		echo "  ✅ Found g++"; \
-	else \
-		echo "  ❌ g++ not found -- install with your package manager (e.g., 'apt install g++' or 'brew install gcc')"; \
-		exit 1; \
-	fi
-
-	@if which cmake >/dev/null 2>&1; then \
-		echo "  ✅ Found cmake"; \
-	else \
-		echo "  ❌ cmake not found -- install with your package manager (e.g., 'apt install cmake' or 'brew install cmake')"; \
-		exit 1; \
-	fi
-
-	@if which uv >/dev/null 2>&1; then \
-		echo "  ✅ Found uv"; \
-	else \
-		echo "  ❌ uv not found -- install with 'pip install uv' or check https://github.com/astral-sh/uv for installation instructions"; \
-		exit 1; \
-	fi
-
-	@echo ""
-	@echo "⚙️ Compiler"
-	@echo "  CXX                  = $(CXX)"
-	@echo "  CXXFLAGS             = $(CXXFLAGS)" 
-	@echo "  CXXFLAGS_METTAGRID   = $(CXXFLAGS_METTAGRID)"
-	@echo ""
-	@echo "📚 Linking"
-	@echo "  PYTHON_LIBS          = $(PYTHON_LIBS)"
-	@echo "  LDFLAGS	          = $(LDFLAGS)"
-	@echo "  RPATH_FLAGS          = $(RPATH_FLAGS)"
-
 #-----------------------
 # Build Targets
 #-----------------------
 
 # Build target that calls the setup.py script with UV venv activated
 .PHONY: build
-build: check-dependencies
+build: check-build-dependencies
 	@echo "🔨 Building mettagrid using setup-tools..."
 	@uv pip install -e .
 	@echo "✅ Build completed successfully."
 
 # Build just the test files
-.PHONY: build-tests
+.PHONY: check-test-dependencies build-tests
 build-tests: $(TEST_EXECUTABLES)
 	@echo "🧪 Built $(words $(TEST_EXECUTABLES)) test executable(s):"
 	@find $(BUILD_TEST_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
 	@echo "✅ Finished building test executables"
 
 # Build just the benchmark files
-.PHONY: build-benchmarks
+.PHONY: check-benchmark-dependencies build-benchmarks
 build-benchmarks: $(BENCH_EXECUTABLES)
 	@echo "📈 Built $(words $(BENCH_EXECUTABLES)) benchmark executable(s):"
 	@find $(BUILD_BENCH_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
