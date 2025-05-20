@@ -82,3 +82,35 @@ def test_step_performance_no_reset(benchmark, environment, single_action):
     benchmark.extra_info["num_agents"] = num_agents
     benchmark.extra_info["env_steps_per_second"] = env_steps_per_second
     benchmark.extra_info["agent_steps_per_second"] = agent_steps_per_second
+
+
+def test_reset_performance(benchmark, environment):
+    """
+    Benchmark just the env.reset() method performance.
+    """
+    np.random.seed(42)
+
+    env = environment
+
+    def run_reset():
+        # This function is called repeatedly by pytest-benchmark.
+        # It only contains the env.reset() call.
+        env.reset()
+
+    # Run the benchmark
+    benchmark.pedantic(
+        run_reset,
+        iterations=1,  # Number of iterations per round
+        rounds=200,  # Number of rounds to run
+        warmup_rounds=50,  # Number of warmup rounds to discard
+    )
+
+    # Calculate and print resets per second from benchmark data
+    ops_kilo = benchmark.stats["ops"]
+    resets_per_second = ops_kilo * 1000.0
+
+    print(f"\nEnvironment Kilo OPS (from stats): {ops_kilo:.2f} Kops/s")
+    print(f"Resets per second: {resets_per_second:.2f} ops/s")
+
+    # Add custom info to the benchmark report
+    benchmark.extra_info["resets_per_second"] = resets_per_second
