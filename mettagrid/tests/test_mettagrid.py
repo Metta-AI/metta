@@ -78,7 +78,7 @@ def test_truncation_at_max_steps():
             assert not np.any(terminals), f"Terminals should remain False at max_steps (step {step_num})"
 
 class TestObservations:
-    def test_observation_tokens():
+    def test_observation_tokens(self):
         env = create_minimal_mettagrid_env(use_observation_tokens=True)
         wall_feature_idx = env.grid_features().index("wall")
         obs, info = env.reset()
@@ -87,18 +87,22 @@ class TestObservations:
         # TODO: better way to check?
         for x, y in [(0, 1), (1, 0)]:
             location = x << 4 | y
-            for token_idx in range(obs.shape[0][1]):
+            print("obs.shape", obs.shape)
+            print("obs.shape[1]", obs.shape[1])
+            for token_idx in range(obs.shape[1]):
+                print(token_idx)
                 token = obs[0, token_idx, :]
-                if token == [location, wall_feature_idx, 1]:
+                print(token)
+                if (token == [location, wall_feature_idx, 1]).all():
                     break
             else:
-                raise ValueError(f"Expected wall at location {x}, {y}")
+                raise ValueError(f"Expected wall at location {x}, {y}, {location}, {wall_feature_idx}, {token_idx}")
         # assert obs[0, 0, 1, wall_feature_idx] == 1, "Expected wall above agent 0"
         # assert obs[0, 1, 0, wall_feature_idx] == 1, "Expected wall to left of agent 0"
         # assert not obs[0, 2, 1, :].any(), "Expected empty space below agent 0"
         # assert not obs[0, 1, 2, :].any(), "Expected empty space to right of agent 0"
 
-    def test_observations():
+    def test_observations(self):
         env = create_minimal_mettagrid_env()
         wall_feature_idx = env.grid_features().index("wall")
         obs, info = env.reset()
