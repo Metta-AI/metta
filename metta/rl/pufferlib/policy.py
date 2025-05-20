@@ -118,11 +118,11 @@ class PufferAgentWrapper(nn.Module):
         """
         if state.lstm_h is not None and state.lstm_c is not None:
             state = SimpleNamespace(
-                        lstm_h = state.lstm_h.squeeze(),
-                        lstm_c = state.lstm_c.squeeze(),
-                    )
+                lstm_h=state.lstm_h.squeeze(),
+                lstm_c=state.lstm_c.squeeze(),
+            )
         else:
-            state = SimpleNamespace(lstm_h = None, lstm_c = None)
+            state = SimpleNamespace(lstm_h=None, lstm_c=None)
         hidden, critic = self.policy(obs, state)  # using variable names from LSTMWrapper
         action, logprob, logits_entropy = sample_logits(hidden, action)
         # explanation of var names in the docstring above
