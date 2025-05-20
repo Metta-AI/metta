@@ -22,18 +22,12 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
-// Used for utf32 -> utf8 conversion, which is needed for reading the map.
-// Hopefully this is temporary.
-#include <codecvt>
-#include <locale>
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
+MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   // env_cfg is a dict-form of the OmegaCong config.
-  // `map` is a numpy array of shape (height, width) and a 'U' dtype.
-  // It's not clear that there's any value in using a numpy array here,
-  // and this causes us to need to do some awkward conversions.
+  // `map` is a list of lists of strings, which are the map cells.
   auto cfg = env_cfg["game"].cast<py::dict>();
   _cfg = cfg;
 
@@ -48,10 +42,10 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
   for (const auto& layer : ObjectLayers) {
     layer_for_type_id.push_back(layer.second);
   }
+  int height = map.size();
+  int width = map[0].cast<py::list>().size();
 
-  auto map_info = map.request();
-
-  _grid = std::make_unique<Grid>(map_info.shape[1], map_info.shape[0], layer_for_type_id);
+  _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
   _obs_encoder = std::make_unique<ObservationEncoder>();
   _grid_features = _obs_encoder->feature_names();
 
@@ -103,28 +97,11 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::array map) {
     _group_reward_pct[id] = group.contains("group_reward_pct") ? group["group_reward_pct"].cast<float>() : 0.0f;
   }
 
-  // Ensure the array is 2D
-  if (map_info.ndim != 2) {
-    throw std::runtime_error("Expected a 2D array");
-  }
-
-  // Check the dtype. utf-32 is 4 bytes.
-  ssize_t element_size = map_info.itemsize;
-  if (element_size % 4 != 0) {
-    throw std::runtime_error("Invalid Unicode size: not divisible by 4");
-  }
-  ssize_t max_chars = element_size / 4;
-
   // Initialize objects from map
-  auto map_data = static_cast<wchar_t*>(map_info.ptr);
-  for (int r = 0; r < map_info.shape[0]; r++) {
-    for (int c = 0; c < map_info.shape[1]; c++) {
-      ssize_t idx = r * map_info.shape[1] + c;
+  for (int r = 0; r < height; r++) {
+    for (int c = 0; c < width; c++) {
+      std::string cell = map[r].cast<py::list>()[c].cast<std::string>();
       Converter* converter = nullptr;
-      std::wstring wide_string(map_data + idx * max_chars, max_chars);
-      std::wstring_convert<std::codecvt_utf8<wchar_t>> w_string_converter;
-      std::string cell = w_string_converter.to_bytes(wide_string);
-      cell = cell.substr(0, cell.find('\0'));
       if (cell == "wall") {
         Wall* wall = new Wall(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
         _grid->add_object(wall);
@@ -633,7 +610,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
 
   py::class_<MettaGrid>(m, "MettaGrid")
-      .def(py::init<py::dict, py::array>())
+      .def(py::init<py::dict, py::list>())
       .def("reset", &MettaGrid::reset)
       .def("step", &MettaGrid::step)
       .def("set_buffers",

@@ -29,7 +29,7 @@ namespace py = pybind11;
 
 class METTAGRID_API MettaGrid {
 public:
-  MettaGrid(py::dict env_cfg, py::array map);
+  MettaGrid(py::dict env_cfg, py::list map);
   ~MettaGrid();
 
   // Python API methods
