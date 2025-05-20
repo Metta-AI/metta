@@ -32,7 +32,9 @@ mkdir -p train_dir/dist/$RUN_ID
 export NODE_INDEX=${AWS_BATCH_JOB_NODE_INDEX:-0}
 export LOG_FILE="train_dir/logs/${JOB_NAME}.${NODE_INDEX}.log"
 
-mkdir -p $(dirname $LOG_FILE) 2>/dev/null || true
+# Create log directory - fail if this doesn't work
+mkdir -p $(dirname $LOG_FILE)
+
 # Start logging everything to the log file and stdout
 exec > >(tee -a "$LOG_FILE") 2>&1
 echo "=== Logging to $LOG_FILE ==="
@@ -41,15 +43,16 @@ echo "=== Logging to $LOG_FILE ==="
 function timeout_log() {
     local message="$1"
     local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-    echo "[$timestamp] TIMEOUT: $message" | tee -a "train_dir/logs/${JOB_NAME}.timeout.log" 2>/dev/null || echo "[$timestamp] TIMEOUT: $message"
+    # Fail if we can't write to the timeout log
+    echo "[$timestamp] TIMEOUT: $message" | tee -a "train_dir/logs/${JOB_NAME}.timeout.log"
 }
 
 # Set up the auto-termination feature if JOB_TIMEOUT_MINUTES is set
 if [ ! -z "$JOB_TIMEOUT_MINUTES" ] && [ "$NODE_INDEX" = "0" -o "$AWS_BATCH_JOB_NODE_INDEX" = "0" ]; then
-    # Create timeout log file
-    mkdir -p "train_dir/logs" 2>/dev/null || true
+    # Create timeout log file - fail if this doesn't work
+    mkdir -p "train_dir/logs"
     TIMEOUT_LOG="train_dir/logs/${JOB_NAME}.timeout.log"
-    touch $TIMEOUT_LOG 2>/dev/null || TIMEOUT_LOG="/tmp/${JOB_NAME}.timeout.log"
+    touch $TIMEOUT_LOG
     
     # Only set up timeout on the main node
     TIMEOUT_SECONDS=$((JOB_TIMEOUT_MINUTES * 60))
