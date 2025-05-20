@@ -23,154 +23,206 @@ class CentralTableLayout(Room):
 
     def __init__(
         self,
-        width: int,
-        height: int,
+        width: int,  # User-provided width for the core functional area
+        height: int,  # User-provided height for the core functional area
         agents: Union[int, Dict[str, int]] = 1,
         seed: Optional[int] = None,
         lane_width: int = 1,
         num_mines: int = 2,
         num_generators: int = 2,
         num_altars: int = 2,
-        # For simple team assignment if agents is int
         team: Optional[str] = None,
         style: str = "default",
+        border_width: int = 0,
     ):
-        super().__init__(border_width=0, border_object="wall",
-                         labels=["central_table", style])
         self._rng = np.random.default_rng(seed)
+        self._border_width = border_width
 
-        # Check if the grid dimensions are too small for the specified lane_width
-        if width < 2 * (lane_width + 1) + 1 or height < 2 * (lane_width + 1) + 1:
+        # User-provided width/height are for the core area.
+        # Style might override lane_width, so fetch it first to use in validation.
+        effective_lane_width_for_validation = lane_width
+        if style != "default" and style in self.STYLE_PARAMETERS:
+            params = self.STYLE_PARAMETERS[style]
+            effective_lane_width_for_validation = params.get(
+                "lane_width", lane_width)
+
+        # Minimum dimension for the core structure:
+        # It needs space for:
+        #   - 1-cell thick functional border on each side (total 2 cells)
+        #   - lane_width on each side (total 2 * lane_width cells)
+        #   - A minimum 1x1 central table (total 1 cell)
+        min_core_dimension = 2 * (effective_lane_width_for_validation + 1) + 1
+
+        if width < min_core_dimension or height < min_core_dimension:
             raise ValueError(
-                f"Grid dimensions ({width}x{height}) are too small for the specified lane_width ({lane_width}) "
-                f"and a minimum 1x1 table. Minimum {2 * (lane_width + 1) + 1}x{2 * (lane_width + 1) + 1} required."
+                f"Core dimensions ({width}x{height}) are too small for the specified "
+                f"lane_width ({effective_lane_width_for_validation}). Minimum core dimension required is {min_core_dimension}x{min_core_dimension} "
+                f"(this is for the functional border, lane, and a 1x1 central table, excluding the pure wall border_width)."
             )
 
-        # Initialize room dimensions
-        self._width = width
-        self._height = height
-        # Initialize agents specification
+        # Actual grid dimensions for internal use and for `super().__init__`
+        # These include the extra padding from border_width.
+        actual_grid_width = width + 2 * self._border_width
+        actual_grid_height = height + 2 * self._border_width
+
+        # CORRECTED CALL TO SUPER: Removed width and height arguments
+        super().__init__(border_width=self._border_width,
+                         border_object="wall",
+                         labels=["central_table", style])
+
+        # Store the *actual total* dimensions for the grid generation
+        self._width = actual_grid_width
+        self._height = actual_grid_height
+
+        # Store agents and team info
         self._agents_spec = agents
         self._team = team
-        # Initialize style parameters
-        self._lane_width = lane_width
+
+        # Initialize and apply style parameters for items and the final self._lane_width
+        self._lane_width = lane_width  # Start with user-passed, style might override
         self._num_mines = num_mines
         self._num_generators = num_generators
         self._num_altars = num_altars
 
-        # Apply style parameters if specified style is valid and not "default" (which uses args)
         if style != "default" and style in self.STYLE_PARAMETERS:
             params = self.STYLE_PARAMETERS[style]
-            self._lane_width = params.get("lane_width", lane_width)
+            self._lane_width = params.get(
+                "lane_width", lane_width)  # Final lane_width
             self._num_mines = params.get("num_mines", num_mines)
             self._num_generators = params.get("num_generators", num_generators)
             self._num_altars = params.get("num_altars", num_altars)
 
-        # Initialize occupancy grid
-        self._occ = np.zeros((height, width), dtype=bool)
-        # Set size labels
-        self.set_size_labels(width, height)
+        # Initialize occupancy grid with actual total dimensions
+        self._occ = np.zeros((self._height, self._width), dtype=bool)
+        # Set size labels based on actual total dimensions
+        self.set_size_labels(self._width, self._height)
 
     def _build(self) -> np.ndarray:
-        # Create a grid filled with "empty" objects
         grid = np.full((self._height, self._width), "empty", dtype=object)
-        # Fill the occupancy grid with False values
         self._occ.fill(False)
 
-        # 1. Define and draw the central table (these are walls)
-        # Top-left corner (inclusive) of the table.
-        table_tl_r = self._lane_width + 1
-        table_tl_c = self._lane_width + 1
-        # Bottom-right corner (inclusive) of the table.
-        # The -2 accounts for the 1-cell outer border and 1-cell lane.
-        table_br_r = self._height - self._lane_width - 2
-        table_br_c = self._width - self._lane_width - 2
+        # 0. Draw outer pure wall border if border_width > 0
+        if self._border_width > 0:
+            for i in range(self._border_width):
+                # Top border layer
+                grid[i, :] = "wall"
+                self._occ[i, :] = True
+                # Bottom border layer
+                grid[self._height - 1 - i, :] = "wall"
+                self._occ[self._height - 1 - i, :] = True
+                # Left border layer
+                grid[:, i] = "wall"
+                self._occ[:, i] = True
+                # Right border layer
+                grid[:, self._width - 1 - i] = "wall"
+                self._occ[:, self._width - 1 - i] = True
+
+        # 1. Define and draw the central table (walls)
+        # Coordinates are now relative to the area inside the pure wall border
+        # Effective top-left of the 'functional' area (where objects/lanes/table go)
+        func_area_tl_r = self._border_width
+        func_area_tl_c = self._border_width
+
+        # Table top-left corner, offset by lane_width and 1-cell for functional border
+        table_tl_r = func_area_tl_r + self._lane_width + 1
+        table_tl_c = func_area_tl_c + self._lane_width + 1
+
+        # Table bottom-right corner
+        # Effective bottom-right of the 'functional' area
+        func_area_br_r = self._height - 1 - self._border_width
+        func_area_br_c = self._width - 1 - self._border_width
+
+        table_br_r = func_area_br_r - self._lane_width - 1
+        table_br_c = func_area_br_c - self._lane_width - 1
 
         if table_tl_r > table_br_r or table_tl_c > table_br_c:
             raise ValueError(
                 f"Calculated table dimensions are invalid or non-existent. "
-                f"Grid: {self._width}x{self._height}, lane: {self._lane_width}. "
-                f"Table TL:({table_tl_r},{table_tl_c}), BR:({table_br_r},{table_br_c})"
+                f"Grid: {self._width}x{self._height}, border: {self._border_width}, lane: {self._lane_width}. "
+                f"Table TL:({table_tl_r},{table_tl_c}), BR:({table_br_r},{table_br_c}). "
+                f"Functional Area TL:({func_area_tl_r},{func_area_tl_c}), BR:({func_area_br_r},{func_area_br_c})"
             )
-
         grid[table_tl_r: table_br_r + 1, table_tl_c: table_br_c + 1] = "wall"
         self._occ[table_tl_r: table_br_r + 1,
                   table_tl_c: table_br_c + 1] = True
 
-        # 2. Identify Object Placement Slots (on the absolute outer border)
+        # 2. Identify Object Placement Slots (on the 'functional' outer border)
+        # This is the layer immediately inside the pure wall border (if any)
+        # and outside the lane.
+
+        # Coordinates for the functional border
+        fb_top_row = func_area_tl_r
+        fb_bottom_row = func_area_br_r
+        fb_left_col = func_area_tl_c
+        fb_right_col = func_area_br_c
+
         border_cells_map = {
             "top": [], "bottom": [], "left": [], "right": [],
-            "top_left_corner": (0, 0),
-            "top_right_corner": (0, self._width-1) if self._width > 0 else (0, 0),
-            "bottom_left_corner": (self._height-1, 0) if self._height > 0 else (0, 0),
-            "bottom_right_corner": (self._height-1, self._width-1) if self._height > 0 and self._width > 0 else (0, 0)
+            "top_left_corner": (fb_top_row, fb_left_col),
+            "top_right_corner": (fb_top_row, fb_right_col),
+            "bottom_left_corner": (fb_bottom_row, fb_left_col),
+            "bottom_right_corner": (fb_bottom_row, fb_right_col)
         }
 
-        # Populate border segments, excluding corners initially
-        for c_idx in range(1, self._width - 1):  # Top border (0, c_idx)
-            border_cells_map["top"].append((0, c_idx))
-        if self._height > 1:  # Bottom border (self._height-1, c_idx)
-            for c_idx in range(1, self._width - 1):
-                border_cells_map["bottom"].append((self._height - 1, c_idx))
-        for r_idx in range(1, self._height - 1):  # Left border (r_idx, 0)
-            border_cells_map["left"].append((r_idx, 0))
-        if self._width > 1:  # Right border (r_idx, self._width-1)
-            for r_idx in range(1, self._height - 1):
-                border_cells_map["right"].append((r_idx, self._width - 1))
+        # Populate functional border segments (excluding corners initially)
+        # Top functional border: (fb_top_row, c_idx) for c_idx from fb_left_col + 1 to fb_right_col - 1
+        for c_idx in range(fb_left_col + 1, fb_right_col):
+            border_cells_map["top"].append((fb_top_row, c_idx))
+        # Bottom functional border
+        if fb_bottom_row > fb_top_row:  # ensure there is space for distinct top and bottom
+            for c_idx in range(fb_left_col + 1, fb_right_col):
+                border_cells_map["bottom"].append((fb_bottom_row, c_idx))
+        # Left functional border
+        for r_idx in range(fb_top_row + 1, fb_bottom_row):
+            border_cells_map["left"].append((r_idx, fb_left_col))
+        # Right functional border
+        if fb_right_col > fb_left_col:  # ensure there is space for distinct left and right
+            for r_idx in range(fb_top_row + 1, fb_bottom_row):
+                border_cells_map["right"].append((r_idx, fb_right_col))
 
-        outer_corners_list = sorted(list(set([  # Get unique corner coordinates
+        outer_corners_list = sorted(list(set([
             border_cells_map["top_left_corner"], border_cells_map["top_right_corner"],
             border_cells_map["bottom_left_corner"], border_cells_map["bottom_right_corner"]
         ])))
+
+        # Ensure corners are valid (not overlapping if dimensions are too small)
+        # This might occur if func_area is very small, e.g., 1xN or Nx1.
+        # For a 1x1 functional area, all corners are the same point.
+        # The set conversion above handles this implicitly by storing only unique points.
 
         all_potential_border_slots = []
         for seg_key in ["top", "bottom", "left", "right"]:
             all_potential_border_slots.extend(border_cells_map[seg_key])
         all_potential_border_slots.extend(outer_corners_list)
-        # Ensure uniqueness and sort, mainly for deterministic behavior if rng is not used or for easier debugging
         all_potential_border_slots = sorted(
             list(set(all_potential_border_slots)))
 
-        # Determine preferred border segments for items based on table dimensions
-        # This refers to the dimensions of the central table itself.
+        # Determine preferred border segments based on table dimensions
         table_actual_width = table_br_c - table_tl_c + 1
         table_actual_height = table_br_r - table_tl_r + 1
 
         if table_actual_width >= table_actual_height:  # Table is wider or square
-            # Generators on top/bottom border segments
             generator_preferred_border_segments = border_cells_map["top"] + \
                 border_cells_map["bottom"]
-            # Mines/Altars on left/right border segments
             mine_altar_preferred_border_segments = border_cells_map["left"] + \
                 border_cells_map["right"]
         else:  # Table is taller
-            # Generators on left/right border segments
             generator_preferred_border_segments = border_cells_map["left"] + \
                 border_cells_map["right"]
-            # Mines/Altars on top/bottom border segments
             mine_altar_preferred_border_segments = border_cells_map["top"] + \
                 border_cells_map["bottom"]
 
-        # Helper to place items on the border
+        # Helper to place items on the functional border
         def _place_item_on_border(item_name: str, count: int, preferred_segments: List[Tuple[int, int]]):
             placed_count = 0
-
-            # Build a candidate list: preferred (shuffled), then corners (shuffled), then all others (shuffled)
             candidate_slots = []
-
-            # Add shuffled preferred segments
-            current_preferred_slots = list(set(preferred_segments))  # Unique
+            current_preferred_slots = list(set(preferred_segments))
             self._rng.shuffle(current_preferred_slots)
             candidate_slots.extend(current_preferred_slots)
-
-            # Add shuffled corners not already in preferred
             current_corner_slots = [
                 c for c in outer_corners_list if c not in candidate_slots]
             self._rng.shuffle(current_corner_slots)
             candidate_slots.extend(current_corner_slots)
-
-            # Add all other border slots not yet included, also shuffled
-            # This ensures all border slots are considered if preferred/corners are not enough or too many.
             other_border_slots = [
                 s for s in all_potential_border_slots if s not in candidate_slots]
             self._rng.shuffle(other_border_slots)
@@ -179,15 +231,13 @@ class CentralTableLayout(Room):
             for pos in candidate_slots:
                 if placed_count == count:
                     break
-                # Check if the border cell is available (still "empty")
-                if grid[pos] == "empty":
+                if 0 <= pos[0] < self._height and 0 <= pos[1] < self._width and grid[pos] == "empty":
                     grid[pos] = item_name
                     self._occ[pos] = True
                     placed_count += 1
-
             if placed_count < count:
                 print(
-                    f"Warning: Could only place {placed_count}/{count} of '{item_name}' on border.")
+                    f"Warning: Could only place {placed_count}/{count} of '{item_name}' on functional border.")
 
         _place_item_on_border("generator", self._num_generators,
                               generator_preferred_border_segments)
@@ -196,28 +246,28 @@ class CentralTableLayout(Room):
         _place_item_on_border("altar", self._num_altars,
                               mine_altar_preferred_border_segments)
 
-        # 4. Fill remaining "empty" border cells with "wall"
-        for pos in all_potential_border_slots:  # Iterate over all defined border positions
-            # If not used for an item (mine, generator, altar)
-            if grid[pos] == "empty":
+        # 4. Fill remaining "empty" functional border cells with "wall"
+        for pos in all_potential_border_slots:
+            if 0 <= pos[0] < self._height and 0 <= pos[1] < self._width and grid[pos] == "empty":
                 grid[pos] = "wall"
-                self._occ[pos] = True  # Mark as occupied by a wall
+                self._occ[pos] = True
 
         # 5. Identify Lane Cells for agent placement
-        # These are cells inside the outer border but not part of the central table.
-        # They should currently be "empty".
+        # Lane cells are between the functional border and the central table.
         lane_cells_list = []
-        # Iterate from 1 to height-2 / width-2 to exclude the outer border cells.
-        for r_lane in range(1, self._height - 1):
-            for c_lane in range(1, self._width - 1):
-                # A cell is a lane cell if it's not part of the central table
-                # (which is already marked on the grid and _occ) and it's inside the outer border.
-                # Since the table is already placed, and border objects/walls are placed,
-                # any remaining "empty" cell in this inner region is a lane cell.
+        # Lane starts 1 cell inside the functional border
+        lane_tl_r = func_area_tl_r + 1
+        lane_tl_c = func_area_tl_c + 1
+        lane_br_r = func_area_br_r - 1
+        lane_br_c = func_area_br_c - 1
+
+        for r_lane in range(lane_tl_r, lane_br_r + 1):
+            for c_lane in range(lane_tl_c, lane_br_c + 1):
+                # A cell is a lane cell if it's "empty" AND not part of the table
+                # (The table is already on the grid, so checking grid[pos] == "empty" suffices)
                 if grid[r_lane, c_lane] == "empty":
                     lane_cells_list.append((r_lane, c_lane))
 
-        # Shuffle for random agent placement
         self._rng.shuffle(lane_cells_list)
 
         # 6. Place agents in these empty lane_cells_list
@@ -232,18 +282,16 @@ class CentralTableLayout(Room):
             for name, agent_count in self._agents_spec.items():
                 processed_name = name if "." in name else f"agent.{name}"
                 agent_symbols_to_place.extend([processed_name] * agent_count)
-            # Shuffle if multiple agent types defined in dict
             self._rng.shuffle(agent_symbols_to_place)
 
         for i in range(min(len(agent_symbols_to_place), len(lane_cells_list))):
             pos = lane_cells_list[i]
             grid[pos] = agent_symbols_to_place[i]
-            self._occ[pos] = True  # Mark agent position as occupied
+            self._occ[pos] = True
 
         if len(agent_symbols_to_place) > len(lane_cells_list):
-            print(f"Warning: Not enough empty lane cells to place all agents. "
-                  f"Placed {len(lane_cells_list)}/{len(agent_symbols_to_place)} agents.")
-
+            print(
+                f"Warning: Not enough empty lane cells to place all agents. Placed {len(lane_cells_list)}/{len(agent_symbols_to_place)}.")
         return grid
 
     # Example of how to use it later:
