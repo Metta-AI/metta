@@ -17,15 +17,12 @@ Key features:
 - Manages minibatch creation for training
 """
 
-import logging
 from typing import Optional, Tuple
 
 import numpy as np
 import pufferlib
 import pufferlib.pytorch
 import torch
-
-logger = logging.getLogger("Experience")
 
 
 class Experience:
@@ -160,11 +157,7 @@ class Experience:
         remaining_space = self.batch_size - ptr
         num_indices_to_store = min(indices.size, remaining_space)
 
-        if remaining_space < indices.size:
-            logger.warning(
-                f"truncating store to avoid buffer overrun, ptr = {ptr}, "
-                f"indices.size = {indices.size}, remaining_space = {remaining_space}"
-            )
+        # TODO -- we constantly overrun the buffer and truncate; typically we have 1920 indices for 1024 slots
 
         end = ptr + num_indices_to_store
         dst = slice(ptr, end)
