@@ -7,10 +7,13 @@ POLICIES=(
     "b.daphne.object_use_multienv_pretrained"
     "b.daphne.object_use_multienv2"
     "daphne_objectuse_bigandsmall"
+    "daphne_objectuse_allobjs_multienv"
+    "daphne_objectuse_bigandsmall"
+    "b.daphne.object_use_bigandsmall"
+    "b.daphne.object_use_bigandsmall_pretrained"
+    "mrazo_object-use_allobs_large-multienv_v01"
 )
 #!/bin/bash
-
-
 
 for i in "${!POLICIES[@]}"; do
     POLICY_URI=${POLICIES[$i]}
@@ -23,14 +26,14 @@ for i in "${!POLICIES[@]}"; do
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/navigation_db \
-        device=cpu \
+        # device=cpu \
 
     python3 -m tools.sim \
         sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/memory_db \
-        device=cpu \
+        # device=cpu \
 
     python3 -m tools.sim \
         sim=object_use \
