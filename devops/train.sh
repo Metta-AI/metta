@@ -3,7 +3,6 @@
 args="${@:1}"
 
 source ./devops/env.sh
-uv run --active --directory mettagrid python setup.py build_ext --inplace
 
 if [ -z "$NUM_CPUS" ]; then
   NUM_CPUS=$(lscpu | grep "CPU(s)" | awk '{print $NF}' | head -n1)

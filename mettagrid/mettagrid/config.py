@@ -62,18 +62,22 @@ class MettaGridConfig:
 
         This allows using the config directly as: config_dict, map_array = metta_grid_config.to_c_args()
         """
+        if self._map_builder is None:
+            self.generate_map()
 
-        env_map = self.generate_map() if self.env_map is None else self.env_map
-        # Convert string array to list of strings for C++ compatibility
-        env_map_list = env_map.tolist()
-        env_map = np.array(env_map_list)
+        if self.env_map is None:
+            raise ValueError("generate_map failed to create a valid env_map")
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(self.env_cfg))
 
-        return config_dict, env_map
+        # Convert string array to list of strings for C++ compatibility
+        # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
+        return config_dict, self.env_map.tolist()
 
     def map_labels(self) -> list[str]:
         if self._map_builder is None:
-            return []
+            self.generate_map()
+        if self._map_builder is None:
+            raise ValueError("generate_map failed to create a valid _map_builder")
         return self._map_builder.labels or []

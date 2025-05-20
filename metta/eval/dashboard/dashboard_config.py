@@ -4,6 +4,7 @@ from metta.util.config import Config
 
 
 class DashboardConfig(Config):
+    __init__ = Config.__init__
     # Output options
     num_output_policies: int | Literal["all"] = 20
     metric: str = "reward"
