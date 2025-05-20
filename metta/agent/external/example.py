@@ -1,4 +1,3 @@
-
 import pufferlib.models
 import pufferlib.pytorch
 import torch
@@ -6,27 +5,30 @@ import torch.nn as nn
 
 
 class Recurrent(pufferlib.models.LSTMWrapper):
-    def __init__(self, env, policy=None, input_size=512, hidden_size=512):
+    def __init__(self, env, policy=None, cnn_channels=128, input_size=512, hidden_size=512):
         if policy is None:
-            policy = Policy(env)
+            policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size)
         super().__init__(env, policy, input_size, hidden_size)
 
     def forward(self, observations, state):
         """Forward function for inference. 3x faster than using LSTM directly"""
+        # Either B, T, H, W, C or B, H, W, C
         if len(observations.shape) == 5:
             x = observations.permute(0, 1, 4, 2, 3).float()
             x[:] /= self.policy.max_vec  # [B, C, H, W]
             return self.forward_train(x, state)
         else:
             x = observations.permute(0, 3, 1, 2).float() / self.policy.max_vec  # [B, C, H, W]
-        hidden = self.policy.encode_observations(observations, state=state)
+        hidden = self.policy.encode_observations(x, state=state)
         h = state.lstm_h
         c = state.lstm_c
 
         # TODO: Don't break compile
         if h is not None:
-            if len(h.shape) == 3: h = h.squeeze()
-            if len(c.shape) == 3: c = c.squeeze()
+            if len(h.shape) == 3:
+                h = h.squeeze()
+            if len(c.shape) == 3:
+                c = c.squeeze()
             assert h.shape[0] == c.shape[0] == observations.shape[0], "LSTM state must be (h, c)"
             lstm_state = (h, c)
         else:
@@ -40,6 +42,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         state.lstm_c = c
         logits, values = self.policy.decode_actions(hidden)
         return logits, values
+
 
 class Policy(nn.Module):
     def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
@@ -90,9 +93,7 @@ class Policy(nn.Module):
         return (actions, value), hidden
 
     def encode_observations(self, observations, state=None):
-        #features = observations.permute(0, 3, 1, 2).float() / self.max_vec
-        x = observations
-        features = x.clone().permute(0, 2, 3, 1)
+        features = observations.float()  # .permute(0, 3, 1, 2).float() / self.max_vec
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
         return torch.cat([self_features, cnn_features], dim=1)

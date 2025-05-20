@@ -485,15 +485,12 @@ class PolicyStore:
                     modules_queue.append(submodule_name)
 
     def _load_from_puffer(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        if self._cfg.agent.policy_class is not None:
-            policy_class = None
-            try:
-                policy_module = self._cfg.agent.policy_class.rsplit(".", 1)[0]
-                module = importlib.import_module(policy_module)
-                policy_class = getattr(module, self._cfg.agent.policy_class.rsplit(".", 1)[1])
-                print(f"Successfully imported: {policy_class}")
-            except (ModuleNotFoundError, AttributeError) as e:
-                print(f"Error importing Policy class: {e}")
+        if self._cfg.agent.policy_class is None:
+            self._cfg.agent.policy_class = "metta.agent.external.example.Recurrent"
+
+        policy_module = self._cfg.agent.policy_class.rsplit(".", 1)[0]
+        module = importlib.import_module(policy_module)
+        policy_class = getattr(module, self._cfg.agent.policy_class.rsplit(".", 1)[1])
 
         policy = load_policy(path, self._device, policy_class=policy_class)
         name = os.path.basename(path)
