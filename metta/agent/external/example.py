@@ -16,7 +16,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         # Either B, T, H, W, C or B, H, W, C
         if len(observations.shape) == 5:
             x = observations.permute(0, 1, 4, 2, 3).float()
-            x[:] /= self.policy.max_vec  # [B, C, H, W]
+            x[:] /= self.policy.max_vec  # [B, T, C, H, W]
             return self.forward_train(x, state)
         else:
             x = observations.permute(0, 3, 1, 2).float() / self.policy.max_vec  # [B, C, H, W]

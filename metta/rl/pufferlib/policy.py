@@ -1,11 +1,13 @@
 from types import SimpleNamespace
+from hydra.utils import instantiate
 
 import torch
 from pufferlib.cleanrl import sample_logits
 from torch import nn
+from omegaconf import DictConfig
 
 
-def load_policy(path: str, device: str = "cpu", policy_class: type = None):
+def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
     weights = torch.load(path, map_location=device, weights_only=True)
 
     try:
@@ -16,16 +18,15 @@ def load_policy(path: str, device: str = "cpu", policy_class: type = None):
         print(f"Failed automatic parse from weights: {e}")
         # TODO -- fix all magic numbers
         num_actions, num_action_args = 9, 10
-        hidden_size = 384
         cnn_channels, obs_channels = 128, 34
 
     # Create environment namespace
     env = SimpleNamespace(
         single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
-        single_observation_space=SimpleNamespace(shape=[obs_channels, 11, 11]),
+        single_observation_space=SimpleNamespace(shape=tuple(torch.tensor([obs_channels, 11, 11]).tolist())),
     )
 
-    policy = policy_class(env, cnn_channels=cnn_channels, hidden_size=hidden_size)
+    policy = instantiate(puffer, env=env, policy=None)
     policy.load_state_dict(weights)
     policy = PufferAgent(policy).to(device)
     return policy
