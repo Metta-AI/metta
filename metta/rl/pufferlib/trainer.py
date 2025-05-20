@@ -8,15 +8,18 @@ import hydra
 import numpy as np
 import pufferlib
 import torch
-import torch.distributed as dist
 import wandb
 from heavyball import ForeachMuon
 <<<<<<< HEAD
 from omegaconf import DictConfig, ListConfig, OmegaConf
 =======
 from omegaconf import DictConfig, ListConfig
+<<<<<<< HEAD
 from pufferlib.utils import unroll_nested_dict
 >>>>>>> ecf239561a2376997adee9a5cf9cb92fb998aaba
+=======
+from pufferlib.utils import profile, unroll_nested_dict
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -55,14 +58,18 @@ class PufferTrainer:
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
+<<<<<<< HEAD
+=======
+        self.env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
         self.sim_suite_config = sim_suite_config
 
         self._master = True
         self._world_size = 1
         self.device = cfg.device
-        if dist.is_initialized():
+        if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
-            self._world_size = dist.get_world_size()
+            self._world_size = torch.distributed.get_world_size()
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
@@ -88,7 +95,13 @@ class PufferTrainer:
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+<<<<<<< HEAD
         assert isinstance(metta_grid_env, MettaGridEnv)
+=======
+        assert isinstance(metta_grid_env, MettaGridEnv), (
+            f"vecenv.driver_env type {type(metta_grid_env).__name__} is not MettaGridEnv"
+        )
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
         logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
@@ -136,7 +149,7 @@ class PufferTrainer:
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
 
-        if dist.is_initialized():
+        if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             # Store the original policy for cleanup purposes
             self._original_policy = self.policy
@@ -147,7 +160,10 @@ class PufferTrainer:
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
 
-        assert self.trainer_cfg.optimizer.type in ("adam", "muon")
+        assert self.trainer_cfg.optimizer.type in (
+            "adam",
+            "muon",
+        ), f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
         opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
@@ -192,7 +208,7 @@ class PufferTrainer:
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
-        if self.cfg.wandb.track and wandb_run and self._master:
+        if wandb_run and self._master:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
@@ -326,7 +342,11 @@ class PufferTrainer:
     def _on_train_step(self):
         pass
 
+<<<<<<< HEAD
     @pufferlib.utils.profile
+=======
+    @profile
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
     def _rollout(self):
         experience, profile = self.experience, self.profile
 
@@ -339,8 +359,13 @@ class PufferTrainer:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
-                # Zero-copy indexing for contiguous env_id
+                if self.trainer_cfg.require_contiguous_env_ids:
+                    raise ValueError(
+                        "We are assuming contiguous eng id is always False. async_factor == num_workers = "
+                        f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
+                    )
 
+<<<<<<< HEAD
                 # This was originally self.config.env_batch_size == 1, but you have scaling
                 # configured differently in metta. You want the whole forward pass batch to come
                 # from one core to reduce indexing overhead.
@@ -357,6 +382,9 @@ class PufferTrainer:
                         )
                     cpu_env_id = env_id
                     gpu_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
+=======
+                training_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
             with profile.eval_misc:
                 num_steps = sum(mask)
@@ -368,10 +396,21 @@ class PufferTrainer:
                 d = torch.as_tensor(d)
 
             with profile.eval_forward, torch.no_grad():
-                state = PolicyState(lstm_h=lstm_h[:, gpu_env_id], lstm_c=lstm_c[:, gpu_env_id])
+                assert training_env_id.dtype in [torch.int32, torch.int64], "training_env_id must be integer type"
+                assert training_env_id.device == lstm_h.device, "training_env_id must be on the same device as lstm_h"
+                assert training_env_id.dim() == 1, "training_env_id should be 1D (list of env indices)"
+                assert training_env_id.max() < lstm_h.shape[1], "Index out of bounds for lstm_h"
+                assert training_env_id.min() >= 0, "Negative index in training_env_id"
+
+                state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
                 actions, logprob, _, value, _ = policy(o_device, state)
-                lstm_h[:, gpu_env_id] = state.lstm_h
-                lstm_c[:, gpu_env_id] = state.lstm_c
+
+                lstm_h[:, training_env_id] = (
+                    state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
+                )
+                lstm_c[:, training_env_id] = (
+                    state.lstm_c if state.lstm_c is not None else torch.zeros_like(lstm_c[:, training_env_id])
+                )
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
@@ -381,7 +420,7 @@ class PufferTrainer:
                 actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, logprob, r, d, cpu_env_id, mask)
+                self.experience.store(o, value, actions, logprob, r, d, training_env_id, mask)
 
                 for i in info:
                     for k, v in unroll_nested_dict(i):
@@ -394,19 +433,26 @@ class PufferTrainer:
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
                     v = v.tolist()
-                try:
-                    iter(v)
-                except TypeError:
-                    self.stats[k].append(v)
+
+                if isinstance(v, list):
+                    if k not in self.stats:
+                        self.stats[k] = []
+                    self.stats[k].extend(v)
                 else:
-                    self.stats[k] += v
+                    if k not in self.stats:
+                        self.stats[k] = v
+                    else:
+                        try:
+                            self.stats[k] += v
+                        except TypeError:
+                            self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
         experience.step = 0
         return self.stats, infos
 
-    @pufferlib.utils.profile
+    @profile
     def _train(self):
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
@@ -582,7 +628,11 @@ class PufferTrainer:
             return
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+<<<<<<< HEAD
         assert isinstance(metta_grid_env, MettaGridEnv)
+=======
+        assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv for checkpointing"
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
         name = self.policy_store.make_model_name(self.epoch)
 
@@ -635,6 +685,7 @@ class PufferTrainer:
             results = replay_simulator.simulate()
 
             if self.wandb_run is not None:
+<<<<<<< HEAD
                 replay_url = results.stats_db.get_replay_urls(
                     policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
                 )[0]
@@ -643,6 +694,18 @@ class PufferTrainer:
                     "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
                 }
                 self.wandb_run.log(link_summary)
+=======
+                replay_urls = results.stats_db.get_replay_urls(
+                    policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+                )
+                if len(replay_urls) > 0:
+                    replay_url = replay_urls[0]
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                    link_summary = {
+                        "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                    }
+                    self.wandb_run.log(link_summary)
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
@@ -673,7 +736,11 @@ class PufferTrainer:
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
+<<<<<<< HEAD
         if self.wandb_run and self.cfg.wandb.track and self._master:
+=======
+        if self.wandb_run and self._master:
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
@@ -703,25 +770,50 @@ class PufferTrainer:
         return self.last_pr.uri
 
     def _make_experience_buffer(self):
-        obs_shape = self.vecenv.single_observation_space.shape
-        obs_dtype = self.vecenv.single_observation_space.dtype
-        atn_shape = self.vecenv.single_action_space.shape
-        atn_dtype = self.vecenv.single_action_space.dtype
-        total_agents = self.vecenv.num_agents
+        """
+        Creates an Experience buffer for storing training data with appropriate dimensions.
+        """
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv), (
+            "vecenv.driver_env must be a MettaGridEnv for experience buffer"
+        )
 
+        # Extract environment specifications
+        obs_shape = metta_grid_env.single_observation_space.shape
+        obs_dtype = metta_grid_env.single_observation_space.dtype
+        atn_shape = metta_grid_env.single_action_space.shape
+        atn_dtype = metta_grid_env.single_action_space.dtype
+
+        # Use num_agents for the total number of environments/states to track
+        lstm_total_agents = getattr(self.vecenv, "num_agents", 0)
+        assert lstm_total_agents > 0, "self.vecenv.num_agents not found!"
+        logging.info(f"Creating experience buffer with lstm_total_agents={lstm_total_agents} (from vecenv.num_agents)")
+
+        # Handle policy fields with assertions
+        assert hasattr(self.policy, "hidden_size"), "Policy must have hidden_size attribute"
+        hidden_size = int(getattr(self.policy, "hidden_size", -1))
+        assert hidden_size > 0, f"Policy hidden_size cannot be converted to int: {type(hidden_size)}"
+
+        assert hasattr(self.policy, "lstm"), "Policy must have lstm attribute"
+        lstm = getattr(self.policy, "lstm", {})
+        assert isinstance(lstm, torch.nn.modules.rnn.LSTM), (
+            f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
+        )
+
+        # Create the Experience buffer with appropriate parameters
         self.experience = Experience(
-            self.trainer_cfg.batch_size,
-            self.trainer_cfg.bptt_horizon,
-            self.trainer_cfg.minibatch_size,
-            self.policy.hidden_size,
-            obs_shape,
-            obs_dtype,
-            atn_shape,
-            atn_dtype,
-            self.trainer_cfg.cpu_offload,
-            self.device,
-            self.policy.lstm,
-            total_agents,
+            batch_size=self.trainer_cfg.batch_size,  # Total number of environment steps to collect before updating
+            bptt_horizon=self.trainer_cfg.bptt_horizon,  # Sequence length for BPTT (backpropagation through time)
+            minibatch_size=self.trainer_cfg.minibatch_size,  # Size of minibatches for training
+            hidden_size=hidden_size,  # Dimension of the policy's hidden state
+            obs_shape=obs_shape,  # Shape of a single observation
+            obs_dtype=obs_dtype,  # Data type of observations
+            atn_shape=atn_shape,  # Shape of a single action
+            atn_dtype=atn_dtype,  # Data type of actions
+            cpu_offload=self.trainer_cfg.cpu_offload,  # Whether to store data on CPU and transfer to GPU as needed
+            device=self.device,  # Device to store tensors on ("cuda" or "cpu")
+            lstm=lstm,  # LSTM module from the policy (needed for dimensions) # type: ignore - Pylance is wrong
+            lstm_total_agents=lstm_total_agents,  # Total number of LSTM states to maintain
         )
 
     def _make_losses(self):
@@ -741,10 +833,15 @@ class PufferTrainer:
 
     def _make_vecenv(self):
         """Create a vectorized environment."""
+<<<<<<< HEAD
 
         num_agents = self._curriculum.get_task().env_cfg().game.num_agents
 
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // num_agents
+=======
+        # Create the vectorized environment
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.env_cfg.game.num_agents
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
@@ -758,7 +855,11 @@ class PufferTrainer:
             )
 
         self.vecenv = make_vecenv(
+<<<<<<< HEAD
             self._curriculum,
+=======
+            self.env_cfg,
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
             self.cfg.vectorization,
             num_envs=num_envs,
             batch_size=self.batch_size,

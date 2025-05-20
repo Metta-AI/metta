@@ -18,7 +18,11 @@ resource "helm_release" "skypilot" {
   namespace  = "skypilot"
   create_namespace = true
 
+<<<<<<< HEAD
   set_sensitive {
+=======
+  set {
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
     name  = "ingress.authCredentials"
     value = "skypilot:${bcrypt(random_password.skypilot_password.result)}"
   }

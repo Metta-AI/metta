@@ -1,5 +1,9 @@
 [build-system]
+<<<<<<< HEAD:mettagrid/pyproject.toml
 requires = ["setuptools>=64", "wheel", "numpy>=2.2.5", "pybind11>=2.10.4"]
+=======
+requires = ["setuptools>=80", "wheel", "numpy==2.2.5", "pybind11==2.10.4"]
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87:deps/mettagrid/pyproject.toml
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,7 +11,8 @@ name = "mettagrid"
 version = "0.1.6"
 description = "A fast grid-based open-ended MARL environment"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
-license = { text = "MIT" }
+requires-python = "==3.11.7"
+license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
 keywords = [
@@ -18,8 +23,11 @@ keywords = [
     "environment",
     "gym",
 ]
+<<<<<<< HEAD:mettagrid/pyproject.toml
 requires-python = ">=3.10,<4.0"
 dependencies = ["numpy>=2.2.5", "pybind11>=2.10.4"]
+=======
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87:deps/mettagrid/pyproject.toml
 
 [tool.setuptools.packages.find]
 where = ["."]

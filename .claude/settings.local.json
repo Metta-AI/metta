@@ -9,7 +9,14 @@
       "Bash(chmod:*)",
       "Bash(./build_with_bazel.sh:*)",
       "Bash(cat:*)",
+<<<<<<< HEAD
       "Bash(pytest:*)"
+=======
+      "Bash(pytest:*)",
+      "Bash(./devops/test_uv_setup.sh:*)",
+      "Bash(rm:*)",
+      "WebFetch(domain:docs.astral.sh)"
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
     ],
     "deny": []
   }

@@ -1,5 +1,9 @@
 from metta.map.utils.storable_map import StorableMap
+<<<<<<< HEAD:metta/map/load.py
 from mettagrid.config.room.room import Room
+=======
+from mettagrid.room.room import Room
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87:deps/mettagrid/mettagrid/map/load.py
 
 from .scene import SceneCfg, make_scene
 

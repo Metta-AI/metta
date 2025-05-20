@@ -82,6 +82,7 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConf
 
     # Check if config path starts with a slash and adjust
     adjusted_path = config_path[1:] if config_path.startswith("/") else config_path
+<<<<<<< HEAD
 
     try:
         env_cfg = hydra.compose(config_name=config_path)
@@ -121,6 +122,46 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConf
         error_msg += f"\nOriginal error: {str(e)}"
 >>>>>>> ecf239561a2376997adee9a5cf9cb92fb998aaba
 
+=======
+
+    try:
+        env_cfg = hydra.compose(config_name=config_path)
+    except Exception as e:
+        # Build a useful error message
+        configs_dir = Path(os.path.join(os.getcwd(), "configs"))
+        search_paths = [f"{config_path}", f"{adjusted_path}", f"configs/{config_path}", f"configs/{adjusted_path}"]
+
+        # Check if any of the paths exist
+        existing_paths = []
+        for path in search_paths:
+            full_path = Path(os.path.join(os.getcwd(), path))
+            if full_path.exists():
+                existing_paths.append(str(full_path))
+
+        # Check for YAML files in configs directory
+        yaml_files = []
+        if configs_dir.exists():
+            yaml_files = list(configs_dir.glob("**/*.yaml"))
+
+        error_msg = f"Could not load configuration from path '{config_path}'. "
+
+        if existing_paths:
+            error_msg += f"These related paths exist: {existing_paths}. "
+        else:
+            error_msg += "None of the expected paths exist. "
+
+        if yaml_files:
+            error_msg += (
+                "Available YAML files in configs directory: "
+                f"{[str(f.relative_to(os.getcwd())) for f in yaml_files[:10]]}"
+            )
+
+            if len(yaml_files) > 10:
+                error_msg += f" and {len(yaml_files) - 10} more."
+
+        error_msg += f"\nOriginal error: {str(e)}"
+
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
         raise ValueError(error_msg) from e
 
     # When hydra loads a config, it "prefixes" the keys with the path of the config file.
@@ -129,6 +170,7 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConf
         config_path = config_path[1:]
 
     for p in config_path.split("/")[:-1]:
+<<<<<<< HEAD
 <<<<<<< HEAD
         cfg = cfg[p]
 
@@ -139,6 +181,8 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConf
         OmegaConf.set_struct(cfg, True)
     return cast(DictConfig, cfg)
 =======
+=======
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
         try:
             env_cfg = env_cfg[p]
         except (KeyError, AttributeError) as error:
@@ -190,11 +234,11 @@ def setup_metta_environment(cfg: ListConfig | DictConfig, require_aws: bool = Tr
             print("aws sso login --profile softmax")
             print("Alternatively, set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your environment.")
             exit(1)
-    if cfg.wandb.track and require_wandb:
+    if cfg.wandb.enabled and require_wandb:
         # Check that W&B is good to go.
         if not check_wandb_credentials():
             print("W&B is not configured, please install:")
-            print("pip install wandb")
+            print("uv pip install wandb")
             print("and run:")
             print("wandb login")
             print("Alternatively, set WANDB_API_KEY or copy ~/.netrc from another machine that has it configured.")

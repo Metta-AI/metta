@@ -13,11 +13,14 @@ trainer:
     game:
       max_steps: 13
 
+<<<<<<< HEAD
   evaluate_interval: 200
   optimizer:
     type: muon
 
 
+=======
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 # policy_uri: puffer:///tmp/puffer_metta.pt
 policy_uri: wandb://run/daveey.dist.2x4
 # policy_uri: puffer://./train_dir/puffer/puffer_metta.pt

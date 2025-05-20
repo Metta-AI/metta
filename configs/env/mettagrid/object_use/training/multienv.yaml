@@ -12,3 +12,11 @@ envs:
   - /env/mettagrid/object_use/training/varied_terrain_balanced
   - /env/mettagrid/object_use/training/varied_terrain_maze
   - /env/mettagrid/object_use/training/varied_terrain_dense
+<<<<<<< HEAD
+=======
+  - /env/mettagrid/object_use/training/easy_all_objects
+  - /env/mettagrid/object_use/training/varied_terrain_sparse_big
+  - /env/mettagrid/object_use/training/varied_terrain_balanced_big
+  - /env/mettagrid/object_use/training/varied_terrain_maze_big
+  - /env/mettagrid/object_use/training/varied_terrain_dense_big
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87

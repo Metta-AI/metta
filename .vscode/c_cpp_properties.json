@@ -6,9 +6,12 @@
                 "${workspaceFolder}/**",
                 "/opt/homebrew/Cellar/googletest/1.17.0/include",
                 "/opt/homebrew/opt/googletest/include",
+<<<<<<< HEAD
                 "${env:CONDA_PREFIX}/envs/metta/include/python3.11",
                 "${env:CONDA_PREFIX}/envs/metta/include",
                 "${env:CONDA_PREFIX}/envs/metta/lib/python3.11/site-packages/pybind11/include"
+=======
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
             ],
             "defines": [
                 "GTEST_HAS_PTHREAD=1"
@@ -23,4 +26,8 @@
         }
     ],
     "version": 4
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87

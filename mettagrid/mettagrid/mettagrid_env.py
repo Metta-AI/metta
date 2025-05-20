@@ -1,44 +1,25 @@
-<<<<<<< HEAD:deps/mettagrid/mettagrid/mettagrid_env.py
-import logging
-=======
 # mettagrid/mettagrid_env.py
 from __future__ import annotations
 
 import copy
 import datetime
 import uuid
->>>>>>> ecf239561a2376997adee9a5cf9cb92fb998aaba:mettagrid/mettagrid/mettagrid_env.py
 from typing import Any, Dict, Optional
 
 import gymnasium as gym
 import numpy as np
 import pufferlib
+from omegaconf import DictConfig, OmegaConf
 
-from mettagrid.config.utils import simple_instantiate
-from mettagrid.curriculum.curriculum import Curriculum
+from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
-
-logger = logging.getLogger("mettagrid")
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def __init__(
         self,
-<<<<<<< HEAD:deps/mettagrid/mettagrid/mettagrid_env.py
-        curriculum: Curriculum,
-        render_mode: Optional[str],
-        buf=None,
-    ):
-        self._render_mode = render_mode
-        self._curriculum = curriculum
-        self._renderer = None
-        self._reset_env()
-
-        super().__init__(buf)
-
-=======
         env_cfg: DictConfig,
         render_mode: Optional[str],
         env_map: Optional[np.ndarray] = None,
@@ -52,7 +33,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._env_cfg = self._get_new_env_cfg()
         self._env_map = env_map
         self._renderer = None
-        self._map_builder = None
+        self._map_labels = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
         self._episode_id = None
@@ -73,40 +54,27 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         OmegaConf.resolve(env_cfg)
         return env_cfg
 
->>>>>>> ecf239561a2376997adee9a5cf9cb92fb998aaba:mettagrid/mettagrid/mettagrid_env.py
     def _reset_env(self):
-        self._task = self._curriculum.get_task()
-        game_cfg = self._task.env_cfg().game
-        self._map_builder = simple_instantiate(
-            game_cfg.map_builder,
-            recursive=game_cfg.get("recursive_map_builder", True),
-        )
-        game_map = self._map_builder.build()
-        map_agents = np.count_nonzero(np.char.startswith(game_map, "agent"))
-        assert game_cfg.num_agents == map_agents, f"Map has {map_agents} agents, expected {game_cfg.num_agents}"
+        mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
 
-<<<<<<< HEAD:deps/mettagrid/mettagrid/mettagrid_env.py
-        self._c_env = MettaGrid(game_cfg, game_map)
-=======
-        # I haven't figured out how to get C++ code to deal with fixed-length strings; so we convert
-        # to non-fixed length strings. This is obvious very silly, but OTOH we shouldn't be using a numpy array
-        # of strings here in the first place.
-        env_map_list = env_map.tolist()
-        env_map = np.array(env_map_list)
+        config_dict, env_map = mettagrid_config.to_c_args()
+        self._map_labels = mettagrid_config.map_labels()
 
-        self._c_env = MettaGrid(OmegaConf.to_container(self._env_cfg), env_map)
->>>>>>> ecf239561a2376997adee9a5cf9cb92fb998aaba:mettagrid/mettagrid/mettagrid_env.py
+        self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
-        self._env = self._grid_env
-        self._should_reset = False
+
+        env = self._grid_env
+
+        self._env = env
+        # self._env = RewardTracker(self._env)
+        # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 
     def reset(self, seed=None, options=None):
+        self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
+
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
-<<<<<<< HEAD:deps/mettagrid/mettagrid/mettagrid_env.py
-        return self._c_env.reset()
-=======
 
         self._episode_id = self._make_episode_id()
         self._current_seed = seed or 0
@@ -117,7 +85,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         obs, infos = self._c_env.reset()
         self.should_reset = False
         return obs, infos
->>>>>>> ecf239561a2376997adee9a5cf9cb92fb998aaba:mettagrid/mettagrid/mettagrid_env.py
 
     def step(self, actions):
         self.actions[:] = np.array(actions).astype(np.uint32)
@@ -127,20 +94,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._c_env.step(self.actions)
 
-<<<<<<< HEAD:deps/mettagrid/mettagrid/mettagrid_env.py
-=======
         if self._env_cfg.normalize_rewards:
             self.rewards -= self.rewards.mean()
 
         if self._replay_writer:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
 
->>>>>>> ecf239561a2376997adee9a5cf9cb92fb998aaba:mettagrid/mettagrid/mettagrid_env.py
         infos = {}
         if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
-            self._task.complete(infos["episode_rewards"].mean())
-            self._should_reset = True
+            self.should_reset = True
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
@@ -159,23 +122,20 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
-        if self._map_builder is not None and self._map_builder.labels is not None:
-            for label in self._map_builder.labels:
+        for label in self._map_labels:
+            infos.update(
+                {
+                    f"rewards/map:{label}": episode_rewards_mean,
+                }
+            )
+
+        if self.labels is not None:
+            for label in self.labels:
                 infos.update(
                     {
-                        f"map/{label}/reward/mean": episode_rewards_mean,
-                        f"map/{label}/reward/max": episode_rewards.max(),
-                        f"map/{label}/reward/min": episode_rewards.min(),
+                        f"rewards/env:{label}": episode_rewards_mean,
                     }
                 )
-
-        infos.update(
-            {
-                f"task/{self._task.name()}/reward/mean": episode_rewards_mean,
-                f"task/{self._task.name()}/reward/max": episode_rewards.max(),
-                f"task/{self._task.name()}/reward/min": episode_rewards.min(),
-            }
-        )
 
         stats = self._c_env.get_episode_stats()
 
@@ -192,12 +152,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         replay_url = None
         if self._replay_writer:
-            assert self._episode_id is not None
+            assert self._episode_id is not None, "Episode ID must be set before writing a replay"
             replay_url = self._replay_writer.write_replay(self._episode_id)
         infos["replay_url"] = replay_url
 
         if self._stats_writer:
-            assert self._episode_id is not None
+            assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
             attributes = {
                 "seed": self._current_seed,
@@ -215,15 +175,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 for k, v in agent_stats.items():
                     agent_metrics[agent_idx][k] = float(v)
 
-            # TODO: Add groups
-            groups = []
-            group_metrics = {}
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,
-                groups,
                 agent_metrics,
-                group_metrics,
                 self._max_steps,
                 replay_url,
                 self._reset_at,
@@ -235,7 +190,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def _max_steps(self):
-        return self._task.env_cfg().game.max_steps
+        return self._env_cfg.game.max_steps
 
     @property
     def single_observation_space(self):
@@ -264,7 +219,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def done(self):
-        return self._should_reset
+        return self.should_reset
 
     @property
     def grid_features(self):

@@ -1,8 +1,11 @@
 export AWS_PROFILE=softmax-db-admin
 
+<<<<<<< HEAD
 #sky
 alias sky=".venv/skypilot/bin/sky"
 
+=======
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 # list jobs
 alias jq="sky jobs queue --skip-finished"
 alias jqa="sky jobs queue"

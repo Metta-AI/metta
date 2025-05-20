@@ -5,6 +5,10 @@ from typing import get_args
 from metta.map.load_random import get_random_map_uri
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
+<<<<<<< HEAD:tools/map/view.py
+=======
+from metta.util.resolvers import register_resolvers
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87:deps/mettagrid/tools/map/view.py
 from tools.map.gen import uri_is_file
 
 logger = logging.getLogger(__name__)
@@ -14,10 +18,16 @@ logging.basicConfig(level=logging.INFO)
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+<<<<<<< HEAD:tools/map/view.py
         "--show-mode", choices=get_args(ShowMode), help="Show the map in the specified mode", default="ascii"
+=======
+        "--show-mode", choices=get_args(ShowMode), help="Show the map in the specified mode", default="mettascope"
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87:deps/mettagrid/tools/map/view.py
     )
     parser.add_argument("uri", type=str, help="URI of the map to view")
     args = parser.parse_args()
+
+    register_resolvers()
 
     uri = args.uri
 

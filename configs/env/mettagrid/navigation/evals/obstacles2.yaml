@@ -11,10 +11,14 @@ game:
       heart: 0.333
 
   map_builder:
+<<<<<<< HEAD
     _target_: mettagrid.config.room.multi_room.MultiRoom
+=======
+    _target_: mettagrid.room.multi_room.MultiRoom
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
     num_rooms: 1
     room:
-      _target_: mettagrid.config.room.ascii.Ascii
+      _target_: mettagrid.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/navigation/obstacles2.map"
 

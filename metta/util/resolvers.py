@@ -114,8 +114,13 @@ def oc_scale(
         The scaled value in the output range
     """
 
+<<<<<<< HEAD:metta/util/resolvers.py
     assert in_min < in_max
     assert out_min <= out_max
+=======
+    assert in_min < in_max, "in_min must be less than in_max"
+    assert out_min <= out_max, "out_min must be less than or equal to out_max"
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87:deps/mettagrid/mettagrid/resolvers.py
 
     if out_min == out_max:
         return out_min

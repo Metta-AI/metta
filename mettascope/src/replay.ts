@@ -315,11 +315,18 @@ export function loadReplayStep(replayStep: any) {
 export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl);
   state.ws.onmessage = (event) => {
+<<<<<<< HEAD
 
+=======
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
     const data = JSON.parse(event.data);
     console.log("Received message: ", data.type);
     if (data.type === "replay") {
       loadReplayJson(wsUrl, data.replay);
+<<<<<<< HEAD
+=======
+      Common.closeModal();
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
     } else if (data.type === "replay_step") {
       loadReplayStep(data.replay_step);
     } else if (data.type === "message") {
@@ -327,6 +334,7 @@ export function initWebSocket(wsUrl: string) {
     }
   };
   state.ws.onopen = () => {
+<<<<<<< HEAD
     console.log("WebSocket opened");
   };
   state.ws.onclose = () => {
@@ -334,6 +342,24 @@ export function initWebSocket(wsUrl: string) {
   };
   state.ws.onerror = (event) => {
     console.log("WebSocket error: ", event);
+=======
+    Common.showModal("info",
+      "Starting environment",
+      "Please wait while live environment is starting for playing..."
+    );
+  };
+  state.ws.onclose = () => {
+    Common.showModal("error",
+      "WebSocket closed",
+      "Please check your connection and refresh this page."
+    );
+  };
+  state.ws.onerror = (event) => {
+    Common.showModal("error",
+      "WebSocket error",
+      "Websocket error: " + event
+    );
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
   };
 }
 

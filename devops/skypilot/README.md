@@ -4,14 +4,22 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 ## Prerequisites
 
+<<<<<<< HEAD
 - AWS credentials configured with `softmax-db-admin` profile
+=======
+- AWS credentials configured with `softmax` profile
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 - Access to AWS ECR in us-east-1 region
 - SkyPilot CLI installed and configured
 
 ## Usage
 
 ```bash
+<<<<<<< HEAD
 ./launch.sh <COMMAND> <RUN_ID> [COMMAND_ARGS...]
+=======
+./devops/skypilot/launch.py <COMMAND> <RUN_ID> [COMMAND_ARGS...]
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 ```
 
 ### Parameters

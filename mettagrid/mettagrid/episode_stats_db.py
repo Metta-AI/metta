@@ -9,7 +9,11 @@ import datetime
 import logging
 import os
 from pathlib import Path
+<<<<<<< HEAD
 from typing import Dict, List
+=======
+from typing import Dict
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
 import duckdb
 import pandas as pd
@@ -42,6 +46,7 @@ EPISODE_DB_TABLES = {
         PRIMARY KEY (episode_id, group_id, agent_id)
     );
     """,
+<<<<<<< HEAD
     "group_metrics": """
     CREATE TABLE IF NOT EXISTS group_metrics (
         episode_id TEXT,
@@ -51,11 +56,17 @@ EPISODE_DB_TABLES = {
         PRIMARY KEY (episode_id, group_id, metric)
     );
     """,
+=======
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
     "agent_metrics": """
     CREATE TABLE IF NOT EXISTS agent_metrics (
         episode_id TEXT,
         agent_id INTEGER,
+<<<<<<< HEAD
         metric TEXT,    
+=======
+        metric TEXT,
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
         value REAL,
         PRIMARY KEY (episode_id, agent_id, metric)
     );
@@ -95,9 +106,13 @@ class EpisodeStatsDB:
         self,
         episode_id: str,
         attributes: Dict[str, str],
+<<<<<<< HEAD
         groups: List[List[int]],
         agent_metrics: Dict[int, Dict[str, float]],
         group_metrics: Dict[int, Dict[str, float]],
+=======
+        agent_metrics: Dict[int, Dict[str, float]],
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
@@ -105,7 +120,11 @@ class EpisodeStatsDB:
         self.con.begin()
         self.con.execute(
             """
+<<<<<<< HEAD
             INSERT INTO episodes 
+=======
+            INSERT INTO episodes
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
             (id, step_count, replay_url, created_at)
             VALUES (?, ?, ?, ?)
             """,
@@ -123,6 +142,7 @@ class EpisodeStatsDB:
                 attribute_rows,
             )
 
+<<<<<<< HEAD
         group_rows = []
         for group_id, agent_ids in enumerate(groups):
             for agent_id in agent_ids:
@@ -140,6 +160,9 @@ class EpisodeStatsDB:
 
         self._add_metrics(episode_id, agent_metrics, "agent")
         self._add_metrics(episode_id, group_metrics, "group")
+=======
+        self._add_metrics(episode_id, agent_metrics, "agent")
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
         self.con.commit()
         self.con.execute("CHECKPOINT")

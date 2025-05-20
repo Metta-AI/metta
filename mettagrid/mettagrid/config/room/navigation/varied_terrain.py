@@ -21,7 +21,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 from omegaconf import DictConfig
 
-from mettagrid.config.room.room import Room
+from mettagrid.room.room import Room
 
 
 class VariedTerrain(Room):
@@ -46,7 +46,11 @@ class VariedTerrain(Room):
             "blocks": {"count": [3, 7]},
             "clumpiness": [1, 3],
         },
+<<<<<<< HEAD:mettagrid/mettagrid/config/room/navigation/varied_terrain.py
         "sparse-altars-dense-objects": {
+=======
+        "dense": {
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87:mettagrid/mettagrid/room/navigation/varied_terrain.py
             "large_obstacles": {"size_range": [10, 25], "count": [8, 15]},
             "small_obstacles": {"size_range": [3, 6], "count": [8, 15]},
             "crosses": {"count": [7, 15]},

@@ -1,17 +1,28 @@
 defaults:
+<<<<<<< HEAD
   - /env/mettagrid/mettagrid@
+=======
+  - /env/mettagrid/object_use/training/varied_terrain@
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
   - _self_
 
 sampling: 1
 
 game:
+<<<<<<< HEAD
   num_agents: 4
   map_builder:
     _target_: mettagrid.config.room.multi_room.MultiRoom
+=======
+
+  map_builder:
+    _target_: mettagrid.room.multi_room.MultiRoom
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
     num_rooms: 4
     border_width: 6
 
     room:
+<<<<<<< HEAD
       _target_: mettagrid.config.room.navigation.varied_terrain.VariedTerrain
       width: ${sampling:20,70,30}
       height: ${sampling:20,70,30}
@@ -29,3 +40,9 @@ game:
   objects:
       altar:
         initial_items: ${choose:0,1}
+=======
+      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      width: ${sampling:20,50,30}
+      height: ${sampling:20,50,30}
+      style: maze
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87

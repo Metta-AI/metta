@@ -64,7 +64,11 @@ spec:
           cat << 'PATCH' > /tmp/ecr.patch
 {{ .Files.Get "files/ecr.patch" | indent 10 }}
           PATCH
+<<<<<<< HEAD
           patch /opt/conda/lib/python3.10/site-packages/sky/provision/docker_utils.py /tmp/ecr.patch
+=======
+          patch -p0 -d /opt/conda/lib/python3.10/site-packages </tmp/ecr.patch
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
           {{- if .Values.apiService.preDeployHook }}
           {{ .Values.apiService.preDeployHook | nindent 10 }}

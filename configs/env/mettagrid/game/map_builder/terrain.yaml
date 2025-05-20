@@ -1,9 +1,17 @@
+<<<<<<< HEAD
 _target_: mettagrid.config.room.multi_room.MultiRoom
+=======
+_target_: mettagrid.room.multi_room.MultiRoom
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 num_rooms: ${div:${..num_agents},6}
 border_width: 6
 
 room:
+<<<<<<< HEAD
   _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
+=======
+  _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
   border_width: 0
 
   agents: 6

@@ -2,8 +2,13 @@ import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
+<<<<<<< HEAD
 from mettagrid.config.utils import get_cfg
 from mettagrid.mettagrid_env import MettaGridEnv
+=======
+from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.util.hydra import get_cfg
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
 
 @pytest.fixture
@@ -47,6 +52,7 @@ def test_step_performance(benchmark, environment, single_action):
         rounds=10,  # Number of rounds to run
         warmup_rounds=0,  # Number of warmup rounds to discard
     )
+<<<<<<< HEAD
 
 
 def test_get_stats_performance(benchmark, environment, single_action):
@@ -66,3 +72,5 @@ def test_get_stats_performance(benchmark, environment, single_action):
         rounds=3,  # Number of rounds to run
         warmup_rounds=0,  # Number of warmup rounds to discard
     )
+=======
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87

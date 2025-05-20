@@ -7,12 +7,21 @@ sampling: 1
 game:
   num_agents: 4
   map_builder:
+<<<<<<< HEAD
     _target_: mettagrid.config.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
     border_width: 6
 
     room:
       _target_: mettagrid.config.room.terrain_from_numpy.TerrainFromNumpy
+=======
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+
+    room:
+      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
       border_width: ${sampling:1,6,3}
       agents: 1
       objects:

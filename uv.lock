@@ -1,8 +1,17 @@
 version = 1
 revision = 2
+<<<<<<< HEAD
 requires-python = ">=3.11"
 
 [[package]]
 name = "metta"
 version = "0.1.0"
 source = { virtual = "." }
+=======
+requires-python = "==3.11.7"
+
+[[package]]
+name = "metta"
+version = "0.1"
+source = { editable = "." }
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87

@@ -246,13 +246,20 @@ export function onFrame() {
     }
   }
 
+<<<<<<< HEAD
   updateReadout();
+=======
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
   ctx.useMesh("mini-map");
   drawMiniMap(ui.miniMapPanel);
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
+<<<<<<< HEAD
+=======
+  updateReadout();
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
   ctx.flush();
   console.log("Flushed ctx.");

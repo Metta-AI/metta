@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 
-from mettagrid.config.room.room import Room
+from mettagrid.room.room import Room
 
 from .scene import SceneCfg, make_scene
 

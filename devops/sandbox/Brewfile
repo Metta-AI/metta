@@ -12,8 +12,11 @@ cask "session-manager-plugin"
 brew "withgraphite/tap/graphite"
 brew "spacelift-io/spacelift/spacectl"
 brew "uv"
+<<<<<<< HEAD
+=======
+brew "npm"
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
 
 # Applications
 cask "cursor"
 cask "discord"
-cask "miniconda"

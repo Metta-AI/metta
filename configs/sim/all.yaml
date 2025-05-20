@@ -50,6 +50,7 @@ simulations:
   object_use/altar_use_free:
     env: env/mettagrid/object_use/evals/altar_use_free
     policy_agents_pct: 1.0
+<<<<<<< HEAD
   object_use/altar_use:
     env: env/mettagrid/object_use/evals/altar_use
     policy_agents_pct: 1.0
@@ -62,6 +63,17 @@ simulations:
   object_use/generator_use_free:
     env: env/mettagrid/object_use/evals/generator_use_free
     policy_agents_pct: 1.0
+=======
+  object_use/armory_use_free:
+    env: env/mettagrid/object_use/evals/armory_use_free
+    policy_agents_pct: 1.0
+  object_use/armory_use:
+    env: env/mettagrid/object_use/evals/armory_use
+    policy_agents_pct: 1.0
+  object_use/generator_use_free:
+    env: env/mettagrid/object_use/evals/generator_use_free
+    policy_agents_pct: 1.0
+>>>>>>> 13c12a2fdf120e435aa056c95de09aa7ccaa5a87
   object_use/generator_uses:
     env: env/mettagrid/object_use/evals/generator_use
     policy_agents_pct: 1.0
