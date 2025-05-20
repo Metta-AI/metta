@@ -59,6 +59,10 @@ class LayerBase(nn.Module):
         **cfg,
     ):
         super().__init__()
+
+        # Extract name from cfg if not provided directly
+        if name is None and "name" in cfg:
+            name = cfg.pop("name")  # Using pop to remove it from cfg
         self._name = name
         assert self._name, f"Invalid name {name}"
 
@@ -88,6 +92,13 @@ class LayerBase(nn.Module):
         self._ready = False
         if not hasattr(self, "_nn_params"):
             self._nn_params = nn_params if nn_params is not None else {}
+        else:
+            # If _nn_params already exists, update it with new values if provided
+            if nn_params is not None:
+                self._nn_params.update(nn_params)
+
+        self._net = None
+        self._ready = False
 
     @property
     def ready(self):

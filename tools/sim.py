@@ -26,12 +26,14 @@ from metta.util.runtime_configuration import setup_mettagrid_environment
 SMOKE_TEST_NUM_SIMS = 1
 SMOKE_TEST_MIN_SCORE = 0.9
 
+
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
 # --------------------------------------------------------------------------- #
 
 
 class SimJob(Config):
+    __init__ = Config.__init__
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
     selector_type: str = "top"
@@ -110,7 +112,6 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
     sim_job = SimJob(cfg.sim_job)
-    assert isinstance(sim_job, SimJob), f"Expected SimJob instance, got {type(sim_job).__name__}"
 
     if sim_job.smoke_test:
         logger.info("Limiting simulations to %d", SMOKE_TEST_NUM_SIMS)
