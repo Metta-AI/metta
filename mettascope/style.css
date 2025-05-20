@@ -2,6 +2,16 @@
   display: none !important;
 }
 
+.hover-icon {
+  transition: opacity 0.3s ease;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.hover-icon:hover {
+  opacity: 1;
+}
+
 body,
 html {
   overflow: hidden;

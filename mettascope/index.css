@@ -20,8 +20,8 @@ body {
 canvas#global-canvas {
     position: absolute;
     display: block;
-    left: -3px;
-    right: 0px;
+    left: 0px;
+    right: -3px;
     top: 0px;
     bottom: 0px;
     background-color: rgba(0, 0, 0, 1.00);
@@ -53,7 +53,7 @@ canvas#global-canvas {
     background-color: rgba(0, 0, 0, 0.00);
 }
 
-.left #rewind-to-start {
+.left #rewind-to-start.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -63,7 +63,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.left #step-back {
+.left #step-back.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -73,7 +73,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.left #play {
+.left #play.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -83,7 +83,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.left #step-forward {
+.left #step-forward.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -93,7 +93,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.left #rewind-to-end {
+.left #rewind-to-end.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -118,7 +118,7 @@ canvas#global-canvas {
     background-color: rgba(0, 0, 0, 0.00);
 }
 
-.center #speed1 {
+.center #speed1.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -128,7 +128,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.center #speed2 {
+.center #speed2.hover-icon {
     display: block;
     width: 17px;
     height: 32px;
@@ -138,7 +138,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.center #speed3 {
+.center #speed3.hover-icon {
     display: block;
     width: 17px;
     height: 32px;
@@ -148,7 +148,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.center #speed4 {
+.center #speed4.hover-icon {
     display: block;
     width: 17px;
     height: 32px;
@@ -158,7 +158,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.center #speed5 {
+.center #speed5.hover-icon {
     display: block;
     width: 17px;
     height: 32px;
@@ -168,7 +168,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.center #speed6 {
+.center #speed6.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -194,7 +194,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #sort {
+.right #sort.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -204,7 +204,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #resources {
+.right #resources.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -214,7 +214,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #tack {
+.right #tack.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -224,7 +224,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #grid {
+.right #grid.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -234,7 +234,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #eye {
+.right #eye.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -244,7 +244,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #cloud {
+.right #cloud.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -293,8 +293,8 @@ canvas#global-canvas {
 #worldmap-panel {
     position: absolute;
     display: block;
-    left: -1px;
-    right: 0px;
+    left: 0px;
+    right: -1px;
     top: 64px;
     bottom: 192px;
     background-color: rgba(0, 0, 0, 0.00);
@@ -352,7 +352,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-#header button#share-button {
+#header button#share-button.hover-icon {
     position: absolute;
     display: block;
     width: 32px;
@@ -363,7 +363,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-button#share-button .icon {
+button#share-button.hover-icon .icon {
     position: absolute;
     display: block;
     width: 32px;

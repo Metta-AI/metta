@@ -398,6 +398,7 @@ html.modal.classList.add("hidden");
 html.toast.classList.add("hiding");
 
 // TODO: Hookup panels divs better, but hide them for now.
+ui.mapPanel.div.classList.add("hidden");
 ui.tracePanel.div.classList.add("hidden");
 ui.miniMapPanel.div.classList.add("hidden");
 

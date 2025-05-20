@@ -894,8 +894,6 @@ if __name__ == "__main__":
     token = open(os.path.expanduser("~/.figma_token")).read().strip()
     args = parse_args()
 
-    print(args)
-
     generator = HtmlGenerator(
         output_dir=args.output_dir,
         extra_css=args.extra_css,

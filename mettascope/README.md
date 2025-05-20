@@ -28,7 +28,7 @@ Most tools dealing with replays will provide a full link.
 
 * [The 280 Agents](http://localhost:2000/?replayUrl=https%3A%2F%2Fsoftmax-public.s3.us-east-1.amazonaws.com%2Freplays%2Fdaveey.na.240.1x4%2Freplay.8100.json.z)
 
-## Installation & Development
+## Installation
 
 You need to install Node.js (v23.11.0) and typescript (Version 5.8.3), this might be different for different operating systems.
 
@@ -41,3 +41,11 @@ python -m http.server 2000
 ```
 
 Then open the browser and go to `http://localhost:2000` to see the player.
+
+## Development
+
+To regenerate the html and css files, run the following command:
+
+```bash
+python tools/gen_html.py https://www.figma.com/design/WeQldl3PsqFIpDnTka5Kd3 . --data-dir="../data" --extra-js="dist/main.js" --extra-css="style.css"
+```
