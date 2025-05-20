@@ -5,13 +5,13 @@ defaults:
   - _self_
 
 trainer:
-  env: env/mettagrid/object_use/training/large_multienv
-  initial_policy:
-    uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
+  env: env/mettagrid/object_use/training/large-small_multienv
+  # initial_policy:
+  #   uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
   evaluate_interval: 100
   checkpoint_interval: 100
 
 train_job:
   evals: /sim/navigation_object-use
 
-run: mrazo_object-use_allobs_large-multienv_v01
+run: mrazo_object-use_allobs_large-small-multienv_v01
