@@ -2,7 +2,7 @@
 
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
-#include <iostream>
+
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
@@ -161,29 +161,21 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
-  std::cout << "num_agents: " << num_agents << std::endl;
-  std::cout << "num_observation_tokens: " << num_observation_tokens << std::endl;
   if (_use_observation_tokens) {
-    std::cout << "using observation tokens" << std::endl;
     shape = {static_cast<ssize_t>(num_agents),
                                 static_cast<ssize_t>(num_observation_tokens),
                                 static_cast<ssize_t>(3)};
   } else {
-    std::cout << "not using observation tokens " << num_agents << " " << _obs_height << " " << _obs_width << " "
-              << _grid_features.size() << std::endl;
     shape = {static_cast<ssize_t>(num_agents),
                                   static_cast<ssize_t>(_obs_height),
                                   static_cast<ssize_t>(_obs_width),
                                   static_cast<ssize_t>(_grid_features.size())};
   }
-  std::cout << "making observations" << std::endl;
   auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
-  std::cout << "observations: " << observations << std::endl;
   auto terminals = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
   auto truncations = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
   auto rewards = py::array_t<float, py::array::c_style>(static_cast<ssize_t>(num_agents));
 
-  std::cout << "setting buffers" << std::endl;
   set_buffers(observations, terminals, truncations, rewards);
 }
 
@@ -249,17 +241,15 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
-
-          uint8_t location = obs_r << 4 | obs_c;
-          if (r == 1 && c == 0) {
-          std::cout << "obs_r: " << obs_r << " obs_c: " << obs_c << " location: " << location << std::endl;
-          }
-          size_t obj_tokens_written = 0;
+          
           uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
           ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
           ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
-          obj_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens);
-          for (size_t i = tokens_written; i < tokens_written + obj_tokens_written; i++) {
+          
+          size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+          
+          uint8_t location = obs_r << 4 | obs_c;
+          for (size_t i = 0; i < obj_tokens_written; i++) {
             agent_obs_tokens[i].location = location;
           }
           tokens_written += obj_tokens_written;
@@ -392,16 +382,10 @@ void MettaGrid::validate_buffers() {
   // We should validate once buffers and agents are set.
   // data types and contiguity are handled by pybind11. We still need to check
   // shape.
-  std::cout << "validating buffers " << _use_observation_tokens << std::endl;
   unsigned int num_agents = _agents.size();
   if (_use_observation_tokens) {
-    std::cout << "using observation tokens" << std::endl;
     auto observation_info = _observations.request();
-    std::cout << "observation_info.ndim: " << observation_info.ndim << std::endl;
     auto shape = observation_info.shape;
-    std::cout << "shape[0]: " << shape[0] << std::endl;
-    std::cout << "shape[1]: " << shape[1] << std::endl;
-    std::cout << "shape[2]: " << shape[2] << std::endl;
     if (observation_info.ndim != 3 || shape[0] != num_agents || shape[2] != 3) {
       std::stringstream ss;
       ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["

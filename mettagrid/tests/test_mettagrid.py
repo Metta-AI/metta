@@ -32,7 +32,7 @@ def create_minimal_mettagrid_env(max_steps=10, width=5, height=5, use_observatio
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
             "use_observation_tokens": use_observation_tokens,
-            "num_observation_tokens": 1000,
+            "num_observation_tokens": 100,
             "actions": {
                 # don't really care about the actions for this test
                 "noop": {"enabled": True},
@@ -84,23 +84,14 @@ class TestObservations:
         obs, info = env.reset()
         # Agent 0 starts at (1,1) and should see walls above and to the left
         # for now we treat the walls as "something non-empty"
-        # TODO: better way to check?
         for x, y in [(0, 1), (1, 0)]:
             location = x << 4 | y
-            print("obs.shape", obs.shape)
-            print("obs.shape[1]", obs.shape[1])
-            for token_idx in range(obs.shape[1]):
-                print(token_idx)
-                token = obs[0, token_idx, :]
-                print(token)
-                if (token == [location, wall_feature_idx, 1]).all():
-                    break
-            else:
-                raise ValueError(f"Expected wall at location {x}, {y}, {location}, {wall_feature_idx}, {token_idx}")
-        # assert obs[0, 0, 1, wall_feature_idx] == 1, "Expected wall above agent 0"
-        # assert obs[0, 1, 0, wall_feature_idx] == 1, "Expected wall to left of agent 0"
-        # assert not obs[0, 2, 1, :].any(), "Expected empty space below agent 0"
-        # assert not obs[0, 1, 2, :].any(), "Expected empty space to right of agent 0"
+            token_matches = obs[0, :, :] == [location, wall_feature_idx, 1]
+            assert token_matches.all(axis=1).any(), f"Expected wall at location {x}, {y}"
+        for x, y in [(2, 1), (1, 2)]:
+            location = x << 4 | y
+            token_matches = obs[0, :, 0] == location
+            assert not token_matches.any(), f"Expected no tokens at location {x}, {y}"
 
     def test_observations(self):
         env = create_minimal_mettagrid_env()
