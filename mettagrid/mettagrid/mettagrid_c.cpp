@@ -468,8 +468,11 @@ py::dict MettaGrid::grid_objects() {
 
     // Get feature offsets for this object type
     auto type_features = _obs_encoder->type_feature_names()[obj->_type_id];
-    std::vector<unsigned int> offsets(type_features.size());
-    for (size_t i = 0; i < offsets.size(); i++) {
+    std::vector<uint8_t> offsets(type_features.size());
+    // We shouldn't have more than 256 features, since we're storing the feature_ids
+    // as uint_8ts.
+    assert(offsets.size() < 256);
+    for (uint8_t i = 0; i < offsets.size(); i++) {
       offsets[i] = i;
     }
     unsigned char obj_data[type_features.size()];
