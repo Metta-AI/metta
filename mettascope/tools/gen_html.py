@@ -35,6 +35,10 @@ def px(value: Any) -> str:
     Returns:
         str: Formatted CSS pixel value
     """
+    # If its None its 0
+    if value is None:
+        return "0"
+
     # Convert to float first to handle any input type
     num = float(value)
 
@@ -51,7 +55,7 @@ def px(value: Any) -> str:
 
 def parse_name(name: str) -> tuple[str, str, str, str]:
     """Parse figma name into tag, id or class"""
-    tags = ["input", "img", "textarea", "button", "a", "canvas"]
+    tags = ["input", "img", "textarea", "button", "a", "canvas", "iframe"]
     tag = "div"
     id = ""
     cls = ""
@@ -155,12 +159,7 @@ class DomNode:
 class HtmlGenerator:
     """Class to handle the generation of HTML and CSS from Figma data."""
 
-    def __init__(
-        self,
-        output_dir: str = "dist",
-        default_image_path: str = "../data",
-        default_font_family: str = "Arial",
-    ):
+    def __init__(self, output_dir: str = "dist", default_image_path: str = "../data"):
         """
         Initialize the HTML generator.
 
@@ -171,7 +170,6 @@ class HtmlGenerator:
         """
         self.output_dir = output_dir
         self.default_image_path = default_image_path
-        self.default_font_family = default_font_family
 
     def gen_css_file(self, name: str, css_rules: List[Dict[str, Any]], url: str) -> str:
         """
@@ -193,10 +191,11 @@ class HtmlGenerator:
 *, *::before, *::after {
     margin: 0;
     padding: 0;
+    border: none;
     box-sizing: border-box;
 }
 html, body {
-    font-family: Arial, sans-serif;
+    font-family: sans-serif;
 }
 """
 
@@ -352,7 +351,12 @@ html, body {
             # Both left and right distances must be maintained
             css["left"] = px(x)
             css["right"] = px(right)
+            print("here right???")
             # Since we're using both left and right, we don't need width
+            del css["width"]
+        elif horizontal_constraint == "LEFT_RIGHT":
+            css["left"] = px(x)
+            css["right"] = px(right)
             del css["width"]
 
         # Apply vertical constraints
@@ -372,6 +376,10 @@ html, body {
             css["bottom"] = px(bottom)
             # Since we're using both top and bottom, we don't need height
             del css["height"]
+        elif vertical_constraint == "TOP_BOTTOM":
+            css["top"] = px(y)
+            css["bottom"] = px(bottom)
+            del css["height"]
 
         # Apply translation if they are needed (for center constraints)
         if translate_x is not None or translate_y is not None:
@@ -386,9 +394,9 @@ html, body {
         if "maxHeight" in element:
             css["max-height"] = px(element["maxHeight"])
 
-        if "width" in css and "minWidth" in element or "maxWidth" in element:
+        if "width" in css and ("minWidth" in element or "maxWidth" in element):
             del css["width"]
-        if "height" in css and "minHeight" in element or "maxHeight" in element:
+        if "height" in css and ("minHeight" in element or "maxHeight" in element):
             del css["height"]
 
     def compute_auto_layout(
@@ -666,6 +674,10 @@ html, body {
 
         # Initialize DOM element
         dom_element = None
+        component = None
+
+        if "componentId" in element:
+            component = self.components[element["componentId"]]
 
         # Process based on element type
         if tag == "input" or tag == "textarea":
@@ -687,10 +699,13 @@ html, body {
             # Add CSS rule
             css_rules.append({"selector": selector, "styles": css})
 
-        elif element_type == "IMAGE" or "exportSettings" in element:
+        elif element_type == "IMAGE" or "exportSettings" in element or (component and "exportSettings" in component):
             # Create an img
-            img_src = f"{self.default_image_path}/{element_name.replace(' ', '_')}.png"
-            dom_element = DomNode("img", {"src": img_src, "alt": element_name})
+            if component:
+                src = self.default_image_path + "/" + component["name"] + ".png"
+            else:
+                src = f"{self.default_image_path}/{element_name.replace(' ', '_')}.png"
+            dom_element = DomNode("img", {"src": src, "alt": element_name})
 
             # Add CSS rule
             css_rules.append({"selector": selector, "styles": css})
@@ -789,15 +804,23 @@ html, body {
             url: URL of the Figma file
         """
 
+        # Get the document node
+        doc_node = document.get("document", {})
+
+        self.components = {}
+
+        def collect_components(node):
+            # Check if the node is a component then add it to the components
+            if node["type"] == "COMPONENT":
+                self.components[node["id"]] = node
+
+        self.traverse_nodes(doc_node, collect_components)
+
         def process_node(node):
             # Check if node is a frame and name ends with .html
             if node.get("type") == "FRAME" and node.get("name", "").endswith(".html"):
                 self.gen_html_page(node, url)
 
-        # Get the document node
-        doc_node = document.get("document", {})
-
-        # Traverse the document
         self.traverse_nodes(doc_node, process_node)
 
     def gen_html(self, token: str, url: str) -> dict:
