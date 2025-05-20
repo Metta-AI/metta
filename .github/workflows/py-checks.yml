@@ -33,8 +33,8 @@ permissions:
 # We should switch to using uv projects rather than requirements.txt
 # but for now, this installs in the global venv
 env:
-  UV_SYSTEM_PYTHON: 1
   HYDRA_FULL_ERROR: 1
+  VENV_PATH: .venv
 
 jobs:
   # check if CI should run based on Graphite's stack position
@@ -146,10 +146,6 @@ jobs:
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
-      - name: Install Ruff
-        run: |
-          uv tool install ruff==0.11.5
-
       - name: Run Ruff linter
         run: |
           ruff format --check .
@@ -174,23 +170,25 @@ jobs:
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
-      - name: Build
+      - name: Build FastGAE
         run: |
-          uv run --no-project python setup.py build_ext --inplace
-          uv run --no-project --directory mettagrid python setup.py build_ext --inplace
-          uv pip install --system -e mettagrid
+          uv pip install -e .
+
+      - name: Build MettaGrid
+        run: |
+          uv pip install -e ./mettagrid
 
       - name: Run Pytest on core tests
         run: |
-          uv run --no-project pytest --maxfail=1 --disable-warnings -q
+          uv run pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on mettagrid tests
         run: |
           cd mettagrid
-          uv run --no-project pytest --maxfail=1 --disable-warnings -q
+          uv run pytest --maxfail=1 --disable-warnings -q
 
   smoke-test:
-    name: "Training Smoke Test"
+    name: "Smoke Tests"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
@@ -201,15 +199,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Setup Python and uv
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
-      - name: Build
+      - name: Build FastGAE
         run: |
-          uv run --no-project python setup.py build_ext --inplace
-          uv run --no-project --directory mettagrid python setup.py build_ext --inplace
-          uv pip install --system -e mettagrid
+          uv pip install -e .
+
+      - name: Build MettaGrid
+        run: |
+          uv pip install -e ./mettagrid
 
       - name: Check deps
         run: |
@@ -219,7 +220,7 @@ jobs:
             "wandb_carbs"
           do
             echo "Checking import for $dep..."
-            uv run --no-project python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
+            uv run python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
               echo "❌ Failed to import $dep"
               exit 1
             }
@@ -242,7 +243,7 @@ jobs:
         run: |
           mkdir -p train_dir
           source .github/scripts/benchmark.sh
-          benchmark "train" "uv run --no-project python -m tools.train +hardware=github wandb=off"
+          benchmark "train" "uv run python -m tools.train +hardware=github wandb=off"
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
@@ -294,7 +295,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "replay" "uv run --no-project python -m tools.replay +hardware=github wandb=off"
+          benchmark "replay" "uv run python -m tools.replay +hardware=github wandb=off"
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
@@ -310,6 +311,35 @@ jobs:
           name: replay-benchmark-results
           path: |
             smoke_test_replay_benchmark_results.json
+          retention-days: 1
+          if-no-files-found: warn
+
+      - name: Run evals smoke test
+        id: eval_smoke_test
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          source .github/scripts/benchmark.sh
+          benchmark "evals" "./run_evals.sh smoke_test"
+
+      - name: Save evals benchmark
+        id: save_evals_benchmark
+        if: steps.eval_smoke_test.outcome == 'success'
+        uses: ./.github/actions/save-benchmarks
+        with:
+          name: evals_smoke_test
+          metrics: '{"duration": ${{ steps.eval_smoke_test.outputs.duration }}, "memory_usage": ${{ steps.eval_smoke_test.outputs.memory_usage }}}'
+          filename: smoke_test_evals_benchmark_results.json
+
+      - name: Upload evals benchmark file
+        if: steps.save_evals_benchmark.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: evals-benchmark-results
+          path: |
+            smoke_test_evals_benchmark_results.json
           retention-days: 1
           if-no-files-found: warn
 
@@ -332,15 +362,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Setup Python and uv
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
-      - name: Build
+      - name: Build FastGAE
         run: |
-          uv run --no-project python setup.py build_ext --inplace
-          uv run --no-project --directory mettagrid python setup.py build_ext --inplace
-          uv pip install --system -e mettagrid
+          uv pip install -e .
+
+      - name: Build MettaGrid
+        run: |
+          uv pip install -e ./mettagrid
 
       - name: Download benchmark results from smoke-test train-benchmark-results job
         uses: actions/download-artifact@v4
@@ -356,17 +389,17 @@ jobs:
 
       - name: Run Main Python benchmarks
         run: |
-          uv run --no-project pytest --benchmark-only --benchmark-json=main_benchmark_results.json
+          uv run pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
         run: |
           cd mettagrid
-          uv run --no-project pytest --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
+          uv run pytest --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
           mv mettagrid_benchmark_results.json ../
 
       - name: Combine benchmark results
         run: |
-          uv run --no-project python - <<EOF
+          uv run python - <<EOF
 
           # Python Script to combine benchmark data
           import json
