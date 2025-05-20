@@ -21,11 +21,11 @@ setup: |
   cd /workspace/metta
   git fetch
   git checkout $METTA_GIT_REF
-  uv pip install -r requirements.txt
-  python setup.py build_ext --inplace
-  uv pip install -e .
 
-  uv run --active --directory mettagrid python setup.py build_ext --inplace
+  uv pip install -r requirements.txt
+  uv pip install -e .
+  uv --directory mettagrid pip install -e .
+
   mkdir -p $WANDB_DIR
 
 run: |
