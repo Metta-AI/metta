@@ -6,6 +6,14 @@ from collections import defaultdict
 import pufferlib
 from gymnasium.spaces import Discrete
 
+import numpy as np
+from omegaconf import DictConfig
+from omegaconf.omegaconf import OmegaConf
+
+from metta.util.config import config_from_path
+from mettagrid.mettagrid_env import MettaGridEnv
+
+
 class BidirectionalLearningProgess:
     def __init__(self, search_space, ema_alpha = 0.001, p_theta = 0.05, num_active_tasks = 16, rand_task_rate = 0.25,
                  sample_threshold = 10, memory = 25):
@@ -153,25 +161,30 @@ class BidirectionalLearningProgess:
         for i in range(self.num_tasks):
             self.outcomes[i] = self.outcomes[i][-self.memory:]
         self.collecting = True
+        return self.task_dist
+
+    def _sample_tasks(self):
         sample_levels = []
         self.update_mask = np.zeros(self.num_tasks).astype(bool)
         for i in range(self.n):
             if np.random.rand() < self.rand_task_rate:
                 level = np.random.choice(range(self.num_tasks))
             else:
-                level = np.random.choice(range(self.num_tasks), p=task_dist)
+                level = np.random.choice(range(self.num_tasks), p=self.task_dist)
             sample_levels.append(level)
             self.update_mask[level] = True
         self.sample_levels = np.array(sample_levels).astype(np.int32)
         self.counter = {i: 0 for i in self.sample_levels}
-        return self.task_dist, self.sample_levels
+        return self.sample_levels
 
     def calculate_dist(self):
         if all([v < self.sample_threshold for k, v in self.counter.items()]) and self.random_baseline is not None:
             # collect more data on the current batch of tasks
             return self.task_dist, self.sample_levels
         self.task_success_rate = self._update()
-        return self._sample_distribution()
+        dist = self._sample_distribution()
+        tasks = self._sample_tasks()
+        return dist, tasks
 
     def reset_outcomes(self):
         self.prev_outcomes = self.outcomes
@@ -180,90 +193,139 @@ class BidirectionalLearningProgess:
             self.outcomes[i] = [] 
 
 
-class LPEnvWrapper:
-    """Note, this wrapper probably needs some other helper methods that
-    simply pass along the call to the env"""
-    def __init__(self, env, num_tasks, ema_alpha = 0.001, p_theta = 0.05, num_active_tasks = 16, 
-                 rand_task_rate = 0.25, sample_threshold = 10, memory = 25, 
-                 use_lp = True, lp_metric='episode/reward.mean'):
-        # assume this is the MettPuff env (pufferlib) wrapper
-        self.env = env
-        # then this is the mettagrid env (metta)
-        self.raw_env = env.env
-        self.n = num_tasks
-        self.use_lp = use_lp
-        self.ema_alpha = ema_alpha
-        self.p_theta = p_theta
-        self.num_active_tasks = num_active_tasks
-        self.rand_task_rate = rand_task_rate
-        self.sample_threshold = sample_threshold
-        self.memory = memory
-        self.lp_metric = lp_metric
+class MettaGridEnvLPSet(MettaGridEnv):
+    """
+    This is a wrapper around MettaGridEnv that allows for multiple environments to be used for training
+    with learning progress.
+    """
 
-        self.cfgs = [self.raw_env._get_new_env_cfg() for _ in range(self.n)]
-        self.all_levels = np.arange(self.n)
-        self.lp_levels = np.arange(self.n)
-        self.sampling_dist = np.ones(self.n) / self.n
-        self._env_cfg_idx = np.random.choice(self.all_levels)
-        self.lp_metric = lp_metric
+    def __init__(
+        self,
+        env_cfg: DictConfig,
+        render_mode: str,
+        buf=None,
+        ema_alpha: float = 0.001, # Exponential moving average alpha (controls how quickly the learning progress is updated) 
+        p_theta: float = 0.05, # Reweighting parameter (controls how much the learning progress is reweighted towards unsolved tasks)
+        num_active_tasks: int = 16, # Number of tasks to sample from the task space
+        rand_task_rate: float = 0.25, # Probability of sampling a random task 
+        sample_threshold: int = 10, # Minimum number of samples required to update the learning progress
+        memory: int = 25, # Number of samples to keep in memory for each task
+        lp_metric: str = 'episode/reward.mean', # Metric to use for learning progress (e.g., episode reward)
+        **kwargs,
+    ):
+        self._env_cfgs = env_cfg.envs
+        self._num_agents_global = env_cfg.num_agents
+        self._num_envs = len(self._env_cfgs)
 
-        self.lp = BidirectionalLearningProgess(search_space=self.n, num_active_tasks=self.num_active_tasks,
-                                                rand_task_rate=self.rand_task_rate,
-                                                sample_threshold=self.sample_threshold,
-                                                memory=self.memory)
+        # Learning progress parameters
+        self._ema_alpha = ema_alpha
+        self._p_theta = p_theta
+        self._num_active_tasks = num_active_tasks
+        self._rand_task_rate = rand_task_rate
+        self._sample_threshold = sample_threshold
+        self._memory = memory
+        self._lp_metric = lp_metric
+
+        # Get initial environment config
+        self._env_cfg = self._get_new_env_cfg()
+        self.all_levels = np.arange(self._num_envs)
+        self.lp_levels = np.arange(self._num_envs)
+        self.sampling_dist = np.ones(self._num_envs) / self._num_envs
+        self._current_env_idx = np.random.choice(self.all_levels)
+
+        self.lp = BidirectionalLearningProgess(
+                        search_space=self._num_envs, 
+                        num_active_tasks=self.num_active_tasks,
+                        rand_task_rate=self.rand_task_rate,
+                        sample_threshold=self.sample_threshold,
+                        memory=self.memory
+                    )
         self.send_lp_metrics = False
-    
-    def step(self, actions):
-        obs, rew, term, trunc, info = self.env.step(actions)
 
-        if all(term) or all(trunc):
-            # alternate possability, send agent/heart.get
-            metric = self.lp_metric
-            self.lp.collect_data({f'tasks/{self._env_cfg_idx}': [info[metric]]})
-            if self.send_lp_metrics:
-                info[f'{self._env_cfg_idx}/{metric}'] = info[metric]
-                self.lp.add_stats(info)
-            self.reset()
-            self.env.should_reset = True
-            if 'agent_raw' in info:
-                del info['agent_raw']
-            if 'episode_rewards' in info:
-                info['score'] = info['episode_rewards']
-        else:
-            info = []
+        super().__init__(env_cfg, render_mode, buf=buf, env_map=None, **kwargs)
+        self._cfg_template = None  # we don't use this with multiple envs, so we clear it to emphasize that fact
 
-        return obs, rew, term, trunc, [info]
-    
-    def reset(self, seed=None):
-        self._env_cfg_idx = self.get_next_task_id()
-        self.raw_env._env_cfg = self.cfgs[self._env_cfg_idx]
-        self.raw_env._reset_env()
+    def _update_learning_progress(self, env_idx: int, performance: float):
+        """
+        Update the priority for a specific environment based on agent performance.
 
-        self.raw_env._c_env.set_buffers(
-            self.raw_env.observations,
-            self.raw_env.terminals,
-            self.raw_env.truncations,
-            self.raw_env.rewards)
+        Args:
+            env_idx: Index of the environment
+            performance: Performance metric (e.g., negative reward or TD error)
+        """
+        # Update performance tracking
+        self.lp.collect_data({f'tasks/{env_idx}': [performance]})
 
-        obs, infos = self.raw_env._c_env.reset()
-        self.raw_env.should_reset = False
-        self.tick = 0
+    def _get_env_probabilities(self):
+        """
+        Calculate probabilities for environment selection based on lp.
+        """
+        dist, _ = self.lp.calculate_dist()
+        return dist
+
+    def _get_new_env_cfg(self):
+        """
+        Select an environment based on lp probabilities.
+        """
+        self._env_map = None
+        # Updates the LP, if enough data has been collected
+        # Get levels selected by the lp as best to learn on
+        #  this will internally handle exploration
+        _, self.lp_levels = self.lp.calculate_dist()
+
+        # Select environment from the lp curated tasks (with exploration)
+        env_idx = np.random.choice(self.lp_levels)
+        self._current_env_idx = env_idx
+
+        # Get the environment configuration
+        selected_env = self._env_cfgs[env_idx]
+        env_cfg = config_from_path(selected_env)
+
+        # Check consistency in number of agents
+        if self._num_agents_global != env_cfg.game.num_agents:
+            raise ValueError(
+                "For MettaGridEnvSet, the number of agents must be the same for all environments. "
+                f"Global: {self._num_agents_global}, Env: {env_cfg.game.num_agents}"
+            )
+
+        env_cfg = OmegaConf.create(env_cfg)
+        OmegaConf.resolve(env_cfg)
+        return env_cfg
+
+    def reset(self, seed=None, options=None):
+        """
+        Reset the environment and select a new environment based on lp
+        """
+        # Increment episode counter
+        self._episode_count += 1
+        # Standard reset procedure which
+        #  will call the overloaded _get_new_env_cfg method 
+        #  to select a new environment according to lp
+        obs, infos = super().reset(seed, options)
         return obs, infos
 
-    def notify(self):
-        self.sampling_dist, self.lp_levels = self.lp.calculate_dist()
-        self.lp_dist = self.sampling_dist
-        self.send_lp_metrics = True
+    def step(self, actions):
+        """
+        Step the environment and track necessary information for lp.
+        """
+        observations, rewards, terminals, truncations, infos = super().step(actions)
 
-    def get_next_task_id(self):
-        return np.random.choice(self.lp_levels)
-    
-    def get_lp_dist(self):
-        return self.sampling_dist
+        # Store information needed for lp
+        if (terminals.all() or truncations.all()) and "episode/reward.mean" in infos:
+            metric = self.lp_metric
+            self._update_learning_progress(self._current_env_idx, infos[metric])
+            if self.send_lp_metrics:
+                infos[f'{self._env_cfg_idx}/{metric}'] = infos[metric]
+                self.lp.add_stats(infos)
+            self._last_episode_reward = infos[metric]
 
-    def render(self):
-        return self.env.render()
-    
-    def close(self):
-        return self.env.close()
-    
+        return observations, rewards, terminals, truncations, infos
+
+    def get_env_stats(self):
+        """
+        Return statistics about environment selection for logging/debugging.
+        """
+        infos = {}
+        self.lp.add_stats(infos)
+        return infos
+
