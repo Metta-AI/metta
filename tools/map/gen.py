@@ -77,6 +77,10 @@ def main():
     args = parser.parse_args()
 
     show_mode = args.show_mode
+    if not show_mode and not args.output_uri:
+        # if not asked to save, show the map
+        show_mode = "mettascope"
+
     output_uri = args.output_uri
     count = args.count
     cfg_path = args.cfg_path

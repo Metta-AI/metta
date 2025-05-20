@@ -4,9 +4,10 @@
 
 # Exit immediately if a command exits with a non-zero status
 set -e
+set -o pipefail
 
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")" # (root)/devops
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"        # (root)
 
 # Parse command line arguments
 CLEAN=0
@@ -73,10 +74,14 @@ fi
 
 # Required Python version
 REQUIRED_PYTHON_VERSION="3.11.7"
+VENV_PATH="$PROJECT_DIR/.venv"
 
 # ========== CLEAN BUILD ==========
 if [ "$CLEAN" -eq 1 ]; then
-  # first deactivate the venv
+
+  make clean
+
+  # deactivate the venv
   echo -e "\nDeactivating current virtual environment: $VIRTUAL_ENV"
   # This is a bit of a hack since 'deactivate' is a function in the activated environment
   # Using 'command' to temporarily disable the function behavior
@@ -85,74 +90,63 @@ if [ "$CLEAN" -eq 1 ]; then
     echo "✅ Virtual environment deactivated"
   fi
 
-  echo -e "\nCleaning build artifacts..."
-
-  # Remove virtual environments
+  # Remove the virtual environment
   if [ -d "$PROJECT_DIR/.venv" ]; then
     echo "Removing .venv virtual environment..."
     rm -rf "$PROJECT_DIR/.venv"
     echo "✅ Removed .venv virtual environment"
   fi
-  if [ -d "$PROJECT_DIR/venv" ]; then
-    echo "Removing venv virtual environment..."
-    rm -rf "$PROJECT_DIR/venv"
-    echo "✅ Removed venv virtual environment"
-  fi
-
-  # Clean root directory artifacts
-  find "$PROJECT_DIR" -type f -name '*.so' -delete
-  find "$PROJECT_DIR" -type d -name 'build' -exec rm -rf {} +
-  echo "✅ Cleaned root directory build artifacts"
-
-  # Clean mettagrid artifacts if directory exists
-  if [ -d "$PROJECT_DIR/mettagrid" ]; then
-    echo "Cleaning mettagrid build artifacts..."
-    find "$PROJECT_DIR/mettagrid" -name "*.so" -type f -delete
-    echo "✅ Removed .so files from mettagrid directory"
-  fi
-
-  echo -e "\nCreating a new virtual environment with uv..."
-
-  # Check and remove existing venv directories if needed
-  if [ -d ".venv" ]; then
-    echo "Removing existing .venv directory..."
-    rm -rf .venv
-  fi
-  if [ -d "venv" ]; then
-    echo "Removing existing venv directory..."
-    rm -rf venv
-  fi
-
-  echo "Creating new virtual environment..."
-  uv venv .venv --python $REQUIRED_PYTHON_VERSION || {
-    echo "Error: Failed to create virtual environment with uv command."
-    exit 1
-  }
-
-  # Activate the virtual environment
-  if [[ -d ".venv" ]]; then
-    # Activate the venv
-    source .venv/bin/activate
-    echo "✅ Virtual environment '.venv' created and activated"
-  else
-    echo "❌ Failed to create virtual environment with uv"
-    exit 1
-  fi
 fi
 
-# Exit if we're not in a UV venv and not in Docker
-if ! $IS_DOCKER && ! is_uv_venv; then
-  echo "⚠️ Recreating virtual environment with Python version ($REQUIRED_PYTHON_VERSION)..."
+# Check if we're already in a UV venv
+if ! is_uv_venv; then
+  # Check if a virtual environment exists but is not activated
+  if [ -d "$VENV_PATH" ]; then
+    echo "Found existing virtual environment at $VENV_PATH"
 
-  # Create a new environment with the correct Python version
-  uv venv .venv --python $REQUIRED_PYTHON_VERSION || {
-    echo "Error: Failed to create new virtual environment with uv command."
-    exit 1
-  }
+    # Check if it's a UV venv before activating
+    if [ -f "$VENV_PATH/pyvenv.cfg" ] && grep -q "uv" "$VENV_PATH/pyvenv.cfg"; then
+      echo "Existing environment appears to be a UV environment, activating it"
+      source "$VENV_PATH/bin/activate"
+      echo "✅ Virtual environment '$VENV_PATH' activated"
+    elif [ -d "$VENV_PATH/.uv" ]; then
+      echo "Existing environment appears to be a UV environment, activating it"
+      source "$VENV_PATH/bin/activate"
+      echo "✅ Virtual environment '$VENV_PATH' activated"
+    else
+      echo "⚠️ Existing environment is not a UV environment, recreating it"
 
-  # Activate the new environment
-  source .venv/bin/activate
-  echo "✅ New virtual environment '.venv' created and activated with Python $REQUIRED_PYTHON_VERSION"
+      # Remove the existing environment
+      rm -rf "$VENV_PATH"
+
+      # Create a new environment
+      echo "Creating new virtual environment with Python version ($REQUIRED_PYTHON_VERSION)..."
+      uv venv "$VENV_PATH" --python $REQUIRED_PYTHON_VERSION || {
+        echo "Error: Failed to create virtual environment with uv command."
+        exit 1
+      }
+
+      # Activate the environment
+      source "$VENV_PATH/bin/activate"
+      echo "✅ Virtual environment '$VENV_PATH' created and activated"
+    fi
+  else
+    # No existing environment, create a new one
+    echo "Creating new virtual environment with Python version ($REQUIRED_PYTHON_VERSION)..."
+    uv venv "$VENV_PATH" --python $REQUIRED_PYTHON_VERSION || {
+      echo "Error: Failed to create virtual environment with uv command."
+      exit 1
+    }
+
+    # Activate the environment
+    if [[ -d "$VENV_PATH" ]]; then
+      source "$VENV_PATH/bin/activate"
+      echo "✅ Virtual environment '$VENV_PATH' created and activated"
+    else
+      echo "❌ Failed to create virtual environment with uv"
+      exit 1
+    fi
+  fi
 fi
 
 if [ -z "$CI" ]; then
@@ -173,22 +167,17 @@ if [ -z "$CI" ]; then
   for venv_name in "${VENV_PATHS[@]}"; do
     venv_path="$PROJECT_DIR/$venv_name"
     if [ -d "$venv_path" ]; then
-      if is_uv_venv "$venv_path"; then
-        echo "Preserving $venv_name as it appears to be a UV virtual environment"
-      else
-        echo "Removing $venv_name virtual environment..."
-        rm -rf "$venv_path"
-        echo "✅ Removed $venv_name virtual environment"
+      if ! is_uv_venv "$venv_path"; then
+        echo "⚠️  Found a non UV virtual environments:"
+        echo "$venv_name"
+        echo "⚠️  You may want to manually remove if they're no longer needed"
       fi
     fi
   done
-
-  # ========== CLEAN ALL BUILD ARTIFACTS ==========
-  make clean
 fi
 
 # ========== Main Project ==========
-cd "$SCRIPT_DIR/.."
+cd "$PROJECT_DIR"
 
 # Install packages
 echo -e "\nInstalling project requirements..."
@@ -205,21 +194,22 @@ uv pip install -r requirements.txt || {
   fi
 }
 
-# ========== BUILD METTAGRID ==========
-echo -e "\nBuilding mettagrid..."
-cd mettagrid
-make build
-cd ..
-
 # ========== BUILD FAST_GAE ==========
 echo -e "\nBuilding FastGAE..."
 make build
+
+# ========== BUILD METTAGRID ==========
+echo -e "\nBuilding MettaGrid..."
+cd mettagrid
+make install-dependencies
+make build
+cd ..
 
 # ========== INSTALL SKYPILOT ==========
 echo -e "\nInstalling Skypilot..."
 uv tool install skypilot --from 'skypilot[aws,vast,lambda]'
 
-PYTHON="uv run -- python"
+PYTHON="uv run --active python"
 
 # ========== SANITY CHECK ==========
 echo -e "\nSanity check: verifying all local deps are importable..."
