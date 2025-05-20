@@ -121,7 +121,12 @@ export const html = {
   // Utility
   modal: find('#modal') as HTMLDivElement,
   toast: find('#toast') as HTMLDivElement,
-}
+
+  // Help modal elements
+  helpButton: find('#help-button') as HTMLButtonElement,
+  helpModal: find('#help-modal') as HTMLDivElement,
+  helpModalClose: find('#help-modal .close-button') as HTMLSpanElement,
+};
 
 // Set the follow selection state, you can pass null to leave a state unchanged.
 export function setFollowSelection(map: boolean | null) {

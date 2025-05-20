@@ -25,6 +25,9 @@
       <div class="filter-wrapper">
         <input id="main-filter" type="text" placeholder="Filter/Search Field">
       </div>
+      <div class="help-wrapper">
+        <button id="help-button">Help & Controls</button>
+      </div>
       <div class="share-wrapper">
         <img id="share-button" src="data/ui/share.png" alt="Share">
       </div>
@@ -68,6 +71,53 @@
     <div class="modal-content">
       <h2>Welcome to MettaScope</h2>
       <p>Please drop a replay file here to see the replay.</p>
+    </div>
+  </div>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="modal help-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>MettaScope Help & Controls</h2>
+        <span class="close-button">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="help-section about-metta">
+          <h3>About Metta</h3>
+          <p>Metta is an AI research platform for developing and testing AI agents in simulated environments. It provides tools for training, evaluating, and analyzing AI behavior.</p>
+        </div>
+        <div class="help-section about-mettascope">
+          <h3>About MettaScope</h3>
+          <p>MettaScope is a visualization tool that allows you to analyze and understand AI agent behavior in Metta environments. It provides detailed insights into agent actions, decisions, and performance.</p>
+        </div>
+        <div class="help-section">
+          <h3>Playback Controls</h3>
+          <ul>
+            <li>Use the play/pause button to control playback</li>
+            <li>Step forward/backward to move frame by frame</li>
+            <li>Use the speed controls to adjust playback speed</li>
+            <li>Drag the scrubber to jump to any point in the replay</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Visualization Controls</h3>
+          <ul>
+            <li>Toggle grid visibility with the grid button</li>
+            <li>Show/hide resources with the heart icon</li>
+            <li>Toggle fog of war with the cloud icon</li>
+            <li>Change view modes with the eye icon</li>
+          </ul>
+        </div>
+        <div class="help-section">
+          <h3>Navigation</h3>
+          <ul>
+            <li>Click and drag to pan the view</li>
+            <li>Use mouse wheel to zoom in/out</li>
+            <li>Click on units to select them</li>
+            <li>Use the filter field to search for specific units</li>
+          </ul>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -504,3 +504,43 @@ window.addEventListener('load', async () => {
 
   requestFrame();
 });
+
+// Initialize help modal with event listeners for opening, closing, and scroll prevention.
+function initHelpModal(): void {
+  if (!html.helpButton || !html.helpModal || !html.helpModalClose) {
+    console.error('Help modal elements not found');
+    return;
+  }
+
+  html.helpButton.addEventListener('click', () => {
+    html.helpModal.style.display = 'block';
+    document.body.classList.add('modal-open');
+  });
+
+  html.helpModalClose.addEventListener('click', () => {
+    html.helpModal.style.display = 'none';
+    document.body.classList.remove('modal-open');
+  });
+
+  html.helpModal.addEventListener('click', (event: MouseEvent) => {
+    if (event.target === html.helpModal) {
+      html.helpModal.style.display = 'none';
+      document.body.classList.remove('modal-open');
+    }
+  });
+
+  document.addEventListener('keydown', (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && html.helpModal.style.display === 'block') {
+      html.helpModal.style.display = 'none';
+      document.body.classList.remove('modal-open');
+    }
+  });
+
+  html.helpModal.addEventListener('wheel', (event: WheelEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  }, { passive: false });
+}
+
+// Call initHelpModal when the page loads
+document.addEventListener('DOMContentLoaded', initHelpModal);
