@@ -48,6 +48,7 @@ uv pip install -r requirements.txt
 python setup.py build_ext --inplace
 uv pip install -e .
 
+uv pip install -e mettagrid
 uv run --active --directory mettagrid python setup.py build_ext --inplace
 
 export NUM_NODES=${AWS_BATCH_JOB_NUM_NODES:-1}
