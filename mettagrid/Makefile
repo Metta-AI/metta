@@ -274,9 +274,6 @@ check-build-dependencies: info
 	fi
 
 	@echo "🔍 Checking for numpy..."
-	@if $(PYTHON_BIN) -c "import numpy; print('✅ numpy imported successfully - version', numpy.__version__)" 2>/dev/null; then \
-		{ echo "❌ Failed to import numpy — possibly missing .so or metadata files"; exit 1; }
-
 	@if [ -n "$(NUMPY_INCLUDE)" ]; then \
 		echo "  NUMPY_INCLUDE        = $(NUMPY_INCLUDE)"; \
 	else \
