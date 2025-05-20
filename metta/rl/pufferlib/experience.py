@@ -143,59 +143,36 @@ class Experience:
         env_id: torch.Tensor,
         mask: torch.Tensor,
     ) -> None:
-        mask_np: np.ndarray = mask.cpu().numpy()
+        assert not isinstance(env_id, slice), (
+            f"TypeError: env_id expected to be a tensor, not a slice. Got {type(env_id).__name__} instead. "
+        )
 
         # Get current pointer and calculate indices
-        ptr: int = self.ptr
-        indices: np.ndarray = np.where(mask_np)[0]
-        num_indices: int = indices.size
-        end: int = ptr + num_indices
-        dst: slice = slice(ptr, end)
+        ptr = self.ptr
 
-        # Convert env_id to numpy
-        env_id_np: np.ndarray = env_id.cpu().numpy()
+        mask_np: np.ndarray = mask.cpu().numpy()
+        indices = np.where(mask_np)[0]
 
-        is_sequential: bool = False
-        if num_indices == mask_np.size and env_id.dim() == 1 and env_id.size(0) > 1:
-            # Check if it's a sequential range (like a slice would provide)
-            diffs = env_id[1:] - env_id[:-1]
-            is_sequential = bool(torch.all(diffs == 1).item())
+        # Calculate how many indices we can actually store
+        remaining_space = self.batch_size - ptr
+        num_indices_to_store = min(indices.size, remaining_space)
 
-        is_contiguous: bool = num_indices == mask_np.size and is_sequential
+        # TODO -- we constantly overrun the buffer and truncate; typically we have 1920 indices for 1024 slots
 
-        if is_contiguous:
-            # Handle contiguous case
-            available_space: int = self.batch_size - ptr
-            max_indices: int = min(available_space, num_indices)
-            cpu_indices: slice = slice(0, max_indices)
+        end = ptr + num_indices_to_store
+        dst = slice(ptr, end)
 
-            # Copy data
-            self.obs[dst] = obs.to(self.obs.device, non_blocking=True)[cpu_indices]
-            self.values_np[dst] = value.cpu().numpy()[cpu_indices]
-            self.actions_np[dst] = action[cpu_indices]
-            self.logprobs_np[dst] = logprob.cpu().numpy()[cpu_indices]
-            self.rewards_np[dst] = reward.cpu().numpy()[cpu_indices]
-            self.dones_np[dst] = done.cpu().numpy()[cpu_indices]
+        cpu_inds = indices[:num_indices_to_store]
 
-            # Generate indices for sort keys
-            indices_range: np.ndarray = np.arange(0, max_indices, dtype=np.int32)
-            self.sort_keys[dst, 1] = indices_range
-        else:
-            # Handle non-contiguous case
-            available_space: int = self.batch_size - ptr
-            array_indices: np.ndarray = indices[:available_space]
-            _ = torch.as_tensor(indices).to(self.obs.device, non_blocking=True)
+        self.obs[dst] = obs.to(self.obs.device, non_blocking=True)[cpu_inds]
+        self.values_np[dst] = value.cpu().numpy()[cpu_inds]
+        self.actions_np[dst] = action.cpu().numpy()[cpu_inds]
+        self.logprobs_np[dst] = logprob.cpu().numpy()[cpu_inds]
+        self.rewards_np[dst] = reward.cpu().numpy()[cpu_inds]
+        self.dones_np[dst] = done.cpu().numpy()[cpu_inds]
 
-            # Copy data
-            self.obs[dst] = obs.to(self.obs.device, non_blocking=True)[array_indices]
-            self.values_np[dst] = value.cpu().numpy()[array_indices]
-            self.actions_np[dst] = action[array_indices]
-            self.logprobs_np[dst] = logprob.cpu().numpy()[array_indices]
-            self.rewards_np[dst] = reward.cpu().numpy()[array_indices]
-            self.dones_np[dst] = done.cpu().numpy()[array_indices]
-
-            # Store env_id
-            self.sort_keys[dst, 1] = env_id_np[array_indices]
+        self.sort_keys[dst, 1] = env_id.cpu().numpy()[cpu_inds]
+        self.sort_keys[dst, 2] = self.step
 
         # Update pointer and step
         self.ptr = end
@@ -238,20 +215,8 @@ class Experience:
 
         self.returns_np = advantages_np + self.values_np
 
-        # Create b_obs with explicit shape for minibatches
-        # This assumes b_idxs_obs has shape [num_minibatches, minibatch_rows, bptt_horizon]
-        # We need to reshape it to [num_minibatches, minibatch_size, *obs_shape]
-        raw_obs = self.obs[self.b_idxs_obs]
-
-        # Check if we need to reshape
-        if len(raw_obs.shape) == 4:  # [num_minibatches, minibatch_rows, bptt_horizon, *obs_shape]
-            # Reshape to [num_minibatches, minibatch_size, *obs_shape]
-            self.b_obs = raw_obs.reshape(self.num_minibatches, self.minibatch_size, *raw_obs.shape[3:])
-        else:
-            # If the shape is already appropriate, just use it directly
-            self.b_obs = raw_obs
-
         # Process the rest of the batch data
+        self.b_obs = self.obs[self.b_idxs_obs]
         self.b_actions = self.b_actions[b_idxs].contiguous()
         self.b_logprobs = self.b_logprobs[b_idxs]
         self.b_dones = self.b_dones[b_idxs]
