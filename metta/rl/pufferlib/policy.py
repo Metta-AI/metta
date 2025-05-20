@@ -1,10 +1,10 @@
 from types import SimpleNamespace
-from hydra.utils import instantiate
 
 import torch
+from hydra.utils import instantiate
+from omegaconf import DictConfig
 from pufferlib.cleanrl import sample_logits
 from torch import nn
-from omegaconf import DictConfig
 
 
 def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
@@ -13,12 +13,12 @@ def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
     try:
         num_actions, hidden_size = weights["policy.actor.0.weight"].shape
         num_action_args, _ = weights["policy.actor.1.weight"].shape
-        cnn_channels, obs_channels, _, _ = weights["policy.network.0.weight"].shape
+        _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
     except Exception as e:
         print(f"Failed automatic parse from weights: {e}")
         # TODO -- fix all magic numbers
         num_actions, num_action_args = 9, 10
-        cnn_channels, obs_channels = 128, 34
+        _, obs_channels = 128, 34
 
     # Create environment namespace
     env = SimpleNamespace(
