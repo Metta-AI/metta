@@ -246,13 +246,13 @@ export function onFrame() {
     }
   }
 
-  updateReadout();
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
   ctx.useMesh("mini-map");
   drawMiniMap(ui.miniMapPanel);
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
+  updateReadout();
 
   ctx.flush();
   console.log("Flushed ctx.");
