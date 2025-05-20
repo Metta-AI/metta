@@ -69,30 +69,26 @@ protected:
         throw std::runtime_error("Recipe input index out of range: " + std::to_string(i));
       }
 
-      if (converter->recipe_input[i] > actor->inventory[i]) {
-        return false;  // Not enough items - normal gameplay situation
+      // for (size_t i = 0; i < converter->recipe_input.size(); i++) {
+      //   if (converter->recipe_input[i] > actor->inventory[i]) {
+      //     return false;
+      //   }
+      // }
+
+      bool success = false;
+      for (size_t i = 0; i < converter->recipe_input.size(); i++) {
+        unsigned int inv = std::min(converter->recipe_input[i], actor->inventory[i]);
+        if (inv == 0) {
+          continue;
+        }
+        actor->update_inventory(static_cast<InventoryItem>(i), -inv);
+        converter->update_inventory(static_cast<InventoryItem>(i), inv);
+        actor->stats.add(InventoryItemNames[i], "put", inv);
+        success = true;
       }
+
+      return success;
     }
-
-    // Transfer items from agent to converter
-    for (uint32_t i = 0; i < converter->recipe_input.size(); i++) {
-      // Skip if no items to transfer
-      if (converter->recipe_input[i] <= 0) {
-        continue;
-      }
-
-      // Validate inventory item name access
-      if (i >= InventoryItemNames.size()) {
-        throw std::runtime_error("Invalid inventory item name index: " + std::to_string(i));
-      }
-
-      actor->update_agent_inventory(static_cast<InventoryItem>(i), -converter->recipe_input[i]);
-      converter->update_converter_inventory(static_cast<InventoryItem>(i), converter->recipe_input[i]);
-      actor->stats.add(InventoryItemNames[i], "put", converter->recipe_input[i]);
-    }
-
-    return true;
-  }
-};
+  };
 }  // namespace Actions
 #endif  // PUT_RECIPE_ITEMS_HPP

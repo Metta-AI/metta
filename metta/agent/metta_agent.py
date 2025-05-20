@@ -1,6 +1,7 @@
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
+import einops
 import gymnasium as gym
 import hydra
 import numpy as np
@@ -12,6 +13,7 @@ from torch.nn.parallel import DistributedDataParallel
 from metta.agent.lib.action import ActionEmbedding
 from metta.agent.lib.metta_layer import LayerBase
 from metta.agent.policy_state import PolicyState
+from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import sample_logits
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
@@ -207,22 +209,20 @@ class MettaAgent(nn.Module):
         obs_key: str = cfg.observations.obs_key  # typically "grid_obs"
 
         obs_shape: Tuple[int, ...] = safe_get_from_obs_space(obs_space, obs_key, "shape")
-        obs_input_shape: Tuple[int, ...] = obs_shape[1:]  # typ. obs_width, obs_height, number of observations
         num_objects: int = obs_shape[2]  # typ. number of observations
 
-        agent_attributes: Dict[str, Any] = {
-            "obs_shape": obs_shape,
+        self.agent_attributes: Dict[str, Any] = {
             "clip_range": self.clip_range,
             "action_space": action_space,
             "grid_features": grid_features,
             "obs_key": cfg.observations.obs_key,
-            "obs_input_shape": obs_input_shape,
+            "obs_shape": obs_shape,
             "num_objects": num_objects,
             "hidden_size": self.hidden_size,
             "core_num_layers": self.core_num_layers,
         }
 
-        logging.info(f"agent_attributes: {agent_attributes}")
+        logging.info(f"agent_attributes: {self.agent_attributes}")
 
         # self.observation_space = obs_space # for use with FeatureSetEncoder
         # self.global_features = global_features # for use with FeatureSetEncoder
@@ -235,7 +235,7 @@ class MettaAgent(nn.Module):
             component_name: str = str(component_key)
             component_cfgs[component_key]["name"] = component_name
             logger.info(f"calling hydra instantiate from MettaAgent __init__ for {component_name}")
-            component = hydra.utils.instantiate(component_cfgs[component_key], **agent_attributes)
+            component = hydra.utils.instantiate(component_cfgs[component_key], **self.agent_attributes)
             self.components[component_name] = component
 
         value_component: LayerBase = cast(LayerBase, self.components["_value_"])
@@ -364,38 +364,77 @@ class MettaAgent(nn.Module):
         """
         return self._total_params
 
-    def forward(
-        self,
-        x: torch.Tensor,  # Shape: [B, T, *obs_shape] or [B*T, *obs_shape]
-        state: PolicyState,
-        action: Optional[torch.Tensor] = None,  # Shape: [B, T, 2] or [B*T, 2] if provided
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None):
         """
         Forward pass of the MettaAgent.
 
-        Processes observations through the agent's neural network architecture to produce
-        action distributions, value estimates, and updated internal states.
+        1. Inference mode (action=None): sample new actions based on the policy
+        - x shape: (BT, *self.obs_shape)
+        - Output action shape: (BT, 1) -- we return the action index rather than the (type, arg) tuple
+
+        2. BPTT training mode (action is provided): evaluate the policy on past actions
+        - x shape: (B, T, *self.obs_shape)
+        - action shape: (B, T, 2)
+        - Output action shape: (B, T, 2) -- we return the (type, arg) tuple
 
         Args:
-            x: Input observation tensor of shape [B, T, *obs_shape] or [B*T, *obs_shape]
-            where B=batch_size, T=sequence_length
-            state: Policy state containing LSTM hidden states (lstm_h) and cell states (lstm_c)
-                in layer-first format [num_layers, batch_size, hidden_size]
-            action: Optional action tensor of shape [B, T, 2] or [B*T, 2] where each action
-                    is represented as [action_type, action_param].
+            x: Input observation tensor
+            state: Policy state containing LSTM hidden and cell states
+            action: Optional action tensor for BPTT
 
         Returns:
-            Tuple containing:
-            - action: Tensor of shape [B*T, 2], where each row is [action_type, action_param]
-            - logprob_act: Log probability of chosen action, shape [B*T]
-            - entropy: Entropy of action distribution, shape [B*T]
-            - value: Value function output, shape [B*T]
-            - logprobs: All action log probabilities, shape [B*T, num_actions]
-
-        Note:
-            If action is None, actions will be sampled from the predicted distribution.
-            The LSTM state in the provided PolicyState object is updated in-place.
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Sampled output action (inference) or same as input action (BPTT)
+            - action_log_prob: Log probability of the output action, shape (BT,)
+            - entropy: Entropy of the action distribution, shape (BT,)
+            - value: Value estimate, shape (BT,)
+            - log_probs: Log-softmax of logits, shape (BT, A) where A is the size of the action space
         """
+        # rename parameter for clarity
+        bptt_action = action
+        del action
+
+        # TODO - obs_shape is not available in the eval smoke test policies so we can't
+        # check exact dimensions
+
+        # Default values in case obs_shape is not available
+        obs_w, obs_h, features = "W", "H", "F"
+
+        # Check if agent_attributes exists, is not None, and contains obs_shape
+        if (
+            hasattr(self, "agent_attributes")
+            and self.agent_attributes is not None
+            and "obs_shape" in self.agent_attributes
+        ):
+            # Get obs_shape and ensure it has the expected format
+            obs_shape = self.agent_attributes["obs_shape"]
+            if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
+                obs_w, obs_h, features = obs_shape
+            # If the format is unexpected, we keep the default values
+
+        if bptt_action is not None:
+            # BPTT
+            if __debug__:
+                assert_shape(bptt_action, ("B", "T", 2), "bptt_action")
+
+            B, T, A = bptt_action.shape
+
+            if __debug__:
+                assert A == 2, f"Action dimensionality should be 2, got {A}"
+                assert_shape(x, (B, T, obs_w, obs_h, features), "x")
+
+            # Flatten batch and time dimensions for both action and x
+            bptt_action = einops.rearrange(bptt_action, "b t c -> (b t) c")
+            x = einops.rearrange(x, "b t ... -> (b t) ...")
+
+            if __debug__:
+                assert_shape(bptt_action, (B * T, 2), "flattened action")
+                assert_shape(x, (B * T, obs_w, obs_h, features), "flattened x")
+        else:
+            # inference
+            if __debug__:
+                assert_shape(x, ("BT", obs_w, obs_h, features), "x")
+
         # we can't use the tensordict library effectively here because we want to keep some
         # tensors (x) batch-first and others (lstm) layer-first.
         # a regular python dictionary is fine - ultimately we will be setting fields in nn.ModuleDict
@@ -404,12 +443,20 @@ class MettaAgent(nn.Module):
         # Pass LSTM states in layer-first format
         if state.lstm_h is not None and state.lstm_c is not None:
             # Ensure states are on the same device as input
-            data["lstm_h"] = state.lstm_h.to(x.device)  # [num_layers, batch_size, hidden_size]
-            data["lstm_c"] = state.lstm_c.to(x.device)  # [num_layers, batch_size, hidden_size]
+            lstm_h = state.lstm_h.to(x.device)
+            lstm_c = state.lstm_c.to(x.device)
+            # Concatenate LSTM states along dimension 0
+            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
 
         # Forward pass through value network
         self.components["_value_"](data)
         value = data["_value_"]  # Shape: [B*T]
+
+        # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
+        # This design supports potential future extensions like distributional value functions
+        # or multi-head value networks which would require more than a scalar per state
+        if __debug__:
+            assert_shape(value, ("BT", 1), "value")
 
         # Forward pass through action network
         self.components["_action_"](data)

@@ -102,9 +102,11 @@ class LSTM(LayerBase):
             raise ValueError("Invalid input tensor shape", x.shape)
 
         if state is not None:
-            assert state[0].shape[1] == state[1].shape[1] == B, (
-                f"State batch dimension mismatch. Expected {B}, got {state[0].shape[1]}"
-            )
+            assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
+
+        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0]), (
+            f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self._in_tensor_shapes[0][0])}"
+        )
 
         # Reshape hidden features for LSTM
         hidden = hidden.reshape(B, T, self._in_tensor_shapes[0][0])

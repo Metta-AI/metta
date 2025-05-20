@@ -34,7 +34,6 @@ def create_metta_agent():
         "components": {
             "_obs_": {
                 "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
-                "name": "_obs_",
                 "sources": None,
             },
             "_obs_normalizer_": {
@@ -386,23 +385,23 @@ def test_convert_logit_index_to_action(create_metta_agent):
 
     # Test single conversions
     # logit index 0 should map to action (0,0)
-    logit = torch.tensor([[0]])
-    result = agent._convert_logit_index_to_action(logit)
+    logit_indices = torch.tensor([0])
+    result = agent._convert_logit_index_to_action(logit_indices)
     assert torch.all(result == torch.tensor([0, 0]))
 
     # logit index 1 should map to action (0,1)
-    logit = torch.tensor([[1]])
-    result = agent._convert_logit_index_to_action(logit)
+    logit_indices = torch.tensor([1])
+    result = agent._convert_logit_index_to_action(logit_indices)
     assert torch.all(result == torch.tensor([0, 1]))
 
     # logit index 4 should map to action (1,2)
-    logit = torch.tensor([[4]])
-    result = agent._convert_logit_index_to_action(logit)
+    logit_indices = torch.tensor([4])
+    result = agent._convert_logit_index_to_action(logit_indices)
     assert torch.all(result == torch.tensor([1, 2]))
 
     # Test batch conversion
-    logits = torch.tensor([[0], [4], [5]])
-    result = agent._convert_logit_index_to_action(logits)
+    logit_indices = torch.tensor([0, 4, 5])
+    result = agent._convert_logit_index_to_action(logit_indices)
     expected = torch.tensor([[0, 0], [1, 2], [2, 0]])
     assert torch.all(result == expected)
 
@@ -445,10 +444,12 @@ def test_action_conversion_edge_cases(create_metta_agent):
     action_max_params = []
     agent.activate_actions(action_names, action_max_params, "cpu")
 
-    # Test with empty tensor - should not raise errors
+    # Test with empty tensor - should raise a ValueError about invalid size
     empty_actions = torch.zeros((0, 2), dtype=torch.long)
-    result = agent._convert_action_to_logit_index(empty_actions)
-    assert result.shape[0] == 0
+    with pytest.raises(
+        ValueError, match=r"'action' dimension 0 \('BT'\) has invalid size 0, expected a positive value"
+    ):
+        agent._convert_action_to_logit_index(empty_actions)
 
     # Setup with single action type that has many parameters
     action_names = ["action0"]
@@ -461,8 +462,8 @@ def test_action_conversion_edge_cases(create_metta_agent):
     assert result.item() == 9
 
     # Convert back
-    logit = torch.tensor([[9]])
-    result = agent._convert_logit_index_to_action(logit)
+    logit_indices = torch.tensor([9])
+    result = agent._convert_logit_index_to_action(logit_indices)
     assert torch.all(result == torch.tensor([0, 9]))
 
 

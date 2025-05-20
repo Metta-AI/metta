@@ -10,6 +10,7 @@ import boto3
 from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
 from metta.util.git import (
     get_branch_commit,
+    get_commit_message,
     get_current_branch,
     get_current_commit,
     has_unstaged_changes,
@@ -68,6 +69,10 @@ def container_config(args, task_args, job_name):
         {"name": "TASK_ARGS", "value": " ".join(task_args)},
     ]
 
+    # Add timeout environment variable if specified
+    if args.timeout_minutes:
+        env_vars.append({"name": "JOB_TIMEOUT_MINUTES", "value": str(args.timeout_minutes)})
+
     entrypoint_cmd = [
         "git fetch",
         f"git checkout {git_ref}",
@@ -75,6 +80,21 @@ def container_config(args, task_args, job_name):
     ]
 
     print(f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, {total_vcpus} vCPUs, {args.node_ram_gb}GB RAM")
+
+    # Format timeout for display if specified
+    if args.timeout_minutes:
+        timeout_hours = args.timeout_minutes // 60
+        timeout_mins = args.timeout_minutes % 60
+
+        if timeout_hours > 0:
+            if timeout_mins == 0:
+                timeout_str = f"{timeout_hours}h"
+            else:
+                timeout_str = f"{timeout_hours}h {timeout_mins}m"
+        else:
+            timeout_str = f"{timeout_mins}m"
+
+        print(yellow(f"Auto-termination: Job will terminate after {timeout_str}"))
 
     return {
         "command": ["; ".join(entrypoint_cmd)],
@@ -124,7 +144,9 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
             eval_value = task_arg.split("=", 1)[1]
             critical_files.append(f"./configs/eval/{eval_value}.yaml")
 
-    divider = "=" * 40
+    divider_length = 60
+
+    divider = "=" * divider_length
     print(f"\n{divider}")
     all_files_exist = True
     for file in critical_files:
@@ -147,6 +169,7 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
 
     # Get the git reference
     git_ref = args.git_commit if args.git_commit else args.git_branch
+    commit_message = get_commit_message(args.git_commit) if args.git_commit else None
 
     # Display job details
     print(f"\n{divider}")
@@ -162,8 +185,29 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
     print(f"Total GPUs: {args.gpus}")
     print(f"vCPUs per GPU: {args.gpu_cpus}")
     print(f"RAM per Node: {args.node_ram_gb} GB")
+
+    # Add timeout information to job summary with more prominence
+    if args.timeout_minutes:
+        timeout_hours = args.timeout_minutes // 60
+        timeout_mins = args.timeout_minutes % 60
+
+        if timeout_hours > 0:
+            if timeout_mins == 0:
+                timeout_str = f"{timeout_hours}h"
+            else:
+                timeout_str = f"{timeout_hours}h {timeout_mins}m"
+        else:
+            timeout_str = f"{timeout_mins}m"
+
+        print(bold(yellow(f"AUTO-TERMINATION: Job will terminate after {timeout_str}")))
+    else:
+        print(yellow("NO TIMEOUT SET: Job will run until completion"))
+
     print(f"Git Reference: {git_ref}")
-    print(f"{'-' * 40}")
+    if commit_message:
+        first_line = commit_message.split("\n")[0]
+        print(f"Commit Message: {yellow(first_line)}")
+    print(f"{'-' * divider_length}")
     print(f"Command: {args.cmd}")
     if task_args:
         print(yellow("\nTask Arguments:"))
@@ -233,6 +277,21 @@ def submit_batch_job(args, task_args):
     print(f"Submitted job {job_name} to queue {job_queue} with job ID {green(bold(job_id))}")
     print(blue(bold(job_url)))
 
+    # Display timeout information again after job submission
+    if args.timeout_minutes:
+        timeout_hours = args.timeout_minutes // 60
+        timeout_mins = args.timeout_minutes % 60
+
+        if timeout_hours > 0:
+            if timeout_mins == 0:
+                timeout_str = f"{timeout_hours}h"
+            else:
+                timeout_str = f"{timeout_hours}h {timeout_mins}m"
+        else:
+            timeout_str = f"{timeout_mins}m"
+
+        print(bold(yellow(f"AUTO-TERMINATION: Job will terminate after {timeout_str}")))
+
     if task_args:
         print(yellow("\nTask Arguments:"))
         for i, arg in enumerate(task_args):
@@ -258,12 +317,18 @@ def main():
     parser.add_argument("--gpu-cpus", type=int)
     parser.add_argument("--node-ram-gb", type=int)
     parser.add_argument("--copies", type=int, default=1)
-    parser.add_argument("--profile", default="stem")
+    parser.add_argument("--profile", default="softmax-db")
     parser.add_argument("--job-queue", default="metta-jq")
     parser.add_argument("--skip-push-check", action="store_true")
     parser.add_argument("--no-color", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="DEPRECATED: Show job details without submitting")
     parser.add_argument("--skip-validation", action="store_true", help="Skip confirmation prompt")
+    # Add the new timeout parameter
+    parser.add_argument(
+        "--timeout-minutes",
+        type=int,
+        help="Automatically terminate the job after this many minutes.",
+    )
     args, task_args = parser.parse_known_args()
 
     use_colors(sys.stdout.isatty() and not args.no_color)

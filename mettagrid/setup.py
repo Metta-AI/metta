@@ -1,38 +1,64 @@
-#!/usr/bin/env python3
-import importlib.util
+import multiprocessing
 import os
-import sys
+import site
 
-# Determine which build system to use based on environment variable or command line argument
-# Default to cython if not specified
-build_system = os.environ.get("BUILD_SYSTEM", "cython").lower()
+from setuptools import Extension, setup
+from setuptools.command.build_ext import build_ext
 
-# Allow command line override with --build-system=pybind or --build-system=cython
-for arg in sys.argv:
-    if arg.startswith("--build-system="):
-        build_system = arg.split("=")[1].lower()
-        sys.argv.remove(arg)
-        break
+multiprocessing.freeze_support()
 
-# Map build system names to their setup file
-setup_files = {
-    "cython": "setup-cython.py",
-    "pybind": "setup-pybind.py",
-}
+site_packages = site.getsitepackages()[0]
 
-if build_system not in setup_files:
-    print(f"Error: Unknown build system '{build_system}'. Valid options are: {', '.join(setup_files.keys())}")
-    sys.exit(1)
+# Get NumPy and pybind11 includes
+numpy_include = os.path.join(site_packages, "numpy/core/include")
+pybind11_include = os.path.join(site_packages, "pybind11/include")
 
-setup_file = setup_files[build_system]
-print(f"Using build system: {build_system} (from {setup_file})")
 
-# Import and run the appropriate setup file as a module
-spec = importlib.util.spec_from_file_location("setup_module", setup_file)
-if spec is None or spec.loader is None:
-    print(f"Error: Could not find {setup_file}")
-    sys.exit(1)
+def find_source_files(directory):
+    source_files = []
+    for root, _dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith(".cpp"):
+                source_files.append(os.path.join(root, file))
+    return source_files
 
-setup_module = importlib.util.module_from_spec(spec)
-sys.modules["setup_module"] = setup_module
-spec.loader.exec_module(setup_module)
+
+# Get all CPP files (only .cpp files are used for sources)
+cpp_sources = find_source_files("mettagrid")
+print(f"Found {len(cpp_sources)} source files: {cpp_sources}")
+
+
+class CustomBuildExt(build_ext):
+    def build_extensions(self):
+        extra_compile_args = ["-std=c++20", "-fvisibility=hidden"]
+        extra_link_args = ["-std=c++20"]
+
+        # Add includes
+        for ext in self.extensions:
+            ext.include_dirs.extend([numpy_include, pybind11_include, "mettagrid"])
+            ext.extra_compile_args.extend(extra_compile_args)
+            ext.extra_link_args.extend(extra_link_args)
+
+        build_ext.build_extensions(self)
+
+
+ext_modules = [
+    Extension(
+        "mettagrid.mettagrid_c",
+        sources=cpp_sources,
+        define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
+    )
+]
+
+
+# Setup
+setup(
+    name="mettagrid",
+    package_data={"mettagrid": ["*.so"]},
+    zip_safe=False,
+    version="0.1.6",
+    packages=["mettagrid"],
+    ext_modules=ext_modules,
+    cmdclass={"build_ext": CustomBuildExt},
+    python_requires="==3.11.7",
+)

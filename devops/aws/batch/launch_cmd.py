@@ -60,7 +60,7 @@ def main():
         parser.add_argument("--cpu-ram-gb", type=int, default=20, help="RAM per node in GB.")
         parser.add_argument("--copies", type=int, default=1, help="Number of job copies to submit.")
         parser.add_argument(
-            "--profile", default="stem", help="AWS profile to use. If not specified, uses the default profile."
+            "--profile", default="softmax-db", help="AWS profile to use. If not specified, uses the default profile."
         )
         parser.add_argument("--job-queue", default="metta-jq", help="AWS Batch job queue to use.")
         parser.add_argument("--skip-push-check", action="store_true", help="Skip checking if commits have been pushed.")

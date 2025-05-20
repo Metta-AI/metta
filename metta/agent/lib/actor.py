@@ -221,15 +221,6 @@ class MettaActorSingleHead(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        """
-        Initialize the MettaActorSingleHead layer.
-
-        Args:
-            **cfg: Configuration parameters for the base layer
-        """
-        super().__init__(**cfg)
-
     @override
     def _make_net(self) -> nn.Module:
         """
