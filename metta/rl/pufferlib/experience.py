@@ -17,12 +17,15 @@ Key features:
 - Manages minibatch creation for training
 """
 
+import logging
 from typing import Optional, Tuple
 
 import numpy as np
 import pufferlib
 import pufferlib.pytorch
 import torch
+
+logger = logging.getLogger("Experience")
 
 
 class Experience:
@@ -152,17 +155,21 @@ class Experience:
 
         mask_np: np.ndarray = mask.cpu().numpy()
         indices = np.where(mask_np)[0]
-        num_indices = indices.size
 
-        assert ptr + num_indices <= self.batch_size, (
-            f"Buffer overrun detected: trying to store {num_indices} elements at position {ptr}, "
-            f"but buffer capacity is {self.batch_size}. Total would be {ptr + num_indices}."
-        )
+        # Calculate how many indices we can actually store
+        remaining_space = self.batch_size - ptr
+        num_indices_to_store = min(indices.size, remaining_space)
 
-        end = ptr + num_indices
+        if remaining_space < indices.size:
+            logger.warning(
+                f"truncating store to avoid buffer overrun, ptr = {ptr}, "
+                f"indices.size = {indices.size}, remaining_space = {remaining_space}"
+            )
+
+        end = ptr + num_indices_to_store
         dst = slice(ptr, end)
 
-        cpu_inds = indices[: self.batch_size - ptr]
+        cpu_inds = indices[:num_indices_to_store]
 
         self.obs[dst] = obs.to(self.obs.device, non_blocking=True)[cpu_inds]
         self.values_np[dst] = value.cpu().numpy()[cpu_inds]
