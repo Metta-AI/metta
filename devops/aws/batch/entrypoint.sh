@@ -43,7 +43,12 @@ else
 fi
 
 # Setup build (installs requirements)
-./devops/setup_build.sh
+uv pip install -r requirements.txt
+python setup.py build_ext --inplace
+uv pip install -e .
+
+uv pip install -e mettagrid
+uv run --active --directory mettagrid python setup.py build_ext --inplace
 
 export NUM_NODES=${AWS_BATCH_JOB_NUM_NODES:-1}
 export MASTER_ADDR=${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS:-localhost}
