@@ -22,7 +22,7 @@ gamma: 0.977
 #   learning_rate: 0.000238167
 
 optimizer:
-  type: adam
+  type: muon
   beta1: 0.862440463915262
   beta2: 0.9995722874745067
   eps: 9.852709528951554e-13
@@ -53,7 +53,7 @@ verbose: true
 batch_size: 524288
 # minibatch_size: 32768
 minibatch_size: 16384
-bptt_horizon: auto
+bptt_horizon: 8
 update_epochs: 1
 
 cpu_offload: false
