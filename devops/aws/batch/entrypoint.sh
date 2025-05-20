@@ -21,6 +21,15 @@ set -e
 # Source environment variables first to set up any paths
 source ./devops/env.sh 2>/dev/null || true
 
+# Link training directory
+ln -s /mnt/efs/train_dir train_dir 2> /dev/null
+# Create dist directory
+mkdir -p train_dir/dist/$RUN_ID 2> /dev/null
+
+# Start logging everything to the log file and stdout
+exec > >(tee -a "$LOG_FILE") 2>&1
+echo "=== Logging to $LOG_FILE ==="
+
 # Setup log directory and file early
 export NODE_INDEX=${AWS_BATCH_JOB_NODE_INDEX:-0}
 export LOG_FILE="train_dir/logs/${JOB_NAME}.${NODE_INDEX}.log"
@@ -154,15 +163,6 @@ if [ ! -z "$JOB_TIMEOUT_MINUTES" ] && [ "$NODE_INDEX" = "0" -o "$AWS_BATCH_JOB_N
         exit 0
     fi
 fi
-
-# Link training directory
-ln -s /mnt/efs/train_dir train_dir 2> /dev/null || true
-# Create dist directory
-mkdir -p train_dir/dist/$RUN_ID 2>/dev/null || true
-
-# Start logging everything to the log file and stdout
-exec > >(tee -a "$LOG_FILE") 2>&1
-echo "=== Logging to $LOG_FILE ==="
 
 # Log timeout information if set
 if [ ! -z "$JOB_TIMEOUT_MINUTES" ]; then
