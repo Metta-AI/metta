@@ -31,7 +31,8 @@ def make_app(cfg: DictConfig):
 
     @app.get("/{path:path}.css")
     async def get_style_css(path: str):
-        assert "/" not in path and "." not in path, "Path must not contain / or ."
+        if "/" in path or "." in path:
+            raise HTTPException(status_code=400, detail="Path must not contain '/' or '.'")
         try:
             with open(f"mettascope/{path}.css", "r") as file:
                 css_content = file.read()

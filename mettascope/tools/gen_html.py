@@ -246,6 +246,7 @@ html, body {
 
         # Create HTML document structure
         html_node = DomNode("html")
+        html_node.set_attribute("lang", "en")
         head = html_node.append_child(DomNode("head"))
         body = html_node.append_child(DomNode("body"))
 
@@ -499,8 +500,6 @@ html, body {
                 # Don't apply flex properties to absolutely positioned elements
                 return
 
-            layout_align = element.get("layoutAlign")
-            layout_grow = element.get("layoutGrow", 0)
             layout_align = element.get("layoutAlign")
             layout_grow = element.get("layoutGrow", 0)
 
