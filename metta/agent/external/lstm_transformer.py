@@ -45,6 +45,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         logits, values = self.policy.decode_actions(hidden)
         return logits, values
 
+
 class Policy(nn.Module):
     """Stronger drop‑in replacement for the original CNN+MLP policy.
 
