@@ -1,6 +1,12 @@
 #ifndef METTAGRID_C_HPP
 #define METTAGRID_C_HPP
 
+#if defined(_WIN32)
+#define METTAGRID_API __declspec(dllexport)
+#else
+#define METTAGRID_API __attribute__((visibility("default")))
+#endif
+
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -21,7 +27,7 @@ class GridObject;
 
 namespace py = pybind11;
 
-class MettaGrid {
+class METTAGRID_API MettaGrid {
 public:
   MettaGrid(py::dict env_cfg, py::array map);
   ~MettaGrid();
@@ -61,9 +67,6 @@ private:
   py::dict _cfg;
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
-  // TODO: it's not clear why we need two of these, or why they need to be numpy arrays.
-  // See if we can change that.
-  py::array_t<double> _group_rewards;
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
   unsigned int _current_timestep;

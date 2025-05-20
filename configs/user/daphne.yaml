@@ -13,8 +13,8 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/navigation/training/multienv
-  # evaluate_interval: 10
+  env: /env/mettagrid/object_use/training/multienv_nc
+  evaluate_interval: 10
 
 # policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
 # baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
@@ -42,10 +42,9 @@ policy_uri: wandb://run/b.georgedeane.george_sequence_no_increment
 
 wandb:
   enabled: true
-  track: true
   checkpoint_interval: 1
 
-run_id: 3
+run_id: 1
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

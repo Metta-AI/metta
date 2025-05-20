@@ -1,0 +1,65 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+
+game:
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 10
+    border_width: 6
+
+    room:
+      _target_: mettagrid.config.room.random.Random
+      width: ${sampling:10,50,25}
+      height: ${sampling:10,50,25}
+      border_width: 3
+
+      agents: 1
+
+      objects: ???
+
+  num_agents: 10
+  max_steps: 1000
+
+  agent:
+    max_inventory: 100
+    freeze_duration: ${sampling:0, 200, 10}
+    hp: 10
+    mortal: False
+    rewards:
+      action_failure_penalty: 0
+      ore.red: ${sampling:0.005,0.1, 0.01}
+      ore.blue: ${sampling:0.005,0.1, 0.01}
+      ore.green: ${sampling:0.005,0.1, 0.01}
+      battery.red: ${sampling:0.01,1, 0.1}
+      battery.blue: ${sampling:0.01,1, 0.1}
+      battery.green: ${sampling:0.01,1, 0.1}
+      battery_max: 5
+      heart: 1
+      heart_max: 1000
+
+  objects:
+      altar:
+        input_battery.green: 1
+        output_heart: 1
+        initial_items: ${choose:0,1}
+        cooldown: ${sampling:1, 20, 10}
+
+      generator.green:
+        cooldown: ${sampling:5, 20, 10}
+
+      generator.red:
+        cooldown: ${sampling:5, 20, 10}
+
+      generator.blue:
+        cooldown: ${sampling:5, 20, 10}
+
+      mine.red:
+        cooldown: ${sampling:15, 50, 10}
+
+      mine.blue:
+        cooldown: ${sampling:15, 50, 10}
+
+      mine.green:
+        cooldown: ${sampling:15, 50, 10}
