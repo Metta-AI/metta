@@ -2,7 +2,7 @@
 
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
-
+#include <iostream>
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
@@ -35,8 +35,10 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _max_timestep = cfg["max_steps"].cast<unsigned int>();
   _obs_width = cfg["obs_width"].cast<unsigned short>();
   _obs_height = cfg["obs_height"].cast<unsigned short>();
-  _use_observation_tokens = cfg["use_observation_tokens"].cast<bool>();
-  unsigned int num_observation_tokens = cfg["num_observation_tokens"].cast<unsigned int>();
+  _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
+  unsigned int num_observation_tokens = cfg.contains("num_observation_tokens")
+                                            ? cfg["num_observation_tokens"].cast<unsigned int>()
+                                            : 0;
 
   _current_timestep = 0;
 
@@ -159,21 +161,29 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
+  std::cout << "num_agents: " << num_agents << std::endl;
+  std::cout << "num_observation_tokens: " << num_observation_tokens << std::endl;
   if (_use_observation_tokens) {
-    std::vector<ssize_t> shape = {static_cast<ssize_t>(num_agents),
+    std::cout << "using observation tokens" << std::endl;
+    shape = {static_cast<ssize_t>(num_agents),
                                 static_cast<ssize_t>(num_observation_tokens),
                                 static_cast<ssize_t>(3)};
   } else {
-  std::vector<ssize_t> shape = {static_cast<ssize_t>(num_agents),
-                                static_cast<ssize_t>(_obs_height),
-                                static_cast<ssize_t>(_obs_width),
-                                static_cast<ssize_t>(_grid_features.size())};
+    std::cout << "not using observation tokens " << num_agents << " " << _obs_height << " " << _obs_width << " "
+              << _grid_features.size() << std::endl;
+    shape = {static_cast<ssize_t>(num_agents),
+                                  static_cast<ssize_t>(_obs_height),
+                                  static_cast<ssize_t>(_obs_width),
+                                  static_cast<ssize_t>(_grid_features.size())};
   }
+  std::cout << "making observations" << std::endl;
   auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
+  std::cout << "observations: " << observations << std::endl;
   auto terminals = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
   auto truncations = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
   auto rewards = py::array_t<float, py::array::c_style>(static_cast<ssize_t>(num_agents));
 
+  std::cout << "setting buffers" << std::endl;
   set_buffers(observations, terminals, truncations, rewards);
 }
 
@@ -379,10 +389,16 @@ void MettaGrid::validate_buffers() {
   // We should validate once buffers and agents are set.
   // data types and contiguity are handled by pybind11. We still need to check
   // shape.
+  std::cout << "validating buffers " << _use_observation_tokens << std::endl;
   unsigned int num_agents = _agents.size();
   if (_use_observation_tokens) {
+    std::cout << "using observation tokens" << std::endl;
     auto observation_info = _observations.request();
+    std::cout << "observation_info.ndim: " << observation_info.ndim << std::endl;
     auto shape = observation_info.shape;
+    std::cout << "shape[0]: " << shape[0] << std::endl;
+    std::cout << "shape[1]: " << shape[1] << std::endl;
+    std::cout << "shape[2]: " << shape[2] << std::endl;
     if (observation_info.ndim != 3 || shape[0] != num_agents || shape[2] != 3) {
       std::stringstream ss;
       ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["
