@@ -8,13 +8,14 @@ from einops import rearrange
 
 
 class Recurrent(pufferlib.models.LSTMWrapper):
-    def __init__(self, env, policy=None, input_size=384, hidden_size=384):
+    def __init__(self, env, policy=None, cnn_channels=128, input_size=384, hidden_size=384):
         if policy is None:
-            policy = Policy(env)
+            policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size)
         super().__init__(env, policy, input_size, hidden_size)
 
     def forward(self, observations, state):
         """Forward function for inference. 3x faster than using LSTM directly"""
+        # Either [B, T, H, W, C] or [B, H, W, C]
         if len(observations.shape) == 5:
             x = observations.permute(0, 1, 4, 2, 3).float()
             x[:] /= self.policy.max_vec  # [B, C, H, W]
@@ -145,15 +146,9 @@ class Policy(nn.Module):
 
         self.register_buffer("max_vec", max_vec)
 
-    # =====================================================================
-    #  Public interface expected by wrapper
-    # =====================================================================
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Maps raw env observations → latent *hidden_size* vector."""
-        self.max_vec = self.max_vec.to(observations.device)
-        # x = observations.permute(0, 3, 1, 2).float() / self.max_vec  # [B, C, H, W]
-        x = observations
-        observations = x.clone().permute(0, 2, 3, 1)
+        x = observations  # .permute(0, 3, 1, 2)
         B = x.size(0)
 
         # 1) Conv stem -----------------------------------------------------------------------
@@ -173,7 +168,7 @@ class Policy(nn.Module):
         vis_feat = tokens[:, 0]  # CLS token
 
         # 5) Self vector ---------------------------------------------------------------------
-        self_vec = observations[:, 5, 5, :].float() / self.max_vec[0, :, 0, 0]  # [B, 34]
+        self_vec = observations.permute(0, 2, 3, 1)[:, 5, 5, :].float()  # / self.max_vec[0, :, 0, 0]  # [B, 34]
         self_feat = self.self_encoder(self_vec)
 
         # 6) Fuse & project ------------------------------------------------------------------
