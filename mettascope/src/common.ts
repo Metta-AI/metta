@@ -136,7 +136,7 @@ export function setFollowSelection(map: boolean | null) {
 
 // Show the modal
 export function showModal(type: string, title: string, message: string) {
-  html.modal.style.display = 'block';
+  html.modal.classList.remove('hidden');
   html.modal.classList.add(type);
   const header = html.modal.querySelector('.header');
   if (header) {
@@ -146,6 +146,7 @@ export function showModal(type: string, title: string, message: string) {
   if (content) {
     content.textContent = message;
   }
+  console.log("showing modal", html.modal, type, title, message);
 }
 
 // Close the modal
@@ -153,7 +154,7 @@ export function closeModal() {
   // Remove error class from modal.
   html.modal.classList.remove('error');
   html.modal.classList.remove('info');
-  html.modal.style.display = 'none';
+  html.modal.classList.add('hidden');
 }
 
 // Functions to show and hide toast notifications

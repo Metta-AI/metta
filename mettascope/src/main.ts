@@ -303,7 +303,11 @@ async function parseUrlParams() {
     await fetchReplay(replayUrl);
     focusFullMap(ui.mapPanel);
   } else if (wsUrl) {
-    console.log("Connecting to a websocket: ", wsUrl);
+    Common.showModal(
+      "info",
+      "Connecting to a websocket",
+      "Please wait a few seconds for the environment to load."
+    );
     initWebSocket(wsUrl);
   } else {
     Common.showModal(
