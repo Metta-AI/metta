@@ -7,6 +7,6 @@ game:
   num_agents: ${..num_agents}
 
 envs:
-  - /env/mettagrid/object_use/training/sequence_dr1
-  - /env/mettagrid/object_use/training/sequence_dr2
-  - /env/mettagrid/object_use/training/sequence_dr3
+  - /env/mettagrid/in_context_learning/training/sequence_dr1
+  - /env/mettagrid/in_context_learning/training/sequence_dr2
+  - /env/mettagrid/in_context_learning/training/sequence_dr3
