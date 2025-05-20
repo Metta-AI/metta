@@ -160,7 +160,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
                                 static_cast<ssize_t>(_obs_height),
                                 static_cast<ssize_t>(_obs_width),
                                 static_cast<ssize_t>(_grid_features.size())};
-  auto observations = py::array_t<unsigned char, py::array::c_style>(shape);
+  auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
   auto terminals = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
   auto truncations = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
   auto rewards = py::array_t<float, py::array::c_style>(static_cast<ssize_t>(num_agents));
@@ -252,7 +252,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0);
 
-  auto obs_ptr = static_cast<unsigned char*>(_observations.request().ptr);
+  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, 0);
 
@@ -326,7 +326,7 @@ py::tuple MettaGrid::reset() {
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
 
   // Clear observations
-  auto obs_ptr = static_cast<unsigned char*>(_observations.request().ptr);
+  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, 0);
 
@@ -378,7 +378,7 @@ void MettaGrid::validate_buffers() {
   }
 }
 
-void MettaGrid::set_buffers(py::array_t<unsigned char, py::array::c_style>& observations,
+void MettaGrid::set_buffers(py::array_t<uint8_t, py::array::c_style>& observations,
                             py::array_t<bool, py::array::c_style>& terminals,
                             py::array_t<bool, py::array::c_style>& truncations,
                             py::array_t<float, py::array::c_style>& rewards) {
