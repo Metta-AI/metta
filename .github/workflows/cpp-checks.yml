@@ -204,10 +204,10 @@ jobs:
           cd mettagrid
           make build
 
-      - name: Sanity check
+      - name: Check build dependencies
         run: |
           cd mettagrid
-          make check-dependencies
+          make check-build-dependencies
 
       - name: Check cache paths before saving
         shell: bash
@@ -300,6 +300,11 @@ jobs:
           cd mettagrid
           make build
 
+      - name: Check test dependencies
+        run: |
+          cd mettagrid
+          make check-test-dependencies
+
       - name: Build C++ tests
         run: |
           cd mettagrid
@@ -351,6 +356,11 @@ jobs:
         run: |
           cd mettagrid
           make build
+
+      - name: Check benchmark dependencies
+        run: |
+          cd mettagrid
+          make check-benchmark-dependencies
 
       - name: Build C++ benchmarks
         run: |
