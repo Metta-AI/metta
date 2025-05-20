@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid/object_use/training/defaults@
+  - /env/mettagrid/object_use/training/defaults@
   - _self_
 
 
