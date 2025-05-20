@@ -161,7 +161,7 @@ export function closeModal() {
 export function showToast(message: string, duration = 3000) {
   // Set the message
   let msg = html.toast.querySelector('.message')
-  if (msg != null){
+  if (msg != null) {
     msg.textContent = message
   }
   // Remove any existing classes
