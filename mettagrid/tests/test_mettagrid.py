@@ -92,7 +92,7 @@ def test_observation():
 def test_grid_objects():
     env = create_minimal_mettagrid_env()
     objects = env.grid_objects()
-    
+
     # Test that we have the expected number of objects
     # 4 walls on each side (minus corners) + 2 agents
     expected_walls = 2 * (env.map_width() + env.map_height() - 2)
@@ -100,7 +100,7 @@ def test_grid_objects():
     assert len(objects) == expected_walls + expected_agents, "Wrong number of objects"
 
     common_properties = {"r", "c", "layer", "type", "id"}
-    
+
     for obj in objects.values():
         if obj.get("wall"):
             assert set(obj) == {"wall", "hp", "swappable"} | common_properties
@@ -108,7 +108,10 @@ def test_grid_objects():
             assert obj["hp"] == 100, "Wall should have 100 hp"
         if obj.get("agent"):
             # agents will also have various inventory, which we don't list here
-            assert set(obj).issuperset({"agent", "agent:group", "hp", "agent:frozen", "agent:orientation", "agent:color", "agent:inv:heart"} | common_properties)
+            assert set(obj).issuperset(
+                {"agent", "agent:group", "hp", "agent:frozen", "agent:orientation", "agent:color", "agent:inv:heart"}
+                | common_properties
+            )
             assert obj["agent"] == 1, "Agent should have type 1"
             assert obj["agent:group"] == 0, "Agent should be in group 0"
             assert obj["hp"] == 100, "Agent should have 100 hp"
