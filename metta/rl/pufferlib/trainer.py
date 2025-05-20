@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -682,20 +683,22 @@ class PufferTrainer:
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         if self.wandb_run and self._master:
-            self.wandb_run.log(
-                {
-                    **{f"overview/{k}": v for k, v in overview.items()},
-                    **{f"losses/{k}": v for k, v in losses.items()},
-                    **{f"performance/{k}": v for k, v in performance.items()},
-                    **environment,
-                    **self._weights_helper.stats(),
-                    **self._eval_grouped_scores,
-                    "train/agent_step": agent_steps,
-                    "train/epoch": epoch,
-                    "train/learning_rate": learning_rate,
-                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
-                }
-            )
+            # Prepare all the data to log
+            log_data = {
+                **{f"overview/{k}": v for k, v in overview.items()},
+                **{f"losses/{k}": v for k, v in losses.items()},
+                **{f"performance/{k}": v for k, v in performance.items()},
+                **environment,
+                **self._weights_helper.stats(),
+                **self._eval_grouped_scores,
+                "train/agent_step": agent_steps,
+                "train/epoch": epoch,
+                "train/learning_rate": learning_rate,
+                "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+            }
+
+            # Launch wandb logging in a separate thread
+            threading.Thread(target=self._log_to_wandb, args=(log_data,), daemon=True).start()
 
         self._eval_grouped_scores = {}
         self._weights_helper.reset()
