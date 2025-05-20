@@ -91,58 +91,49 @@ if [ ! -z "$JOB_TIMEOUT_MINUTES" ] && [ "$NODE_INDEX" = "0" -o "$AWS_BATCH_JOB_N
             # Give it some time to save checkpoints
             timeout_log "Waiting 30 seconds for graceful termination and checkpoint saving..."
             sleep 30
-        else
-            timeout_log "Could not identify main process"
-        fi
-        
-        # Terminate the job via AWS Batch API
-        if [ ! -z "$AWS_BATCH_JOB_ID" ]; then
-            timeout_log "Terminating AWS Batch job $AWS_BATCH_JOB_ID via AWS API"
             
-            # Verify AWS CLI is available
-            if ! command -v aws &> /dev/null; then
-                timeout_log "ERROR: AWS CLI is not installed or not in PATH"
+            # Check if the process is still running
+            if kill -0 $MAIN_PID 2>/dev/null; then
+                timeout_log "Process $MAIN_PID is still running, sending SIGKILL"
+                kill -9 $MAIN_PID 2>> $TIMEOUT_LOG || timeout_log "Failed to send SIGKILL to $MAIN_PID"
             else
-                timeout_log "AWS CLI is available"
-                
-                # Verify AWS credentials
-                if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-                    timeout_log "ERROR: AWS credentials not set in environment"
-                else
-                    timeout_log "AWS credentials are set"
-                    
-                    # Call AWS Batch API to terminate the job
-                    TERMINATION_RESULT=$(aws batch terminate-job \
-                        --job-id $AWS_BATCH_JOB_ID \
-                        --reason "Timeout of ${TIMEOUT_DISPLAY} reached" \
-                        --region us-east-1 2>&1)
-                    
-                    TERMINATION_EXIT_CODE=$?
-                    if [ $TERMINATION_EXIT_CODE -eq 0 ]; then
-                        timeout_log "Successfully sent termination request to AWS Batch API"
-                    else
-                        timeout_log "ERROR: Failed to terminate job via API: $TERMINATION_EXIT_CODE"
-                        timeout_log "API response: $TERMINATION_RESULT"
-                    fi
-                fi
+                timeout_log "Process $MAIN_PID has terminated successfully"
             fi
         else
-            timeout_log "ERROR: AWS_BATCH_JOB_ID not found. Cannot terminate job via API."
+            timeout_log "Could not identify main process"
+            
+            # If we can't find the main process, try to find any Python processes
+            timeout_log "Attempting to terminate all Python processes"
+            pkill -15 python 2>> $TIMEOUT_LOG || timeout_log "No Python processes found to terminate"
+            pkill -15 python3 2>> $TIMEOUT_LOG || timeout_log "No Python3 processes found to terminate"
+            sleep 5
+            pkill -9 python 2>> $TIMEOUT_LOG || true
+            pkill -9 python3 2>> $TIMEOUT_LOG || true
         fi
         
-        # Wait a bit more, then try more aggressive termination
-        timeout_log "Waiting 30 more seconds for API termination to take effect..."
-        sleep 30
+        # AWS Batch API call is now a fallback only if process termination fails
+        if kill -0 $MAIN_PID 2>/dev/null || pgrep -f python > /dev/null; then
+            timeout_log "Process termination failed or other Python processes still running. Trying AWS Batch API as fallback."
+            
+            # Terminate the job via AWS Batch API
+            if [ ! -z "$AWS_BATCH_JOB_ID" ] && command -v aws &> /dev/null && [ ! -z "$AWS_ACCESS_KEY_ID" ]; then
+                timeout_log "Terminating AWS Batch job $AWS_BATCH_JOB_ID via AWS API"
+                
+                # Call AWS Batch API to terminate the job
+                aws batch terminate-job \
+                    --job-id $AWS_BATCH_JOB_ID \
+                    --reason "Timeout of ${TIMEOUT_DISPLAY} reached" \
+                    --region us-east-1 2>&1 >> $TIMEOUT_LOG
+                
+                timeout_log "Termination request sent to AWS Batch API"
+            else
+                timeout_log "AWS Batch API call not possible (missing AWS_BATCH_JOB_ID, AWS CLI, or credentials)"
+            fi
+        fi
         
-        # If we're still running, try killing all Python processes
-        timeout_log "Still running after API termination attempt. Trying to kill all Python processes..."
-        pkill -9 python 2>> $TIMEOUT_LOG || timeout_log "No Python processes found to kill"
-        pkill -9 python3 2>> $TIMEOUT_LOG || timeout_log "No Python3 processes found to kill"
-        
-        # As a last resort, exit the script with an error code
-        timeout_log "Forcing exit of the script with exit code 143 (SIGTERM)"
-        kill -9 -1 2>/dev/null || timeout_log "Failed to send SIGKILL to all processes in the group"
-        exit 143
+        # Exit the timeout process
+        timeout_log "Timeout process complete"
+        exit 0
     ) &
     
     # Store the timeout process ID
@@ -151,6 +142,17 @@ if [ ! -z "$JOB_TIMEOUT_MINUTES" ] && [ "$NODE_INDEX" = "0" -o "$AWS_BATCH_JOB_N
     
     # Create a trap to clean up the timeout process if the script exits normally
     trap 'timeout_log "Job completed normally, canceling timeout monitor."; kill $TIMEOUT_PID 2>/dev/null || true' EXIT
+    
+    # Immediately exit the timeout process if testing
+    if [ "$JOB_TIMEOUT_MINUTES" = "test" ]; then
+        timeout_log "TEST MODE: Triggering immediate termination"
+        kill -9 $TIMEOUT_PID
+        aws batch terminate-job \
+            --job-id $AWS_BATCH_JOB_ID \
+            --reason "Test termination" \
+            --region us-east-1
+        exit 0
+    fi
 fi
 
 # Link training directory
