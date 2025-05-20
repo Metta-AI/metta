@@ -454,8 +454,6 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
 
 py::dict MettaGrid::grid_objects() {
   py::dict objects;
-  auto obj_data = py::array_t<unsigned char>(_grid_features.size());
-  auto obj_data_view = obj_data.mutable_unchecked<1>();
 
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     auto obj = _grid->object(obj_id);
@@ -474,13 +472,14 @@ py::dict MettaGrid::grid_objects() {
     for (size_t i = 0; i < offsets.size(); i++) {
       offsets[i] = i;
     }
+    unsigned char obj_data[type_features.size()];
 
     // Encode object features
-    _obs_encoder->encode(obj, obj_data_view.mutable_data(0), offsets);
+    _obs_encoder->encode(obj, obj_data, offsets);
 
     // Add features to object dict
     for (size_t i = 0; i < type_features.size(); i++) {
-      obj_dict[py::str(type_features[i])] = obj_data_view(i);
+      obj_dict[py::str(type_features[i])] = obj_data[i];
     }
 
     objects[py::int_(obj_id)] = obj_dict;
