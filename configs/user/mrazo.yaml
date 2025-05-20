@@ -1,13 +1,20 @@
 # @package __global__
 
 defaults:
+  # - /sim/all@replay_job.sim
   - _self_
 
 trainer:
-  env: env/mettagrid/object_use/training/large-small_multienv
+  env: env/mettagrid/navigation/training/multienv
   # initial_policy:
   #   uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
-  evaluate_interval: 100
-  checkpoint_interval: 100
+  # evaluate_interval: 100
+  # checkpoint_interval: 100
 
-run: mrazo_object-use_allobs_large-small-multienv_v01
+replay_job:
+  policy_uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
+  # wandb.enabled: false
+  wandb.track: false
+
+
+run: mrazo_test_v02
