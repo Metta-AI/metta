@@ -1,6 +1,6 @@
 _target_: metta.env.mettagrid_env_set.MettaGridEnvSet
 
-num_agents: 4
+num_agents: 10
 sampling: 1
 
 game:
@@ -10,8 +10,3 @@ envs:
   - /env/mettagrid/object_use/training/sequence_dr1
   - /env/mettagrid/object_use/training/sequence_dr2
   - /env/mettagrid/object_use/training/sequence_dr3
-  - /env/mettagrid/object_use/training/sequence_dr4
-  - /env/mettagrid/object_use/training/sequence_dr5
-  - /env/mettagrid/object_use/training/sequence_dr6
-
-#  dd
