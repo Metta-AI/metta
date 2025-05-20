@@ -18,22 +18,24 @@ set -e
 # - AWS_BATCH_JOB_MAIN_NODE_INDEX: Index of the main node
 # - AWS_BATCH_JOB_NUM_NODES: Total number of nodes in the job
 
-# Source environment variables first to set up any paths
-source ./devops/env.sh 2>/dev/null || true
+
+# Source environment variables
+source ./devops/env.sh
 
 # Link training directory
-ln -s /mnt/efs/train_dir train_dir 2> /dev/null
-# Create dist directory
-mkdir -p train_dir/dist/$RUN_ID 2> /dev/null
+ln -s /mnt/efs/train_dir train_dir
 
-# Start logging everything to the log file and stdout
-exec > >(tee -a "$LOG_FILE") 2>&1
-echo "=== Logging to $LOG_FILE ==="
+# Create dist directory
+mkdir -p train_dir/dist/$RUN_ID
 
 # Setup log directory and file early
 export NODE_INDEX=${AWS_BATCH_JOB_NODE_INDEX:-0}
 export LOG_FILE="train_dir/logs/${JOB_NAME}.${NODE_INDEX}.log"
+
 mkdir -p $(dirname $LOG_FILE) 2>/dev/null || true
+# Start logging everything to the log file and stdout
+exec > >(tee -a "$LOG_FILE") 2>&1
+echo "=== Logging to $LOG_FILE ==="
 
 # Function to log timeout-related messages to both stdout and our timeout log
 function timeout_log() {
