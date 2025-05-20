@@ -17,6 +17,7 @@ def environment(cfg):
     """Create and initialize the environment."""
     print(OmegaConf.to_yaml(cfg))
     env = MettaGridEnv(cfg, render_mode="human", recursive=False)
+    env.reset()
     yield env
     # Cleanup after test
     del env
@@ -26,6 +27,26 @@ def environment(cfg):
 def single_action(environment):
     """Generate an array of actions with shape (num_agents, 2) to use for benchmarking."""
     return environment.action_space.sample()[0]
+
+
+def test_step_performance(benchmark, environment, single_action):
+    """Benchmark just the step method performance."""
+
+    np.random.seed(42)
+
+    def run_step():
+        obs, rewards, terminated, truncated, infos = environment.step(single_action)
+        # Check if any episodes terminated or truncated
+        if np.any(terminated) or np.any(truncated):
+            environment.reset()
+
+    # Run the benchmark
+    benchmark.pedantic(
+        run_step,
+        iterations=1000,  # Number of iterations per round
+        rounds=10,  # Number of rounds to run
+        warmup_rounds=0,  # Number of warmup rounds to discard
+    )
 
 
 def test_step_performance_no_reset(benchmark, environment, single_action):
