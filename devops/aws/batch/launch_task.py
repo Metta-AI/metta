@@ -26,7 +26,7 @@ def get_specs():
     }
 
 
-def container_config(args, task_args, job_name):
+def container_config(args, task_args, job_name, session=None):
     try:
         netrc_info = netrc.netrc(os.path.expanduser("~/.netrc"))
         auth_data = netrc_info.authenticators("api.wandb.ai")
@@ -45,6 +45,19 @@ def container_config(args, task_args, job_name):
 
     # Determine the git reference to use (commit or branch)
     git_ref = args.git_commit if args.git_commit else args.git_branch
+
+    # Get AWS credentials from boto3 session to pass to the container
+    aws_credentials = None
+    aws_access_key = ""
+    aws_secret_key = ""
+    aws_session_token = None
+
+    if session:
+        aws_credentials = session.get_credentials()
+        if aws_credentials:
+            aws_access_key = aws_credentials.access_key
+            aws_secret_key = aws_credentials.secret_key
+            aws_session_token = aws_credentials.token
 
     env_vars = [
         {"name": "HYDRA_FULL_ERROR", "value": "1"},
@@ -67,7 +80,19 @@ def container_config(args, task_args, job_name):
         {"name": "NUM_WORKERS", "value": str(vcpus_per_gpu)},
         {"name": "GIT_REF", "value": git_ref},
         {"name": "TASK_ARGS", "value": " ".join(task_args)},
+        # Add AWS credentials for the timeout script to use AWS CLI
+        {"name": "AWS_ACCESS_KEY_ID", "value": aws_access_key},
+        {"name": "AWS_SECRET_ACCESS_KEY", "value": aws_secret_key},
+        {"name": "AWS_DEFAULT_REGION", "value": "us-east-1"},
     ]
+
+    # Add AWS session token if available (for temporary credentials)
+    if aws_session_token:
+        env_vars.append({"name": "AWS_SESSION_TOKEN", "value": aws_session_token})
+
+    # Add timeout environment variable if specified
+    if args.timeout_minutes:
+        env_vars.append({"name": "JOB_TIMEOUT_MINUTES", "value": str(args.timeout_minutes)})
 
     entrypoint_cmd = [
         "git fetch",
@@ -76,6 +101,28 @@ def container_config(args, task_args, job_name):
     ]
 
     print(f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, {total_vcpus} vCPUs, {args.node_ram_gb}GB RAM")
+    if args.timeout_minutes:
+        print(yellow(f"Job will automatically terminate after {args.timeout_minutes} minutes"))
+
+    return {
+        "command": ["; ".join(entrypoint_cmd)],
+        "environment": env_vars,
+        "resourceRequirements": [
+            {"type": "GPU", "value": str(args.node_gpus)},
+            {"type": "VCPU", "value": str(total_vcpus)},
+            {"type": "MEMORY", "value": str(memory_mb)},
+        ],
+    }
+
+    entrypoint_cmd = [
+        "git fetch",
+        f"git checkout {git_ref}",
+        "./devops/aws/batch/entrypoint.sh",
+    ]
+
+    print(f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, {total_vcpus} vCPUs, {args.node_ram_gb}GB RAM")
+    if args.timeout_minutes:
+        print(yellow(f"Job will automatically terminate after {args.timeout_minutes} minutes"))
 
     return {
         "command": ["; ".join(entrypoint_cmd)],
@@ -166,6 +213,21 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
     print(f"Total GPUs: {args.gpus}")
     print(f"vCPUs per GPU: {args.gpu_cpus}")
     print(f"RAM per Node: {args.node_ram_gb} GB")
+
+    # Add timeout information to job summary with more prominence
+    if args.timeout_minutes:
+        timeout_hours = args.timeout_minutes // 60
+        timeout_mins = args.timeout_minutes % 60
+
+        if timeout_hours > 0:
+            timeout_str = f"{timeout_hours}h {timeout_mins}m"
+        else:
+            timeout_str = f"{timeout_mins}m"
+
+        print(bold(yellow(f"AUTO-TERMINATION: Job will terminate after {timeout_str}")))
+    else:
+        print(yellow("NO TIMEOUT SET: Job will run until completion"))
+
     print(f"Git Reference: {git_ref}")
     if commit_message:
         first_line = commit_message.split("\n")[0]
@@ -210,7 +272,7 @@ def submit_batch_job(args, task_args):
         "jobName": job_name,
         "jobQueue": job_queue,
         "jobDefinition": job_definition,
-        "containerOverrides": container_config(args, task_args, job_name),
+        "containerOverrides": container_config(args, task_args, job_name, session),
     }
 
     if args.num_nodes > 1:
@@ -219,7 +281,7 @@ def submit_batch_job(args, task_args):
         request["jobDefinition"] = job_definition
         request["nodeOverrides"] = {
             "nodePropertyOverrides": [
-                {"targetNodes": "0:", "containerOverrides": container_config(args, task_args, job_name)}
+                {"targetNodes": "0:", "containerOverrides": container_config(args, task_args, job_name, session)}
             ],
             "numNodes": args.num_nodes,
         }
@@ -239,6 +301,17 @@ def submit_batch_job(args, task_args):
 
     print(f"Submitted job {job_name} to queue {job_queue} with job ID {green(bold(job_id))}")
     print(blue(bold(job_url)))
+
+    if args.timeout_minutes:
+        timeout_hours = args.timeout_minutes // 60
+        timeout_mins = args.timeout_minutes % 60
+
+        if timeout_hours > 0:
+            timeout_str = f"{timeout_hours}h {timeout_mins}m"
+        else:
+            timeout_str = f"{timeout_mins}m"
+
+        print(bold(yellow(f"AUTO-TERMINATION: Job will terminate after {timeout_str}")))
 
     if task_args:
         print(yellow("\nTask Arguments:"))
@@ -271,6 +344,12 @@ def main():
     parser.add_argument("--no-color", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="DEPRECATED: Show job details without submitting")
     parser.add_argument("--skip-validation", action="store_true", help="Skip confirmation prompt")
+    # Add the new timeout parameter
+    parser.add_argument(
+        "--timeout-minutes",
+        type=int,
+        help="Automatically terminate the job after this many minutes. The job will use the AWS Batch API to terminate itself when the timeout is reached.",
+    )
     args, task_args = parser.parse_known_args()
 
     use_colors(sys.stdout.isatty() and not args.no_color)
