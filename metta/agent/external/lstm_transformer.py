@@ -27,8 +27,10 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
         # TODO: Don't break compile
         if h is not None:
-            if len(h.shape) == 3: h = h.squeeze()
-            if len(c.shape) == 3: c = c.squeeze()
+            if len(h.shape) == 3:
+                h = h.squeeze()
+            if len(c.shape) == 3:
+                c = c.squeeze()
             assert h.shape[0] == c.shape[0] == observations.shape[0], "LSTM state must be (h, c)"
             lstm_state = (h, c)
         else:
@@ -42,6 +44,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         state.lstm_c = c
         logits, values = self.policy.decode_actions(hidden)
         return logits, values
+
 
 class Policy(nn.Module):
     """Stronger drop‑in replacement for the original CNN+MLP policy.
@@ -148,7 +151,7 @@ class Policy(nn.Module):
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Maps raw env observations → latent *hidden_size* vector."""
         self.max_vec = self.max_vec.to(observations.device)
-        #x = observations.permute(0, 3, 1, 2).float() / self.max_vec  # [B, C, H, W]
+        # x = observations.permute(0, 3, 1, 2).float() / self.max_vec  # [B, C, H, W]
         x = observations
         observations = x.clone().permute(0, 2, 3, 1)
         B = x.size(0)

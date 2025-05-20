@@ -25,8 +25,10 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
         # TODO: Don't break compile
         if h is not None:
-            if len(h.shape) == 3: h = h.squeeze()
-            if len(c.shape) == 3: c = c.squeeze()
+            if len(h.shape) == 3:
+                h = h.squeeze()
+            if len(c.shape) == 3:
+                c = c.squeeze()
             assert h.shape[0] == c.shape[0] == observations.shape[0], "LSTM state must be (h, c)"
             lstm_state = (h, c)
         else:
@@ -40,6 +42,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         state.lstm_c = c
         logits, values = self.policy.decode_actions(hidden)
         return logits, values
+
 
 class Policy(nn.Module):
     def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
@@ -90,7 +93,7 @@ class Policy(nn.Module):
         return (actions, value), hidden
 
     def encode_observations(self, observations, state=None):
-        #features = observations.permute(0, 3, 1, 2).float() / self.max_vec
+        # features = observations.permute(0, 3, 1, 2).float() / self.max_vec
         x = observations
         features = x.clone().permute(0, 2, 3, 1)
         self_features = self.self_encoder(features[:, :, 5, 5])
