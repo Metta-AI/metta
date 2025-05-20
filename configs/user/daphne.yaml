@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/object_use/training/multienv_nc
+  env: /env/mettagrid/multienv
   evaluate_interval: 10
 
 

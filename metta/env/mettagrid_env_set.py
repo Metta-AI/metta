@@ -41,15 +41,8 @@ class MettaGridEnvSet(MettaGridEnv):
         self._env_performance = np.zeros(self._num_envs, dtype=np.float32)  # Track performance for each env
         self._env_visits = np.zeros(self._num_envs, dtype=np.int32)  # Count how many times each env is visited
 
-        self._initialize_param_tracking(self._env_cfgs)
-        # Get initial environment config
-        self._env_cfg = self._get_new_env_cfg()
-
         super().__init__(env_cfg, render_mode, buf=buf, env_map=None, **kwargs)
         self._cfg_template = None  # we don't use this with multiple envs, so we clear it to emphasize that fact
-
-    def _initialize_param_tracking(self, env_cfgs):
-        pass
 
     def _update_priorities(self, env_idx: int, performance: float):
         """
@@ -108,9 +101,6 @@ class MettaGridEnvSet(MettaGridEnv):
         selected_env = self._env_cfgs[env_idx]
         env_cfg = config_from_path(selected_env)
 
-        return self.resolve(env_cfg)
-
-    def resolve(self, env_cfg):
         # Check consistency in number of agents
         if self._num_agents_global != env_cfg.game.num_agents:
             raise ValueError(
