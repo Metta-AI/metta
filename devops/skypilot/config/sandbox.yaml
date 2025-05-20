@@ -1,0 +1,45 @@
+resources:
+  cloud: aws
+  region: us-east-1
+  accelerators: "L4:1"
+  cpus: 8+
+  image_id: docker:metta:latest
+
+file_mounts:
+  # Wandb Credentials
+  ~/.netrc: ~/.netrc
+
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT_CACHED
+
+  /workspace/metta/train_dir:
+    name: softmax-train-dir
+    store: s3
+    mode: MOUNT_CACHED
+
+setup: |
+  cd /workspace/metta
+  git fetch
+  git checkout $METTA_GIT_REF
+
+  uv pip install -r requirements.txt
+  uv pip install -e .
+  uv --directory mettagrid pip install -e .
+
+  mkdir -p $WANDB_DIR
+
+  echo 'cd /workspace/metta' >> ~/.bashrc
+  echo '. .venv/bin/activate' >> ~/.bashrc
+  echo '. devops/env.sh' >> ~/.bashrc
+
+  echo "Sandbox is ready"
+
+envs:
+  METTA_GIT_REF: main
+  WANDB_DIR: ./wandb
+
+  # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
+  SKYPILOT_DOCKER_USERNAME: ""
+  SKYPILOT_DOCKER_PASSWORD: ""
+  SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
