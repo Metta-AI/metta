@@ -20,6 +20,36 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             policy = Policy(env)
         super().__init__(env, policy, input_size, hidden_size)
 
+    def forward(self, observations, state):
+        """Forward function for inference. 3x faster than using LSTM directly"""
+        if len(observations.shape) == 5:
+            x = observations.permute(0, 1, 4, 2, 3).float()
+            x[:] /= self.policy.max_vec  # [B, C, H, W]
+            return self.forward_train(x, state)
+        else:
+            x = observations.permute(0, 3, 1, 2).float() / self.policy.max_vec  # [B, C, H, W]
+        hidden = self.policy.encode_observations(x, state=state)
+        h = state.lstm_h
+        c = state.lstm_c
+
+        # TODO: Don't break compile
+        if h is not None:
+            if len(h.shape) == 3: h = h.squeeze()
+            if len(c.shape) == 3: c = c.squeeze()
+            assert h.shape[0] == c.shape[0] == observations.shape[0], "LSTM state must be (h, c)"
+            lstm_state = (h, c)
+        else:
+            lstm_state = None
+
+        # hidden = self.pre_layernorm(hidden)
+        hidden, c = self.cell(hidden, lstm_state)
+        # hidden = self.post_layernorm(hidden)
+        state.hidden = hidden
+        state.lstm_h = hidden
+        state.lstm_c = c
+        logits, values = self.policy.decode_actions(hidden)
+        return logits, values
+
 class Policy(nn.Module):
     """Stronger drop‑in replacement for the original CNN+MLP policy.
 
@@ -119,9 +149,9 @@ class Policy(nn.Module):
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Maps raw env observations → latent *hidden_size* vector."""
         self.max_vec = self.max_vec.to(observations.device)
-        if len(observations.shape) == 5:
-            observations = rearrange(observations, 'b t h w c -> (b t) h w c')
-        x = observations.permute(0, 3, 1, 2).float() / self.max_vec  # [B, C, H, W]
+        #x = observations.permute(0, 3, 1, 2).float() / self.max_vec  # [B, C, H, W]
+        x = observations
+        observations = x.clone().permute(0, 2, 3, 1)
         B = x.size(0)
 
         # 1) Conv stem -----------------------------------------------------------------------
