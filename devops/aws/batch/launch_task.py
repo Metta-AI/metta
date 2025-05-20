@@ -327,7 +327,7 @@ def main():
     parser.add_argument(
         "--timeout-minutes",
         type=int,
-        help="Automatically terminate the job after this many minutes. The job will gracefully terminate the main process when the timeout is reached.",
+        help="Automatically terminate the job after this many minutes.",
     )
     args, task_args = parser.parse_known_args()
 
