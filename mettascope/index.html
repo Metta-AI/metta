@@ -1,80 +1,64 @@
 <!DOCTYPE html>
-<html lang="en">
-
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MettaScope</title>
-  <link rel="icon" type="image/png" href="data/meta_grid_icon.png">
-  <link rel="stylesheet" href="style.css">
-</head>
-
-<body>
-  <!-- Main canvas for drawing nearly everything -->
-  <canvas id="global-canvas"></canvas>
-
-  <!-- Header area -->
-  <div id="header">
-    <div class="header-left">
-      <img id="logo" src="data/ui/logo.png" alt="MettaScope">
-      <div id="file-name">
-        loading...
+<!-- Generated from Figma file: https://www.figma.com/design/WeQldl3PsqFIpDnTka5Kd3 by tools/gen_html.py -->
+<html>
+  <head>
+    <title>index</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="index.css">
+    <script type="module" src="dist/main.js"></script>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <canvas id="global-canvas"></canvas>
+    <div id="footer">
+      <div class="left">
+        <img src="../data/ui/rewindToStart.png" alt="#rewind-to-start" id="rewind-to-start">
+        <img src="../data/ui/stepBack.png" alt="#step-back" id="step-back">
+        <img src="../data/ui/play.png" alt="#play" id="play">
+        <img src="../data/ui/stepForward.png" alt="#step-forward" id="step-forward">
+        <img src="../data/ui/rewindToEnd.png" alt="#rewind-to-end" id="rewind-to-end">
+      </div>
+      <div class="center">
+        <img src="../data/ui/turtle.png" alt="#speed1" id="speed1">
+        <img src="../data/ui/speed.png" alt="#speed2" id="speed2">
+        <img src="../data/ui/speed.png" alt="#speed3" id="speed3">
+        <img src="../data/ui/speed.png" alt="#speed4" id="speed4">
+        <img src="../data/ui/speed.png" alt="#speed5" id="speed5">
+        <img src="../data/ui/rabbit.png" alt="#speed6" id="speed6">
+      </div>
+      <div class="right">
+        <img src="../data/ui/sort.png" alt="#sort" id="sort">
+        <img src="../data/ui/heart.png" alt="#resources" id="resources">
+        <img src="../data/ui/tack.png" alt="#tack" id="tack">
+        <img src="../data/ui/grid.png" alt="#grid" id="grid">
+        <img src="../data/ui/eye.png" alt="#eye" id="eye">
+        <img src="../data/ui/cloud.png" alt="#cloud" id="cloud">
       </div>
     </div>
-    <div class="header-right">
-      <div class="filter-wrapper">
-        <input id="main-filter" type="text" placeholder="Filter/Search Field">
-      </div>
-      <div class="share-wrapper">
-        <img id="share-button" src="data/ui/share.png" alt="Share">
-      </div>
+    <div id="time-panel">
+      <input name="" id="main-scrubber">
     </div>
-  </div>
-
-  <!-- Bottom area -->
-  <div class="scrubber-container">
-    <input id="main-scrubber" type="range" class="scrubber" min="0" max="500" value="0">
-    <div id="control-bar">
-      <div class="section left">
-        <img id="rewind-to-start" src="data/ui/rewindToStart.png" alt="Rewind to Start" title="Rewind to Start">
-        <img id="step-back" src="data/ui/stepBack.png" alt="Step Back" title="Step Back">
-        <img id="play" src="data/ui/play.png" alt="Play" title="Play/Pause">
-        <img id="step-forward" src="data/ui/stepForward.png" alt="Step Forward" title="Step Forward">
-        <img id="rewind-to-end" src="data/ui/rewindToEnd.png" alt="Rewind to End" title="Rewind to End">
-      </div>
-
-      <div class="section middle">
-        <img id="speed1" src="data/ui/turtle.png" alt="Slow" title="Slow Speed">
-        <img id="speed2" src="data/ui/speed.png" alt="Speed" title="Normal Speed">
-        <img id="speed3" src="data/ui/speed.png" alt="Speed" title="Normal Speed">
-        <img id="speed4" src="data/ui/speed.png" alt="Speed" title="Normal Speed">
-        <img id="speed5" src="data/ui/speed.png" alt="Speed" title="Normal Speed">
-        <img id="speed6" src="data/ui/rabbit.png" alt="Fast" title="Fast Speed">
-      </div>
-
-      <div class="section right">
-        <img id="sort" src="data/ui/sort.png" alt="Sort" title="Sort">
-        <img id="tack" src="data/ui/tack.png" alt="Toggle Follow Lock" title="Toggle Follow Lock">
-        <img id="resources" src="data/ui/heart.png" alt="Toggle Resources" title="Toggle Resources">
-        <img id="grid" src="data/ui/grid.png" alt="Toggle Grid" title="Toggle Grid">
-        <img id="eye" src="data/ui/eye.png" alt="Toggle View" title="Toggle View">
-        <img id="cloud" src="data/ui/cloud.png" alt="Toggle Fog of War" title="Toggle Fog of War">
-      </div>
+    <div id="trace-panel"></div>
+    <div id="worldmap-panel"></div>
+    <div id="header">
+      <img src="../data/ui/header-bg.png" alt="ui/header-bg" class="ui/header-bg">
+      <span id="file-name">b.daphne.terrain_prioritized_styles_pretrained_r</span>
+      <img src="../data/ui/logo.png" alt="#logo" id="logo">
+      <button id="share-button">
+        <img src="../data/ui/share.png" alt="icon" class="icon">
+      </button>
     </div>
-  </div>
-
-  <!-- Modal -->
-  <div id="modal" class="modal">
-    <div class="modal-content">
-      <h2>Welcome to MettaScope</h2>
-      <p>Please drop a replay file here to see the replay.</p>
+    <div id="modal">
+      <span class="header">Welcome to Mettascope</span>
+      <span class="message">Please drag and drop a file here to see a replay.</span>
     </div>
-  </div>
-
-  <!-- Toast notification -->
-  <div id="toast">Notification message here</div>
-
-  <script type="module" src="dist/main.js"></script>
-</body>
-
+    <div id="toast">
+      <span class="message">Toast message goes here.</span>
+    </div>
+    <div id="info-panel">
+      <span class="info">FOLLOWING SELECTION (double-click to unfollow)  id: 409 type: agent (0) r: 23 c: 32 layer: 0 agent: 1 agent:group: 0 hp: 10 agent:frozen: 0 agent:orientation: 1 agent:color: 1 agent:inv:ore.red: 5 agent:inv:ore.blue: 0 agent:inv:ore.green: 0 agent:inv:battery: 2 agent:inv:heart: 0 agent:inv:armor: 0 agent:inv:laser: 0 agent:inv:blueprint: 0 agent_id: 1 action: 4,3 action_success: true reward: 0 total_reward: 0.044999998062849045</span>
+    </div>
+    <div id="minimap-panel"></div>
+  </body>
 </html>

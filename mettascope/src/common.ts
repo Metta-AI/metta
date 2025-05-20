@@ -55,10 +55,10 @@ export const ui = {
   traceDragging: false,
 
   // Panels
-  mapPanel: new PanelInfo("map"),
-  miniMapPanel: new PanelInfo("mini-map"),
-  tracePanel: new PanelInfo("trace"),
-  infoPanel: new PanelInfo("info"),
+  mapPanel: new PanelInfo("#worldmap-panel"),
+  miniMapPanel: new PanelInfo("#minimap-panel"),
+  tracePanel: new PanelInfo("#trace-panel"),
+  infoPanel: new PanelInfo("#info-panel"),
 };
 
 export const state = {
@@ -91,7 +91,6 @@ export const html = {
   // Header area
   fileName: find('#file-name') as HTMLDivElement,
   shareButton: find('#share-button') as HTMLButtonElement,
-  mainFilter: find('#main-filter') as HTMLInputElement,
 
   // Bottom area
   scrubber: find('#main-scrubber') as HTMLInputElement,
@@ -139,11 +138,11 @@ export function setFollowSelection(map: boolean | null) {
 export function showModal(type: string, title: string, message: string) {
   html.modal.style.display = 'block';
   html.modal.classList.add(type);
-  const header = html.modal.querySelector('h2');
+  const header = html.modal.querySelector('.header');
   if (header) {
     header.textContent = title;
   }
-  const content = html.modal.querySelector('p');
+  const content = html.modal.querySelector('.message');
   if (content) {
     content.textContent = message;
   }
@@ -160,7 +159,10 @@ export function closeModal() {
 // Functions to show and hide toast notifications
 export function showToast(message: string, duration = 3000) {
   // Set the message
-  html.toast.textContent = message;
+  let msg = html.toast.querySelector('.message')
+  if (msg != null){
+    msg.textContent = message
+  }
   // Remove any existing classes
   html.toast.classList.remove('hiding');
   // Make the toast visible

@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import sys
@@ -62,7 +63,7 @@ def parse_name(name: str) -> tuple[str, str, str, str]:
     for part in name.split("."):
         if part in tags:
             tag = part
-        if part.startswith("#"):
+        elif part.startswith("#"):
             id = part[1:]
         else:
             cls = part.lower().replace(" ", "_")
@@ -159,7 +160,7 @@ class DomNode:
 class HtmlGenerator:
     """Class to handle the generation of HTML and CSS from Figma data."""
 
-    def __init__(self, output_dir: str = "dist", default_image_path: str = "../data"):
+    def __init__(self, output_dir: str, extra_css: str, extra_js: str, data_dir: str, tmp_dir: str):
         """
         Initialize the HTML generator.
 
@@ -168,8 +169,12 @@ class HtmlGenerator:
             default_image_path: Path for image references
             default_font_family: Default font family for text elements
         """
+
         self.output_dir = output_dir
-        self.default_image_path = default_image_path
+        self.extra_js = extra_js
+        self.extra_css = extra_css
+        self.data_dir = data_dir
+        self.tmp_dir = tmp_dir
 
     def gen_css_file(self, name: str, css_rules: List[Dict[str, Any]], url: str) -> str:
         """
@@ -283,6 +288,12 @@ html, body {
 
         # Add CSS link to head
         head.append_child(DomNode("link", {"rel": "stylesheet", "href": css_file}))
+
+        if self.extra_js:
+            head.append_child(DomNode("script", {"type": "module", "src": self.extra_js}))
+
+        if self.extra_css:
+            head.append_child(DomNode("link", {"rel": "stylesheet", "href": self.extra_css}))
 
         # Generate HTML string
         html_content = doctype + "\n" + comment + "\n" + html_node.render()
@@ -577,6 +588,10 @@ html, body {
                 # Format: top-left, top-right, bottom-right, bottom-left
                 css["border-radius"] = " ".join(px(r) for r in radii)
 
+        if "clipsContent" in element and element["clipsContent"]:
+            # Clip child elements to not go outside the bounds of the parent
+            css["overflow"] = "hidden"
+
     def compute_stroke(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
         """Compute the stroke from a figma element."""
         if "strokes" in element and element["strokes"]:
@@ -702,9 +717,9 @@ html, body {
         elif element_type == "IMAGE" or "exportSettings" in element or (component and "exportSettings" in component):
             # Create an img
             if component:
-                src = self.default_image_path + "/" + component["name"] + ".png"
+                src = self.data_dir + "/" + component["name"] + ".png"
             else:
-                src = f"{self.default_image_path}/{element_name.replace(' ', '_')}.png"
+                src = f"{self.data_dir}/{element_name.replace(' ', '_')}.png"
             dom_element = DomNode("img", {"src": src, "alt": element_name})
 
             # Add CSS rule
@@ -746,7 +761,7 @@ html, body {
         elif element_type == "RECTANGLE" or element_type == "VECTOR" or element_type == "ELLIPSE":
             # Check if it's an image
             if "fills" in element and element["fills"] and element["fills"][0].get("type") == "IMAGE":
-                img_src = f"{self.default_image_path}/{element_name.replace(' ', '_')}.png"
+                img_src = f"{self.data_dir}/{element_name.replace(' ', '_')}.png"
                 dom_element = DomNode("img", {"src": img_src, "alt": element_name})
 
                 # Add CSS rule
@@ -823,7 +838,7 @@ html, body {
 
         self.traverse_nodes(doc_node, process_node)
 
-    def gen_html(self, token: str, url: str) -> dict:
+    def gen_html(self, token: str, figma_url: str) -> dict:
         """
         Generate HTML from a Figma file.
 
@@ -834,9 +849,10 @@ html, body {
         Returns:
             dict: Figma document data
         """
+
         headers = {"X-Figma-Token": token}
 
-        file_id = url.split("/")[-1]
+        file_id = figma_url.split("/")[-1].split("?")[0]
 
         api_url = f"https://api.figma.com/v1/files/{file_id}"
 
@@ -850,22 +866,41 @@ html, body {
 
         # Write data to file
         os.makedirs(self.output_dir, exist_ok=True)
-        with open(f"{self.output_dir}/figma_data.json", "w") as f:
+        os.makedirs(self.tmp_dir, exist_ok=True)
+        with open(f"{self.tmp_dir}/figma_data.json", "w") as f:
             json.dump(document, f, indent=2)
 
         # Process the document to find frames and generate HTML
-        self.process_document(document, url)
+        self.process_document(document, figma_url)
 
         return document
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Convert Figma file to HTML with optional extras.")
+
+    parser.add_argument("input_url", help="URL of the input Figma file.")
+    parser.add_argument("output_dir", help="Directory to write output files to.", default="dist")
+
+    parser.add_argument("--tmp_dir", help="Temporary directory for intermediate files.", default="dist")
+    parser.add_argument("--extra-css", dest="extra_css", help="Path to extra CSS file to include.")
+    parser.add_argument("--extra-js", dest="extra_js", help="Path to extra JS file to include.")
+    parser.add_argument("--data-dir", dest="data_dir", help="Root directory for data files.", default="data")
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     token = open(os.path.expanduser("~/.figma_token")).read().strip()
-    if len(sys.argv) < 2:
-        print("Usage: python gen_html.py <figma_file_url>", file=sys.stderr)
-        sys.exit(1)
-    file_url = sys.argv[1]
+    args = parse_args()
 
-    # Create HTML generator with default settings
-    generator = HtmlGenerator()
-    generator.gen_html(token, file_url)
+    print(args)
+
+    generator = HtmlGenerator(
+        output_dir=args.output_dir,
+        extra_css=args.extra_css,
+        extra_js=args.extra_js,
+        data_dir=args.data_dir,
+        tmp_dir=args.tmp_dir,
+    )
+    generator.gen_html(token, args.input_url)

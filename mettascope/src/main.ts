@@ -394,6 +394,13 @@ function setPlaybackSpeed(speed: number) {
 // Initial resize.
 onResize();
 
+html.modal.classList.add("hidden");
+html.toast.classList.add("hiding");
+
+// TODO: Hookup panels divs better, but hide them for now.
+ui.tracePanel.div.classList.add("hidden");
+ui.miniMapPanel.div.classList.add("hidden");
+
 // Add event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize);
 window.addEventListener('keydown', onKeyDown);
@@ -408,10 +415,10 @@ window.addEventListener('drop', handleDrop, false);
 
 // Header area
 html.shareButton.addEventListener('click', onShareButtonClick);
-html.mainFilter.style.display = "none"; // Hide the main filter for now.
 
 // Bottom area
 html.scrubber.addEventListener('input', onScrubberChange);
+html.scrubber.setAttribute("type", "range")
 
 html.rewindToStartButton.addEventListener('click', () => {
   setIsPlaying(false);

@@ -5,7 +5,7 @@ import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame } from './main.js';
-import { parseHtmlColor } from './htmlutils.js';
+import { parseHtmlColor, find } from './htmlutils.js';
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
 
@@ -726,7 +726,8 @@ export function updateReadout() {
       readout += key + " count: " + value + "\n";
     }
   }
-  if (ui.infoPanel.div !== null) {
-    ui.infoPanel.div.innerHTML = readout;
+  let info = find("#info-panel .info")
+  if (info !== null) {
+    info.innerHTML = readout;
   }
 }
