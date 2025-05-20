@@ -296,7 +296,7 @@ html, body {
             head.append_child(DomNode("link", {"rel": "stylesheet", "href": self.extra_css}))
 
         # Generate HTML string
-        html_content = doctype + "\n" + comment + "\n" + html_node.render()
+        html_content = doctype + "\n" + comment + "\n" + html_node.render() + "\n"
 
         # Write HTML to file
         output_file = f"{self.output_dir}/{name}.html"
