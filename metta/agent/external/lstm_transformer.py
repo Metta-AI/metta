@@ -1,20 +1,13 @@
-import importlib.util
-import math
-import types
 from typing import List
 
-import numpy as np
 import pufferlib.models
 import pufferlib.pytorch
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from einops import rearrange
-from torch import nn
-from torch.nn import functional as F
 
 
 class Recurrent(pufferlib.models.LSTMWrapper):
+
     def __init__(self, env, policy=None, input_size=384, hidden_size=384):
         if policy is None:
             policy = Policy(env)
@@ -27,7 +20,8 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             x[:] /= self.policy.max_vec  # [B, C, H, W]
             return self.forward_train(x, state)
         else:
-            x = observations.permute(0, 3, 1, 2).float() / self.policy.max_vec  # [B, C, H, W]
+            x = observations.permute(
+                0, 3, 1, 2).float() / self.policy.max_vec  # [B, C, H, W]
         hidden = self.policy.encode_observations(x, state=state)
         h = state.lstm_h
         c = state.lstm_c
@@ -36,7 +30,8 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         if h is not None:
             if len(h.shape) == 3: h = h.squeeze()
             if len(c.shape) == 3: c = c.squeeze()
-            assert h.shape[0] == c.shape[0] == observations.shape[0], "LSTM state must be (h, c)"
+            assert h.shape[0] == c.shape[0] == observations.shape[
+                0], "LSTM state must be (h, c)"
             lstm_state = (h, c)
         else:
             lstm_state = None
@@ -49,6 +44,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         state.lstm_c = c
         logits, values = self.policy.decode_actions(hidden)
         return logits, values
+
 
 class Policy(nn.Module):
     """Stronger drop‑in replacement for the original CNN+MLP policy.
@@ -69,17 +65,15 @@ class Policy(nn.Module):
        you can swap the old policy for this one with **no other code changes**.
     """
 
-    def __init__(
-        self,
-        env,
-        patch_size: int = 2,
-        cnn_channels: int = 128,
-        hidden_size: int = 384,
-        depth: int = 3,
-        num_heads: int = 6,
-        mlp_ratio: float = 3.0,
-        **kw
-    ):
+    def __init__(self,
+                 env,
+                 patch_size: int = 2,
+                 cnn_channels: int = 128,
+                 hidden_size: int = 384,
+                 depth: int = 3,
+                 num_heads: int = 6,
+                 mlp_ratio: float = 3.0,
+                 **kw):
         super().__init__()
         self.is_continuous = False
         self.hidden_size = hidden_size
@@ -89,20 +83,25 @@ class Policy(nn.Module):
         # ------------------------------------------------------------------
         in_channels = 34  # observation feature planes
         self.conv_stem = nn.Sequential(
-            pufferlib.pytorch.layer_init(nn.Conv2d(in_channels, cnn_channels, 5, stride=2, padding=2)),
+            pufferlib.pytorch.layer_init(
+                nn.Conv2d(in_channels, cnn_channels, 5, stride=2, padding=2)),
             nn.ReLU(),
-            pufferlib.pytorch.layer_init(nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1, padding=1)),
+            pufferlib.pytorch.layer_init(
+                nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1, padding=1)),
             nn.ReLU(),
         )
 
         self.patch_size = patch_size
         self.proj = pufferlib.pytorch.layer_init(
-            nn.Conv2d(cnn_channels, hidden_size, kernel_size=patch_size, stride=patch_size)
-        )
+            nn.Conv2d(cnn_channels,
+                      hidden_size,
+                      kernel_size=patch_size,
+                      stride=patch_size))
 
         # class token & positional embeddings -------------------------------------------------
         self.cls_token = nn.Parameter(torch.zeros(1, 1, hidden_size))
-        self.pos_emb = nn.Parameter(torch.zeros(1, 1000, hidden_size))  # 1000 >> max patch count
+        self.pos_emb = nn.Parameter(torch.zeros(
+            1, 1000, hidden_size))  # 1000 >> max patch count
         nn.init.trunc_normal_(self.pos_emb, std=0.02)
 
         # Transformer encoder ----------------------------------------------------------------
@@ -114,7 +113,8 @@ class Policy(nn.Module):
             batch_first=True,
             norm_first=True,
         )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=depth)
+        self.transformer = nn.TransformerEncoder(encoder_layer,
+                                                 num_layers=depth)
 
         # ------------------------------------------------------------------
         #  Proprioceptive / self features
@@ -127,26 +127,62 @@ class Policy(nn.Module):
         # ------------------------------------------------------------------
         #  Fusion + heads
         # ------------------------------------------------------------------
-        self.fuse_proj = pufferlib.pytorch.layer_init(nn.Linear(hidden_size * 2, hidden_size))
+        self.fuse_proj = pufferlib.pytorch.layer_init(
+            nn.Linear(hidden_size * 2, hidden_size))
 
         action_nvec = env.single_action_space.nvec
-        self.actor: List[nn.Linear] = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in action_nvec]
-        )
-        self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
+        self.actor: List[nn.Linear] = nn.ModuleList([
+            pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01)
+            for n in action_nvec
+        ])
+        self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1),
+                                                  std=1)
 
         # Keep the original scaling vector so normalisation remains identical
         max_vec = torch.tensor([
-            1, 10, 30, 1, 1, 255, 100, 100, 100, 100, 100, 100, 100, 100,
-            1, 1, 1, 10, 1, 100, 100, 100, 100, 100, 100, 100, 100,
-            1, 1, 1, 1, 1, 1, 1,
+            1,
+            10,
+            30,
+            1,
+            1,
+            255,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            1,
+            1,
+            1,
+            10,
+            1,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            100,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
         ]).float().view(1, 34, 1, 1)
         self.register_buffer("max_vec", max_vec)
 
     # =====================================================================
     #  Public interface expected by wrapper
     # =====================================================================
-    def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
+    def encode_observations(self,
+                            observations: torch.Tensor,
+                            state=None) -> torch.Tensor:
         """Maps raw env observations → latent *hidden_size* vector."""
         self.max_vec = self.max_vec.to(observations.device)
         #x = observations.permute(0, 3, 1, 2).float() / self.max_vec  # [B, C, H, W]
@@ -155,28 +191,30 @@ class Policy(nn.Module):
         B = x.size(0)
 
         # 1) Conv stem -----------------------------------------------------------------------
-        x = self.conv_stem(x)                                  # [B, C', H', W']
+        x = self.conv_stem(x)  # [B, C', H', W']
 
         # 2) Patchify ------------------------------------------------------------------------
-        x = self.proj(x)                                       # [B, D, h, w]
-        x = x.flatten(2).transpose(1, 2)                       # [B, N, D]
+        x = self.proj(x)  # [B, D, h, w]
+        x = x.flatten(2).transpose(1, 2)  # [B, N, D]
 
         # 3) Add CLS & positional encoding ---------------------------------------------------
-        cls = self.cls_token.expand(B, -1, -1)                 # [B, 1, D]
-        tokens = torch.cat([cls, x], dim=1)                    # [B, 1+N, D]
-        tokens = tokens + self.pos_emb[:, : tokens.size(1)]    # broadcast
+        cls = self.cls_token.expand(B, -1, -1)  # [B, 1, D]
+        tokens = torch.cat([cls, x], dim=1)  # [B, 1+N, D]
+        tokens = tokens + self.pos_emb[:, :tokens.size(1)]  # broadcast
 
         # 4) Transformer ---------------------------------------------------------------------
-        tokens = self.transformer(tokens)                      # [B, 1+N, D]
-        vis_feat = tokens[:, 0]                                # CLS token
+        tokens = self.transformer(tokens)  # [B, 1+N, D]
+        vis_feat = tokens[:, 0]  # CLS token
 
         # 5) Self vector ---------------------------------------------------------------------
-        self_vec = observations[:, 5, 5, :].float() / self.max_vec[0, :, 0, 0]  # [B, 34]
+        self_vec = observations[:, 5,
+                                5, :].float() / self.max_vec[0, :, 0,
+                                                             0]  # [B, 34]
         self_feat = self.self_encoder(self_vec)
 
         # 6) Fuse & project ------------------------------------------------------------------
-        fused = torch.cat([vis_feat, self_feat], dim=1)        # [B, 2D]
-        fused = self.fuse_proj(fused)                          # [B, D]
+        fused = torch.cat([vis_feat, self_feat], dim=1)  # [B, 2D]
+        fused = self.fuse_proj(fused)  # [B, D]
         return fused
 
     def decode_actions(self, hidden: torch.Tensor):
