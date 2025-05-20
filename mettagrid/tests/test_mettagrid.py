@@ -88,6 +88,62 @@ def test_observation():
     assert not obs[0, 1, 2, :].any(), "Expected empty space to right of agent 0"
 
 
+def test_grid_objects():
+    env = create_minimal_mettagrid_env()
+    objects = env.grid_objects()
+    
+    # Test that we have the expected number of objects
+    # 4 walls on each side (minus corners) + 2 agents
+    expected_walls = 2 * (env.map_width() + env.map_height() - 2)
+    expected_agents = 2
+    assert len(objects) == expected_walls + expected_agents, "Wrong number of objects"
+
+    common_properties = {"r", "c", "layer", "type", "id"}
+    
+    for obj_id, obj in objects.items():
+        print(obj)
+        if obj.get("wall"):
+            assert set(obj) == {"wall", "hp", "swappable"} | common_properties
+            # assert obj["hp"] == 100, "Wall should have 100 hp"
+            # assert "swappable" in obj, "Wall should have swappable property"
+    # # Test wall properties
+    # wall_id = None
+    # for obj_id, obj in objects.items():
+    #     if obj["wall"] == 1:  # Wall type
+    #         wall_id = obj_id
+    #         break
+    
+    # assert wall_id is not None, "No wall found"
+    # wall = objects[wall_id]
+    # assert wall["hp"] == 100, "Wall should have 100 hp"
+    # assert "swappable" in wall, "Wall should have swappable property"
+    
+    # # Test agent properties
+    # agent_ids = []
+    # for obj_id, obj in objects.items():
+    #     if obj["type"] == 0:  # Agent type
+    #         agent_ids.append(obj_id)
+    
+    # assert len(agent_ids) == 2, "Should have 2 agents"
+    
+    # # Test first agent (upper left)
+    # agent1 = objects[agent_ids[0]]
+    # assert agent1["r"] == 1, "First agent should be at row 1"
+    # assert agent1["c"] == 1, "First agent should be at column 1"
+    # assert agent1["group"] == 0, "Agent should be in group 0"
+    # assert agent1["agent_id"] in [0, 1], "Agent should have an agent_id"
+    
+    # # Test second agent (middle)
+    # agent2 = objects[agent_ids[1]]
+    # mid_y = env.map_height() // 2
+    # mid_x = env.map_width() // 2
+    # assert agent2["r"] == mid_y, "Second agent should be in middle row"
+    # assert agent2["c"] == mid_x, "Second agent should be in middle column"
+    # assert agent2["group"] == 0, "Agent should be in group 0"
+    # assert agent2["agent_id"] in [0, 1], "Agent should have an agent_id"
+    # assert agent2["agent_id"] != agent1["agent_id"], "Agents should have different agent_ids"
+
+
 class TestSetBuffers:
     def test_set_buffers_wrong_shape(self):
         env = create_minimal_mettagrid_env()
