@@ -83,6 +83,7 @@ jobs:
             --timeout-minutes=${{ github.event.inputs.timeout_minutes }} \
             --skip-validation \
             --skip-push-check \
+            --profile="" \
             trainer.env=${{ github.event.inputs.trainer_env }}
 
       - name: Output job details
