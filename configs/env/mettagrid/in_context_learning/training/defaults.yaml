@@ -24,7 +24,7 @@ game:
 
   agent:
     max_inventory: ${sampling:1, 5, 3}
-    freeze_duration: ${sampling:0, 200, 10}
+    freeze_duration: 0
     hp: 10
     mortal: False
     rewards:
