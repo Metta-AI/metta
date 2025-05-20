@@ -49,7 +49,7 @@ class PufferTrainer:
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
-        self._env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
+        self.env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
         self.sim_suite_config = sim_suite_config
 
         self._master = True
@@ -79,7 +79,9 @@ class PufferTrainer:
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        assert isinstance(metta_grid_env, MettaGridEnv), (
+            f"vecenv.driver_env type {type(metta_grid_env).__name__} is not MettaGridEnv"
+        )
 
         logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
@@ -138,7 +140,10 @@ class PufferTrainer:
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
 
-        assert self.trainer_cfg.optimizer.type in ("adam", "muon")
+        assert self.trainer_cfg.optimizer.type in (
+            "adam",
+            "muon",
+        ), f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
         opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
@@ -183,7 +188,7 @@ class PufferTrainer:
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
-        if self.cfg.wandb.track and wandb_run and self._master:
+        if wandb_run and self._master:
             wandb_run.define_metric("train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
@@ -343,7 +348,6 @@ class PufferTrainer:
                 self.agent_step += num_steps * self._world_size
 
                 o = torch.as_tensor(o)
-                o_device = o.to(self.device, non_blocking=True)
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
@@ -355,6 +359,8 @@ class PufferTrainer:
                 assert training_env_id.min() >= 0, "Negative index in training_env_id"
 
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
+
+                o_device = o.to(self.device, non_blocking=True)
                 actions, logprob, _, value, _ = policy(o_device, state)
 
                 lstm_h[:, training_env_id] = (
@@ -369,7 +375,6 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 value = value.flatten()
-                actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
                 self.experience.store(o, value, actions, logprob, r, d, training_env_id, mask)
@@ -379,6 +384,7 @@ class PufferTrainer:
                         infos[k].append(v)
 
             with profile.env:
+                actions = actions.cpu().numpy()
                 self.vecenv.send(actions)
 
         with profile.eval_misc:
@@ -580,7 +586,7 @@ class PufferTrainer:
             return
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv for checkpointing"
 
         name = self.policy_store.make_model_name(self.epoch)
 
@@ -633,14 +639,16 @@ class PufferTrainer:
             results = replay_simulator.simulate()
 
             if self.wandb_run is not None:
-                replay_url = results.stats_db.get_replay_urls(
+                replay_urls = results.stats_db.get_replay_urls(
                     policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
-                )[0]
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                link_summary = {
-                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                }
-                self.wandb_run.log(link_summary)
+                )
+                if len(replay_urls) > 0:
+                    replay_url = replay_urls[0]
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                    link_summary = {
+                        "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                    }
+                    self.wandb_run.log(link_summary)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):
@@ -671,7 +679,7 @@ class PufferTrainer:
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        if self.wandb_run and self.cfg.wandb.track and self._master:
+        if self.wandb_run and self._master:
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
@@ -705,7 +713,9 @@ class PufferTrainer:
         Creates an Experience buffer for storing training data with appropriate dimensions.
         """
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        assert isinstance(metta_grid_env, MettaGridEnv), (
+            "vecenv.driver_env must be a MettaGridEnv for experience buffer"
+        )
 
         # Extract environment specifications
         obs_shape = metta_grid_env.single_observation_space.shape
@@ -763,7 +773,7 @@ class PufferTrainer:
     def _make_vecenv(self):
         """Create a vectorized environment."""
         # Create the vectorized environment
-        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self._env_cfg.game.num_agents
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.env_cfg.game.num_agents
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
@@ -777,7 +787,7 @@ class PufferTrainer:
             )
 
         self.vecenv = make_vecenv(
-            self._env_cfg,
+            self.env_cfg,
             self.cfg.vectorization,
             num_envs=num_envs,
             batch_size=self.batch_size,
