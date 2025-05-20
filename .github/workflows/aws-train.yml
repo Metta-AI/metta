@@ -36,7 +36,7 @@ jobs:
         uses: ./.github/actions/setup-python-uv
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           aws-region: us-east-1
@@ -73,6 +73,13 @@ jobs:
           
           echo "Generated run name: $RUN_NAME"
           echo "run_name=$RUN_NAME" >> $GITHUB_OUTPUT
+
+      - name: Set up Weights & Biases credentials
+        run: |
+          echo "machine api.wandb.ai" > $HOME/.netrc
+          echo "login user" >> $HOME/.netrc
+          echo "password ${{ secrets.WANDB_API_KEY }}" >> $HOME/.netrc
+          chmod 600 $HOME/.netrc
 
       - name: Launch AWS Batch job
         run: |
