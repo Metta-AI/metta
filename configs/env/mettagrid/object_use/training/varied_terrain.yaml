@@ -25,12 +25,19 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      width: ${sampling:20,70,30}
+      height: ${sampling:20,70,30}
       border_width: ${sampling:1,6,3}
       agents: 1
+      style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
-        mine: ${sampling:1,20,10}
-        generator: ${sampling:1,10,2}
+        mine.red: ${sampling:1,20,10}
+        mine.blue: ${sampling:1,20,10}
+        mine.green: ${sampling:1,20,10}
+        generator.red: ${sampling:1,10,2}
+        generator.blue: ${sampling:1,10,2}
+        generator.green: ${sampling:1,10,2}
         altar: ${sampling:1,5,1}
         armory: ${sampling:1,5,1}
         lasery: ${sampling:1,5,1}
@@ -43,17 +50,17 @@ game:
   objects:
       altar:
         initial_items: ${choose:0,1}
-        cooldown: ${sampling:1, 20, 10}
+        cooldown: ${sampling:5, 20, 10}
 
       generator.red:
         initial_items: ${choose:0,1}
         cooldown: ${sampling:5, 20, 10}
 
       generator.blue:
-        cooldown: ${sampling:3, 20, 10}
+        cooldown: ${sampling:5, 20, 10}
 
       generator.green:
-        cooldown: ${sampling:3, 20, 10}
+        cooldown: ${sampling:5, 20, 10}
 
       mine.red:
         cooldown: ${sampling:15, 50, 10}

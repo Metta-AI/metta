@@ -57,9 +57,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _reset_env(self):
         mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
 
+        config_dict, env_map = mettagrid_config.to_c_args()
         self._map_labels = mettagrid_config.map_labels()
 
-        config_dict, env_map = mettagrid_config.to_c_args()
         self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
@@ -175,15 +175,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 for k, v in agent_stats.items():
                     agent_metrics[agent_idx][k] = float(v)
 
-            # TODO: Add groups
-            groups = []
-            group_metrics = {}
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,
-                groups,
                 agent_metrics,
-                group_metrics,
                 self._max_steps,
                 replay_url,
                 self._reset_at,
