@@ -704,7 +704,7 @@ html, body {
                     if child["type"] == "TEXT":
                         placeholder_css = {}
                         self.compute_text_properties(placeholder_css, child)
-                        dom_element.attributes["placeholder"] = child.get("characters", "")
+                        dom_element.attributes["placeholder"] = child.get("characters", "").replace("\u2028", "\n")
                         css_rules.append({"selector": selector + "::placeholder", "styles": placeholder_css})
                         # Copy some of the rules:
                         self.compute_text_properties(css, child)
@@ -749,7 +749,7 @@ html, body {
 
         elif element_type == "TEXT":
             # Get text content
-            text_content = element.get("characters", "")
+            text_content = element.get("characters", "").replace("\u2028", "<br>")
 
             # Create a span for the text
             dom_element = DomNode("span", {}, text_content)
