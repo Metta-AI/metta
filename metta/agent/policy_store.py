@@ -10,6 +10,7 @@ The PolicyStore is used by the training system to manage opponent policies and c
 """
 
 import collections
+import importlib
 import logging
 import os
 import random
@@ -484,7 +485,18 @@ class PolicyStore:
                     modules_queue.append(submodule_name)
 
     def _load_from_puffer(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+<<<<<<< HEAD
         policy = load_policy(path, self._device, puffer=self._cfg.puffer)
+=======
+        if self._cfg.agent.policy_class is None:
+            self._cfg.agent.policy_class = "metta.agent.external.example.Recurrent"
+
+        policy_module = self._cfg.agent.policy_class.rsplit(".", 1)[0]
+        module = importlib.import_module(policy_module)
+        policy_class = getattr(module, self._cfg.agent.policy_class.rsplit(".", 1)[1])
+
+        policy = load_policy(path, self._device, policy_class=policy_class)
+>>>>>>> 4b8e6eafd69122bacfa815bdd8678e43b5134d2a
         name = os.path.basename(path)
         pr = PolicyRecord(
             self,
