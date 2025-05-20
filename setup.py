@@ -161,4 +161,5 @@ setup(
     ),
     description="Metta: AI Research Framework",
     url="https://github.com/Metta-AI/metta",
+    python_requires="==3.11.7",
 )
