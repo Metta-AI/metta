@@ -9,7 +9,6 @@
 #include "constants.hpp"
 #include "metta_object.hpp"
 
-
 class Agent : public MettaObject {
 public:
   unsigned char group;

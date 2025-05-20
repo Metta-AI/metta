@@ -2,9 +2,9 @@
 #define GRID_OBJECT_HPP
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
-#include <span>
 using namespace std;
 
 typedef unsigned short Layer;
@@ -71,8 +71,7 @@ public:
   // obs_tokens is used for the new observation format.
   // `feature_ids` should map to the features that the object is encoding, and should match the
   // features exposed by feature_names.
-  virtual size_t obs_tokens(ObservationTokens tokens,
-                             const vector<unsigned char>& feature_ids) const = 0;
+  virtual size_t obs_tokens(ObservationTokens tokens, const vector<unsigned char>& feature_ids) const = 0;
 
   virtual void obs(ObsType* obs, const vector<uint8_t>& offsets) const = 0;
 };

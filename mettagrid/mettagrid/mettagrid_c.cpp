@@ -36,9 +36,8 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _obs_width = cfg["obs_width"].cast<unsigned short>();
   _obs_height = cfg["obs_height"].cast<unsigned short>();
   _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
-  unsigned int num_observation_tokens = cfg.contains("num_observation_tokens")
-                                            ? cfg["num_observation_tokens"].cast<unsigned int>()
-                                            : 0;
+  unsigned int num_observation_tokens =
+      cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
   _current_timestep = 0;
 
@@ -162,14 +161,12 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
   if (_use_observation_tokens) {
-    shape = {static_cast<ssize_t>(num_agents),
-                                static_cast<ssize_t>(num_observation_tokens),
-                                static_cast<ssize_t>(3)};
+    shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(num_observation_tokens), static_cast<ssize_t>(3)};
   } else {
     shape = {static_cast<ssize_t>(num_agents),
-                                  static_cast<ssize_t>(_obs_height),
-                                  static_cast<ssize_t>(_obs_width),
-                                  static_cast<ssize_t>(_grid_features.size())};
+             static_cast<ssize_t>(_obs_height),
+             static_cast<ssize_t>(_obs_width),
+             static_cast<ssize_t>(_grid_features.size())};
   }
   auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
   auto terminals = py::array_t<bool, py::array::c_style>(static_cast<ssize_t>(num_agents));
@@ -241,13 +238,13 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
-          
+
           uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
           ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
           ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
-          
+
           size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
-          
+
           uint8_t location = obs_r << 4 | obs_c;
           for (size_t i = 0; i < obj_tokens_written; i++) {
             agent_obs_tokens[i].location = location;
@@ -576,23 +573,14 @@ py::object MettaGrid::action_space() {
                                       py::arg("dtype") = py::module_::import("numpy").attr("int64"));
 }
 
-// xcxc
 py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  if (_use_observation_tokens) {
-    // xcxc double check this
-    return spaces.attr("Box")(0,
-                            255,
-                            py::make_tuple(_observations.shape(1), 3),
-                            py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
-  } else {
-    return spaces.attr("Box")(0,
+  return spaces.attr("Box")(0,
                             255,
                             py::make_tuple(_obs_height, _obs_width, _grid_features.size()),
                             py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
-  }
 }
 
 py::list MettaGrid::action_success() {
