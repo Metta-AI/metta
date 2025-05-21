@@ -1,0 +1,20 @@
+defaults:
+  - /env/mettagrid/object_use/training/defaults@
+  - _self_
+
+
+game:
+  map_builder:
+    room:
+      objects:
+        generator.green: ${sampling:1,10, 5}
+        altar: ${sampling:1,10, 5}
+
+  objects:
+    altar:
+      input_battery.green: 1
+      output_heart: 1
+
+    generator.green:
+      input_ore.green: 0
+      output_battery.green: 1

@@ -1,0 +1,24 @@
+_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+
+num_agents: 10
+sampling: 1
+
+game:
+  num_agents: ${..num_agents}
+  
+envs:
+  # - /env/mettagrid/object_use/training/sequence_dr1
+  - /env/mettagrid/object_use/training/es_varied_terrain_sparse
+  - /env/mettagrid/object_use/training/es_varied_terrain_dense
+  - /env/mettagrid/object_use/training/es_varied_terrain_maze
+  - /env/mettagrid/object_use/training/es_varied_terrain_balanced
+
+
+# increment_reward_thresholds: 
+#  - 10
+#  - 10
+#  - 10
+#  - 10
+#  - 10
+#  - 10
+#  - 10

@@ -1,0 +1,24 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 40 #how many agents are in the map x2
+  max_steps: 30
+
+  agent:
+    rewards:
+      heart: 0.3333
+
+  map_builder:
+    _target_: mettagrid.config.room.multi_room.MultiRoom
+    num_rooms: 20
+    room:
+      _target_: mettagrid.config.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/multiagent/be_polite_team.map"
+
+  objects:
+    altar:
+      cooldown: 255
+      max_output: 1

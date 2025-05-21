@@ -55,10 +55,10 @@ game:
         cooldown: ${sampling:5, 20, 10}
 
       generator.blue:
-        cooldown: ${sampling:3, 20, 10}
+        cooldown: ${sampling:5, 20, 10}
 
       generator.green:
-        cooldown: ${sampling:3, 20, 10}
+        cooldown: ${sampling:5, 20, 10}
 
       mine.red:
         cooldown: ${sampling:15, 50, 10}
