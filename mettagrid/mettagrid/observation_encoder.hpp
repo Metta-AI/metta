@@ -38,6 +38,10 @@ public:
     // Generate an offset for each unique feature name.
     std::map<std::string, uint8_t> features;
 
+    // xcxc hack to make features start at 1. Don't check me in!
+    features.insert({"filler", 0});
+    _feature_names.push_back("filler");
+
     for (size_t type_id = 0; type_id < ObjectType::Count; ++type_id) {
       for (size_t i = 0; i < _type_feature_names[type_id].size(); ++i) {
         std::string feature_name = _type_feature_names[type_id][i];
