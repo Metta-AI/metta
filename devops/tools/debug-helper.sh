@@ -37,9 +37,10 @@ LOG_FILE="/tmp/debug_log_$TIMESTAMP.txt"
 
 # Function to show usage
 show_usage() {
-  echo "Usage: $0 [--setup] [--commits=N]"
+  echo "Usage: $0 [--setup|--commits=N|--cleanup]"
   echo "  --setup         Save current working files to temp storage"
   echo "  --commits=N     Process N commits back from HEAD (default: 10)"
+  echo "  --cleanup       Remove all local and remote debug-test branches"
   echo "  (no args)       Apply saved files, create test branches, and launch jobs"
   exit 1
 }
@@ -53,11 +54,38 @@ for arg in "$@"; do
     --commits=*)
       NUM_COMMITS="${arg#*=}"
       ;;
+    --cleanup)
+      CLEANUP_MODE=true
+      ;;
     --help)
       show_usage
       ;;
   esac
 done
+
+# Handle cleanup mode
+if [ "$CLEANUP_MODE" = true ]; then
+  echo "Cleaning up debug test branches..."
+  
+  # Clean local branches
+  echo "Deleting local debug-test branches:"
+  git branch | grep "debug-test" | xargs git branch -D 2>/dev/null || echo "No local branches to delete"
+  
+  # Clean remote branches
+  echo "Deleting remote debug-test branches:"
+  remote_branches=$(git ls-remote --heads origin | grep "debug-test" | awk '{print $2}' | sed 's/refs\/heads\///')
+  if [ -n "$remote_branches" ]; then
+    for branch in $remote_branches; do
+      echo "  Deleting: $branch"
+      git push origin --delete "$branch"
+    done
+  else
+    echo "No remote branches to delete"
+  fi
+  
+  echo "Cleanup complete!"
+  exit 0
+fi
 
 # Setup mode - copy the current working files to temporary storage
 if [ "$SETUP_MODE" = true ]; then
