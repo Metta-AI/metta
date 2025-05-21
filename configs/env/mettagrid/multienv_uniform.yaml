@@ -1,4 +1,4 @@
-_target_: metta.env.mettagrid_env_set.SamplingPrioritizedEnvSet
+_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
 
 num_agents: 4
 sampling: 1
@@ -19,3 +19,17 @@ envs:
   - /env/mettagrid/navigation/training/varied_terrain_balanced
   - /env/mettagrid/navigation/training/varied_terrain_maze
   - /env/mettagrid/navigation/training/varied_terrain_dense
+
+probabilities:
+  - 0.0833
+  - 0.0833
+  - 0.0833
+  - 0.0833
+  - 0.0833
+  - 0.0833
+  - 0.0833
+  - 0.0833
+  - 0.0833
+  - 0.0833
+  - 0.0833
+  - 0.0833

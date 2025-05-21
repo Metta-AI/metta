@@ -13,13 +13,13 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/multienv
+  env: /env/mettagrid/multienv_prioritized
   evaluate_interval: 10
 
 
 policy_uri: wandb://run/b.georgedeane.george_sequence_no_increment
 
 
-run_id: 2
+run_id: 3
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
