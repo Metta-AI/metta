@@ -1,6 +1,61 @@
 import { state } from './common.js';
 import { getAttr, sendAction } from './replay.js';
+import { find } from './htmlutils.js';
 
+
+export function initActionButtons() {
+  find("#action-buttons .north").addEventListener('click', () => {
+    sendAction("rotate", 0)
+  })
+
+  find("#action-buttons .west").addEventListener('click', () => {
+    sendAction("rotate", 2)
+  })
+
+  find("#action-buttons .south").addEventListener('click', () => {
+    sendAction("rotate", 1)
+  })
+
+  find("#action-buttons .east").addEventListener('click', () => {
+    sendAction("rotate", 3)
+  })
+
+  find("#action-buttons .forward").addEventListener('click', () => {
+    sendAction("move", 0)
+  })
+
+  find("#action-buttons .backward").addEventListener('click', () => {
+    sendAction("move", 1)
+  })
+
+  find("#action-buttons .put-recipe-items").addEventListener('click', () => {
+    sendAction("put_recipe_items", 0)
+  })
+
+  find("#action-buttons .get-output").addEventListener('click', () => {
+    sendAction("get_output", 0)
+  })
+
+  find("#action-buttons .noop").addEventListener('click', () => {
+    sendAction("noop", 0)
+  })
+
+  find("#action-buttons .attack").addEventListener('click', () => {
+    sendAction("attack", 2)
+  })
+
+  find("#action-buttons .attack-nearest").addEventListener('click', () => {
+    sendAction("attack_nearest", 0)
+  })
+
+  find("#action-buttons .change-color").addEventListener('click', () => {
+    sendAction("change_color", 0)
+  })
+
+  find("#action-buttons .swap").addEventListener('click', () => {
+    sendAction("swap", 0)
+  })
+}
 
 export function processActions(event: KeyboardEvent) {
   // Smart navigation, where pressing key rotations the agent in the

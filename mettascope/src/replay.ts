@@ -329,7 +329,7 @@ export function initWebSocket(wsUrl: string) {
   state.ws.onopen = () => {
     Common.showModal("info",
       "Starting environment",
-      "Please wait while live environment is starting for playing..."
+      "Please wait while live environment is starting..."
     );
   };
   state.ws.onclose = () => {

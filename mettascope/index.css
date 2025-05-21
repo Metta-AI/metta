@@ -510,3 +510,498 @@ button#share-button.hover-icon .icon {
     background-color: rgba(0, 103, 2, 1.00);
     overflow: hidden;
 }
+
+#action-buttons {
+    position: absolute;
+    display: block;
+    width: 638px;
+    height: 128px;
+    left: 50%;
+    bottom: 204px;
+    transform: translate(-318.50px, 0);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .west {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 0px;
+    top: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.west .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.west .west-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 3px;
+    top: 3px;
+    transform-origin: center;
+    transform: rotate(1.5707963705062848rad);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .north {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 64px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.north .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.north .north-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 3px;
+    top: 3px;
+    transform-origin: center;
+    transform: rotate(-3.1415925661670165rad);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .forward {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 192px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.forward .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.forward .forward-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 3px;
+    top: 3px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .attack-nearest {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 384px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.attack-nearest .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.attack-nearest .attack-nearest-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-29px, -29px);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .south {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 64px;
+    top: 64px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.south .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.south .south-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 3px;
+    top: 3px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .backward {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 192px;
+    top: 64px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.backward .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.backward .backward-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 3px;
+    top: 3px;
+    transform-origin: center;
+    transform: rotate(-3.141592653589793rad);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .attack {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 383px;
+    top: 64px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.attack .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.attack .attack-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-29px, -29px);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .east {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 128px;
+    top: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.east .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.east .east-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 3px;
+    top: 3px;
+    transform-origin: center;
+    transform: rotate(-1.570796314870016rad);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .put-recipe-items {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 256px;
+    top: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.put-recipe-items .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.put-recipe-items .put-recipie-items-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-29px, -29px);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .swap {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 447px;
+    top: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.swap .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.swap .swap-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-29px, -29px);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .get-output {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 320px;
+    top: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.get-output .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.get-output .get-output-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-29px, -29px);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .change-color {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 511px;
+    top: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.change-color .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.change-color .change-color-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-29px, -29px);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#action-buttons .noop {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 574px;
+    top: 32px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.noop .bg {
+    position: absolute;
+    display: block;
+    width: 62px;
+    height: 62px;
+    left: 1px;
+    top: 1px;
+    background-color: rgba(0, 0, 0, 0.80);
+    border-radius: 10px;
+    border-color: rgba(62, 62, 62, 1.00);
+    border-width: 2px;
+    border-style: solid;
+}
+
+.noop .noop-image {
+    position: absolute;
+    display: block;
+    width: 58px;
+    height: 58px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-29px, -29px);
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}

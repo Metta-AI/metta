@@ -5,7 +5,8 @@ import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './rep
 import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
-import { processActions } from './actions.js';
+import { processActions, initActionButtons } from './actions.js';
+
 // Handle resize events.
 export function onResize() {
   // Adjust for high DPI displays.
@@ -32,32 +33,25 @@ export function onResize() {
     ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight;
     ui.miniMapPanel.width = miniMapWidth;
     ui.miniMapPanel.height = miniMapHeight;
-    console.log("miniMap:", ui.miniMapPanel.x, ui.miniMapPanel.y, ui.miniMapPanel.width, ui.miniMapPanel.height);
   }
 
   ui.infoPanel.x = screenWidth - 400;
   ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 200;
   ui.infoPanel.width = 400;
   ui.infoPanel.height = 200;
-  if (ui.infoPanel.div === null) {
-    ui.infoPanel.div = document.createElement("div");
-    ui.infoPanel.div.id = ui.infoPanel.name + "-div";
-    document.body.appendChild(ui.infoPanel.div);
-  }
-  if (ui.infoPanel.div !== null) {
-    const div = ui.infoPanel.div;
-    div.style.position = 'absolute';
-    div.style.top = ui.infoPanel.y + 'px';
-    div.style.left = ui.infoPanel.x + 'px';
-    div.style.width = ui.infoPanel.width + 'px';
-    div.style.height = ui.infoPanel.height + 'px';
-  }
 
   // Trace panel is always on the bottom of the screen.
   ui.tracePanel.x = 0;
   ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height;
   ui.tracePanel.width = screenWidth;
   ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
+
+  html.actionButtons.style.top = (ui.tracePanel.y - 148) + 'px';
+
+  ui.mapPanel.updateDiv();
+  ui.miniMapPanel.updateDiv();
+  ui.infoPanel.updateDiv();
+  ui.tracePanel.updateDiv();
 
   // Redraw the square after resizing.
   requestFrame();
@@ -96,6 +90,11 @@ function onMouseUp() {
 // Handle mouse move events.
 function onMouseMove(event: MouseEvent) {
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
+  var target = event.target as HTMLElement;
+  while (target.id === "") {
+    target = target.parentElement as HTMLElement;
+  }
+  ui.mouseTarget = target.id;
 
   // If mouse is close to a panels edge change cursor to edge changer.
   document.body.style.cursor = "default";
@@ -401,10 +400,12 @@ onResize();
 html.modal.classList.add("hidden");
 html.toast.classList.add("hiding");
 
-// TODO: Hookup panels divs better, but hide them for now.
-ui.mapPanel.div.classList.add("hidden");
-ui.tracePanel.div.classList.add("hidden");
-ui.miniMapPanel.div.classList.add("hidden");
+// Each panel has a div we use for event handling.
+// But rendering happens bellow on global canvas.
+// We make divs transparent to see through them.
+ui.mapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
+ui.tracePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
+ui.miniMapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 
 // Add event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize);
@@ -493,6 +494,8 @@ html.showFogOfWarButton.addEventListener('click', () => {
   requestFrame();
 });
 toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+
+initActionButtons();
 
 window.addEventListener('load', async () => {
   // Use local atlas texture.

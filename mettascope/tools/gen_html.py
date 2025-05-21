@@ -568,12 +568,20 @@ html, body {
             if "lineHeightPx" in style:
                 css["line-height"] = px(round(style["lineHeightPx"], 2))
 
+    def compute_rotation(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
+        """Compute the rotation from a figma element."""
+        if "rotation" in element and abs(element["rotation"]) > 0.01:
+            css["transform-origin"] = "center"
+            css["transform"] = f"rotate({element['rotation']}rad)"
+
     def compute_background(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
         """Compute the background from a figma element."""
         if "backgroundColor" in element:
             css["background-color"] = rgba(element["backgroundColor"])
-        elif "fills" in element and element["fills"] and element["fills"][0].get("type") == "SOLID":
-            css["background-color"] = rgba(element["fills"][0]["color"])
+        if "fills" in element:
+            for fills in element["fills"]:
+                if fills.get("type") == "SOLID":
+                    css["background-color"] = rgba(fills["color"], fills.get("opacity", 1.0))
 
     def compute_border_radius(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
         """Compute the border radius from a figma element."""
@@ -665,6 +673,9 @@ html, body {
 
         # Compute auto layout
         self.compute_auto_layout(css, element, parent)
+
+        # Compute rotation
+        self.compute_rotation(css, element)
 
         if element_type == "TEXT":
             self.compute_text_properties(css, element)
