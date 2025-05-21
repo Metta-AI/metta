@@ -75,7 +75,6 @@ export const state = {
   playbackSpeed: 0.1,
 
   // What to show?
-  sortTraces: false,
   showResources: true,
   showGrid: true,
   showViewRanges: true,
@@ -113,7 +112,6 @@ export const html = {
     find('#speed6') as HTMLImageElement,
   ],
 
-  sortButton: find('#sort') as HTMLImageElement,
   resourcesButton: find('#resources') as HTMLImageElement,
   focusButton: find('#tack') as HTMLImageElement,
   gridButton: find('#grid') as HTMLImageElement,

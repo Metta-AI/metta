@@ -454,14 +454,6 @@ for (let i = 0; i < html.speedButtons.length; i++) {
   );
 }
 
-// Toggle follow selection state.
-html.sortButton.addEventListener('click', () => {
-  state.sortTraces = !state.sortTraces;
-  toggleOpacity(html.sortButton, state.sortTraces);
-  requestFrame();
-});
-toggleOpacity(html.sortButton, state.sortTraces);
-html.sortButton.style.display = "none";
 
 html.resourcesButton.addEventListener('click', () => {
   state.showResources = !state.showResources;
@@ -470,6 +462,7 @@ html.resourcesButton.addEventListener('click', () => {
 });
 toggleOpacity(html.resourcesButton, state.showResources);
 
+// Toggle follow selection state.
 html.focusButton.addEventListener('click', () => {
   setFollowSelection(!state.followSelection);
 });

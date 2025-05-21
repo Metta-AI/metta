@@ -181,7 +181,7 @@ canvas#global-canvas {
 #footer .right {
     position: absolute;
     display: flex;
-    width: 217px;
+    width: 180px;
     height: 32px;
     right: 20px;
     top: 50%;
@@ -194,7 +194,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #sort.hover-icon {
+.right #resources.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -204,7 +204,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #resources.hover-icon {
+.right #tack.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -214,7 +214,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #tack.hover-icon {
+.right #grid.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -224,7 +224,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #grid.hover-icon {
+.right #eye.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -234,21 +234,11 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #eye.hover-icon {
-    display: block;
-    width: 32px;
-    height: 32px;
-    left: 148px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
 .right #cloud.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
-    left: 185px;
+    left: 148px;
     top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
