@@ -63,7 +63,7 @@ public:
   }
 
   int update_inventory(InventoryItem item, short amount) {
-    int current_amount = this->inventory[static_cast<int>(item)];
+    int current_amount = this->inventory[item];
     int new_amount = current_amount + amount;
     if (new_amount > this->max_items) {
       new_amount = this->max_items;
@@ -73,7 +73,7 @@ public:
     }
 
     int delta = new_amount - current_amount;
-    this->inventory[static_cast<int>(item)] = new_amount;
+    this->inventory[item] = new_amount;
 
     if (delta > 0) {
       this->stats.add(InventoryItemNames[item], "gained", delta);
