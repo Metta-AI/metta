@@ -7,7 +7,6 @@ POLICIES=(
     "b.daphne.object_use_multienv_pretrained"
     "b.daphne.object_use_multienv2"
     "daphne_objectuse_bigandsmall"
-    "mrazo_object-use_allobjs_large-multienv_v01"
     "daphne_objectuse_allobjs_multienv"
     "navigation_training"
     "training_regular_envset"
@@ -23,6 +22,7 @@ POLICIES=(
     "b.daphne.regular_envset"
     "training_regular_envset_nb"
     "training_uniform_envset_nb"
+    "mrazo_object-use_allobjs_large-multienv_v01"
 
 )
 #!/bin/bash
