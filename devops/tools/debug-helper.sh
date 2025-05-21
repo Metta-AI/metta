@@ -460,10 +460,10 @@ if [ -f "$SUMMARY_FILE" ]; then
     "RUN_ID" "COMMIT" "COMMIT_MESSAGE" "COMMIT_DATETIME" > /tmp/header.txt
   
   # Create separator line with correct lengths
-  printf "%s|%s|%s|%s\n" \
-    "$(printf '%0.s-' $(seq 1 $COL_WIDTH_RUNID)) " \
-    "$(printf '%0.s-' $(seq 1 $COL_WIDTH_COMMIT)) " \
-    "$(printf '%0.s-' $(seq 1 $COL_WIDTH_MSG)) " \
+  printf "%s | %s | %s | %s\n" \
+    "$(printf '%0.s-' $(seq 1 $COL_WIDTH_RUNID))" \
+    "$(printf '%0.s-' $(seq 1 $COL_WIDTH_COMMIT))" \
+    "$(printf '%0.s-' $(seq 1 $COL_WIDTH_MSG))" \
     "$(printf '%0.s-' $(seq 1 $COL_WIDTH_DATE))" >> /tmp/header.txt
   
   # Merge the header and data
