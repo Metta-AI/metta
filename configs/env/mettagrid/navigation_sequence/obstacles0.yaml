@@ -3,13 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 1 #how many agents are in the map x2
   max_steps: 150
-
-  agent:
-    rewards:
-      heart: 1
-
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 1
@@ -17,7 +11,3 @@ game:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/navigation_sequence/obstacles0.map"
-
-  objects:
-    altar:
-      cooldown: 255

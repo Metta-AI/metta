@@ -5,13 +5,12 @@ defaults:
 agents: 1
 
 game:
-
   num_agents: 1
   max_steps: 700
 
   agent:
     rewards:
-      heart: 1
+      heart: 0.95
       ore.red: 0
     max_inventory: 100
     freeze_duration: 0
@@ -37,7 +36,7 @@ game:
     generator.red:
       hp: 30
       input_ore.red: 1
-      output_battery: 1
+      output_battery: 3
       color: 0
       max_output: 3
       conversion_ticks: 1
