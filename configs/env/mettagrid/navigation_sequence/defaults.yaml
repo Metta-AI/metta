@@ -10,10 +10,11 @@ game:
   max_steps: 700
 
   agent:
+    rewards:
+      heart: 1
+      ore.red: 0
     max_inventory: 100
     freeze_duration: 0
-    hp: 10
-    mortal: False
 
   objects:
     altar:
@@ -30,7 +31,7 @@ game:
       color: 0
       max_output: 1
       conversion_ticks: 1
-      cooldown: 255
+      cooldown: 1
       initial_items: 1
 
     generator.red:
@@ -38,7 +39,7 @@ game:
       input_ore.red: 1
       output_battery: 1
       color: 0
-      max_output: 1
+      max_output: 3
       conversion_ticks: 1
-      cooldown: 255
+      cooldown: 1
       initial_items: 0
