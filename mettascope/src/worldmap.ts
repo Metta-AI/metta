@@ -5,7 +5,7 @@ import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame } from './main.js';
-import { parseHtmlColor } from './htmlutils.js';
+import { parseHtmlColor, find } from './htmlutils.js';
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
 
@@ -458,7 +458,7 @@ function drawThoughtBubbles() {
     // A key action is a successful action that is not a noop, rotate or move.
     // Must not be more then 20 steps in the future.
     var keyAction = null;
-    for(var actionStep = state.step; actionStep < state.replay.max_steps && actionStep < state.step + 20; actionStep++) {
+    for (var actionStep = state.step; actionStep < state.replay.max_steps && actionStep < state.step + 20; actionStep++) {
       const action = getAttr(state.selectedGridObject, "action", actionStep);
       if (action == null || action[0] == null || action[1] == null) {
         continue;
@@ -492,7 +492,7 @@ function drawThoughtBubbles() {
           x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
           y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
           [1, 1, 1, 1],
-          1/4,
+          1 / 4,
           0
         );
       } else {
@@ -501,7 +501,7 @@ function drawThoughtBubbles() {
           x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
           y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
           [1, 1, 1, 1],
-          1/4,
+          1 / 4,
           0
         );
       }
@@ -524,7 +524,7 @@ function drawThoughtBubbles() {
             resourceX,
             resourceY,
             color,
-            1/8,
+            1 / 8,
             0
           );
           if (gained > 0) {
@@ -726,7 +726,8 @@ export function updateReadout() {
       readout += key + " count: " + value + "\n";
     }
   }
-  if (ui.infoPanel.div !== null) {
-    ui.infoPanel.div.innerHTML = readout;
+  let info = find("#info-panel .info")
+  if (info !== null) {
+    info.innerHTML = readout;
   }
 }

@@ -27,7 +27,7 @@ export function drawTrace(panel: PanelInfo) {
       setFollowSelection(false);
     } else if (ui.mouseUp &&
       ui.mouseDownPos.sub(ui.mousePos).length() < 10
-    ){
+    ) {
       // Check if we are clicking on an action/step.
       console.log("Trace up without dragging - selecting trace object");
       const localMousePos = panel.transformPoint(ui.mousePos);
