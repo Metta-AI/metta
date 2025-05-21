@@ -49,12 +49,12 @@ file_mounts:
 
   /mnt/s3/softmax-public:
     source: s3://softmax-public
-    mode: MOUNT
+    mode: MOUNT_CACHED
 
   /workspace/metta/train_dir:
     name: softmax-train-dir
     store: s3
-    mode: MOUNT
+    mode: MOUNT_CACHED
 
 envs:
   METTA_RUN_ID: ""
