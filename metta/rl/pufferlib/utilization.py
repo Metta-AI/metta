@@ -35,4 +35,4 @@ class Utilization(Thread):
     def stop(self):
         self.stopped = True
         if torch.cuda.is_available():
-            print(f"Average GPU utilization: {sum(self.gpu_util)/len(self.gpu_util) if self.gpu_util else 0}%")
+            print(f"Average GPU utilization: {sum(self.gpu_util) / len(self.gpu_util) if self.gpu_util else 0}%")

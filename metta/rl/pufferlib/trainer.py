@@ -350,7 +350,7 @@ class PufferTrainer:
                 o = torch.as_tensor(o)
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
-                
+
                 if self.device == "cuda":
                     o_device = o.to(self.device, non_blocking=True)
                 else:
@@ -364,7 +364,7 @@ class PufferTrainer:
                 assert training_env_id.min() >= 0, "Negative index in training_env_id"
 
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
-                
+
                 actions, logprob, _, value, _ = policy(o_device, state)
 
                 lstm_h[:, training_env_id] = (
@@ -440,7 +440,7 @@ class PufferTrainer:
                     dones_tensor = torch.tensor(dones_np, device=self.device)
                     values_tensor = torch.tensor(values_np, device=self.device)
                     rewards_tensor = torch.tensor(rewards_np_adjusted, device=self.device)
-                    
+
                     # Compute advantages on GPU
                     advantages = compute_gae(
                         dones_tensor, values_tensor, rewards_tensor, effective_gamma, self.trainer_cfg.gae_lambda
@@ -451,7 +451,7 @@ class PufferTrainer:
                     advantages_np = compute_gae(
                         dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
                     )
-                
+
                 # For average reward case, returns are computed differently:
                 # R(s) = Σ(r_t - ρ) represents the bias function
                 experience.returns_np = advantages_np + values_np
@@ -462,7 +462,7 @@ class PufferTrainer:
                     dones_tensor = torch.tensor(dones_np, device=self.device)
                     values_tensor = torch.tensor(values_np, device=self.device)
                     rewards_tensor = torch.tensor(rewards_np, device=self.device)
-                    
+
                     # Compute advantages on GPU
                     advantages = compute_gae(
                         dones_tensor, values_tensor, rewards_tensor, effective_gamma, self.trainer_cfg.gae_lambda
