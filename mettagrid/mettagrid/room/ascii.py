@@ -4,20 +4,24 @@ from mettagrid.room.room import Room
 
 SYMBOLS = {
     "A": "agent.agent",
-    "Ap": "agent.prey",
-    "AP": "agent.predator",
     "a": "altar",
     "c": "converter",
-    "g": "generator",
+    "n": "generator",
     "m": "mine",
     "W": "wall",
     " ": "empty",
-    "b": "block",
+    "s": "block",
     "L": "lasery",
-    "Q": "agent.team_1",
-    "E": "agent.team_2",
-    "R": "agent.team_3",
-    "T": "agent.team_4",
+    "1": "agent.team_1",
+    "2": "agent.team_2",
+    "3": "agent.team_3",
+    "4": "agent.team_4",
+    "r": "mine.red",
+    "b": "mine.blue",
+    "g": "mine.green",
+    "R": "generator.red",
+    "B": "generator.blue",
+    "G": "generator.green",
 }
 
 
