@@ -8,6 +8,7 @@ Objects like mines, generators, and altars are placed within this lane.
 
 from typing import List, Optional, Tuple, Dict, Union
 import numpy as np
+from omegaconf import DictConfig
 from mettagrid.room.room import Room
 
 
@@ -25,13 +26,12 @@ class CentralTableLayout(Room):
         self,
         width: int,  # User-provided width for the core functional area
         height: int,  # User-provided height for the core functional area
-        agents: Union[int, Dict[str, int]] = 1,
+        agents: Union[int, DictConfig] = 1,
         seed: Optional[int] = None,
         lane_width: int = 1,
         num_mines: int = 2,
         num_generators: int = 2,
         num_altars: int = 2,
-        team: Optional[str] = None,
         style: str = "default",
         border_width: int = 0,
     ):
@@ -75,8 +75,18 @@ class CentralTableLayout(Room):
         self._height = actual_grid_height
 
         # Store agents and team info
+        if isinstance(agents, int):
+            if agents < 0:
+                raise ValueError("Number of agents cannot be negative.")
+        elif isinstance(agents, DictConfig):
+            for agent_name, count_val in agents.items():
+                if not isinstance(count_val, int) or count_val < 0:
+                    raise ValueError(
+                        f"Agent count for '{str(agent_name)}' must be a non-negative integer, got {count_val}")
+        else:
+            raise TypeError(
+                f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
         self._agents_spec = agents
-        self._team = team
 
         # Initialize and apply style parameters for items and the final self._lane_width
         self._lane_width = lane_width  # Start with user-passed, style might override
@@ -274,13 +284,13 @@ class CentralTableLayout(Room):
         agent_symbols_to_place = []
         if isinstance(self._agents_spec, int):
             count = self._agents_spec
-            if self._team:
-                agent_symbols_to_place = [f"agent.{self._team}"] * count
-            else:
-                agent_symbols_to_place = ["agent.agent"] * count
-        elif isinstance(self._agents_spec, dict):
+            # Agent type defaults to "agent.agent" if an integer is provided
+            agent_symbols_to_place = ["agent.agent"] * count
+        elif isinstance(self._agents_spec, DictConfig):
             for name, agent_count in self._agents_spec.items():
-                processed_name = name if "." in name else f"agent.{name}"
+                # Ensure name is treated as a string for processing
+                s_name = str(name)
+                processed_name = s_name if "." in s_name else f"agent.{s_name}"
                 agent_symbols_to_place.extend([processed_name] * agent_count)
             self._rng.shuffle(agent_symbols_to_place)
 

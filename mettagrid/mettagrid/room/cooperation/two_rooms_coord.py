@@ -11,6 +11,7 @@ generators (e.g., mine -> generator -> altar sequence).
 """
 from typing import List, Optional, Tuple, Dict, Union
 import numpy as np
+from omegaconf import DictConfig
 from mettagrid.room.room import Room
 
 
@@ -23,7 +24,7 @@ class TwoRoomsCoord(Room):
         num_shared_generators: int,
         num_altars: int,
         num_mines: int,
-        agents: int = 2,
+        agents: Union[int, DictConfig] = 2,
         # "horizontal", "vertical", or None for random
         arrangement: Optional[str] = None,
         border_width: int = 0,
@@ -42,7 +43,23 @@ class TwoRoomsCoord(Room):
         self._num_shared_generators = num_shared_generators
         self._num_altars = num_altars
         self._num_mines = num_mines
-        self._num_agents = agents
+
+        self._agents_input = agents
+        if isinstance(agents, int):
+            if agents < 0:
+                raise ValueError("Number of agents cannot be negative.")
+            self._num_total_agents = agents
+        elif isinstance(agents, DictConfig):
+            current_total_agents = 0
+            for agent_name, count_val in agents.items():
+                if not isinstance(count_val, int) or count_val < 0:
+                    raise ValueError(
+                        f"Agent count for '{str(agent_name)}' must be a non-negative integer, got {count_val}")
+                current_total_agents += count_val
+            self._num_total_agents = current_total_agents
+        else:
+            raise TypeError(
+                f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
 
         if arrangement not in [None, "horizontal", "vertical"]:
             raise ValueError(
@@ -193,60 +210,76 @@ class TwoRoomsCoord(Room):
             self._place_objects_in_cells(
                 grid, "mine", self._num_mines, r2_empty_floor_cells)
 
+        # Prepare agent symbols list
+        agent_symbols_list: List[str] = []
+        if isinstance(self._agents_input, int):
+            agent_symbols_list = ["agent.agent"] * self._num_total_agents
+        elif isinstance(self._agents_input, DictConfig):
+            temp_list = []
+            for agent_name, count_val in self._agents_input.items():
+                # Validation for count_val (must be int >= 0) already done in __init__
+                # but good to be defensive if self._agents_input could be modified post-init.
+                # For now, assume __init__ guarantees valid counts in DictConfig.
+                temp_list.extend([f"agent.{str(agent_name)}"] * count_val)
+
+            # Shuffle to mix agent types before placement
+            self._rng.shuffle(temp_list)
+            agent_symbols_list = temp_list
+        # else: type error handled in __init__
+
         # Place Agents alternately
-        # r1_empty_floor_cells and r2_empty_floor_cells are modified by _place_objects_in_cells
-        # Shuffle remaining empty cells in each room
         self._rng.shuffle(r1_empty_floor_cells)
         self._rng.shuffle(r2_empty_floor_cells)
 
-        agents_placed = 0
-        # Determine which room list to pick from first for alternation
-        # This can be randomized or fixed. Let's randomize.
+        agents_placed_count = 0
         room1_first = self._rng.choice([True, False])
 
-        for i in range(self._num_agents):
-            # agent.A, agent.B, ...
-            agent_symbol = "agent.agent"
+        # Number of agents we will attempt to place based on the generated symbols list
+        num_agents_to_attempt_placement = len(agent_symbols_list)
 
-            # Determine target room based on alternation and agent index
-            target_room1 = (room1_first and i % 2 == 0) or (
-                not room1_first and i % 2 != 0)
+        for i in range(num_agents_to_attempt_placement):
+            agent_symbol_to_place = agent_symbols_list[i]
+
+            target_room1 = (room1_first and i % 2 == 0) or \
+                           (not room1_first and i % 2 != 0)
 
             placed_in_iteration = False
             if target_room1 and r1_empty_floor_cells:
                 r_a, c_a = r1_empty_floor_cells.pop(0)
-                grid[r_a, c_a] = agent_symbol
+                grid[r_a, c_a] = agent_symbol_to_place
                 self._occ[r_a, c_a] = True
-                agents_placed += 1
                 placed_in_iteration = True
             elif not target_room1 and r2_empty_floor_cells:
                 r_a, c_a = r2_empty_floor_cells.pop(0)
-                grid[r_a, c_a] = agent_symbol
+                grid[r_a, c_a] = agent_symbol_to_place
                 self._occ[r_a, c_a] = True
-                agents_placed += 1
                 placed_in_iteration = True
             else:  # Target room is full, try the other room
-                # Try Room 1 if it wasn't the (full) target
                 if r1_empty_floor_cells:
                     r_a, c_a = r1_empty_floor_cells.pop(0)
-                    grid[r_a, c_a] = agent_symbol
+                    grid[r_a, c_a] = agent_symbol_to_place
                     self._occ[r_a, c_a] = True
-                    agents_placed += 1
                     placed_in_iteration = True
-                # Try Room 2 if it wasn't the (full) target
                 elif r2_empty_floor_cells:
                     r_a, c_a = r2_empty_floor_cells.pop(0)
-                    grid[r_a, c_a] = agent_symbol
+                    grid[r_a, c_a] = agent_symbol_to_place
                     self._occ[r_a, c_a] = True
-                    agents_placed += 1
                     placed_in_iteration = True
 
-            if not placed_in_iteration:
-                # print(f"Warning: No empty space left to place agent {i+1} ('{agent_symbol}').")
+            if placed_in_iteration:
+                agents_placed_count += 1
+            else:
+                # print(f"Warning: No empty space left to place agent {i+1} ('{agent_symbol_to_place}').")
                 break  # Stop if no space found for current agent
 
-        if agents_placed < self._num_agents:
+        if agents_placed_count < num_agents_to_attempt_placement:
             print(
-                f"Warning: Could only place {agents_placed}/{self._num_agents} agents.")
+                f"Warning: Could only place {agents_placed_count}/{num_agents_to_attempt_placement} agents. "
+                f"(Initial request for {self._num_total_agents} total agents from input configuration).")
+        # e.g. if DictConfig had invalid counts initially
+        elif self._num_total_agents > num_agents_to_attempt_placement:
+            print(
+                f"Warning: Placed {agents_placed_count} agents. "
+                f"Initial request for {self._num_total_agents} total agents, but only {num_agents_to_attempt_placement} were validly specified.")
 
         return grid

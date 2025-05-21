@@ -9,6 +9,7 @@ An optional additional pure wall border can be added around the entire room.
 """
 from typing import List, Optional, Tuple, Dict, Union
 import numpy as np
+from omegaconf import DictConfig
 from mettagrid.room.room import Room
 
 
@@ -20,8 +21,7 @@ class ConfinedRoomCoord(Room):
         num_mines: int = 1,
         num_generators: int = 1,
         num_altars: int = 1,
-        agents: Union[int, Dict[str, int]] = 1,
-        team: Optional[str] = None,
+        agents: Union[int, DictConfig] = 1,
         # Pure wall padding around the room (floor + object border)
         border_width: int = 0,
         seed: Optional[int] = None,
@@ -41,8 +41,19 @@ class ConfinedRoomCoord(Room):
         self._num_mines = num_mines
         self._num_generators = num_generators
         self._num_altars = num_altars
+
+        if isinstance(agents, int):
+            if agents < 0:
+                raise ValueError("Number of agents cannot be negative.")
+        elif isinstance(agents, DictConfig):
+            for agent_name, count_val in agents.items():
+                if not isinstance(count_val, int) or count_val < 0:
+                    raise ValueError(
+                        f"Agent count for '{str(agent_name)}' must be a non-negative integer, got {count_val}")
+        else:
+            raise TypeError(
+                f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
         self._agents_spec = agents
-        self._team = team
 
         # Calculate room dimensions:
         # Core room = floor + 1-cell functional border (2 cells in each dim)
@@ -197,14 +208,14 @@ class ConfinedRoomCoord(Room):
         agent_symbols_to_place: List[str] = []
         if isinstance(self._agents_spec, int):
             count = self._agents_spec
-            if self._team:
-                agent_symbols_to_place = [f"agent.{self._team}"] * count
-            else:
-                agent_symbols_to_place = ["agent.agent"] * count
-        elif isinstance(self._agents_spec, dict):
-            for name, count in self._agents_spec.items():
-                processed_name = name if "." in name else f"agent.{name}"
-                agent_symbols_to_place.extend([processed_name] * count)
+            # Agent type defaults to "agent.agent" if an integer is provided
+            agent_symbols_to_place = ["agent.agent"] * count
+        elif isinstance(self._agents_spec, DictConfig):
+            for name, count_val in self._agents_spec.items():
+                # Ensure name is treated as a string for processing
+                s_name = str(name)
+                processed_name = s_name if "." in s_name else f"agent.{s_name}"
+                agent_symbols_to_place.extend([processed_name] * count_val)
             self._rng.shuffle(agent_symbols_to_place)
 
         agents_placed_count = 0

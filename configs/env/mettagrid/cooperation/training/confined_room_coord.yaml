@@ -1,4 +1,4 @@
-# Config: Central Table Layout (Overcooked-style)
+# Config: Confined Room Coord (Overcooked-style)
 defaults:
   - /env/mettagrid/mettagrid@
   - _self_
@@ -6,21 +6,48 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 18
+  num_agents: 8
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 9
+    _target_: mettagrid.room.room_list.RoomList
     border_width: 6
 
-    room:
-      _target_: mettagrid.room.cooperation.confined_room_coord.ConfinedRoomCoord
-      width: ${sampling:2,4,3}
-      height: ${sampling:2,4,3}
-      agents: 2
-      border_width: 2
-      num_mines: 2
-      num_generators: 2
-      num_altars: 2
+    rooms:
+      - _target_: mettagrid.room.cooperation.confined_room_coord.ConfinedRoomCoord
+        width: ${sampling:2,5,3}
+        height: ${sampling:2,5,3}
+        num_generators: ${sampling:1,3,2}
+        num_altars: ${sampling:1,4,2}
+        num_mines: ${sampling:1,4,2}
+        agents:
+          team_1: 2
+        border_width: 2
+      - _target_: mettagrid.room.cooperation.confined_room_coord.ConfinedRoomCoord
+        width: ${sampling:2,5,3}
+        height: ${sampling:2,5,3}
+        num_generators: ${sampling:1,3,2}
+        num_altars: ${sampling:1,4,2}
+        num_mines: ${sampling:1,4,2}
+        agents:
+          team_2: 2
+        border_width: 2
+      - _target_: mettagrid.room.cooperation.confined_room_coord.ConfinedRoomCoord
+        width: ${sampling:2,5,3}
+        height: ${sampling:2,5,3}
+        num_generators: ${sampling:1,3,2}
+        num_altars: ${sampling:1,4,2}
+        num_mines: ${sampling:1,4,2}
+        agents:
+          team_3: 2
+        border_width: 2
+      - _target_: mettagrid.room.cooperation.confined_room_coord.ConfinedRoomCoord
+        width: ${sampling:2,5,3}
+        height: ${sampling:2,5,3}
+        num_generators: ${sampling:1,3,2}
+        num_altars: ${sampling:1,4,2}
+        num_mines: ${sampling:1,4,2}
+        agents:
+          team_4: 2
+        border_width: 2
 
   objects:
     altar:
