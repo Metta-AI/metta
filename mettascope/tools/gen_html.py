@@ -612,8 +612,8 @@ html, body {
                     element_id = element.get("id", "")
                     if stroke_align and stroke_align != "INSIDE":
                         print(
-                            f"Warning: Element '{element_name}' (ID: {element_id}) uses {stroke_align} stroke alignment, "
-                            + "which is not supported in HTML/CSS. Using INSIDE stroke instead."
+                            f"Warning: Element '{element_name}' (ID: {element_id}) uses {stroke_align} stroke"
+                            + "alignment which is not supported in HTML/CSS. Using INSIDE stroke instead.",
                         )
 
         if "individualStrokeWeights" in element:
