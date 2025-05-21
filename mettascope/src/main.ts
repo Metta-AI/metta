@@ -399,6 +399,7 @@ onResize();
 
 html.modal.classList.add("hidden");
 html.toast.classList.add("hiding");
+html.actionButtons.classList.add("hidden");
 
 // Each panel has a div we use for event handling.
 // But rendering happens bellow on global canvas.
