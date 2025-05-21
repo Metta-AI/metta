@@ -233,7 +233,7 @@ class MettaAgent(nn.Module):
 
         # Convert logit index to action if no action was provided
         if action is None:
-            action = self._convert_logit_index_to_action(action_logit_index, td)
+            action = self._convert_logit_index_to_action(action_logit_index)
 
         return action, action_log_prob, entropy, value, log_probs
 
