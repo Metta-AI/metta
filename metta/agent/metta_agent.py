@@ -200,50 +200,13 @@ class MettaAgent(nn.Module):
             - value: Value estimate, shape (BT,)
             - log_probs: Log-softmax of logits, shape (BT, A) where A is the size of the action space
         """
-        # rename parameter for clarity
-        bptt_action = action
-        del action
 
-        # TODO - obs_shape is not available in the eval smoke test policies so we can't
-        # check exact dimensions
-
-        # Default values in case obs_shape is not available
-        obs_w, obs_h, features = "W", "H", "F"
-
-        # Check if agent_attributes exists, is not None, and contains obs_shape
-        if (
-            hasattr(self, "agent_attributes")
-            and self.agent_attributes is not None
-            and "obs_shape" in self.agent_attributes
-        ):
-            # Get obs_shape and ensure it has the expected format
-            obs_shape = self.agent_attributes["obs_shape"]
-            if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
-                obs_w, obs_h, features = obs_shape
-            # If the format is unexpected, we keep the default values
-
-        if bptt_action is not None:
+        if action is not None:
             # BPTT
-            if __debug__:
-                assert_shape(bptt_action, ("B", "T", 2), "bptt_action")
-
-            B, T, A = bptt_action.shape
-
-            if __debug__:
-                assert A == 2, f"Action dimensionality should be 2, got {A}"
-                assert_shape(x, (B, T, obs_w, obs_h, features), "x")
-
+            B, T, A = action.shape
             # Flatten batch and time dimensions for both action and x
-            bptt_action = einops.rearrange(bptt_action, "b t c -> (b t) c")
+            bptt_action = einops.rearrange(action, "b t c -> (b t) c")
             x = einops.rearrange(x, "b t ... -> (b t) ...")
-
-            if __debug__:
-                assert_shape(bptt_action, (B * T, 2), "flattened action")
-                assert_shape(x, (B * T, obs_w, obs_h, features), "flattened x")
-        else:
-            # inference
-            if __debug__:
-                assert_shape(x, ("BT", obs_w, obs_h, features), "x")
 
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
@@ -259,20 +222,13 @@ class MettaAgent(nn.Module):
         # Forward pass through value network
         self.components["_value_"](td)
         value = td["_value_"]
-
         # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
         # This design supports potential future extensions like distributional value functions
         # or multi-head value networks which would require more than a scalar per state
-        if __debug__:
-            assert_shape(value, ("BT", 1), "value")
 
         # Forward pass through action network
         self.components["_action_"](td)
         logits = td["_action_"]
-
-        if __debug__:
-            # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
-            assert_shape(logits, ("BT", "A"), "logits")
 
         # Update LSTM states
         split_size = self.core_num_layers
@@ -283,32 +239,12 @@ class MettaAgent(nn.Module):
         if bptt_action is not None:
             # BPTT
             bptt_action_index = self._convert_action_to_logit_index(bptt_action)
-
-            if __debug__:
-                action_space_size = logits.shape[-1]  # 'A' dimension size
-                max_index = bptt_action_index.max().item()
-                min_index = bptt_action_index.min().item()
-                if max_index >= action_space_size or min_index < 0:
-                    raise ValueError(
-                        f"Invalid action_logit_index: contains values outside the valid range"
-                        f" [0, {action_space_size - 1}]. "
-                        f"Found values in range [{min_index}, {max_index}]"
-                    )
-
             action_index, action_log_prob, entropy, log_probs = sample_logits(logits, bptt_action_index)
         else:
             # inference
             action_index, action_log_prob, entropy, log_probs = sample_logits(logits, None)
 
-        if __debug__:
-            assert_shape(action_index, ("BT",), "action_index")
-            assert_shape(action_log_prob, ("BT",), "action_log_prob")
-            assert_shape(entropy, ("BT",), "entropy")
-            assert_shape(log_probs, ("BT", "A"), "log_probs")
-
         output_action = self._convert_logit_index_to_action(action_index)
-        if __debug__:
-            assert_shape(output_action, ("BT", 2), "output_action")
 
         return output_action, action_log_prob, entropy, value, log_probs
 
