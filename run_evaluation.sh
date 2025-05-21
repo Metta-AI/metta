@@ -28,7 +28,6 @@ POLICIES=(
     "training_regular_envset_nb"
     "training_uniform_envset_nb"
 
-
 )
 #!/bin/bash
 
@@ -56,7 +55,7 @@ for i in "${!POLICIES[@]}"; do
 
     python3 -m tools.sim \
         sim=object_use \
-        run=objectuse$IDX \
+        run=object_use$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/objectuse_db \
         # device=cpu \
