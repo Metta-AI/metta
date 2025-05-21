@@ -399,8 +399,8 @@ for COMMIT in $COMMITS; do
   echo "  Branch: $TEST_BRANCH" | tee -a "$LOG_FILE"
   echo "  Run ID: $RUN_NAME" | tee -a "$LOG_FILE"
   
-  # Escape any commas in the commit message for CSV
-  COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | sed 's/,/\\,/g')
+  # Properly escape the commit message for CSV format
+  COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | sed 's/"/"""/g')
   
   # Add to summary file for the final table
   echo "$RUN_NAME,$COMMIT_SHORT,\"$COMMIT_MSG_ESCAPED\",$COMMIT_DATE" >> "$SUMMARY_FILE"
@@ -422,32 +422,86 @@ done
 echo "Returning to original branch: $ORIGINAL_BRANCH"
 git checkout "$ORIGINAL_BRANCH"
 
+# Define column widths for the table
+COL_WIDTH_RUNID=40
+COL_WIDTH_COMMIT=12
+COL_WIDTH_MSG=40
+COL_WIDTH_DATE=30
+TOTAL_WIDTH=$((COL_WIDTH_RUNID + COL_WIDTH_COMMIT + COL_WIDTH_MSG + COL_WIDTH_DATE + 3*3))
+
 # Print the summary table of submitted jobs
 echo ""
-echo "============================================================"
-echo "                    SUMMARY OF SUBMITTED JOBS               "
-echo "============================================================"
+echo "$(printf '%0.s=' $(seq 1 $TOTAL_WIDTH))"
+echo "$(printf '%*s' $(( (TOTAL_WIDTH + 23) / 2)) "SUMMARY OF SUBMITTED JOBS")"
+echo "$(printf '%0.s=' $(seq 1 $TOTAL_WIDTH))"
 echo ""
 
 # Format and print the table using column for better formatting
 if [ -f "$SUMMARY_FILE" ]; then
   # Create a temporary file with formatted header
-  echo "RUN_ID                  | COMMIT    | COMMIT_MESSAGE                         | COMMIT_DATETIME" > /tmp/header.txt
-  echo "------------------------|-----------|-----------------------------------------|------------------" >> /tmp/header.txt
+  printf "%-${COL_WIDTH_RUNID}s | %-${COL_WIDTH_COMMIT}s | %-${COL_WIDTH_MSG}s | %-${COL_WIDTH_DATE}s\n" \
+    "RUN_ID" "COMMIT" "COMMIT_MESSAGE" "COMMIT_DATETIME" > /tmp/header.txt
+  
+  # Create separator line with correct lengths
+  printf "%s|%s|%s|%s\n" \
+    "$(printf '%0.s-' $(seq 1 $COL_WIDTH_RUNID)) " \
+    "$(printf '%0.s-' $(seq 1 $COL_WIDTH_COMMIT)) " \
+    "$(printf '%0.s-' $(seq 1 $COL_WIDTH_MSG)) " \
+    "$(printf '%0.s-' $(seq 1 $COL_WIDTH_DATE))" >> /tmp/header.txt
   
   # Merge the header and data
   cat /tmp/header.txt > /tmp/formatted.txt
   
-  # Format each line from the summary file
-  tail -n +2 "$SUMMARY_FILE" | while IFS=, read -r run_id commit commit_msg commit_date; do
-    # Remove quotes from commit message
-    commit_msg=$(echo "$commit_msg" | sed 's/^"//;s/"$//')
-    # Truncate commit message if it's too long
-    if [ ${#commit_msg} -gt 40 ]; then
-      commit_msg="${commit_msg:0:37}..."
-    fi
-    printf "%-24s | %-9s | %-40s | %s\n" "$run_id" "$commit" "$commit_msg" "$commit_date" >> /tmp/formatted.txt
-  done
+  # Process and format each line from the summary file
+  # We need a more robust approach to handle CSV with quotes
+  awk -v runid_width=$COL_WIDTH_RUNID -v commit_width=$COL_WIDTH_COMMIT -v msg_width=$COL_WIDTH_MSG -v date_width=$COL_WIDTH_DATE -F, 'NR>1 {
+    # For run_id
+    run_id = $1;
+    
+    # For commit hash
+    commit = $2;
+    
+    # For commit message (which might contain commas inside quotes)
+    if ($3 ~ /^"/ && $3 ~ /"$/) {
+      # Just one field with quotes
+      commit_msg = $3;
+      date_field = 4;
+    } else if ($3 ~ /^"/ && !($3 ~ /"$/)) {
+      # Message spans multiple fields
+      commit_msg = $3;
+      for (i=4; i<=NF; i++) {
+        if ($i ~ /"$/) {
+          commit_msg = commit_msg "," $i;
+          date_field = i+1;
+          break;
+        } else {
+          commit_msg = commit_msg "," $i;
+        }
+      }
+    } else {
+      commit_msg = $3;
+      date_field = 4;
+    }
+    
+    # For commit date
+    commit_date = "";
+    for (i=date_field; i<=NF; i++) {
+      if (i > date_field) commit_date = commit_date ",";
+      commit_date = commit_date $i;
+    }
+    
+    # Clean up message - remove quotes
+    commit_msg = gensub(/^"|"$/, "", "g", commit_msg);
+    
+    # Truncate message if too long (max msg_width-3 chars + ellipsis)
+    max_msg_len = msg_width - 3;
+    if (length(commit_msg) > msg_width) {
+      commit_msg = substr(commit_msg, 1, max_msg_len) "...";
+    }
+    
+    # Print formatted row
+    printf "%-" runid_width "s | %-" commit_width "s | %-" msg_width "s | %s\n", run_id, commit, commit_msg, commit_date;
+  }' "$SUMMARY_FILE" >> /tmp/formatted.txt
   
   # Print the formatted table
   cat /tmp/formatted.txt
