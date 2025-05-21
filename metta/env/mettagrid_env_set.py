@@ -62,7 +62,7 @@ class MettaGridEnvSet(MettaGridEnv):
         Calculate probabilities for environment selection based on priorities.
         """
         if self._probabilities is not None:
-            return self._probabilities
+            return self._probabilities / np.sum(self._probabilities)
         # Normalize priorities to get probabilities
         total_priority = np.sum(self._env_priorities)
         return self._env_priorities / total_priority if total_priority > 0 else np.ones(self._num_envs) / self._num_envs
