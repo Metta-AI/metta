@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 
 from .fast_gae import compute_gae as compute_gae_cpu  # type: ignore  # noqa: F403
