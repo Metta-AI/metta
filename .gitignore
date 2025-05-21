@@ -2,7 +2,7 @@
 *.pyc
 *.so
 __pycache__
-.DS_Store
+**/.DS_Store
 .coverage
 .env
 .task

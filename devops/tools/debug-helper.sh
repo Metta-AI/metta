@@ -219,74 +219,89 @@ for COMMIT in $COMMITS; do
   cp -f "$TMP_STORAGE/requirements_pinned.txt" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/requirements.txt" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/setup.py" "$REPO_ROOT/"
-  
+    
+
   # Check if experience.py exists and patch it
   EXPERIENCE_PATH="$REPO_ROOT/metta/rl/pufferlib/experience.py"
   if [ -f "$EXPERIENCE_PATH" ]; then
     echo "Patching metta/rl/pufferlib/experience.py"
     
-    # Find the flatten_batch function and replace it
-    awk -v RS='def flatten_batch' -v ORS='def flatten_batch' 'NR==1{print $0} NR==2{print "\n"; system("cat '$TMP_STORAGE'/experience_patch.py"); next} NR>2{exit}' "$EXPERIENCE_PATH" > "$EXPERIENCE_PATH.new"
+    # Simple approach: truncate the file at "def flatten_batch" and append our implementation
+    # First find the line number where flatten_batch starts
+    FLATTEN_LINE=$(grep -n "def flatten_batch" "$EXPERIENCE_PATH" | head -1 | cut -d: -f1)
     
-    # If the new file is created and has content, replace the old one
-    if [ -s "$EXPERIENCE_PATH.new" ]; then
-      mv "$EXPERIENCE_PATH.new" "$EXPERIENCE_PATH"
+    if [ -n "$FLATTEN_LINE" ]; then
+      echo "Found flatten_batch at line $FLATTEN_LINE - replacing it..."
+      
+      # Keep everything before flatten_batch
+      head -n $((FLATTEN_LINE - 1)) "$EXPERIENCE_PATH" > "${EXPERIENCE_PATH}.new"
+      
+      # Add our implementation from the patch file
+      echo "    def flatten_batch" >> "${EXPERIENCE_PATH}.new"
+      cat "$TMP_STORAGE/experience_patch.py" >> "${EXPERIENCE_PATH}.new"
+      
+      # Replace the original file
+      mv "${EXPERIENCE_PATH}.new" "$EXPERIENCE_PATH"
       echo "Successfully patched experience.py"
     else
-      echo "Warning: Failed to patch experience.py - file may have unexpected format"
-      # If the replacement didn't work, let's try a different approach - add the function at the end
-      echo "Attempting alternative patching method..."
+      echo "Could not find flatten_batch function in experience.py"
+      echo "Adding our implementation at the end of the file..."
+      
+      # Append our implementation to the end of the file
+      echo "" >> "$EXPERIENCE_PATH"
+      echo "    def flatten_batch" >> "$EXPERIENCE_PATH"
       cat "$TMP_STORAGE/experience_patch.py" >> "$EXPERIENCE_PATH"
-      echo "Added the function to the end of experience.py"
+      
+      echo "Added our implementation at the end of experience.py"
     fi
-    
-    # Add a marker file to force a git change
-    echo "# debug test marker - testing commit $COMMIT_SHORT" > "$REPO_ROOT/DEBUG_TEST_MARKER"
-    
-    # Commit the changes
-    git add -f "$REPO_ROOT/DEBUG_TEST_MARKER"
-    git add -f "$REPO_ROOT/metta/util/git.py"
-    git add -f "$REPO_ROOT/devops"
-    git add -f "$REPO_ROOT/metta/rl/pufferlib/experience.py"
-    git add -f "$REPO_ROOT/mettagrid"
-    git add -f "$REPO_ROOT/Makefile"
-    git add -f "$REPO_ROOT/pyproject.toml"
-    git add -f "$REPO_ROOT/requirements_pinned.txt"
-    git add -f "$REPO_ROOT/requirements.txt"
-    git add -f "$REPO_ROOT/setup.py"
-    
-    echo "Committing changes to test branch"
-    git commit -m "debug test: Applied fixes for testing commit $COMMIT_SHORT" || echo "No changes to commit"
-    
-    # Push the branch to remote
-    echo "Pushing test branch to remote"
-    git push -f origin "$TEST_BRANCH"
-    
-    # Create a unique run name for this job
-    JOB_TIMESTAMP=$(date +%s)
-    RUN_NAME="d.${USER}.${COMMIT_SHORT}.${JOB_TIMESTAMP}"
-    
-    # Submit the job using your launch_task script
-    echo "Submitting job for commit $COMMIT_SHORT using launch_task.py..."
-    python -m devops.aws.batch.launch_task \
-      --cmd=train \
-      --run="$RUN_NAME" \
-      --git-branch="$TEST_BRANCH" \
-      --timeout-minutes=30 \
-      --skip-validation \
-      --skip-push-check \
-      trainer.env=env/mettagrid/simple
-    
-    # Log job details
-    echo "Job submitted for commit: $COMMIT_SHORT" | tee -a "$LOG_FILE"
-    echo "  Branch: $TEST_BRANCH" | tee -a "$LOG_FILE"
-    echo "  Run ID: $RUN_NAME" | tee -a "$LOG_FILE"
-    
   else
     echo "Warning: experience.py doesn't exist in commit $COMMIT_SHORT. Skipping..."
     echo "experience.py NOT FOUND in commit $COMMIT_SHORT. Skipped." >> "$LOG_FILE"
   fi
-  
+      
+  # Add a marker file to force a git change
+  echo "# debug test marker - testing commit $COMMIT_SHORT" > "$REPO_ROOT/DEBUG_TEST_MARKER"
+
+  # Commit the changes
+  git add -f "$REPO_ROOT/DEBUG_TEST_MARKER"
+  git add -f "$REPO_ROOT/metta/util/git.py"
+  git add -f "$REPO_ROOT/devops"
+  git add -f "$REPO_ROOT/metta/rl/pufferlib/experience.py"
+  git add -f "$REPO_ROOT/mettagrid"
+  git add -f "$REPO_ROOT/Makefile"
+  git add -f "$REPO_ROOT/pyproject.toml"
+  git add -f "$REPO_ROOT/requirements_pinned.txt"
+  git add -f "$REPO_ROOT/requirements.txt"
+  git add -f "$REPO_ROOT/setup.py"
+
+  echo "Committing changes to test branch"
+  git commit -m "debug test: Applied fixes for testing commit $COMMIT_SHORT" || echo "No changes to commit"
+
+  # Push the branch to remote
+  echo "Pushing test branch to remote"
+  git push -f origin "$TEST_BRANCH"
+
+  # Create a unique run name for this job
+  JOB_TIMESTAMP=$(date +%s)
+  RUN_NAME="d.${USER}.${COMMIT_SHORT}.${JOB_TIMESTAMP}"
+
+  # Submit the job using your launch_task script
+  echo "Submitting job for commit $COMMIT_SHORT using launch_task.py..."
+  python -m devops.aws.batch.launch_task \
+    --cmd=train \
+    --run="$RUN_NAME" \
+    --git-branch="$TEST_BRANCH" \
+    --timeout-minutes=30 \
+    --skip-validation \
+    --skip-push-check \
+    trainer.env=env/mettagrid/simple
+
+  # Log job details
+  echo "Job submitted for commit: $COMMIT_SHORT" | tee -a "$LOG_FILE"
+  echo "  Branch: $TEST_BRANCH" | tee -a "$LOG_FILE"
+  echo "  Run ID: $RUN_NAME" | tee -a "$LOG_FILE"
+      
+
   COUNTER=$((COUNTER + 1))
   
   # Clean up any Python cache files or other untracked files before moving to the next commit
