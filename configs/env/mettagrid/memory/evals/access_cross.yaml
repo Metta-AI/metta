@@ -6,7 +6,7 @@ game:
   max_steps: 70
   agent:
     rewards:
-      heart: 0.333
+      heart: 1
   map_builder:
 
     _target_: mettagrid.room.multi_room.MultiRoom
