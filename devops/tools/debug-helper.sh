@@ -47,9 +47,10 @@ echo "RUN_ID,COMMIT,COMMIT_MESSAGE,COMMIT_DATETIME" > "$SUMMARY_FILE"
 
 # Function to show usage
 show_usage() {
-  echo "Usage: $0 [--setup|--commits=N|--cleanup|--commit-interval=N]"
+  echo "Usage: $0 [--setup|--commits=N|--cleanup|--commit-interval=N|--skip-commits=N]"
   echo "  --setup             Save current working files to temp storage"
   echo "  --commits=N         Process N commits back from HEAD (default: 10)"
+  echo "  --skip-commits=N    Skip N most recent commits before processing (default: 0)"
   echo "  --commit-interval=N Skip N-1 commits between each processed commit (default: 1)"
   echo "  --cleanup           Remove all local and remote debug-test branches"
   echo "  (no args)           Apply saved files, create test branches, and launch jobs"
@@ -57,6 +58,7 @@ show_usage() {
 }
 
 # Parse arguments
+SKIP_COMMITS=0  # Default: start from HEAD
 for arg in "$@"; do
   case $arg in
     --setup)
@@ -64,6 +66,9 @@ for arg in "$@"; do
       ;;
     --commits=*)
       NUM_COMMITS="${arg#*=}"
+      ;;
+    --skip-commits=*)
+      SKIP_COMMITS="${arg#*=}"
       ;;
     --commit-interval=*)
       COMMIT_INTERVAL="${arg#*=}"
@@ -210,6 +215,9 @@ fi
 # Create a log file to track jobs
 echo "Starting debug job launcher at $(date)" > "$LOG_FILE"
 echo "Will process $NUM_COMMITS commits starting from $START_COMMIT" >> "$LOG_FILE"
+if [ "$SKIP_COMMITS" -gt 0 ]; then
+  echo "Skipping $SKIP_COMMITS most recent commits" >> "$LOG_FILE"
+fi
 echo "============================================================" >> "$LOG_FILE"
 
 # Save the current branch so we can return to it at the end
@@ -220,11 +228,19 @@ fi
 echo "Original branch: $ORIGINAL_BRANCH" >> "$LOG_FILE"
 
 # Get list of commits to process based on the interval
+if [ "$SKIP_COMMITS" -gt 0 ]; then
+  echo "Skipping $SKIP_COMMITS most recent commits"
+  # Adjust the START_COMMIT to skip the specified number of commits
+  START_COMMIT="HEAD~$SKIP_COMMITS"
+else
+  START_COMMIT="HEAD"
+fi
+
 if [ "$COMMIT_INTERVAL" -gt 1 ]; then
   echo "Using commit interval of $COMMIT_INTERVAL (processing every ${COMMIT_INTERVAL}th commit)"
   
   # Get total available commits
-  ALL_COMMITS=$(git rev-list HEAD)
+  ALL_COMMITS=$(git rev-list $START_COMMIT)
   TOTAL_COMMITS=$(echo "$ALL_COMMITS" | wc -l | tr -d ' ')
   
   # Calculate the total depth we need to go
@@ -241,13 +257,13 @@ if [ "$COMMIT_INTERVAL" -gt 1 ]; then
   for i in $(seq 0 $((NUM_COMMITS - 1))); do
     DEPTH=$((i * COMMIT_INTERVAL))
     if [ "$DEPTH" -lt "$TOTAL_COMMITS" ]; then
-      NEW_COMMIT=$(git rev-parse HEAD~$DEPTH)
+      NEW_COMMIT=$(git rev-parse $START_COMMIT~$DEPTH)
       COMMITS="$COMMITS $NEW_COMMIT"
     fi
   done
 else
   # Default: get consecutive commits
-  COMMITS=$(git rev-list --max-count=$NUM_COMMITS HEAD)
+  COMMITS=$(git rev-list --max-count=$NUM_COMMITS $START_COMMIT)
 fi
 
 # Count actual commits found
