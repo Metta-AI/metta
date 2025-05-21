@@ -327,7 +327,7 @@ canvas#global-canvas {
     position: absolute;
     display: inline-block;
     width: 701px;
-    height: 24px;
+    height: 29px;
     left: 85px;
     top: 18px;
     color: rgba(255, 255, 255, 1.00);
@@ -338,7 +338,7 @@ canvas#global-canvas {
     text-align: left;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 24.11px;
+    line-height: 28.80px;
 }
 
 #header #logo {

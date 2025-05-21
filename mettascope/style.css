@@ -47,3 +47,8 @@ html {
   /* Animate upward when hiding */
   transform: translateX(-50%) translateY(-20px);
 }
+
+#modal.error {
+  background-color: #700707;
+  color: white;
+}
