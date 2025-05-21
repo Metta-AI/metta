@@ -20,14 +20,17 @@ public:
     return true;
   }
 
-  virtual void update_inventory(InventoryItem item, short amount) {
-    if (amount + this->inventory[item] > 255) {
-      amount = 255 - this->inventory[item];
+  virtual int update_inventory(InventoryItem item, short amount) {
+    int initial_amount = this->inventory[item];
+    int new_amount = initial_amount + amount;
+    if (new_amount > 255) {
+      new_amount = 255;
     }
-    if (amount + this->inventory[item] < 0) {
-      amount = -this->inventory[item];
+    if (new_amount < 0) {
+      new_amount = 0;
     }
-    this->inventory[item] += amount;
+    this->inventory[item] = new_amount;
+    return new_amount - initial_amount;
   }
 };
 

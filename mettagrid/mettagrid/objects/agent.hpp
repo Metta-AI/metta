@@ -16,7 +16,6 @@ public:
   unsigned char freeze_duration;
   unsigned char orientation;
   std::vector<unsigned char> inventory;
-  unsigned char max_items;
   std::vector<float> resource_rewards;
   std::vector<float> resource_reward_max;
   float action_failure_penalty;
@@ -63,7 +62,7 @@ public:
     this->reward = reward;
   }
 
-  void update_inventory(InventoryItem item, short amount) {
+  int update_inventory(InventoryItem item, short amount) {
     int current_amount = this->inventory[static_cast<int>(item)];
     int new_amount = current_amount + amount;
     if (new_amount > this->max_items) {
@@ -83,6 +82,8 @@ public:
     }
 
     this->compute_resource_reward(item);
+
+    return delta;
   }
 
   inline void compute_resource_reward(InventoryItem item) {
@@ -133,6 +134,11 @@ public:
     }
     return names;
   }
+
+  private:
+    unsigned char max_items;
+
+  friend class MettaGridTest;
 };
 
 #endif
