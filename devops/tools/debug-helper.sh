@@ -4,23 +4,29 @@ set -e  # Exit immediately if any command fails
 # How to use:
 # 1. First, run the setup to save your current working files:
 #    ```bash
-#    ./debug-helper.sh --setup
+#    ./devops/tools/debug-helper.sh --setup
 #    ```
-
+#
 # 2. Then run the script to process multiple commits in parallel:
 #    ```bash
-#    ./debug-helper.sh --commits=20  # Process 20 commits back from HEAD
+#    ./devops/tools/debug-helper.sh --commits=3  --commit-interval=5 # Process (1, 6, 11) commits back from HEAD
 #    ```
-
-# This approach is more efficient than the traditional git bisect for our use case, since:
-
-# 1. It allows parallel testing of multiple commits at once
-# 2. Each job runs independently, so you can see which ones fail and which ones succeed
-# 3. The comprehensive log file will help you track all the jobs and their details
-# 4. The timestamp in the run ID will make it easy to sort and identify jobs chronologically
-
+#
+# 3. This script makes a lot of branches. You can clean up this way:
+#    ```bash
+#    ./devops/tools/debug-helper.sh --cleanup
+#    ```
+#
+# This approach can be more efficient than the traditional git bisect for our use case, since:
+#
+# - It allows parallel testing of multiple commits at once
+# - Each job runs independently, so you can see which ones fail and which ones succeed
+# - The comprehensive log file will help you track all the jobs and their details
+# - The timestamp in the run ID will make it easy to sort and identify jobs chronologically
+#
 # When all jobs are complete, you can review the results and look for the transition point where jobs 
 # start failing - that should identify the commit that introduced the issue.
+
 
 # Quiet git hook warnings
 git config advice.ignoredHook false
@@ -36,7 +42,6 @@ TMP_STORAGE="/tmp/git_debug_files_$USER"
 TIMESTAMP=$(date +%s)
 LOG_FILE="/tmp/debug_log_$TIMESTAMP.txt"
 
-# Function to show usage
 # Function to show usage
 show_usage() {
   echo "Usage: $0 [--setup|--commits=N|--cleanup|--commit-interval=N]"
