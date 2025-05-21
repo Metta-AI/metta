@@ -350,6 +350,11 @@ class PufferTrainer:
                 o = torch.as_tensor(o)
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
+                
+                if self.device == "cuda":
+                    o_device = o.to(self.device, non_blocking=True)
+                else:
+                    o_device = o
 
             with profile.eval_forward, torch.no_grad():
                 assert training_env_id.dtype in [torch.int32, torch.int64], "training_env_id must be integer type"
@@ -359,8 +364,7 @@ class PufferTrainer:
                 assert training_env_id.min() >= 0, "Negative index in training_env_id"
 
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
-
-                o_device = o.to(self.device, non_blocking=True)
+                
                 actions, logprob, _, value, _ = policy(o_device, state)
 
                 lstm_h[:, training_env_id] = (
@@ -370,7 +374,7 @@ class PufferTrainer:
                     state.lstm_c if state.lstm_c is not None else torch.zeros_like(lstm_c[:, training_env_id])
                 )
 
-                if self.device == "cuda":
+                if self.device == "cuda" and not self.trainer_cfg.cpu_offload:
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
@@ -430,19 +434,44 @@ class PufferTrainer:
                 rewards_np_adjusted = rewards_np - self.average_reward
                 # Set gamma to 1.0 for average reward case
                 effective_gamma = 1.0
-                # Compute advantages using adjusted rewards
-                advantages_np = compute_gae(
-                    dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
-                )
+
+                # Convert to GPU tensors for faster GAE computation
+                if self.device == "cuda":
+                    dones_tensor = torch.tensor(dones_np, device=self.device)
+                    values_tensor = torch.tensor(values_np, device=self.device)
+                    rewards_tensor = torch.tensor(rewards_np_adjusted, device=self.device)
+                    
+                    # Compute advantages on GPU
+                    advantages = compute_gae(
+                        dones_tensor, values_tensor, rewards_tensor, effective_gamma, self.trainer_cfg.gae_lambda
+                    )
+                    advantages_np = advantages.cpu().numpy()
+                else:
+                    # Compute advantages using original CPU implementation
+                    advantages_np = compute_gae(
+                        dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
+                    )
+                
                 # For average reward case, returns are computed differently:
                 # R(s) = Σ(r_t - ρ) represents the bias function
                 experience.returns_np = advantages_np + values_np
             else:
                 effective_gamma = self.trainer_cfg.gamma
                 # Standard GAE computation for discounted case
-                advantages_np = compute_gae(
-                    dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
-                )
+                if self.device == "cuda":
+                    dones_tensor = torch.tensor(dones_np, device=self.device)
+                    values_tensor = torch.tensor(values_np, device=self.device)
+                    rewards_tensor = torch.tensor(rewards_np, device=self.device)
+                    
+                    # Compute advantages on GPU
+                    advantages = compute_gae(
+                        dones_tensor, values_tensor, rewards_tensor, effective_gamma, self.trainer_cfg.gae_lambda
+                    )
+                    advantages_np = advantages.cpu().numpy()
+                else:
+                    advantages_np = compute_gae(
+                        dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
+                    )
                 experience.returns_np = advantages_np + values_np
 
             experience.flatten_batch(advantages_np)
