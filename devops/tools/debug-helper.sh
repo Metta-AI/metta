@@ -28,9 +28,8 @@ set -e  # Exit immediately if any command fails
 # start failing - that should identify the commit that introduced the issue.
 
 
-# Quiet git hook warnings
+# turn off git warnings
 git config advice.ignoredHook false
-# Set detached HEAD advice to false
 git config advice.detachedHead false
 
 # Configuration
@@ -41,6 +40,10 @@ USER=$(whoami)
 TMP_STORAGE="/tmp/git_debug_files_$USER"
 TIMESTAMP=$(date +%s)
 LOG_FILE="/tmp/debug_log_$TIMESTAMP.txt"
+SUMMARY_FILE="/tmp/debug_summary_$TIMESTAMP.txt"
+
+# Initialize summary file with header
+echo "RUN_ID,COMMIT,COMMIT_MESSAGE,COMMIT_DATETIME" > "$SUMMARY_FILE"
 
 # Function to show usage
 show_usage() {
@@ -110,8 +113,15 @@ if [ "$CLEANUP_MODE" = true ]; then
     echo "$debug_logs"
     echo "Removing log files..."
     rm -f /tmp/debug_log_*.txt
-  else
-    echo "No debug log files found"
+  fi
+
+  # Clean up summary files
+  debug_summaries=$(find /tmp -name "debug_summary_*.txt" 2>/dev/null)
+  if [ -n "$debug_summaries" ]; then
+    echo "Found summary files:"
+    echo "$debug_summaries"
+    echo "Removing summary files..."
+    rm -f /tmp/debug_summary_*.txt
   fi
   
   echo "Cleanup complete!"
@@ -247,6 +257,8 @@ echo "Found $COMMIT_COUNT commits to process"
 # Start processing commits
 echo "Starting to process $COMMIT_COUNT commits..."
 COUNTER=1
+JOBS_SUMMARY=""
+
 for COMMIT in $COMMITS; do
   COMMIT_SHORT=$(git rev-parse --short "$COMMIT")
   COMMIT_DATE=$(git show -s --format=%ci "$COMMIT")
@@ -386,7 +398,12 @@ for COMMIT in $COMMITS; do
   echo "Job submitted for commit: $COMMIT_SHORT" | tee -a "$LOG_FILE"
   echo "  Branch: $TEST_BRANCH" | tee -a "$LOG_FILE"
   echo "  Run ID: $RUN_NAME" | tee -a "$LOG_FILE"
-      
+  
+  # Escape any commas in the commit message for CSV
+  COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | sed 's/,/\\,/g')
+  
+  # Add to summary file for the final table
+  echo "$RUN_NAME,$COMMIT_SHORT,\"$COMMIT_MSG_ESCAPED\",$COMMIT_DATE" >> "$SUMMARY_FILE"
 
   COUNTER=$((COUNTER + 1))
   
@@ -405,11 +422,51 @@ done
 echo "Returning to original branch: $ORIGINAL_BRANCH"
 git checkout "$ORIGINAL_BRANCH"
 
+# Print the summary table of submitted jobs
+echo ""
+echo "============================================================"
+echo "                    SUMMARY OF SUBMITTED JOBS               "
+echo "============================================================"
+echo ""
+
+# Format and print the table using column for better formatting
+if [ -f "$SUMMARY_FILE" ]; then
+  # Create a temporary file with formatted header
+  echo "RUN_ID                  | COMMIT    | COMMIT_MESSAGE                         | COMMIT_DATETIME" > /tmp/header.txt
+  echo "------------------------|-----------|-----------------------------------------|------------------" >> /tmp/header.txt
+  
+  # Merge the header and data
+  cat /tmp/header.txt > /tmp/formatted.txt
+  
+  # Format each line from the summary file
+  tail -n +2 "$SUMMARY_FILE" | while IFS=, read -r run_id commit commit_msg commit_date; do
+    # Remove quotes from commit message
+    commit_msg=$(echo "$commit_msg" | sed 's/^"//;s/"$//')
+    # Truncate commit message if it's too long
+    if [ ${#commit_msg} -gt 40 ]; then
+      commit_msg="${commit_msg:0:37}..."
+    fi
+    printf "%-24s | %-9s | %-40s | %s\n" "$run_id" "$commit" "$commit_msg" "$commit_date" >> /tmp/formatted.txt
+  done
+  
+  # Print the formatted table
+  cat /tmp/formatted.txt
+  
+  # Clean up temporary files
+  rm -f /tmp/header.txt /tmp/formatted.txt
+  
+  echo ""
+  echo "Full details saved to: $SUMMARY_FILE"
+else
+  echo "No jobs were submitted."
+fi
+
 echo ""
 echo "============================================================"
 echo "Debug job submission complete!"
 echo "Processed $COMMIT_COUNT commits."
 echo "Log file: $LOG_FILE"
+echo "Summary file: $SUMMARY_FILE"
 echo "============================================================"
 echo ""
 echo "Review the log file to see all the jobs that were submitted."
