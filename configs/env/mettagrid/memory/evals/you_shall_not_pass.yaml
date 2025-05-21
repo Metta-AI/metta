@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/memory/evals/defaults@
 
 game:
   num_agents: 8  #how many agents are in the map x2
@@ -18,4 +18,8 @@ game:
 
   objects:
     altar:
+      output_heart: 1
+      max_output: 1
+      conversion_ticks: 1
       cooldown: 255
+      initial_items: 1

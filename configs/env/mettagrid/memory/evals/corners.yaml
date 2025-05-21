@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/memory/evals/defaults@
 
 game:
   num_agents:   #how many agents are in the map x2

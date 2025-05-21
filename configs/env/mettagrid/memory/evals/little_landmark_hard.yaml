@@ -1,9 +1,9 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/memory/evals/defaults@
 
 game:
   num_agents: 8  #how many agents are in the map x2
-  max_steps: 70
+  max_steps: 130
   agent:
     rewards:
       heart: 1
@@ -15,7 +15,3 @@ game:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 3
       uri: "configs/env/mettagrid/maps/memory/little_landmark_hard.map"
-
-  objects:
-    altar:
-      cooldown: 255

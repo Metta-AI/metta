@@ -1,12 +1,12 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/memory/evals/defaults@
 
 game:
   num_agents: 8  #how many agents are in the map x2
-  max_steps: 70
+  max_steps: 110
   agent:
     rewards:
-      heart: 0.333
+      heart: 1
   map_builder:
 
     _target_: mettagrid.room.multi_room.MultiRoom
@@ -15,7 +15,3 @@ game:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/memory/passing_things.map"
-
-  objects:
-    altar:
-      cooldown: 255

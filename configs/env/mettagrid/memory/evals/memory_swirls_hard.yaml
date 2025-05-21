@@ -1,12 +1,10 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/memory/evals/defaults@
 
 game:
   num_agents: 8  #how many agents are in the map x2
-  max_steps: 70
-  agent:
-    rewards:
-      heart: 0.333
+  max_steps: 170
+
   map_builder:
 
     _target_: mettagrid.room.multi_room.MultiRoom
@@ -15,7 +13,3 @@ game:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/memory/memory_swirls_hard.map"
-
-  objects:
-    altar:
-      cooldown: 255
