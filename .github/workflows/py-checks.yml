@@ -534,6 +534,12 @@ jobs:
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
             --branch main \
+            --threshold-measure throughput \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-lower-boundary 0.20 \
+            --threshold-upper-boundary _ \
+            --thresholds-reset \
             --testbed ubuntu-latest \
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
@@ -616,6 +622,12 @@ jobs:
             --branch "$GITHUB_HEAD_REF" \
             --start-point "main" \
             --start-point-reset \
+            --thresholds-reset \
+            --threshold-measure throughput \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-upper-boundary 0.10 \
+            --threshold-lower-boundary _ \
             --testbed ubuntu-latest \
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
@@ -659,7 +671,12 @@ jobs:
             --branch "$GITHUB_HEAD_REF" \
             --start-point "main" \
             --start-point-reset \
-            --start-point-clone-thresholds \
+            --thresholds-reset \
+            --threshold-measure throughput \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-lower-boundary 0.20 \
+            --threshold-upper-boundary _ \
             --err \
             --testbed ubuntu-latest \
             --adapter json \
