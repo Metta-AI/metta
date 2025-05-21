@@ -5,6 +5,7 @@
 #include "mettagrid_c.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
+#include "actions/attack.hpp"
 
 namespace py = pybind11;
 
@@ -54,7 +55,6 @@ TEST_F(MettaGridTest, AgentCreation) {
 
   // Verify merged configuration
   EXPECT_EQ(agent->freeze_duration, 100);  // Group config overrides agent
-  EXPECT_EQ(agent->max_items, 123);        // Agent config preserved
 
   // Verify merged rewards
   EXPECT_FLOAT_EQ(agent->resource_rewards[InventoryItem::heart], 1.0);      // Agent reward preserved
@@ -62,4 +62,87 @@ TEST_F(MettaGridTest, AgentCreation) {
   EXPECT_FLOAT_EQ(agent->resource_rewards[InventoryItem::ore_green], 0.5);  // Group reward added
 
   delete agent;
+}
+
+TEST_F(MettaGridTest, UpdateInventory) {
+  auto configs = create_test_configs();
+  auto agent_cfg = configs["agent_cfg"].cast<py::dict>();
+  auto group_cfg = configs["group_cfg"].cast<py::dict>();
+
+  Agent* agent = MettaGrid::create_agent(0, 0, "green", 1, group_cfg, agent_cfg);
+  ASSERT_NE(agent, nullptr);
+
+  // Test adding items
+  int delta = agent->update_inventory(InventoryItem::heart, 5);
+  EXPECT_EQ(delta, 5);
+  EXPECT_EQ(agent->inventory[InventoryItem::heart], 5);
+
+  // Test removing items
+  delta = agent->update_inventory(InventoryItem::heart, -2);
+  EXPECT_EQ(delta, -2);
+  EXPECT_EQ(agent->inventory[InventoryItem::heart], 3);
+
+  // Test hitting zero
+  delta = agent->update_inventory(InventoryItem::heart, -10);
+  EXPECT_EQ(delta, -3);  // Should only remove what's available
+  EXPECT_EQ(agent->inventory[InventoryItem::heart], 0);
+
+  // Test hitting max_items limit
+  agent->update_inventory(InventoryItem::heart, 50);
+  delta = agent->update_inventory(InventoryItem::heart, 200);  // max_items is 123
+  EXPECT_EQ(delta, 73);  // Should only add up to max_items
+  EXPECT_EQ(agent->inventory[InventoryItem::heart], 123);
+
+  // Test multiple items
+  delta = agent->update_inventory(InventoryItem::ore_red, 10);
+  EXPECT_EQ(delta, 10);
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 10);
+  EXPECT_EQ(agent->inventory[InventoryItem::heart], 123);  // Other items unchanged
+
+  delete agent;
+}
+
+TEST_F(MettaGridTest, AttackAction) {
+  auto configs = create_test_configs();
+  auto agent_cfg = configs["agent_cfg"].cast<py::dict>();
+  auto group_cfg = configs["group_cfg"].cast<py::dict>();
+
+  // Create two agents - one attacker and one target
+  Agent* attacker = MettaGrid::create_agent(0, 0, "red", 1, group_cfg, agent_cfg);
+  Agent* target = MettaGrid::create_agent(0, 2, "blue", 2, group_cfg, agent_cfg);
+  ASSERT_NE(attacker, nullptr);
+  ASSERT_NE(target, nullptr);
+
+  // Give attacker a laser
+  attacker->update_inventory(InventoryItem::laser, 1);
+  EXPECT_EQ(attacker->inventory[InventoryItem::laser], 1);
+
+  // Give target some items to steal
+  target->update_inventory(InventoryItem::heart, 2);
+  target->update_inventory(InventoryItem::battery, 3);
+  EXPECT_EQ(target->inventory[InventoryItem::heart], 2);
+  EXPECT_EQ(target->inventory[InventoryItem::battery], 3);
+
+  // Create attack action handler
+  ActionConfig attack_cfg;
+  Attack attack(attack_cfg);
+
+  // Perform attack (arg 5 targets directly in front)
+  bool success = attack.handle_action(0, attacker->id, 5, 0);
+  EXPECT_TRUE(success);
+
+  // Verify laser was consumed
+  EXPECT_EQ(attacker->inventory[InventoryItem::laser], 0);
+
+  // Verify target was frozen
+  EXPECT_GT(target->frozen, 0);
+
+  // Verify target's inventory was stolen
+  EXPECT_EQ(target->inventory[InventoryItem::heart], 0);
+  EXPECT_EQ(target->inventory[InventoryItem::battery], 0);
+  EXPECT_EQ(attacker->inventory[InventoryItem::heart], 2);
+  EXPECT_EQ(attacker->inventory[InventoryItem::battery], 3);
+
+  delete attacker;
+  delete target;
 }

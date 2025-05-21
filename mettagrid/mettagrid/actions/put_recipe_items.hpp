@@ -35,7 +35,7 @@ protected:
       int put = converter->update_inventory(static_cast<InventoryItem>(i), max_to_put);
       if (put > 0) {
         // We should be able to put this many items into the converter. If not, something is wrong.
-        assert(actor->update_inventory(static_cast<InventoryItem>(i), -put) == -put, "Inconsistent inventory update");
+        assert(actor->update_inventory(static_cast<InventoryItem>(i), -put) == -put);
         actor->stats.add(InventoryItemNames[i], "put", put);
         success = true;
       }

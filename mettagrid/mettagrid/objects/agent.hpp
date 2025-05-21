@@ -137,8 +137,6 @@ public:
 
   private:
     unsigned char max_items;
-
-  friend class MettaGridTest;
 };
 
 #endif
