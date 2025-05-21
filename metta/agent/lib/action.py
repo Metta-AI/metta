@@ -28,8 +28,11 @@ class ActionEmbedding(nn_layer_library.Embedding):
     """
 
     def __init__(self, initialization="max_0_01", **cfg):
+        # call super init
         super().__init__(**cfg)
         self._reserved_action_embeds = {}
+
+        # set num_actions to zero
         self.num_actions = 0
         # delete this
         # # num_actions to be updated at runtime by the size of the active indices
