@@ -878,12 +878,16 @@ html, body {
 def parse_args():
     parser = argparse.ArgumentParser(description="Convert Figma file to HTML with optional extras.")
 
-    parser.add_argument("input_url", help="URL of the input Figma file.")
-    parser.add_argument("output_dir", help="Directory to write output files to.", default="dist")
+    parser.add_argument(
+        "--input_url",
+        help="URL of the input Figma file.",
+        default="https://www.figma.com/design/WeQldl3PsqFIpDnTka5Kd3",
+    )
+    parser.add_argument("--output_dir", help="Directory to write output files to.", default=".")
 
     parser.add_argument("--tmp_dir", help="Temporary directory for intermediate files.", default="dist")
-    parser.add_argument("--extra-css", dest="extra_css", help="Path to extra CSS file to include.")
-    parser.add_argument("--extra-js", dest="extra_js", help="Path to extra JS file to include.")
+    parser.add_argument("--extra-css", dest="extra_css", help="Path to extra CSS file to include.", default="style.css")
+    parser.add_argument("--extra-js", dest="extra_js", help="Path to extra JS file to include.", default="dist/main.js")
     parser.add_argument("--data-dir", dest="data_dir", help="Root directory for data files.", default="data")
 
     return parser.parse_args()

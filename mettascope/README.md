@@ -47,5 +47,5 @@ Then open the browser and go to `http://localhost:2000` to see the player.
 To regenerate the html and css files, run the following command:
 
 ```bash
-python tools/gen_html.py https://www.figma.com/design/WeQldl3PsqFIpDnTka5Kd3 . --data-dir="../data" --extra-js="dist/main.js" --extra-css="style.css"
+python tools/gen_html.py
 ```
