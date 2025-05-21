@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 import numpy as np
 from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
@@ -20,17 +18,20 @@ class MettaGridEnvSet(MettaGridEnv):
         render_mode: str,
         buf=None,
         alpha: float = 0.6,  # Priority exponent (controls how much prioritization is used)
+        beta: float = 0.4,  # Initial importance sampling weight (increases to 1 over time)
+        beta_annealing_steps: int = 100000,  # Number of episodes to anneal beta to 1.0
         epsilon: float = 0.01,  # Small constant to avoid zero priority
-        probabilities: Optional[List[float]] = None,
         **kwargs,
     ):
         self._env_cfgs = env_cfg.envs
         self._num_agents_global = env_cfg.num_agents
         self._num_envs = len(self._env_cfgs)
-        self._probabilities = probabilities
 
         # Prioritized replay parameters
         self._alpha = alpha
+        self._beta = beta
+        self._beta_annealing_steps = beta_annealing_steps
+        self._beta_increment = (1.0 - beta) / beta_annealing_steps if beta_annealing_steps > 0 else 0
         self._epsilon = epsilon
 
         # Initialize tracking variables
@@ -61,11 +62,27 @@ class MettaGridEnvSet(MettaGridEnv):
         """
         Calculate probabilities for environment selection based on priorities.
         """
-        if self._probabilities is not None:
-            return self._probabilities / np.sum(self._probabilities)
         # Normalize priorities to get probabilities
         total_priority = np.sum(self._env_priorities)
         return self._env_priorities / total_priority if total_priority > 0 else np.ones(self._num_envs) / self._num_envs
+
+    def _get_importance_sampling_weight(self, env_idx: int):
+        """
+        Calculate importance sampling weight for the selected environment.
+        """
+        # Calculate probability of selecting this environment
+        probs = self._get_env_probabilities()
+
+        # Calculate importance sampling weight (to correct for bias)
+        weight = (1.0 / (self._num_envs * probs[env_idx])) ** self._beta
+
+        # Normalize weight by max weight to keep values reasonable
+        max_weight = (1.0 / (self._num_envs * np.min(probs))) ** self._beta
+        return weight / max_weight
+
+    def _update_beta(self):
+        """Anneal beta parameter towards 1.0 over time."""
+        self._beta = min(1.0, self._beta + self._beta_increment)
 
     def _get_new_env_cfg(self):
         """
@@ -111,6 +128,7 @@ class MettaGridEnvSet(MettaGridEnv):
 
         # Increment episode counter and update beta
         self._episode_count += 1
+        self._update_beta()
 
         # Standard reset procedure
         obs, infos = super().reset(seed, options)
@@ -122,6 +140,10 @@ class MettaGridEnvSet(MettaGridEnv):
         """
         observations, rewards, terminals, truncations, infos = super().step(actions)
 
+        # compute weight
+        is_weight = self._get_importance_sampling_weight(self._current_env_idx)
+        # put it in infos for each agent/step
+        infos["importance_weight"] = np.array([is_weight] * len(rewards))
         # Store information needed for prioritization
         if (terminals.all() or truncations.all()) and "episode/reward.mean" in infos:
             self._last_episode_reward = infos["episode/reward.mean"]
@@ -137,6 +159,7 @@ class MettaGridEnvSet(MettaGridEnv):
             "env_probabilities": self._get_env_probabilities(),
             "env_visits": self._env_visits.copy(),
             "env_performance": self._env_performance.copy(),
+            "beta": self._beta,
             "episode_count": self._episode_count,
         }
 
@@ -157,6 +180,8 @@ class SamplingPrioritizedEnvSet(MettaGridEnv):
         render_mode: str,
         buf=None,
         alpha: float = 0.6,
+        beta: float = 0.4,
+        beta_annealing_steps: int = 100_000,
         epsilon: float = 1e-3,
         num_bins: int = 7,
         **kwargs,
@@ -167,6 +192,8 @@ class SamplingPrioritizedEnvSet(MettaGridEnv):
 
         # Prioritized replay parameters
         self._alpha = alpha
+        self._beta = beta
+        self._beta_increment = (1.0 - beta) / beta_annealing_steps
         self._epsilon = epsilon
 
         # Env-level trackers
@@ -268,6 +295,7 @@ class SamplingPrioritizedEnvSet(MettaGridEnv):
             for path_expr, idx in self._current_choice["params"].items():
                 self._param_priorities[e][path_expr][idx] = prio
 
+        self._beta = min(1.0, self._beta + self._beta_increment)
         self._episode_count = getattr(self, "_episode_count", 0) + 1
         return super().reset(*args, **kwargs)
 
@@ -283,5 +311,6 @@ class SamplingPrioritizedEnvSet(MettaGridEnv):
             "env_visits": self._env_visits.copy(),
             "param_priorities": self._param_priorities,
             "param_visits": self._param_visits,
+            "beta": self._beta,
             "episode_count": getattr(self, "_episode_count", 0),
         }
