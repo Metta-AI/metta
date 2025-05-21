@@ -4,9 +4,9 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-    "b.daphne.object_use_multienv_pretrained"
-    "b.daphne.object_use_multienv2"
-    "daphne_objectuse_bigandsmall"
+    # "b.daphne.object_use_multienv_pretrained"
+    # "b.daphne.object_use_multienv2"
+    # "daphne_objectuse_bigandsmall"
     "daphne_objectuse_allobjs_multienv"
     "navigation_training"
     "training_regular_envset"
