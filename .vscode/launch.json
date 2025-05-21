@@ -1,5 +1,6 @@
 {
     "version": "0.2.0",
+    // for more information on the VS Code debugger, visit https://go.microsoft.com/fwlink/?linkid=830387
     "configurations": [
         {
             "name": "Train Metta",
