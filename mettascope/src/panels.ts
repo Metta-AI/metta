@@ -1,6 +1,7 @@
 import { Vec2f, Mat3f } from './vector_math.js';
 import * as Common from './common.js';
 import { ui } from './common.js';
+import { find } from './htmlutils.js'
 
 export class PanelInfo {
   public x: number = 0;
@@ -11,11 +12,11 @@ export class PanelInfo {
   public isPanning: boolean = false;
   public panPos: Vec2f = new Vec2f(0, 0);
   public zoomLevel: number = Common.DEFAULT_ZOOM_LEVEL;
-  public div: HTMLDivElement | null;
+  public div: HTMLElement;
 
   constructor(name: string) {
     this.name = name;
-    this.div = null;
+    this.div = find(name)
   }
 
   // Check if a point is inside the panel.

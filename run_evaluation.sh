@@ -57,8 +57,8 @@ for i in "${!POLICIES[@]}"; do
         # device=cpu \
 
     python3 -m tools.sim \
-        sim=nav_sequence \
-        run=nav_sequence$IDX \
+        sim=memory \
+        run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/nav_sequence_db \
         # device=cpu \
