@@ -1,10 +1,11 @@
 defaults:
-  - /env/mettagrid/navigation/navigation_sequence/defaults@
+  - /env/mettagrid/navigation_sequence/defaults@
   - _self_
 
 game:
   num_agents: 1 #how many agents are in the map x2
-  max_steps: 300
+  max_steps: 600
+
   agent:
     rewards:
       heart: 1
@@ -15,7 +16,7 @@ game:
     room:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/navigation/navigation_sequence/obstacles3.map"
+      uri: "configs/env/mettagrid/maps/navigation/corridors.map"
 
   objects:
     altar:

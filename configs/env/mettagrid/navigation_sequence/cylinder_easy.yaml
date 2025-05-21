@@ -1,22 +1,21 @@
 defaults:
-  - /env/mettagrid/navigation/navigation_sequence/defaults@
+  - /env/mettagrid/navigation_sequence/defaults@
   - _self_
 
 game:
-  num_agents: 1  #how many agents are in the map x2
-  max_steps: 120
+  num_agents: 1 #how many agents are in the map x2
+  max_steps: 400
   agent:
     rewards:
       heart: 1
-
   map_builder:
 
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 1
     room:
       _target_: mettagrid.room.ascii.Ascii
-      border_width: 1
-      uri: "configs/env/mettagrid/maps/navigation/navigation_sequence/radial_small.map"
+      border_width: 5
+      uri: "configs/env/mettagrid/maps/navigation/cylinder_easy.map"
 
   objects:
     altar:

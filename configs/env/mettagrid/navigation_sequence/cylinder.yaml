@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/navigation/navigation_sequence/defaults@
+  - /env/mettagrid/navigation_sequence/defaults@
   - _self_
 
 game:
@@ -16,7 +16,7 @@ game:
     room:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 10
-      uri: "configs/env/mettagrid/maps/navigation/navigation_sequence/cylinder.map"
+      uri: "configs/env/mettagrid/maps/navigation_sequence/cylinder.map"
 
   objects:
     altar:

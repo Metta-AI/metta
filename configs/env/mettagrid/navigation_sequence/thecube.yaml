@@ -1,13 +1,14 @@
 defaults:
-  - /env/mettagrid/navigation/navigation_sequence/defaults@
+  - /env/mettagrid/navigation_sequence/defaults@
   - _self_
 
 game:
   num_agents: 1  #how many agents are in the map x2
-  max_steps: 500
+  max_steps: 350
   agent:
     rewards:
       heart: 1
+
   map_builder:
 
     _target_: mettagrid.room.multi_room.MultiRoom
@@ -15,7 +16,7 @@ game:
     room:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/navigation/navigation_sequence/knotty.map"
+      uri: "configs/env/mettagrid/maps/navigation_sequence/thecube.map"
 
   objects:
     altar:
