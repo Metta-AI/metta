@@ -245,10 +245,11 @@ if [ "$COMMIT_INTERVAL" -gt 1 ]; then
   
   # Calculate the total depth we need to go
   MAX_DEPTH=$((NUM_COMMITS * COMMIT_INTERVAL))
+  TOTAL_DEPTH=$((SKIP_COMMITS + MAX_DEPTH))
   
   # Make sure we don't try to go deeper than the repo history
-  if [ "$MAX_DEPTH" -gt "$TOTAL_COMMITS" ]; then
-    echo "Warning: Requested depth ($MAX_DEPTH) exceeds repository history ($TOTAL_COMMITS)"
+  if [ "$TOTAL_DEPTH" -gt "$TOTAL_COMMITS" ]; then
+    echo "Warning: Requested depth ($TOTAL_DEPTH) exceeds repository history ($TOTAL_COMMITS)"
     echo "Will process up to the oldest available commit"
   fi
   
@@ -468,7 +469,8 @@ if [ -f "$SUMMARY_FILE" ]; then
   # Merge the header and data
   cat /tmp/header.txt > /tmp/formatted.txt
   
-  # Process CSV
+  # Process CSV using a more portable approach without gensub
+  # This avoids the GNU-specific gensub function
   tail -n +2 "$SUMMARY_FILE" | while IFS=, read -r run_id commit rest; do
     # Extract the commit message which might have commas inside quotes
     if [[ "$rest" == \"* ]]; then
