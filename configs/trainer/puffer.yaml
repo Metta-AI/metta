@@ -37,6 +37,8 @@ vf_coef: 0.44
 l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
 
+dm_10x_copy: true
+
 norm_adv: true
 clip_vloss: true
 target_kl: null

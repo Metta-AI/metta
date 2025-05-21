@@ -361,6 +361,17 @@ class PufferTrainer:
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
 
                 o_device = o.to(self.device, non_blocking=True)
+                if self.trainer_cfg.dm_10x_copy:
+                    o_device2 = o.to(self.device, non_blocking=True)
+                    o_device3 = o.to(self.device, non_blocking=True)
+                    o_device4 = o.to(self.device, non_blocking=True)
+                    o_device5 = o.to(self.device, non_blocking=True)
+                    o_device6 = o.to(self.device, non_blocking=True)
+                    o_device7 = o.to(self.device, non_blocking=True)
+                    o_device8 = o.to(self.device, non_blocking=True)
+                    o_device9 = o.to(self.device, non_blocking=True)
+                    o_device10 = o.to(self.device, non_blocking=True)
+
                 actions, logprob, _, value, _ = policy(o_device, state)
 
                 lstm_h[:, training_env_id] = (
