@@ -164,3 +164,78 @@ TEST_F(MettaGridTest, AttackAction) {
 
   // grid will delete the agents
 }
+
+TEST_F(MettaGridTest, PutRecipeItems) {
+  auto configs = create_test_configs();
+  auto agent_cfg = configs["agent_cfg"].cast<py::dict>();
+  auto group_cfg = configs["group_cfg"].cast<py::dict>();
+
+  // Create an agent and a converter
+  Agent* agent = MettaGrid::create_agent(0, 0, "red", 1, group_cfg, agent_cfg);
+  ASSERT_NE(agent, nullptr);
+  float reward = 0;
+  agent->init(&reward);
+
+  // Create a grid and add the agent
+  std::vector<Layer> layer_for_type_id;
+  for (const auto& layer : ObjectLayers) {
+    layer_for_type_id.push_back(layer.second);
+  }
+  Grid grid(10, 10, layer_for_type_id);
+  grid.add_object(agent);
+
+  // Create a generator that takes red ore and outputs batteries
+  py::dict generator_cfg;
+  generator_cfg["hp"] = 30;
+  generator_cfg["input_ore.red"] = 1;
+  generator_cfg["output_battery"] = 1;
+  generator_cfg["max_output"] = 5;
+  generator_cfg["conversion_ticks"] = 1;
+  generator_cfg["cooldown"] = 10;
+  generator_cfg["initial_items"] = 1;
+
+  Converter* generator = new Converter(0, 1, generator_cfg, ObjectType::GeneratorT);
+  grid.add_object(generator);
+  generator->set_event_manager(grid.event_manager());
+
+  // Give agent some items
+  agent->update_inventory(InventoryItem::ore_red, 2);
+  agent->update_inventory(InventoryItem::ore_blue, 1);
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 2);
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);
+
+  // Create put_recipe_items action handler
+  ActionConfig put_cfg;
+  PutRecipeItems put(put_cfg);
+  put.init(&grid);
+
+  // Test putting matching items
+  bool success = put.handle_action(agent->id, 0, 0);
+  EXPECT_TRUE(success);
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);  // One red ore consumed
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);  // Blue ore unchanged
+  EXPECT_EQ(generator->inventory[InventoryItem::ore_red], 1);  // One red ore added to generator
+
+  // Test putting non-matching items
+  success = put.handle_action(agent->id, 0, 0);
+  EXPECT_FALSE(success);  // Should fail since generator doesn't accept blue ore
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);  // Blue ore unchanged
+  EXPECT_EQ(generator->inventory[InventoryItem::ore_blue], 0);  // No blue ore in generator
+
+  // Test putting items while converting
+  generator->converting = true;
+  success = put.handle_action(agent->id, 0, 0);
+  EXPECT_FALSE(success);  // Should fail since generator is converting
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);  // Red ore unchanged
+  EXPECT_EQ(generator->inventory[InventoryItem::ore_red], 1);  // Generator inventory unchanged
+
+  // Test putting items while cooling down
+  generator->converting = false;
+  generator->cooling_down = true;
+  success = put.handle_action(agent->id, 0, 0);
+  EXPECT_FALSE(success);  // Should fail since generator is cooling down
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);  // Red ore unchanged
+  EXPECT_EQ(generator->inventory[InventoryItem::ore_red], 1);  // Generator inventory unchanged
+
+  // grid will delete the agent and generator
+}
