@@ -1,0 +1,13 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: overcooked
+
+simulations:
+  overcooked/central_table_layout:
+    env: /env/mettagrid/cooperation/training/central_table_layout
+  overcooked/two_rooms_coord:
+    env: /env/mettagrid/cooperation/training/two_rooms_coord
+  overcooked/confined_room_coord:
+    env: /env/mettagrid/cooperation/training/confined_room_coord
