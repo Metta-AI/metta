@@ -164,7 +164,7 @@ class ParamLayer(LayerBase):
 
         self._initialize_weights()
 
-        if self.clip_scale > 0:
+        if self.clip_scale > 0 and self.global_clip_range is not None:
             self.clip_value = self.global_clip_range * self.largest_weight * self.clip_scale
         else:
             self.clip_value = 0  # disables clipping (not clip to 0)
