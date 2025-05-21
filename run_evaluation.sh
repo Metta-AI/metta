@@ -8,7 +8,6 @@ POLICIES=(
   "b.daphne.object_use_multienv2"
   "daphne_objectuse_bigandsmall"
 )
-#!/bin/bash
 
 for i in "${!POLICIES[@]}"; do
   POLICY_URI=${POLICIES[$i]}

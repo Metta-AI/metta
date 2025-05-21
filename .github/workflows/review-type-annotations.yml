@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # This ensures we can see the full history
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
