@@ -71,7 +71,7 @@ done
 
 # Handle cleanup mode
 if [ "$CLEANUP_MODE" = true ]; then
-  echo "Cleaning up debug test branches..."
+  echo "Cleaning up debug test branches and temporary files..."
   
   # Clean local branches
   echo "Deleting local debug-test branches:"
@@ -87,6 +87,26 @@ if [ "$CLEANUP_MODE" = true ]; then
     done
   else
     echo "No remote branches to delete"
+  fi
+  
+  # Clean up temporary files
+  if [ -d "$TMP_STORAGE" ]; then
+    echo "Removing temporary storage directory: $TMP_STORAGE"
+    rm -rf "$TMP_STORAGE"
+  else
+    echo "No temporary storage directory found at $TMP_STORAGE"
+  fi
+  
+  # Clean up log files
+  echo "Cleaning up debug log files..."
+  debug_logs=$(find /tmp -name "debug_log_*.txt" 2>/dev/null)
+  if [ -n "$debug_logs" ]; then
+    echo "Found log files:"
+    echo "$debug_logs"
+    echo "Removing log files..."
+    rm -f /tmp/debug_log_*.txt
+  else
+    echo "No debug log files found"
   fi
   
   echo "Cleanup complete!"
