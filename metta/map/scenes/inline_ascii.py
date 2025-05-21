@@ -8,16 +8,22 @@ SYMBOLS = {
     "AP": "agent.predator",
     "a": "altar",
     "c": "converter",
-    "g": "generator",
+    "n": "generator",
     "m": "mine",
     "W": "wall",
     " ": "empty",
-    "b": "block",
+    "s": "block",
     "L": "lasery",
-    "Q": "agent.team_1",
-    "E": "agent.team_2",
-    "R": "agent.team_3",
-    "T": "agent.team_4",
+    "1": "agent.team_1",
+    "2": "agent.team_2",
+    "3": "agent.team_3",
+    "4": "agent.team_4",
+    "r": "mine.red",
+    "b": "mine.blue",
+    "g": "mine.green",
+    "R": "generator.red",
+    "B": "generator.blue",
+    "G": "generator.green",
 }
 
 
@@ -39,6 +45,6 @@ class InlineAscii(Scene):
 
         level_height, level_width = self._level.shape
         node.grid[
-            self._row : self._row + level_height,
-            self._column : self._column + level_width,
+            self._row: self._row + level_height,
+            self._column: self._column + level_width,
         ] = self._level
