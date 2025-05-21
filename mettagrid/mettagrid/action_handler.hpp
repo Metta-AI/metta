@@ -45,10 +45,7 @@ public:
     this->_grid = grid;
   }
 
-  bool handle_action(unsigned int actor_id,
-                     GridObjectId actor_object_id,
-                     ActionArg arg,
-                     unsigned int current_timestep) {
+  bool handle_action(GridObjectId actor_object_id, ActionArg arg, unsigned int current_timestep) {
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
     if (actor->frozen > 0) {
@@ -58,7 +55,7 @@ public:
       return false;
     }
 
-    bool result = _handle_action(actor_id, actor, arg);
+    bool result = _handle_action(actor, arg);
 
     if (result) {
       actor->stats.incr(_stats.success);
@@ -81,7 +78,7 @@ public:
   }
 
 protected:
-  virtual bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) = 0;
+  virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
 
   StatNames _stats;
   std::string _action_name;
