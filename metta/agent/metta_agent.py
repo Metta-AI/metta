@@ -1,7 +1,6 @@
 import logging
 from typing import List, Optional, Union
 
-import einops
 import gymnasium as gym
 import hydra
 import numpy as np
@@ -201,13 +200,6 @@ class MettaAgent(nn.Module):
             - log_probs: Log-softmax of logits, shape (BT, A) where A is the size of the action space
         """
 
-        if action is not None:
-            # BPTT
-            B, T, A = action.shape
-            # Flatten batch and time dimensions for both action and x
-            action = einops.rearrange(action, "b t c -> (b t) c")
-            x = einops.rearrange(x, "b t ... -> (b t) ...")
-
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
 
@@ -236,17 +228,14 @@ class MettaAgent(nn.Module):
         state.lstm_c = td["state"][split_size:]
 
         # Sample actions
-        if action is not None:
-            # BPTT
-            bptt_action_index = self._convert_action_to_logit_index(action)
-            action_index, action_log_prob, entropy, log_probs = sample_logits(logits, bptt_action_index)
-        else:
-            # inference
-            action_index, action_log_prob, entropy, log_probs = sample_logits(logits, None)
+        action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
+        action_logit_index, action_log_prob, entropy, log_probs = sample_logits(logits, action_logit_index)
 
-        output_action = self._convert_logit_index_to_action(action_index)
+        # Convert logit index to action if no action was provided
+        if action is None:
+            action = self._convert_logit_index_to_action(action_logit_index, td)
 
-        return output_action, action_log_prob, entropy, value, log_probs
+        return action, action_log_prob, entropy, value, log_probs
 
     def _convert_action_to_logit_index(self, action: torch.Tensor) -> torch.Tensor:
         """
