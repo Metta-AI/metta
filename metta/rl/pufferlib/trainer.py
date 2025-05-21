@@ -20,6 +20,7 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
+from metta.rl.pufferlib.policy import PufferAgent
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
@@ -154,30 +155,31 @@ class PufferTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)), self.metta_agent
+        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        found_match = False
-        for component_name, component in self.metta_agent.components.items():
-            if hasattr(component, "_obs_shape"):
-                found_match = True
-                component_shape = (
-                    tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                )
-                if component_shape != environment_shape:
-                    raise ValueError(
-                        f"Observation space mismatch error:\n"
-                        f"component_name: {component_name}\n"
-                        f"component_shape: {component_shape}\n"
-                        f"environment_shape: {environment_shape}\n"
+        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
+            found_match = False
+            for component_name, component in self.metta_agent.components.items():
+                if hasattr(component, "_obs_shape"):
+                    found_match = True
+                    component_shape = (
+                        tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
                     )
+                    if component_shape != environment_shape:
+                        raise ValueError(
+                            f"Observation space mismatch error:\n"
+                            f"component_name: {component_name}\n"
+                            f"component_shape: {component_shape}\n"
+                            f"environment_shape: {environment_shape}\n"
+                        )
 
-        if not found_match:
-            raise ValueError(
-                "No component with observation shape found in policy. "
-                f"Environment observation shape: {environment_shape}"
-            )
+            if not found_match:
+                raise ValueError(
+                    "No component with observation shape found in policy. "
+                    f"Environment observation shape: {environment_shape}"
+                )
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
@@ -348,7 +350,6 @@ class PufferTrainer:
                 self.agent_step += num_steps * self._world_size
 
                 o = torch.as_tensor(o)
-                o_device = o.to(self.device, non_blocking=True)
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
@@ -360,6 +361,8 @@ class PufferTrainer:
                 assert training_env_id.min() >= 0, "Negative index in training_env_id"
 
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
+
+                o_device = o.to(self.device, non_blocking=True)
                 actions, logprob, _, value, _ = policy(o_device, state)
 
                 lstm_h[:, training_env_id] = (
@@ -374,7 +377,6 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 value = value.flatten()
-                actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
                 self.experience.store(o, value, actions, logprob, r, d, training_env_id, mask)
@@ -384,6 +386,7 @@ class PufferTrainer:
                         infos[k].append(v)
 
             with profile.env:
+                actions = actions.cpu().numpy()
                 self.vecenv.send(actions)
 
         with profile.eval_misc:

@@ -8,6 +8,7 @@ set -o pipefail
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")" # (root)/devops
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"        # (root)
+cd "$PROJECT_DIR"
 
 # Parse command line arguments
 CLEAN=0
@@ -22,9 +23,9 @@ done
 
 # check if we're in docker
 if [ -f /.dockerenv ]; then
-  export IS_DOCKER=true
+  export IS_DOCKER=1
 else
-  export IS_DOCKER=false
+  export IS_DOCKER=''
 fi
 
 # Define a function to check if we're in a UV virtual environment
@@ -72,9 +73,7 @@ if ! command -v uv &> /dev/null; then
   fi
 fi
 
-# Required Python version
-REQUIRED_PYTHON_VERSION="3.11.7"
-VENV_PATH="$PROJECT_DIR/.venv"
+VENV_PATH=".venv"
 
 # ========== CLEAN BUILD ==========
 if [ "$CLEAN" -eq 1 ]; then
@@ -91,69 +90,41 @@ if [ "$CLEAN" -eq 1 ]; then
   fi
 
   # Remove the virtual environment
-  if [ -d "$PROJECT_DIR/.venv" ]; then
+  if [ -d .venv ]; then
     echo "Removing .venv virtual environment..."
-    rm -rf "$PROJECT_DIR/.venv"
+    rm -rf .venv
     echo "✅ Removed .venv virtual environment"
   fi
 fi
 
+# ========== CREATE VENV ==========
 # Check if we're already in a UV venv
 if ! is_uv_venv; then
   # Check if a virtual environment exists but is not activated
   if [ -d "$VENV_PATH" ]; then
-    echo "Found existing virtual environment at $VENV_PATH"
+    echo "⚠️ Existing environment is not a UV environment, recreating it"
 
-    # Check if it's a UV venv before activating
-    if [ -f "$VENV_PATH/pyvenv.cfg" ] && grep -q "uv" "$VENV_PATH/pyvenv.cfg"; then
-      echo "Existing environment appears to be a UV environment, activating it"
-      source "$VENV_PATH/bin/activate"
-      echo "✅ Virtual environment '$VENV_PATH' activated"
-    elif [ -d "$VENV_PATH/.uv" ]; then
-      echo "Existing environment appears to be a UV environment, activating it"
-      source "$VENV_PATH/bin/activate"
-      echo "✅ Virtual environment '$VENV_PATH' activated"
-    else
-      echo "⚠️ Existing environment is not a UV environment, recreating it"
-
-      # Remove the existing environment
-      rm -rf "$VENV_PATH"
-
-      # Create a new environment
-      echo "Creating new virtual environment with Python version ($REQUIRED_PYTHON_VERSION)..."
-      uv venv "$VENV_PATH" --python $REQUIRED_PYTHON_VERSION || {
-        echo "Error: Failed to create virtual environment with uv command."
-        exit 1
-      }
-
-      # Activate the environment
-      source "$VENV_PATH/bin/activate"
-      echo "✅ Virtual environment '$VENV_PATH' created and activated"
-    fi
-  else
-    # No existing environment, create a new one
-    echo "Creating new virtual environment with Python version ($REQUIRED_PYTHON_VERSION)..."
-    uv venv "$VENV_PATH" --python $REQUIRED_PYTHON_VERSION || {
-      echo "Error: Failed to create virtual environment with uv command."
-      exit 1
-    }
-
-    # Activate the environment
-    if [[ -d "$VENV_PATH" ]]; then
-      source "$VENV_PATH/bin/activate"
-      echo "✅ Virtual environment '$VENV_PATH' created and activated"
-    else
-      echo "❌ Failed to create virtual environment with uv"
-      exit 1
-    fi
+    # Remove the existing environment
+    rm -rf "$VENV_PATH"
   fi
+
+  # Create a new environment
+  echo "Creating new virtual environment..."
+  uv venv "$VENV_PATH" || {
+    echo "Error: Failed to create virtual environment with uv command."
+    exit 1
+  }
+  echo "✅ Virtual environment '$VENV_PATH' created and activated"
+
+  # Activate the environment
+  source "$VENV_PATH/bin/activate"
 fi
 
 if [ -z "$CI" ]; then
   # ========== REPORT RESIDUAL CONDA VENV ==========
   if command -v conda &> /dev/null; then
     echo "Checking for conda environments associated with this project..."
-    PROJECT_NAME=$(basename "$PROJECT_DIR")
+    PROJECT_NAME=$(basename "$(pwd)")
     CONDA_ENVS=$(conda env list | grep "$PROJECT_NAME" | awk '{print $1}')
     if [ -n "$CONDA_ENVS" ]; then
       echo "⚠️  Found the following conda environments that might be related to this project:"
@@ -161,98 +132,41 @@ if [ -z "$CI" ]; then
       echo "⚠️  You may want to manually remove these if they're no longer needed (conda env remove -n ENV_NAME)"
     fi
   fi
-
-  # ========== REPORT Non-UV VENV ==========
-  VENV_PATHS=(".venv" "venv" ".env" "env" "virtualenv" ".virtualenv")
-  for venv_name in "${VENV_PATHS[@]}"; do
-    venv_path="$PROJECT_DIR/$venv_name"
-    if [ -d "$venv_path" ]; then
-      if ! is_uv_venv "$venv_path"; then
-        echo "⚠️  Found a non UV virtual environments:"
-        echo "$venv_name"
-        echo "⚠️  You may want to manually remove if they're no longer needed"
-      fi
-    fi
-  done
 fi
 
-# ========== Main Project ==========
-cd "$PROJECT_DIR"
+# ========== BUILD AND INSTALL ==========
 
-# Install packages
 echo -e "\nInstalling project requirements..."
-uv pip install -r requirements.txt || {
-  if [ -n "$UV_BIN" ]; then
-    echo "Retrying with direct path to uv: $UV_BIN"
-    "$UV_BIN" pip install -r requirements.txt || {
-      echo "❌ Failed to install packages. Please check the error message above."
-      exit 1
-    }
-  else
-    echo "❌ Failed to install packages. Please check the error message above."
-    exit 1
-  fi
-}
+uv pip install -r requirements.txt
 
-# ========== BUILD FAST_GAE ==========
-echo -e "\nBuilding FastGAE..."
-make build
+echo -e "\nInstalling Metta..."
+uv pip install -e .
 
-# ========== BUILD METTAGRID ==========
-echo -e "\nBuilding MettaGrid..."
-cd mettagrid
-make install-dependencies
-make build
-cd ..
-
-# ========== INSTALL SKYPILOT ==========
-echo -e "\nInstalling Skypilot..."
-uv tool install skypilot --from 'skypilot[aws,vast,lambda]'
+echo -e "\nInstalling MettaGrid..."
+uv pip --directory mettagrid install -e .
 
 PYTHON="uv run --active python"
 
 # ========== SANITY CHECK ==========
 echo -e "\nSanity check: verifying all local deps are importable..."
 
-$PYTHON -c "import sys; print('Python path:', sys.path);"
-
 for dep in \
   "pufferlib" \
   "carbs" \
+  "metta.rl.fast_gae.fast_gae" \
+  "mettagrid.mettagrid_env" \
+  "mettagrid.mettagrid_c" \
   "wandb_carbs"; do
-  echo -e "\nChecking import for $dep..."
-  $PYTHON -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
+  uv run python -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
     echo "❌ Failed to import $dep"
     exit 1
   }
 done
 
-# Check for metta.rl.fast_gae.compute_gae
-echo -e "\nChecking import for metta.rl.fast_gae.compute_gae..."
-$PYTHON -c "from metta.rl.fast_gae import compute_gae; print('✅ Found metta.rl.fast_gae.compute_gae')" || {
-  echo "❌ Failed to import metta.rl.fast_gae.compute_gae"
-  exit 1
-}
-
-# Check for mettagrid.mettagrid_env.MettaGridEnv
-echo -e "\nChecking import for mettagrid.mettagrid_env.MettaGridEnv..."
-$PYTHON -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found mettagrid.mettagrid_env.MettaGridEnv')" || {
-  echo "❌ Failed to import mettagrid.mettagrid_env.MettaGridEnv"
-  exit 1
-}
-
-# Check for mettagrid.mettagrid_c.MettaGrid
-echo -e "\nChecking import for mettagrid.mettagrid_c.MettaGrid..."
-$PYTHON -c "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettagrid.mettagrid_c.MettaGrid')" || {
-  echo "❌ Failed to import mettagrid.mettagrid_c.MettaGrid"
-  exit 1
-}
-
 if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   # ========== VS CODE INTEGRATION ==========
   echo -e "\nSetting up VSCode integration..."
-  source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
-  echo "✅ setup_build.sh completed successfully!"
+  source "./devops/macos/setup_vscode_workspace.sh"
 
   # ========== INSTALL METTASCOPE ==========
   echo -e "\nSetting up MettaScope..."
@@ -261,4 +175,10 @@ if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   # ========== CHECK AWS TOKEN SETUP ==========
   echo -e "\nSetting up AWS access..."
   bash "devops/aws/setup_aws_profiles.sh"
+
+  echo -e "\nInstalling Skypilot..."
+  bash "devops/skypilot/install.sh"
+
+  echo "✅ setup_build.sh completed successfully!"
+  echo -e "Activate virtual environment with: \033[32;1msource $VENV_PATH/bin/activate\033[0m"
 fi

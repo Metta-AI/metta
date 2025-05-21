@@ -9,7 +9,7 @@ hydra-core==1.4.0dev1
 imageio==2.37.0
 jmespath==1.0.1
 matplotlib==3.10.3
-numpy==2.2.5
+numpy==2.2.6
 omegaconf==2.4.0.dev3
 pandas==2.2.3
 pettingzoo==1.25.0
@@ -30,7 +30,7 @@ setuptools==80.7.1
 shimmy==2.0.0
 sympy==1.13.3
 tabulate==0.9.0
-tensordict==0.8.2
+tensordict==0.8.3
 termcolor==2.4.0
 torchrl==0.8.0
 tqdm==4.67.1

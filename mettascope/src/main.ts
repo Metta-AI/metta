@@ -246,13 +246,13 @@ export function onFrame() {
     }
   }
 
-  updateReadout();
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
   ctx.useMesh("mini-map");
   drawMiniMap(ui.miniMapPanel);
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
+  updateReadout();
 
   ctx.flush();
   console.log("Flushed ctx.");
@@ -303,7 +303,11 @@ async function parseUrlParams() {
     await fetchReplay(replayUrl);
     focusFullMap(ui.mapPanel);
   } else if (wsUrl) {
-    console.log("Connecting to a websocket: ", wsUrl);
+    Common.showModal(
+      "info",
+      "Connecting to a websocket",
+      "Please wait a few seconds for the environment to load."
+    );
     initWebSocket(wsUrl);
   } else {
     Common.showModal(
@@ -394,6 +398,14 @@ function setPlaybackSpeed(speed: number) {
 // Initial resize.
 onResize();
 
+html.modal.classList.add("hidden");
+html.toast.classList.add("hiding");
+
+// TODO: Hookup panels divs better, but hide them for now.
+ui.mapPanel.div.classList.add("hidden");
+ui.tracePanel.div.classList.add("hidden");
+ui.miniMapPanel.div.classList.add("hidden");
+
 // Add event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize);
 window.addEventListener('keydown', onKeyDown);
@@ -408,10 +420,10 @@ window.addEventListener('drop', handleDrop, false);
 
 // Header area
 html.shareButton.addEventListener('click', onShareButtonClick);
-html.mainFilter.style.display = "none"; // Hide the main filter for now.
 
 // Bottom area
 html.scrubber.addEventListener('input', onScrubberChange);
+html.scrubber.setAttribute("type", "range")
 
 html.rewindToStartButton.addEventListener('click', () => {
   setIsPlaying(false);
