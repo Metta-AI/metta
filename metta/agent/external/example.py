@@ -88,8 +88,8 @@ class Policy(nn.Module):
         # self.layer_norm = nn.LayerNorm(hidden_size)
 
     def forward(self, observations, state=None):
-        hidden, lookup = self.encode_observations(observations)
-        actions, value = self.decode_actions(hidden, lookup)
+        hidden = self.encode_observations(observations)
+        actions, value = self.decode_actions(hidden)
         return (actions, value), hidden
 
     def encode_observations(self, observations, state=None):
