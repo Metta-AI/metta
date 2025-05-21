@@ -1,4 +1,0 @@
-_target_: metta.agent.external.example.Recurrent
-hidden_size: 512 
-cnn_channels: 128 
-

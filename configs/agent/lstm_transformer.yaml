@@ -1,3 +1,0 @@
-_target_: metta.agent.external.lstm_transformer.Recurrent
-hidden_size: 384 
-cnn_channels: 128
