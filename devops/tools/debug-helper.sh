@@ -29,19 +29,22 @@ git config advice.detachedHead false
 
 # Configuration
 START_COMMIT="HEAD"
-NUM_COMMITS=10  # How many commits back to process
+NUM_COMMITS=10      # How many commits back to process
+COMMIT_INTERVAL=1   # Default: process every commit
 USER=$(whoami)
 TMP_STORAGE="/tmp/git_debug_files_$USER"
 TIMESTAMP=$(date +%s)
 LOG_FILE="/tmp/debug_log_$TIMESTAMP.txt"
 
 # Function to show usage
+# Function to show usage
 show_usage() {
-  echo "Usage: $0 [--setup|--commits=N|--cleanup]"
-  echo "  --setup         Save current working files to temp storage"
-  echo "  --commits=N     Process N commits back from HEAD (default: 10)"
-  echo "  --cleanup       Remove all local and remote debug-test branches"
-  echo "  (no args)       Apply saved files, create test branches, and launch jobs"
+  echo "Usage: $0 [--setup|--commits=N|--cleanup|--commit-interval=N]"
+  echo "  --setup             Save current working files to temp storage"
+  echo "  --commits=N         Process N commits back from HEAD (default: 10)"
+  echo "  --commit-interval=N Skip N-1 commits between each processed commit (default: 1)"
+  echo "  --cleanup           Remove all local and remote debug-test branches"
+  echo "  (no args)           Apply saved files, create test branches, and launch jobs"
   exit 1
 }
 
@@ -53,6 +56,9 @@ for arg in "$@"; do
       ;;
     --commits=*)
       NUM_COMMITS="${arg#*=}"
+      ;;
+    --commit-interval=*)
+      COMMIT_INTERVAL="${arg#*=}"
       ;;
     --cleanup)
       CLEANUP_MODE=true
@@ -178,8 +184,36 @@ if [[ $ORIGINAL_BRANCH == refs/heads/* ]]; then
 fi
 echo "Original branch: $ORIGINAL_BRANCH" >> "$LOG_FILE"
 
-# Get list of commits to process - use rev-list to avoid duplicates
-COMMITS=$(git rev-list --max-count=$NUM_COMMITS HEAD)
+# Get list of commits to process based on the interval
+if [ "$COMMIT_INTERVAL" -gt 1 ]; then
+  echo "Using commit interval of $COMMIT_INTERVAL (processing every ${COMMIT_INTERVAL}th commit)"
+  
+  # Get total available commits
+  ALL_COMMITS=$(git rev-list HEAD)
+  TOTAL_COMMITS=$(echo "$ALL_COMMITS" | wc -l | tr -d ' ')
+  
+  # Calculate the total depth we need to go
+  MAX_DEPTH=$((NUM_COMMITS * COMMIT_INTERVAL))
+  
+  # Make sure we don't try to go deeper than the repo history
+  if [ "$MAX_DEPTH" -gt "$TOTAL_COMMITS" ]; then
+    echo "Warning: Requested depth ($MAX_DEPTH) exceeds repository history ($TOTAL_COMMITS)"
+    echo "Will process up to the oldest available commit"
+  fi
+  
+  # Select commits at specified intervals
+  COMMITS=""
+  for i in $(seq 0 $((NUM_COMMITS - 1))); do
+    DEPTH=$((i * COMMIT_INTERVAL))
+    if [ "$DEPTH" -lt "$TOTAL_COMMITS" ]; then
+      NEW_COMMIT=$(git rev-parse HEAD~$DEPTH)
+      COMMITS="$COMMITS $NEW_COMMIT"
+    fi
+  done
+else
+  # Default: get consecutive commits
+  COMMITS=$(git rev-list --max-count=$NUM_COMMITS HEAD)
+fi
 
 # Count actual commits found
 COMMIT_COUNT=$(echo "$COMMITS" | wc -l | tr -d ' ')
