@@ -122,7 +122,7 @@ if [ "$SETUP_MODE" = true ]; then
   # Create the patch for experience.py
   echo "Creating experience.py patch file"
   cat > "$TMP_STORAGE/experience_patch.py" << 'EOL'
-def flatten_batch(self, advantages_np: np.ndarray) -> None:
+    def flatten_batch(self, advantages_np: np.ndarray) -> None:
         advantages: torch.Tensor = torch.as_tensor(advantages_np).to(self.device, non_blocking=True)
 
         if self.b_idxs_obs is None:
@@ -256,7 +256,7 @@ for COMMIT in $COMMITS; do
     
     # Simple approach: truncate the file at "def flatten_batch" and append our implementation
     # First find the line number where flatten_batch starts
-    FLATTEN_LINE=$(grep -n "def flatten_batch" "$EXPERIENCE_PATH" | head -1 | cut -d: -f1)
+    FLATTEN_LINE=$(grep -n "    def flatten_batch" "$EXPERIENCE_PATH" | head -1 | cut -d: -f1)
     
     if [ -n "$FLATTEN_LINE" ]; then
       echo "Found flatten_batch at line $FLATTEN_LINE - replacing it..."
@@ -265,7 +265,6 @@ for COMMIT in $COMMITS; do
       head -n $((FLATTEN_LINE - 1)) "$EXPERIENCE_PATH" > "${EXPERIENCE_PATH}.new"
       
       # Add our implementation from the patch file
-      echo "    def flatten_batch" >> "${EXPERIENCE_PATH}.new"
       cat "$TMP_STORAGE/experience_patch.py" >> "${EXPERIENCE_PATH}.new"
       
       # Replace the original file
