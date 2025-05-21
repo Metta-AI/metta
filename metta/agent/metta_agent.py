@@ -205,7 +205,7 @@ class MettaAgent(nn.Module):
             # BPTT
             B, T, A = action.shape
             # Flatten batch and time dimensions for both action and x
-            bptt_action = einops.rearrange(action, "b t c -> (b t) c")
+            action = einops.rearrange(action, "b t c -> (b t) c")
             x = einops.rearrange(x, "b t ... -> (b t) ...")
 
         # Initialize dictionary for TensorDict
@@ -236,9 +236,9 @@ class MettaAgent(nn.Module):
         state.lstm_c = td["state"][split_size:]
 
         # Sample actions
-        if bptt_action is not None:
+        if action is not None:
             # BPTT
-            bptt_action_index = self._convert_action_to_logit_index(bptt_action)
+            bptt_action_index = self._convert_action_to_logit_index(action)
             action_index, action_log_prob, entropy, log_probs = sample_logits(logits, bptt_action_index)
         else:
             # inference
