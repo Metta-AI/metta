@@ -17,6 +17,25 @@ jobs:
         with:
           fetch-depth: 0  # This ensures we can see the full history
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+          # Falls back to 3.10 if no .python-version file exists
+          cache: 'none'  # We'll use uv's cache instead
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.7.3"
+          enable-cache: true
+          cache-dependency-glob: 'requirements*.txt'
+
+      - name: Install mypy
+        run: |
+          uv pip install mypy
+
+
       - name: Check for Python file changes
         id: check-python
         run: |
