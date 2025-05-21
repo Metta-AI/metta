@@ -1,0 +1,42 @@
+# Config: Central Table Layout (Overcooked-style)
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 18
+  map_builder:
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: 9
+    border_width: 6
+
+    room:
+      _target_: mettagrid.room.cooperation.confined_room_coord.ConfinedRoomCoord
+      width: ${sampling:2,4,3}
+      height: ${sampling:2,4,3}
+      agents: 2
+      border_width: 2
+      num_mines: 2
+      num_generators: 2
+      num_altars: 2
+
+  objects:
+    altar:
+      cooldown: ${sampling:10,25,15}
+      input_battery: 1
+      max_output: 100
+      conversion_ticks: ${sampling:10,25,15}
+      initial_items: 0
+    generator:
+      cooldown: ${sampling:10,25,15}
+      max_output: 100
+      conversion_ticks: ${sampling:10,25,15}
+      initial_items: 0
+    mine:
+      cooldown: ${sampling:10,25,15}
+      max_output: 100
+      conversion_ticks: 1
+      initial_items: 1
+
