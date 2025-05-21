@@ -6,14 +6,14 @@ game:
   max_steps: 70
   agent:
     rewards:
-      heart: 0.333
+      heart: 1
   map_builder:
 
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
     room:
       _target_: mettagrid.room.ascii.Ascii
-      border_width: 1
+      border_width: 3
       uri: "configs/env/mettagrid/maps/memory/little_landmark_hard.map"
 
   objects:

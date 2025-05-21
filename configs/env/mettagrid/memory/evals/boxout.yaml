@@ -2,19 +2,19 @@ defaults:
   - /env/mettagrid/mettagrid@
 
 game:
-  num_agents: 8  #how many agents are in the map x2
-  max_steps: 70
+  num_agents: 4  #how many agents are in the map x2
+  max_steps: 150
   agent:
     rewards:
-      heart: 0.333
+      heart: 1
   map_builder:
 
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
     room:
       _target_: mettagrid.room.ascii.Ascii
-      border_width: 1
-      uri: "configs/env/mettagrid/maps/memory/mem_nav3.map"
+      border_width: 3
+      uri: "configs/env/mettagrid/maps/memory/boxout.map"
 
   objects:
     altar:

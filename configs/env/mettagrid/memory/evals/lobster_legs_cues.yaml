@@ -3,7 +3,7 @@ defaults:
 
 game:
   num_agents: 8  #how many agents are in the map x2
-  max_steps: 80
+  max_steps: 100
   agent:
     rewards:
       heart: 1
@@ -14,7 +14,7 @@ game:
     room:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 3
-      uri: "configs/env/mettagrid/maps/memory/easy_sequence.map"
+      uri: "configs/env/mettagrid/maps/memory/lobster_legs_cues.map"
 
   objects:
     altar:

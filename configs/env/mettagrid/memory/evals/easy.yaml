@@ -13,7 +13,7 @@ game:
     num_rooms: 4
     room:
       _target_: mettagrid.room.ascii.Ascii
-      border_width: 1
+      border_width: 3
       uri: "configs/env/mettagrid/maps/memory/easy.map"
 
   objects:

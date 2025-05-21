@@ -3,7 +3,7 @@ defaults:
 
 game:
   num_agents: 8  #how many agents are in the map x2
-  max_steps: 70
+  max_steps: 170
   agent:
     rewards:
       heart: 0.333
@@ -14,7 +14,7 @@ game:
     room:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/memory/mem_nav2.map"
+      uri: "configs/env/mettagrid/maps/memory/medium_sequence.map"
 
   objects:
     altar:

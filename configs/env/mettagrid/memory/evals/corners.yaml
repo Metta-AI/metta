@@ -2,8 +2,8 @@ defaults:
   - /env/mettagrid/mettagrid@
 
 game:
-  num_agents: 8  #how many agents are in the map x2
-  max_steps: 80
+  num_agents:   #how many agents are in the map x2
+  max_steps: 150
   agent:
     rewards:
       heart: 1
@@ -13,8 +13,8 @@ game:
     num_rooms: 4
     room:
       _target_: mettagrid.room.ascii.Ascii
-      border_width: 3
-      uri: "configs/env/mettagrid/maps/memory/easy_sequence.map"
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/memory/corners.map"
 
   objects:
     altar:

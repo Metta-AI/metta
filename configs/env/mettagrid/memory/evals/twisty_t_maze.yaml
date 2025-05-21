@@ -14,7 +14,7 @@ game:
     room:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/memory/mem_nav.map"
+      uri: "configs/env/mettagrid/maps/memory/twisty_t_maze.map"
 
   objects:
     altar:
