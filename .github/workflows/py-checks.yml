@@ -534,7 +534,7 @@ jobs:
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
             --branch main \
-            --threshold-measure throughput \
+            --threshold-measure agent_steps_per_second \
             --threshold-test percentage \
             --threshold-max-sample-size 2 \
             --threshold-lower-boundary 0.20 \
@@ -623,7 +623,7 @@ jobs:
             --start-point "main" \
             --start-point-reset \
             --thresholds-reset \
-            --threshold-measure throughput \
+            --threshold-measure agent_steps_per_second \
             --threshold-test percentage \
             --threshold-max-sample-size 2 \
             --threshold-upper-boundary 0.10 \
@@ -672,7 +672,7 @@ jobs:
             --start-point "main" \
             --start-point-reset \
             --thresholds-reset \
-            --threshold-measure throughput \
+            --threshold-measure agent_steps_per_second \
             --threshold-test percentage \
             --threshold-max-sample-size 2 \
             --threshold-lower-boundary 0.20 \
