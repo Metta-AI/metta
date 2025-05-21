@@ -1,0 +1,80 @@
+name: Type Annotation Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '**/*.py'  # Only trigger on Python files
+
+jobs:
+  review-type-annotations:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # This ensures we can see the full history
+
+      - name: Check for Python file changes
+        id: check-python
+        run: |
+          PYTHON_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep "\.py$" || echo "")
+          if [ -n "$PYTHON_FILES" ]; then
+            echo "python_changes=true" >> $GITHUB_OUTPUT
+            echo "Changed Python files: $PYTHON_FILES"
+          else
+            echo "python_changes=false" >> $GITHUB_OUTPUT
+            echo "No Python files changed in this PR"
+          fi
+
+      - name: Analyze Type Annotations
+        if: steps.check-python.outputs.python_changes == 'true'
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_model: "claude-3-7-sonnet-20250219"
+          allowed_tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)" # Allow Claude to create suggested edits
+          direct_prompt: |
+            Please review the Python code in this PR and check for missing or incomplete type annotations.
+            
+            First, examine the diff to identify Python files with changes. For each function, method, or variable assignment 
+            in the changed code, check if it has proper type annotations according to PEP 484/585 standards.
+            
+            Focus on:
+            1. Function parameters missing type annotations
+            2. Function return types that aren't specified
+            3. Variable assignments that would benefit from type annotations
+            4. Using modern Python typing (e.g., list[str] instead of List[str] for Python 3.9+)
+            5. Complex data structures without clear type definitions
+            
+            For each missing type annotation you find:
+            - Specify its location (file and line number)
+            - Explain why a type annotation would be beneficial
+            - Create a suggested change (using GitHub's suggested change format) showing the code with proper type annotations
+            
+            Guidelines for suggestions:
+            - For parameters, infer the most logical type based on usage
+            - For return types, analyze the function to determine appropriate return type
+            - Use Union[Type1, Type2] or Type1 | Type2 (Python 3.10+) for multiple possible types
+            - Suggest Optional[Type] or Type | None for parameters that might be None
+            - For collections, be specific about contained types (e.g., list[str], dict[str, int])
+            
+            Follow these steps:
+            1. First, identify the Python files modified in this PR
+            2. For each file, analyze functions, methods, and variable assignments for missing type annotations
+            3. Create suggested changes with appropriate type annotations
+            4. Summarize your findings in a clear PR comment
+            
+            When creating suggested changes:
+            - Only add type annotations without changing the functionality
+            - Focus on public methods and functions first, then private ones
+            - Be conservative with complex types - suggest simpler types when unsure
+            
+            If the changes don't include Python files or all Python code already has proper type annotations,
+            simply mention that no changes are needed.
+            
+            Be polite and constructive in your feedback. Explain that these are suggestions that the developer 
+            can choose to accept or ignore, but emphasize the benefits of type annotations for code quality,
+            readability, and error prevention.

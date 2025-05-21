@@ -1,0 +1,54 @@
+name: Code Comment Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review-comments:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # This ensures we can see the full history
+
+      - name: Analyze Comments in PR
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_model: "claude-3-7-sonnet-20250219"  # Using the latest model for best results
+          allowed_tools: "Edit,Replace,Bash(git diff HEAD~1)" # Allow Claude to create suggested edits
+          direct_prompt: |
+            Please review the PR diff and specifically look for unnecessary comments in the code.
+            
+            Focus on identifying comments that:
+            1. Merely restate what the code is doing (e.g., "# increment counter" for "counter += 1")
+            2. Explain obvious operations that are clear from the code itself
+            3. Are outdated or no longer relevant to the current implementation
+            4. Duplicate information that is already conveyed by descriptive variable/function names
+            5. State Git commands or simple technical operations that are obvious to developers
+            
+            For each unnecessary comment you find:
+            - Specify its location (file and line number)
+            - Explain why it's unnecessary
+            - Create a suggested change (using GitHub's suggested change format) showing the code with the comment removed
+            
+            A good comment should explain WHY something is done, not WHAT is done, when the WHAT is clear from the code itself.
+            For example, "# set git detachedHead config to false" is unnecessary for "git config advice.detachedHead false"
+            because it just restates what the code is doing without adding context for WHY.
+            
+            Follow these steps:
+            1. First, examine the diff to identify files with changes
+            2. For each file, identify any unnecessary comments in the changed code
+            3. For each unnecessary comment, create a suggested change showing the code without the comment
+            4. Summarize all your findings in a clear, organized PR comment
+            
+            When creating suggested changes:
+            - Use GitHub's suggestion format so users can directly commit them
+            - Only remove the comment, leaving the actual code unchanged
+            - If a multi-line comment should be removed, show the complete removal
+            
+            Be polite and constructive in your feedback. Explain that these are suggestions that the developer can choose to accept or ignore.
