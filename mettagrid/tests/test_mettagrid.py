@@ -53,7 +53,7 @@ def create_minimal_mettagrid_env(max_steps=10, width=5, height=5):
         }
     }
 
-    return MettaGrid(env_config, game_map)
+    return MettaGrid(env_config, game_map.tolist())
 
 
 def test_truncation_at_max_steps():

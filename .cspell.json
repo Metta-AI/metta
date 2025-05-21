@@ -6,6 +6,8 @@
     "addopts",
     "allclose",
     "autogroup",
+    "autostop",
+    "autostops",
     "bint",
     "boundscheck",
     "bptt",
@@ -139,6 +141,7 @@
     "vecenv",
     "vectorizer",
     "venv",
+    "virtualenv",
     "vloss",
     "wandb",
     "xlarge"

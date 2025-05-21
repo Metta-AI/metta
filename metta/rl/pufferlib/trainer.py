@@ -348,7 +348,6 @@ class PufferTrainer:
                 self.agent_step += num_steps * self._world_size
 
                 o = torch.as_tensor(o)
-                o_device = o.to(self.device, non_blocking=True)
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
@@ -360,6 +359,8 @@ class PufferTrainer:
                 assert training_env_id.min() >= 0, "Negative index in training_env_id"
 
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
+
+                o_device = o.to(self.device, non_blocking=True)
                 actions, logprob, _, value, _ = policy(o_device, state)
 
                 lstm_h[:, training_env_id] = (
@@ -374,7 +375,6 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 value = value.flatten()
-                actions = actions.cpu().numpy()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
                 self.experience.store(o, value, actions, logprob, r, d, training_env_id, mask)
@@ -384,6 +384,7 @@ class PufferTrainer:
                         infos[k].append(v)
 
             with profile.env:
+                actions = actions.cpu().numpy()
                 self.vecenv.send(actions)
 
         with profile.eval_misc:
@@ -638,14 +639,16 @@ class PufferTrainer:
             results = replay_simulator.simulate()
 
             if self.wandb_run is not None:
-                replay_url = results.stats_db.get_replay_urls(
+                replay_urls = results.stats_db.get_replay_urls(
                     policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
-                )[0]
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                link_summary = {
-                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                }
-                self.wandb_run.log(link_summary)
+                )
+                if len(replay_urls) > 0:
+                    replay_url = replay_urls[0]
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                    link_summary = {
+                        "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                    }
+                    self.wandb_run.log(link_summary)
 
     def _process_stats(self):
         for k in list(self.stats.keys()):

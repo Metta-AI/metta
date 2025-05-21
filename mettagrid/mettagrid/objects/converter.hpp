@@ -133,7 +133,7 @@ public:
     this->maybe_start_converting();
   }
 
-  void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override {
+  void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = this->hp;
     obs[offsets[2]] = this->color;

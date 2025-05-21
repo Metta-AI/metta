@@ -3,6 +3,7 @@ from metta.util.config import Config
 
 
 class AnalysisConfig(Config):
+    __init__ = Config.__init__
     # Policy URI to analyze
     policy_uri: str | None = None
     policy_selector: PolicySelectorConfig = PolicySelectorConfig()

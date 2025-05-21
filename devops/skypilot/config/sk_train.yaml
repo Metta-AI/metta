@@ -21,11 +21,11 @@ setup: |
   cd /workspace/metta
   git fetch
   git checkout $METTA_GIT_REF
-  uv pip install -r requirements.txt
-  python setup.py build_ext --inplace
-  uv pip install -e .
 
-  uv run --active --directory mettagrid python setup.py build_ext --inplace
+  uv pip install -r requirements.txt
+  uv pip install -e .
+  uv --directory mettagrid pip install -e .
+
   mkdir -p $WANDB_DIR
 
 run: |
@@ -49,12 +49,12 @@ file_mounts:
 
   /mnt/s3/softmax-public:
     source: s3://softmax-public
-    mode: MOUNT
+    mode: MOUNT_CACHED
 
   /workspace/metta/train_dir:
     name: softmax-train-dir
     store: s3
-    mode: MOUNT
+    mode: MOUNT_CACHED
 
 envs:
   METTA_RUN_ID: ""
