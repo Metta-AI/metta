@@ -465,6 +465,26 @@ jobs:
 
           print("Successfully combined benchmark results.")
 
+          # Extract agent_steps_per_second and write Bencher Metric Format file
+          AGENT_BENCH = "benchmarks/test_mettagrid_env_benchmark.py::test_step_performance_no_reset"
+          agent_data = safe_load_json('mettagrid_benchmark_results.json')
+          agent_steps = None
+          for bench in agent_data.get("benchmarks", []):
+              if bench.get("fullname") == AGENT_BENCH:
+                  agent_steps = bench.get("extra_info", {}).get("agent_steps_per_second")
+                  break
+
+          bmf_file = 'agent_steps.bmf.json'
+          if agent_steps is not None:
+              bmf = {AGENT_BENCH: {"agent_steps_per_second": {"value": agent_steps}}}
+              with open(bmf_file, 'w') as f:
+                  json.dump(bmf, f, indent=2)
+              print(f"Wrote agent steps metric to {bmf_file}")
+          else:
+              print("agent_steps_per_second not found; creating empty BMF file")
+              with open(bmf_file, 'w') as f:
+                  json.dump({}, f)
+
           EOF
 
       - name: Install Bencher CLI
@@ -503,6 +523,21 @@ jobs:
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
+
+      - name: Upload Agent Steps Per Second (Main Branch)
+        if: github.ref == 'refs/heads/main'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch main \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file agent_steps.bmf.json > /dev/null
 
       - name: Install jq
         run: |
@@ -566,6 +601,26 @@ jobs:
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
 
+      - name: Upload Agent Steps Per Second (PR Improvement)
+        if: |
+          (github.event_name == 'pull_request') &&
+          (!github.event.pull_request.head.repo.fork) &&
+          (steps.check-main-benchmark.outputs.main_benchmark_exists == 'true')
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point "main" \
+            --start-point-reset \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file agent_steps.bmf.json > /dev/null
+
       # Second PR Performance run - Check for regressions (WILL fail on alerts)
       - name: Check for Performance Regressions
         if: |
@@ -588,3 +643,25 @@ jobs:
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json
+
+      - name: Upload Agent Steps Per Second (PR Regression)
+        if: |
+          (github.event_name == 'pull_request') &&
+          (!github.event.pull_request.head.repo.fork) &&
+          (steps.check-main-benchmark.outputs.main_benchmark_exists == 'true')
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point "main" \
+            --start-point-reset \
+            --start-point-clone-thresholds \
+            --err \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file agent_steps.bmf.json
