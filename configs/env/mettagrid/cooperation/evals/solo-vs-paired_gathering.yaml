@@ -1,0 +1,38 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 2  #how many agents are in the map x2
+  max_steps: 50
+
+  agent:
+    max_inventory: 1
+    rewards:
+      heart: 0.5
+  map_builder:
+
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: 1
+    room:
+      _target_: mettagrid.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/cooperation/solo-vs-paired_gathering.map"
+
+  objects:
+    altar:
+      cooldown: 10
+      input_battery: 1
+      output_heart: 1
+      max_output: 100
+      initial_items: 0
+    generator:
+      cooldown: 10
+      input_ore: 1
+      output_battery: 1
+      max_output: 100
+      initial_items: 0
+    mine:
+      cooldown: 10
+      max_output: 100
+      initial_items: 1
