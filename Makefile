@@ -1,12 +1,11 @@
-.PHONY: help all install build test clean test-python check-venv
+.PHONY: help all install test clean test-python check-venv
 
 
 # Default target when just running 'make'
 help:
 	@echo "Available targets:"
-	@echo " install - Build mettagrid using the rebuild script"
+	@echo " install - Prepare the dev environment"
 	@echo " test - Run all unit tests"
-	@echo " build - Build from setup.py"
 	@echo " all - Run install and test"
 	@echo " clean - Remove build artifacts and temporary files"
 
@@ -50,9 +49,3 @@ test-python: check-venv
 test: test-python
 
 all: clean install check-venv test
-
-# Build the project using setup.py
-build: check-venv
-	@echo "Building metta..."
-	uv pip install -e .
-	@echo "Build complete."
