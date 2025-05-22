@@ -13,8 +13,8 @@ game:
       ore.red: ${sampling:0.005,0.1, 0.01}
       ore.blue: ${sampling:0.005,0.1, 0.01}
       ore.green: ${sampling:0.005,0.1, 0.01}
-      battery: ${sampling:0.01,1, 0.1}
-      battery_max: 5
+      battery.red: ${sampling:0.01,1, 0.1}
+      battery.red_max: 5
       heart: 1
       heart_max: 1000
   map_builder:
