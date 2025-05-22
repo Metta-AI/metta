@@ -1,8 +1,6 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
+    // for more information on the VS Code debugger, visit https://go.microsoft.com/fwlink/?linkid=830387
     "configurations": [
         {
             "name": "Train Metta",
@@ -11,8 +9,8 @@
             "module": "tools.train",
             "args": [
                 "+hardware=macbook",
-                "+user=${env:USER}",
-            ],
+                "+user=${env:USER}"
+            ]
         },
         {
             "name": "Sweep: Init",
@@ -22,8 +20,8 @@
             "args": [
                 "+hardware=macbook",
                 "+user=${env:USER}",
-                "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml",
-            ],
+                "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"
+            ]
         },
         {
             "name": "Sweep: Eval",
@@ -33,8 +31,8 @@
             "args": [
                 "+hardware=macbook",
                 "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
-                "+user=${env:USER}",
-            ],
+                "+user=${env:USER}"
+            ]
         },
         {
             "name": "Sweep: Train",
@@ -45,8 +43,8 @@
                 "+hardware=macbook",
                 "+user=${env:USER}",
                 "data_dir=./train_dir/sweep/${sweep_name}/runs",
-                "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
-            ],
+                "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
+            ]
         },
         {
             "name": "Evaluate",
@@ -56,8 +54,8 @@
             "args": [
                 "+user=${env:USER}",
                 "+hardware=macbook",
-                "cmd=sim",
-            ],
+                "cmd=sim"
+            ]
         },
         {
             "name": "Analyze",
@@ -67,8 +65,8 @@
             "args": [
                 "+user=${env:USER}",
                 "+hardware=macbook",
-                "cmd=analyze",
-            ],
+                "cmd=analyze"
+            ]
         },
         {
             "name": "Generate Replay",
@@ -77,8 +75,8 @@
             "module": "tools.replay",
             "args": [
                 "+user=${env:USER}",
-                "+hardware=macbook",
-            ],
+                "+hardware=macbook"
+            ]
         },
         {
             "name": "Play Metta",
@@ -87,8 +85,8 @@
             "module": "tools.play",
             "args": [
                 "+user=${env:USER}",
-                "+hardware=macbook",
-            ],
-        },
-    ],
+                "+hardware=macbook"
+            ]
+        }
+    ]
 }

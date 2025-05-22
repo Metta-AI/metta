@@ -1,4 +1,3 @@
-import os
 import socket
 from dataclasses import dataclass
 
@@ -14,9 +13,6 @@ logger = setup_mettagrid_logger("Test")
 
 @pytest.fixture(autouse=True)
 def patch_dependencies(monkeypatch):
-    # Bypass version check
-    monkeypatch.setattr("metta.util.wandb.wandb_context.check_wandb_version", lambda: True)
-
     # Patch wandb.save to no-op
     monkeypatch.setattr(wandb, "save", lambda *args, **kwargs: None)
 
@@ -120,7 +116,7 @@ def test_run_fields(monkeypatch, dummy_init, tmp_path):
     assert run.save_code is True
 
 
-def test_exit_finishes_run(monkeypatch, dummy_init):
+def test_exit_finishes_run(monkeypatch, dummy_init, tmp_path):
     # Prepare enabled config
     cfg_on = WandbConfigOn(
         enabled=True,
@@ -129,7 +125,7 @@ def test_exit_finishes_run(monkeypatch, dummy_init):
         group="g",
         name="n",
         run_id="r",
-        data_dir=os.getcwd(),
+        data_dir=str(tmp_path),
         job_type="j",
     )
 
