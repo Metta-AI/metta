@@ -1,0 +1,15 @@
+_target_: metta.env.mettagrid_env_set.SamplingPrioritizedEnvSet
+
+num_agents: 16
+sampling: 1
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/multiagent/training/terrain_from_numpy
+  - /env/mettagrid/multiagent/training/varied_terrain_sparse
+  - /env/mettagrid/multiagent/training/varied_terrain_balanced
+  - /env/mettagrid/multiagent/training/varied_terrain_maze
+  - /env/mettagrid/multiagent/training/varied_terrain_dense
+  - /env/mettagrid/multiagent/training/easy_all_objects
