@@ -261,10 +261,28 @@ class MettaAgent(nn.Module):
             Tuple of (action, action_log_prob, entropy, value, log_probs)
         """
         if __debug__:
+            # Default values in case obs_shape is not available
+            obs_w, obs_h, features = "W", "H", "F"
+
+            # Check if agent_attributes exists, is not None, and contains obs_shape
+            if (
+                hasattr(self, "agent_attributes")
+                and self.agent_attributes is not None
+                and "obs_shape" in self.agent_attributes
+            ):
+                # Get obs_shape and ensure it has the expected format
+                obs_shape = self.agent_attributes["obs_shape"]
+                if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
+                    obs_w, obs_h, features = obs_shape
+
             if action is None:
-                assert_shape(x, ("BT", "*obs_shape"), "inference_input_x")
+                # Inference: x should have shape (BT, obs_w, obs_h, features)
+                assert_shape(x, ("BT", obs_w, obs_h, features), "inference_input_x")
             else:
-                assert_shape(x, ("B", "T", "*obs_shape"), "training_input_x")
+                # Training: x should have shape (B, T, obs_w, obs_h, features)
+                B, T, A = action.shape
+                assert A == 2, f"Action dimensionality should be 2, got {A}"
+                assert_shape(x, (B, T, obs_w, obs_h, features), "training_input_x")
                 assert_shape(action, ("B", "T", 2), "training_input_action")
 
         # Initialize dictionary for TensorDict
