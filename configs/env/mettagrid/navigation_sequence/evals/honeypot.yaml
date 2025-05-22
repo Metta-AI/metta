@@ -5,4 +5,4 @@ defaults:
 game:
   max_steps: 300
   map_builder:
-    uri: "configs/env/mettagrid/maps/navigation_sequence/evals/honeypot.map"
+    uri: "configs/env/mettagrid/maps/navigation_sequence/honeypot.map"
