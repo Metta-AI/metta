@@ -15,4 +15,3 @@ game:
     mean_distance: 6
     border_width: 3
     agents: 1
-    objects: ???
