@@ -1,6 +1,6 @@
 _target_: metta.env.mettagrid_env_set.SamplingPrioritizedEnvSet
 
-num_agents: 16
+num_agents: 32
 sampling: 1
 
 game:
