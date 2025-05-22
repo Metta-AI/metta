@@ -4,17 +4,17 @@ set -e  # Exit immediately if any command fails
 # How to use:
 # 1. First, run the setup to save your current working files:
 #    ```bash
-#    ./devops/tools/debug-helper.sh --setup
+#    ./devops/tools/git-history-trainer.sh --setup
 #    ```
 #
 # 2. Then run the script to process multiple commits in parallel:
 #    ```bash
-#    ./devops/tools/debug-helper.sh --commits=3  --commit-interval=5 # Process (1, 6, 11) commits back from HEAD
+#    ./devops/tools/git-history-trainer.sh --commits=3  --commit-interval=5 # Process (1, 6, 11) commits back from HEAD
 #    ```
 #
 # 3. This script makes a lot of branches. You can clean up this way:
 #    ```bash
-#    ./devops/tools/debug-helper.sh --cleanup
+#    ./devops/tools/git-history-trainer.sh --cleanup
 #    ```
 #
 # This approach can be more efficient than the traditional git bisect for our use case, since:
