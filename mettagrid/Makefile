@@ -80,7 +80,6 @@ endif
 # Get Python paths from the UV venv
 PYTHON_PREFIX := $(shell $(PYTHON_BIN) -c "import sys; print(sys.prefix)")
 PYTHON_VERSION := $(shell $(PYTHON_BIN) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-PYTHON_INCLUDE := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_path('include'))")
 PYTHON_STDLIB := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_path('stdlib'))")
 PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
 PYTHON_SITE_PACKAGES := $(shell $(PYTHON_BIN) -c "import site; print(site.getsitepackages()[0])")
@@ -99,6 +98,7 @@ CXXFLAGS = -std=c++20 -Wall -g \
 
 PYBIND11_INCLUDE = $(shell $(PYTHON_BIN) -m pybind11 --includes 2>/dev/null | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
 NUMPY_INCLUDE = $(shell $(PYTHON_BIN) -c "import numpy; print(numpy.get_include())" 2>/dev/null)
+PYTHON_INCLUDE := $(shell $(PYTHON_BIN) -m pybind11 --includes | grep -o '\-I[^[:space:]]*python[^[:space:]]*' | head -1 | sed 's/-I//')
 
 CXXFLAGS += -I$(PYBIND11_INCLUDE)
 CXXFLAGS += -I$(NUMPY_INCLUDE)
