@@ -132,15 +132,9 @@ CXXFLAGS_METTAGRID = $(CXXFLAGS) -fvisibility=hidden -O3
 SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
 SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 
-$(BUILD_TEST_DIR):
-	@mkdir -p $(BUILD_TEST_DIR)
-
 TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
 TEST_OBJECTS := $(patsubst $(TEST_DIR)/%.cpp,$(BUILD_TEST_DIR)/%.o,$(TEST_SOURCES))
 TEST_EXECUTABLES := $(patsubst $(BUILD_TEST_DIR)/%.o,$(BUILD_TEST_DIR)/%,$(TEST_OBJECTS))
-
-$(BUILD_BENCH_DIR):
-	@mkdir -p $(BUILD_BENCH_DIR)
 
 BENCH_SOURCES := $(wildcard $(BENCH_DIR)/*.cpp $(BENCH_DIR)/**/*.cpp)
 BENCH_OBJECTS := $(patsubst $(BENCH_DIR)/%.cpp,$(BUILD_BENCH_DIR)/%.o,$(BENCH_SOURCES))
@@ -367,20 +361,20 @@ check-benchmark-dependencies: check-common-dependencies
 
 # Build target that calls the setup.py script with UV venv activated
 .PHONY: build
-build: check-build-dependencies
+build: check-build-dependencies create-dirs
 	@echo "🔨 Building mettagrid using setup-tools..."
 	@uv pip install -e .
 	@echo "✅ Build completed successfully."
 
 # Build just the test files
-.PHONY: check-test-dependencies build-tests
+.PHONY: check-test-dependencies create-dirs build-tests
 build-tests: $(TEST_EXECUTABLES)
 	@echo "🧪 Built $(words $(TEST_EXECUTABLES)) test executable(s):"
 	@find $(BUILD_TEST_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
 	@echo "✅ Finished building test executables"
 
 # Build just the benchmark files
-.PHONY: check-benchmark-dependencies build-benchmarks
+.PHONY: check-benchmark-dependencies create-dirs build-benchmarks
 build-benchmarks: $(BENCH_EXECUTABLES)
 	@echo "📈 Built $(words $(BENCH_EXECUTABLES)) benchmark executable(s):"
 	@find $(BUILD_BENCH_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
@@ -412,6 +406,26 @@ format: check-format-tools
 	@echo "Note: Cython files (.pyx, .pxd) were intentionally skipped to preserve their syntax."
 
 #-----------------------
+# Directory Creation
+#-----------------------
+
+# Define all directories that need to be created
+BUILD_DIRS := $(BUILD_DIR) \
+              $(BUILD_SRC_DIR) \
+              $(BUILD_TEST_DIR) \
+              $(BUILD_BENCH_DIR) \
+              $(DEPDIR)
+
+# Create all directories with a single rule
+$(BUILD_DIRS):
+	@mkdir -p $@
+
+# Convenience target to create all directories at once
+.PHONY: create-dirs
+create-dirs: $(BUILD_DIRS)
+	@echo "✅ All build directories created"
+
+#-----------------------
 # Core Library Build
 #-----------------------
 
@@ -428,19 +442,6 @@ $(BUILD_CONFIG): | $(BUILD_DIR)
 	@echo "CXXFLAGS=$(CXXFLAGS)" >> $@
 	@echo "CXX=$(CXX)" >> $@
 	@echo "PYTHON_INCLUDE=$(PYTHON_INCLUDE)" >> $@
-
-# Create build directories
-$(BUILD_SRC_DIR):
-	@mkdir -p $(BUILD_SRC_DIR)
-
-$(BUILD_TEST_DIR):
-	@mkdir -p $(BUILD_TEST_DIR)
-
-$(BUILD_BENCH_DIR):
-	@mkdir -p $(BUILD_BENCH_DIR)
-
-$(DEPDIR):
-	@mkdir -p $(DEPDIR)
 
 # Updated compilation rules with dependency tracking
 $(BUILD_SRC_DIR)/%.o: $(SRC_DIR)/%.cpp $(BUILD_CONFIG) | $(BUILD_SRC_DIR) $(DEPDIR)
