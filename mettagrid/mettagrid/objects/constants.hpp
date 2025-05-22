@@ -56,8 +56,16 @@ enum InventoryItem {
   InventoryCount = 10
 };
 
-const std::vector<std::string> InventoryItemNames =
-    {"ore.red", "ore.blue", "ore.green", "battery.red", "battery.blue", "battery.green", "heart", "armor", "laser", "blueprint"};
+const std::vector<std::string> InventoryItemNames = {"ore.red",
+                                                     "ore.blue",
+                                                     "ore.green",
+                                                     "battery.red",
+                                                     "battery.blue",
+                                                     "battery.green",
+                                                     "heart",
+                                                     "armor",
+                                                     "laser",
+                                                     "blueprint"};
 
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
                                                   {ObjectType::WallT, GridLayer::Object_Layer},
