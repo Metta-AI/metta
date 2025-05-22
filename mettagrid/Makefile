@@ -304,6 +304,23 @@ check-build-dependencies: info
 		exit 1; \
 	fi
 
+	@echo "🔍 Checking for Python development headers..."
+	@if ! echo '#include <Python.h>' | $(CXX) $(PYTHON_CFLAGS) -x c++ -E - >/dev/null 2>&1; then \
+		echo "❌ Python.h not found. Attempting to install..."; \
+		if [ "$$CI" = "true" ] && command -v apt-get >/dev/null 2>&1; then \
+			echo "📦 Installing python3-dev in CI environment..."; \
+			sudo apt-get update -qq && sudo apt-get install -y python3-dev python3-distutils; \
+		else \
+			echo "❌ Python development headers missing. Please install:"; \
+			echo "   Ubuntu/Debian: sudo apt-get install python3-dev python3-distutils"; \
+			echo "   RHEL/CentOS:   sudo yum install python3-devel"; \
+			echo "   Fedora:        sudo dnf install python3-devel"; \
+			echo "   macOS:         Headers should be included with Python installation"; \
+			exit 1; \
+		fi; \
+	fi
+	@echo "✅ Python development headers found."
+
 # Common dependencies needed for test and benchmark
 check-common-dependencies: info
 	@echo "🔍 Checking for g++..."

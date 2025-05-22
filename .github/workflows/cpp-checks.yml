@@ -180,6 +180,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install python dev headers
+        run: |
+          # UV does not include development headers!
+          sudo apt-get update
+          sudo apt-get install -y python3-dev python3-distutils
+
       - name: Setup Python and uv
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
@@ -201,11 +207,6 @@ jobs:
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         working-directory: mettagrid
         run: make install-dependencies
-
-      - name: Check build dependencies (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make check-build-dependencies
 
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
