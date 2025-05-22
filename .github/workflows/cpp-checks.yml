@@ -104,6 +104,11 @@ jobs:
           # Create a hash that combines all relevant files
           find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; > /tmp/file_hashes.txt || true
 
+          # Add Makefile to the hash
+          if [ -f "mettagrid/Makefile" ]; then
+            sha256sum mettagrid/Makefile >> /tmp/file_hashes.txt
+          fi
+
           # Add setup.py and requirements.txt if they exist
           if [ -f "setup.py" ]; then
             sha256sum setup.py >> /tmp/file_hashes.txt

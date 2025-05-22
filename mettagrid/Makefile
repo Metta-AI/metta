@@ -17,7 +17,6 @@ help:
 # Use UV venv at repo root
 REPO_ROOT := $(realpath ..)
 PYTHON_BIN := $(REPO_ROOT)/.venv/bin/python
-
 PROJECT_ROOT := $(REPO_ROOT)/mettagrid
 
 # Directories
