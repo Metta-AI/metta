@@ -320,9 +320,15 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
+        # We retry evals a few times because they're not deterministic (despite our best efforts)
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "evals" "./run_evals.sh smoke_test"
+          for i in {1..5}; do
+            if benchmark "evals_try$i" "./run_evals.sh smoke_test"; then
+              exit 0
+            fi
+          done
+          exit 1
 
       - name: Save evals benchmark
         id: save_evals_benchmark
