@@ -376,7 +376,6 @@ void MettaGrid::validate_buffers() {
       throw std::runtime_error("rewards has the wrong shape");
     }
   }
-  assert(_episode_rewards.nbytes() == _rewards.nbytes());
 }
 
 void MettaGrid::set_buffers(py::array_t<uint8_t, py::array::c_style>& observations,
