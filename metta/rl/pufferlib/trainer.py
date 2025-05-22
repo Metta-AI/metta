@@ -15,6 +15,7 @@ from pufferlib.utils import profile, unroll_nested_dict
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.debug import assert_shape
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.fast_gae import compute_gae
@@ -459,18 +460,25 @@ class PufferTrainer:
                     obs = experience.b_obs[mb]
                     obs = obs.to(self.device, non_blocking=True)
                     atn = experience.b_actions[mb]
-                    log_probs = experience.b_logprobs[mb]
+                    old_action_log_probs = experience.b_logprobs[mb]
                     val = experience.b_values[mb]
                     adv = experience.b_advantages[mb]
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    _, newlogprob, entropy, newvalue, new_normalized_logits = self.policy(obs, lstm_state, action=atn)
+                    # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
+                    _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
+                        obs, lstm_state, action=atn
+                    )
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
-                    logratio = newlogprob - log_probs.reshape(-1)
+                    if __debug__:
+                        assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
+                        assert_shape(old_action_log_probs, ("BT",), "old_action_log_probs")
+
+                    logratio = new_action_log_probs - old_action_log_probs
                     ratio = logratio.exp()
 
                     with torch.no_grad():
@@ -506,7 +514,7 @@ class PufferTrainer:
                     entropy_loss = entropy.mean()
 
                     ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                        self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state
+                        self.agent_step, full_log_probs_distribution, newvalue, obs, teacher_lstm_state
                     )
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
