@@ -98,7 +98,17 @@ CXXFLAGS = -std=c++20 -Wall -g \
 
 PYBIND11_INCLUDE = $(shell $(PYTHON_BIN) -m pybind11 --includes 2>/dev/null | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
 NUMPY_INCLUDE = $(shell $(PYTHON_BIN) -c "import numpy; print(numpy.get_include())" 2>/dev/null)
-PYTHON_INCLUDE := $(shell $(PYTHON_BIN) -m pybind11 --includes | grep -o '\-I[^[:space:]]*python[^[:space:]]*' | head -1 | sed 's/-I//')
+
+PYTHON_INCLUDE := $(shell \
+	INCLUDES=$$($(PYTHON_BIN) -m pybind11 --includes 2>/dev/null | grep -o '\-I[^[:space:]]*python[^[:space:]]*') ; \
+	for inc in $$INCLUDES; do \
+		path=$$(echo $$inc | sed 's/-I//'); \
+		if [ -f "$$path/Python.h" ]; then \
+			echo $$path; \
+			break; \
+		fi; \
+	done)
+
 
 CXXFLAGS += -I$(PYBIND11_INCLUDE)
 CXXFLAGS += -I$(NUMPY_INCLUDE)
