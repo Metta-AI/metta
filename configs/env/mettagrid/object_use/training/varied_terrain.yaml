@@ -26,8 +26,8 @@ game:
 
     room:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:20,70,30}
-      height: ${sampling:20,70,30}
+      width: ${sampling:20,120,30}
+      height: ${sampling:20,120,30}
       border_width: ${sampling:1,6,3}
       agents: 1
       style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
