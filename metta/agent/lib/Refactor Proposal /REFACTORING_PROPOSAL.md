@@ -31,6 +31,7 @@ This proposal outlines a refactoring strategy for the Metta neural network agent
    - [Separation of Concerns](#42-separation-of-concerns)
    - [Reduced Maintenance Burden](#43-reduced-maintenance-burden)
    - [Enhanced Flexibility](#44-enhanced-flexibility)
+   - [Dynamic Component Hotswapping](#45-dynamic-component-hotswapping)
 
 5. [Incremental Implementation Strategy](#5-incremental-implementation-strategy)
    - [Phase 1: Minimal Safety Net + Core Foundation (Week 1)](#phase-1-minimal-safety-net--core-foundation-week-1)
@@ -43,8 +44,7 @@ This proposal outlines a refactoring strategy for the Metta neural network agent
 6. [Additional Important Considerations](#6-additional-important-considerations)
    - [Risk Mitigation](#61-risk-mitigation)
    - [Benefits Beyond Testing](#62-benefits-beyond-testing)
-   - [Success Metrics](#63-success-metrics)
-   - [Resource Requirements](#64-resource-requirements)
+   - [Resource Requirements](#63-resource-requirements)
 
 7. [Conclusion](#conclusion)
 
@@ -519,6 +519,36 @@ class ShapePropagator: # ~40 lines - shape validation only
 - **Easier Extensions**: New shape validation rules don't require touching execution code
 - **Performance Optimization**: Individual components can be optimized independently
 
+### 4.5 Dynamic Component Hotswapping
+
+The modular architecture enables **runtime component replacement** - a powerful capability for ML/RL research and production systems:
+
+**Research Applications:**
+```python
+# A/B test different architectures during training
+system.replace_component("feature_extractor", new_cnn_module)
+system.replace_component("value_head", experimental_attention_head)
+
+# Progressive complexity during curriculum learning
+if training_progress > 0.7:
+    system.replace_component("policy_net", larger_policy_module)
+```
+
+**Production Benefits:**
+- **Model Updates**: Deploy improved components without system restart
+- **Ablation Studies**: Systematically replace components to identify performance drivers
+- **Architecture Search**: Automated exploration of component combinations
+- **Gradual Rollouts**: Replace components incrementally for safer deployments
+
+**Technical Implementation:**
+The clean separation between `MettaGraph` (structure) and `MettaModule` (computation) makes hotswapping straightforward:
+- **Graph structure** remains unchanged
+- **Component interfaces** are standardized (tensor → tensor)
+- **Shape validation** ensures compatibility
+- **State preservation** through PolicyStore during swaps
+
+This capability transforms the agent from a static architecture into a **dynamic, evolvable system** - essential for advanced ML research and adaptive production deployments.
+
 ## 5. Incremental Implementation Strategy
 
 To minimize risk and ensure thorough review, we propose a focused, pragmatic approach that avoids the very testing challenges we're trying to solve:
@@ -666,20 +696,7 @@ def test_metta_module_unit():
 - **Rapid Prototyping**: Test new components in isolation before system integration
 - **Progressive Architecture**: Start simple, add complexity incrementally during training
 
-### 6.3 Success Metrics
-
-**Quantitative Metrics:**
-- **Test Execution Time**: Target 10x faster unit test execution
-- **Test Coverage**: Achieve 95%+ coverage for all new components
-- **Code Complexity**: Reduce cyclomatic complexity by 40%
-- **Performance**: Maintain within 5% of current performance
-
-**Qualitative Metrics:**
-- **Developer Satisfaction**: Survey team on development experience improvements
-- **Code Review Quality**: Faster, more focused code reviews
-- **Bug Resolution**: Faster time to isolate and fix issues
-
-### 6.4 Resource Requirements
+### 6.3 Resource Requirements
 
 **Development Time:**
 - **Estimated Effort**: 9 weeks for complete implementation (focused approach)
