@@ -180,9 +180,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install python dev headers
+      - name: Install Python dev headers
         run: |
-          # UV does not include development headers!
+          # UV does not include development headers
           sudo apt-get update
           sudo apt-get install -y python3-dev
 
@@ -212,72 +212,6 @@ jobs:
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         working-directory: mettagrid
         run: make build-src-objects
-
-      - name: Check cache paths before saving
-        shell: bash
-        run: |
-          VIRTUAL_ENV="$GITHUB_WORKSPACE/.venv"
-          echo "VIRTUAL_ENV is: $VIRTUAL_ENV"
-          
-          echo "========================================"
-          echo "VERIFYING CACHE PATHS BEFORE SAVING"
-          echo "========================================"
-          echo "Cache paths input:"
-          echo "${{ needs.setup-checks.outputs.cache_paths }}"
-          echo ""
-          
-          echo "${{ needs.setup-checks.outputs.cache_paths }}" | while read -r path; do
-            echo "========================================="
-            echo "🔍 Checking: $path"
-            echo "========================================="
-            
-            if [[ -d "$path" ]]; then
-              echo "✅ EXISTS: $path"
-              
-              # Count total files
-              file_count=$(find "$path" -type f | wc -l)
-              echo "📁 Total files: $file_count"
-              
-              # Show directory structure
-              echo ""
-              echo "📂 Directory structure:"
-              tree "$path" 2>/dev/null || find "$path" -type d | head -10
-              
-              echo ""
-              echo "📄 File types breakdown:"
-              find "$path" -type f -name "*.o" | wc -l | xargs echo "  Object files (.o):"
-              find "$path" -type f -name "*.a" | wc -l | xargs echo "  Archive files (.a):"
-              find "$path" -type f -name "*.so" | wc -l | xargs echo "  Shared libraries (.so):"
-              find "$path" -type f -name "*.d" | wc -l | xargs echo "  Dependency files (.d):"
-              
-              echo ""
-              echo "📋 Sample files (first 10):"
-              find "$path" -type f 2>/dev/null | head -10 > /tmp/sample_files_$.txt || true
-              while read -r file; do
-                if [[ -n "$file" ]]; then
-                  size=$(du -h "$file" 2>/dev/null | cut -f1 || echo "?")
-                  echo "  $file ($size)"
-                fi
-              done < /tmp/sample_files_$.txt
-              rm -f /tmp/sample_files_$.txt 2>/dev/null || true
-              
-              echo ""
-              echo "💾 Directory size:"
-              du -sh "$path" 2>/dev/null || echo "  Unable to calculate size"
-              
-            else
-              echo "❌ MISSING: $path"
-              echo "  This directory does not exist and will not be cached!"
-            fi
-            
-            echo ""
-            echo "========================================="
-            echo ""
-          done
-          
-          echo "🔍 Overall cache summary:"
-          total_size=$(echo "${{ needs.setup-checks.outputs.cache_paths }}" | xargs du -sh 2>/dev/null | awk '{sum+=$1} END {print sum}' || echo "unknown")
-          echo "  Total cache size: $total_size"
 
       - name: Save build cache
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
@@ -337,16 +271,6 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      - name: Install C++ dependencies (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make install-dependencies
-
-      - name: Build C++ artifacts (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make build
-
       - name: Debug cache paths and contents
         working-directory: mettagrid
         run: |
@@ -383,6 +307,16 @@ jobs:
           echo "=== MAKEFILE VARIABLES ==="
           echo "SRC_SOURCES from Makefile:"
           make -n build-tests 2>&1 | grep "No rule to make target" || true
+
+      - name: Install C++ dependencies (cache miss fallback)
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        working-directory: mettagrid
+        run: make install-dependencies
+
+      - name: Build C++ artifacts (cache miss fallback)
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        working-directory: mettagrid
+        run: make build
 
       - name: Check test dependencies
         working-directory: mettagrid
