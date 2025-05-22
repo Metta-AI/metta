@@ -7,6 +7,7 @@
 #include "objects/converter.hpp"
 #include "objects/constants.hpp"
 #include "actions/attack.hpp"
+#include "actions/get_output.hpp"
 #include "actions/put_recipe_items.hpp"
 
 namespace py = pybind11;
@@ -168,7 +169,6 @@ TEST_F(MettaGridTest, PutRecipeItems) {
   auto agent_cfg = configs["agent_cfg"].cast<py::dict>();
   auto group_cfg = configs["group_cfg"].cast<py::dict>();
 
-  // Create an agent and a converter
   Agent* agent = MettaGrid::create_agent(1, 0, "red", 1, group_cfg, agent_cfg);
   ASSERT_NE(agent, nullptr);
   float reward = 0;
@@ -221,6 +221,59 @@ TEST_F(MettaGridTest, PutRecipeItems) {
   EXPECT_FALSE(success);  // Should fail since we only have blue ore left
   EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);  // Blue ore unchanged
   EXPECT_EQ(generator->inventory[InventoryItem::ore_blue], 0);  // No blue ore in generator
+
+  // grid will delete the agent and generator
+}
+
+TEST_F(MettaGridTest, GetOutput) {
+  auto configs = create_test_configs();
+  auto agent_cfg = configs["agent_cfg"].cast<py::dict>();
+  auto group_cfg = configs["group_cfg"].cast<py::dict>();
+
+  Agent* agent = MettaGrid::create_agent(1, 0, "red", 1, group_cfg, agent_cfg);
+  ASSERT_NE(agent, nullptr);
+  float reward = 0;
+  agent->init(&reward);
+
+  // Create a grid and add the agent
+  std::vector<Layer> layer_for_type_id;
+  for (const auto& layer : ObjectLayers) {
+    layer_for_type_id.push_back(layer.second);
+  }
+  Grid grid(10, 10, layer_for_type_id);
+  grid.add_object(agent);
+
+  // Create a generator that takes red ore and outputs batteries
+  ObjectConfig generator_cfg;
+  generator_cfg["hp"] = 30;
+  generator_cfg["input_ore.red"] = 1;
+  generator_cfg["output_battery"] = 1;
+  // Set the max_output to 0 so it won't consume things we put in it.
+  generator_cfg["max_output"] = 1;
+  generator_cfg["conversion_ticks"] = 1;
+  generator_cfg["cooldown"] = 10;
+  generator_cfg["initial_items"] = 1;
+
+  EventManager event_manager;
+  Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorT);
+  grid.add_object(generator);
+  generator->set_event_manager(&event_manager);
+
+  // Give agent some items
+  agent->update_inventory(InventoryItem::ore_red, 1);
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);
+
+  // Create put_recipe_items action handler
+  ActionConfig get_cfg;
+  GetOutput get(get_cfg);
+  get.init(&grid);
+
+  // Test putting matching items
+  bool success = get.handle_action(agent->id, 0, 0);
+  EXPECT_TRUE(success);
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);  // Still have red ore
+  EXPECT_EQ(agent->inventory[InventoryItem::battery], 1);  // Also have a battery
+  EXPECT_EQ(generator->inventory[InventoryItem::battery], 0);  // Generator gave away its battery
 
   // grid will delete the agent and generator
 }
