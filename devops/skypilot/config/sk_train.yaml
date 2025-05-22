@@ -30,7 +30,7 @@ setup: |
 
 run: |
   cd /workspace/metta
-  source ./devops/env.sh
+  source ./devops/setup.env
 
   export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
   export NUM_NODES=$SKYPILOT_NUM_NODES

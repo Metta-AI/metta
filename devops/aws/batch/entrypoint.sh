@@ -22,7 +22,7 @@ set -e
 trap 'echo "Received SIGTERM, exiting cleanly"; exit 0' SIGTERM
 
 # Source environment variables
-source ./devops/env.sh
+source ./devops/setup.env
 
 # Link training directory
 ln -s /mnt/efs/train_dir train_dir
