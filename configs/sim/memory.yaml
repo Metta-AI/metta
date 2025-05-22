@@ -32,7 +32,7 @@ simulations:
   memory/little_landmark_hard:
     env: env/mettagrid/memory/evals/little_landmark_hard
   memory/lobser_legs_cues:
-    env: env/mettagrid/memory/evals/lobser_legs_cues
+    env: env/mettagrid/memory/evals/lobster_legs_cues
   memory/lobster_legs:
     env: env/mettagrid/memory/evals/lobster_legs
   memory/medium_sequence:
