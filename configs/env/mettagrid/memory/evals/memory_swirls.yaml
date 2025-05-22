@@ -2,7 +2,7 @@ defaults:
   - /env/mettagrid/memory/evals/defaults@
 
 game:
-  max_steps: 70
+  max_steps: 500
   agent:
     rewards:
       heart: 0.333
