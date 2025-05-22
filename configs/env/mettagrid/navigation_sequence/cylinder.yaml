@@ -5,9 +5,6 @@ defaults:
 game:
   max_steps: 800
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 1
-    room:
-      _target_: mettagrid.room.ascii.Ascii
-      border_width: 10
-      uri: "configs/env/mettagrid/maps/navigation_sequence/cylinder.map"
+    _target_: mettagrid.room.ascii.Ascii
+    border_width: 10
+    uri: "configs/env/mettagrid/maps/navigation_sequence/cylinder.map"

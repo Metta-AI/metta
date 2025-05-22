@@ -7,7 +7,9 @@ agents: 1
 game:
   num_agents: 1
   max_steps: 700
-
+  map_builder:
+      _target_: mettagrid.room.ascii.Ascii
+      border_width: 1
   agent:
     rewards:
       heart: 0.95
