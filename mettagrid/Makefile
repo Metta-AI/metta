@@ -11,8 +11,7 @@ help:
 	@echo "  benchmark            - Run all benchmarks"
 	@echo "  clean                - Clean build and test files"
 	@echo "  all                  - Run format and test"
-	@echo ""
-	@echo "If build fails, try: make check-dependencies"
+
 
 # Use UV venv at repo root
 REPO_ROOT := $(realpath ..)

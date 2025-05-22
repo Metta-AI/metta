@@ -216,21 +216,62 @@ jobs:
         run: |
           VIRTUAL_ENV="$GITHUB_WORKSPACE/.venv"
           echo "VIRTUAL_ENV is: $VIRTUAL_ENV"
-
-          echo "Verifying cache paths..."
+          
+          echo "========================================"
+          echo "VERIFYING CACHE PATHS BEFORE SAVING"
+          echo "========================================"
           echo "Cache paths input:"
           echo "${{ needs.setup-checks.outputs.cache_paths }}"
-
+          echo ""
+          
           echo "${{ needs.setup-checks.outputs.cache_paths }}" | while read -r path; do
-            echo "==> $path"
+            echo "========================================="
+            echo "🔍 Checking: $path"
+            echo "========================================="
+            
             if [[ -d "$path" ]]; then
-              echo "✓ Exists: $path"
-              ls "$path"
+              echo "✅ EXISTS: $path"
+              
+              # Count total files
+              file_count=$(find "$path" -type f | wc -l)
+              echo "📁 Total files: $file_count"
+              
+              # Show directory structure
+              echo ""
+              echo "📂 Directory structure:"
+              tree "$path" 2>/dev/null || find "$path" -type d | head -10
+              
+              echo ""
+              echo "📄 File types breakdown:"
+              find "$path" -type f -name "*.o" | wc -l | xargs echo "  Object files (.o):"
+              find "$path" -type f -name "*.a" | wc -l | xargs echo "  Archive files (.a):"
+              find "$path" -type f -name "*.so" | wc -l | xargs echo "  Shared libraries (.so):"
+              find "$path" -type f -name "*.d" | wc -l | xargs echo "  Dependency files (.d):"
+              
+              echo ""
+              echo "📋 Sample files (first 10):"
+              find "$path" -type f | head -10 | while read -r file; do
+                size=$(du -h "$file" 2>/dev/null | cut -f1)
+                echo "  $file ($size)"
+              done
+              
+              echo ""
+              echo "💾 Directory size:"
+              du -sh "$path" 2>/dev/null || echo "  Unable to calculate size"
+              
             else
               echo "❌ MISSING: $path"
+              echo "  This directory does not exist and will not be cached!"
             fi
+            
+            echo ""
+            echo "========================================="
             echo ""
           done
+          
+          echo "🔍 Overall cache summary:"
+          total_size=$(echo "${{ needs.setup-checks.outputs.cache_paths }}" | xargs du -sh 2>/dev/null | awk '{sum+=$1} END {print sum}' || echo "unknown")
+          echo "  Total cache size: $total_size"
 
       - name: Save build cache
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
