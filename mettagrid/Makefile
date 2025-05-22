@@ -64,6 +64,20 @@ endif
 # Compiler settings
 CXX = g++
 
+# Check for ccache and auto-install on macOS if missing
+CCACHE := $(shell which ccache 2>/dev/null)
+ifneq ($(CCACHE),)
+    CXX := $(CCACHE) $(CXX)
+    $(info Using ccache: $(CCACHE))
+else
+    $(info ccache not found - consider installing for faster rebuilds)
+    ifeq ($(shell uname), Darwin)
+        $(info Run 'make install-ccache' to install via Homebrew)
+    else
+        $(info Install ccache: apt-get install ccache (Linux) or yum install ccache (RHEL/CentOS))
+    endif
+endif
+
 # Get Python paths from the UV venv
 PYTHON_VERSION := $(shell $(PYTHON_BIN) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 PYTHON_INCLUDE := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_path('include'))")
@@ -147,6 +161,21 @@ check-venv:
 #-----------------------
 # Install Dependencies
 #-----------------------
+
+# Install ccache on macOS
+.PHONY: install-ccache
+install-ccache:
+	@echo "Installing ccache via Homebrew..."
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		brew install ccache && \
+		echo "✅ ccache installed. Restart your build to use it." && \
+		echo "💡 Consider adding ccache to your PATH: export PATH=\"/opt/homebrew/opt/ccache/libexec:\$$PATH\""; \
+	else \
+		echo "This target is for macOS only. Install ccache manually:"; \
+		echo "  Ubuntu/Debian: apt-get install ccache"; \
+		echo "  RHEL/CentOS: yum install ccache"; \
+		echo "  Arch: pacman -S ccache"; \
+	fi
 
 # Install formatting tools on macOS
 .PHONY: install-format-tools
@@ -386,14 +415,51 @@ format: check-format-tools
 # Core Library Build
 #-----------------------
 
-# Create build directory for source files
+# Generate dependency files automatically
+DEPDIR := $(BUILD_DIR)/.deps
+DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
+
+# Create build configuration tracking file
+BUILD_CONFIG := $(BUILD_DIR)/.build_config
+$(BUILD_CONFIG): | $(BUILD_DIR)
+	@mkdir -p $(dir $@)
+	@echo "PYTHON_BIN=$(PYTHON_BIN)" > $@
+	@echo "PYTHON_VERSION=$(PYTHON_VERSION)" >> $@
+	@echo "CXXFLAGS=$(CXXFLAGS)" >> $@
+	@echo "CXX=$(CXX)" >> $@
+	@echo "PYTHON_INCLUDE=$(PYTHON_INCLUDE)" >> $@
+
+# Create build directories
 $(BUILD_SRC_DIR):
 	@mkdir -p $(BUILD_SRC_DIR)
 
-# Compile individual source files
-$(BUILD_SRC_DIR)/%.o: $(SRC_DIR)/%.cpp | $(BUILD_SRC_DIR)
-	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS_METTAGRID) -c $< -o $@
+$(BUILD_TEST_DIR):
+	@mkdir -p $(BUILD_TEST_DIR)
+
+$(BUILD_BENCH_DIR):
+	@mkdir -p $(BUILD_BENCH_DIR)
+
+$(DEPDIR):
+	@mkdir -p $(DEPDIR)
+
+# Updated compilation rules with dependency tracking
+$(BUILD_SRC_DIR)/%.o: $(SRC_DIR)/%.cpp $(BUILD_CONFIG) | $(BUILD_SRC_DIR) $(DEPDIR)
+	@mkdir -p $(dir $@) $(dir $(DEPDIR)/src_$*.d)
+	$(CXX) $(CXXFLAGS_METTAGRID) $(DEPFLAGS) -c $< -o $@
+	@sed -i.bak 's|$(DEPDIR)/$*.d|$(DEPDIR)/src_$*.d|g' $(DEPDIR)/$*.d && rm -f $(DEPDIR)/$*.d.bak
+
+$(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp $(BUILD_CONFIG) | $(BUILD_TEST_DIR) $(DEPDIR)
+	@mkdir -p $(dir $@) $(dir $(DEPDIR)/test_$*.d)
+	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
+	@sed -i.bak 's|$(DEPDIR)/$*.d|$(DEPDIR)/test_$*.d|g' $(DEPDIR)/$*.d && rm -f $(DEPDIR)/$*.d.bak
+
+$(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp $(BUILD_CONFIG) | $(BUILD_BENCH_DIR) $(DEPDIR)
+	@mkdir -p $(dir $@) $(dir $(DEPDIR)/bench_$*.d)
+	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
+	@sed -i.bak 's|$(DEPDIR)/$*.d|$(DEPDIR)/bench_$*.d|g' $(DEPDIR)/$*.d && rm -f $(DEPDIR)/$*.d.bak
+
+# Include the dependency files
+-include $(wildcard $(DEPDIR)/*.d)
 
 # Build a static library from all source files
 $(BUILD_DIR)/libmettagrid.a: $(SRC_OBJECTS)
@@ -401,20 +467,34 @@ $(BUILD_DIR)/libmettagrid.a: $(SRC_OBJECTS)
 	ar rcs $@ $^
 
 #-----------------------
-# Testing
+# Testing Build
 #-----------------------
-
-# Compile individual test files
-$(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
-	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_TEST_DIR)/%: $(BUILD_TEST_DIR)/%.o $(SRC_OBJECTS)
 	@mkdir -p $(dir $@)
 	@echo "[LINK] $(CXX) $^ $(FORCE_GTEST_MAIN) -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS)"
 	$(CXX) $^ $(FORCE_GTEST_MAIN) -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS)
 
-# Run C++ tests
+$(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp | $(BUILD_TEST_DIR)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+#-----------------------
+# Benchmarking Build
+#-----------------------
+
+# Link benchmark executables with the mettagrid library
+$(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
+	$(CXX) $^ -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS)
+
+# Compile individual benchmark files
+$(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+#-----------------------
+# Testing
+#-----------------------
 
 .PHONY: debug-test-vars
 debug-test-vars:
@@ -440,7 +520,6 @@ test: build build-tests debug-test-vars
 		fi; \
 	done
 
-# Test a specific test file
 .PHONY: test-%
 test-%: build $(BUILD_TEST_DIR)/%
 	@echo "Running test $*..."
@@ -460,16 +539,6 @@ test-python: build check-venv
 # Benchmarking
 #-----------------------
 
-# Compile individual benchmark files
-$(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp | $(BUILD_BENCH_DIR)
-	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Link benchmark executables with the mettagrid library
-$(BUILD_BENCH_DIR)/%: $(BUILD_BENCH_DIR)/%.o $(SRC_OBJECTS)
-	$(CXX) $^ -o $@ $(LDFLAGS) $(RPATH_FLAGS) $(PYTHON_LIBS) $(PYBIND11_LIBS)
-
-# Run all benchmarks
 .PHONY: debug-bench-vars
 debug-bench-vars:
 	@echo ""
@@ -493,7 +562,6 @@ benchmark: build build-benchmarks debug-bench-vars
 			exit 1; \
 		fi; \
 	done
-
 
 .PHONY: bench-json
 bench-json: build build-benchmarks debug-bench-vars
