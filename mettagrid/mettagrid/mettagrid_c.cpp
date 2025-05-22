@@ -386,7 +386,7 @@ void MettaGrid::set_buffers(py::array_t<uint8_t, py::array::c_style>& observatio
   _terminals = terminals;
   _truncations = truncations;
   _rewards = rewards;
-  _episode_rewards = py::array_t<float>(_rewards.shape(0));
+  _episode_rewards = py::array_t<float>({static_cast<ssize_t>(_rewards.shape(0))}, {sizeof(float)});
   for (size_t i = 0; i < _agents.size(); i++) {
     _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
   }
