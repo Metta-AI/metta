@@ -268,7 +268,7 @@ TEST_F(MettaGridTest, GetOutput) {
   GetOutput get(get_cfg);
   get.init(&grid);
 
-  // Test putting matching items
+  // Test getting output
   bool success = get.handle_action(agent->id, 0, 0);
   EXPECT_TRUE(success);
   EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);      // Still have red ore

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
@@ -65,12 +66,7 @@ public:
   int update_inventory(InventoryItem item, short amount) {
     int current_amount = this->inventory[item];
     int new_amount = current_amount + amount;
-    if (new_amount > this->max_items) {
-      new_amount = this->max_items;
-    }
-    if (new_amount < 0) {
-      new_amount = 0;
-    }
+    new_amount = std::clamp(new_amount, 0, static_cast<int>(this->max_items));
 
     int delta = new_amount - current_amount;
     this->inventory[item] = new_amount;

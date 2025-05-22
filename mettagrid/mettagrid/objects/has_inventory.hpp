@@ -3,6 +3,7 @@
 
 #include <map>
 #include <string>
+#include <algorithm>
 
 #include "constants.hpp"
 #include "metta_object.hpp"
@@ -23,12 +24,7 @@ public:
   virtual int update_inventory(InventoryItem item, short amount) {
     int initial_amount = this->inventory[item];
     int new_amount = initial_amount + amount;
-    if (new_amount > 255) {
-      new_amount = 255;
-    }
-    if (new_amount < 0) {
-      new_amount = 0;
-    }
+    new_amount = std::clamp(new_amount, 0, 255);
     this->inventory[item] = new_amount;
     return new_amount - initial_amount;
   }
