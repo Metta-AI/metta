@@ -247,7 +247,8 @@ jobs:
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_test == 'true')
+      (needs.setup-checks.outputs.run_test == 'true') &&
+      (needs.build-cpp.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -271,57 +272,6 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      - name: Debug cache paths and contents
-        working-directory: mettagrid
-        run: |
-          echo "=== CACHE PATHS ==="
-          echo "Cache paths: ${{ steps.set-cache-paths.outputs.cache_paths }}"
-          echo "Cache key: ${{ steps.set-cache-key.outputs.cache_key }}"
-          
-          echo ""
-          echo "=== BUILD DIRECTORY STRUCTURE ==="
-          if [ -d "build" ]; then
-            echo "Build directory exists:"
-            find build -type f -name "*.o" -o -name "*.a" -o -name "*.so" -o -name "*.d" | head -20
-          else
-            echo "Build directory does not exist"
-          fi
-          
-          echo ""
-          echo "=== SOURCE FILES ==="
-          echo "Source files in mettagrid/:"
-          find mettagrid -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | head -10
-          
-          echo ""
-          echo "=== DEPENDENCY FILES ==="
-          if [ -d "build/.deps" ]; then
-            echo "Dependency files exist:"
-            find build/.deps -name "*.d" | head -5
-            echo "Sample dependency file content:"
-            find build/.deps -name "*.d" | head -1 | xargs cat || true
-          else
-            echo "No dependency files found"
-          fi
-          
-          echo ""
-          echo "=== MAKEFILE VARIABLES ==="
-          echo "SRC_SOURCES from Makefile:"
-          make -n build-tests 2>&1 | grep "No rule to make target" || true
-
-      - name: Install C++ dependencies (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make install-dependencies
-
-      - name: Build C++ artifacts (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make build
-
-      - name: Check test dependencies
-        working-directory: mettagrid
-        run: make check-test-dependencies
-
       - name: Build C++ tests
         working-directory: mettagrid
         run: make build-tests
@@ -336,7 +286,8 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true') &&
-      (needs.test.result == 'success' || github.event_name != 'pull_request' )
+      (needs.build-cpp.result == 'success') &&
+      (needs.test.result == 'success' || github.event_name != 'pull_request')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -359,20 +310,6 @@ jobs:
         with:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Install C++ dependencies (cache miss fallback)
-        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make install-dependencies
-
-      - name: Build C++ artifacts (cache miss fallback)
-        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make build
-
-      - name: Check benchmark dependencies
-        working-directory: mettagrid
-        run: make check-benchmark-dependencies
 
       - name: Build C++ benchmarks
         working-directory: mettagrid
@@ -461,12 +398,13 @@ jobs:
             echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
             echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
           fi
+
       # First PR Performance run - Check for improvements (will NOT fail on alerts)
       - name: Check for Performance Improvements
         if: |
           github.event_name == 'pull_request' &&
           !github.event.pull_request.head.repo.fork &&
-          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
+          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true' 
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -494,6 +432,7 @@ jobs:
           else
             echo "NO TEST RESULTS FOUND"
           fi
+
       # Second PR Performance run - Check for regressions (WILL fail on alerts)
       - name: Check for Performance Regressions
         if: |
