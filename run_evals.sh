@@ -2,6 +2,8 @@
 
 set -e
 
+false
+
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
   "daveey.dist.2x4"
