@@ -309,10 +309,10 @@ py::tuple MettaGrid::reset() {
             0);
   std::fill(static_cast<c_rewards_type*>(_episode_rewards.request().ptr),
             static_cast<c_rewards_type*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
-            0.0f);
+            0.);
   std::fill(static_cast<c_rewards_type*>(_rewards.request().ptr),
-            static_cast<float*>(_rewards.request().ptr) + _rewards.size(),
-            0.0f);
+            static_cast<c_rewards_type*>(_rewards.request().ptr) + _rewards.size(),
+            0.);
 
   // Clear observations
   auto obs_ptr = static_cast<c_observations_type*>(_observations.request().ptr);
