@@ -5,7 +5,7 @@ import torch
 
 # Import the actual class
 from metta.agent.metta_agent import MettaAgent
-from metta.agent.util.distribution_utils import sample_logits
+from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 
 
 @pytest.fixture
@@ -509,7 +509,7 @@ def test_action_use(create_metta_agent):
     reconstructed_actions = agent._convert_logit_index_to_action(expected_indices)
     assert torch.all(reconstructed_actions == actions)
 
-    # Now let's test sample_logits with our converted actions
+    # Now let's test the distribution utils with our converted actions
     batch_size = 5
     num_total_actions = sum([param + 1 for param in action_max_params])
 
@@ -521,26 +521,28 @@ def test_action_use(create_metta_agent):
     for i in range(batch_size):
         logits[i, expected_indices[i]] = 10.0
 
-    # Test sample_logits with provided actions (action_logit_index)
-    sampled_indices, logprobs, entropy, log_softmax = sample_logits(logits, expected_indices)
+    # Test sample_actions (inference mode)
+    sampled_indices, logprobs, entropy, log_softmax = sample_actions(logits)
 
-    # Verify indices match what we provided
+    # With our strongly biased logits, sampling should return the expected indices
     assert torch.all(sampled_indices == expected_indices)
 
-    # Verify logprobs and entropy have the expected shapes
+    # Verify output shapes
     assert logprobs.shape == expected_indices.shape
     assert entropy.shape == (batch_size,)
     assert log_softmax.shape == logits.shape
 
-    # Test sample_logits without provided actions (sampling mode)
-    sampled_indices2, logprobs2, entropy2, log_softmax2 = sample_logits(logits)
-
-    # With our strongly biased logits, sampling should return the same indices
-    assert torch.all(sampled_indices2 == expected_indices)
-
     # Convert sampled indices back to actions
-    sampled_actions = agent._convert_logit_index_to_action(sampled_indices2)
+    sampled_actions = agent._convert_logit_index_to_action(sampled_indices)
     assert torch.all(sampled_actions == actions)
+
+    # Test evaluate_actions (training mode)
+    eval_logprobs, eval_entropy, eval_log_softmax = evaluate_actions(logits, expected_indices)
+
+    # Results should be identical to sampling since we provided the same indices
+    assert torch.allclose(logprobs, eval_logprobs)
+    assert torch.allclose(entropy, eval_entropy)
+    assert torch.allclose(log_softmax, eval_log_softmax)
 
     # Test with a different batch
     batch_size2 = 3
@@ -563,7 +565,7 @@ def test_action_use(create_metta_agent):
         logits2[i, expected_indices2[i]] = 10.0
 
     # Test sampling without providing indices
-    sampled_indices3, logprobs3, entropy3, log_softmax3 = sample_logits(logits2)
+    sampled_indices3, logprobs3, entropy3, log_softmax3 = sample_actions(logits2)
 
     # Again, with biased logits, we should get deterministic results
     assert torch.all(sampled_indices3 == expected_indices2)
@@ -572,13 +574,20 @@ def test_action_use(create_metta_agent):
     sampled_actions2 = agent._convert_logit_index_to_action(sampled_indices3)
     assert torch.all(sampled_actions2 == test_actions2)
 
-    # Finally, test the whole flow as it would happen in forward:
+    # Test evaluate_actions on the same data
+    eval_logprobs2, eval_entropy2, eval_log_softmax2 = evaluate_actions(logits2, expected_indices2)
+
+    # Results should match sampling results
+    assert torch.allclose(logprobs3, eval_logprobs2)
+    assert torch.allclose(entropy3, eval_entropy2)
+    assert torch.allclose(log_softmax3, eval_log_softmax2)
+
+    # Finally, test the complete forward pass integration:
     # 1. Convert actions to logit indices
-    # 2. Pass to sample_logits
+    # 2. Pass to sample_actions or evaluate_actions
     # 3. Convert sampled indices back to actions
 
     test_actions3 = torch.tensor([[0, 0], [1, 1]], device="cpu")
-
     logit_indices = agent._convert_action_to_logit_index(test_actions3)
 
     # Create logits for deterministic sampling
@@ -586,8 +595,8 @@ def test_action_use(create_metta_agent):
     for i in range(2):
         logits3[i, logit_indices[i]] = 10.0
 
-    # Sample with provided indices (like in forward when action is provided)
-    sampled_indices4, logprobs4, entropy4, log_softmax4 = sample_logits(logits3, logit_indices)
+    # Sample with inference (like in forward when action is None)
+    sampled_indices4, logprobs4, entropy4, log_softmax4 = sample_actions(logits3)
 
     # Verify indices match
     assert torch.all(sampled_indices4 == logit_indices)
@@ -597,3 +606,177 @@ def test_action_use(create_metta_agent):
 
     # Verify round-trip conversion
     assert torch.all(reconstructed_actions4 == test_actions3)
+
+    # Test evaluation (like in forward when action is provided)
+    eval_logprobs4, eval_entropy4, eval_log_softmax4 = evaluate_actions(logits3, logit_indices)
+
+    # Should match sampling results
+    assert torch.allclose(logprobs4, eval_logprobs4)
+    assert torch.allclose(entropy4, eval_entropy4)
+    assert torch.allclose(log_softmax4, eval_log_softmax4)
+
+
+def test_distribution_utils_compatibility(create_metta_agent):
+    """Test that sample_actions and evaluate_actions are compatible with each other."""
+    agent, _, _ = create_metta_agent
+
+    # Set up action space
+    action_names = ["action0", "action1"]
+    action_max_params = [2, 1]  # action0: [0,1,2], action1: [0,1]
+    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    num_total_actions = sum([param + 1 for param in action_max_params])
+    batch_size = 4
+
+    # Create random logits
+    torch.manual_seed(42)  # For reproducible tests
+    logits = torch.randn(batch_size, num_total_actions)
+
+    # Sample actions using sample_actions
+    sampled_indices, sampled_logprobs, sampled_entropy, sampled_log_softmax = sample_actions(logits)
+
+    # Evaluate the same actions using evaluate_actions
+    eval_logprobs, eval_entropy, eval_log_softmax = evaluate_actions(logits, sampled_indices)
+
+    # Results should be identical
+    assert torch.allclose(sampled_logprobs, eval_logprobs, atol=1e-6)
+    assert torch.allclose(sampled_entropy, eval_entropy, atol=1e-6)
+    assert torch.allclose(sampled_log_softmax, eval_log_softmax, atol=1e-6)
+
+    # Convert sampled indices to actions and back
+    sampled_actions = agent._convert_logit_index_to_action(sampled_indices)
+    reconstructed_indices = agent._convert_action_to_logit_index(sampled_actions)
+
+    # Should get the same indices back
+    assert torch.all(sampled_indices == reconstructed_indices)
+
+
+def test_forward_inference_integration(create_metta_agent):
+    """Test that the forward_inference method works with the new distribution utils."""
+    agent, _, _ = create_metta_agent
+
+    # Set up action space
+    action_names = ["move", "attack"]
+    action_max_params = [3, 1]  # move: [0,1,2,3], attack: [0,1]
+    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    batch_size = 2
+    num_total_actions = sum([param + 1 for param in action_max_params])
+
+    # Create mock value and logits tensors
+    value = torch.randn(batch_size, 1)
+    logits = torch.randn(batch_size, num_total_actions)
+
+    # Call forward_inference
+    action, action_log_prob, entropy, returned_value, log_probs = agent.forward_inference(value, logits)
+
+    # Check output shapes
+    assert action.shape == (batch_size, 2)
+    assert action_log_prob.shape == (batch_size,)
+    assert entropy.shape == (batch_size,)
+    assert returned_value.shape == (batch_size, 1)
+    assert log_probs.shape == (batch_size, num_total_actions)
+
+    # Check that returned value is the same as input
+    assert torch.all(returned_value == value)
+
+    # Verify that actions are valid (within expected ranges)
+    assert torch.all(action[:, 0] >= 0) and torch.all(action[:, 0] <= 3)  # move action
+    assert torch.all(action[:, 1] >= 0) and torch.all(action[:, 1] <= 1)  # attack action
+
+
+def test_forward_training_integration(create_metta_agent):
+    """Test that the forward_training method works with the new distribution utils."""
+    agent, _, _ = create_metta_agent
+
+    # Set up action space
+    action_names = ["move", "use_item"]
+    action_max_params = [2, 3]  # move: [0,1,2], use_item: [0,1,2,3]
+    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    B, T = 2, 3
+    num_total_actions = sum([param + 1 for param in action_max_params])
+
+    # Create mock tensors
+    value = torch.randn(B * T, 1)
+    logits = torch.randn(B * T, num_total_actions)
+
+    # Create valid actions
+    action = torch.tensor(
+        [
+            [[0, 1], [1, 2], [2, 0]],  # batch 1
+            [[1, 0], [0, 3], [2, 1]],  # batch 2
+        ]
+    )
+
+    # Call forward_training
+    returned_action, action_log_prob, entropy, returned_value, log_probs = agent.forward_training(value, logits, action)
+
+    # Check output shapes
+    assert returned_action.shape == (B, T, 2)
+    assert action_log_prob.shape == (B * T,)
+    assert entropy.shape == (B * T,)
+    assert returned_value.shape == (B * T, 1)
+    assert log_probs.shape == (B * T, num_total_actions)
+
+    # Check that returned action and value are the same as input
+    assert torch.all(returned_action == action)
+    assert torch.all(returned_value == value)
+
+
+def test_invalid_action_conversion_errors(create_metta_agent):
+    """Test error handling for invalid actions in conversion methods."""
+    agent, _, _ = create_metta_agent
+
+    # Set up action space
+    action_names = ["action0", "action1"]
+    action_max_params = [1, 2]  # action0: [0,1], action1: [0,1,2]
+    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Test invalid action type (action type doesn't exist)
+    invalid_action_type = torch.tensor([[3, 0]])  # action type 3 doesn't exist
+    with pytest.raises(IndexError):
+        agent._convert_action_to_logit_index(invalid_action_type)
+
+    # Test invalid action parameter (parameter exceeds max for action type)
+    invalid_action_param = torch.tensor([[0, 5]])  # action0 only supports params 0,1
+    with pytest.raises(IndexError):
+        agent._convert_action_to_logit_index(invalid_action_param)
+
+    # Test another invalid parameter case
+    invalid_action_param2 = torch.tensor([[1, 5]])  # action1 only supports params 0,1,2
+    with pytest.raises(IndexError):
+        agent._convert_action_to_logit_index(invalid_action_param2)
+
+    # Test negative action values
+    negative_action_type = torch.tensor([[-1, 0]])
+    with pytest.raises(IndexError):
+        agent._convert_action_to_logit_index(negative_action_type)
+
+    negative_action_param = torch.tensor([[0, -1]])
+    with pytest.raises(IndexError):
+        agent._convert_action_to_logit_index(negative_action_param)
+
+    # Test invalid logit indices for reverse conversion
+    num_total_actions = sum([param + 1 for param in action_max_params])  # Should be 5
+    invalid_logit_index = torch.tensor([num_total_actions])  # Index 5 is out of bounds
+    with pytest.raises(IndexError):
+        agent._convert_logit_index_to_action(invalid_logit_index)
+
+    # Test negative logit index
+    negative_logit_index = torch.tensor([-1])
+    with pytest.raises(IndexError):
+        agent._convert_logit_index_to_action(negative_logit_index)
+
+    # Test that valid boundary cases work correctly
+    # Test maximum valid action for each type
+    max_valid_actions = torch.tensor([[0, 1], [1, 2]])  # Max params for each action type
+    result = agent._convert_action_to_logit_index(max_valid_actions)
+    # Should not raise any errors and should produce valid indices
+    assert result.shape == (2,)
+    assert torch.all(result >= 0)
+    assert torch.all(result < num_total_actions)
+
+    # Test that we can convert back successfully
+    reconstructed = agent._convert_logit_index_to_action(result)
+    assert torch.all(reconstructed == max_valid_actions)
