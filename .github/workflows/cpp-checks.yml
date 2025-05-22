@@ -194,20 +194,17 @@ jobs:
 
       - name: Install C++ dependencies (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make install-dependencies
+        working-directory: mettagrid
+        run: make install-dependencies
 
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make build
+        working-directory: mettagrid
+        run: make build
 
       - name: Check build dependencies
-        run: |
-          cd mettagrid
-          make check-build-dependencies
+        working-directory: mettagrid
+        run: make check-build-dependencies
 
       - name: Check cache paths before saving
         shell: bash
@@ -290,35 +287,25 @@ jobs:
 
       - name: Install C++ dependencies (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make install-dependencies
+        working-directory: mettagrid
+        run: make install-dependencies
 
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make build
+        working-directory: mettagrid
+        run: make build
 
       - name: Check test dependencies
-        run: |
-          cd mettagrid
-          make check-test-dependencies
-
-      - name: Check test files
-        run: |
-          cd mettagrid
-          make debug-test-files
+        working-directory: mettagrid
+        run: make check-test-dependencies
 
       - name: Build C++ tests
-        run: |
-          cd mettagrid
-          make build-tests
+        working-directory: mettagrid
+        run: make build-tests
 
       - name: Run C++ tests
-        run: |
-          cd mettagrid
-          make test
+        working-directory: mettagrid
+        run: make test
 
   benchmark:
     name: "C++ Benchmarks"
@@ -352,29 +339,25 @@ jobs:
 
       - name: Install C++ dependencies (cache miss fallback)
         if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make install-dependencies
+        working-directory: mettagrid
+        run: make install-dependencies
 
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make build
+        working-directory: mettagrid
+        run: make build
 
       - name: Check benchmark dependencies
-        run: |
-          cd mettagrid
-          make check-benchmark-dependencies
+        working-directory: mettagrid
+        run: make check-benchmark-dependencies
 
       - name: Build C++ benchmarks
-        run: |
-          cd mettagrid
-          make build-benchmarks
+        working-directory: mettagrid
+        run: make build-benchmarks
 
       - name: Run benchmarks with JSON output
+        working-directory: mettagrid
         run: |
-          cd mettagrid
           mkdir -p benchmark_output
           echo "Running benchmarks with JSON output..."
           make bench-json
@@ -403,8 +386,8 @@ jobs:
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: mettagrid/benchmark_output
         run: |
-          cd mettagrid/benchmark_output
           ls -al
           if ls *.json 1> /dev/null 2>&1; then
             for file in *.json; do
@@ -464,8 +447,8 @@ jobs:
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: mettagrid/benchmark_output
         run: |
-          cd mettagrid/benchmark_output
           ls -al
           if ls *.json 1> /dev/null 2>&1; then
             for file in *.json; do
@@ -497,8 +480,8 @@ jobs:
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: mettagrid/benchmark_output
         run: |
-          cd mettagrid/benchmark_output
           ls -al
           if ls *.json 1> /dev/null 2>&1; then
             for file in *.json; do

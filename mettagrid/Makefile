@@ -359,7 +359,7 @@ check-benchmark-dependencies: check-common-dependencies
 # Build Targets
 #-----------------------
 
-# Build target that calls the setup.py script with UV venv activated
+# Build target calls the setup.py script with UV venv activated
 .PHONY: build
 build: check-build-dependencies create-dirs
 	@echo "🔨 Building mettagrid using setup-tools..."
@@ -368,16 +368,22 @@ build: check-build-dependencies create-dirs
 
 # Build just the test files
 .PHONY: build-tests
-build-tests: check-test-dependencies create-dirs $(TEST_EXECUTABLES)
-	@echo "🧪 Built $(words $(TEST_EXECUTABLES)) test executable(s):"
-	@find $(BUILD_TEST_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
+build-tests: check-test-dependencies create-dirs $(SRC_OBJECTS)
+	@echo "🧪 Building test executables..."
+	@for test_exec in $(TEST_EXECUTABLES); do \
+		echo "Building $$test_exec..."; \
+		$(MAKE) "$$test_exec" || exit 1; \
+	done
 	@echo "✅ Finished building test executables"
 
 # Build just the benchmark files
 .PHONY: build-benchmarks
-build-benchmarks: check-benchmark-dependencies create-dirs $(BENCH_EXECUTABLES)
-	@echo "📈 Built $(words $(BENCH_EXECUTABLES)) benchmark executable(s):"
-	@find $(BUILD_BENCH_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
+build-benchmarks: check-benchmark-dependencies create-dirs $(SRC_OBJECTS)
+	@echo "📈 Building benchmark executables..."
+	@for bench_exec in $(BENCH_EXECUTABLES); do \
+		echo "Building $$bench_exec..."; \
+		$(MAKE) "$$bench_exec" || exit 1; \
+	done
 	@echo "✅ Finished building benchmark executables"
 
 #-----------------------
@@ -624,28 +630,3 @@ clean:
 .PHONY: all
 all: format test
 	@echo "All tasks completed."
-
-
-.PHONY: debug-test-files
-debug-test-files:
-	@echo ""
-	@echo "🔍 Debugging test file discovery..."
-	@echo "TEST_DIR = $(TEST_DIR)"
-	@echo "BUILD_TEST_DIR = $(BUILD_TEST_DIR)"
-	@echo ""
-	@echo "Files found in $(TEST_DIR):"
-	@if [ -d "$(TEST_DIR)" ]; then \
-		find $(TEST_DIR) -name "*.cpp" -o -name "*.c" | sort; \
-	else \
-		echo "  ❌ TEST_DIR does not exist!"; \
-	fi
-	@echo ""
-	@echo "TEST_SOURCES (from wildcard):"
-	@echo "$(TEST_SOURCES)" | tr ' ' '\n'
-	@echo ""
-	@echo "TEST_OBJECTS (derived):"
-	@echo "$(TEST_OBJECTS)" | tr ' ' '\n'
-	@echo ""
-	@echo "TEST_EXECUTABLES (derived):"
-	@echo "$(TEST_EXECUTABLES)" | tr ' ' '\n'
-	@echo ""
