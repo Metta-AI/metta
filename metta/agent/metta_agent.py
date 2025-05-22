@@ -11,7 +11,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
-from metta.agent.util.distribution_utils import sample_logits
+from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -173,18 +173,84 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
+    def forward_inference(self, value: torch.Tensor, logits: torch.Tensor):
+        """
+        Forward pass for inference mode - samples new actions based on the policy.
+
+        Args:
+            value: Value estimate tensor, shape (BT, 1)
+            logits: Action logits tensor, shape (BT, A)
+
+        Returns:
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Sampled action index, shape (BT, 1)
+            - action_log_prob: Log probability of the sampled action, shape (BT,)
+            - entropy: Entropy of the action distribution, shape (BT,)
+            - value: Value estimate, shape (BT, 1)
+            - log_probs: Log-softmax of logits, shape (BT, A)
+        """
+        if __debug__:
+            assert_shape(value, ("BT", 1), "inference_value")
+            assert_shape(logits, ("BT", "A"), "inference_logits")
+
+        # Sample actions
+        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
+
+        if __debug__:
+            assert_shape(action_logit_index, ("BT",), "action_logit_index")
+            assert_shape(action_log_prob, ("BT",), "action_log_prob")
+            assert_shape(entropy, ("BT",), "entropy")
+            assert_shape(log_probs, ("BT", "A"), "log_probs")
+
+        # Convert logit index to action
+        action = self._convert_logit_index_to_action(action_logit_index)
+
+        if __debug__:
+            assert_shape(action, ("BT", 1), "inference_output_action")
+
+        return action, action_log_prob, entropy, value, log_probs
+
+    def forward_training(self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor):
+        """
+        Forward pass for training mode - evaluates the policy on provided actions.
+
+        Args:
+            value: Value estimate tensor, shape (BT, 1)
+            logits: Action logits tensor, shape (BT, A)
+            action: Action tensor for evaluation, shape (B, T, 2)
+
+        Returns:
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Same as input action, shape (B, T, 2)
+            - action_log_prob: Log probability of the provided action, shape (BT,)
+            - entropy: Entropy of the action distribution, shape (BT,)
+            - value: Value estimate, shape (BT, 1)
+            - log_probs: Log-softmax of logits, shape (BT, A)
+        """
+        if __debug__:
+            assert_shape(value, ("BT", 1), "training_value")
+            assert_shape(logits, ("BT", "A"), "training_logits")
+            assert_shape(action, ("B", "T", 2), "training_input_action")
+
+        # Evaluate provided actions
+        action_logit_index = self._convert_action_to_logit_index(action)
+
+        if __debug__:
+            assert_shape(action_logit_index, ("BT",), "converted_action_logit_index")
+
+        action_log_prob, entropy, log_probs = evaluate_actions(logits, action_logit_index)
+
+        if __debug__:
+            assert_shape(action_log_prob, ("BT",), "training_action_log_prob")
+            assert_shape(entropy, ("BT",), "training_entropy")
+            assert_shape(log_probs, ("BT", "A"), "training_log_probs")
+            assert_shape(action, ("B", "T", 2), "training_output_action")
+
+        return action, action_log_prob, entropy, value, log_probs
+
     def forward(self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None):
         """
-        Forward pass of the MettaAgent.
-
-        1. Inference mode (action=None): sample new actions based on the policy
-        - x shape: (BT, *self.obs_shape)
-        - Output action shape: (BT, 1) -- we return the action index rather than the (type, arg) tuple
-
-        2. BPTT training mode (action is provided): evaluate the policy on past actions
-        - x shape: (B, T, *self.obs_shape)
-        - action shape: (B, T, 2)
-        - Output action shape: (B, T, 2) -- we return the (type, arg) tuple
+        Forward pass of the MettaAgent - delegates to appropriate specialized method.
 
         Args:
             x: Input observation tensor
@@ -193,12 +259,13 @@ class MettaAgent(nn.Module):
 
         Returns:
             Tuple of (action, action_log_prob, entropy, value, log_probs)
-            - action: Sampled output action (inference) or same as input action (BPTT)
-            - action_log_prob: Log probability of the output action, shape (BT,)
-            - entropy: Entropy of the action distribution, shape (BT,)
-            - value: Value estimate, shape (BT,)
-            - log_probs: Log-softmax of logits, shape (BT, A) where A is the size of the action space
         """
+        if __debug__:
+            if action is None:
+                assert_shape(x, ("BT", "*obs_shape"), "inference_input_x")
+            else:
+                assert_shape(x, ("B", "T", "*obs_shape"), "training_input_x")
+                assert_shape(action, ("B", "T", 2), "training_input_action")
 
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
@@ -214,28 +281,26 @@ class MettaAgent(nn.Module):
         # Forward pass through value network
         self.components["_value_"](td)
         value = td["_value_"]
-        # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
-        # This design supports potential future extensions like distributional value functions
-        # or multi-head value networks which would require more than a scalar per state
+
+        if __debug__:
+            assert_shape(value, ("BT", 1), "value")
 
         # Forward pass through action network
         self.components["_action_"](td)
         logits = td["_action_"]
+
+        if __debug__:
+            assert_shape(logits, ("BT", "A"), "logits")
 
         # Update LSTM states
         split_size = self.core_num_layers
         state.lstm_h = td["state"][:split_size]
         state.lstm_c = td["state"][split_size:]
 
-        # Sample actions
-        action_logit_index = self._convert_action_to_logit_index(action) if action is not None else None
-        action_logit_index, action_log_prob, entropy, log_probs = sample_logits(logits, action_logit_index)
-
-        # Convert logit index to action if no action was provided
         if action is None:
-            action = self._convert_logit_index_to_action(action_logit_index)
-
-        return action, action_log_prob, entropy, value, log_probs
+            return self.forward_inference(value, logits)
+        else:
+            return self.forward_training(value, logits, action)
 
     def _convert_action_to_logit_index(self, action: torch.Tensor) -> torch.Tensor:
         """
