@@ -183,7 +183,7 @@ class MettaAgent(nn.Module):
 
         Returns:
             Tuple of (action, action_log_prob, entropy, value, log_probs)
-            - action: Sampled action index, shape (BT, 1)
+            - action: Sampled action, shape (BT, 2)
             - action_log_prob: Log probability of the sampled action, shape (BT,)
             - entropy: Entropy of the action distribution, shape (BT,)
             - value: Value estimate, shape (BT, 1)
@@ -206,7 +206,7 @@ class MettaAgent(nn.Module):
         action = self._convert_logit_index_to_action(action_logit_index)
 
         if __debug__:
-            assert_shape(action, ("BT", 1), "inference_output_action")
+            assert_shape(action, ("BT", 2), "inference_output_action")
 
         return action, action_log_prob, entropy, value, log_probs
 
