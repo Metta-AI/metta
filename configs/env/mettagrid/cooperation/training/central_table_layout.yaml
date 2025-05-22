@@ -12,42 +12,42 @@ game:
     border_width: 6
 
     rooms:
-      - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
-        width: ${sampling:5,15,10}
-        height: ${sampling:5,15,10}
-        num_shared_generators: ${sampling:1,4,2}
+      - _target_: mettagrid.room.cooperation.central_table_layout.CentralTableLayout
+        width: ${sampling:5,10,5}
+        height: ${sampling:5,10,5}
+        num_generators: ${sampling:1,4,2}
         num_altars: ${sampling:1,4,2}
         num_mines: ${sampling:1,4,2}
         agents:
           team_1: 2
-        border_width: 2
-      - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
-        width: ${sampling:5,15,10}
-        height: ${sampling:5,15,10}
-        num_shared_generators: ${sampling:1,4,2}
+        border_width: 3
+      - _target_: mettagrid.room.cooperation.central_table_layout.CentralTableLayout
+        width: ${sampling:5,10,5}
+        height: ${sampling:5,10,5}
+        num_generators: ${sampling:1,4,2}
         num_altars: ${sampling:1,4,2}
         num_mines: ${sampling:1,4,2}
         agents:
           team_2: 2
-        border_width: 2
-      - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
-        width: ${sampling:5,15,10}
-        height: ${sampling:5,15,10}
-        num_shared_generators: ${sampling:1,4,2}
+        border_width: 3
+      - _target_: mettagrid.room.cooperation.central_table_layout.CentralTableLayout
+        width: ${sampling:5,10,5}
+        height: ${sampling:5,10,5}
+        num_generators: ${sampling:1,4,2}
         num_altars: ${sampling:1,4,2}
         num_mines: ${sampling:1,4,2}
         agents:
           team_3: 2
-        border_width: 2
-      - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
-        width: ${sampling:5,15,10}
-        height: ${sampling:5,15,10}
-        num_shared_generators: ${sampling:1,4,2}
+        border_width: 3
+      - _target_: mettagrid.room.cooperation.central_table_layout.CentralTableLayout
+        width: ${sampling:5,10,5}
+        height: ${sampling:5,10,5}
+        num_generators: ${sampling:1,4,2}
         num_altars: ${sampling:1,4,2}
         num_mines: ${sampling:1,4,2}
         agents:
           team_4: 2
-        border_width: 2
+        border_width: 3
 
   objects:
     altar:
