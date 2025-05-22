@@ -93,7 +93,6 @@ class TestSetBuffers:
         env = create_minimal_mettagrid_env()
         env.reset()
 
-        # check obs after we write something
         noop_action_idx = env.action_names().index("noop")
         actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
         obs, rewards, terminals, truncations, info = env.step(actions)
