@@ -3,6 +3,6 @@ _target_: metta.env.mettagrid_env_set.MettaGridEnvSet
 sampling: 1
 
 envs:
-  - /env/mettagrid/overcooked/training/central_table_layout
-  - /env/mettagrid/overcooked/training/confined_room_coord
-  - /env/mettagrid/overcooked/training/two_rooms_coord
+  - /env/mettagrid/cooperation/training/central_table_layout
+  - /env/mettagrid/cooperation/training/confined_room_coord
+  - /env/mettagrid/cooperation/training/two_rooms_coord
