@@ -114,25 +114,34 @@ The existing architecture has served the project well. The centralized component
 ### 2.1 Testing Enhancement Opportunities
 
 **Opportunity: Simplified Unit Testing**
-While the current architecture enables comprehensive integration testing (which works well), there are opportunities to also enable simpler unit testing:
-- **Streamlined Component Testing**: While full agent setup provides thorough testing, lightweight unit tests could complement this
-- **Simplified TensorDict Testing**: The TensorDict system could be enhanced with simpler test utilities
-- **Component Isolation**: The component registry could enable optional isolated testing modes
-- **Interface Simplification**: The comprehensive `LayerBase` interface (20+ methods) could potentially be complemented with smaller, focused interfaces for easier testing
+Unit testing is possible with the current architecture, as demonstrated by comprehensive tests like `test_linear.py`. However, the setup process requires manual configuration and workarounds:
 
-**Example Testing Challenges:**
+**Current Unit Testing Process (from `test_linear.py`):**
 ```python
-# Current: Testing a simple linear layer requires this complexity
 def test_linear_layer():
-    # Must create full agent configuration
-    agent_config = load_full_config()
-    # Must setup all dependencies
-    agent = MettaAgent(agent_config)
-    # Must construct complex TensorDict
-    td = TensorDict({"input": torch.randn(32, 64)}, batch_size=[32])
-    # Can only test through full integration
-    result = agent.forward(td)
+    # Create component directly
+    linear_layer = Linear(name="_test_", sources=[...], nn_params=...)
+    
+    # Manual setup of internal state
+    linear_layer._in_tensor_shapes = [[input_size]]
+    linear_layer._out_tensor_shape = [output_size]
+    
+    # Manual initialization 
+    linear_layer._initialize()
+    
+    # Mock dependency system
+    linear_layer._source_components = None
+    
+    # Now can test with tensors/TensorDict
+    td = {"input_tensor": test_input}
+    result = linear_layer._forward(td)
 ```
+
+**Enhancement Opportunities:**
+- **Streamlined Setup**: Reduce the manual configuration steps required for component testing
+- **Simplified Lifecycle**: Provide helper utilities for test component initialization
+- **Cleaner Isolation**: Make dependency mocking more straightforward
+- **Reduced Setup Overhead**: Minimize the understanding of internal state required for testing
 
 ### 2.2 Component Responsibility Refinement Opportunities
 
@@ -655,41 +664,47 @@ Input TensorDict
 
 ## 4. How the Proposed Changes Address Current Challenges
 
-### 4.1 Dramatically Improved Testing
+### 4.1 Simplified Testing
 
-**Before:**
+**Current (Manual Setup Required):**
 ```python
-# Complex integration test only
 def test_component():
-    agent = create_full_agent()  # 50+ lines of setup
-    td = complex_tensordict_setup()  # Manual TensorDict construction
-    result = agent.forward(td)  # Integration test only
-    assert result["component_name"].shape == expected_shape
+    # Direct component creation possible, but requires manual setup
+    linear_layer = Linear(name="_test_", sources=[...], nn_params=...)
+    
+    # Manual internal state configuration
+    linear_layer._in_tensor_shapes = [[input_size]]
+    linear_layer._out_tensor_shape = [output_size] 
+    linear_layer._initialize()
+    linear_layer._source_components = None
+    
+    # Testing works, but setup is complex
+    td = {"input_tensor": test_input}
+    result = linear_layer._forward(td)
+    assert result["_test_"].shape == expected_shape
 ```
 
-**After:**
+**Enhanced (Streamlined Setup):**
 ```python
-# Simple unit test
+# Simplified unit test
 def test_metta_module():
     module = MettaModule("linear", {"in_features": 64, "out_features": 32})
     input_tensor = torch.randn(16, 64)
     output = module(input_tensor)  # Direct tensor testing
     assert output.shape == (16, 32)
 
-# Isolated component testing
-def test_graph_executor():
-    mock_graph = Mock()
-    mock_graph.get_execution_order.return_value = ["comp1", "comp2"]
-    executor = GraphExecutor(mock_graph, mock_components)
-    # Test execution logic in isolation
+# Or with enhanced utilities for current system
+def test_component_enhanced():
+    linear_layer = create_test_component(Linear, input_size=64, output_size=32)
+    result = linear_layer.test_forward(test_input)  # Simplified interface
+    assert result.shape == expected_shape
 ```
 
 **Key Testing Improvements:**
-- **Unit Testing**: Each component can be tested in isolation
-- **Simple Interfaces**: Tensor-in, tensor-out for core computation
-- **Easy Mocking**: Small, focused interfaces are easy to mock
-- **Fast Execution**: Unit tests run without heavy setup
-- **Clear Failures**: Isolated failures point to specific components
+- **Reduced Setup Overhead**: Minimize manual configuration steps
+- **Cleaner Interfaces**: Simplified test utilities for current components
+- **Easier Isolation**: Built-in support for dependency mocking
+- **Faster Development**: Less time spent on test setup, more on test logic
 
 ### 4.2 Separation of Concerns
 
@@ -842,7 +857,7 @@ To minimize risk and build on the existing foundation, we propose a focused, pra
 - Each new component must have 90%+ test coverage
 - All public methods must have unit tests  
 - Edge cases and error conditions must be tested
-- **Key Advantage**: These tests are actually pleasant to write!
+- **Key Advantage**: Streamlined setup makes tests easier to write and maintain!
 
 **Integration Validation Strategy:**
 - Use characterization tests as integration baselines
@@ -861,14 +876,13 @@ def test_agent_characterization():
     # Save output as golden file for comparison
     assert_matches_golden_output(output)
 
-# New component test (focus area)  
-def test_metta_module_unit():
-    """Clean, fast unit test"""
-    module = MettaModule("linear", {"in_features": 64, "out_features": 32})
-    input_tensor = torch.randn(16, 64)
-    output = module(input_tensor)
-    assert output.shape == (16, 32)
-    assert output.requires_grad == input_tensor.requires_grad
+# Enhanced component test (with improved utilities)
+def test_component_streamlined():
+    """Streamlined unit test with less setup overhead"""
+    linear_layer = create_test_component(Linear, input_size=64, output_size=32)
+    result = linear_layer.test_forward(torch.randn(16, 64))
+    assert result.shape == (16, 32)
+    assert linear_layer.test_regularization() >= 0  # Simplified testing interface
 ```
 
 **Validation Process:**
@@ -928,9 +942,9 @@ def test_metta_module_unit():
 The proposed enhancements build directly on the existing architecture to improve what already works well. By complementing the `LayerBase` approach with focused, specialized components, we enhance testing capabilities while preserving all existing functionality through the PolicyStore and Hydra infrastructure.
 
 This respectful enhancement approach delivers additional benefits:
-- **Complementary unit testing** alongside existing integration tests
+- **Streamlined unit testing** with reduced setup overhead (building on existing capabilities like `test_linear.py`)
 - **Enhanced debugging capabilities** with optional isolated component analysis
-- **Additional development paths** with simplified setup options
+- **Simplified development workflow** with better test utilities and cleaner interfaces
 - **Extended research capabilities** building on the existing dynamic component system
 
 The incremental implementation strategy builds on existing strengths (PolicyStore, PolicyState, Hydra, component registry, indirect execution) rather than replacing them, ensuring we enhance the proven foundation without introducing unnecessary complexity.
