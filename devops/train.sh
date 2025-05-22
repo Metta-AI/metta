@@ -1,29 +1,38 @@
-#/bin/bash -e
 
+#!/bin/bash
+# train.sh - Distributed training script
+set -e
+
+# Parse arguments
 args="${@:1}"
 
-source ./devops/env.sh
+source ./devops/setup.env
 
+# System configuration
 if [ -z "$NUM_CPUS" ]; then
   NUM_CPUS=$(lscpu | grep "CPU(s)" | awk '{print $NF}' | head -n1)
   NUM_CPUS=$((NUM_CPUS / 2))
 fi
-echo "NUM_CPUS: $NUM_CPUS"
+
 NUM_GPUS=${NUM_GPUS:-1}
-echo "NUM_GPUS: $NUM_GPUS"
 NUM_NODES=${NUM_NODES:-1}
-echo "NUM_NODES: $NUM_NODES"
 MASTER_ADDR=${MASTER_ADDR:-localhost}
-echo "MASTER_ADDR: $MASTER_ADDR"
 MASTER_PORT=${MASTER_PORT:-12345}
-echo "MASTER_PORT: $MASTER_PORT"
 NODE_INDEX=${NODE_INDEX:-0}
-echo "NODE_INDEX: $NODE_INDEX"
 
-echo "Running train with args: $args"
-PYTHONPATH=$PYTHONPATH:.
+# Display configuration
+echo "[CONFIG] Training configuration:"
+echo "  - CPUs: $NUM_CPUS"
+echo "  - GPUs: $NUM_GPUS"
+echo "  - Nodes: $NUM_NODES"
+echo "  - Master address: $MASTER_ADDR"
+echo "  - Master port: $MASTER_PORT"
+echo "  - Node index: $NODE_INDEX"
+echo "  - Arguments: $args"
 
-PYTHONOPTIMIZE=1 torchrun \
+echo "[INFO] Starting distributed training..."
+
+PYTHONPATH=$PYTHONPATH:. torchrun \
   --nnodes=$NUM_NODES \
   --nproc-per-node=$NUM_GPUS \
   --master-addr=$MASTER_ADDR \
@@ -33,3 +42,5 @@ PYTHONOPTIMIZE=1 torchrun \
   trainer.num_workers=$NUM_CPUS \
   wandb.enabled=true \
   $args
+
+echo "[SUCCESS] Training completed successfully"
