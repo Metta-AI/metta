@@ -1,9 +1,9 @@
-import { state} from './common.js';
-import { getAttr,sendAction } from './replay.js';
+import { state } from './common.js';
+import { getAttr, sendAction } from './replay.js';
 
 
 export function processActions(event: KeyboardEvent) {
-    // Smart navigation, where pressing key rotations the agent in the
+  // Smart navigation, where pressing key rotations the agent in the
   // direction of the key, but if the agent is already facing in that
   // direction, it moves forward.
   if (state.ws != null && state.selectedGridObject != null) {

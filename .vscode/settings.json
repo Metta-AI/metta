@@ -1,19 +1,31 @@
 {
-  // ruff format on save is configured in metta.code-workspace
+  "C_Cpp.default.cppStandard": "c++20",
   "[python]": {
-    "editor.rulers": [
-      120
-    ],
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    },
+    "editor.rulers": [120],
     "editor.renderWhitespace": "trailing"
   },
+  "python.analysis.extraPaths": [
+    "mettagrid"
+  ],
+  "python.autoComplete.extraPaths": [
+    "mettagrid"
+  ],
   "files.exclude": {
     "**/*.egg-info": true,
     "**/__pycache__": true,
     "replays": true,
     "train_dir": true,
     "outputs": true,
-    ".pytest_cache": true
+    ".pytest_cache": true,
+    "wandb": true
   },
+  "terminal.integrated.cwd": "${workspaceFolder}",
   "python.testing.unittestArgs": [
     "-v",
     "-s",

@@ -68,7 +68,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._env = env
         # self._env = RewardTracker(self._env)
-        # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 
     def reset(self, seed=None, options=None):
         self._env_cfg = self._get_new_env_cfg()
