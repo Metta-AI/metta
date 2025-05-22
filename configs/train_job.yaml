@@ -2,7 +2,7 @@ defaults:
   - common
   - agent: simple
   - trainer: puffer
-  - sim: nav_obj_overcooked
+  - sim: overcooked
   - wandb: metta_research
   - _self_
 

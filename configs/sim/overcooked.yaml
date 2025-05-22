@@ -5,9 +5,7 @@ defaults:
 name: overcooked
 
 simulations:
-  overcooked/central_table_layout:
-    env: /env/mettagrid/cooperation/training/central_table_layout
-  overcooked/two_rooms_coord:
-    env: /env/mettagrid/cooperation/training/two_rooms_coord
-  overcooked/confined_room_coord:
-    env: /env/mettagrid/cooperation/training/confined_room_coord
+  overcooked/cooperate-or-defect_test:
+    env: /env/mettagrid/cooperation/evals/cooperate-or-defect_test
+  overcooked/solo-vs-paired_gathering:
+    env: /env/mettagrid/cooperation/evals/solo-vs-paired_gathering

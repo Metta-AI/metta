@@ -81,7 +81,7 @@ simulations:
     env: env/mettagrid/object_use/evals/temple_use_free
   object_use/full_sequence:
     env: env/mettagrid/object_use/evals/full_sequence
-  overcooked/central_table_layout:
+  overcooked/cooperate-or-defect_test:
     env: /env/mettagrid/cooperation/evals/cooperate-or-defect_test
-  overcooked/two_rooms_coord:
+  overcooked/solo-vs-paired_gathering:
     env: /env/mettagrid/cooperation/evals/solo-vs-paired_gathering

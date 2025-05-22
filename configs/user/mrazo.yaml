@@ -8,8 +8,8 @@ trainer:
   env: env/mettagrid/cooperation/training/overcooked
   # initial_policy:
   #   uri: wandb://run/mrazo_object-use_allobs_large-small-multienv_v03
-  evaluate_interval: 100
-  checkpoint_interval: 100
+  evaluate_interval: 300
+  checkpoint_interval: 300
 
 # replay_job:
 #   policy_uri: wandb://run/mrazo_object-use_allobs_large-small-multienv_v03:v01
@@ -17,4 +17,4 @@ trainer:
 #   wandb.track: false
 
 
-run: mrazo_overcooked_nav-obj-use_v01
+run: mrazo_cooperation_overcooked_v01
