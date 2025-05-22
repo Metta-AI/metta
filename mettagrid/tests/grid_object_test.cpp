@@ -80,12 +80,12 @@ TEST_F(GridObjectTest, InitWithCoordinates) {
 
 // Test init with coordinates and layer
 TEST_F(GridObjectTest, InitWithCoordinatesAndLayer) {
-  obj.init(3, 25, 30, 4);
+  obj.init(3, 25, 30, 5);
 
   EXPECT_EQ(3, obj._type_id);
   EXPECT_EQ(25, obj.location.r);
   EXPECT_EQ(30, obj.location.c);
-  EXPECT_EQ(4, obj.location.layer);
+  EXPECT_EQ(5, obj.location.layer);
 }
 
 // Test obs method
