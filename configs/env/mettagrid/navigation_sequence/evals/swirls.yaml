@@ -5,4 +5,4 @@ defaults:
 game:
   max_steps: 350
   map_builder:
-    uri: "configs/env/mettagrid/maps/navigation_sequence/evals/swirls.map"
+    uri: "configs/env/mettagrid/maps/navigation_sequence/swirls.map"
