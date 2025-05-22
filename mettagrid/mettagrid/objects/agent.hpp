@@ -135,8 +135,8 @@ public:
     return names;
   }
 
-  private:
-    unsigned char max_items;
+private:
+  unsigned char max_items;
 };
 
 #endif

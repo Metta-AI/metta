@@ -2,13 +2,13 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-#include "mettagrid_c.hpp"
-#include "objects/agent.hpp"
-#include "objects/converter.hpp"
-#include "objects/constants.hpp"
 #include "actions/attack.hpp"
 #include "actions/get_output.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "mettagrid_c.hpp"
+#include "objects/agent.hpp"
+#include "objects/constants.hpp"
+#include "objects/converter.hpp"
 
 namespace py = pybind11;
 
@@ -94,7 +94,7 @@ TEST_F(MettaGridTest, UpdateInventory) {
   // Test hitting max_items limit
   agent->update_inventory(InventoryItem::heart, 50);
   delta = agent->update_inventory(InventoryItem::heart, 200);  // max_items is 123
-  EXPECT_EQ(delta, 73);  // Should only add up to max_items
+  EXPECT_EQ(delta, 73);                                        // Should only add up to max_items
   EXPECT_EQ(agent->inventory[InventoryItem::heart], 123);
 
   // Test multiple items
@@ -212,14 +212,14 @@ TEST_F(MettaGridTest, PutRecipeItems) {
   // Test putting matching items
   bool success = put.handle_action(agent->id, 0, 0);
   EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 0);  // One red ore consumed
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);  // Blue ore unchanged
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 0);      // One red ore consumed
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);     // Blue ore unchanged
   EXPECT_EQ(generator->inventory[InventoryItem::ore_red], 1);  // One red ore added to generator
 
   // Test putting non-matching items
   success = put.handle_action(agent->id, 0, 0);
-  EXPECT_FALSE(success);  // Should fail since we only have blue ore left
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);  // Blue ore unchanged
+  EXPECT_FALSE(success);                                        // Should fail since we only have blue ore left
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);      // Blue ore unchanged
   EXPECT_EQ(generator->inventory[InventoryItem::ore_blue], 0);  // No blue ore in generator
 
   // grid will delete the agent and generator
@@ -271,8 +271,8 @@ TEST_F(MettaGridTest, GetOutput) {
   // Test putting matching items
   bool success = get.handle_action(agent->id, 0, 0);
   EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);  // Still have red ore
-  EXPECT_EQ(agent->inventory[InventoryItem::battery], 1);  // Also have a battery
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);      // Still have red ore
+  EXPECT_EQ(agent->inventory[InventoryItem::battery], 1);      // Also have a battery
   EXPECT_EQ(generator->inventory[InventoryItem::battery], 0);  // Generator gave away its battery
 
   // grid will delete the agent and generator
