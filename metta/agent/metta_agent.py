@@ -349,7 +349,7 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action_logit_indices, ("BT",), "action_logit_indices")
 
-        return action_logit_indices  # shape: [B*T]
+        return action_logit_indices
 
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """

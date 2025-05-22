@@ -479,9 +479,9 @@ class PufferTrainer:
                 with profile.train_misc:
                     if __debug__:
                         assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
-                        assert_shape(old_action_log_probs, ("BT",), "old_action_log_probs")
+                        assert_shape(old_action_log_probs, ("B", "T"), "old_action_log_probs")
 
-                    logratio = new_action_log_probs - old_action_log_probs
+                    logratio = new_action_log_probs - old_action_log_probs.reshape(-1)
                     ratio = logratio.exp()
 
                     with torch.no_grad():
