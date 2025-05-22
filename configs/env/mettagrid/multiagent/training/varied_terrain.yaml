@@ -4,7 +4,7 @@ defaults:
 
 sampling: 1
 game:
-  num_agents: 16
+  num_agents: 32
   agent:
     max_inventory: 10
     rewards:
@@ -25,7 +25,7 @@ game:
       width: ${sampling:20,120,30}
       height: ${sampling:20,120,30}
       border_width: ${sampling:1,6,3}
-      agents: 4
+      agents: 8
       style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
         mine.red: ${sampling:1,20,10}
