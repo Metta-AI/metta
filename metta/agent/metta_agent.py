@@ -301,6 +301,9 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         value = td["_value_"]
 
+        # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
+        # This design supports potential future extensions like distributional value functions
+        # or multi-head value networks which would require more than a scalar per state
         if __debug__:
             assert_shape(value, ("BT", 1), "value")
 
@@ -309,6 +312,7 @@ class MettaAgent(nn.Module):
         logits = td["_action_"]
 
         if __debug__:
+            # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
             assert_shape(logits, ("BT", "A"), "logits")
 
         # NOTE: Both value and logits always have shape (BT, *) regardless of input mode:
