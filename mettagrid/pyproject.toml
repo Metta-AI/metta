@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=80", "wheel", "numpy==2.2.5", "pybind11==2.10.4"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core", "wheel", "numpy==2.2.5", "pybind11==2.10.4"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "mettagrid"
@@ -20,12 +20,15 @@ keywords = [
     "gym",
 ]
 
+[project.optional-dependencies]
+dev = ["pybind11==2.10.4"]
+ 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["mettagrid*"]
 
 [tool.setuptools.package-data]
-"mettagrid" = ["*.pyx", "*.pxd", "*.hpp", "*.cpp", "*.so"]
+"mettagrid" = ["*.hpp", "*.cpp", "*.so"]
 
 # Configuring pytest here causes us to ignore metta/conftest.py
 
