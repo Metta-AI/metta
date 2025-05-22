@@ -283,7 +283,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
         continue;
       }
 
-      _action_success[idx] = handler->handle_action(idx, agent->id, arg, _current_timestep);
+      _action_success[idx] = handler->handle_action(agent->id, arg, _current_timestep);
     }
   }
 

@@ -17,7 +17,7 @@ public:
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     if (actor->inventory[InventoryItem::laser] == 0) {
       return false;
     }
@@ -38,7 +38,7 @@ protected:
         target_loc.layer = GridLayer::Agent_Layer;
         Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
         if (agent_target) {
-          return _handle_target(actor_id, actor, target_loc);
+          return _handle_target(actor, target_loc);
         }
       }
     }

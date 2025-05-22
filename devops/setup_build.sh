@@ -164,10 +164,6 @@ for dep in \
 done
 
 if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
-  # ========== VS CODE INTEGRATION ==========
-  echo -e "\nSetting up VSCode integration..."
-  source "./devops/macos/setup_vscode_workspace.sh"
-
   # ========== INSTALL METTASCOPE ==========
   echo -e "\nSetting up MettaScope..."
   bash "mettascope/install.sh"

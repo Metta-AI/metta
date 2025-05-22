@@ -1,8 +1,8 @@
 *.egg-info
 *.pyc
 *.so
-__pycache__
-.DS_Store
+**/__pycache__
+**/.DS_Store
 .coverage
 .env
 .task
