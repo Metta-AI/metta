@@ -18,13 +18,14 @@ This proposal outlines a refactoring strategy for the Metta neural network agent
 3. [Proposed Architecture](#3-proposed-architecture)
    - [Design Principles](#31-design-principles)
    - [Proposed Architecture Diagram](#32-proposed-architecture-diagram)
-   - [Component Responsibilities](#33-component-responsibilities)
+   - [TorchRL Architecture Insights](#33-torchrl-architecture-insights)
+   - [Component Responsibilities](#34-component-responsibilities)
      - [MettaModule (Computation Core)](#mettamodule-computation-core)
      - [MettaGraph (Structure Management)](#mettagraph-structure-management)
      - [GraphExecutor (Execution Control)](#graphexecutor-execution-control)
      - [ShapePropagator (Shape Validation)](#shapepropagator-shape-validation)
      - [MettaSystem (Coordination)](#mettasystem-coordination)
-   - [Data Flow in New Architecture](#34-data-flow-in-new-architecture)
+   - [Data Flow in New Architecture](#35-data-flow-in-new-architecture)
 
 4. [How the Proposed Changes Address Current Challenges](#4-how-the-proposed-changes-address-current-challenges)
    - [Dramatically Improved Testing](#41-dramatically-improved-testing)
@@ -172,11 +173,12 @@ Our refactoring proposal is guided by several key principles:
                     ┌─────────────────┐
                     │   MettaModule   │
                     │  (Computation)  │
-                    │                 │
+                    │ TorchRL-inspired│
                     │  ┌─────────────┐│
                     │  │    _net     ││
                     │  │ (PyTorch)   ││
                     │  └─────────────┘│
+                    │ in_keys/out_keys│
                     └─────────────────┘
 ```
 
@@ -185,14 +187,202 @@ Our refactoring proposal is guided by several key principles:
 - **PolicyState**: Continues to provide state management via TensorClass
 - **Hydra Configuration**: Continues to enable config-driven instantiation
 
-### 3.3 Component Responsibilities
+### 3.3 TorchRL Architecture Insights
+
+After analyzing TorchRL's design patterns, several key insights can significantly enhance our proposed architecture:
+
+#### **Key TorchRL Design Patterns We Should Adopt**
+
+**1. TensorDict-First Design Philosophy**
+TorchRL's success stems from treating TensorDict as a first-class citizen rather than an afterthought. Their modules are designed around:
+- **Explicit `in_keys` and `out_keys`**: Every module declares exactly what keys it reads from and writes to TensorDict
+- **Composable Sequences**: `TensorDictSequential` enables building complex pipelines with clear data dependencies
+- **Safe Modules**: Built-in spec validation ensures outputs conform to expected shapes/ranges
+
+**2. Modular Component Composition**
+TorchRL achieves modularity through:
+- **Single-Purpose Modules**: Each module handles one specific transformation or computation
+- **Standardized Interfaces**: All modules follow the same TensorDict input/output contract
+- **Runtime Composition**: Components can be combined and recombined without code changes
+
+**3. Progressive Enhancement Pattern**
+TorchRL uses wrapper classes to add functionality:
+- **SafeModule**: Adds bounds checking to any module
+- **ProbabilisticModule**: Adds distribution sampling to deterministic modules  
+- **ActorCriticWrapper**: Combines actor and critic without requiring shared inheritance
+
+#### **How These Patterns Apply to Metta**
+
+**Enhanced MettaModule Design:**
+```python
+class MettaModule(nn.Module):
+    """Pure computation following TorchRL patterns"""
+    
+    def __init__(self, name: str, nn_params: dict, in_keys: List[str], out_keys: List[str]):
+        """
+        Args:
+            name (str): Unique identifier for this module
+            nn_params (dict): Neural network parameters
+            in_keys (List[str]): Keys this module reads from TensorDict
+            out_keys (List[str]): Keys this module writes to TensorDict
+        """
+        super().__init__()
+        self.name = name
+        self.in_keys = in_keys
+        self.out_keys = out_keys
+        self._net = self._build_network(nn_params)
+    
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        """TorchRL-style forward pass with explicit key handling"""
+        # Extract inputs using in_keys
+        inputs = [tensordict[key] for key in self.in_keys]
+        
+        # Perform computation
+        outputs = self._net(*inputs)
+        if not isinstance(outputs, (list, tuple)):
+            outputs = [outputs]
+        
+        # Write outputs using out_keys  
+        for key, value in zip(self.out_keys, outputs):
+            tensordict[key] = value
+            
+        return tensordict
+```
+
+**Wrapper-Based Enhancement:**
+```python
+class SafeMettaModule(MettaModule):
+    """Adds shape/spec validation following TorchRL SafeModule pattern"""
+    
+    def __init__(self, module: MettaModule, input_specs: Dict[str, torch.Size], 
+                 output_specs: Dict[str, torch.Size]):
+        super().__init__(module.name, {}, module.in_keys, module.out_keys)
+        self.module = module
+        self.input_specs = input_specs
+        self.output_specs = output_specs
+    
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        # Validate inputs
+        self._validate_inputs(tensordict)
+        
+        # Execute wrapped module
+        result = self.module(tensordict)
+        
+        # Validate outputs
+        self._validate_outputs(result)
+        
+        return result
+
+class RegularizedMettaModule(MettaModule):
+    """Adds L2 regularization following wrapper pattern"""
+    
+    def __init__(self, module: MettaModule, l2_lambda: float = 0.01):
+        super().__init__(module.name, {}, module.in_keys, module.out_keys)
+        self.module = module
+        self.l2_lambda = l2_lambda
+    
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        result = self.module(tensordict)
+        
+        # Add regularization loss to TensorDict
+        reg_loss = self._compute_l2_regularization()
+        if "regularization_loss" in result:
+            result["regularization_loss"] = result["regularization_loss"] + reg_loss
+        else:
+            result["regularization_loss"] = reg_loss
+            
+        return result
+```
+
+**Sequential Composition:**
+```python
+class MettaSequential:
+    """TorchRL-inspired sequential composition"""
+    
+    def __init__(self, *modules: MettaModule):
+        self.modules = modules
+        self._validate_key_consistency()
+    
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        for module in self.modules:
+            tensordict = module(tensordict)
+        return tensordict
+    
+    def _validate_key_consistency(self):
+        """Ensure output keys of module N match input keys of module N+1"""
+        for i in range(len(self.modules) - 1):
+            current_out = set(self.modules[i].out_keys)
+            next_in = set(self.modules[i + 1].in_keys)
+            if not next_in.issubset(current_out):
+                raise ValueError(f"Key mismatch between {self.modules[i].name} and {self.modules[i+1].name}")
+```
+
+#### **Enhanced GraphExecutor with TorchRL Patterns**
+
+```python
+class GraphExecutor:
+    """Execution engine inspired by TorchRL's modular composition"""
+    
+    def __init__(self, execution_strategy: str = "auto"):
+        self.execution_strategy = execution_strategy
+        self.compiled_graphs = {}  # For torch.compile caching
+    
+    def execute(self, graph: MettaGraph, tensordict: TensorDict) -> TensorDict:
+        """Execute graph with TorchRL-style composition"""
+        
+        if self.execution_strategy == "sequential":
+            return self._execute_sequential(graph, tensordict)
+        elif self.execution_strategy == "compiled":
+            return self._execute_compiled(graph, tensordict)
+        else:
+            return self._execute_auto(graph, tensordict)
+    
+    def _execute_sequential(self, graph: MettaGraph, tensordict: TensorDict) -> TensorDict:
+        """TorchRL-style sequential execution"""
+        execution_order = graph.topological_sort()
+        
+        for module_name in execution_order:
+            module = graph.get_module(module_name)
+            
+            # Check if outputs already exist (caching)
+            if all(key in tensordict for key in module.out_keys):
+                continue
+                
+            # Execute module
+            tensordict = module(tensordict)
+            
+        return tensordict
+    
+    def _execute_compiled(self, graph: MettaGraph, tensordict: TensorDict) -> TensorDict:
+        """Use torch.compile for performance - TorchRL compatible"""
+        graph_signature = graph.get_signature()
+        
+        if graph_signature not in self.compiled_graphs:
+            # Create a single function from the graph
+            def compiled_forward(td):
+                return self._execute_sequential(graph, td)
+            
+            self.compiled_graphs[graph_signature] = torch.compile(compiled_forward)
+        
+        return self.compiled_graphs[graph_signature](tensordict)
+```
+
+#### **Benefits of TorchRL-Inspired Design**
+
+1. **Explicit Data Dependencies**: Every module declares its inputs/outputs, making the data flow crystal clear
+2. **Better Testability**: Modules can be tested in isolation with simple TensorDict inputs
+3. **Composition Over Inheritance**: Functionality is added through wrapping rather than complex inheritance
+4. **Future-Proof**: Compatible with PyTorch's latest features (torch.compile, vmap, etc.)
+5. **Clear Interfaces**: Standardized patterns make the codebase easier to understand and maintain
+
+### 3.4 Component Responsibilities
 
 #### **MettaModule** (Computation Core)
 ```python
 class MettaModule(nn.Module):
-    """Pure computation component - single responsibility"""
+    """Pure computation component - single responsibility, TorchRL-inspired"""
     
-    def __init__(self, name: str, nn_params: dict):
+    def __init__(self, name: str, nn_params: dict, in_keys: List[str], out_keys: List[str]):
         """Initialize a MettaModule with computation parameters.
         
         Args:
@@ -722,6 +912,16 @@ This focused approach delivers immediate benefits:
 The incremental implementation strategy minimizes risk while delivering value at each phase. We build on existing strengths (PolicyStore, PolicyState, Hydra) rather than replacing them, ensuring we solve the testing problem without introducing unnecessary complexity.
 
 We believe this targeted investment will significantly improve our development velocity and code quality while enabling the flexible experimentation that ML/RL research demands.
+
+**Key Enhancements from TorchRL Analysis:**
+After analyzing TorchRL's proven design patterns, we've enhanced our proposal with:
+- **Explicit Data Dependencies**: Every module clearly declares its TensorDict inputs (`in_keys`) and outputs (`out_keys`)
+- **Composition Over Inheritance**: Functionality is added through wrapper classes rather than complex inheritance hierarchies  
+- **Standardized Interfaces**: All modules follow consistent TensorDict contracts, improving predictability and testability
+- **Progressive Enhancement**: SafeModule and RegularizedModule wrappers add functionality without coupling
+- **Future Compatibility**: The design aligns with PyTorch's evolution (torch.compile, vmap, etc.)
+
+These patterns ensure our refactored architecture remains modern, maintainable, and aligned with industry best practices in ML/RL system design.
 
 ---
 
