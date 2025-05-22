@@ -93,13 +93,20 @@ private:
   // probably move ownership here.
   std::vector<Agent*> _agents;
 
-  // We'd prefer to store these as more raw c-style arrays, but we need to both
-  // operate on the memory directly and return them to python.
-  py::array_t<c_observations_type> _observations;
-  py::array_t<c_terminals_type> _terminals;
-  py::array_t<c_truncations_type> _truncations;
-  py::array_t<c_rewards_type> _rewards;
-  py::array_t<c_rewards_type> _episode_rewards;
+  // Pointers to external buffers - these are required and must be set
+  c_observations_type* _observations;
+  c_terminals_type* _terminals;
+  c_truncations_type* _truncations;
+  c_rewards_type* _rewards;
+
+  // Buffer sizes
+  size_t _observations_size;
+  size_t _terminals_size;
+  size_t _truncations_size;
+  size_t _rewards_size;
+
+  // Internal buffers
+  std::vector<float> _episode_rewards;
 
   std::vector<std::string> _grid_features;
 
