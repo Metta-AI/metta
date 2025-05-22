@@ -1,8 +1,9 @@
 defaults:
-  - /env/mettagrid/object_use/evals/defaults@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 game:
+  num_agents: 1
   max_steps: 150
   agent:
     rewards:
