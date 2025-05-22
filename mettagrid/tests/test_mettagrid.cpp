@@ -271,7 +271,7 @@ TEST_F(MettaGridTest, GetOutput) {
   // Test getting output
   bool success = get.handle_action(agent->id, 0, 0);
   EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);      // Still have red ore
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);          // Still have red ore
   EXPECT_EQ(agent->inventory[InventoryItem::battery_red], 1);      // Also have a battery
   EXPECT_EQ(generator->inventory[InventoryItem::battery_red], 0);  // Generator gave away its battery
 
