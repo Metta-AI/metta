@@ -1,9 +1,9 @@
 #ifndef HAS_INVENTORY_HPP
 #define HAS_INVENTORY_HPP
 
+#include <algorithm>
 #include <map>
 #include <string>
-#include <algorithm>
 
 #include "constants.hpp"
 #include "metta_object.hpp"

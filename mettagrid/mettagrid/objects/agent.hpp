@@ -1,9 +1,9 @@
 #ifndef AGENT_HPP
 #define AGENT_HPP
 
+#include <algorithm>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
