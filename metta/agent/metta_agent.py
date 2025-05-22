@@ -138,6 +138,7 @@ class MettaAgent(nn.Module):
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Run this at the beginning of training."""
+
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
         self.device = device

@@ -89,32 +89,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.labels = self._env_cfg.get("labels", None)
         self._should_reset = False
 
-        # check on the buffer shapes
-
-        # Define expected shapes
-        num_agents = self._num_agents
-        expected_obs_shape = (num_agents, obs_width, obs_height, grid_features_size)
-
-        # Validate observation shape
-        obs_shape_tuple = self.observations.shape
-        if self.observations.ndim != 4 or obs_shape_tuple != expected_obs_shape:
-            raise ValueError(f"Observations buffer has shape {obs_shape_tuple}, expected {expected_obs_shape}")
-
-        # Validate terminal buffer shape
-        term_shape = self.terminals.shape
-        if self.terminals.ndim < 1 or term_shape[0] < num_agents:
-            raise ValueError(f"Terminals buffer has shape {term_shape}, expected first dimension ≥ {num_agents}")
-
-        # Validate truncation buffer shape
-        trunc_shape = self.truncations.shape
-        if self.truncations.ndim < 1 or trunc_shape[0] < num_agents:
-            raise ValueError(f"Truncations buffer has shape {trunc_shape}, expected first dimension ≥ {num_agents}")
-
-        # Validate rewards buffer shape
-        reward_shape = self.rewards.shape
-        if self.rewards.ndim < 1 or reward_shape[0] < num_agents:
-            raise ValueError(f"Rewards buffer has shape {reward_shape}, expected first dimension ≥ {num_agents}")
-
     def _make_episode_id(self):
         return str(uuid.uuid4())
 

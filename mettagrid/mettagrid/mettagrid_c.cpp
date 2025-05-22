@@ -301,8 +301,8 @@ void MettaGrid::_step(py::array_t<int> actions) {
 
   // Check for truncation
   if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
-    std::fill(static_cast<unsigned char*>(_truncations.request().ptr),
-              static_cast<unsigned char*>(_truncations.request().ptr) + _truncations.size(),
+    std::fill(static_cast<c_truncations_type*>(_truncations.request().ptr),
+              static_cast<c_truncations_type*>(_truncations.request().ptr) + _truncations.size(),
               1);
   }
 }
@@ -316,20 +316,21 @@ py::tuple MettaGrid::reset() {
   // Views are created only for validating types; actual clearing is done via
   // direct memory operations for speed.
 
-  std::fill(static_cast<bool*>(_terminals.request().ptr),
-            static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
+  std::fill(static_cast<c_terminals_type*>(_terminals.request().ptr),
+            static_cast<c_terminals_type*>(_terminals.request().ptr) + _terminals.size(),
             0);
-  std::fill(static_cast<bool*>(_truncations.request().ptr),
-            static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+  std::fill(static_cast<c_truncations_type*>(_truncations.request().ptr),
+            static_cast<c_truncations_type*>(_truncations.request().ptr) + _truncations.size(),
             0);
-  std::fill(static_cast<float*>(_episode_rewards.request().ptr),
-            static_cast<float*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
+  std::fill(static_cast<c_rewards_type*>(_episode_rewards.request().ptr),
+            static_cast<c_rewards_type*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
             0.0f);
-  std::fill(
-      static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
+  std::fill(static_cast<c_rewards_type*>(_rewards.request().ptr),
+            static_cast<float*>(_rewards.request().ptr) + _rewards.size(),
+            0.0f);
 
   // Clear observations
-  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
+  auto obs_ptr = static_cast<c_observations_type*>(_observations.request().ptr);
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, 0);
 
@@ -381,10 +382,10 @@ void MettaGrid::validate_buffers() {
   }
 }
 
-void MettaGrid::set_buffers(py::array_t<uint8_t, py::array::c_style>& observations,
-                            py::array_t<bool, py::array::c_style>& terminals,
-                            py::array_t<bool, py::array::c_style>& truncations,
-                            py::array_t<float, py::array::c_style>& rewards) {
+void MettaGrid::set_buffers(py::array_t<c_observations_type, py::array::c_style>& observations,
+                            py::array_t<c_terminals_type, py::array::c_style>& terminals,
+                            py::array_t<c_truncations_type, py::array::c_style>& truncations,
+                            py::array_t<c_rewards_type, py::array::c_style>& rewards) {
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;

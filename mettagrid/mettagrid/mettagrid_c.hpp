@@ -43,7 +43,7 @@ public:
   void set_buffers(py::array_t<c_observations_type, py::array::c_style>& observations,
                    py::array_t<c_terminals_type, py::array::c_style>& terminals,
                    py::array_t<c_truncations_type, py::array::c_style>& truncations,
-                   py::array_t<c_rewards_type py::array::c_style>& rewards);
+                   py::array_t<c_rewards_type, py::array::c_style>& rewards);
 
   void validate_buffers();
   py::dict grid_objects();
