@@ -78,13 +78,14 @@ else
 endif
 
 # Get Python paths from the UV venv
+PYTHON_PREFIX := $(shell $(PYTHON_BIN) -c "import sys; print(sys.prefix)")
 PYTHON_VERSION := $(shell $(PYTHON_BIN) -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 PYTHON_INCLUDE := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_path('include'))")
 PYTHON_STDLIB := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_path('stdlib'))")
 PYTHON_DYNLOAD := $(PYTHON_STDLIB)/lib-dynload
 PYTHON_SITE_PACKAGES := $(shell $(PYTHON_BIN) -c "import site; print(site.getsitepackages()[0])")
 PYTHON_LIB_DIR := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")
-PYTHON_HOME := $(shell $(PYTHON_BIN) -c "import os, sysconfig; print(os.path.dirname(sysconfig.get_path('stdlib')))")
+PYTHON_HOME := $(PYTHON_PREFIX)
 PYTHON_CFLAGS := $(shell $(PYTHON_BIN) -m pybind11 --includes)
 
 # Update the Python library definitions
