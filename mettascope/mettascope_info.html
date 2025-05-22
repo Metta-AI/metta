@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+body {
+  background-color: #101a24;
+  color: white;
+  font-family: sans-serif;
+  line-height: 1.4;
+  padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+h1 {
+  color: #24C76B;
+  font-size: 2em;
+  margin-top: 0;
+  margin-bottom: 0.3em;
+  text-align: center;
+}
+
+h2 {
+  color: #24C76B;
+  font-size: 1.5em;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  border-bottom: 2px solid #24C76B;
+  padding-bottom: 0.2em;
+}
+
+h3 {
+  color: #24C76B;
+  font-size: 1.2em;
+  margin-top: 0.8em;
+  margin-bottom: 0.4em;
+}
+
+p {
+  margin-bottom: 0.8em;
+  font-size: 1em;
+}
+
+a {
+  color: #24C76B;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  margin: 1em auto;
+  display: block;
+}
+
+ul, ol {
+  margin: 0.5em 0 1em 0;
+  padding-left: 1.2em;
+}
+
+li {
+  margin-bottom: 0.5em;
+  font-size: 1em;
+}
+
+strong {
+  color: #24C76B;
+  font-weight: 600;
+}
+
+.controls-section {
+  background-color: rgba(36, 199, 107, 0.1);
+  padding: 1em;
+  border-radius: 8px;
+  margin: 0.8em 0;
+}
+
+.features-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5em;
+  margin: 2em 0;
+}
+
+.feature-item {
+  background-color: rgba(36, 199, 107, 0.1);
+  padding: 1.5em;
+  border-radius: 8px;
+}
+
+.explainer-image {
+  width: 100%;
+  max-width: 800px;
+  margin: 2em auto;
+  display: block;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.controls-image {
+  width: 100%;
+  max-width: 600px;
+  margin: 1em auto;
+  display: block;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.keyboard-controls {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5em;
+  margin: 0.5em 0;
+}
+
+.keyboard-control {
+  background-color: rgba(36, 199, 107, 0.1);
+  padding: 0.3em;
+  border-radius: 4px;
+}
+
+.key {
+  font-family: monospace;
+  background-color: #2a2a2a;
+  padding: 0.2em 0.5em;
+  border-radius: 3px;
+  margin-right: 0.5em;
+}
+</style>
+</head>
+<body>
+
+<h1>MettaScope</h1>
+
+<p>
+A visualization tool for analyzing and understanding AI agent behavior in Metta environments. MettaScope provides detailed insights into agent actions, decisions, and performance through an interactive interface.
+</p>
+
+<h2>Metta</h2>
+
+<p>
+Metta AI represents a sophisticated approach to multi-agent reinforcement learning, combining advanced neural architectures with carefully designed social mechanics. At its core, the system operates in a grid-based world where AI agents must learn to navigate, collect resources, and cooperate with others.
+</p>
+
+<p>
+The agent architecture features a three-component design:
+</p>
+
+<ul>
+  <li><strong>Convolutional Neural Network (CNN)</strong>: Processes spatial information across 34 channels, including agent positions, resource locations, obstacles, and team affiliations</li>
+  <li><strong>Long Short-Term Memory (LSTM)</strong>: Enables temporal reasoning and memory of past interactions</li>
+  <li><strong>Self-Knowledge Network</strong>: Manages internal state, including position, resources, health, and goals</li>
+</ul>
+
+<p>
+Agents operate in teams, typically containing six members, with relationship scores assigned at the start of the simulation. The reward sharing mechanism operates on a 50-50 split between team members, creating a complex optimization problem where agents must balance individual goals with team objectives. Learning how to cooperate with larger and more specialized groups represents the core agent intelligence development challenge.
+</p>
+
+<h2>What exactly am I looking at?</h2>
+
+<p>
+In this visualization, you're watching AI agents navigate and interact in a grid-based world. Here's what's happening:
+</p>
+
+<div class="controls-section">
+  <h3>Resource Collection</h3>
+  <p>
+    Agents are constantly searching for and collecting resources, particularly hearts (❤️) which appear as glowing items in the environment. When an agent finds a heart, they can:
+  </p>
+  <ul>
+    <li><strong>Collect Hearts</strong>: Use the 'Q' key to pick up hearts when standing next to them</li>
+    <li><strong>Store Resources</strong>: Hearts and other resources are stored in the agent's inventory</li>
+    <li><strong>Share Resources</strong>: Agents can share resources with team members to help the group survive</li>
+  </ul>
+</div>
+
+<div class="controls-section">
+  <h3>Combat and Defense</h3>
+  <p>
+    Agents can engage in combat with other agents:
+  </p>
+  <ul>
+    <li><strong>Freezing Attacks</strong>: Agents can freeze other agents using the 'Z' key (nearest target) or number keys 1-9 (specific targets)</li>
+    <li><strong>Team Defense</strong>: Agents work together to protect team members and shared resources</li>
+    <li><strong>Strategic Positioning</strong>: Agents must position themselves carefully to avoid being frozen while protecting their resources</li>
+  </ul>
+</div>
+
+<div class="controls-section">
+  <h3>Movement and Navigation</h3>
+  <p>
+    Agents move through the world using a combination of:
+  </p>
+  <ul>
+    <li><strong>Rotation</strong>: Use 'W', 'A', 'S', 'D' to rotate the agent in different directions</li>
+    <li><strong>Forward/Backward</strong>: 'F' to move forward, 'R' to move backward</li>
+    <li><strong>Resource Management</strong>: 'E' to put down items, 'G' to swap objects with other agents</li>
+  </ul>
+</div>
+
+<div class="controls-section">
+  <h3>Team Coordination</h3>
+  <p>
+    The most fascinating aspect is watching how agents coordinate their actions to achieve team objectives:
+  </p>
+  <ul>
+    <li><strong>Resource Sharing</strong>: 
+      <ul>
+        <li>Agents actively distribute hearts among team members to ensure collective survival</li>
+        <li>When an agent has excess resources, they seek out teammates who are low on hearts</li>
+        <li>Teams develop specialized roles - some agents focus on resource collection while others protect the team's shared resources</li>
+      </ul>
+    </li>
+    <li><strong>Group Defense</strong>: 
+      <ul>
+        <li>Agents form defensive formations around valuable resources and vulnerable teammates</li>
+        <li>When under attack, agents coordinate their freezing actions to protect the team's heart supply</li>
+        <li>Teams establish territory control by maintaining a presence around key resource locations</li>
+      </ul>
+    </li>
+    <li><strong>Strategic Planning</strong>: 
+      <ul>
+        <li>Agents learn to balance immediate resource needs with long-term team survival</li>
+        <li>Teams develop complex strategies like resource stockpiling, territory control, and coordinated attacks</li>
+        <li>Individual agents may sacrifice personal resources to support critical team objectives</li>
+      </ul>
+    </li>
+    <li><strong>Communication and Coordination</strong>: 
+      <ul>
+        <li>Through their actions, agents develop an implicit communication system</li>
+        <li>Agents learn to interpret teammate movements and actions to predict team needs</li>
+        <li>Teams develop specialized roles and coordinated attack patterns</li>
+        <li>Agents adapt their behavior based on the team's current state and objectives</li>
+      </ul>
+    </li>
+  </ul>
+  <p>
+    The neural architecture enables this complex coordination through:
+  </p>
+  <ul>
+    <li><strong>Team Awareness</strong>: Agents maintain awareness of teammate positions, resources, and states</li>
+    <li><strong>Relationship Learning</strong>: The system learns to value team success alongside individual survival</li>
+    <li><strong>Adaptive Strategies</strong>: Teams develop and refine their coordination strategies through experience</li>
+  </ul>
+</div>
+
+<p>
+The action traces visualization (the colored lines and markers) shows you the history of these interactions. Different colors represent different types of actions - movement paths, resource collection points, interaction locations, and team coordination events. You can zoom in to see the details of specific interactions or zoom out to understand the overall strategy.
+</p>
+
+<h2>Controls</h2>
+
+<img src="data/ui/ui_explainer.png" alt="MettaScope Interface Overview" class="explainer-image">
+
+<div class="controls-section">
+  <h3>Playback Controls</h3>
+  <ul>
+    <li><strong>Play/Pause</strong>: Control playback with the play/pause button</li>
+    <li><strong>Frame Navigation</strong>: Step forward/backward to move frame by frame</li>
+    <li><strong>Speed Control</strong>: Adjust playback speed using the speed controls</li>
+    <li><strong>Scrubbing</strong>: Drag the scrubber to jump to any point in the replay</li>
+  </ul>
+</div>
+
+<div class="controls-section">
+  <h3>Visualization Controls</h3>
+  <ul>
+    <li><strong>Grid Toggle</strong>: Show/hide the grid with the grid button</li>
+    <li><strong>Resource Display</strong>: Toggle resource visibility with the heart icon</li>
+    <li><strong>Fog of War</strong>: Show/hide fog of war with the cloud icon, revealing what agents can and cannot see</li>
+    <li><strong>View Modes</strong>: 
+      <ul>
+        <li><strong>Pin Icon</strong>: Toggle agent following mode, keeping the selected agent centered</li>
+        <li><strong>Eye Icon</strong>: Toggle agent vision range visualization</li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<div class="controls-section">
+  <h3>Action Traces</h3>
+  <p>
+    The action traces visualization shows the history of agent movements and interactions. You can:
+  </p>
+  <ul>
+    <li><strong>Zoom</strong>: Use mouse wheel to zoom in/out of the traces</li>
+    <li><strong>Pan</strong>: Click and drag to move around the trace view</li>
+    <li><strong>Trace Colors</strong>: Different colors represent different types of actions:
+      <ul>
+        <li>Movement paths</li>
+        <li>Resource collection points</li>
+        <li>Interaction locations</li>
+        <li>Team coordination events</li>
+      </ul>
+    </li>
+  </ul>
+</div>
+
+<div class="controls-section">
+  <h3>Navigation</h3>
+  <ul>
+    <li><strong>Pan</strong>: Click and drag to move the view</li>
+    <li><strong>Zoom</strong>: Use mouse wheel to zoom in/out</li>
+    <li><strong>Selection</strong>: Click on units to select them</li>
+    <li><strong>Search</strong>: Use the filter field to find specific units</li>
+  </ul>
+</div>
+
+<h2>Agent Controls</h2>
+
+<img src="data/ui/agent_controls.png" alt="MettaScope Controls" class="controls-image">
+
+<p>
+When you select an agent, you can take direct control using these keyboard commands:
+</p>
+
+<div class="keyboard-controls">
+  <div class="keyboard-control">
+    <span class="key">A</span> Rotate West
+  </div>
+  <div class="keyboard-control">
+    <span class="key">W</span> Rotate North
+  </div>
+  <div class="keyboard-control">
+    <span class="key">S</span> Rotate South
+  </div>
+  <div class="keyboard-control">
+    <span class="key">D</span> Rotate East
+  </div>
+  <div class="keyboard-control">
+    <span class="key">F</span> Move Forward
+  </div>
+  <div class="keyboard-control">
+    <span class="key">R</span> Move Backward
+  </div>
+  <div class="keyboard-control">
+    <span class="key">Q</span> Take Items
+  </div>
+  <div class="keyboard-control">
+    <span class="key">E</span> Put Items
+  </div>
+  <div class="keyboard-control">
+    <span class="key">Z</span> Nearest Attack
+  </div>
+  <div class="keyboard-control">
+    <span class="key">1-9</span> Exact Attack
+  </div>
+  <div class="keyboard-control">
+    <span class="key">G</span> Swap Objects
+  </div>
+  <div class="keyboard-control">
+    <span class="key">C</span> Change Color
+  </div>
+  <div class="keyboard-control">
+    <span class="key">X</span> Do Nothing
+  </div>
+</div>
+
+<p>
+When controlling an agent, you can:
+</p>
+
+<ul>
+  <li><strong>View Agent Details</strong>: See the agent's current state, resources, and team affiliation</li>
+  <li><strong>Track Movement</strong>: Follow the agent's path through the environment</li>
+  <li><strong>Analyze Behavior</strong>: Study the agent's decision-making patterns and interactions</li>
+  <li><strong>Team Context</strong>: Understand how the agent fits into its team's overall strategy</li>
+</ul>
+
+</body>
+</html> 
