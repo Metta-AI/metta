@@ -1,0 +1,25 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1
+  max_steps: ???
+
+  agent:
+    rewards:
+      heart: 0.3333
+
+  map_builder:
+    _target_: mettagrid.config.room.ascii.Ascii
+    border_width: 1
+    uri: ???
+
+  objects:
+    altar:
+      cooldown: 255
+      max_output: 1
+    generator.red:
+      cooldown: 10
+    mine.red:
+      cooldown: 10
