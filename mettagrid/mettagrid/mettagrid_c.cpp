@@ -154,21 +154,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
       }
     }
   }
-
-  // Initialize buffers. The buffers are likely to be re-set by the user anyways,
-  // so nothing above should depend on them before this point.
-  std::vector<ssize_t> shape = {static_cast<ssize_t>(num_agents),
-                                static_cast<ssize_t>(obs_height),
-                                static_cast<ssize_t>(obs_width),
-                                static_cast<ssize_t>(_grid_features.size())};
-  auto observations = py::array_t<c_observations_type, py::array::c_style>(shape);
-  auto terminals =
-      py::array_t<c_terminals_type, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto truncations =
-      py::array_t<c_truncations_type, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto rewards = py::array_t<c_rewards_type, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(float)});
-
-  set_buffers(observations, terminals, truncations, rewards);
 }
 
 MettaGrid::~MettaGrid() = default;
