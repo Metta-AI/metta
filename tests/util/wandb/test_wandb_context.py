@@ -1,6 +1,7 @@
 import os
 import socket
 from dataclasses import dataclass
+from unittest.mock import MagicMock
 
 import pytest
 import wandb
@@ -13,8 +14,8 @@ logger = setup_mettagrid_logger("Test")
 
 
 @pytest.fixture(autouse=True)
-def patch_dependencies(monkeypatch):
-    # Bypass version check
+def patch_dependencies(monkeypatch, tmp_path):
+    # Bypass version check by patching the check_wandb_version function
     monkeypatch.setattr("metta.util.wandb.wandb_context.check_wandb_version", lambda: True)
 
     # Patch wandb.save to no-op
@@ -30,7 +31,32 @@ def patch_dependencies(monkeypatch):
 
     monkeypatch.setattr(socket, "socket", lambda *args, **kwargs: DummySock())
 
+    # Patch file operations that might create config.yaml
+    # This prevents any yaml file writes
+    original_open = open
+
+    def patched_open(filename, mode="r", *args, **kwargs):
+        if isinstance(filename, str) and filename.endswith(".yaml") and "w" in mode:
+            # Return a mock file object for yaml writes
+            mock_file = MagicMock()
+            mock_file.__enter__ = lambda self: mock_file
+            mock_file.__exit__ = lambda self, *args: None
+            return mock_file
+        return original_open(filename, mode, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", patched_open)
+
+    # Also patch OmegaConf.save if it's being used
+    monkeypatch.setattr(OmegaConf, "save", lambda *args, **kwargs: None)
+
+    # Change to a temporary directory to isolate file operations
+    original_cwd = os.getcwd()
+    os.chdir(tmp_path)
+
     yield
+
+    # Restore original directory
+    os.chdir(original_cwd)
 
 
 @dataclass
@@ -52,7 +78,25 @@ class DummyRun:
 
 @pytest.fixture
 def dummy_init(monkeypatch):
-    monkeypatch.setattr(wandb, "init", lambda *args, **kwargs: DummyRun(*args, **kwargs))
+    def create_dummy_run(*args, **kwargs):
+        # Create a dummy run with default values for missing fields
+        return DummyRun(
+            id=kwargs.get("id", "default_id"),
+            job_type=kwargs.get("job_type", "default_job"),
+            project=kwargs.get("project", "default_project"),
+            entity=kwargs.get("entity", "default_entity"),
+            config=kwargs.get("config", {}),
+            group=kwargs.get("group", "default_group"),
+            allow_val_change=kwargs.get("allow_val_change", True),
+            name=kwargs.get("name", "default_name"),
+            monitor_gym=kwargs.get("monitor_gym", True),
+            save_code=kwargs.get("save_code", True),
+            resume=kwargs.get("resume", True),
+            tags=kwargs.get("tags", []),
+            settings=kwargs.get("settings", wandb.Settings()),
+        )
+
+    monkeypatch.setattr(wandb, "init", create_dummy_run)
     yield
 
 
@@ -146,3 +190,31 @@ def test_exit_finishes_run(monkeypatch, dummy_init):
     _ = ctx.__enter__()
     ctx.__exit__(None, None, None)
     assert finished, "wandb.finish should be called on exit"
+
+
+def test_no_config_yaml_created(tmp_path):
+    """Verify that running tests doesn't create config.yaml files"""
+    # Run a simple test that might trigger config creation
+    # Include all required fields for WandbConfigOn
+    cfg_on = OmegaConf.create(
+        dict(
+            enabled=True,
+            project="test_proj",
+            entity="test_ent",
+            group="test_group",
+            name="test_name",
+            run_id="test_run_id",
+            data_dir=str(tmp_path),
+            job_type="test_job",
+        )
+    )
+
+    # Check that no config.yaml exists before
+    config_file = tmp_path / "config.yaml"
+    assert not config_file.exists(), "config.yaml should not exist before test"
+
+    # This might normally create a config file, but our patches should prevent it
+    ctx = WandbContext(cfg_on, OmegaConf.create({"test": "data"}))
+
+    # Check that no config.yaml was created
+    assert not config_file.exists(), "config.yaml should not be created during test"

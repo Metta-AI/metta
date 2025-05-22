@@ -2,9 +2,9 @@ import copy
 import logging
 import os
 import socket
+from importlib.metadata import PackageNotFoundError, version
 from typing import Annotated, Literal, Union, cast
 
-import pkg_resources
 import requests
 import wandb
 import wandb.errors
@@ -43,7 +43,7 @@ WandbConfig = Annotated[Union[WandbConfigOff, WandbConfigOn], Field(discriminato
 def check_wandb_version() -> bool:
     try:
         # Get the installed wandb version
-        installed_version = pkg_resources.get_distribution("wandb").version
+        installed_version = version("wandb")
         installed_minor = int(installed_version.split(".")[1])
 
         # Fetch latest version from GitHub API
@@ -63,7 +63,7 @@ def check_wandb_version() -> bool:
             else:
                 return True
 
-    except pkg_resources.DistributionNotFound:
+    except PackageNotFoundError:
         logger.error("wandb package is not installed.")
         logger.error("Please install wandb using: pip install wandb")
         return False
