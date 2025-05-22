@@ -32,6 +32,9 @@ protected:
     agent_rewards["heart"] = 1.0;
     agent_rewards["ore.red"] = 0.125;  // Pick a power of 2 so floating point precision issues don't matter
     agent_cfg["rewards"] = agent_rewards;
+    // higher and lower than the default
+    agent_cfg["ore.red_max"] = 200;
+    agent_cfg["ore.green_max"] = 100;
 
     py::dict group_cfg;
     group_cfg["max_inventory"] = 123;
@@ -97,11 +100,13 @@ TEST_F(MettaGridTest, UpdateInventory) {
   EXPECT_EQ(delta, 73);                                        // Should only add up to max_items
   EXPECT_EQ(agent->inventory[InventoryItem::heart], 123);
 
-  // Test multiple items
-  delta = agent->update_inventory(InventoryItem::ore_red, 10);
-  EXPECT_EQ(delta, 10);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 10);
-  EXPECT_EQ(agent->inventory[InventoryItem::heart], 123);  // Other items unchanged
+  delta = agent->update_inventory(InventoryItem::ore_red, 250);
+  EXPECT_EQ(delta, 200);  // red has a limit of 200
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 200);
+
+  delta = agent->update_inventory(InventoryItem::ore_green, 250);
+  EXPECT_EQ(delta, 100);  // green has a limit of 100
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_green], 100);
 }
 
 TEST_F(MettaGridTest, AttackAction) {

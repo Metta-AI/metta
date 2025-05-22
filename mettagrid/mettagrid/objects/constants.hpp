@@ -43,6 +43,8 @@ const std::vector<std::string> ObjectTypeNames =
     {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"};
 
 enum InventoryItem {
+  // These are "ore.red", etc everywhere else. They're differently named here because
+  // of enum naming limitations.
   ore_red = 0,
   ore_blue = 1,
   ore_green = 2,
