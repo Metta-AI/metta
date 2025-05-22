@@ -51,10 +51,12 @@ minibatch_size: 16384
 bptt_horizon: 64
 update_epochs: 1
 
-cpu_offload: false
+cpu_offload: true
 compile: false
 compile_mode: reduce-overhead
 profiler_interval_epochs: 10000
+
+batch_processing: true
 
 forward_pass_minibatch_target_size: 2048
 async_factor: 2

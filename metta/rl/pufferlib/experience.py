@@ -193,6 +193,7 @@ class Experience:
         return idxs
 
     def flatten_batch(self, advantages_np: np.ndarray) -> None:
+        # Convert advantages to tensor and move to device in one operation
         advantages: torch.Tensor = torch.as_tensor(advantages_np).to(self.device, non_blocking=True)
 
         if self.b_idxs_obs is None:
@@ -200,7 +201,7 @@ class Experience:
 
         b_idxs, b_flat = self.b_idxs, self.b_idxs_flat
 
-        # Process the batch data
+        # Process the batch data in parallel
         self.b_actions = self.actions.to(self.device, non_blocking=True, dtype=torch.long)
         self.b_logprobs = self.logprobs.to(self.device, non_blocking=True)
         self.b_dones = self.dones.to(self.device, non_blocking=True)
