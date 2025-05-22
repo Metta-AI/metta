@@ -11,10 +11,9 @@ game:
     rewards:
       heart: 0.5
   map_builder:
-    room:
-      _target_: mettagrid.room.ascii.Ascii
-      border_width: 1
-      uri: "configs/env/mettagrid/maps/cooperation/solo-vs-paired_gathering.map"
+    _target_: mettagrid.room.ascii.Ascii
+    border_width: 1
+    uri: "configs/env/mettagrid/maps/cooperation/solo-vs-paired_gathering.map"
 
   objects:
     altar:

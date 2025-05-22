@@ -9,10 +9,9 @@ game:
     rewards:
       heart: 1
   map_builder:
-    room:
-      _target_: mettagrid.room.ascii.Ascii
-      border_width: 1
-      uri: "configs/env/mettagrid/maps/cooperation/cooperate-or-defect_test.map"
+    _target_: mettagrid.room.ascii.Ascii
+    border_width: 1
+    uri: "configs/env/mettagrid/maps/cooperation/cooperate-or-defect_test.map"
 
   objects:
     altar:
