@@ -38,7 +38,12 @@ class CustomBuildExt(build_ext):
         cpp_sources = find_source_files("mettagrid")
         project_hdr = os.path.abspath("mettagrid")
 
-        # Compiler settings (match the extension settings)
+        # Get Python include path from sysconfig (same as Makefile)
+        import sysconfig
+
+        python_include = sysconfig.get_path("include")
+
+        # Compiler settings (match the Makefile exactly)
         compile_args = [
             "g++",
             "-std=c++20",
@@ -46,15 +51,17 @@ class CustomBuildExt(build_ext):
             "-g",
             "-fPIC",  # Important for shared libraries
             "-fvisibility=hidden",
+            "-O3",
             f"-I{project_hdr}",
+            "-I./third_party",
+            f"-I{python_include}",  # Add Python headers
             "-c",  # Compile only, don't link
         ]
 
-        # Add Python and numpy includes
+        # Add pybind11 and numpy includes
         import numpy
         import pybind11
 
-        python_includes = pybind11.get_cmake_dir().replace("pybind11/share/cmake/pybind11", "")
         compile_args.extend(
             [
                 f"-I{pybind11.get_include()}",
@@ -71,6 +78,7 @@ class CustomBuildExt(build_ext):
             cmd = compile_args + [str(source_path), "-o", str(object_path)]
 
             print(f"Building {object_path}...")
+            print(f"Command: {' '.join(cmd)}")  # Debug: show the actual command
             try:
                 subprocess.run(cmd, check=True, cwd=".")
                 print(f"✅ Built {object_path}")
