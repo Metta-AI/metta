@@ -6,7 +6,7 @@ defaults:
 
 trainer:
   env: env/mettagrid/cooperation/training/overcooked
-  # initial_policy:
+  initial_policy:
     uri: wandb://run/mrazo_object-use_allobs_large-small-multienv_v03
   evaluate_interval: 100
   checkpoint_interval: 100
