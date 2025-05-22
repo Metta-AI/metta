@@ -9,9 +9,6 @@ game:
     rewards:
       heart: 1
   map_builder:
-
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 1
     room:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1
