@@ -202,14 +202,15 @@ jobs:
         working-directory: mettagrid
         run: make install-dependencies
 
+      - name: Check build dependencies (cache miss fallback)
+        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
+        working-directory: mettagrid
+        run: make check-build-dependencies
+
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         working-directory: mettagrid
         run: make build
-
-      - name: Check build dependencies
-        working-directory: mettagrid
-        run: make check-build-dependencies
 
       - name: Check cache paths before saving
         shell: bash
@@ -250,10 +251,14 @@ jobs:
               
               echo ""
               echo "📋 Sample files (first 10):"
-              find "$path" -type f | head -10 | while read -r file; do
-                size=$(du -h "$file" 2>/dev/null | cut -f1)
-                echo "  $file ($size)"
-              done
+              find "$path" -type f 2>/dev/null | head -10 > /tmp/sample_files_$.txt || true
+              while read -r file; do
+                if [[ -n "$file" ]]; then
+                  size=$(du -h "$file" 2>/dev/null | cut -f1 || echo "?")
+                  echo "  $file ($size)"
+                fi
+              done < /tmp/sample_files_$.txt
+              rm -f /tmp/sample_files_$.txt 2>/dev/null || true
               
               echo ""
               echo "💾 Directory size:"
