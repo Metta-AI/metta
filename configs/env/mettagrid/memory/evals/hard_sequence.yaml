@@ -2,20 +2,7 @@ defaults:
   - /env/mettagrid/memory/evals/defaults@
 
 game:
-  num_agents: 8  #how many agents are in the map x2
+  num_agents: 2
   max_steps: 170
-  agent:
-    rewards:
-      heart: 0.333
   map_builder:
-
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
-    room:
-      _target_: mettagrid.room.ascii.Ascii
-      border_width: 1
-      uri: "configs/env/mettagrid/maps/memory/medium_sequence.map"
-
-  objects:
-    altar:
-      cooldown: 255
+    uri: "configs/env/mettagrid/maps/memory/hard_sequence.map"

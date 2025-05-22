@@ -2,7 +2,7 @@ defaults:
   - /env/mettagrid/mettagrid@
 
 game:
-  num_agents: 16  #how many agents are in the map x2
+  num_agents: 16
   max_steps: 45
   agent:
     rewards:
@@ -14,11 +14,7 @@ game:
     room:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1
-<<<<<<< HEAD
-      uri: "configs/env/mettagrid/maps/memor_training/easy.map"
-=======
       uri: "configs/env/mettagrid/maps/memory_training/easy.map"
->>>>>>> 3dc22dd4fb1b95dce64b3e23eee4b2e406dcff01
 
   objects:
     altar:
