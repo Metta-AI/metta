@@ -5,4 +5,4 @@ defaults:
 game:
   max_steps: 350
   map_builder:
-    uri: "configs/env/mettagrid/maps/navigation_sequence/evals/obstacles2.map"
+    uri: "configs/env/mettagrid/maps/navigation_sequence/obstacles2.map"

@@ -5,4 +5,4 @@ defaults:
 game:
   max_steps: 200
   map_builder:
-    uri: "configs/env/mettagrid/maps/navigation_sequence/evals/memory_palace.map"
+    uri: "configs/env/mettagrid/maps/navigation_sequence/memory_palace.map"
