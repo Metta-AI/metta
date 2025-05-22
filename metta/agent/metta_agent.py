@@ -292,6 +292,10 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(logits, ("BT", "A"), "logits")
 
+        # NOTE: Both value and logits always have shape (BT, *) regardless of input mode:
+        # - Training input: (B, T, *obs_shape) gets internally reshaped to (BT, *) by LSTM
+        # - Inference input: (BT, *obs_shape) stays as (BT, *)
+
         # Update LSTM states
         split_size = self.core_num_layers
         state.lstm_h = td["state"][:split_size]
