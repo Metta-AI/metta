@@ -213,8 +213,8 @@ def test_no_config_yaml_created(tmp_path):
     config_file = tmp_path / "config.yaml"
     assert not config_file.exists(), "config.yaml should not exist before test"
 
-    # This might normally create a config file, but our patches should prevent it
-    ctx = WandbContext(cfg_on, OmegaConf.create({"test": "data"}))
+    # This normally creates a config file, but our patches should prevent it
+    _ctx = WandbContext(cfg_on, OmegaConf.create({"test": "data"}))
 
     # Check that no config.yaml was created
     assert not config_file.exists(), "config.yaml should not be created during test"
