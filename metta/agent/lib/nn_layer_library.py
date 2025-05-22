@@ -3,8 +3,7 @@ Neural network layer library for Metta Agent.
 
 This module provides a collection of PyTorch neural network layers wrapped as Metta layers.
 Each class extends either LayerBase or ParamLayer to make standard PyTorch modules compatible
-with the Metta Agent framework, handling tensor shapes, parameter management, and integration
-with the TensorDict system.
+with the Metta Agent framework.
 
 All layers in this library follow a consistent pattern:
 1. They inherit from LayerBase or ParamLayer
@@ -17,10 +16,11 @@ is instantiated and never again. I.e., not when it is reloaded from a saved poli
 """
 
 from math import prod
+from typing import Any, Dict
 
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
+from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase, ParamLayer
 
@@ -33,8 +33,9 @@ class Linear(ParamLayer):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
-        self._out_tensor_shape = [self._nn_params.out_features]
+    @override
+    def _make_net(self) -> nn.Module:
+        self._out_tensor_shape = [self._nn_params["out_features"]]
         assert len(self._in_tensor_shapes[0]) == 1, (
             "_input_tensor_shape for Linear should be 1d (ignoring batch dimension)"
         )
@@ -49,7 +50,8 @@ class ReLU(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.ReLU()
 
@@ -62,7 +64,8 @@ class LayerNorm(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.LayerNorm(self._in_tensor_shapes[0][0], **self._nn_params)
 
@@ -75,21 +78,23 @@ class Bilinear(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
-        self._out_tensor_shape = [self._nn_params.out_features]
+    @override
+    def _make_net(self) -> nn.Module:
+        self._out_tensor_shape = [self._nn_params["out_features"]]
 
         self._nn_params["in1_features"] = self._in_tensor_shapes[0][0]
         self._nn_params["in2_features"] = self._in_tensor_shapes[1][0]
         self._nn_params = dict(self._nn_params)  # need to convert from omegaconf DictConfig
         return nn.Bilinear(**self._nn_params)
 
-    def _forward(self, td: TensorDict):
-        # input_1 = td[self._input_source[0]]
-        # input_2 = td[self._input_source[1]]
-        input_1 = td[self._sources[0]["name"]]
-        input_2 = td[self._sources[1]["name"]]
-        td[self._name] = self._net(input_1, input_2)
-        return td
+    @override
+    def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        # input_1 = data[self._input_source[0]]
+        # input_2 = data[self._input_source[1]]
+        input_1 = data[self._sources[0]["name"]]
+        input_2 = data[self._sources[1]["name"]]
+        data[self._name] = self._net(input_1, input_2)
+        return data
 
 
 class Embedding(LayerBase):
@@ -108,7 +113,8 @@ class Embedding(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         # output shape [0] is the number of indices used in the forward pass which can change
         # no child layer should be sensitive to this dimension
         self._out_tensor_shape = [0, self._nn_params["embedding_dim"]]
@@ -125,17 +131,13 @@ class Embedding(LayerBase):
 
 
 class Conv2d(ParamLayer):
-    """
-    Applies a 2D convolution over an input signal composed of several input channels.
+    _input_height: int
+    _input_width: int
+    _output_height: float  # Changed to float to handle intermediate calculations
+    _output_width: float  # Changed to float to handle intermediate calculations
 
-    This class automatically calculates output dimensions based on input shape,
-    kernel size, stride, and padding.
-
-    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
-    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
-    """
-
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._set_conv_dims()
         return nn.Conv2d(self._in_tensor_shapes[0][0], **self._nn_params)
 
@@ -145,23 +147,30 @@ class Conv2d(ParamLayer):
         self._input_height = self._in_tensor_shapes[0][1]
         self._input_width = self._in_tensor_shapes[0][2]
 
-        if not hasattr(self._nn_params, "padding") or self._nn_params.padding is None:
-            self._nn_params.padding = 0
+        # Handle dictionary access instead of attribute access
+        padding = self._nn_params.get("padding", 0)
+        kernel_size = self._nn_params["kernel_size"]
+        stride = self._nn_params["stride"]
+        out_channels = self._nn_params["out_channels"]
 
-        self._output_height = (
-            (self._input_height + 2 * self._nn_params.padding - self._nn_params.kernel_size) / self._nn_params.stride
-        ) + 1
-        self._output_width = (
-            (self._input_width + 2 * self._nn_params.padding - self._nn_params.kernel_size) / self._nn_params.stride
-        ) + 1
+        # Set padding if it wasn't provided
+        if padding is None:
+            padding = 0
+            self._nn_params["padding"] = padding
 
+        # Calculate output dimensions
+        self._output_height = ((self._input_height + 2 * padding - kernel_size) / stride) + 1
+        self._output_width = ((self._input_width + 2 * padding - kernel_size) / stride) + 1
+
+        # Check if dimensions are integers
         if not self._output_height.is_integer() or not self._output_width.is_integer():
             raise ValueError(f"CNN {self._name} output dimensions must be integers. Adjust padding or kernel size.")
 
+        # Convert to integers
         self._output_height = int(self._output_height)
         self._output_width = int(self._output_width)
 
-        self._out_tensor_shape = [self._nn_params.out_channels, self._output_height, self._output_width]
+        self._out_tensor_shape = [out_channels, self._output_height, self._output_width]
 
 
 class MaxPool1d(LayerBase):
@@ -172,9 +181,10 @@ class MaxPool1d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.MaxPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+        return nn.MaxPool1d(self._nn_params["kernel_size"], **self._nn_params)
 
 
 class MaxPool2d(LayerBase):
@@ -185,9 +195,22 @@ class MaxPool2d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.MaxPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+    @override
+    def _make_net(self) -> nn.Module:
+        channels = self._in_tensor_shapes[0][0]
+        kernel_size = self._nn_params["kernel_size"]
+        stride = self._nn_params.get("stride", kernel_size)
+        padding = self._nn_params.get("padding", 0)
+
+        # Calculate output dimensions
+        h_in = self._in_tensor_shapes[0][1]
+        w_in = self._in_tensor_shapes[0][2]
+
+        h_out = int(((h_in + 2 * padding - kernel_size) / stride) + 1)
+        w_out = int(((w_in + 2 * padding - kernel_size) / stride) + 1)
+
+        self._out_tensor_shape = [channels, h_out, w_out]
+        return nn.MaxPool2d(kernel_size, **self._nn_params)
 
 
 class AdaptiveAvgPool1d(LayerBase):
@@ -198,9 +221,16 @@ class AdaptiveAvgPool1d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveAvgPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+    @override
+    def _make_net(self) -> nn.Module:
+        if "output_size" not in self._nn_params:
+            raise ValueError("output_size must be specified for AdaptiveAvgPool1d")
+
+        output_size = self._nn_params["output_size"]
+        channels = self._in_tensor_shapes[0][0]
+
+        self._out_tensor_shape = [channels, output_size] if isinstance(output_size, int) else [channels, *output_size]
+        return nn.AdaptiveAvgPool1d(output_size)
 
 
 class AdaptiveAvgPool2d(LayerBase):
@@ -211,9 +241,20 @@ class AdaptiveAvgPool2d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveAvgPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+    @override
+    def _make_net(self) -> nn.Module:
+        if "output_size" not in self._nn_params:
+            raise ValueError("output_size must be specified for AdaptiveAvgPool2d")
+
+        output_size = self._nn_params["output_size"]
+        channels = self._in_tensor_shapes[0][0]
+
+        if isinstance(output_size, int):
+            self._out_tensor_shape = [channels, output_size, output_size]
+        else:
+            self._out_tensor_shape = [channels, output_size[0], output_size[1]]
+
+        return nn.AdaptiveAvgPool2d(output_size)
 
 
 class AdaptiveMaxPool1d(LayerBase):
@@ -224,9 +265,16 @@ class AdaptiveMaxPool1d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveMaxPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+    @override
+    def _make_net(self) -> nn.Module:
+        if "output_size" not in self._nn_params:
+            raise ValueError("output_size must be specified for AdaptiveMaxPool1d")
+
+        output_size = self._nn_params["output_size"]
+        channels = self._in_tensor_shapes[0][0]
+
+        self._out_tensor_shape = [channels, output_size] if isinstance(output_size, int) else [channels, *output_size]
+        return nn.AdaptiveMaxPool1d(output_size)
 
 
 class AdaptiveMaxPool2d(LayerBase):
@@ -237,9 +285,20 @@ class AdaptiveMaxPool2d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AdaptiveMaxPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+    @override
+    def _make_net(self) -> nn.Module:
+        if "output_size" not in self._nn_params:
+            raise ValueError("output_size must be specified for AdaptiveMaxPool2d")
+
+        output_size = self._nn_params["output_size"]
+        channels = self._in_tensor_shapes[0][0]
+
+        if isinstance(output_size, int):
+            self._out_tensor_shape = [channels, output_size, output_size]
+        else:
+            self._out_tensor_shape = [channels, output_size[0], output_size[1]]
+
+        return nn.AdaptiveMaxPool2d(output_size)
 
 
 class AvgPool1d(LayerBase):
@@ -250,9 +309,19 @@ class AvgPool1d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AvgPool1d(self._in_tensor_shapes[0][0], **self._nn_params)
+    @override
+    def _make_net(self) -> nn.Module:
+        channels = self._in_tensor_shapes[0][0]
+        length = self._in_tensor_shapes[0][1]
+        kernel_size = self._nn_params["kernel_size"]
+        stride = self._nn_params.get("stride", kernel_size)
+        padding = self._nn_params.get("padding", 0)
+
+        # Calculate output dimension
+        out_length = int(((length + 2 * padding - kernel_size) / stride) + 1)
+
+        self._out_tensor_shape = [channels, out_length]
+        return nn.AvgPool1d(kernel_size, **self._nn_params)
 
 
 class AvgPool2d(LayerBase):
@@ -263,9 +332,21 @@ class AvgPool2d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
-        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
-        return nn.AvgPool2d(self._in_tensor_shapes[0][0], **self._nn_params)
+    @override
+    def _make_net(self) -> nn.Module:
+        channels = self._in_tensor_shapes[0][0]
+        h_in = self._in_tensor_shapes[0][1]
+        w_in = self._in_tensor_shapes[0][2]
+        kernel_size = self._nn_params["kernel_size"]
+        stride = self._nn_params.get("stride", kernel_size)
+        padding = self._nn_params.get("padding", 0)
+
+        # Calculate output dimensions
+        h_out = int(((h_in + 2 * padding - kernel_size) / stride) + 1)
+        w_out = int(((w_in + 2 * padding - kernel_size) / stride) + 1)
+
+        self._out_tensor_shape = [channels, h_out, w_out]
+        return nn.AvgPool2d(kernel_size, **self._nn_params)
 
 
 class Dropout(LayerBase):
@@ -276,7 +357,8 @@ class Dropout(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.Dropout(**self._nn_params)
 
@@ -289,7 +371,8 @@ class Dropout2d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.Dropout2d(**self._nn_params)
 
@@ -302,7 +385,8 @@ class AlphaDropout(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.AlphaDropout(**self._nn_params)
 
@@ -315,7 +399,8 @@ class BatchNorm1d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.BatchNorm1d(self._in_tensor_shapes[0][0], **self._nn_params)
 
@@ -328,7 +413,8 @@ class BatchNorm2d(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.BatchNorm2d(self._in_tensor_shapes[0][0], **self._nn_params)
 
@@ -341,7 +427,8 @@ class Flatten(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._out_tensor_shape = [prod(self._in_tensor_shapes[0])]
         return nn.Flatten()
 
@@ -354,6 +441,7 @@ class Identity(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def _make_net(self):
+    @override
+    def _make_net(self) -> nn.Module:
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.Identity()

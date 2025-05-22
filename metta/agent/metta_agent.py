@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union, cast
 
 import einops
 import gymnasium as gym
@@ -48,6 +48,9 @@ class DistributedMettaAgent(DistributedDataParallel):
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
+
+    def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
+        return self.module.compute_weight_metrics(delta)
 
 
 class MettaAgent(nn.Module):
@@ -427,7 +430,9 @@ class MettaAgent(nn.Module):
             method = getattr(component, method_name)
             assert callable(method), f"Component '{name}' has {method_name} attribute but it's not callable"
 
-            results[name] = method(delta)
+            metric_result = method(delta)
+            if isinstance(metric_result, dict):
+                results[name] = cast(Dict[str, float], metric_result)
 
         metrics_list = [metrics for metrics in results.values() if metrics is not None]
         return metrics_list
