@@ -1,0 +1,17 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1
+  max_steps: ???
+  agent:
+    rewards:
+      heart: 1
+  map_builder:
+    _target_: mettagrid.room.mean_distance.MeanDistance
+    width: 11
+    height: 11
+    mean_distance: 6
+    border_width: 3
+    agents: 1
