@@ -1,7 +1,6 @@
 import logging
 from typing import List, Optional, Union
 
-import einops
 import gymnasium as gym
 import hydra
 import numpy as np
@@ -12,7 +11,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
-from metta.agent.util.distribution_utils import sample_logits
+from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -174,18 +173,85 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
+    def forward_inference(self, value: torch.Tensor, logits: torch.Tensor):
+        """
+        Forward pass for inference mode - samples new actions based on the policy.
+
+        Args:
+            value: Value estimate tensor, shape (BT, 1)
+            logits: Action logits tensor, shape (BT, A)
+
+        Returns:
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Sampled action, shape (BT, 2)
+            - action_log_prob: Log probability of the sampled action, shape (BT,)
+            - entropy: Entropy of the action distribution, shape (BT,)
+            - value: Value estimate, shape (BT, 1)
+            - log_probs: Log-softmax of logits, shape (BT, A)
+        """
+        if __debug__:
+            assert_shape(value, ("BT", 1), "inference_value")
+            assert_shape(logits, ("BT", "A"), "inference_logits")
+
+        # Sample actions
+        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
+
+        if __debug__:
+            assert_shape(action_logit_index, ("BT",), "action_logit_index")
+            assert_shape(action_log_prob, ("BT",), "action_log_prob")
+            assert_shape(entropy, ("BT",), "entropy")
+            assert_shape(log_probs, ("BT", "A"), "log_probs")
+
+        # Convert logit index to action
+        action = self._convert_logit_index_to_action(action_logit_index)
+
+        if __debug__:
+            assert_shape(action, ("BT", 2), "inference_output_action")
+
+        return action, action_log_prob, entropy, value, log_probs
+
+    def forward_training(self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor):
+        """
+        Forward pass for training mode - evaluates the policy on provided actions.
+
+        Args:
+            value: Value estimate tensor, shape (BT, 1)
+            logits: Action logits tensor, shape (BT, A)
+            action: Action tensor for evaluation, shape (B, T, 2)
+
+        Returns:
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Same as input action, shape (B, T, 2)
+            - action_log_prob: Log probability of the provided action, shape (BT,)
+            - entropy: Entropy of the action distribution, shape (BT,)
+            - value: Value estimate, shape (BT, 1)
+            - log_probs: Log-softmax of logits, shape (BT, A)
+        """
+        if __debug__:
+            assert_shape(value, ("BT", 1), "training_value")
+            assert_shape(logits, ("BT", "A"), "training_logits")
+            assert_shape(action, ("B", "T", 2), "training_input_action")
+
+        B, T, A = action.shape
+        flattened_action = action.view(B * T, A)
+        action_logit_index = self._convert_action_to_logit_index(flattened_action)
+
+        if __debug__:
+            assert_shape(action_logit_index, ("BT",), "converted_action_logit_index")
+
+        action_log_prob, entropy, log_probs = evaluate_actions(logits, action_logit_index)
+
+        if __debug__:
+            assert_shape(action_log_prob, ("BT",), "training_action_log_prob")
+            assert_shape(entropy, ("BT",), "training_entropy")
+            assert_shape(log_probs, ("BT", "A"), "training_log_probs")
+            assert_shape(action, ("B", "T", 2), "training_output_action")
+
+        return action, action_log_prob, entropy, value, log_probs
+
     def forward(self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None):
         """
-        Forward pass of the MettaAgent.
-
-        1. Inference mode (action=None): sample new actions based on the policy
-        - x shape: (BT, *self.obs_shape)
-        - Output action shape: (BT, 1) -- we return the action index rather than the (type, arg) tuple
-
-        2. BPTT training mode (action is provided): evaluate the policy on past actions
-        - x shape: (B, T, *self.obs_shape)
-        - action shape: (B, T, 2)
-        - Output action shape: (B, T, 2) -- we return the (type, arg) tuple
+        Forward pass of the MettaAgent - delegates to appropriate specialized method.
 
         Args:
             x: Input observation tensor
@@ -194,56 +260,31 @@ class MettaAgent(nn.Module):
 
         Returns:
             Tuple of (action, action_log_prob, entropy, value, log_probs)
-            - action: Sampled output action (inference) or same as input action (BPTT)
-            - action_log_prob: Log probability of the output action, shape (BT,)
-            - entropy: Entropy of the action distribution, shape (BT,)
-            - value: Value estimate, shape (BT,)
-            - log_probs: Log-softmax of logits, shape (BT, A) where A is the size of the action space
         """
-        # rename parameter for clarity
-        bptt_action = action
-        del action
+        if __debug__:
+            # Default values in case obs_shape is not available
+            obs_w, obs_h, features = "W", "H", "F"
 
-        # TODO - obs_shape is not available in the eval smoke test policies so we can't
-        # check exact dimensions
+            # Check if agent_attributes exists, is not None, and contains obs_shape
+            if (
+                hasattr(self, "agent_attributes")
+                and self.agent_attributes is not None
+                and "obs_shape" in self.agent_attributes
+            ):
+                # Get obs_shape and ensure it has the expected format
+                obs_shape = self.agent_attributes["obs_shape"]
+                if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
+                    obs_w, obs_h, features = obs_shape
 
-        # Default values in case obs_shape is not available
-        obs_w, obs_h, features = "W", "H", "F"
-
-        # Check if agent_attributes exists, is not None, and contains obs_shape
-        if (
-            hasattr(self, "agent_attributes")
-            and self.agent_attributes is not None
-            and "obs_shape" in self.agent_attributes
-        ):
-            # Get obs_shape and ensure it has the expected format
-            obs_shape = self.agent_attributes["obs_shape"]
-            if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
-                obs_w, obs_h, features = obs_shape
-            # If the format is unexpected, we keep the default values
-
-        if bptt_action is not None:
-            # BPTT
-            if __debug__:
-                assert_shape(bptt_action, ("B", "T", 2), "bptt_action")
-
-            B, T, A = bptt_action.shape
-
-            if __debug__:
+            if action is None:
+                # Inference: x should have shape (BT, obs_w, obs_h, features)
+                assert_shape(x, ("BT", obs_w, obs_h, features), "inference_input_x")
+            else:
+                # Training: x should have shape (B, T, obs_w, obs_h, features)
+                B, T, A = action.shape
                 assert A == 2, f"Action dimensionality should be 2, got {A}"
-                assert_shape(x, (B, T, obs_w, obs_h, features), "x")
-
-            # Flatten batch and time dimensions for both action and x
-            bptt_action = einops.rearrange(bptt_action, "b t c -> (b t) c")
-            x = einops.rearrange(x, "b t ... -> (b t) ...")
-
-            if __debug__:
-                assert_shape(bptt_action, (B * T, 2), "flattened action")
-                assert_shape(x, (B * T, obs_w, obs_h, features), "flattened x")
-        else:
-            # inference
-            if __debug__:
-                assert_shape(x, ("BT", obs_w, obs_h, features), "x")
+                assert_shape(x, (B, T, obs_w, obs_h, features), "training_input_x")
+                assert_shape(action, (B, T, 2), "training_input_action")
 
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
@@ -274,60 +315,36 @@ class MettaAgent(nn.Module):
             # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
             assert_shape(logits, ("BT", "A"), "logits")
 
+        # NOTE: Both value and logits always have shape (BT, *) regardless of input mode:
+        # - Training input: (B, T, *obs_shape) gets internally reshaped to (BT, *) by LSTM
+        # - Inference input: (BT, *obs_shape) stays as (BT, *)
+
         # Update LSTM states
         split_size = self.core_num_layers
         state.lstm_h = td["state"][:split_size]
         state.lstm_c = td["state"][split_size:]
 
-        # Sample actions
-        if bptt_action is not None:
-            # BPTT
-            bptt_action_index = self._convert_action_to_logit_index(bptt_action)
-
-            if __debug__:
-                action_space_size = logits.shape[-1]  # 'A' dimension size
-                max_index = bptt_action_index.max().item()
-                min_index = bptt_action_index.min().item()
-                if max_index >= action_space_size or min_index < 0:
-                    raise ValueError(
-                        f"Invalid action_logit_index: contains values outside the valid range"
-                        f" [0, {action_space_size - 1}]. "
-                        f"Found values in range [{min_index}, {max_index}]"
-                    )
-
-            action_index, action_log_prob, entropy, log_probs = sample_logits(logits, bptt_action_index)
+        if action is None:
+            return self.forward_inference(value, logits)
         else:
-            # inference
-            action_index, action_log_prob, entropy, log_probs = sample_logits(logits, None)
+            return self.forward_training(value, logits, action)
 
-        if __debug__:
-            assert_shape(action_index, ("BT",), "action_index")
-            assert_shape(action_log_prob, ("BT",), "action_log_prob")
-            assert_shape(entropy, ("BT",), "entropy")
-            assert_shape(log_probs, ("BT", "A"), "log_probs")
-
-        output_action = self._convert_logit_index_to_action(action_index)
-        if __debug__:
-            assert_shape(output_action, ("BT", 2), "output_action")
-
-        return output_action, action_log_prob, entropy, value, log_probs
-
-    def _convert_action_to_logit_index(self, action: torch.Tensor) -> torch.Tensor:
+    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """
         Convert (action_type, action_param) pairs to discrete action indices
         using precomputed offsets.
 
         Args:
-            action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
+            flattened_action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
 
         Returns:
             action_logit_indices: Tensor of shape [B*T] containing flattened action indices
         """
         if __debug__:
-            assert_shape(action, ("BT", 2), "action")
+            assert_shape(flattened_action, ("BT", 2), "flattened_action")
 
-        action_type_numbers = action[:, 0].long()
-        action_params = action[:, 1].long()
+        action_type_numbers = flattened_action[:, 0].long()
+        action_params = flattened_action[:, 1].long()
 
         # Use precomputed cumulative sum with vectorized indexing
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
@@ -336,7 +353,7 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action_logit_indices, ("BT",), "action_logit_indices")
 
-        return action_logit_indices  # shape: [B*T]
+        return action_logit_indices
 
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """
