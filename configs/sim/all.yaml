@@ -59,7 +59,7 @@ simulations:
   objectuse/generator_use_free:
     env: env/mettagrid/object_use/evals/generator_use_free
     policy_agents_pct: 1.0
-  objectuse/generator_uses:
+  objectuse/generator_use:
     env: env/mettagrid/object_use/evals/generator_use
     policy_agents_pct: 1.0
   objectuse/lasery_use_free:
