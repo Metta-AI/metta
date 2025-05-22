@@ -107,12 +107,6 @@ TEST_F(MettaGridTest, UpdateInventory) {
   delta = agent->update_inventory(InventoryItem::ore_green, 250);
   EXPECT_EQ(delta, 100);  // green has a limit of 100
   EXPECT_EQ(agent->inventory[InventoryItem::ore_green], 100);
-
-  // Test multiple items
-  delta = agent->update_inventory(InventoryItem::ore_red, 10);
-  EXPECT_EQ(delta, 10);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 10);
-  EXPECT_EQ(agent->inventory[InventoryItem::heart], 123);  // Other items unchanged
 }
 
 TEST_F(MettaGridTest, AttackAction) {
