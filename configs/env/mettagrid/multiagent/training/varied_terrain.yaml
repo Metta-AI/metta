@@ -28,12 +28,12 @@ game:
       agents: 4
       style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
-        mine.red: ${sampling:0,5,10}
-        mine.blue: ${sampling:0,5,10}
-        mine.green: ${sampling:0,5,10}
-        generator.red: ${sampling:0,5,10}
-        generator.blue: ${sampling:0,5,10}
-        generator.green: ${sampling:0,5,10}
+        mine.red: ${sampling:0,20,10}
+        # mine.blue: ${sampling:0,5,10}
+        # mine.green: ${sampling:0,5,10}
+        generator.red: ${sampling:0,20,10}
+        # generator.blue: ${sampling:0,5,10}
+        # generator.green: ${sampling:0,5,10}
         altar: ${sampling:1,5,10}
         armory: ${sampling:1,5,10}
         lasery: ${sampling:1,5,10}
@@ -46,16 +46,18 @@ game:
       altar:
         initial_items: ${choose:0,1}
         cooldown: ${sampling:5, 20, 10}
+        input_battery: 1
+
       generator.red:
         initial_items: ${choose:0,1}
         cooldown: ${sampling:5, 20, 10}
-      generator.blue:
-        cooldown: ${sampling:5, 20, 10}
-      generator.green:
-        cooldown: ${sampling:5, 20, 10}
+      # generator.blue:
+      #   cooldown: ${sampling:5, 20, 10}
+      # generator.green:
+      #   cooldown: ${sampling:5, 20, 10}
       mine.red:
         cooldown: ${sampling:15, 50, 10}
-      mine.blue:
-        cooldown: ${sampling:15, 50, 10}
-      mine.green:
-        cooldown: ${sampling:15, 50, 10}
+      # mine.blue:
+      #   cooldown: ${sampling:15, 50, 10}
+      # mine.green:
+      #   cooldown: ${sampling:15, 50, 10}
