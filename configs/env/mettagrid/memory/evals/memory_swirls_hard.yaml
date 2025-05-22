@@ -2,6 +2,6 @@ defaults:
   - /env/mettagrid/memory/evals/defaults@
 
 game:
-  max_steps: 170
+  max_steps: 700
   map_builder:
     uri: "configs/env/mettagrid/maps/memory/memory_swirls_hard.map"
