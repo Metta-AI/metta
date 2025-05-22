@@ -11,4 +11,3 @@ game:
   map_builder:
     _target_: mettagrid.room.ascii.Ascii
     border_width: 1
-    uri: ???
