@@ -183,9 +183,8 @@ jobs:
           uv run pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on mettagrid tests
-        run: |
-          cd mettagrid
-          uv run pytest --maxfail=1 --disable-warnings -q
+        working-directory: mettagrid
+        run: uv run pytest --maxfail=1 --disable-warnings -q
 
   smoke-test:
     name: "Smoke Tests"
@@ -392,8 +391,8 @@ jobs:
           uv run pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
+        working-directory: mettagrid
         run: |
-          cd mettagrid
           uv run pytest --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
           mv mettagrid_benchmark_results.json ../
 
