@@ -1,87 +1,54 @@
 import multiprocessing
 import os
-import sys
-from typing import Optional
 
-import numpy
-from Cython.Build import cythonize
-from setuptools import Extension, find_packages, setup
+from pybind11.setup_helpers import Pybind11Extension, build_ext
+from setuptools import setup
 
 multiprocessing.freeze_support()
 
 
-def build_ext(srcs, module_name=None):
-    if module_name is None:
-        module_name = srcs[0].replace("/", ".").replace(".pyx", "").replace(".cpp", "")
-    return Extension(
-        module_name,
-        sources=srcs,
-        language="c++",
-        define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
-        extra_compile_args=["-std=c++11"],
-    )
+def find_source_files(directory):
+    source_files = []
+    for root, _dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith(".cpp"):
+                source_files.append(os.path.join(root, file))
+    return source_files
+
+
+# Get all CPP files (only .cpp files are used for sources)
+cpp_sources = find_source_files("mettagrid")
+print(f"Found {len(cpp_sources)} source files: {cpp_sources}")
+
+
+project_hdr = os.path.abspath("mettagrid")
 
 
 ext_modules = [
-    build_ext(["mettagrid/action_handler.pyx"]),
-    build_ext(["mettagrid/event.pyx"]),
-    build_ext(["mettagrid/grid.cpp"]),
-    build_ext(["mettagrid/grid_object.pyx"]),
-    build_ext(["mettagrid/stats_tracker.cpp"]),
-    build_ext(["mettagrid/observation_encoder.pyx"]),
-    build_ext(["mettagrid/actions/attack.pyx"]),
-    build_ext(["mettagrid/actions/attack_nearest.pyx"]),
-    build_ext(["mettagrid/actions/change_color.pyx"]),
-    build_ext(["mettagrid/actions/move.pyx"]),
-    build_ext(["mettagrid/actions/noop.pyx"]),
-    build_ext(["mettagrid/actions/rotate.pyx"]),
-    build_ext(["mettagrid/actions/swap.pyx"]),
-    build_ext(["mettagrid/actions/put_recipe_items.pyx"]),
-    build_ext(["mettagrid/actions/get_output.pyx"]),
-    build_ext(["mettagrid/objects/agent.pyx"]),
-    build_ext(["mettagrid/objects/constants.pyx"]),
-    build_ext(["mettagrid/objects/has_inventory.pyx"]),
-    build_ext(["mettagrid/objects/converter.pyx"]),
-    build_ext(["mettagrid/objects/metta_object.pyx"]),
-    build_ext(["mettagrid/objects/production_handler.pyx"]),
-    build_ext(["mettagrid/objects/wall.pyx"]),
-    build_ext(["mettagrid/mettagrid.pyx"], module_name="mettagrid.mettagrid_c"),
+    Pybind11Extension(
+        "mettagrid.mettagrid_c",
+        cpp_sources,
+        define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
+        include_dirs=[project_hdr],
+        extra_compile_args=[
+            "-std=c++20",
+            "-fvisibility=hidden",
+        ],
+        extra_link_args=[
+            "-std=c++20",
+        ],
+    ),
 ]
 
-debug = os.getenv("DEBUG", "0") == "1"
-annotate = os.getenv("ANNOTATE", "0") == "1"
-build_dir = "build_debug" if debug else "build"
-os.makedirs(build_dir, exist_ok=True)
 
-num_threads: Optional[int] = multiprocessing.cpu_count() if sys.platform == "linux" else None
-
+# Setup
 setup(
     name="mettagrid",
-    version="0.1.6",  # match pyproject.toml
-    packages=find_packages(),
-    include_dirs=[numpy.get_include()],
     package_data={"mettagrid": ["*.so"]},
     zip_safe=False,
-    ext_modules=cythonize(
-        ext_modules,
-        build_dir=build_dir,
-        nthreads=num_threads,  # type: ignore[reportArgumentType] -- Pylance is wrong. We want "None" when not on linux.
-        annotate=debug or annotate,
-        compiler_directives={
-            "language_level": "3",
-            "embedsignature": debug,
-            "annotation_typing": debug,
-            "cdivision": debug,
-            "boundscheck": debug,
-            "wraparound": debug,
-            "initializedcheck": debug,
-            "nonecheck": debug,
-            "overflowcheck": debug,
-            "overflowcheck.fold": debug,
-            "profile": debug,
-            "linetrace": debug,
-            "c_string_encoding": "utf8",
-            "c_string_type": "str",
-        },
-    ),
+    version="0.1.6",
+    packages=["mettagrid"],
+    ext_modules=ext_modules,
+    cmdclass={"build_ext": build_ext},
+    python_requires="==3.11.7",
 )

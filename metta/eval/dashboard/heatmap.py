@@ -50,7 +50,6 @@ def _build_figure(
     matrix: pd.DataFrame,
     metric: str,
     *,
-    colorscale,
     score_range: Tuple[float, float],
     height: int,
     width: int,
@@ -90,7 +89,6 @@ def _build_figure(
             customdata=customdata,
             x=short_names,  # Use short names for display on x-axis
             y=y_labels,
-            colorscale=colorscale,
             zmin=score_range[0],
             zmax=score_range[1],
             colorbar=dict(title="Score"),
@@ -153,19 +151,8 @@ def create_heatmap_html_snippet(
         return "<p>No data available</p>"
 
     score_range = (0, 1)
-    colorscale = [
-        # Red
-        [0.0, "rgb(235, 40, 40)"],
-        [0.5, "rgb(235, 40, 40)"],
-        # Yellow
-        [0.8, "rgb(225,210,80)"],
-        # Light Green
-        [0.95, "rgb(195,230,80)"],
-        # Green
-        [1.0, "rgb(20, 230, 80)"],
-    ]
 
-    fig = _build_figure(matrix, metric, colorscale=colorscale, score_range=score_range, height=height, width=width)
+    fig = _build_figure(matrix, metric, score_range=score_range, height=height, width=width)
     uid = f"heat_{uuid.uuid4().hex[:8]}"
     fig_json = json.dumps(fig, cls=PlotlyJSONEncoder)
 
@@ -175,8 +162,8 @@ def create_heatmap_html_snippet(
 
     # Get the replay_url_map from the matrix if it exists, otherwise use an empty dict
     replay_url_map = {}
-    if hasattr(matrix, "replay_url_map") and isinstance(matrix.replay_url_map, dict):
-        replay_url_map = matrix.replay_url_map
+    if "replay_url_map" in matrix.attrs:
+        replay_url_map = matrix.attrs["replay_url_map"]
 
     replay_url_map_json = json.dumps(replay_url_map)
 
@@ -197,7 +184,7 @@ def create_heatmap_html_snippet(
 
 <div class="heatmap-wrapper">
   <div id="{uid}"></div>
-  
+
   {create_map_viewer_html(uid)}
 </div>
 
@@ -210,20 +197,20 @@ def create_heatmap_html_snippet(
   const fullNames = fig.layout.meta.full_names;
   const policyRows = {policy_rows_json};
   const replayUrlMap = {replay_url_map_json};
-  
+
   // Debug logging
   console.log("Map keys available:", Object.keys(replayUrlMap));
-  
+
   // Create mapping from short names to full paths
   const shortToFullPath = {{}};
   for (let i = 0; i < shortNames.length; i++) {{
     shortToFullPath[shortNames[i]] = fullNames[i];
   }}
-  
+
   // Track double-click timing
   let lastClickTime = 0;
   const doubleClickThreshold = 300; // ms
-  
+
   // Track if the mouse is over the heatmap
   let isMouseOverHeatmap = false;
   el.addEventListener('mouseenter', function() {{
@@ -250,18 +237,18 @@ def create_heatmap_html_snippet(
   function attachAxisHover() {{
     // Get all x-axis tick labels
     const ticks = el.querySelectorAll(".xaxislayer-above .xtick text");
-    
+
     // Enhanced event binding for axis labels
     ticks.forEach((tick, i) => {{
         if (i >= shortNames.length) return; // Safety check
         const shortName = shortNames[i];
-        
+
         if (shortName.toLowerCase() === "overall") return;  // skip aggregate
-        
+
         // Make sure these elements have proper cursor and pointer events
         tick.style.pointerEvents = "all";
         tick.style.cursor = "pointer";
-        
+
         // Add multiple event handlers for redundancy
         tick.addEventListener('click', () => {{
             showMap(shortName);
@@ -272,11 +259,11 @@ def create_heatmap_html_snippet(
         tick.addEventListener('mouseover', () => {{
             showMap(shortName);
         }});
-        
+
         // Add data attributes for easier debugging
         tick.setAttribute('data-short-name', shortName);
     }});
-    
+
     // Add a click handler to the entire axis as a fallback
     const xAxis = el.querySelector('.xaxislayer-above');
     if (xAxis) {{
@@ -297,76 +284,76 @@ def create_heatmap_html_snippet(
       const pts = data.points[0];
       const shortName = pts.x;
       if (shortName.toLowerCase() === "overall") return;  // skip aggregate
-      
+
       const yIndex = pts.pointIndex[0];
-      
+
       // Skip the first two rows (Mean and Max)
       if (yIndex < 2) return;
-      
+
       // Adjust index to account for Mean and Max rows
       const policyIndex = yIndex - 2;
       if (policyIndex >= policyRows.length) return;
-      
+
       const policyUri = policyRows[policyIndex];
-      
+
       // Get the full path for the eval
       const fullPath = shortToFullPath[shortName] || shortName;
-      
+
       // Use the specific replay URL from the map if available
       let replayUrl = null;
-      
+
       // Simple string key for lookup
       const mapKey = `${{policyUri}}|${{fullPath}}`;
-      
+
       // Debug logging for each cell hover
       console.log("Looking for mapKey:", mapKey);
-      
+
       if (replayUrlMap && replayUrlMap[mapKey]) {{
         replayUrl = replayUrlMap[mapKey];
         console.log("Found replay URL:", replayUrl);
       }} else {{
         console.log("No replay URL found for this cell");
       }}
-      
+
       // Show map with replay URL (or without if none found)
       showMap(shortName, replayUrl);
     }});
-    
+
     // Handle clicks on cells to toggle lock and detect double-clicks
     el.on('plotly_click', function(data) {{
       const now = new Date().getTime();
       const pts = data.points[0];
       const shortName = pts.x;
       const yIndex = pts.pointIndex[0];
-      
+
       // Skip the first two rows (Mean and Max) and the Overall column
       if (yIndex < 2 || shortName.toLowerCase() === "overall") return;
-      
+
       // First get the policy name
       const policyIndex = yIndex - 2;
       if (policyIndex >= policyRows.length) return;
-      
+
       const policyUri = policyRows[policyIndex];
-      
+
       // Get full path for this eval name
       const fullPath = shortToFullPath[shortName] || shortName;
-      
+
       // Get the replay URL from the map if available
       let replayUrl = null;
-      
+
       // Simple string key for lookup
       const mapKey = `${{policyUri}}|${{fullPath}}`;
-      
+
       // Debug logging for each cell click
       console.log("Click - Looking for mapKey:", mapKey);
-      
+
       if (replayUrlMap && replayUrlMap[mapKey]) {{
         replayUrl = replayUrlMap[mapKey];
         console.log("Click - Found replay URL:", replayUrl);
       }} else {{
         console.log("Click - No replay URL found for this cell");
       }}
-      
+
       // Handle single vs double click
       if (now - lastClickTime < doubleClickThreshold && replayUrl) {{
         // This is a double-click - open replay in new tab only if we have a URL
@@ -374,18 +361,18 @@ def create_heatmap_html_snippet(
       }} else {{
         // This is a single click - toggle lock and update map
         toggleLock();
-        
+
         // Force show the map for this cell regardless of lock state
         const wasLocked = isViewLocked;
         isViewLocked = false;
         showMap(shortName, replayUrl);
         isViewLocked = wasLocked;
       }}
-      
+
       // Update last click time
       lastClickTime = now;
     }});
-    
+
     // Only trigger unhover when we're sure we've left both the heatmap and the map viewer
     el.on('plotly_unhover', function() {{
       setTimeout(() => {{
@@ -394,7 +381,7 @@ def create_heatmap_html_snippet(
         }}
       }}, 100);
     }});
-    
+
     // Add visual indicators for clickable cells
     el.on('plotly_afterplot', function() {{
       const cells = el.querySelectorAll('.heatmap .nsewdrag');
@@ -496,7 +483,7 @@ def get_heatmap_matrix(
             matrix = matrix.tail(num_output_policies)
 
         # Attach the replay URL map as an attribute on the DataFrame
-        matrix.replay_url_map = replay_url_map
+        matrix.attrs["replay_url_map"] = replay_url_map
 
     logger.info(f"Final matrix shape: {matrix.shape}")
     return matrix

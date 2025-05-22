@@ -1,0 +1,18 @@
+defaults:
+  - /env/mettagrid/object_use/training/varied_terrain@
+  - _self_
+
+sampling: 1
+
+game:
+
+  map_builder:
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+
+    room:
+      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      width: ${sampling:20,50,30}
+      height: ${sampling:20,50,30}
+      style: all-sparse

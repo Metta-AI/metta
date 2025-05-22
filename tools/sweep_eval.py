@@ -55,7 +55,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
                 return 1
         return 0
 
-    with WandbContext(cfg) as wandb_run:
+    with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
             policy_pr = policy_store.policy("wandb://run/" + cfg.run)
@@ -64,7 +64,13 @@ def main(cfg: DictConfig | ListConfig) -> int:
             WandbCarbs._record_failure(wandb_run)
             return 1
 
-        eval = SimulationSuite(simulation_suite_cfg, policy_pr, policy_store)
+        eval = SimulationSuite(
+            simulation_suite_cfg,
+            policy_pr,
+            policy_store,
+            device=cfg.device,
+            vectorization=cfg.vectorization,
+        )
         # Start evaluation process
         sweep_stats = {}
         start_time = time.time()

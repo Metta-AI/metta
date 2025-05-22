@@ -1,8 +1,5 @@
 defaults:
-  - sim
+  - sim_single
   - _self_
 
-name: simple
-simulations:
-  simple:
-    env: env/mettagrid/simple
+env: /env/mettagrid/simple

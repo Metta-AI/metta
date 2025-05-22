@@ -1,10 +1,15 @@
-#! /bin/zsh -e
+#! /bin/bash -e
 
-# Create a new virtual environment using uv
-uv venv .venv/skypilot --python=3.11 --no-project
-source .venv/skypilot/bin/activate
+# Obtain the API server URL with credentials
+SERVER=$(AWS_PROFILE=softmax aws ssm get-parameter --name /skypilot/api_url --query Parameter.Value --output text || true)
 
-# Install SkyPilot with all cloud providers
+if [ -z "$SERVER" ]; then
+  echo "Failed to get Skypilot API server URL from SSM. Have you ran ./devops/aws/setup_aws_profiles.sh?"
+  exit 1
+fi
+
+# Install SkyPilot directly into the .venv
+# This is not in requirements_pinned.txt because want to make sure that users are using our remote API server
 uv pip install skypilot==0.9.2 --prerelease=allow
-uv pip install "skypilot[aws]"
-uv pip install "skypilot[vast]"
+
+sky api login -e "$SERVER"

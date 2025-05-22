@@ -1,6 +1,7 @@
 import os
 import sys
 from logging import Logger
+from typing import Optional
 
 import hydra
 import torch.distributed as dist
@@ -18,10 +19,9 @@ from metta.util.wandb.wandb_context import WandbContext
 
 # TODO: populate this more
 class TrainJob(Config):
+    __init__ = Config.__init__
     evals: SimulationSuiteConfig
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    map_preview_uri: Optional[str] = None
 
 
 def train(cfg, wandb_run, logger: Logger):
@@ -44,9 +44,14 @@ def train(cfg, wandb_run, logger: Logger):
 
     policy_store = PolicyStore(cfg, wandb_run)
 
-    upload_map_preview(cfg, wandb_run, logger)
+    trainer = hydra.utils.instantiate(
+        cfg.trainer, cfg, wandb_run, policy_store=policy_store, sim_suite_config=train_job.evals
+    )
+    if train_job.map_preview_uri and trainer.env_cfg._target_ == "metta.env.mettagrid_env.MettaGridEnv":
+        # TODO: upload_map_preview() calls MettaGridEnv directly, which will break if our target is MettaGridEnvSet
+        # Should we upload a preview for MettaGridEnvSet?
+        upload_map_preview(trainer.env_cfg, train_job.map_preview_uri, wandb_run)
 
-    trainer = hydra.utils.instantiate(cfg.trainer, cfg, wandb_run, policy_store, train_job.evals)
     trainer.train()
     trainer.close()
 
@@ -74,7 +79,7 @@ def main(cfg: ListConfig | DictConfig) -> int:
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":
-        with WandbContext(cfg, job_type="train") as wandb_run:
+        with WandbContext(cfg.wandb, cfg) as wandb_run:
             train(cfg, wandb_run, logger)
     else:
         train(cfg, None, logger)

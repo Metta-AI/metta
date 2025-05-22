@@ -3,16 +3,13 @@ defaults:
   - _self_
 
 game:
-  num_agents: 20 #how many agents are in the map x2
+  num_agents: 1 #how many agents are in the map x2
   max_steps: 150
   agent:
     rewards:
       heart: 1
 
   map_builder:
-    _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 20
-    room:
-      _target_: mettagrid.config.room.ascii.Ascii
-      border_width: 1
-      uri: "configs/env/mettagrid/maps/object_use/swap_in.map"
+    _target_: mettagrid.room.ascii.Ascii
+    border_width: 1
+    uri: "configs/env/mettagrid/maps/object_use/swap_in.map"

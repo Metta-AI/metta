@@ -1,0 +1,253 @@
+_wandb:
+    value:
+        cli_version: 0.19.11
+        m: []
+        python_version: 3.11.7
+        t:
+            "1":
+                - 50
+                - 55
+                - 105
+            "2":
+                - 50
+                - 55
+                - 105
+            "3":
+                - 2
+                - 13
+                - 16
+                - 23
+                - 55
+            "4": 3.11.7
+            "5": 0.19.11
+            "8":
+                - 5
+            "12": 0.19.11
+            "13": darwin-arm64
+env_config_details:
+    value:
+        game:
+            actions:
+                attack:
+                    enabled: true
+                change_color:
+                    enabled: true
+                get_items:
+                    enabled: true
+                move:
+                    enabled: true
+                noop:
+                    enabled: true
+                put_items:
+                    enabled: true
+                rotate:
+                    enabled: true
+                swap:
+                    enabled: true
+            agent:
+                freeze_duration: 10
+                hp: 10
+                max_inventory: 50
+                mortal: false
+                rewards:
+                    action_failure_penalty: 0
+                    battery: 0.01
+                    battery_max: 5
+                    heart: 1
+                    heart_max: 1000
+                    ore.blue: 0
+                    ore.green: 0.005
+                    ore.red: 0.005
+            groups:
+                agent:
+                    id: 0
+                    sprite: 0
+                predator:
+                    id: 6
+                    sprite: 6
+                prey:
+                    id: 5
+                    sprite: 12
+                team_1:
+                    group_reward_pct: 0.5
+                    id: 1
+                    sprite: 1
+                team_2:
+                    group_reward_pct: 0.5
+                    id: 2
+                    sprite: 4
+                team_3:
+                    group_reward_pct: 0.5
+                    id: 3
+                    sprite: 8
+                team_4:
+                    group_reward_pct: 0.5
+                    id: 4
+                    sprite: 1
+            map_builder:
+                _target_: mettagrid.config.room.multi_room.MultiRoom
+                border_width: 6
+                num_rooms: 4
+                room:
+                    _target_: mettagrid.config.room.random.Random
+                    agents: 6
+                    border_width: 0
+                    height: 25
+                    objects:
+                        altar: 1
+                        armory: 1
+                        block: 20
+                        factory: 1
+                        generator: 2
+                        lab: 1
+                        lasery: 1
+                        mine: 10
+                        temple: 1
+                        wall: 20
+                    width: 25
+            max_steps: 1000
+            no_energy_steps: 500
+            num_agents: 24
+            objects:
+                altar:
+                    conversion_ticks: 1
+                    cooldown: 10
+                    hp: 30
+                    initial_items: 1
+                    input_battery: 3
+                    max_output: 5
+                    output_heart: 1
+                armory:
+                    conversion_ticks: 1
+                    cooldown: 10
+                    hp: 30
+                    initial_items: 1
+                    input_ore.red: 3
+                    max_output: 5
+                    output_armor: 1
+                block:
+                    hp: 20
+                    swappable: true
+                factory:
+                    conversion_ticks: 1
+                    cooldown: 5
+                    hp: 30
+                    initial_items: 1
+                    input_battery: 5
+                    input_blueprint: 1
+                    input_ore.red: 5
+                    max_output: 5
+                    output_armor: 5
+                    output_laser: 5
+                generator.blue:
+                    color: 1
+                    conversion_ticks: 1
+                    cooldown: 25
+                    hp: 30
+                    initial_items: 1
+                    input_ore.blue: 1
+                    max_output: 5
+                    output_battery: 1
+                generator.green:
+                    color: 2
+                    conversion_ticks: 1
+                    cooldown: 25
+                    hp: 30
+                    initial_items: 1
+                    input_ore.green: 1
+                    max_output: 5
+                    output_battery: 1
+                generator.red:
+                    color: 0
+                    conversion_ticks: 1
+                    cooldown: 25
+                    hp: 30
+                    initial_items: 1
+                    input_ore.red: 1
+                    max_output: 5
+                    output_battery: 1
+                lab:
+                    conversion_ticks: 1
+                    cooldown: 5
+                    hp: 30
+                    initial_items: 1
+                    input_battery: 3
+                    input_ore.red: 3
+                    max_output: 5
+                    output_blueprint: 1
+                lasery:
+                    conversion_ticks: 1
+                    cooldown: 10
+                    hp: 30
+                    initial_items: 1
+                    input_battery: 2
+                    input_ore.red: 1
+                    max_output: 5
+                    output_laser: 1
+                mine.blue:
+                    color: 1
+                    conversion_ticks: 1
+                    cooldown: 50
+                    hp: 30
+                    initial_items: 1
+                    max_output: 5
+                    output_ore.blue: 1
+                mine.green:
+                    color: 2
+                    conversion_ticks: 1
+                    cooldown: 50
+                    hp: 30
+                    initial_items: 1
+                    max_output: 5
+                    output_ore.green: 1
+                mine.red:
+                    color: 0
+                    conversion_ticks: 1
+                    cooldown: 50
+                    hp: 30
+                    initial_items: 1
+                    max_output: 5
+                    output_ore.red: 1
+                temple:
+                    conversion_ticks: 1
+                    cooldown: 5
+                    hp: 30
+                    initial_items: 1
+                    input_blueprint: 1
+                    input_heart: 1
+                    max_output: 5
+                    output_heart: 5
+                wall:
+                    hp: 20
+                    swappable: false
+            obs_height: 11
+            obs_width: 11
+            recursive_map_builder: true
+            reward_sharing:
+                groups:
+                    team_1:
+                        team_1: 0.5
+                    team_2:
+                        team_2: 0.5
+                    team_3:
+                        team_3: 0.5
+                    team_4:
+                        team_4: 0.5
+            tile_size: 16
+        hidden_features:
+            grid_obs:
+                - agent:energy
+                - agent:hp
+        normalize_rewards: false
+        report_stats_interval: 100
+        sampling: 0
+env_config_name:
+    value: benchmark
+log_interval_steps:
+    value: 1000
+run_id:
+    value: 9
+steps_per_reset_cycle:
+    value: 1000
+total_steps:
+    value: 1000

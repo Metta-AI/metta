@@ -1,0 +1,16 @@
+{
+  "os": "macOS-15.5-arm64-arm-64bit",
+  "python": "CPython 3.11.7",
+  "startedAt": "2025-05-15T21:36:57.538214Z",
+  "program": "/Users/dffarr/Desktop/metta/mettagrid/mettagrid/dff_metagrid_bench.py",
+  "codePath": "mettagrid/mettagrid/dff_metagrid_bench.py",
+  "git": {
+    "remote": "https://github.com/Metta-AI/metta.git",
+    "commit": "ae8ebab4c3d03bb22496109ab83f35b260cea239"
+  },
+  "email": "dominik@stem.ai",
+  "root": "/Users/dffarr/Desktop/metta/mettagrid/mettagrid",
+  "host": "MacBook-Air.local",
+  "executable": "/opt/homebrew/Caskroom/miniconda/base/envs/metta/bin/python",
+  "codePathLocal": "dff_metagrid_bench.py"
+}

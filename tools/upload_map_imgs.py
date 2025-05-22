@@ -32,16 +32,12 @@ def get_proper_filename(filepath):
     return f"{path.name}.jpg"
 
 
-def upload_to_s3(file_path, s3_bucket, s3_prefix, dry_run=False):
+def upload_to_s3(file_path, s3_bucket, s3_prefix):
     """Upload a file to S3."""
     s3_client = boto3.client("s3")
 
     dest_filename = get_proper_filename(file_path)
     s3_key = f"{s3_prefix.rstrip('/')}/{dest_filename}"
-
-    if dry_run:
-        print(f"[DRY RUN] Would upload {file_path} to s3://{s3_bucket}/{s3_key}")
-        return True
 
     try:
         print(f"Uploading {file_path} to s3://{s3_bucket}/{s3_key}")
@@ -66,7 +62,11 @@ def main():
 
     for filename in os.listdir("."):
         if os.path.isfile(filename) and is_image_file(filename):
-            if upload_to_s3(filename, s3_bucket, s3_prefix, args.dry_run):
+            if args.dry_run:
+                print(f"[DRY RUN] Would upload {filename} to s3://{s3_bucket}/{s3_prefix}")
+                continue
+
+            if upload_to_s3(filename, s3_bucket, s3_prefix):
                 uploaded_count += 1
             else:
                 skipped_count += 1

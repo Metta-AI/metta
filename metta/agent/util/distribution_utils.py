@@ -1,83 +1,49 @@
+from typing import Optional, Tuple
+
 import torch
-from torch.distributions.utils import logits_to_probs
+import torch.jit
+import torch.nn.functional as F
+from torch import Tensor
 
 
-def get_action_log_prob(log_sftmx_logits, sampled_action):
-    """
-    Compute log probability of a value given logits.
-
-    Args:
-        logits: Unnormalized log probabilities
-        value: The specific action selection to compute probability for
-
-    Returns:
-        Log probability of the specific action selection
-    """
-    sampled_action = sampled_action.long().unsqueeze(-1)
-    sampled_action, log_pmf = torch.broadcast_tensors(sampled_action, log_sftmx_logits)
-    sampled_action = sampled_action[..., :1]
-    return log_pmf.gather(-1, sampled_action).squeeze(-1)  # replace w reshape
-
-
-def entropy(log_sftmx_logits):
-    """
-    Compute entropy of a categorical distribution given logits.
-
-    Args:
-        logits: Unnormalized log probabilities
-
-    Returns:
-        Entropy of the distribution
-    """
-    min_real = torch.finfo(log_sftmx_logits.dtype).min
-    log_sftmx_logits = torch.clamp(log_sftmx_logits, min=min_real)
-    # logits_to_probs is just softmax. softmax(log(softmax(logits) = softmax(logits)
-    p_log_p = log_sftmx_logits * logits_to_probs(log_sftmx_logits)
-    return -p_log_p.sum(-1)
-
-
-def sample_logits(logits: torch.Tensor, action=None):
+@torch.jit.script
+def sample_logits(logits: Tensor, bptt_logit_index: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
     Sample actions from logits and compute log probabilities and entropy.
 
     Args:
-        logits: Unnormalized log probabilities of shape [batch_size * bptt, num_actions].
-        action: Optional pre-specified actions of shape [batch_size, bptt, 1] or [batch_size * bptt].
-                If provided, log probabilities and entropy for these actions are computed.
+
+        logits: Unnormalized log probabilities of shape [B*T, 2].
+
+        bptt_logit_index: Optional tensor of shape [B*T] specifying actions to evaluate.
+            If provided, it must contain valid indices in the range [0, A).
 
     Returns:
-        Tuple of (action, log_probability, entropy, normalized_logits)
-        Shapes: [B*T], [B*T], [B*T], [B*T, A] respectively.
+        A tuple of:
+
+        action_index: Tensor of shape [B*T]
+        log_prob: Log-probabilities of selected actions ()
+        entropy: Entropy of the action distribution (same shape as `action`)
+        normalized_logits: Log-probabilities (same shape as `logits`)
     """
-    # Input logits shape: [B*T, A]
-    # Input action shape (if provided): [B, T, 1]
+    # Log-softmax for numerical stability
+    log_probs = F.log_softmax(logits, dim=-1)  # Shape: [B*T, A]
+    probs = torch.exp(log_probs)  # Shape: [B*T, A]
 
-    # Normalize logits for numerical stability
-    # Shape: [B*T, A]
-    log_sftmx_logits = logits - logits.logsumexp(dim=-1, keepdim=True)
-
-    if action is None:
-        # Sample action if not provided
-        # probs shape: [B*T, A]
-        probs = logits_to_probs(log_sftmx_logits)
-        # Sampled action shape: [B*T, 1], squeeze to [B*T]
-        B = logits.shape[0]
-        action = torch.multinomial(probs, 1, replacement=True).reshape(B)
-        # action = torch.multinomial(probs, 1, replacement=True).squeeze(-1)
+    # Sample actions or use provided ones
+    if bptt_logit_index is None:
+        # Multinomial returns [B*T, 1], reshape to [B*T]
+        action_index = torch.multinomial(probs, num_samples=1, replacement=True).reshape(-1)  # Shape: [B*T]
     else:
-        # Reshape provided action from [B, T, 1] or [B*T] to [B*T]
-        action = action.reshape(-1)
+        # Action is already [B*T]
+        action_index = bptt_logit_index  # Shape: [B*T]
 
-    # Ensure action has the expected shape [B*T]
-    assert action.shape == logits.shape[:-1], f"Action shape mismatch: expected {logits.shape[:-1]}, got {action.shape}"
+    # Gather log-probs for selected (or provided) actions
+    # First reshape action to [B*T, 1] for gather, then reshape result back to [B*T]
+    reshaped_action_index_out = action_index.reshape(-1, 1)  # Shape: [B*T, 1]
+    action_log_prob = log_probs.gather(1, reshaped_action_index_out).reshape(-1)  # Shape: [B*T]
 
-    # Calculate log probability for the action selected
-    # Shape: [B*T]
-    act_logprob = get_action_log_prob(log_sftmx_logits, action)
+    # Entropy: -∑p * log(p)
+    entropy = -torch.sum(probs * log_probs, dim=-1)  # Shape: [B*T]
 
-    # Calculate entropy of the distribution
-    # Shape: [B*T]
-    logits_entropy = entropy(log_sftmx_logits)
-
-    # Return shapes: [B*T], [B*T], [B*T], [B*T, A]
-    return action, act_logprob, logits_entropy, log_sftmx_logits
+    return action_index, action_log_prob, entropy, log_probs

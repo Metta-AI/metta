@@ -25,6 +25,9 @@ class Config(BaseModel):
 
     model_config = {"extra": "forbid"}
 
+    # Sub-classes of Config class should use the `__init__ = Config.__init__` trick to satisfy Pylance.
+    # Without this, Pylance will complain about 0 positional arguments, because it looks up Pydantic's
+    # __init__ method, which takes no positional arguments.
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         if len(args) == 1 and not kwargs and isinstance(args[0], (DictConfig, dict)):
             super().__init__(**self.prepare_dict(args[0]))
@@ -171,11 +174,11 @@ def setup_metta_environment(cfg: ListConfig | DictConfig, require_aws: bool = Tr
             print("aws sso login --profile softmax")
             print("Alternatively, set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your environment.")
             exit(1)
-    if cfg.wandb.track and require_wandb:
+    if cfg.wandb.enabled and require_wandb:
         # Check that W&B is good to go.
         if not check_wandb_credentials():
             print("W&B is not configured, please install:")
-            print("pip install wandb")
+            print("uv pip install wandb")
             print("and run:")
             print("wandb login")
             print("Alternatively, set WANDB_API_KEY or copy ~/.netrc from another machine that has it configured.")

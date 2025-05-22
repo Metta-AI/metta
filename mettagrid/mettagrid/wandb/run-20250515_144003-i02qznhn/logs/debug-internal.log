@@ -1,0 +1,16 @@
+{"time":"2025-05-15T14:40:03.164588-07:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/Users/dffarr/Desktop/metta/mettagrid/mettagrid/wandb/run-20250515_144003-i02qznhn/logs/debug-core.log"}
+{"time":"2025-05-15T14:40:03.367233-07:00","level":"INFO","msg":"created new stream","id":"i02qznhn"}
+{"time":"2025-05-15T14:40:03.367268-07:00","level":"INFO","msg":"stream: started","id":"i02qznhn"}
+{"time":"2025-05-15T14:40:03.367285-07:00","level":"INFO","msg":"sender: started","stream_id":"i02qznhn"}
+{"time":"2025-05-15T14:40:03.367286-07:00","level":"INFO","msg":"handler: started","stream_id":"i02qznhn"}
+{"time":"2025-05-15T14:40:03.367284-07:00","level":"INFO","msg":"writer: Do: started","stream_id":"i02qznhn"}
+{"time":"2025-05-15T14:40:03.52989-07:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-15T14:40:05.087078-07:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-15T14:40:05.087098-07:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-15T14:40:05.586362-07:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-15T14:40:05.795539-07:00","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2025-05-15T14:40:05.799927-07:00","level":"INFO","msg":"stream: closing","id":"i02qznhn"}
+{"time":"2025-05-15T14:40:05.799985-07:00","level":"INFO","msg":"handler: closed","stream_id":"i02qznhn"}
+{"time":"2025-05-15T14:40:05.79999-07:00","level":"INFO","msg":"writer: Close: closed","stream_id":"i02qznhn"}
+{"time":"2025-05-15T14:40:05.800011-07:00","level":"INFO","msg":"sender: closed","stream_id":"i02qznhn"}
+{"time":"2025-05-15T14:40:05.80026-07:00","level":"INFO","msg":"stream: closed","id":"i02qznhn"}

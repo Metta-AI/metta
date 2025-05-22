@@ -8,9 +8,8 @@ defaults:
 
 seed: 1
 
-
 train_job:
-  # Use the sim config as a base
-  # This seems hacky to Jack, but I couldn't get github to override
-  # this well without using the global sim group.
+  map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
   evals: ${sim}
+
+cmd: train

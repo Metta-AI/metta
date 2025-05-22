@@ -6,16 +6,11 @@ normalize_rewards: false
 
 sampling: 0
 
-hidden_features:
-  grid_obs: ["agent:energy", "agent:hp"]
-
 game:
   num_agents: ???
   obs_width: 11
   obs_height: 11
-  tile_size: 16
   max_steps: 1000
-  no_energy_steps: 500
 
   # default for the old map builder; new metta.map.mapgen requires false
   recursive_map_builder: true
@@ -24,12 +19,11 @@ game:
     max_inventory: ${sampling:0, 100, 50}
     freeze_duration: ${sampling:0, 200, 10}
     hp: 10
-    mortal: False
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
       ore.red: 0.005
-      ore.blue: 0
+      ore.blue: 0.005
       ore.green: 0.005
       battery: 0.01
       battery_max: 5

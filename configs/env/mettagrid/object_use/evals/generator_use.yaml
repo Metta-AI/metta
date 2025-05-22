@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 20
+  num_agents: 1
   max_steps: 100
 
   objects:
@@ -21,19 +21,14 @@ game:
       ore.green: 0
 
   map_builder:
-    _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 20
+    _target_: mettagrid.room.mean_distance.MeanDistance
+    width: 11
+    height: 11
+    mean_distance: 6
     border_width: 3
 
-    room:
-      _target_: mettagrid.config.room.mean_distance.MeanDistance
-      width: 15
-      height: 15
-      mean_distance: 6
-      border_width: 3
+    agents: 1
 
-      agents: 1
-
-      objects:
-        generator: 1
-        mine: 1
+    objects:
+      generator: 1
+      mine: 1

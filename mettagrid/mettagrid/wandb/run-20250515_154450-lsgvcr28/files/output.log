@@ -1,0 +1,17 @@
+2025-05-15 15:44:51,154 - INFO - Initiating combined benchmark with wandb run name: dff_metagrid_bench_steps_0008_combined
+2025-05-15 15:44:51,154 - INFO - --- Running Continuous Simulation Part ---
+2025-05-15 15:44:51,154 - INFO - --- Starting Continuous Simulation ---
+2025-05-15 15:44:51,188 - INFO - Environment reset for continuous simulation. Target steps: 1000, Log interval: 1000 steps.
+2025-05-15 15:44:51,188 - INFO - Starting simulation loop. Total steps: 1000. Log interval: 1000 steps. Steps per reset cycle: N/A.
+2025-05-15 15:44:51,222 - INFO - Interval SPS: 30142.23 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 1000, Total time: 0.03s)
+2025-05-15 15:44:51,222 - INFO - Finished simulation loop. Executed 1000 steps in 0.03s. Total reset time: 0.000s. Effective simulation time (excluding resets): 0.03s. Overall Average SPS (excluding resets): 30015.16
+2025-05-15 15:44:51,222 - INFO - --- Continuous Simulation Finished --- Executed Steps: 1000, Time Taken: 0.03s, Average SPS: 30015.16
+2025-05-15 15:44:51,222 - INFO - --- Continuous Simulation Part Finished ---
+2025-05-15 15:44:51,222 - INFO - --- Running Simulation with Resets Part ---
+2025-05-15 15:44:51,222 - INFO - --- Starting Simulation with Resets (every 1000 steps) ---
+2025-05-15 15:44:51,251 - INFO - Environment reset for simulation with resets. Target steps: 1000, Log interval: 1000 steps, Reset every: 1000 steps.
+2025-05-15 15:44:51,251 - INFO - Starting simulation loop. Total steps: 1000. Log interval: 1000 steps. Steps per reset cycle: 1000.
+2025-05-15 15:44:51,286 - INFO - Interval SPS: 28905.32 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 1000, Total time: 0.03s)
+2025-05-15 15:44:51,286 - INFO - Finished simulation loop. Executed 1000 steps in 0.03s. Total reset time: 0.000s. Effective simulation time (excluding resets): 0.03s. Overall Average SPS (excluding resets): 28799.73
+2025-05-15 15:44:51,286 - INFO - --- Simulation with Resets Finished --- Executed Steps: 1000, Time Taken: 0.03s, Average SPS: 28799.73
+2025-05-15 15:44:51,286 - INFO - --- Simulation with Resets Part Finished ---

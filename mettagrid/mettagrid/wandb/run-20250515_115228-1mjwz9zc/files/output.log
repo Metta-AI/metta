@@ -1,0 +1,32 @@
+2025-05-15 11:52:29,503 - INFO - --- Starting Continuous Simulation ---
+2025-05-15 11:52:29,541 - INFO - Environment reset for continuous simulation.
+2025-05-15 11:52:29,542 - INFO - Starting simulation loop. Total steps: 20000. Reset interval: N/A.
+2025-05-15 11:52:32,037 - INFO - Finished simulation loop after 20000 steps.
+2025-05-15 11:52:32,038 - INFO - --- Continuous Simulation Finished --- Total Steps: 20000, Time Taken: 2.50s, Average SPS: 8013.92
+2025-05-15 11:52:32,038 - INFO -
+==================================================
+
+2025-05-15 11:52:32,038 - INFO - --- Starting Simulation with Resets (every 1000 steps) ---
+2025-05-15 11:52:32,065 - INFO - Environment reset for simulation with resets.
+2025-05-15 11:52:32,065 - INFO - Starting simulation loop. Total steps: 20000. Reset interval: 1000.
+2025-05-15 11:52:32,104 - INFO - Environment reset at step 1000.
+2025-05-15 11:52:32,145 - INFO - Environment reset at step 2000.
+2025-05-15 11:52:32,184 - INFO - Environment reset at step 3000.
+2025-05-15 11:52:32,224 - INFO - Environment reset at step 4000.
+2025-05-15 11:52:32,265 - INFO - Environment reset at step 5000.
+2025-05-15 11:52:32,305 - INFO - Environment reset at step 6000.
+2025-05-15 11:52:32,349 - INFO - Environment reset at step 7000.
+2025-05-15 11:52:32,390 - INFO - Environment reset at step 8000.
+2025-05-15 11:52:32,431 - INFO - Environment reset at step 9000.
+2025-05-15 11:52:32,493 - INFO - Environment reset at step 10000.
+2025-05-15 11:52:32,534 - INFO - Environment reset at step 11000.
+2025-05-15 11:52:32,575 - INFO - Environment reset at step 12000.
+2025-05-15 11:52:32,615 - INFO - Environment reset at step 13000.
+2025-05-15 11:52:32,655 - INFO - Environment reset at step 14000.
+2025-05-15 11:52:32,695 - INFO - Environment reset at step 15000.
+2025-05-15 11:52:32,736 - INFO - Environment reset at step 16000.
+2025-05-15 11:52:32,776 - INFO - Environment reset at step 17000.
+2025-05-15 11:52:32,816 - INFO - Environment reset at step 18000.
+2025-05-15 11:52:32,855 - INFO - Environment reset at step 19000.
+2025-05-15 11:52:32,887 - INFO - Finished simulation loop after 20000 steps.
+2025-05-15 11:52:32,888 - INFO - --- Simulation with Resets Finished --- Total Steps: 20000, Time Taken: 0.82s, Average SPS: 24309.39

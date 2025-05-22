@@ -18,30 +18,30 @@ public:
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::Object_Layer;
-    MettaObject* target = static_cast<MettaObject*>(_grid->object_at(target_loc));
-    if (target == nullptr || !target->has_inventory()) {
+    // put_recipe_items only works on Converters, since only Converters have a recipe.
+    // Once we generalize this to `put`, we should be able to put to any HasInventory object, which
+    // should include agents.
+    Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
+    if (converter == nullptr) {
       return false;
     }
 
-    // #Converter_and_HasInventory_are_the_same_thing
-    Converter* converter = static_cast<Converter*>(target);
-
+    bool success = false;
     for (size_t i = 0; i < converter->recipe_input.size(); i++) {
-      if (converter->recipe_input[i] > actor->inventory[i]) {
-        return false;
+      unsigned int inv = std::min(converter->recipe_input[i], actor->inventory[i]);
+      if (inv == 0) {
+        continue;
       }
+      actor->update_inventory(static_cast<InventoryItem>(i), -inv);
+      converter->update_inventory(static_cast<InventoryItem>(i), inv);
+      actor->stats.add(InventoryItemNames[i], "put", inv);
+      success = true;
     }
 
-    for (size_t i = 0; i < converter->recipe_input.size(); i++) {
-      actor->update_inventory(static_cast<InventoryItem>(i), -converter->recipe_input[i]);
-      converter->update_inventory(static_cast<InventoryItem>(i), converter->recipe_input[i]);
-      actor->stats.add(InventoryItemNames[i], "put", converter->recipe_input[i]);
-    }
-
-    return true;
+    return success;
   }
 };
 

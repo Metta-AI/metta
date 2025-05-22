@@ -1,0 +1,314 @@
+2025-05-15 14:44:07,012 - INFO - Initiating combined benchmark with wandb run name: dff_metagrid_bench_steps_0007_combined
+2025-05-15 14:44:07,012 - INFO - --- Running Continuous Simulation Part ---
+2025-05-15 14:44:07,012 - INFO - --- Starting Continuous Simulation ---
+2025-05-15 14:44:07,044 - INFO - Environment reset for continuous simulation. Target steps: 100000, Log interval: 1000 steps.
+2025-05-15 14:44:07,044 - INFO - Starting simulation loop. Total steps: 100000. Log interval: 1000 steps. Steps per reset cycle: N/A.
+2025-05-15 14:44:07,079 - INFO - Interval SPS: 29003.69 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 1000, Total time: 0.03s)
+2025-05-15 14:44:07,187 - INFO - Interval SPS: 9232.57 (Steps in interval: 1000, Interval time: 0.11s, Total steps: 2000, Total time: 0.14s)
+2025-05-15 14:44:07,300 - INFO - Interval SPS: 8859.65 (Steps in interval: 1000, Interval time: 0.11s, Total steps: 3000, Total time: 0.26s)
+2025-05-15 14:44:07,414 - INFO - Interval SPS: 8774.60 (Steps in interval: 1000, Interval time: 0.11s, Total steps: 4000, Total time: 0.37s)
+2025-05-15 14:44:07,528 - INFO - Interval SPS: 8780.06 (Steps in interval: 1000, Interval time: 0.11s, Total steps: 5000, Total time: 0.48s)
+2025-05-15 14:44:07,643 - INFO - Interval SPS: 8652.33 (Steps in interval: 1000, Interval time: 0.12s, Total steps: 6000, Total time: 0.60s)
+2025-05-15 14:44:07,759 - INFO - Interval SPS: 8655.32 (Steps in interval: 1000, Interval time: 0.12s, Total steps: 7000, Total time: 0.71s)
+2025-05-15 14:44:07,912 - INFO - Interval SPS: 6514.74 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 8000, Total time: 0.87s)
+2025-05-15 14:44:08,036 - INFO - Interval SPS: 8081.11 (Steps in interval: 1000, Interval time: 0.12s, Total steps: 9000, Total time: 0.99s)
+2025-05-15 14:44:08,162 - INFO - Interval SPS: 7953.12 (Steps in interval: 1000, Interval time: 0.13s, Total steps: 10000, Total time: 1.12s)
+2025-05-15 14:44:08,288 - INFO - Interval SPS: 7940.30 (Steps in interval: 1000, Interval time: 0.13s, Total steps: 11000, Total time: 1.24s)
+2025-05-15 14:44:08,421 - INFO - Interval SPS: 7516.91 (Steps in interval: 1000, Interval time: 0.13s, Total steps: 12000, Total time: 1.38s)
+2025-05-15 14:44:08,551 - INFO - Interval SPS: 7707.34 (Steps in interval: 1000, Interval time: 0.13s, Total steps: 13000, Total time: 1.51s)
+2025-05-15 14:44:08,683 - INFO - Interval SPS: 7532.26 (Steps in interval: 1000, Interval time: 0.13s, Total steps: 14000, Total time: 1.64s)
+2025-05-15 14:44:08,817 - INFO - Interval SPS: 7479.91 (Steps in interval: 1000, Interval time: 0.13s, Total steps: 15000, Total time: 1.77s)
+2025-05-15 14:44:08,952 - INFO - Interval SPS: 7429.39 (Steps in interval: 1000, Interval time: 0.13s, Total steps: 16000, Total time: 1.91s)
+2025-05-15 14:44:09,085 - INFO - Interval SPS: 7504.05 (Steps in interval: 1000, Interval time: 0.13s, Total steps: 17000, Total time: 2.04s)
+2025-05-15 14:44:09,221 - INFO - Interval SPS: 7359.99 (Steps in interval: 1000, Interval time: 0.14s, Total steps: 18000, Total time: 2.18s)
+2025-05-15 14:44:09,358 - INFO - Interval SPS: 7262.32 (Steps in interval: 1000, Interval time: 0.14s, Total steps: 19000, Total time: 2.31s)
+2025-05-15 14:44:09,497 - INFO - Interval SPS: 7202.12 (Steps in interval: 1000, Interval time: 0.14s, Total steps: 20000, Total time: 2.45s)
+2025-05-15 14:44:09,636 - INFO - Interval SPS: 7211.95 (Steps in interval: 1000, Interval time: 0.14s, Total steps: 21000, Total time: 2.59s)
+2025-05-15 14:44:09,774 - INFO - Interval SPS: 7247.08 (Steps in interval: 1000, Interval time: 0.14s, Total steps: 22000, Total time: 2.73s)
+2025-05-15 14:44:09,913 - INFO - Interval SPS: 7168.18 (Steps in interval: 1000, Interval time: 0.14s, Total steps: 23000, Total time: 2.87s)
+2025-05-15 14:44:10,054 - INFO - Interval SPS: 7117.13 (Steps in interval: 1000, Interval time: 0.14s, Total steps: 24000, Total time: 3.01s)
+2025-05-15 14:44:10,194 - INFO - Interval SPS: 7115.94 (Steps in interval: 1000, Interval time: 0.14s, Total steps: 25000, Total time: 3.15s)
+2025-05-15 14:44:10,337 - INFO - Interval SPS: 6994.64 (Steps in interval: 1000, Interval time: 0.14s, Total steps: 26000, Total time: 3.29s)
+2025-05-15 14:44:10,481 - INFO - Interval SPS: 6944.98 (Steps in interval: 1000, Interval time: 0.14s, Total steps: 27000, Total time: 3.44s)
+2025-05-15 14:44:10,630 - INFO - Interval SPS: 6747.31 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 28000, Total time: 3.59s)
+2025-05-15 14:44:10,775 - INFO - Interval SPS: 6877.13 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 29000, Total time: 3.73s)
+2025-05-15 14:44:10,921 - INFO - Interval SPS: 6837.67 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 30000, Total time: 3.88s)
+2025-05-15 14:44:11,067 - INFO - Interval SPS: 6843.39 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 31000, Total time: 4.02s)
+2025-05-15 14:44:11,214 - INFO - Interval SPS: 6825.99 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 32000, Total time: 4.17s)
+2025-05-15 14:44:11,360 - INFO - Interval SPS: 6824.15 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 33000, Total time: 4.32s)
+2025-05-15 14:44:11,508 - INFO - Interval SPS: 6762.04 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 34000, Total time: 4.46s)
+2025-05-15 14:44:11,656 - INFO - Interval SPS: 6789.10 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 35000, Total time: 4.61s)
+2025-05-15 14:44:11,804 - INFO - Interval SPS: 6748.78 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 36000, Total time: 4.76s)
+2025-05-15 14:44:11,952 - INFO - Interval SPS: 6732.92 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 37000, Total time: 4.91s)
+2025-05-15 14:44:12,103 - INFO - Interval SPS: 6651.97 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 38000, Total time: 5.06s)
+2025-05-15 14:44:12,252 - INFO - Interval SPS: 6719.25 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 39000, Total time: 5.21s)
+2025-05-15 14:44:12,400 - INFO - Interval SPS: 6733.06 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 40000, Total time: 5.36s)
+2025-05-15 14:44:12,551 - INFO - Interval SPS: 6641.37 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 41000, Total time: 5.51s)
+2025-05-15 14:44:12,702 - INFO - Interval SPS: 6620.02 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 42000, Total time: 5.66s)
+2025-05-15 14:44:12,852 - INFO - Interval SPS: 6663.32 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 43000, Total time: 5.81s)
+2025-05-15 14:44:13,006 - INFO - Interval SPS: 6478.91 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 44000, Total time: 5.96s)
+2025-05-15 14:44:13,158 - INFO - Interval SPS: 6601.47 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 45000, Total time: 6.11s)
+2025-05-15 14:44:13,307 - INFO - Interval SPS: 6695.52 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 46000, Total time: 6.26s)
+2025-05-15 14:44:13,458 - INFO - Interval SPS: 6631.89 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 47000, Total time: 6.41s)
+2025-05-15 14:44:13,611 - INFO - Interval SPS: 6508.62 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 48000, Total time: 6.57s)
+2025-05-15 14:44:13,763 - INFO - Interval SPS: 6579.30 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 49000, Total time: 6.72s)
+2025-05-15 14:44:13,914 - INFO - Interval SPS: 6654.30 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 50000, Total time: 6.87s)
+2025-05-15 14:44:14,065 - INFO - Interval SPS: 6592.34 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 51000, Total time: 7.02s)
+2025-05-15 14:44:14,219 - INFO - Interval SPS: 6508.64 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 52000, Total time: 7.17s)
+2025-05-15 14:44:14,371 - INFO - Interval SPS: 6594.06 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 53000, Total time: 7.33s)
+2025-05-15 14:44:14,524 - INFO - Interval SPS: 6503.90 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 54000, Total time: 7.48s)
+2025-05-15 14:44:14,678 - INFO - Interval SPS: 6520.45 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 55000, Total time: 7.63s)
+2025-05-15 14:44:14,833 - INFO - Interval SPS: 6456.56 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 56000, Total time: 7.79s)
+2025-05-15 14:44:14,985 - INFO - Interval SPS: 6546.44 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 57000, Total time: 7.94s)
+2025-05-15 14:44:15,137 - INFO - Interval SPS: 6576.95 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 58000, Total time: 8.09s)
+2025-05-15 14:44:15,291 - INFO - Interval SPS: 6505.90 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 59000, Total time: 8.25s)
+2025-05-15 14:44:15,442 - INFO - Interval SPS: 6619.08 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 60000, Total time: 8.40s)
+2025-05-15 14:44:15,594 - INFO - Interval SPS: 6593.09 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 61000, Total time: 8.55s)
+2025-05-15 14:44:15,748 - INFO - Interval SPS: 6507.37 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 62000, Total time: 8.70s)
+2025-05-15 14:44:15,904 - INFO - Interval SPS: 6409.86 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 63000, Total time: 8.86s)
+2025-05-15 14:44:16,054 - INFO - Interval SPS: 6640.86 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 64000, Total time: 9.01s)
+2025-05-15 14:44:16,208 - INFO - Interval SPS: 6496.72 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 65000, Total time: 9.16s)
+2025-05-15 14:44:16,361 - INFO - Interval SPS: 6539.25 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 66000, Total time: 9.32s)
+2025-05-15 14:44:16,517 - INFO - Interval SPS: 6426.22 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 67000, Total time: 9.47s)
+2025-05-15 14:44:16,670 - INFO - Interval SPS: 6509.76 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 68000, Total time: 9.63s)
+2025-05-15 14:44:16,825 - INFO - Interval SPS: 6441.85 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 69000, Total time: 9.78s)
+2025-05-15 14:44:16,981 - INFO - Interval SPS: 6443.84 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 70000, Total time: 9.94s)
+2025-05-15 14:44:17,138 - INFO - Interval SPS: 6345.17 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 71000, Total time: 10.09s)
+2025-05-15 14:44:17,298 - INFO - Interval SPS: 6271.24 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 72000, Total time: 10.25s)
+2025-05-15 14:44:17,452 - INFO - Interval SPS: 6470.12 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 73000, Total time: 10.41s)
+2025-05-15 14:44:17,604 - INFO - Interval SPS: 6566.33 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 74000, Total time: 10.56s)
+2025-05-15 14:44:17,760 - INFO - Interval SPS: 6429.71 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 75000, Total time: 10.72s)
+2025-05-15 14:44:17,915 - INFO - Interval SPS: 6453.16 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 76000, Total time: 10.87s)
+2025-05-15 14:44:18,068 - INFO - Interval SPS: 6516.95 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 77000, Total time: 11.02s)
+2025-05-15 14:44:18,222 - INFO - Interval SPS: 6510.14 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 78000, Total time: 11.18s)
+2025-05-15 14:44:18,380 - INFO - Interval SPS: 6316.22 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 79000, Total time: 11.34s)
+2025-05-15 14:44:18,535 - INFO - Interval SPS: 6454.33 (Steps in interval: 1000, Interval time: 0.15s, Total steps: 80000, Total time: 11.49s)
+2025-05-15 14:44:18,691 - INFO - Interval SPS: 6439.12 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 81000, Total time: 11.65s)
+2025-05-15 14:44:18,875 - INFO - Interval SPS: 5421.40 (Steps in interval: 1000, Interval time: 0.18s, Total steps: 82000, Total time: 11.83s)
+2025-05-15 14:44:19,039 - INFO - Interval SPS: 6107.61 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 83000, Total time: 11.99s)
+2025-05-15 14:44:19,196 - INFO - Interval SPS: 6354.34 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 84000, Total time: 12.15s)
+2025-05-15 14:44:19,353 - INFO - Interval SPS: 6355.48 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 85000, Total time: 12.31s)
+2025-05-15 14:44:19,514 - INFO - Interval SPS: 6236.81 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 86000, Total time: 12.47s)
+2025-05-15 14:44:19,670 - INFO - Interval SPS: 6405.08 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 87000, Total time: 12.63s)
+2025-05-15 14:44:19,827 - INFO - Interval SPS: 6371.45 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 88000, Total time: 12.78s)
+2025-05-15 14:44:19,984 - INFO - Interval SPS: 6368.11 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 89000, Total time: 12.94s)
+2025-05-15 14:44:20,139 - INFO - Interval SPS: 6437.11 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 90000, Total time: 13.10s)
+2025-05-15 14:44:20,296 - INFO - Interval SPS: 6363.33 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 91000, Total time: 13.25s)
+2025-05-15 14:44:20,454 - INFO - Interval SPS: 6353.70 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 92000, Total time: 13.41s)
+2025-05-15 14:44:20,615 - INFO - Interval SPS: 6205.07 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 93000, Total time: 13.57s)
+2025-05-15 14:44:20,772 - INFO - Interval SPS: 6365.12 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 94000, Total time: 13.73s)
+2025-05-15 14:44:20,928 - INFO - Interval SPS: 6409.22 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 95000, Total time: 13.88s)
+2025-05-15 14:44:21,085 - INFO - Interval SPS: 6378.16 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 96000, Total time: 14.04s)
+2025-05-15 14:44:21,241 - INFO - Interval SPS: 6393.09 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 97000, Total time: 14.20s)
+2025-05-15 14:44:21,397 - INFO - Interval SPS: 6433.96 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 98000, Total time: 14.35s)
+2025-05-15 14:44:21,554 - INFO - Interval SPS: 6351.96 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 99000, Total time: 14.51s)
+2025-05-15 14:44:21,715 - INFO - Interval SPS: 6226.72 (Steps in interval: 1000, Interval time: 0.16s, Total steps: 100000, Total time: 14.67s)
+2025-05-15 14:44:21,715 - INFO - Finished simulation loop. Executed 100000 steps in 14.67s. Total reset time: 0.000s. Effective simulation time (excluding resets): 14.67s. Overall Average SPS (excluding resets): 6816.30
+2025-05-15 14:44:21,715 - INFO - --- Continuous Simulation Finished --- Executed Steps: 100000, Time Taken: 14.67s, Average SPS: 6816.30
+2025-05-15 14:44:21,717 - INFO - --- Continuous Simulation Part Finished ---
+2025-05-15 14:44:21,717 - INFO - --- Running Simulation with Resets Part ---
+2025-05-15 14:44:21,717 - INFO - --- Starting Simulation with Resets (every 1000 steps) ---
+2025-05-15 14:44:21,743 - INFO - Environment reset for simulation with resets. Target steps: 100000, Log interval: 1000 steps, Reset every: 1000 steps.
+2025-05-15 14:44:21,743 - INFO - Starting simulation loop. Total steps: 100000. Log interval: 1000 steps. Steps per reset cycle: 1000.
+2025-05-15 14:44:21,775 - INFO - Interval SPS: 31375.38 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 1000, Total time: 0.03s)
+2025-05-15 14:44:21,783 - INFO - Environment reset at step 1000. Reset took 0.008s
+2025-05-15 14:44:21,816 - INFO - Interval SPS: 30372.60 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 2000, Total time: 0.07s)
+2025-05-15 14:44:21,825 - INFO - Environment reset at step 2000. Reset took 0.009s
+2025-05-15 14:44:21,856 - INFO - Interval SPS: 31818.55 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 3000, Total time: 0.11s)
+2025-05-15 14:44:21,864 - INFO - Environment reset at step 3000. Reset took 0.008s
+2025-05-15 14:44:21,896 - INFO - Interval SPS: 31659.30 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 4000, Total time: 0.15s)
+2025-05-15 14:44:21,905 - INFO - Environment reset at step 4000. Reset took 0.008s
+2025-05-15 14:44:21,937 - INFO - Interval SPS: 31020.14 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 5000, Total time: 0.19s)
+2025-05-15 14:44:21,946 - INFO - Environment reset at step 5000. Reset took 0.009s
+2025-05-15 14:44:21,978 - INFO - Interval SPS: 31075.16 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 6000, Total time: 0.23s)
+2025-05-15 14:44:21,986 - INFO - Environment reset at step 6000. Reset took 0.008s
+2025-05-15 14:44:22,020 - INFO - Interval SPS: 29390.33 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 7000, Total time: 0.28s)
+2025-05-15 14:44:22,029 - INFO - Environment reset at step 7000. Reset took 0.009s
+2025-05-15 14:44:22,062 - INFO - Interval SPS: 30229.56 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 8000, Total time: 0.32s)
+2025-05-15 14:44:22,070 - INFO - Environment reset at step 8000. Reset took 0.008s
+2025-05-15 14:44:22,103 - INFO - Interval SPS: 31007.71 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 9000, Total time: 0.36s)
+2025-05-15 14:44:22,111 - INFO - Environment reset at step 9000. Reset took 0.008s
+2025-05-15 14:44:22,143 - INFO - Interval SPS: 31768.51 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 10000, Total time: 0.40s)
+2025-05-15 14:44:22,175 - INFO - Environment reset at step 10000. Reset took 0.032s
+2025-05-15 14:44:22,207 - INFO - Interval SPS: 30526.00 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 11000, Total time: 0.46s)
+2025-05-15 14:44:22,215 - INFO - Environment reset at step 11000. Reset took 0.008s
+2025-05-15 14:44:22,247 - INFO - Interval SPS: 31228.82 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 12000, Total time: 0.50s)
+2025-05-15 14:44:22,256 - INFO - Environment reset at step 12000. Reset took 0.008s
+2025-05-15 14:44:22,288 - INFO - Interval SPS: 30798.96 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 13000, Total time: 0.55s)
+2025-05-15 14:44:22,297 - INFO - Environment reset at step 13000. Reset took 0.008s
+2025-05-15 14:44:22,329 - INFO - Interval SPS: 31026.63 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 14000, Total time: 0.59s)
+2025-05-15 14:44:22,337 - INFO - Environment reset at step 14000. Reset took 0.008s
+2025-05-15 14:44:22,369 - INFO - Interval SPS: 30986.61 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 15000, Total time: 0.63s)
+2025-05-15 14:44:22,378 - INFO - Environment reset at step 15000. Reset took 0.008s
+2025-05-15 14:44:22,410 - INFO - Interval SPS: 30847.97 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 16000, Total time: 0.67s)
+2025-05-15 14:44:22,419 - INFO - Environment reset at step 16000. Reset took 0.008s
+2025-05-15 14:44:22,451 - INFO - Interval SPS: 31008.03 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 17000, Total time: 0.71s)
+2025-05-15 14:44:22,459 - INFO - Environment reset at step 17000. Reset took 0.008s
+2025-05-15 14:44:22,491 - INFO - Interval SPS: 31564.08 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 18000, Total time: 0.75s)
+2025-05-15 14:44:22,500 - INFO - Environment reset at step 18000. Reset took 0.009s
+2025-05-15 14:44:22,531 - INFO - Interval SPS: 31982.43 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 19000, Total time: 0.79s)
+2025-05-15 14:44:22,539 - INFO - Environment reset at step 19000. Reset took 0.008s
+2025-05-15 14:44:22,571 - INFO - Interval SPS: 30978.29 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 20000, Total time: 0.83s)
+2025-05-15 14:44:22,580 - INFO - Environment reset at step 20000. Reset took 0.009s
+2025-05-15 14:44:22,612 - INFO - Interval SPS: 31268.61 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 21000, Total time: 0.87s)
+2025-05-15 14:44:22,620 - INFO - Environment reset at step 21000. Reset took 0.008s
+2025-05-15 14:44:22,652 - INFO - Interval SPS: 31565.95 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 22000, Total time: 0.91s)
+2025-05-15 14:44:22,660 - INFO - Environment reset at step 22000. Reset took 0.008s
+2025-05-15 14:44:22,692 - INFO - Interval SPS: 30945.46 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 23000, Total time: 0.95s)
+2025-05-15 14:44:22,701 - INFO - Environment reset at step 23000. Reset took 0.009s
+2025-05-15 14:44:22,733 - INFO - Interval SPS: 31676.48 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 24000, Total time: 0.99s)
+2025-05-15 14:44:22,741 - INFO - Environment reset at step 24000. Reset took 0.008s
+2025-05-15 14:44:22,773 - INFO - Interval SPS: 31017.73 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 25000, Total time: 1.03s)
+2025-05-15 14:44:22,782 - INFO - Environment reset at step 25000. Reset took 0.008s
+2025-05-15 14:44:22,813 - INFO - Interval SPS: 31579.61 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 26000, Total time: 1.07s)
+2025-05-15 14:44:22,822 - INFO - Environment reset at step 26000. Reset took 0.009s
+2025-05-15 14:44:22,854 - INFO - Interval SPS: 30986.77 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 27000, Total time: 1.11s)
+2025-05-15 14:44:22,863 - INFO - Environment reset at step 27000. Reset took 0.008s
+2025-05-15 14:44:22,895 - INFO - Interval SPS: 31215.45 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 28000, Total time: 1.15s)
+2025-05-15 14:44:22,904 - INFO - Environment reset at step 28000. Reset took 0.009s
+2025-05-15 14:44:22,935 - INFO - Interval SPS: 31353.20 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 29000, Total time: 1.19s)
+2025-05-15 14:44:22,944 - INFO - Environment reset at step 29000. Reset took 0.008s
+2025-05-15 14:44:22,976 - INFO - Interval SPS: 31256.88 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 30000, Total time: 1.23s)
+2025-05-15 14:44:22,984 - INFO - Environment reset at step 30000. Reset took 0.008s
+2025-05-15 14:44:23,017 - INFO - Interval SPS: 30754.68 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 31000, Total time: 1.27s)
+2025-05-15 14:44:23,025 - INFO - Environment reset at step 31000. Reset took 0.009s
+2025-05-15 14:44:23,058 - INFO - Interval SPS: 30803.79 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 32000, Total time: 1.31s)
+2025-05-15 14:44:23,066 - INFO - Environment reset at step 32000. Reset took 0.008s
+2025-05-15 14:44:23,098 - INFO - Interval SPS: 30987.69 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 33000, Total time: 1.36s)
+2025-05-15 14:44:23,107 - INFO - Environment reset at step 33000. Reset took 0.008s
+2025-05-15 14:44:23,138 - INFO - Interval SPS: 31713.81 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 34000, Total time: 1.40s)
+2025-05-15 14:44:23,147 - INFO - Environment reset at step 34000. Reset took 0.009s
+2025-05-15 14:44:23,180 - INFO - Interval SPS: 31161.75 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 35000, Total time: 1.44s)
+2025-05-15 14:44:23,188 - INFO - Environment reset at step 35000. Reset took 0.008s
+2025-05-15 14:44:23,222 - INFO - Interval SPS: 28873.78 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 36000, Total time: 1.48s)
+2025-05-15 14:44:23,231 - INFO - Environment reset at step 36000. Reset took 0.009s
+2025-05-15 14:44:23,264 - INFO - Interval SPS: 30607.17 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 37000, Total time: 1.52s)
+2025-05-15 14:44:23,272 - INFO - Environment reset at step 37000. Reset took 0.008s
+2025-05-15 14:44:23,305 - INFO - Interval SPS: 30324.74 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 38000, Total time: 1.56s)
+2025-05-15 14:44:23,314 - INFO - Environment reset at step 38000. Reset took 0.008s
+2025-05-15 14:44:23,346 - INFO - Interval SPS: 31061.93 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 39000, Total time: 1.60s)
+2025-05-15 14:44:23,354 - INFO - Environment reset at step 39000. Reset took 0.008s
+2025-05-15 14:44:23,386 - INFO - Interval SPS: 31805.35 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 40000, Total time: 1.64s)
+2025-05-15 14:44:23,394 - INFO - Environment reset at step 40000. Reset took 0.008s
+2025-05-15 14:44:23,426 - INFO - Interval SPS: 31756.07 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 41000, Total time: 1.68s)
+2025-05-15 14:44:23,434 - INFO - Environment reset at step 41000. Reset took 0.008s
+2025-05-15 14:44:23,466 - INFO - Interval SPS: 31483.13 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 42000, Total time: 1.72s)
+2025-05-15 14:44:23,475 - INFO - Environment reset at step 42000. Reset took 0.009s
+2025-05-15 14:44:23,507 - INFO - Interval SPS: 30690.38 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 43000, Total time: 1.76s)
+2025-05-15 14:44:23,515 - INFO - Environment reset at step 43000. Reset took 0.008s
+2025-05-15 14:44:23,547 - INFO - Interval SPS: 31987.42 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 44000, Total time: 1.80s)
+2025-05-15 14:44:23,555 - INFO - Environment reset at step 44000. Reset took 0.008s
+2025-05-15 14:44:23,587 - INFO - Interval SPS: 31755.82 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 45000, Total time: 1.84s)
+2025-05-15 14:44:23,595 - INFO - Environment reset at step 45000. Reset took 0.008s
+2025-05-15 14:44:23,627 - INFO - Interval SPS: 31358.82 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 46000, Total time: 1.88s)
+2025-05-15 14:44:23,635 - INFO - Environment reset at step 46000. Reset took 0.008s
+2025-05-15 14:44:23,667 - INFO - Interval SPS: 30809.92 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 47000, Total time: 1.92s)
+2025-05-15 14:44:23,700 - INFO - Environment reset at step 47000. Reset took 0.033s
+2025-05-15 14:44:23,732 - INFO - Interval SPS: 31158.07 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 48000, Total time: 1.99s)
+2025-05-15 14:44:23,741 - INFO - Environment reset at step 48000. Reset took 0.008s
+2025-05-15 14:44:23,772 - INFO - Interval SPS: 31452.19 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 49000, Total time: 2.03s)
+2025-05-15 14:44:23,781 - INFO - Environment reset at step 49000. Reset took 0.008s
+2025-05-15 14:44:23,812 - INFO - Interval SPS: 31721.90 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 50000, Total time: 2.07s)
+2025-05-15 14:44:23,821 - INFO - Environment reset at step 50000. Reset took 0.008s
+2025-05-15 14:44:23,853 - INFO - Interval SPS: 31057.27 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 51000, Total time: 2.11s)
+2025-05-15 14:44:23,861 - INFO - Environment reset at step 51000. Reset took 0.008s
+2025-05-15 14:44:23,894 - INFO - Interval SPS: 30525.42 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 52000, Total time: 2.15s)
+2025-05-15 14:44:23,903 - INFO - Environment reset at step 52000. Reset took 0.009s
+2025-05-15 14:44:23,935 - INFO - Interval SPS: 31344.61 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 53000, Total time: 2.19s)
+2025-05-15 14:44:23,943 - INFO - Environment reset at step 53000. Reset took 0.008s
+2025-05-15 14:44:23,975 - INFO - Interval SPS: 30984.45 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 54000, Total time: 2.23s)
+2025-05-15 14:44:23,984 - INFO - Environment reset at step 54000. Reset took 0.009s
+2025-05-15 14:44:24,016 - INFO - Interval SPS: 31460.52 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 55000, Total time: 2.27s)
+2025-05-15 14:44:24,024 - INFO - Environment reset at step 55000. Reset took 0.008s
+2025-05-15 14:44:24,056 - INFO - Interval SPS: 31513.76 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 56000, Total time: 2.31s)
+2025-05-15 14:44:24,064 - INFO - Environment reset at step 56000. Reset took 0.008s
+2025-05-15 14:44:24,097 - INFO - Interval SPS: 30740.66 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 57000, Total time: 2.35s)
+2025-05-15 14:44:24,106 - INFO - Environment reset at step 57000. Reset took 0.009s
+2025-05-15 14:44:24,137 - INFO - Interval SPS: 31881.40 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 58000, Total time: 2.39s)
+2025-05-15 14:44:24,146 - INFO - Environment reset at step 58000. Reset took 0.008s
+2025-05-15 14:44:24,178 - INFO - Interval SPS: 31056.02 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 59000, Total time: 2.43s)
+2025-05-15 14:44:24,186 - INFO - Environment reset at step 59000. Reset took 0.008s
+2025-05-15 14:44:24,218 - INFO - Interval SPS: 30966.94 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 60000, Total time: 2.48s)
+2025-05-15 14:44:24,227 - INFO - Environment reset at step 60000. Reset took 0.009s
+2025-05-15 14:44:24,260 - INFO - Interval SPS: 30499.97 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 61000, Total time: 2.52s)
+2025-05-15 14:44:24,268 - INFO - Environment reset at step 61000. Reset took 0.008s
+2025-05-15 14:44:24,302 - INFO - Interval SPS: 29695.25 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 62000, Total time: 2.56s)
+2025-05-15 14:44:24,311 - INFO - Environment reset at step 62000. Reset took 0.009s
+2025-05-15 14:44:24,343 - INFO - Interval SPS: 31438.63 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 63000, Total time: 2.60s)
+2025-05-15 14:44:24,351 - INFO - Environment reset at step 63000. Reset took 0.008s
+2025-05-15 14:44:24,384 - INFO - Interval SPS: 29993.40 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 64000, Total time: 2.64s)
+2025-05-15 14:44:24,393 - INFO - Environment reset at step 64000. Reset took 0.008s
+2025-05-15 14:44:24,426 - INFO - Interval SPS: 30764.26 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 65000, Total time: 2.68s)
+2025-05-15 14:44:24,434 - INFO - Environment reset at step 65000. Reset took 0.009s
+2025-05-15 14:44:24,466 - INFO - Interval SPS: 31729.33 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 66000, Total time: 2.72s)
+2025-05-15 14:44:24,474 - INFO - Environment reset at step 66000. Reset took 0.008s
+2025-05-15 14:44:24,506 - INFO - Interval SPS: 31452.80 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 67000, Total time: 2.76s)
+2025-05-15 14:44:24,514 - INFO - Environment reset at step 67000. Reset took 0.008s
+2025-05-15 14:44:24,545 - INFO - Interval SPS: 31846.42 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 68000, Total time: 2.80s)
+2025-05-15 14:44:24,554 - INFO - Environment reset at step 68000. Reset took 0.009s
+2025-05-15 14:44:24,586 - INFO - Interval SPS: 31120.49 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 69000, Total time: 2.84s)
+2025-05-15 14:44:24,595 - INFO - Environment reset at step 69000. Reset took 0.008s
+2025-05-15 14:44:24,627 - INFO - Interval SPS: 30928.35 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 70000, Total time: 2.88s)
+2025-05-15 14:44:24,636 - INFO - Environment reset at step 70000. Reset took 0.009s
+2025-05-15 14:44:24,668 - INFO - Interval SPS: 31251.99 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 71000, Total time: 2.92s)
+2025-05-15 14:44:24,676 - INFO - Environment reset at step 71000. Reset took 0.008s
+2025-05-15 14:44:24,709 - INFO - Interval SPS: 30560.09 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 72000, Total time: 2.97s)
+2025-05-15 14:44:24,717 - INFO - Environment reset at step 72000. Reset took 0.008s
+2025-05-15 14:44:24,748 - INFO - Interval SPS: 31602.69 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 73000, Total time: 3.01s)
+2025-05-15 14:44:24,757 - INFO - Environment reset at step 73000. Reset took 0.009s
+2025-05-15 14:44:24,789 - INFO - Interval SPS: 31636.31 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 74000, Total time: 3.05s)
+2025-05-15 14:44:24,797 - INFO - Environment reset at step 74000. Reset took 0.008s
+2025-05-15 14:44:24,829 - INFO - Interval SPS: 31059.40 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 75000, Total time: 3.09s)
+2025-05-15 14:44:24,837 - INFO - Environment reset at step 75000. Reset took 0.008s
+2025-05-15 14:44:24,870 - INFO - Interval SPS: 31049.15 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 76000, Total time: 3.13s)
+2025-05-15 14:44:24,878 - INFO - Environment reset at step 76000. Reset took 0.009s
+2025-05-15 14:44:24,910 - INFO - Interval SPS: 31793.26 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 77000, Total time: 3.17s)
+2025-05-15 14:44:24,918 - INFO - Environment reset at step 77000. Reset took 0.008s
+2025-05-15 14:44:24,949 - INFO - Interval SPS: 32106.64 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 78000, Total time: 3.21s)
+2025-05-15 14:44:24,958 - INFO - Environment reset at step 78000. Reset took 0.009s
+2025-05-15 14:44:24,990 - INFO - Interval SPS: 31052.32 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 79000, Total time: 3.25s)
+2025-05-15 14:44:24,999 - INFO - Environment reset at step 79000. Reset took 0.008s
+2025-05-15 14:44:25,031 - INFO - Interval SPS: 30355.15 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 80000, Total time: 3.29s)
+2025-05-15 14:44:25,040 - INFO - Environment reset at step 80000. Reset took 0.008s
+2025-05-15 14:44:25,072 - INFO - Interval SPS: 31447.36 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 81000, Total time: 3.33s)
+2025-05-15 14:44:25,080 - INFO - Environment reset at step 81000. Reset took 0.009s
+2025-05-15 14:44:25,112 - INFO - Interval SPS: 31700.24 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 82000, Total time: 3.37s)
+2025-05-15 14:44:25,120 - INFO - Environment reset at step 82000. Reset took 0.008s
+2025-05-15 14:44:25,152 - INFO - Interval SPS: 31074.68 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 83000, Total time: 3.41s)
+2025-05-15 14:44:25,161 - INFO - Environment reset at step 83000. Reset took 0.008s
+2025-05-15 14:44:25,192 - INFO - Interval SPS: 32009.26 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 84000, Total time: 3.45s)
+2025-05-15 14:44:25,200 - INFO - Environment reset at step 84000. Reset took 0.008s
+2025-05-15 14:44:25,235 - INFO - Interval SPS: 29212.47 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 85000, Total time: 3.49s)
+2025-05-15 14:44:25,243 - INFO - Environment reset at step 85000. Reset took 0.008s
+2025-05-15 14:44:25,276 - INFO - Interval SPS: 30329.42 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 86000, Total time: 3.53s)
+2025-05-15 14:44:25,285 - INFO - Environment reset at step 86000. Reset took 0.009s
+2025-05-15 14:44:25,317 - INFO - Interval SPS: 31504.79 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 87000, Total time: 3.57s)
+2025-05-15 14:44:25,325 - INFO - Environment reset at step 87000. Reset took 0.008s
+2025-05-15 14:44:25,358 - INFO - Interval SPS: 30574.07 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 88000, Total time: 3.62s)
+2025-05-15 14:44:25,366 - INFO - Environment reset at step 88000. Reset took 0.008s
+2025-05-15 14:44:25,399 - INFO - Interval SPS: 30679.08 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 89000, Total time: 3.66s)
+2025-05-15 14:44:25,434 - INFO - Environment reset at step 89000. Reset took 0.034s
+2025-05-15 14:44:25,466 - INFO - Interval SPS: 30825.23 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 90000, Total time: 3.72s)
+2025-05-15 14:44:25,474 - INFO - Environment reset at step 90000. Reset took 0.008s
+2025-05-15 14:44:25,505 - INFO - Interval SPS: 31968.71 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 91000, Total time: 3.76s)
+2025-05-15 14:44:25,514 - INFO - Environment reset at step 91000. Reset took 0.008s
+2025-05-15 14:44:25,545 - INFO - Interval SPS: 31556.65 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 92000, Total time: 3.80s)
+2025-05-15 14:44:25,554 - INFO - Environment reset at step 92000. Reset took 0.008s
+2025-05-15 14:44:25,586 - INFO - Interval SPS: 30771.91 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 93000, Total time: 3.84s)
+2025-05-15 14:44:25,594 - INFO - Environment reset at step 93000. Reset took 0.008s
+2025-05-15 14:44:25,626 - INFO - Interval SPS: 31297.88 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 94000, Total time: 3.88s)
+2025-05-15 14:44:25,635 - INFO - Environment reset at step 94000. Reset took 0.008s
+2025-05-15 14:44:25,666 - INFO - Interval SPS: 31655.63 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 95000, Total time: 3.92s)
+2025-05-15 14:44:25,674 - INFO - Environment reset at step 95000. Reset took 0.008s
+2025-05-15 14:44:25,707 - INFO - Interval SPS: 30832.40 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 96000, Total time: 3.96s)
+2025-05-15 14:44:25,715 - INFO - Environment reset at step 96000. Reset took 0.008s
+2025-05-15 14:44:25,747 - INFO - Interval SPS: 31432.33 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 97000, Total time: 4.00s)
+2025-05-15 14:44:25,755 - INFO - Environment reset at step 97000. Reset took 0.009s
+2025-05-15 14:44:25,788 - INFO - Interval SPS: 31148.65 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 98000, Total time: 4.04s)
+2025-05-15 14:44:25,796 - INFO - Environment reset at step 98000. Reset took 0.008s
+2025-05-15 14:44:25,828 - INFO - Interval SPS: 31362.75 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 99000, Total time: 4.08s)
+2025-05-15 14:44:25,837 - INFO - Environment reset at step 99000. Reset took 0.009s
+2025-05-15 14:44:25,901 - INFO - Interval SPS: 15438.15 (Steps in interval: 1000, Interval time: 0.06s, Total steps: 100000, Total time: 4.16s)
+2025-05-15 14:44:25,902 - INFO - Finished simulation loop. Executed 100000 steps in 4.16s. Total reset time: 0.900s. Effective simulation time (excluding resets): 3.26s. Overall Average SPS (excluding resets): 30688.08
+2025-05-15 14:44:25,902 - INFO - --- Simulation with Resets Finished --- Executed Steps: 100000, Time Taken: 4.16s, Average SPS: 30688.08
+2025-05-15 14:44:25,904 - INFO - --- Simulation with Resets Part Finished ---

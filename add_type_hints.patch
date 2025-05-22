@@ -1,0 +1,503 @@
+diff --git a/metta/agent/lib/action.py b/metta/agent/lib/action.py
+index 239fbc8d..37011fdd 100644
+--- a/metta/agent/lib/action.py
++++ b/metta/agent/lib/action.py
+@@ -5,65 +5,65 @@ from tensordict import TensorDict
+ import metta.agent.lib.nn_layer_library as nn_layer_library
+ 
+ 
+ class ActionEmbedding(nn_layer_library.Embedding):
+     """
+     Creates and manages embeddings for available actions in the environment.
+ 
+     This class extends the base Embedding layer to specifically handle action embeddings
+     in a reinforcement learning context. It maintains a dictionary mapping action names to
+     embedding indices, and dynamically updates the set of active actions based on what's
+     available in the current environment.
+ 
+     Key features:
+     - Maintains a mapping between action names (strings) and embedding indices
+     - Dynamically activates subsets of actions when requested
+     - Expands embeddings to match batch dimensions automatically
+     - Stores the number of active actions in the TensorDict for other layers
+ 
+     The activate_actions method should be called whenever the available actions in the
+     environment change, providing the new set of action names and the target device.
+ 
+     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+     """
+ 
+-    def __init__(self, initialization="max_0_01", **cfg):
++    def __init__(self, initialization: str = "max_0_01", **cfg) -> None:
+         super().__init__(**cfg)
+         self._reserved_action_embeds = {}
+         self.num_actions = 0
+         # delete this
+         # # num_actions to be updated at runtime by the size of the active indices
+         # self._out_tensor_shape = [self.num_actions, self._nn_params['embedding_dim']]
+         self.initialization = initialization
+         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
+ 
+-    def activate_actions(self, action_names, device):
++    def activate_actions(self, action_names: list[str], device: torch.device) -> None:
+         """
+         Updates the set of active action embeddings based on available actions.
+ 
+         This method maintains a dictionary mapping action names to embedding indices.
+         When new action names are encountered, they are assigned new indices.
+         The method then creates a tensor of active indices on the specified device
+         and updates the number of active actions.
+ 
+         Args:
+             action_names (list): List of action names (strings) available in the current environment
+             device (torch.device): Device where the active_indices tensor should be stored
+         """
+         for action_name in action_names:
+             if action_name not in self._reserved_action_embeds:
+                 embedding_index = len(self._reserved_action_embeds) + 1  # generate index for this string
+                 self._reserved_action_embeds[action_name] = embedding_index  # update this component's known embeddings
+ 
+         self.active_indices = torch.tensor(
+             [self._reserved_action_embeds[action_name] for action_name in action_names], device=device
+         )
+         self.num_actions = len(self.active_indices)
+ 
+-    def _forward(self, td: TensorDict):
++    def _forward(self, td: TensorDict) -> TensorDict:
+         B_TT = td["_BxTT_"]
+         td["_num_actions_"] = self.num_actions
+ 
+         # get embeddings then expand to match the batch size
+         td[self._name] = repeat(self._net(self.active_indices), "a e -> b a e", b=B_TT)
+         return td
+diff --git a/metta/agent/lib/position.py b/metta/agent/lib/position.py
+index d10c6e05..c30de56e 100644
+--- a/metta/agent/lib/position.py
++++ b/metta/agent/lib/position.py
+@@ -1,55 +1,57 @@
+ import math
+ 
+ import torch
+ 
+ 
+-def position_embeddings(width, height, embedding_dim=128):
++def position_embeddings(width: int, height: int, embedding_dim: int = 128) -> torch.Tensor:
+     """
+     Creates simple 2D position embeddings with x, y coordinates.
+ 
+     Generates a grid of positions where each point has normalized coordinates
+     in the range [-1, 1]. This provides a basic position representation that
+     can be used in neural networks to inject spatial information.
+ 
+     Args:
+         width (int): The width of the grid
+         height (int): The height of the grid
+         embedding_dim (int): Not used in this function, included for API consistency
+             with sinusoidal_position_embeddings
+ 
+     Returns:
+         torch.Tensor: A tensor of shape [width, height, 2] containing normalized
+             x, y coordinates for each position in the grid
+     """
+     x = torch.linspace(-1, 1, width)
+     y = torch.linspace(-1, 1, height)
+     pos_x, pos_y = torch.meshgrid(x, y, indexing="xy")
+     return torch.stack((pos_x, pos_y), dim=-1)
+ 
+ 
+-def sinusoidal_position_embeddings(width, height, embedding_dim=128):
++def sinusoidal_position_embeddings(
++    width: int, height: int, embedding_dim: int = 128
++) -> torch.Tensor:
+     """
+     Creates sinusoidal position embeddings for a 2D grid.
+ 
+     This function implements sinusoidal position embeddings similar to those used
+     in the Transformer architecture, but adapted for 2D spatial positions. It creates
+     embeddings by applying sine and cosine functions at different frequencies to the
+     x and y coordinates, producing a rich representational space that captures both
+     position and relative distances.
+ 
+     The embeddings include both frequency-based features and the raw normalized coordinates
+     as the last two dimensions, providing both high-frequency detail and direct positional
+     information.
+ 
+     Args:
+         width (int): The width of the grid
+         height (int): The height of the grid
+         embedding_dim (int): The dimension of the position embeddings, must be even
+ 
+     Returns:
+         torch.Tensor: A tensor of shape [width, height, embedding_dim] containing
+             the sinusoidal position embeddings for each position in the grid
+ 
+     Raises:
+         AssertionError: If embedding_dim is not even
+     """
+diff --git a/metta/util/datastruct.py b/metta/util/datastruct.py
+index 30199eed..b3880b5e 100644
+--- a/metta/util/datastruct.py
++++ b/metta/util/datastruct.py
+@@ -1,29 +1,35 @@
++from typing import Any, Dict
++
+ from omegaconf import DictConfig, ListConfig
+ 
+ 
+-def flatten_config(obj, parent_key="", sep="."):
++def flatten_config(
++    obj: Any | DictConfig | ListConfig,
++    parent_key: str = "",
++    sep: str = ".",
++) -> Dict[str, Any]:
+     """
+     Recursively flatten a nested structure of DictConfig, ListConfig, dict, and list
+     using dot notation, including indices for list items.
+ 
+     Example:
+       Input:
+         {
+           "foo": {
+             "bar": [
+               {"a": 1},
+               {"b": 2}
+             ]
+           }
+         }
+       Output:
+         {
+           "foo.bar.0.a": 1,
+           "foo.bar.1.b": 2
+         }
+ 
+     Args:
+         obj: The structure to flatten (DictConfig, ListConfig, dict, list, or a scalar).
+         parent_key (str): The base key (used for recursion).
+         sep (str): The separator to use between levels in the flattened key.
+ 
+diff --git a/metta/util/git.py b/metta/util/git.py
+index 0ce49f4a..eca35acd 100644
+--- a/metta/util/git.py
++++ b/metta/util/git.py
+@@ -1,82 +1,80 @@
+ import subprocess
+ 
+ 
+-def get_current_branch(repo_path=None):
++def get_current_branch(repo_path: str | None = None) -> str | None:
+     """Get the current git branch name."""
+     try:
+         cmd = ["git", "symbolic-ref", "--short", "HEAD"]
+         if repo_path:
+             cmd = ["git", "-C", repo_path, "symbolic-ref", "--short", "HEAD"]
+         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+         return result.stdout.strip()
+     except subprocess.CalledProcessError:
+         return None
+ 
+ 
+-def get_current_commit(repo_path=None):
++def get_current_commit(repo_path: str | None = None) -> str | None:
+     """Get the current git commit hash."""
+     try:
+         cmd = ["git", "rev-parse", "HEAD"]
+         if repo_path:
+             cmd = ["git", "-C", repo_path, "rev-parse", "HEAD"]
+         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+         return result.stdout.strip()
+     except subprocess.CalledProcessError:
+         return None
+ 
+ 
+-def is_commit_pushed(commit_hash, repo_path=None):
++def is_commit_pushed(commit_hash: str, repo_path: str | None = None) -> bool:
+     """Check if a commit has been pushed to any remote branch."""
+     try:
+         cmd = ["git", "branch", "-r", "--contains", commit_hash]
+         if repo_path:
+             cmd = ["git", "-C", repo_path, "branch", "-r", "--contains", commit_hash]
+         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+         return bool(result.stdout.strip())
+     except subprocess.CalledProcessError:
+         return False
+ 
+ 
+-def has_unstaged_changes(repo_path=None):
++def has_unstaged_changes(repo_path: str | None = None) -> bool:
+     """Check if there are any unstaged changes in the git repository."""
+     try:
+         cmd = ["git", "status", "--porcelain"]
+         if repo_path:
+             cmd = ["git", "-C", repo_path, "status", "--porcelain"]
+         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+         return bool(result.stdout.strip())
+     except subprocess.CalledProcessError:
+         return False
+ 
+ 
+-def get_branch_commit(branch_name, repo_path=None):
++def get_branch_commit(branch_name: str, repo_path: str | None = None) -> str | None:
+     """Get the latest commit hash on a branch, including remote branches."""
+     try:
+         # Make sure we have the latest remote data
+         fetch_cmd = ["git", "fetch", "--quiet"]
+         if repo_path:
+             fetch_cmd = ["git", "-C", repo_path, "fetch", "--quiet"]
+         subprocess.run(fetch_cmd, check=True)
+ 
+         # Get the commit hash for the branch
+         rev_cmd = ["git", "rev-parse", branch_name]
+         if repo_path:
+             rev_cmd = ["git", "-C", repo_path, "rev-parse", branch_name]
+ 
+         result = subprocess.run(rev_cmd, capture_output=True, text=True, check=True)
+         return result.stdout.strip()
+     except subprocess.CalledProcessError:
+         return None
+ 
+ 
+-def get_commit_message(commit_hash):
++def get_commit_message(commit_hash: str) -> str | None:
+     """Get the commit message for a specific commit hash."""
+     try:
+-        import subprocess
+-
+         result = subprocess.run(
+             ["git", "log", "-1", "--pretty=%B", commit_hash], capture_output=True, text=True, check=True
+         )
+         return result.stdout.strip()
+     except subprocess.CalledProcessError:
+         return None
+diff --git a/metta/util/logging.py b/metta/util/logging.py
+index dc755c70..fef6397b 100644
+--- a/metta/util/logging.py
++++ b/metta/util/logging.py
+@@ -1,86 +1,86 @@
+ import logging
+ import os
+ import sys
+ from datetime import datetime
+ 
+ from loguru import logger
+ from rich.logging import RichHandler
+ 
+ 
+-def remap_io(logs_path: str):
++def remap_io(logs_path: str) -> None:
+     os.makedirs(logs_path, exist_ok=True)
+     stdout_log_path = os.path.join(logs_path, "out.log")
+     stderr_log_path = os.path.join(logs_path, "error.log")
+     stdout = open(stdout_log_path, "a")
+     stderr = open(stderr_log_path, "a")
+     sys.stderr = stderr
+     sys.stdout = stdout
+     logger.remove()
+ 
+ 
+-def restore_io():
++def restore_io() -> None:
+     sys.stderr = sys.__stderr__
+     sys.stdout = sys.__stdout__
+ 
+ 
+ # Create a custom formatter that supports milliseconds
+ class MillisecondFormatter(logging.Formatter):
+-    def formatTime(self, record, datefmt=None):
++    def formatTime(self, record: logging.LogRecord, datefmt: str | None = None) -> str:
+         created = datetime.fromtimestamp(record.created)
+         # Convert microseconds to milliseconds (keep only 3 digits)
+         msec = created.microsecond // 1000
+         if datefmt:
+             # Replace %f with just 3 digits for milliseconds
+             datefmt = datefmt.replace("%f", f"{msec:03d}")
+         else:
+             datefmt = "[%H:%M:%S.%03d]"
+         return created.strftime(datefmt) % msec
+ 
+ 
+ # Create a custom handler that always shows the timestamp
+ class AlwaysShowTimeRichHandler(RichHandler):
+-    def emit(self, record):
++    def emit(self, record: logging.LogRecord) -> None:
+         # Force a unique timestamp for each record
+         record.created = record.created + (record.relativeCreated % 1000) / 1000000
+         super().emit(record)
+ 
+ 
+-def get_log_level(provided_level=None):
++def get_log_level(provided_level: str | None = None) -> str:
+     """
+     Determine log level based on priority:
+     1. Environment variable LOG_LEVEL
+     2. Provided level parameter
+     3. Default to INFO
+     """
+     # Check environment variable first
+     env_level = os.environ.get("LOG_LEVEL")
+     if env_level:
+         return env_level.upper()
+ 
+     # Check provided level next
+     if provided_level:
+         return provided_level.upper()
+ 
+     # Default to INFO
+     return "INFO"
+ 
+ 
+-def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
++def setup_mettagrid_logger(name: str, level: str | None = None) -> logging.Logger:
+     # Get the appropriate log level based on priority
+     log_level = get_log_level(level)
+ 
+     # Remove all handlers from the root logger
+     root_logger = logging.getLogger()
+     for handler in root_logger.handlers[:]:
+         root_logger.removeHandler(handler)
+ 
+     # Add back our custom Rich handler
+     rich_handler = AlwaysShowTimeRichHandler(rich_tracebacks=True)
+     formatter = MillisecondFormatter("%(message)s", datefmt="[%H:%M:%S.%f]")
+     rich_handler.setFormatter(formatter)
+     root_logger.addHandler(rich_handler)
+ 
+     # Set the level
+     root_logger.setLevel(getattr(logging, log_level))
+ 
+     return logging.getLogger(name)
+diff --git a/metta/util/runtime_configuration.py b/metta/util/runtime_configuration.py
+index 5290f779..c76028c2 100644
+--- a/metta/util/runtime_configuration.py
++++ b/metta/util/runtime_configuration.py
+@@ -1,49 +1,50 @@
+ import logging
+ import os
+ import random
+ import signal
+ import warnings
++from typing import Any
+ 
+ import numpy as np
+ import torch
+ from omegaconf import OmegaConf
+ from rich import traceback
+ 
+ logger = logging.getLogger("runtime_configuration")
+ 
+ 
+-def seed_everything(seed, torch_deterministic):
++def seed_everything(seed: int | None, torch_deterministic: bool) -> None:
+     random.seed(seed)
+     np.random.seed(seed)
+     if seed is not None:
+         torch.manual_seed(seed)
+     torch.backends.cudnn.deterministic = torch_deterministic
+     torch.backends.cudnn.benchmark = True
+ 
+ 
+-def setup_mettagrid_environment(cfg):
++def setup_mettagrid_environment(cfg: Any) -> None:
+     # Import mettagrid_env to ensure OmegaConf resolvers are registered before Hydra loads
+     import mettagrid.mettagrid_env  # noqa: F401
+ 
+     # Set environment variables to run without display
+     os.environ["GLFW_PLATFORM"] = "osmesa"  # Use OSMesa as the GLFW backend
+     os.environ["SDL_VIDEODRIVER"] = "dummy"
+     os.environ["MPLBACKEND"] = "Agg"
+     os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+     os.environ["DISPLAY"] = ""
+ 
+     # Suppress deprecation warnings
+     warnings.filterwarnings("ignore", category=DeprecationWarning)
+     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
+     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
+ 
+     if cfg.dist_cfg_path is not None:
+         dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
+         cfg.run = dist_cfg.run
+         cfg.wandb.run_id = dist_cfg.wandb_run_id
+ 
+     # print(OmegaConf.to_yaml(cfg))
+     traceback.install(show_locals=False)
+     seed_everything(cfg.seed, cfg.torch_deterministic)
+     os.makedirs(cfg.run_dir, exist_ok=True)
+     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+diff --git a/metta/util/wandb/wandb_context.py b/metta/util/wandb/wandb_context.py
+index 7e99f769..4ffc59d5 100644
+--- a/metta/util/wandb/wandb_context.py
++++ b/metta/util/wandb/wandb_context.py
+@@ -1,29 +1,30 @@
+ import copy
+ import logging
+ import os
+ import socket
++from types import TracebackType
+ from typing import Annotated, Literal, Union, cast
+ 
+ import pkg_resources
+ import requests
+ import wandb
+ import wandb.errors
+ import wandb.sdk.wandb_run
+ import wandb.util
+ from omegaconf import OmegaConf
+ from pydantic import Field, TypeAdapter
+ 
+ from metta.util.config import Config
+ 
+ logger = logging.getLogger(__name__)
+ 
+ # Alias type for easier usage (other modules can import this type)
+ WandbRun = wandb.sdk.wandb_run.Run
+ 
+ 
+ class WandbConfigOn(Config):
+     enabled: Literal[True] = True
+ 
+     project: str
+     entity: str
+     group: str
+@@ -141,34 +142,39 @@ class WandbContext:
+                 resume=True,
+                 tags=["user:" + os.environ.get("METTA_USER", "unknown")],
+                 settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
+             )
+ 
+             # Save config and set up file syncing only if wandb init succeeded
+             OmegaConf.save(global_cfg, os.path.join(self.cfg.data_dir, "config.yaml"))
+             wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
+             wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
+             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
+ 
+         except (TimeoutError, wandb.errors.CommError) as e:
+             error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
+             logger.warning(f"W&B initialization failed due to {error_type} error: {str(e)}")
+             logger.info("Continuing without W&B logging")
+             self.run = None
+ 
+         except Exception as e:
+             logger.error(f"Unexpected error during W&B initialization: {str(e)}")
+             logger.info("Continuing without W&B logging")
+             self.run = None
+ 
+         return self.run
+ 
+     @staticmethod
+-    def cleanup_run(run: WandbRun | None):
++    def cleanup_run(run: WandbRun | None) -> None:
+         if run:
+             try:
+                 wandb.finish()
+             except Exception as e:
+                 logger.error(f"Error during W&B cleanup: {str(e)}")
+ 
+-    def __exit__(self, exc_type, exc_val, exc_tb):
++    def __exit__(
++        self,
++        exc_type: type[BaseException] | None,
++        exc_val: BaseException | None,
++        exc_tb: TracebackType | None,
++    ) -> None:
+         self.cleanup_run(self.run)
+

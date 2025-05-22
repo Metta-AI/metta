@@ -1,20 +1,29 @@
+[build-system]
+requires = ["setuptools>=64", "wheel", "numpy>=2.2.5", "Cython==3.0.12"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "metta"
 version = "0.1"
 description = "Metta AI framework"
 readme = "README.md"
 requires-python = "==3.11.7"
+license = "MIT"
+
+[project.scripts]
+skypilot = "devops.skypilot.launch:main"
+skypilot-sandbox = "devops.skypilot.sandbox:main"
 
 [tool.setuptools]
-packages = ["metta", "pufferlib", "mettagrid"]
+packages = ["metta", "mettagrid", "devops"]
 
 [tool.setuptools.package-dir]
 metta = "metta"
-pufferlib = "deps/pufferlib"
 mettagrid = "mettagrid"
+devops = "devops"
 
 [tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
+dependencies = { file = ["requirements.txt", "requirements_pinned.txt"] }
 
 [tool.coverage.run]
 source = ["mettagrid", "metta"]

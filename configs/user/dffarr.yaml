@@ -1,0 +1,31 @@
+# @package __global__
+
+defaults:
+  - /hardware: macbook
+  # - /sim: simple
+  # - /agent: simple
+  # - /sim/sim_single@replay_job.sim
+  # - /sim: sim_suite
+  - _self_
+
+run_id: 45
+run: ${oc.env:USER}.local.${run_id}
+policy_uri: wandb://run/navigation_training:v58
+
+wandb:
+  enabled: false
+  track: false
+
+# trainer:
+#   num_workers: 2
+
+sim_job:
+  policy_uris:
+    policy_uri: ${...policy_uri}
+
+replay_job:
+  sim:
+    env: env/mettagrid/my_evals/dominik
+    # env: env/mettagrid/memory/evals/easy
+  policy_uri: ${..policy_uri}
+  selector_type: latest

@@ -1,0 +1,25 @@
+2025-05-15 14:38:40,940 - INFO - Initiating simulation with resets with wandb run name: dff_metagrid_bench_steps_0004_with_resets
+2025-05-15 14:38:40,940 - INFO - --- Starting Simulation with Resets (every 1000 steps) ---
+2025-05-15 14:38:40,970 - INFO - Environment reset for simulation with resets. Target steps: 10000, Log interval: 1000 steps, Reset every: 1000 steps.
+2025-05-15 14:38:40,970 - INFO - Starting simulation loop. Total steps: 10000. Log interval: 1000 steps. Steps per reset cycle: 1000.
+2025-05-15 14:38:41,003 - INFO - Interval SPS: 30418.48 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 1000, Total time: 0.03s)
+2025-05-15 14:38:41,012 - INFO - Environment reset at step 1000. Reset took 0.009s
+2025-05-15 14:38:41,046 - INFO - Interval SPS: 29068.29 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 2000, Total time: 0.08s)
+2025-05-15 14:38:41,056 - INFO - Environment reset at step 2000. Reset took 0.009s
+2025-05-15 14:38:41,091 - INFO - Interval SPS: 28048.89 (Steps in interval: 1000, Interval time: 0.04s, Total steps: 3000, Total time: 0.12s)
+2025-05-15 14:38:41,101 - INFO - Environment reset at step 3000. Reset took 0.009s
+2025-05-15 14:38:41,136 - INFO - Interval SPS: 28550.08 (Steps in interval: 1000, Interval time: 0.04s, Total steps: 4000, Total time: 0.17s)
+2025-05-15 14:38:41,145 - INFO - Environment reset at step 4000. Reset took 0.009s
+2025-05-15 14:38:41,179 - INFO - Interval SPS: 29434.92 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 5000, Total time: 0.21s)
+2025-05-15 14:38:41,188 - INFO - Environment reset at step 5000. Reset took 0.009s
+2025-05-15 14:38:41,226 - INFO - Interval SPS: 26213.46 (Steps in interval: 1000, Interval time: 0.04s, Total steps: 6000, Total time: 0.26s)
+2025-05-15 14:38:41,236 - INFO - Environment reset at step 6000. Reset took 0.009s
+2025-05-15 14:38:41,269 - INFO - Interval SPS: 29766.96 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 7000, Total time: 0.30s)
+2025-05-15 14:38:41,278 - INFO - Environment reset at step 7000. Reset took 0.009s
+2025-05-15 14:38:41,314 - INFO - Interval SPS: 27732.04 (Steps in interval: 1000, Interval time: 0.04s, Total steps: 8000, Total time: 0.34s)
+2025-05-15 14:38:41,323 - INFO - Environment reset at step 8000. Reset took 0.009s
+2025-05-15 14:38:41,357 - INFO - Interval SPS: 29636.29 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 9000, Total time: 0.39s)
+2025-05-15 14:38:41,366 - INFO - Environment reset at step 9000. Reset took 0.009s
+2025-05-15 14:38:41,401 - INFO - Interval SPS: 28448.62 (Steps in interval: 1000, Interval time: 0.04s, Total steps: 10000, Total time: 0.43s)
+2025-05-15 14:38:41,401 - INFO - Finished simulation loop. Executed 10000 steps in 0.43s. Total reset time: 0.081s. Effective simulation time (excluding resets): 0.35s. Overall Average SPS (excluding resets): 28562.00
+2025-05-15 14:38:41,401 - INFO - --- Simulation with Resets Finished --- Executed Steps: 10000, Time Taken: 0.43s, Average SPS: 28562.00

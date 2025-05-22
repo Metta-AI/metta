@@ -23,18 +23,25 @@ from metta.util.config import Config
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 
+SMOKE_TEST_NUM_SIMS = 1
+SMOKE_TEST_MIN_SCORE = 0.9
+
+
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
 # --------------------------------------------------------------------------- #
 
 
 class SimJob(Config):
+    __init__ = Config.__init__
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
     selector_type: str = "top"
-    replay_dir: str = "s3://softmax-public/replays/evals"
     stats_db_uri: str
     stats_dir: str  # The (local) directory where stats should be stored
+    replay_dir: str  # where to store replays
+    smoke_test: bool = False
+    smoke_test_min_reward: float | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -61,18 +68,28 @@ def simulate_policy(
 
     # For each checkpoint of the policy, simulate
     for pr in policy_prs:
-        logger.info("Evaluating policy %s", pr.uri)
-
-        stats_dir = f"{sim_job.stats_dir}/{pr.name}"
+        logger.info(f"Evaluating policy {pr.uri}")
         replay_dir = f"{sim_job.replay_dir}/{pr.name}"
         sim = SimulationSuite(
             config=sim_job.simulation_suite,
             policy_pr=pr,
             policy_store=policy_store,
             replay_dir=replay_dir,
-            stats_dir=stats_dir,
+            stats_dir=sim_job.stats_dir,
+            device=cfg.device,
+            vectorization=cfg.vectorization,
         )
         results = sim.simulate()
+
+        if sim_job.smoke_test:
+            rewards_df = results.stats_db.query(
+                "SELECT AVG(value) AS avg_reward FROM agent_metrics WHERE metric = 'reward'"
+            )
+            assert len(rewards_df) == 1, f"Expected 1 reward during a smoke test, got {len(rewards_df)}"
+            reward = rewards_df.iloc[0]["avg_reward"]
+            logger.info("Reward is %s", reward)
+            assert reward >= SMOKE_TEST_MIN_SCORE, f"Reward is {reward}, expected at least {SMOKE_TEST_MIN_SCORE}"
+            return
         # ------------------------------------------------------------------ #
         # Export                                                             #
         # ------------------------------------------------------------------ #
@@ -95,7 +112,14 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
     sim_job = SimJob(cfg.sim_job)
-    assert isinstance(sim_job, SimJob)
+
+    if sim_job.smoke_test:
+        logger.info("Limiting simulations to %d", SMOKE_TEST_NUM_SIMS)
+        sim_job.simulation_suite.simulations = {
+            k: v
+            for i, (k, v) in enumerate(sim_job.simulation_suite.simulations.items())
+            if i in range(SMOKE_TEST_NUM_SIMS)
+        }
 
     for policy_uri in sim_job.policy_uris:
         simulate_policy(sim_job, policy_uri, cfg, logger)

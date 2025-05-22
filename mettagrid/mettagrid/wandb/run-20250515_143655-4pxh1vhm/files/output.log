@@ -1,0 +1,16 @@
+2025-05-15 14:36:55,796 - INFO - Initiating continuous simulation with wandb run name: dff_metagrid_bench_steps_0003_continuous
+2025-05-15 14:36:55,796 - INFO - --- Starting Continuous Simulation ---
+2025-05-15 14:36:55,828 - INFO - Environment reset for continuous simulation. Target steps: 10000, Log interval: 1000 steps.
+2025-05-15 14:36:55,828 - INFO - Starting simulation loop. Total steps: 10000. Log interval: 1000 steps. Steps per reset cycle: N/A.
+2025-05-15 14:36:55,861 - INFO - Interval SPS: 30533.15 (Steps in interval: 1000, Interval time: 0.03s, Total steps: 1000, Total time: 0.03s)
+2025-05-15 14:36:55,968 - INFO - Interval SPS: 9413.82 (Steps in interval: 1000, Interval time: 0.11s, Total steps: 2000, Total time: 0.14s)
+2025-05-15 14:36:56,084 - INFO - Interval SPS: 8582.23 (Steps in interval: 1000, Interval time: 0.12s, Total steps: 3000, Total time: 0.26s)
+2025-05-15 14:36:56,199 - INFO - Interval SPS: 8721.10 (Steps in interval: 1000, Interval time: 0.11s, Total steps: 4000, Total time: 0.37s)
+2025-05-15 14:36:56,314 - INFO - Interval SPS: 8700.93 (Steps in interval: 1000, Interval time: 0.11s, Total steps: 5000, Total time: 0.49s)
+2025-05-15 14:36:56,428 - INFO - Interval SPS: 8776.21 (Steps in interval: 1000, Interval time: 0.11s, Total steps: 6000, Total time: 0.60s)
+2025-05-15 14:36:56,541 - INFO - Interval SPS: 8816.84 (Steps in interval: 1000, Interval time: 0.11s, Total steps: 7000, Total time: 0.71s)
+2025-05-15 14:36:56,654 - INFO - Interval SPS: 8858.90 (Steps in interval: 1000, Interval time: 0.11s, Total steps: 8000, Total time: 0.83s)
+2025-05-15 14:36:56,771 - INFO - Interval SPS: 8529.81 (Steps in interval: 1000, Interval time: 0.12s, Total steps: 9000, Total time: 0.94s)
+2025-05-15 14:36:56,889 - INFO - Interval SPS: 8450.48 (Steps in interval: 1000, Interval time: 0.12s, Total steps: 10000, Total time: 1.06s)
+2025-05-15 14:36:56,890 - INFO - Finished simulation loop. Executed 10000 steps in 1.06s. Total reset time: 0.000s. Effective simulation time (excluding resets): 1.06s. Overall Average SPS (excluding resets): 9424.69
+2025-05-15 14:36:56,890 - INFO - --- Continuous Simulation Finished --- Executed Steps: 10000, Time Taken: 1.06s, Average SPS: 9424.69

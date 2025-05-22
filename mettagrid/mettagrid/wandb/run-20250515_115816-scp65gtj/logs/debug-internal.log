@@ -1,0 +1,16 @@
+{"time":"2025-05-15T11:58:16.732278-07:00","level":"INFO","msg":"stream: starting","core version":"0.19.11","symlink path":"/Users/dffarr/Desktop/metta/mettagrid/mettagrid/wandb/run-20250515_115816-scp65gtj/logs/debug-core.log"}
+{"time":"2025-05-15T11:58:16.960782-07:00","level":"INFO","msg":"created new stream","id":"scp65gtj"}
+{"time":"2025-05-15T11:58:16.960821-07:00","level":"INFO","msg":"stream: started","id":"scp65gtj"}
+{"time":"2025-05-15T11:58:16.960852-07:00","level":"INFO","msg":"writer: Do: started","stream_id":"scp65gtj"}
+{"time":"2025-05-15T11:58:16.960889-07:00","level":"INFO","msg":"handler: started","stream_id":"scp65gtj"}
+{"time":"2025-05-15T11:58:16.960929-07:00","level":"INFO","msg":"sender: started","stream_id":"scp65gtj"}
+{"time":"2025-05-15T11:58:17.176715-07:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-05-15T12:00:17.300017-07:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-05-15T12:00:17.30015-07:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-05-15T12:00:17.851802-07:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-05-15T12:00:18.080204-07:00","level":"INFO","msg":"handler: operation stats","stats":{}}
+{"time":"2025-05-15T12:00:18.0856-07:00","level":"INFO","msg":"stream: closing","id":"scp65gtj"}
+{"time":"2025-05-15T12:00:18.085682-07:00","level":"INFO","msg":"sender: closed","stream_id":"scp65gtj"}
+{"time":"2025-05-15T12:00:18.085703-07:00","level":"INFO","msg":"handler: closed","stream_id":"scp65gtj"}
+{"time":"2025-05-15T12:00:18.08571-07:00","level":"INFO","msg":"writer: Close: closed","stream_id":"scp65gtj"}
+{"time":"2025-05-15T12:00:18.08591-07:00","level":"INFO","msg":"stream: closed","id":"scp65gtj"}

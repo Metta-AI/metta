@@ -12,7 +12,7 @@
 /.github/CODEOWNERS @daveey
 
 # MettaScope
-/mettagrid/player @treeform @daveey
+/mettascope @treeform @daveey
 
 # DevOps
 /devops/tf @daveey @berekuk

@@ -30,14 +30,20 @@ permissions:
   checks: write
   pull-requests: write
 
+# We should switch to using uv projects rather than requirements.txt
+# but for now, this installs in the global venv
+env:
+  HYDRA_FULL_ERROR: 1
+  VENV_PATH: .venv
+
 jobs:
   # check if CI should run based on Graphite's stack position
   graphite-ci-optimizer:
     name: "Graphite CI Optimizer"
     if: |
-      github.event.pull_request.draft == false || 
-      github.event_name == 'push' || 
-      github.event_name == 'workflow_dispatch' || 
+      github.event.pull_request.draft == false ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     outputs:
@@ -58,10 +64,10 @@ jobs:
     name: "Set up for Python checks"
     needs: graphite-ci-optimizer
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (github.event.pull_request.draft == false || 
-       github.event_name == 'push' || 
-       github.event_name == 'workflow_dispatch' || 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (github.event.pull_request.draft == false ||
+       github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
        github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     outputs:
@@ -69,8 +75,6 @@ jobs:
       run_lint: ${{ steps.determine_tasks.outputs.run_lint }}
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
       run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
-      cache_key: ${{ steps.set-cache-key.outputs.cache_key }}
-      cache_paths: ${{ steps.set-cache-paths.outputs.paths }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -80,69 +84,8 @@ jobs:
         uses: ./.github/actions/file-changes
         with:
           patterns: "**/*.py"
-          specific_files: "requirements.txt,setup.py"
+          specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set cache paths
-        id: set-cache-paths
-        run: |
-          PATHS="venv
-          mettagrid/**/*.so
-          metta/**/*.so
-          deps/**/*.py
-          ~/.cache/pip
-          "
-          echo "paths<<EOF" >> $GITHUB_OUTPUT
-          echo "$PATHS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Generate cache key
-        id: set-cache-key
-        run: |
-          # Create a hash that combines all relevant files
-          find mettagrid -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/mettagrid_file_hashes.txt || true
-          find deps -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/deps_file_hashes.txt || true
-
-          # Add more project directories if they exist
-          find tests -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/tests_file_hashes.txt || true
-          find examples -type f \( -name "*.py" \) -exec sha256sum {} \; > /tmp/examples_file_hashes.txt || true
-
-          # Hash configuration files
-          find . -maxdepth 1 -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.json" -o -name "*.toml" \) -exec sha256sum {} \; > /tmp/config_file_hashes.txt || true
-
-          # Add setup.py and requirements.txt if they exist
-          if [ -f "setup.py" ]; then
-            sha256sum setup.py >> /tmp/file_hashes.txt
-          fi
-          if [ -f "requirements.txt" ]; then
-            sha256sum requirements.txt >> /tmp/file_hashes.txt
-          fi
-          if [ -f "pyproject.toml" ]; then
-            sha256sum pyproject.toml >> /tmp/file_hashes.txt
-          fi
-          if [ -f "setup.cfg" ]; then
-            sha256sum setup.cfg >> /tmp/file_hashes.txt
-          fi
-
-          # Add the cache paths to the hash calculation
-          echo "${{ steps.set-cache-paths.outputs.paths }}" | sha256sum >> /tmp/file_hashes.txt
-
-          # Combine all hash files
-          cat /tmp/mettagrid_file_hashes.txt /tmp/deps_file_hashes.txt /tmp/tests_file_hashes.txt /tmp/examples_file_hashes.txt /tmp/config_file_hashes.txt /tmp/file_hashes.txt > /tmp/all_hashes.txt || true
-
-          # Create the final hash
-          if [ -s "/tmp/all_hashes.txt" ]; then
-            HASH=$(sort /tmp/all_hashes.txt | sha256sum | cut -d' ' -f1)
-          else
-            HASH="empty"
-          fi
-
-          # Add Python version to the cache key
-          PYTHON_VERSION=$(python --version 2>&1 | cut -d' ' -f2)
-          CACHE_KEY="py-build-${PYTHON_VERSION}-${HASH}"
-
-          echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
-          echo "Created content-based hash key ${CACHE_KEY}"
 
       - name: Determine which tasks to run
         id: determine_tasks
@@ -184,68 +127,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
-
-      - name: Restore from build cache
-        id: setup-cache-py
-        uses: actions/cache@v3
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Install pip requirements (cache miss fallback)
-        if: steps.setup-cache-py.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt -c requirements.txt
-
-      - name: Install and compile deps (cache miss fallback)
-        if: steps.setup-cache-py.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          source venv/bin/activate
-          bash ./devops/setup_build.sh
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
   lint:
     name: "Python Lint"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
-
-      - name: Install Ruff
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install ruff==0.11.5
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
       - name: Run Ruff linter
         run: |
-          source venv/bin/activate
           ruff format --check .
 
       - name: Run Ruff formatting
         run: |
-          source venv/bin/activate
           ruff check --exit-non-zero-on-fix .
 
   test:
     name: "Python Tests"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -253,50 +166,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
-      - name: Restore from build cache
-        id: test-cache-py
-        uses: actions/cache@v3
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Install pip requirements (cache miss fallback)
-        if: steps.test-cache-py.outputs.cache-hit != 'true'
-        shell: bash
+      - name: Build FastGAE
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
+          uv pip install -e .
 
-      - name: Install and compile deps (cache miss fallback)
-        if: steps.test-cache-py.outputs.cache-hit != 'true'
-        shell: bash
+      - name: Build MettaGrid
         run: |
-          source venv/bin/activate
-          bash ./devops/setup_build.sh
+          uv pip install -e ./mettagrid
 
       - name: Run Pytest on core tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}
         run: |
-          source venv/bin/activate
-          pytest --maxfail=1 --disable-warnings -q
+          uv run pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on mettagrid tests
-        env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}/mettagrid
         run: |
-          source venv/bin/activate
           cd mettagrid
-          pytest --maxfail=1 --disable-warnings -q
+          uv run pytest --maxfail=1 --disable-warnings -q
 
   smoke-test:
-    name: "Training Smoke Test"
+    name: "Smoke Tests"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
@@ -308,43 +200,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
-      - name: Restore from build cache
-        id: benchmark-cache-py
-        uses: actions/cache@v3
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Install pip requirements (cache miss fallback)
-        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
-        shell: bash
+      - name: Build FastGAE
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
+          uv pip install -e .
 
-      - name: Install and compile deps (cache miss fallback)
-        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
-        shell: bash
+      - name: Build MettaGrid
         run: |
-          source venv/bin/activate
-          bash ./devops/setup_build.sh
+          uv pip install -e ./mettagrid
 
       - name: Check deps
         run: |
-          source venv/bin/activate
-
           for dep in \
             "pufferlib" \
             "carbs" \
             "wandb_carbs"
           do
             echo "Checking import for $dep..."
-            python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
+            uv run python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
               echo "❌ Failed to import $dep"
               exit 1
             }
@@ -361,16 +237,13 @@ jobs:
       - name: Training smoke test
         id: train
         env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
           WANDB_API_KEY: set_but_not_used
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
-          source venv/bin/activate
           mkdir -p train_dir
           source .github/scripts/benchmark.sh
-          benchmark "train" "python -m tools.train +hardware=github wandb=off"
+          benchmark "train" "uv run python -m tools.train +hardware=github wandb=off"
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
@@ -410,7 +283,6 @@ jobs:
       - name: Verify training artifacts
         if: success()
         run: |
-          source venv/bin/activate
           ls -la train_dir/
           ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
 
@@ -418,15 +290,12 @@ jobs:
         id: replay
         if: success()
         env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
           WANDB_API_KEY: set_but_not_used
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
-          source venv/bin/activate
           source .github/scripts/benchmark.sh
-          benchmark "replay" "python -m tools.replay +hardware=github wandb=off"
+          benchmark "replay" "uv run python -m tools.replay +hardware=github wandb=off"
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
@@ -445,10 +314,38 @@ jobs:
           retention-days: 1
           if-no-files-found: warn
 
+      - name: Run evals smoke test
+        id: eval_smoke_test
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          source .github/scripts/benchmark.sh
+          benchmark "evals" "./run_evals.sh smoke_test"
+
+      - name: Save evals benchmark
+        id: save_evals_benchmark
+        if: steps.eval_smoke_test.outcome == 'success'
+        uses: ./.github/actions/save-benchmarks
+        with:
+          name: evals_smoke_test
+          metrics: '{"duration": ${{ steps.eval_smoke_test.outputs.duration }}, "memory_usage": ${{ steps.eval_smoke_test.outputs.memory_usage }}}'
+          filename: smoke_test_evals_benchmark_results.json
+
+      - name: Upload evals benchmark file
+        if: steps.save_evals_benchmark.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: evals-benchmark-results
+          path: |
+            smoke_test_evals_benchmark_results.json
+          retention-days: 1
+          if-no-files-found: warn
+
       - name: Debug on failure
         if: failure()
         run: |
-          source venv/bin/activate
           echo "Listing the contents of the workspace:"
           find train_dir -type f -name "*.py" | sort
           find train_dir -type d | sort
@@ -457,8 +354,8 @@ jobs:
     name: "Python Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks, setup-py, test, smoke-test]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') && 
-      (needs.setup-checks.outputs.run_benchmark == 'true') && 
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_benchmark == 'true') &&
       (needs.test.result == 'success' || github.event_name != 'pull_request' )
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -466,31 +363,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.7"
+      - name: Setup Python and uv
+        id: setup-python-uv
+        uses: ./.github/actions/setup-python-uv
 
-      - name: Restore from build cache
-        id: benchmark-cache-py
-        uses: actions/cache@v3
-        with:
-          path: ${{ needs.setup-checks.outputs.cache_paths }}
-          key: ${{ needs.setup-checks.outputs.cache_key }}
-
-      - name: Install pip requirements (cache miss fallback)
-        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
-        shell: bash
+      - name: Build FastGAE
         run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
+          uv pip install -e .
 
-      - name: Install and compile deps (cache miss fallback)
-        if: steps.benchmark-cache-py.outputs.cache-hit != 'true'
-        shell: bash
+      - name: Build MettaGrid
         run: |
-          source venv/bin/activate
-          bash ./devops/setup_build.sh
+          uv pip install -e ./mettagrid
 
       - name: Download benchmark results from smoke-test train-benchmark-results job
         uses: actions/download-artifact@v4
@@ -505,27 +388,18 @@ jobs:
           path: ./
 
       - name: Run Main Python benchmarks
-        env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
         run: |
-          source venv/bin/activate
-          pytest  --benchmark-only --benchmark-json=main_benchmark_results.json
+          uv run pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
-        env:
-          HYDRA_FULL_ERROR: 1
-          PYTHONPATH: ${{ github.workspace }}
         run: |
-          source venv/bin/activate
           cd mettagrid
-          pytest  --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
+          uv run pytest --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
           mv mettagrid_benchmark_results.json ../
 
       - name: Combine benchmark results
         run: |
-          source venv/bin/activate
-          python - <<EOF
+          uv run python - <<EOF
 
           # Python Script to combine benchmark data
           import json
@@ -566,17 +440,17 @@ jobs:
               if not results:
                   print(f"Skipping empty or invalid file: {file_path}")
                   continue
-              
+
               valid_files_found = True
-              
+
               # Add benchmarks to the combined list
               if "benchmarks" in results and isinstance(results["benchmarks"], list):
                   combined_results["benchmarks"].extend(results["benchmarks"])
-              
+
               # Use the first valid file's machine_info and commit_info if not already set
               if "machine_info" in results and not combined_results["machine_info"]:
                   combined_results["machine_info"] = results["machine_info"]
-              
+
               if "commit_info" in results and not combined_results["commit_info"]:
                   combined_results["commit_info"] = results["commit_info"]
 
@@ -590,6 +464,26 @@ jobs:
               json.dump(combined_results, f, indent=2)
 
           print("Successfully combined benchmark results.")
+
+          # Extract agent_steps_per_second and write Bencher Metric Format file
+          AGENT_BENCH = "benchmarks/test_mettagrid_env_benchmark.py::test_step_performance_no_reset"
+          agent_data = safe_load_json('mettagrid_benchmark_results.json')
+          agent_steps = None
+          for bench in agent_data.get("benchmarks", []):
+              if bench.get("fullname") == AGENT_BENCH:
+                  agent_steps = bench.get("extra_info", {}).get("agent_steps_per_second")
+                  break
+
+          bmf_file = 'agent_steps.bmf.json'
+          if agent_steps is not None:
+              bmf = {AGENT_BENCH: {"agent_steps_per_second": {"value": agent_steps}}}
+              with open(bmf_file, 'w') as f:
+                  json.dump(bmf, f, indent=2)
+              print(f"Wrote agent steps metric to {bmf_file}")
+          else:
+              print("agent_steps_per_second not found; creating empty BMF file")
+              with open(bmf_file, 'w') as f:
+                  json.dump({}, f)
 
           EOF
 
@@ -609,6 +503,7 @@ jobs:
           echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
       # Main Branch Upload section
+      # note that "threshold-max-sample-size" has a minimum value of 2 - the new data and the reference
       - name: Upload to Bencher (Main Branch Baseline)
         if: github.ref == 'refs/heads/main'
         env:
@@ -619,15 +514,30 @@ jobs:
             --project mettagrid-sv3f5i2k \
             --token "$BENCHER_API_TOKEN" \
             --branch main \
-            --testbed ubuntu-latest \
             --threshold-measure latency \
-            --threshold-test t_test \
-            --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.99 \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-upper-boundary 0.20 \
             --thresholds-reset \
+            --testbed ubuntu-latest \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
+
+      - name: Upload Agent Steps Per Second (Main Branch)
+        if: github.ref == 'refs/heads/main'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch main \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file agent_steps.bmf.json > /dev/null
 
       - name: Install jq
         run: |
@@ -651,7 +561,7 @@ jobs:
           # Continue with checking if branch exists and has data
           if [ $? -eq 0 ]; then
             echo "Branch exists, checking if it has benchmark data..."
-            
+
             # Check if branch output contains a head key
             if jq -e '.head' /tmp/branch_output.json > /dev/null; then
               echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
@@ -665,11 +575,11 @@ jobs:
             echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
           fi
 
-      # PR Performance Changes section - Only runs if main branch has benchmarks
-      - name: Upload to Bencher (PR Performance Changes)
+      # First PR Performance run - Check for improvements (will NOT fail on alerts)
+      - name: Check for Performance Improvements
         if: |
-          (github.event_name == 'pull_request') && 
-          (!github.event.pull_request.head.repo.fork) && 
+          (github.event_name == 'pull_request') &&
+          (!github.event.pull_request.head.repo.fork) &&
           (steps.check-main-benchmark.outputs.main_benchmark_exists == 'true')
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
@@ -680,13 +590,78 @@ jobs:
             --token "$BENCHER_API_TOKEN" \
             --branch "$GITHUB_HEAD_REF" \
             --start-point "main" \
-            --start-point-clone-thresholds \
             --start-point-reset \
-            --testbed ubuntu-latest \
+            --thresholds-reset \
             --threshold-measure latency \
             --threshold-test percentage \
-            --threshold-max-sample-size 64 \
-            --threshold-upper-boundary 0.25 \
+            --threshold-max-sample-size 2 \
+            --threshold-lower-boundary 0.10 \
+            --testbed ubuntu-latest \
             --adapter python_pytest \
             --github-actions "$GITHUB_TOKEN" \
             --file combined_benchmark_results.json > /dev/null
+
+      - name: Upload Agent Steps Per Second (PR Improvement)
+        if: |
+          (github.event_name == 'pull_request') &&
+          (!github.event.pull_request.head.repo.fork) &&
+          (steps.check-main-benchmark.outputs.main_benchmark_exists == 'true')
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point "main" \
+            --start-point-reset \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file agent_steps.bmf.json > /dev/null
+
+      # Second PR Performance run - Check for regressions (WILL fail on alerts)
+      - name: Check for Performance Regressions
+        if: |
+          (github.event_name == 'pull_request') &&
+          (!github.event.pull_request.head.repo.fork) &&
+          (steps.check-main-benchmark.outputs.main_benchmark_exists == 'true')
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point "main" \
+            --start-point-reset \
+            --start-point-clone-thresholds \
+            --err \
+            --testbed ubuntu-latest \
+            --adapter python_pytest \
+            --github-actions "$GITHUB_TOKEN" \
+            --file combined_benchmark_results.json
+
+      - name: Upload Agent Steps Per Second (PR Regression)
+        if: |
+          (github.event_name == 'pull_request') &&
+          (!github.event.pull_request.head.repo.fork) &&
+          (steps.check-main-benchmark.outputs.main_benchmark_exists == 'true')
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bencher run \
+            --project mettagrid-sv3f5i2k \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point "main" \
+            --start-point-reset \
+            --start-point-clone-thresholds \
+            --err \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file agent_steps.bmf.json

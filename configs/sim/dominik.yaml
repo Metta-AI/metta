@@ -1,0 +1,13 @@
+defaults:
+  - sim # Inherit base simulation settings from configs/sim/sim.yaml
+  - _self_
+
+name: dominik_suite # A name for this collection of tests
+
+simulations:
+  dominik: # A unique name for this specific evaluation
+    env: env/mettagrid/my_evals/dominik # Path to your environment config from Step 1B
+    num_envs: 1 # How many parallel instances of this env to run during evaluation
+    num_episodes: 10 # How many times to run an episode for this evaluation
+    # max_time_s: 300 # Optional: max time for this specific eval
+    # policy_agents_pct: 1.0 # If you had NPCs, this would control ratio

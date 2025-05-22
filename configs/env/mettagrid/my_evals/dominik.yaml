@@ -1,0 +1,12 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1
+  max_steps: 2500
+
+  map_builder:
+    _target_: mettagrid.config.room.ascii.Ascii
+    border_width: 1
+    uri: "configs/env/mettagrid/my_evals/dominik.map"
