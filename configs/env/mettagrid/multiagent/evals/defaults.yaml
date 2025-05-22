@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 1
+  num_agents: 2
   max_steps: ???
 
   agent:
@@ -11,7 +11,7 @@ game:
       heart: 0.3333
 
   map_builder:
-    _target_: mettagrid.config.room.ascii.Ascii
+    _target_: mettagrid.room.ascii.Ascii
     border_width: 1
     uri: ???
 
