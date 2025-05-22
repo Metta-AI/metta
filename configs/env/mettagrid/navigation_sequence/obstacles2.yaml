@@ -5,9 +5,4 @@ defaults:
 game:
   max_steps: 350
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 1
-    room:
-      _target_: mettagrid.room.ascii.Ascii
-      border_width: 1
-      uri: "configs/env/mettagrid/maps/navigation_sequence/obstacles2.map"
+    uri: "configs/env/mettagrid/maps/navigation_sequence/obstacles2.map"
