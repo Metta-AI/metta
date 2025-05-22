@@ -358,11 +358,31 @@ check-benchmark-dependencies: check-common-dependencies
 #-----------------------
 
 # Build target calls the setup.py script with UV venv activated
+# NOTE: setup-tools does not build the SRC_OBJECTS we want for tests
 .PHONY: build
 build: check-build-dependencies create-dirs
 	@echo "🔨 Building mettagrid using setup-tools..."
 	@uv pip install -e .
 	@echo "✅ Build completed successfully."
+
+# Build the source object files needed for tests and benchmarks
+.PHONY: build-src-objects
+build-src-objects: check-build-dependencies create-dirs $(SRC_OBJECTS)
+	@echo "🧱 Building source object files..."
+	@echo "Built $(words $(SRC_OBJECTS)) object files:"
+	@for obj in $(SRC_OBJECTS); do \
+		if [ -f "$$obj" ]; then \
+			echo "  ✅ $$obj"; \
+		else \
+			echo "  ❌ $$obj (missing)"; \
+		fi; \
+	done
+	@echo "✅ Source object files ready for linking"
+
+# Modified build target to also build source objects
+.PHONY: build-all
+build-all: build build-src-objects
+	@echo "✅ Complete build (Python extension + source objects) completed"
 
 # Build just the test files
 .PHONY: build-tests
