@@ -15,7 +15,8 @@
 		"ruff.enable": true,
 		"ruff.nativeServer": "on",
 		"files.associations": {
-			"*.pxd": "cython"
+			"*.pxd": "cython",
+			"vector": "cpp"
 		},
 		"files.excludeGitIgnored": true,
 		"terminal.integrated.profiles.osx": {
