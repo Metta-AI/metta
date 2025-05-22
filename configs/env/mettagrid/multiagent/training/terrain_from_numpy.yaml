@@ -24,7 +24,7 @@ game:
     room:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: ${sampling:1,6,3}
-      agents: 1
+      agents: 4
       objects:
         mine: ${sampling:1,20,10}
         generator: ${sampling:1,10,2}
