@@ -6,7 +6,7 @@ set -e
 # Parse arguments
 args="${@:1}"
 
-source ./devops/env.sh
+source ./devops/setup.env
 
 # System configuration
 if [ -z "$NUM_CPUS" ]; then

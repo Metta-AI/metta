@@ -12,7 +12,7 @@ if [ -z "$sweep" ]; then
   exit 1
 fi
 
-source ./devops/env.sh
+source ./devops/setup.env
 
 DIST_ID=${DIST_ID:-localhost}
 DIST_CFG_PATH=./train_dir/sweep/$sweep/dist_$DIST_ID.yaml
