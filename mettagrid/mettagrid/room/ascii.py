@@ -4,11 +4,8 @@ from mettagrid.room.room import Room
 
 SYMBOLS = {
     "A": "agent.agent",
-<<<<<<< HEAD
-=======
     "Ap": "agent.prey",
     "AP": "agent.predator",
->>>>>>> 6c09cdb1da600806ab0a18f06667fda6f983c648
     "a": "altar",
     "c": "converter",
     "n": "generator",
