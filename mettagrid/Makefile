@@ -624,3 +624,28 @@ clean:
 .PHONY: all
 all: format test
 	@echo "All tasks completed."
+
+
+.PHONY: debug-test-files
+debug-test-files:
+	@echo ""
+	@echo "🔍 Debugging test file discovery..."
+	@echo "TEST_DIR = $(TEST_DIR)"
+	@echo "BUILD_TEST_DIR = $(BUILD_TEST_DIR)"
+	@echo ""
+	@echo "Files found in $(TEST_DIR):"
+	@if [ -d "$(TEST_DIR)" ]; then \
+		find $(TEST_DIR) -name "*.cpp" -o -name "*.c" | sort; \
+	else \
+		echo "  ❌ TEST_DIR does not exist!"; \
+	fi
+	@echo ""
+	@echo "TEST_SOURCES (from wildcard):"
+	@echo "$(TEST_SOURCES)" | tr ' ' '\n'
+	@echo ""
+	@echo "TEST_OBJECTS (derived):"
+	@echo "$(TEST_OBJECTS)" | tr ' ' '\n'
+	@echo ""
+	@echo "TEST_EXECUTABLES (derived):"
+	@echo "$(TEST_EXECUTABLES)" | tr ' ' '\n'
+	@echo ""

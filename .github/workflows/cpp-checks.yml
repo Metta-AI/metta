@@ -305,6 +305,11 @@ jobs:
           cd mettagrid
           make check-test-dependencies
 
+      - name: Check test files
+        run: |
+          cd mettagrid
+          make debug-test-files
+
       - name: Build C++ tests
         run: |
           cd mettagrid
