@@ -26,7 +26,7 @@ game:
       color: 0
       max_output: 1
       conversion_ticks: 1
-      cooldown: 1
+      cooldown: 10
       initial_items: 1
     generator.red:
       hp: 30
@@ -35,5 +35,5 @@ game:
       color: 0
       max_output: 1
       conversion_ticks: 1
-      cooldown: 1
+      cooldown: 10
       initial_items: 0
