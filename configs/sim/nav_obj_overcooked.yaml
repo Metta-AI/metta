@@ -1,0 +1,89 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: navigation_object-use_overcooked
+
+simulations:
+  navigation/emptyspace_withinsight:
+    env: env/mettagrid/navigation/evals/emptyspace_withinsight
+  navigation/emptyspace_outofsight:
+    env: env/mettagrid/navigation/evals/emptyspace_outofsight
+  navigation/emptyspace_sparse:
+    env: env/mettagrid/navigation/evals/emptyspace_sparse
+  navigation/walls_withinsight:
+    env: env/mettagrid/navigation/evals/walls_withinsight
+  navigation/walls_outofsight:
+    env: env/mettagrid/navigation/evals/walls_outofsight
+  navigation/walls_sparse:
+    env: env/mettagrid/navigation/evals/walls_sparse
+  navigation/cylinder:
+    env: env/mettagrid/navigation/evals/cylinder
+  navigation/obstacles0:
+    env: env/mettagrid/navigation/evals/obstacles0
+  navigation/obstacles1:
+    env: env/mettagrid/navigation/evals/obstacles1
+  navigation/obstacles2:
+    env: env/mettagrid/navigation/evals/obstacles2
+  navigation/obstacles3:
+    env: env/mettagrid/navigation/evals/obstacles3
+  navigation/corridors:
+    env: env/mettagrid/navigation/evals/corridors
+  navigation/labyrinth:
+    env: env/mettagrid/navigation/evals/labyrinth
+  navigation/radialmaze:
+    env: env/mettagrid/navigation/evals/radialmaze
+  navigation/cylinder_easy:
+    env: env/mettagrid/navigation/evals/cylinder_easy
+  navigation/honeypot:
+    env: env/mettagrid/navigation/evals/honeypot
+  navigation/knotty:
+    env: env/mettagrid/navigation/evals/knotty
+  navigation/memory_palace:
+    env: env/mettagrid/navigation/evals/memory_palace
+  navigation/radial_large:
+    env: env/mettagrid/navigation/evals/radial_large
+  navigation/radial_mini:
+    env: env/mettagrid/navigation/evals/radial_mini
+  navigation/radial_small:
+    env: env/mettagrid/navigation/evals/radial_small
+  navigation/swirls:
+    env: env/mettagrid/navigation/evals/swirls
+  navigation/thecube:
+    env: env/mettagrid/navigation/evals/thecube
+  navigation/walkaround:
+    env: env/mettagrid/navigation/evals/walkaround
+  navigation/wanderout:
+    env: env/mettagrid/navigation/evals/wanderout
+  object_use/altar_use_free:
+    env: env/mettagrid/object_use/evals/altar_use_free
+  object_use/armory_use_free:
+    env: env/mettagrid/object_use/evals/armory_use_free
+  object_use/armory_use:
+    env: env/mettagrid/object_use/evals/armory_use
+  object_use/generator_use_free:
+    env: env/mettagrid/object_use/evals/generator_use_free
+  object_use/generator_use:
+    env: env/mettagrid/object_use/evals/generator_use
+  object_use/lasery_use_free:
+    env: env/mettagrid/object_use/evals/lasery_use_free
+  object_use/lasery_use:
+    env: env/mettagrid/object_use/evals/lasery_use
+  object_use/mine_use:
+    env: env/mettagrid/object_use/evals/mine_use
+  object_use/shoot_out:
+    env: env/mettagrid/object_use/evals/shoot_out
+  object_use/swap_in:
+    env: env/mettagrid/object_use/evals/swap_in
+  object_use/swap_out:
+    env: env/mettagrid/object_use/evals/swap_out
+  object_use/temple_use_free:
+    env: env/mettagrid/object_use/evals/temple_use_free
+  object_use/full_sequence:
+    env: env/mettagrid/object_use/evals/full_sequence
+    overcooked/central_table_layout:
+    env: /env/mettagrid/cooperation/training/central_table_layout
+  overcooked/two_rooms_coord:
+    env: /env/mettagrid/cooperation/training/two_rooms_coord
+  overcooked/confined_room_coord:
+    env: /env/mettagrid/cooperation/training/confined_room_coord

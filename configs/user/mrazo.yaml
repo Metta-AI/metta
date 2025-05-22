@@ -5,16 +5,16 @@ defaults:
   - _self_
 
 trainer:
-  env: env/mettagrid/navigation/training/multienv
+  env: env/mettagrid/cooperation/training/overcooked
   # initial_policy:
-  #   uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
-  # evaluate_interval: 100
-  # checkpoint_interval: 100
+    uri: wandb://run/mrazo_object-use_allobs_large-small-multienv_v03
+  evaluate_interval: 100
+  checkpoint_interval: 100
 
 replay_job:
-  policy_uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
+  policy_uri: wandb://run/mrazo_object-use_allobs_large-small-multienv_v03:v01
   # wandb.enabled: false
   wandb.track: false
 
 
-run: mrazo_test_v02
+run: mrazo_overcooked_nav-obj-use_pretrained_v01
