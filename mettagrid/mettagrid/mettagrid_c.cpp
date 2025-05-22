@@ -159,6 +159,19 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
       }
     }
   }
+
+  // Initialize buffers. The buffers are likely to be re-set by the user anyways,
+  // so nothing above should depend on them before this point.
+  std::vector<ssize_t> shape = {static_cast<ssize_t>(num_agents),
+                                static_cast<ssize_t>(_obs_height),
+                                static_cast<ssize_t>(_obs_width),
+                                static_cast<ssize_t>(_grid_features.size())};
+  auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
+  auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
+  auto truncations = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
+  auto rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(float)});
+
+  set_buffers(observations, terminals, truncations, rewards);
 }
 
 MettaGrid::~MettaGrid() = default;
@@ -379,7 +392,7 @@ void MettaGrid::set_buffers(py::array_t<uint8_t, py::array::c_style>& observatio
   _terminals = terminals;
   _truncations = truncations;
   _rewards = rewards;
-  _episode_rewards = py::array_t<float>(_rewards.shape(0));
+  _episode_rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(_rewards.shape(0))}, {sizeof(float)});
   for (size_t i = 0; i < _agents.size(); i++) {
     _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
   }
