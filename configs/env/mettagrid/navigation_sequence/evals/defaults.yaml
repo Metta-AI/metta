@@ -8,8 +8,8 @@ game:
   num_agents: 1
   max_steps: 700
   map_builder:
-      _target_: mettagrid.room.ascii.Ascii
-      border_width: 1
+    _target_: mettagrid.room.ascii.Ascii
+    border_width: 1
   agent:
     rewards:
       heart: 0.95
@@ -32,7 +32,7 @@ game:
       color: 0
       max_output: 1
       conversion_ticks: 1
-      cooldown: 1
+      cooldown: 10
       initial_items: 1
 
     generator.red:
@@ -42,5 +42,5 @@ game:
       color: 0
       max_output: 3
       conversion_ticks: 1
-      cooldown: 1
+      cooldown: 10
       initial_items: 0
