@@ -29,10 +29,12 @@ def make_app(cfg: DictConfig):
         except FileNotFoundError as err:
             raise HTTPException(status_code=404, detail="Client HTML file not found") from err
 
-    @app.get("/style.css")
-    async def get_style_css():
+    @app.get("/{path:path}.css")
+    async def get_style_css(path: str):
+        if "/" in path or "." in path:
+            raise HTTPException(status_code=400, detail="Path must not contain '/' or '.'")
         try:
-            with open("mettascope/style.css", "r") as file:
+            with open(f"mettascope/{path}.css", "r") as file:
                 css_content = file.read()
             return HTMLResponse(content=css_content, media_type="text/css")
         except FileNotFoundError as err:

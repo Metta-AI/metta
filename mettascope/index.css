@@ -1,0 +1,512 @@
+/* Generated CSS from Figma file: https://www.figma.com/design/WeQldl3PsqFIpDnTka5Kd3 by tools/gen_html.py */
+
+
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-sizing: border-box;
+}
+html, body {
+    font-family: sans-serif;
+}
+
+body {
+    background-color: rgba(0, 0, 0, 1.00);
+    min-width: 100vw;
+    min-height: 100vh;
+}
+
+canvas#global-canvas {
+    position: absolute;
+    display: block;
+    left: 0px;
+    right: -3px;
+    top: 0px;
+    bottom: 0px;
+    background-color: rgba(0, 0, 0, 1.00);
+}
+
+#footer {
+    position: absolute;
+    display: block;
+    height: 64px;
+    left: 0px;
+    right: 0px;
+    bottom: 0px;
+    background-color: rgba(45, 52, 61, 1.00);
+    overflow: hidden;
+}
+
+#footer .left {
+    position: absolute;
+    display: flex;
+    width: 180px;
+    height: 32px;
+    left: 20px;
+    top: 50%;
+    transform: translate(0, -16px);
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 5px;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.left #rewind-to-start.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.left #step-back.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 37px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.left #play.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 74px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.left #step-forward.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 111px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.left #rewind-to-end.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 148px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#footer .center {
+    position: absolute;
+    display: flex;
+    width: 157px;
+    height: 32px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-78.50px, -16px);
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 5px;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.center #speed1.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.center #speed2.hover-icon {
+    display: block;
+    width: 17px;
+    height: 32px;
+    left: 37px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.center #speed3.hover-icon {
+    display: block;
+    width: 17px;
+    height: 32px;
+    left: 59px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.center #speed4.hover-icon {
+    display: block;
+    width: 17px;
+    height: 32px;
+    left: 81px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.center #speed5.hover-icon {
+    display: block;
+    width: 17px;
+    height: 32px;
+    left: 103px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.center #speed6.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 125px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#footer .right {
+    position: absolute;
+    display: flex;
+    width: 217px;
+    height: 32px;
+    right: 20px;
+    top: 50%;
+    transform: translate(0, -16px);
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 5px;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #sort.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #resources.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 37px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #tack.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 74px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #grid.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 111px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #eye.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 148px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #cloud.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 185px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#time-panel {
+    position: absolute;
+    display: flex;
+    height: 64px;
+    left: 0px;
+    right: 0px;
+    bottom: 64px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 16px;
+    padding: 16px 32px 16px 32px;
+    background-color: rgba(29, 29, 29, 1.00);
+    overflow: hidden;
+}
+
+#time-panel input#main-scrubber {
+    display: block;
+    width: 100%;
+    height: 32px;
+    left: 32px;
+    top: 16px;
+    align-self: stretch;
+    background-color: rgba(217, 217, 217, 1.00);
+}
+
+#trace-panel {
+    position: absolute;
+    display: block;
+    height: 64px;
+    left: 0px;
+    right: 0px;
+    bottom: 128px;
+    background-color: rgba(20, 20, 20, 1.00);
+    overflow: hidden;
+}
+
+#worldmap-panel {
+    position: absolute;
+    display: block;
+    left: 0px;
+    right: -1px;
+    top: 64px;
+    bottom: 192px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#header {
+    position: absolute;
+    display: block;
+    height: 64px;
+    left: 0px;
+    right: -1px;
+    top: 0px;
+    background-color: rgba(39, 54, 70, 1.00);
+    overflow: hidden;
+}
+
+#header .ui/header-bg {
+    position: absolute;
+    display: block;
+    width: 327px;
+    height: 64px;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#header #file-name {
+    position: absolute;
+    display: inline-block;
+    width: 701px;
+    height: 29px;
+    left: 85px;
+    top: 18px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 24px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 28.80px;
+}
+
+#header #logo {
+    position: absolute;
+    display: block;
+    width: 64px;
+    height: 64px;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#header button#share-button.hover-icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    right: 15px;
+    top: 15px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+button#share-button.hover-icon .icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#modal {
+    position: absolute;
+    display: flex;
+    width: 616px;
+    height: 237px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-307.50px, -118.50px);
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 32px;
+    padding: 64px 64px 64px 64px;
+    align-items: flex-end;
+    background-color: rgba(39, 54, 70, 1.00);
+    border-radius: 20px;
+    overflow: hidden;
+    border-color: rgba(255, 255, 255, 1.00);
+    border-width: 3px;
+    border-style: solid;
+}
+
+#modal .header {
+    display: inline-block;
+    width: 100%;
+    height: auto;
+    left: 64px;
+    top: 64px;
+    align-self: stretch;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 40px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 48px;
+}
+
+#modal .message {
+    display: inline-block;
+    width: 100%;
+    height: auto;
+    left: 64px;
+    top: 144px;
+    align-self: stretch;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 24px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 28.80px;
+}
+
+#toast {
+    position: absolute;
+    display: flex;
+    width: 267px;
+    height: 49px;
+    left: 50%;
+    bottom: 23px;
+    transform: translate(-133.50px, 0);
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 11px;
+    padding: 10px 20px 10px 20px;
+    background-color: rgba(33, 150, 83, 1.00);
+    border-radius: 20px;
+    overflow: hidden;
+    border-color: rgba(255, 255, 255, 1.00);
+    border-width: 3px;
+    border-style: solid;
+}
+
+#toast .message {
+    display: inline-block;
+    width: auto;
+    height: auto;
+    left: 20px;
+    top: 10px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 24px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 28.80px;
+}
+
+#info-panel {
+    position: absolute;
+    display: flex;
+    width: 308px;
+    height: 257px;
+    right: 0px;
+    bottom: 192px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 16px 16px 16px 16px;
+    background-color: rgba(0, 0, 0, 0.75);
+    overflow: hidden;
+}
+
+#info-panel .info {
+    display: inline-block;
+    width: auto;
+    height: auto;
+    left: 16px;
+    top: 16px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 10px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 13px;
+}
+
+#minimap-panel {
+    position: absolute;
+    display: block;
+    width: 202px;
+    height: 178px;
+    left: 0px;
+    top: 849px;
+    background-color: rgba(0, 103, 2, 1.00);
+    overflow: hidden;
+}

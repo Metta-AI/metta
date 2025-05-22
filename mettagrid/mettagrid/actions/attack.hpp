@@ -20,7 +20,7 @@ public:
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg > 9 || arg < 1) {
       return false;
     }
@@ -37,10 +37,10 @@ protected:
     GridLocation target_loc =
         _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
 
-    return _handle_target(actor_id, actor, target_loc);
+    return _handle_target(actor, target_loc);
   }
 
-  bool _handle_target(unsigned int actor_id, Agent* actor, GridLocation target_loc) {
+  bool _handle_target(Agent* actor, GridLocation target_loc) {
     target_loc.layer = GridLayer::Agent_Layer;
     Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
 
