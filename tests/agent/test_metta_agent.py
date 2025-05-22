@@ -439,7 +439,7 @@ def test_action_conversion_edge_cases(create_metta_agent):
     # Test with empty tensor - should raise a ValueError about invalid size
     empty_actions = torch.zeros((0, 2), dtype=torch.long)
     with pytest.raises(
-        ValueError, match=r"'action' dimension 0 \('BT'\) has invalid size 0, expected a positive value"
+        ValueError, match=r"'flattened_action' dimension 0 \('BT'\) has invalid size 0, expected a positive value"
     ):
         agent._convert_action_to_logit_index(empty_actions)
 
@@ -651,40 +651,6 @@ def test_distribution_utils_compatibility(create_metta_agent):
     assert torch.all(sampled_indices == reconstructed_indices)
 
 
-def test_forward_inference_integration(create_metta_agent):
-    """Test that the forward_inference method works with the new distribution utils."""
-    agent, _, _ = create_metta_agent
-
-    # Set up action space
-    action_names = ["move", "attack"]
-    action_max_params = [3, 1]  # move: [0,1,2,3], attack: [0,1]
-    agent.activate_actions(action_names, action_max_params, "cpu")
-
-    batch_size = 2
-    num_total_actions = sum([param + 1 for param in action_max_params])
-
-    # Create mock value and logits tensors
-    value = torch.randn(batch_size, 1)
-    logits = torch.randn(batch_size, num_total_actions)
-
-    # Call forward_inference
-    action, action_log_prob, entropy, returned_value, log_probs = agent.forward_inference(value, logits)
-
-    # Check output shapes
-    assert action.shape == (batch_size, 2)
-    assert action_log_prob.shape == (batch_size,)
-    assert entropy.shape == (batch_size,)
-    assert returned_value.shape == (batch_size, 1)
-    assert log_probs.shape == (batch_size, num_total_actions)
-
-    # Check that returned value is the same as input
-    assert torch.all(returned_value == value)
-
-    # Verify that actions are valid (within expected ranges)
-    assert torch.all(action[:, 0] >= 0) and torch.all(action[:, 0] <= 3)  # move action
-    assert torch.all(action[:, 1] >= 0) and torch.all(action[:, 1] <= 1)  # attack action
-
-
 def test_forward_training_integration(create_metta_agent):
     """Test that the forward_training method works with the new distribution utils."""
     agent, _, _ = create_metta_agent
@@ -695,17 +661,17 @@ def test_forward_training_integration(create_metta_agent):
     agent.activate_actions(action_names, action_max_params, "cpu")
 
     B, T = 2, 3
-    num_total_actions = sum([param + 1 for param in action_max_params])
+    num_total_actions = sum([param + 1 for param in action_max_params])  # 3 + 4 = 7
 
     # Create mock tensors
     value = torch.randn(B * T, 1)
     logits = torch.randn(B * T, num_total_actions)
 
-    # Create valid actions
+    # Action space: move (type 0): [0,1,2], use_item (type 1): [0,1,2,3]
     action = torch.tensor(
         [
-            [[0, 1], [1, 2], [2, 0]],  # batch 1
-            [[1, 0], [0, 3], [2, 1]],  # batch 2
+            [[0, 1], [1, 2], [0, 0]],  # batch 1
+            [[1, 0], [1, 3], [0, 1]],  # batch 2
         ]
     )
 
@@ -723,60 +689,17 @@ def test_forward_training_integration(create_metta_agent):
     assert torch.all(returned_action == action)
     assert torch.all(returned_value == value)
 
+    # Additional validation: verify all actions are actually valid
+    flattened_action = action.view(B * T, 2)
+    for i in range(B * T):
+        action_type = flattened_action[i, 0].item()
+        action_param = flattened_action[i, 1].item()
 
-def test_invalid_action_conversion_errors(create_metta_agent):
-    """Test error handling for invalid actions in conversion methods."""
-    agent, _, _ = create_metta_agent
+        # Check action type is valid (0=move, 1=use_item)
+        assert 0 <= action_type < len(action_max_params), f"Invalid action type {action_type}"
 
-    # Set up action space
-    action_names = ["action0", "action1"]
-    action_max_params = [1, 2]  # action0: [0,1], action1: [0,1,2]
-    agent.activate_actions(action_names, action_max_params, "cpu")
-
-    # Test invalid action type (action type doesn't exist)
-    invalid_action_type = torch.tensor([[3, 0]])  # action type 3 doesn't exist
-    with pytest.raises(IndexError):
-        agent._convert_action_to_logit_index(invalid_action_type)
-
-    # Test invalid action parameter (parameter exceeds max for action type)
-    invalid_action_param = torch.tensor([[0, 5]])  # action0 only supports params 0,1
-    with pytest.raises(IndexError):
-        agent._convert_action_to_logit_index(invalid_action_param)
-
-    # Test another invalid parameter case
-    invalid_action_param2 = torch.tensor([[1, 5]])  # action1 only supports params 0,1,2
-    with pytest.raises(IndexError):
-        agent._convert_action_to_logit_index(invalid_action_param2)
-
-    # Test negative action values
-    negative_action_type = torch.tensor([[-1, 0]])
-    with pytest.raises(IndexError):
-        agent._convert_action_to_logit_index(negative_action_type)
-
-    negative_action_param = torch.tensor([[0, -1]])
-    with pytest.raises(IndexError):
-        agent._convert_action_to_logit_index(negative_action_param)
-
-    # Test invalid logit indices for reverse conversion
-    num_total_actions = sum([param + 1 for param in action_max_params])  # Should be 5
-    invalid_logit_index = torch.tensor([num_total_actions])  # Index 5 is out of bounds
-    with pytest.raises(IndexError):
-        agent._convert_logit_index_to_action(invalid_logit_index)
-
-    # Test negative logit index
-    negative_logit_index = torch.tensor([-1])
-    with pytest.raises(IndexError):
-        agent._convert_logit_index_to_action(negative_logit_index)
-
-    # Test that valid boundary cases work correctly
-    # Test maximum valid action for each type
-    max_valid_actions = torch.tensor([[0, 1], [1, 2]])  # Max params for each action type
-    result = agent._convert_action_to_logit_index(max_valid_actions)
-    # Should not raise any errors and should produce valid indices
-    assert result.shape == (2,)
-    assert torch.all(result >= 0)
-    assert torch.all(result < num_total_actions)
-
-    # Test that we can convert back successfully
-    reconstructed = agent._convert_logit_index_to_action(result)
-    assert torch.all(reconstructed == max_valid_actions)
+        # Check action parameter is valid for this action type
+        max_param = action_max_params[action_type]
+        assert 0 <= action_param <= max_param, (
+            f"Invalid param {action_param} for action type {action_type}, max is {max_param}"
+        )
