@@ -3,6 +3,7 @@
 
 #include <map>
 #include <string>
+#include <iostream>
 
 #include "constants.hpp"
 #include "metta_object.hpp"

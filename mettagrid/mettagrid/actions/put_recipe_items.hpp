@@ -32,12 +32,14 @@ protected:
     bool success = false;
     for (size_t i = 0; i < converter->recipe_input.size(); i++) {
       int max_to_put = std::min(converter->recipe_input[i], actor->inventory[i]);
-      int put = converter->update_inventory(static_cast<InventoryItem>(i), max_to_put);
-      if (put > 0) {
-        // We should be able to put this many items into the converter. If not, something is wrong.
-        assert(actor->update_inventory(static_cast<InventoryItem>(i), -put) == -put);
-        actor->stats.add(InventoryItemNames[i], "put", put);
-        success = true;
+      if (max_to_put > 0) {
+        int put = converter->update_inventory(static_cast<InventoryItem>(i), max_to_put);
+        if (put > 0) {
+          // We should be able to put this many items into the converter. If not, something is wrong.
+          assert(actor->update_inventory(static_cast<InventoryItem>(i), -put) == -put);
+          actor->stats.add(InventoryItemNames[i], "put", put);
+          success = true;
+        }
       }
     }
 

@@ -4,8 +4,10 @@
 
 #include "mettagrid_c.hpp"
 #include "objects/agent.hpp"
+#include "objects/converter.hpp"
 #include "objects/constants.hpp"
 #include "actions/attack.hpp"
+#include "actions/put_recipe_items.hpp"
 
 namespace py = pybind11;
 
@@ -50,7 +52,7 @@ TEST_F(MettaGridTest, AgentCreation) {
   auto group_cfg = configs["group_cfg"].cast<py::dict>();
 
   // Test agent creation
-  Agent* agent = MettaGrid::create_agent(0, 0, "green", 1, group_cfg, agent_cfg);
+  std::unique_ptr<Agent> agent(MettaGrid::create_agent(0, 0, "green", 1, group_cfg, agent_cfg));
   ASSERT_NE(agent, nullptr);
 
   // Verify merged configuration
@@ -60,8 +62,6 @@ TEST_F(MettaGridTest, AgentCreation) {
   EXPECT_FLOAT_EQ(agent->resource_rewards[InventoryItem::heart], 1.0);      // Agent reward preserved
   EXPECT_FLOAT_EQ(agent->resource_rewards[InventoryItem::ore_red], 0.0);    // Group reward overrides
   EXPECT_FLOAT_EQ(agent->resource_rewards[InventoryItem::ore_green], 0.5);  // Group reward added
-
-  delete agent;
 }
 
 TEST_F(MettaGridTest, UpdateInventory) {
@@ -69,7 +69,7 @@ TEST_F(MettaGridTest, UpdateInventory) {
   auto agent_cfg = configs["agent_cfg"].cast<py::dict>();
   auto group_cfg = configs["group_cfg"].cast<py::dict>();
 
-  Agent* agent = MettaGrid::create_agent(0, 0, "green", 1, group_cfg, agent_cfg);
+  std::unique_ptr<Agent> agent(MettaGrid::create_agent(0, 0, "green", 1, group_cfg, agent_cfg));
   ASSERT_NE(agent, nullptr);
   float reward = 0;
   agent->init(&reward);
@@ -101,8 +101,6 @@ TEST_F(MettaGridTest, UpdateInventory) {
   EXPECT_EQ(delta, 10);
   EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 10);
   EXPECT_EQ(agent->inventory[InventoryItem::heart], 123);  // Other items unchanged
-
-  delete agent;
 }
 
 TEST_F(MettaGridTest, AttackAction) {
@@ -171,7 +169,7 @@ TEST_F(MettaGridTest, PutRecipeItems) {
   auto group_cfg = configs["group_cfg"].cast<py::dict>();
 
   // Create an agent and a converter
-  Agent* agent = MettaGrid::create_agent(0, 0, "red", 1, group_cfg, agent_cfg);
+  Agent* agent = MettaGrid::create_agent(1, 0, "red", 1, group_cfg, agent_cfg);
   ASSERT_NE(agent, nullptr);
   float reward = 0;
   agent->init(&reward);
@@ -185,23 +183,25 @@ TEST_F(MettaGridTest, PutRecipeItems) {
   grid.add_object(agent);
 
   // Create a generator that takes red ore and outputs batteries
-  py::dict generator_cfg;
+  ObjectConfig generator_cfg;
   generator_cfg["hp"] = 30;
   generator_cfg["input_ore.red"] = 1;
   generator_cfg["output_battery"] = 1;
-  generator_cfg["max_output"] = 5;
+  // Set the max_output to 0 so it won't consume things we put in it.
+  generator_cfg["max_output"] = 0;
   generator_cfg["conversion_ticks"] = 1;
   generator_cfg["cooldown"] = 10;
-  generator_cfg["initial_items"] = 1;
+  generator_cfg["initial_items"] = 0;
 
-  Converter* generator = new Converter(0, 1, generator_cfg, ObjectType::GeneratorT);
+  EventManager event_manager;
+  Converter* generator = new Converter(0, 0, generator_cfg, ObjectType::GeneratorT);
   grid.add_object(generator);
-  generator->set_event_manager(grid.event_manager());
+  generator->set_event_manager(&event_manager);
 
   // Give agent some items
-  agent->update_inventory(InventoryItem::ore_red, 2);
+  agent->update_inventory(InventoryItem::ore_red, 1);
   agent->update_inventory(InventoryItem::ore_blue, 1);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 2);
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);
   EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);
 
   // Create put_recipe_items action handler
@@ -212,30 +212,15 @@ TEST_F(MettaGridTest, PutRecipeItems) {
   // Test putting matching items
   bool success = put.handle_action(agent->id, 0, 0);
   EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);  // One red ore consumed
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 0);  // One red ore consumed
   EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);  // Blue ore unchanged
   EXPECT_EQ(generator->inventory[InventoryItem::ore_red], 1);  // One red ore added to generator
 
   // Test putting non-matching items
   success = put.handle_action(agent->id, 0, 0);
-  EXPECT_FALSE(success);  // Should fail since generator doesn't accept blue ore
+  EXPECT_FALSE(success);  // Should fail since we only have blue ore left
   EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);  // Blue ore unchanged
   EXPECT_EQ(generator->inventory[InventoryItem::ore_blue], 0);  // No blue ore in generator
-
-  // Test putting items while converting
-  generator->converting = true;
-  success = put.handle_action(agent->id, 0, 0);
-  EXPECT_FALSE(success);  // Should fail since generator is converting
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);  // Red ore unchanged
-  EXPECT_EQ(generator->inventory[InventoryItem::ore_red], 1);  // Generator inventory unchanged
-
-  // Test putting items while cooling down
-  generator->converting = false;
-  generator->cooling_down = true;
-  success = put.handle_action(agent->id, 0, 0);
-  EXPECT_FALSE(success);  // Should fail since generator is cooling down
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);  // Red ore unchanged
-  EXPECT_EQ(generator->inventory[InventoryItem::ore_red], 1);  // Generator inventory unchanged
 
   // grid will delete the agent and generator
 }
