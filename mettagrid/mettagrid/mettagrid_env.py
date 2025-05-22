@@ -140,6 +140,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         Reset the environment to an initial state and returns an initial observation.
         """
+
         self._env_cfg = self._get_new_env_cfg()
 
         self._reset_env()

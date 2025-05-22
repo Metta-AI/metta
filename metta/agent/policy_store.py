@@ -491,7 +491,7 @@ class PolicyStore:
                     modules_queue.append(submodule_name)
 
     def _load_from_puffer(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        policy = load_policy(path, self._device)
+        policy = load_policy(path, self._device, puffer=self._cfg.puffer)
         name = os.path.basename(path)
         pr = PolicyRecord(
             self,

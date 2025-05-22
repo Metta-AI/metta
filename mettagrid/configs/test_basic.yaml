@@ -4,9 +4,6 @@ normalize_rewards: false
 
 sampling: 0
 
-hidden_features:
-  grid_obs: ["agent:energy", "agent:hp"]
-
 game:
   map_builder:
     _target_: mettagrid.room.random.Random
@@ -26,8 +23,6 @@ game:
   obs_width: 11
   obs_height: 11
   max_steps: 5000
-  tile_size: 16
-  no_energy_steps: 500
 
   groups:
     agent:
@@ -40,7 +35,6 @@ game:
     freeze_duration: 10
     energy_reward: 0
     hp: 1
-    mortal: False
     use_cost: 0
     rewards:
       heart: 1

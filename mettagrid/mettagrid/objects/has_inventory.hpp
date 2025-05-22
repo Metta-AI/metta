@@ -15,10 +15,6 @@ public:
     this->inventory.resize(InventoryItem::InventoryCount);
   }
 
-  virtual bool has_inventory() {
-    return true;
-  }
-
   // Whether the inventory is accessible to an agent.
   virtual bool inventory_is_accessible() {
     return true;
