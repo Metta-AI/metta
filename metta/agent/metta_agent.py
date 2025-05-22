@@ -232,8 +232,9 @@ class MettaAgent(nn.Module):
             assert_shape(logits, ("BT", "A"), "training_logits")
             assert_shape(action, ("B", "T", 2), "training_input_action")
 
-        # Evaluate provided actions
-        action_logit_index = self._convert_action_to_logit_index(action)
+        B, T, A = action.shape
+        flattened_action = action.view(B * T, A)
+        action_logit_index = self._convert_action_to_logit_index(flattened_action)
 
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "converted_action_logit_index")
@@ -283,7 +284,7 @@ class MettaAgent(nn.Module):
                 B, T, A = action.shape
                 assert A == 2, f"Action dimensionality should be 2, got {A}"
                 assert_shape(x, (B, T, obs_w, obs_h, features), "training_input_x")
-                assert_shape(action, ("B", "T", 2), "training_input_action")
+                assert_shape(action, (B, T, 2), "training_input_action")
 
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
@@ -324,7 +325,7 @@ class MettaAgent(nn.Module):
         else:
             return self.forward_training(value, logits, action)
 
-    def _convert_action_to_logit_index(self, action: torch.Tensor) -> torch.Tensor:
+    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """
         Convert (action_type, action_param) pairs to discrete action indices
         using precomputed offsets.
@@ -336,10 +337,10 @@ class MettaAgent(nn.Module):
             action_logit_indices: Tensor of shape [B*T] containing flattened action indices
         """
         if __debug__:
-            assert_shape(action, ("BT", 2), "action")
+            assert_shape(flattened_action, ("BT", 2), "flattened_action")
 
-        action_type_numbers = action[:, 0].long()
-        action_params = action[:, 1].long()
+        action_type_numbers = flattened_action[:, 0].long()
+        action_params = flattened_action[:, 1].long()
 
         # Use precomputed cumulative sum with vectorized indexing
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
