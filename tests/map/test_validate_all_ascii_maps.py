@@ -206,7 +206,7 @@ class TestAsciiMaps:
                 if lines:
                     # This is the exact operation that causes InstantiationException
                     level_array = np.array([list(line) for line in lines], dtype="U6")
-                    mapped_array = np.vectorize(SYMBOLS.get)(level_array)
+                    _mapped_array = np.vectorize(SYMBOLS.get)(level_array)
 
                     # Basic structure validation
                     assert level_array.ndim == 2, "Should be 2D array"
