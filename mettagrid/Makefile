@@ -368,14 +368,14 @@ build: check-build-dependencies create-dirs
 
 # Build just the test files
 .PHONY: build-tests
-build-tests: check-test-dependencies create-dirs $(SRC_OBJECTS) $(TEST_EXECUTABLES)
+build-tests: check-test-dependencies create-dirs $(TEST_EXECUTABLES)
 	@echo "🧪 Built $(words $(TEST_EXECUTABLES)) test executable(s):"
 	@find $(BUILD_TEST_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
 	@echo "✅ Finished building test executables"
 
 # Build just the benchmark files
 .PHONY: build-benchmarks
-build-benchmarks: check-benchmark-dependencies create-dirs $(SRC_OBJECTS) $(BENCH_EXECUTABLES)
+build-benchmarks: check-benchmark-dependencies create-dirs $(BENCH_EXECUTABLES)
 	@echo "📈 Built $(words $(BENCH_EXECUTABLES)) benchmark executable(s):"
 	@find $(BUILD_BENCH_DIR) -type f $(FIND_EXECUTABLE) -exec ls -lh {} \;
 	@echo "✅ Finished building benchmark executables"
