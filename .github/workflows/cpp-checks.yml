@@ -102,36 +102,35 @@ jobs:
       - name: Generate cache key
         id: set-cache-key
         run: |
-          # Create a hash that combines all relevant files
-          find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; > /tmp/file_hashes.txt || true
-
-          # Add Makefile to the hash
-          if [ -f "mettagrid/Makefile" ]; then
-            sha256sum mettagrid/Makefile >> /tmp/file_hashes.txt
-          fi
-
-          # Add setup.py and requirements.txt if they exist
-          if [ -f "setup.py" ]; then
-            sha256sum setup.py >> /tmp/file_hashes.txt
-          fi
-          if [ -f "requirements.txt" ]; then
-            sha256sum requirements.txt >> /tmp/file_hashes.txt
-          fi
-          if [ -f "requirements_pinned.txt" ]; then
-            sha256sum requirements_pinned.txt >> /tmp/file_hashes.txt
-          fi
-
-          # Add the cache paths string to the key hash
-          echo "${{ steps.set-cache-paths.outputs.cache_paths }}" | tr -d '\n' | sha256sum | cut -d' ' -f1 > /tmp/path_hash.txt
-          cat /tmp/path_hash.txt >> /tmp/file_hashes.txt
-
-          # Create the final hash
+          # Define file types to track
+          EXTENSIONS=("cpp" "cxx" "cc" "h" "hpp" "pyx" "pxd")
+          SPECIAL_FILES=("mettagrid/Makefile" "setup.py" "requirements.txt" "requirements_pinned.txt")
+          
+          # Clear the output file
+          > /tmp/file_hashes.txt
+          
+          # Hash source files by extension
+          for ext in "${EXTENSIONS[@]}"; do
+            find mettagrid -type f -name "*.$ext" -exec sha256sum {} \; >> /tmp/file_hashes.txt 2>/dev/null || true
+          done
+          
+          # Hash special files if they exist
+          for file in "${SPECIAL_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              sha256sum "$file" >> /tmp/file_hashes.txt
+            fi
+          done
+          
+          # Add cache paths to hash
+          echo "${{ steps.set-cache-paths.outputs.cache_paths }}" | tr -d '\n' | sha256sum | cut -d' ' -f1 >> /tmp/file_hashes.txt
+          
+          # Generate final hash
           if [ -s "/tmp/file_hashes.txt" ]; then
             HASH=$(sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
           else
             HASH="empty"
           fi
-
+          
           CACHE_KEY="cpp-build-${HASH}"
           echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
           echo "Created content-based hash key ${CACHE_KEY}"
@@ -300,6 +299,43 @@ jobs:
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
         working-directory: mettagrid
         run: make build
+
+      - name: Debug cache paths and contents
+        working-directory: mettagrid
+        run: |
+          echo "=== CACHE PATHS ==="
+          echo "Cache paths: ${{ steps.set-cache-paths.outputs.cache_paths }}"
+          echo "Cache key: ${{ steps.set-cache-key.outputs.cache_key }}"
+          
+          echo ""
+          echo "=== BUILD DIRECTORY STRUCTURE ==="
+          if [ -d "build" ]; then
+            echo "Build directory exists:"
+            find build -type f -name "*.o" -o -name "*.a" -o -name "*.so" -o -name "*.d" | head -20
+          else
+            echo "Build directory does not exist"
+          fi
+          
+          echo ""
+          echo "=== SOURCE FILES ==="
+          echo "Source files in mettagrid/:"
+          find mettagrid -name "*.cpp" -o -name "*.h" -o -name "*.hpp" | head -10
+          
+          echo ""
+          echo "=== DEPENDENCY FILES ==="
+          if [ -d "build/.deps" ]; then
+            echo "Dependency files exist:"
+            find build/.deps -name "*.d" | head -5
+            echo "Sample dependency file content:"
+            find build/.deps -name "*.d" | head -1 | xargs cat || true
+          else
+            echo "No dependency files found"
+          fi
+          
+          echo ""
+          echo "=== MAKEFILE VARIABLES ==="
+          echo "SRC_SOURCES from Makefile:"
+          make -n build-tests 2>&1 | grep "No rule to make target" || true
 
       - name: Check test dependencies
         working-directory: mettagrid
