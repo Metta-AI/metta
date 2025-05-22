@@ -27,8 +27,9 @@ BUILD_DIR = $(PROJECT_ROOT)/build
 BUILD_SRC_DIR = $(BUILD_DIR)/mettagrid
 BUILD_TEST_DIR = $(BUILD_DIR)/tests
 BUILD_BENCH_DIR = $(BUILD_DIR)/benchmarks
-
 DEPS_INSTALL_DIR := $(BUILD_DIR)/deps
+DEPS_TRACKING_DIR := $(BUILD_DIR)/.deps
+
 GTEST_DIR := $(DEPS_INSTALL_DIR)/gtest
 GBENCHMARK_DIR := $(DEPS_INSTALL_DIR)/gbenchmark
 
@@ -127,7 +128,7 @@ endif
 CXXFLAGS_METTAGRID = $(CXXFLAGS) -fvisibility=hidden -O3
 
 # Source files for mettagrid core library
-SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp $(SRC_DIR)/**/*.cpp)
+SRC_SOURCES := $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SRC_DIR)/*/*.cpp) $(wildcard $(SRC_DIR)/*/*/*.cpp)
 SRC_OBJECTS := $(patsubst $(SRC_DIR)/%.cpp,$(BUILD_SRC_DIR)/%.o,$(SRC_SOURCES))
 
 TEST_SOURCES := $(wildcard $(TEST_DIR)/*.cpp $(TEST_DIR)/**/*.cpp)
@@ -438,7 +439,8 @@ BUILD_DIRS := $(BUILD_DIR) \
               $(BUILD_SRC_DIR) \
               $(BUILD_TEST_DIR) \
               $(BUILD_BENCH_DIR) \
-              $(DEPDIR)
+              $(DEPS_INSTALL_DIR) \
+              $(DEPS_TRACKING_DIR)
 
 # Create all directories with a single rule
 $(BUILD_DIRS):
@@ -454,8 +456,7 @@ create-dirs: $(BUILD_DIRS)
 #-----------------------
 
 # Generate dependency files automatically
-DEPDIR := $(BUILD_DIR)/.deps
-DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.d
+DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPS_TRACKING_DIR)/$*.d
 
 # Create build configuration tracking file
 BUILD_CONFIG := $(BUILD_DIR)/.build_config
@@ -468,23 +469,29 @@ $(BUILD_CONFIG): | $(BUILD_DIR)
 	@echo "PYTHON_INCLUDE=$(PYTHON_INCLUDE)" >> $@
 
 # Updated compilation rules with dependency tracking
-$(BUILD_SRC_DIR)/%.o: $(SRC_DIR)/%.cpp $(BUILD_CONFIG) | $(BUILD_SRC_DIR) $(DEPDIR)
-	@mkdir -p $(dir $@) $(dir $(DEPDIR)/src_$*.d)
+$(BUILD_SRC_DIR)/%.o: $(SRC_DIR)/%.cpp $(BUILD_CONFIG) | $(BUILD_SRC_DIR) $(DEPS_TRACKING_DIR)
+	@mkdir -p $(dir $@) $(dir $(DEPS_TRACKING_DIR)/src_$(subst /,_,$*).d)
 	$(CXX) $(CXXFLAGS_METTAGRID) $(DEPFLAGS) -c $< -o $@
-	@sed -i.bak 's|$(DEPDIR)/$*.d|$(DEPDIR)/src_$*.d|g' $(DEPDIR)/$*.d && rm -f $(DEPDIR)/$*.d.bak
+	@if [ -f "$(DEPS_TRACKING_DIR)/$*.d" ]; then \
+		mv "$(DEPS_TRACKING_DIR)/$*.d" "$(DEPS_TRACKING_DIR)/src_$(subst /,_,$*).d"; \
+	fi
 
-$(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp $(BUILD_CONFIG) | $(BUILD_TEST_DIR) $(DEPDIR)
-	@mkdir -p $(dir $@) $(dir $(DEPDIR)/test_$*.d)
+$(BUILD_TEST_DIR)/%.o: $(TEST_DIR)/%.cpp $(BUILD_CONFIG) | $(BUILD_TEST_DIR) $(DEPS_TRACKING_DIR)
+	@mkdir -p $(dir $@) $(dir $(DEPS_TRACKING_DIR)/test_$(subst /,_,$*).d)
 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
-	@sed -i.bak 's|$(DEPDIR)/$*.d|$(DEPDIR)/test_$*.d|g' $(DEPDIR)/$*.d && rm -f $(DEPDIR)/$*.d.bak
+	@if [ -f "$(DEPS_TRACKING_DIR)/$*.d" ]; then \
+		mv "$(DEPS_TRACKING_DIR)/$*.d" "$(DEPS_TRACKING_DIR)/test_$(subst /,_,$*).d"; \
+	fi
 
-$(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp $(BUILD_CONFIG) | $(BUILD_BENCH_DIR) $(DEPDIR)
-	@mkdir -p $(dir $@) $(dir $(DEPDIR)/bench_$*.d)
+$(BUILD_BENCH_DIR)/%.o: $(BENCH_DIR)/%.cpp $(BUILD_CONFIG) | $(BUILD_BENCH_DIR) $(DEPS_TRACKING_DIR)
+	@mkdir -p $(dir $@) $(dir $(DEPS_TRACKING_DIR)/bench_$(subst /,_,$*).d)
 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
-	@sed -i.bak 's|$(DEPDIR)/$*.d|$(DEPDIR)/bench_$*.d|g' $(DEPDIR)/$*.d && rm -f $(DEPDIR)/$*.d.bak
+	@if [ -f "$(DEPS_TRACKING_DIR)/$*.d" ]; then \
+		mv "$(DEPS_TRACKING_DIR)/$*.d" "$(DEPS_TRACKING_DIR)/bench_$(subst /,_,$*).d"; \
+	fi
 
-# Include the dependency files
--include $(wildcard $(DEPDIR)/*.d)
+# Include dependency files from the tracking directory:
+-include $(wildcard $(DEPS_TRACKING_DIR)/*.d)
 
 # Build a static library from all source files
 $(BUILD_DIR)/libmettagrid.a: $(SRC_OBJECTS)
