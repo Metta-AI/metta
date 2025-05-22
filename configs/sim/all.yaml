@@ -47,41 +47,73 @@ simulations:
     env: env/mettagrid/simple
     policy_agents_pct: 0.5
     npc_policy_uri: wandb://run/b.alex.robust.npc.s.s.004
-  object_use/altar_use_free:
+  objectuse/altar_use_free:
     env: env/mettagrid/object_use/evals/altar_use_free
     policy_agents_pct: 1.0
-  object_use/armory_use_free:
+  objectuse/armory_use_free:
     env: env/mettagrid/object_use/evals/armory_use_free
     policy_agents_pct: 1.0
-  object_use/armory_use:
+  objectuse/armory_use:
     env: env/mettagrid/object_use/evals/armory_use
     policy_agents_pct: 1.0
-  object_use/generator_use_free:
+  objectuse/generator_use_free:
     env: env/mettagrid/object_use/evals/generator_use_free
     policy_agents_pct: 1.0
-  object_use/generator_uses:
+  objectuse/generator_uses:
     env: env/mettagrid/object_use/evals/generator_use
     policy_agents_pct: 1.0
-  object_use/lasery_use_free:
+  objectuse/lasery_use_free:
     env: env/mettagrid/object_use/evals/lasery_use_free
     policy_agents_pct: 1.0
-  object_use/lasery_use:
+  objectuse/lasery_use:
     env: env/mettagrid/object_use/evals/lasery_use
     policy_agents_pct: 1.0
-  object_use/mine_use:
+  objectuse/mine_use:
     env: env/mettagrid/object_use/evals/mine_use
     policy_agents_pct: 1.0
-  object_use/shoot_out:
+  objectuse/shoot_out:
     env: env/mettagrid/object_use/evals/shoot_out
     policy_agents_pct: 1.0
-  object_use/swap_in:
+  objectuse/swap_in:
     env: env/mettagrid/object_use/evals/swap_in
     policy_agents_pct: 1.0
-  object_use/swap_out:
+  objectuse/swap_out:
     env: env/mettagrid/object_use/evals/swap_out
     policy_agents_pct: 1.0
-  object_use/temple_use_free:
+  objectuse/temple_use_free:
     env: env/mettagrid/object_use/evals/temple_use_free
     policy_agents_pct: 1.0
-  object_use/full_sequence:
+  objectuse/full_sequence:
     env: env/mettagrid/object_use/evals/full_sequence
+  navsequence/cylinder:
+    env: env/mettagrid/navigation_sequence/evals/cylinder
+  navsequence/obstacles0:
+    env: env/mettagrid/navigation_sequence/evals/obstacles0
+  navsequence/obstacles1:
+    env: env/mettagrid/navigation_sequence/evals/obstacles1
+  navsequence/obstacles2:
+    env: env/mettagrid/navigation_sequence/evals/obstacles2
+  navsequence/obstacles3:
+    env: env/mettagrid/navigation_sequence/evals/obstacles3
+  navsequence/corridors:
+    env: env/mettagrid/navigation_sequence/evals/corridors
+  navsequence/cylinder_easy:
+    env: env/mettagrid/navigation_sequence/evals/cylinder_easy
+  navsequence/honeypot:
+    env: env/mettagrid/navigation_sequence/evals/honeypot
+  navsequence/knotty:
+    env: env/mettagrid/navigation_sequence/evals/knotty
+  navsequence/memory_palace:
+    env: env/mettagrid/navigation_sequence/evals/memory_palace
+  navsequence/radial_large:
+    env: env/mettagrid/navigation_sequence/evals/radial_large
+  navsequence/radial_mini:
+    env: env/mettagrid/navigation_sequence/evals/radial_mini
+  navsequence/radial_small:
+    env: env/mettagrid/navigation_sequence/evals/radial_small
+  navsequence/swirls:
+    env: env/mettagrid/navigation_sequence/evals/swirls
+  navsequence/thecube:
+    env: env/mettagrid/navigation_sequence/evals/thecube
+  navsequence/walkaround:
+    env: env/mettagrid/navigation_sequence/evals/walkaround
