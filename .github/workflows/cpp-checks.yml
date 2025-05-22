@@ -88,11 +88,12 @@ jobs:
         id: set-cache-paths
         shell: bash
         run: |
-          mkdir -p mettagrid/build
-
+          mkdir -p mettagrid/build/deps
+          mkdir -p mettagrid/build/mettagrid
           # Begin multiline output
           echo "cache_paths<<EOF" >> "$GITHUB_OUTPUT"
-          echo "mettagrid/build" >> "$GITHUB_OUTPUT"
+          echo "mettagrid/build/deps" >> "$GITHUB_OUTPUT"
+          echo "mettagrid/build/mettagrid" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Debug cache paths
