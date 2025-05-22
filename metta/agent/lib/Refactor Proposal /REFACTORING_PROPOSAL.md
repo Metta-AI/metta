@@ -4,6 +4,58 @@
 
 This proposal outlines a refactoring strategy for the Metta neural network agent architecture to improve maintainability, testability, and code organization. The current monolithic design, while functional, presents challenges for testing and future development. We propose a modular architecture that separates concerns while maintaining backward compatibility and existing functionality.
 
+## Table of Contents
+
+1. [Current Architecture Overview](#1-current-architecture-overview)
+   - [Core Components](#core-components)
+   - [Data Flow Architecture](#data-flow-architecture)
+
+2. [Current Architecture Challenges](#2-current-architecture-challenges)
+   - [Testing Complexity](#21-testing-complexity)
+   - [Single Responsibility Principle Violations](#22-single-responsibility-principle-violations)
+   - [Maintenance and Extension Challenges](#23-maintenance-and-extension-challenges)
+
+3. [Proposed Architecture](#3-proposed-architecture)
+   - [Design Principles](#31-design-principles)
+   - [Proposed Architecture Diagram](#32-proposed-architecture-diagram)
+   - [Component Responsibilities](#33-component-responsibilities)
+     - [MettaModule (Computation Core)](#mettamodule-computation-core)
+     - [MettaGraph (Structure Management)](#mettagraph-structure-management)
+     - [GraphExecutor (Execution Control)](#graphexecutor-execution-control)
+     - [ShapePropagator (Shape Validation)](#shapepropagator-shape-validation)
+     - [MettaSystem (Coordination)](#mettasystem-coordination)
+   - [Data Flow in New Architecture](#34-data-flow-in-new-architecture)
+
+4. [How the Proposed Changes Address Current Challenges](#4-how-the-proposed-changes-address-current-challenges)
+   - [Dramatically Improved Testing](#41-dramatically-improved-testing)
+   - [Separation of Concerns](#42-separation-of-concerns)
+   - [Reduced Maintenance Burden](#43-reduced-maintenance-burden)
+   - [Enhanced Flexibility](#44-enhanced-flexibility)
+
+5. [Incremental Implementation Strategy](#5-incremental-implementation-strategy)
+   - [Phase 1: Minimal Safety Net + Core Foundation (Week 1)](#phase-1-minimal-safety-net--core-foundation-week-1)
+   - [Phase 2: Core Components (Week 2-3)](#phase-2-core-components-week-2-3)
+   - [Phase 3: Execution Layer (Week 4-5)](#phase-3-execution-layer-week-4-5)
+   - [Phase 4: System Integration (Week 6-7)](#phase-4-system-integration-week-6-7)
+   - [Phase 5: Migration and Cleanup (Week 8-9)](#phase-5-migration-and-cleanup-week-8-9)
+   - [Testing Strategy for Each Phase](#testing-strategy-for-each-phase)
+
+6. [Additional Important Considerations](#6-additional-important-considerations)
+   - [Risk Mitigation](#61-risk-mitigation)
+   - [Benefits Beyond Testing](#62-benefits-beyond-testing)
+   - [Success Metrics](#63-success-metrics)
+   - [Resource Requirements](#64-resource-requirements)
+
+7. [Conclusion](#conclusion)
+
+8. [Appendix: Visual Diagrams](#appendix-visual-diagrams)
+   - [Current Architecture Overview](#a1-current-architecture-overview)
+   - [Proposed Architecture Overview](#a2-proposed-architecture-overview)
+   - [Testing Approach Comparison](#a3-testing-approach-comparison)
+   - [Implementation Timeline](#a4-implementation-timeline)
+
+---
+
 ## 1. Current Architecture Overview
 
 ### Core Components
