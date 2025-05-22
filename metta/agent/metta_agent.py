@@ -331,7 +331,7 @@ class MettaAgent(nn.Module):
         using precomputed offsets.
 
         Args:
-            action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
+            flattened_action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
 
         Returns:
             action_logit_indices: Tensor of shape [B*T] containing flattened action indices
