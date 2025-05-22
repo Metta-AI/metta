@@ -119,6 +119,47 @@ def test_grid_objects():
 
 
 class TestSetBuffers:
+    def test_default_buffers(self):
+        env = create_minimal_mettagrid_env()
+        env.reset()
+
+        noop_action_idx = env.action_names().index("noop")
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        obs, rewards, terminals, truncations, info = env.step(actions)
+        episode_rewards = env.get_episode_rewards()
+
+        # Check strides. We've had issues where we've not correctly initialized the buffers, and have had
+        # strides of zero.
+        assert rewards.strides == (4,)  # float32
+        assert terminals.strides == (1,)  # bool, tracked as a byte
+        assert truncations.strides == (1,)  # bool, tracked as a byte
+        assert episode_rewards.strides == (4,)  # float32
+        assert obs.strides[-1] == 1  # uint8
+
+        # This is a more brute force way to check that the buffers are behaving correctly by changing a single
+        # element and making sure the correct update is reflected. Given that the strides are correct, these tests
+        # are probably superfluous; but we've been surprised by what can fail in the past, so we're aiming for
+        # overkill.
+        assert (rewards == [0, 0]).all()
+        assert (terminals == [False, False]).all()
+        assert (truncations == [False, False]).all()
+        assert (episode_rewards == [0, 0]).all()
+
+        rewards[0] = 1
+        terminals[0] = True
+        truncations[0] = True
+        episode_rewards[0] = 1
+
+        assert (rewards == [1, 0]).all()
+        assert (terminals == [True, False]).all()
+        assert (truncations == [True, False]).all()
+        assert (episode_rewards == [1, 0]).all()
+
+        # Obs is non-empty, so we treat it differently than the others.
+        initial_obs_sum = obs.sum()
+        obs[0, 0, 0, 0] += 1
+        assert obs.sum() == initial_obs_sum + 1
+
     def test_set_buffers_wrong_shape(self):
         env = create_minimal_mettagrid_env()
         num_features = len(env.grid_features())
