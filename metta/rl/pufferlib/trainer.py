@@ -364,7 +364,10 @@ class PufferTrainer:
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
 
                 o_device = o.to(self.device, non_blocking=True)
-                actions, logprob, _, value, _ = policy(o_device, state)
+                actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
+
+                if __debug__:
+                    assert_shape(selected_action_log_probs, ("BT",), "collected_log_probs")
 
                 lstm_h[:, training_env_id] = (
                     state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
@@ -380,7 +383,7 @@ class PufferTrainer:
                 value = value.flatten()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, logprob, r, d, training_env_id, mask)
+                self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
                 for i in info:
                     for k, v in unroll_nested_dict(i):
