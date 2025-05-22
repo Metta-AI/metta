@@ -12,4 +12,3 @@ envs:
   - /env/mettagrid/multiagent/training/varied_terrain_balanced
   - /env/mettagrid/multiagent/training/varied_terrain_maze
   - /env/mettagrid/multiagent/training/varied_terrain_dense
-  - /env/mettagrid/multiagent/training/easy_all_objects
