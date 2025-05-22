@@ -2,7 +2,7 @@ defaults:
   - /env/mettagrid/memory/evals/defaults@
 
 game:
-  num_agents: 2
+  num_agents: 1
   max_steps: 100
   agent:
     rewards:
