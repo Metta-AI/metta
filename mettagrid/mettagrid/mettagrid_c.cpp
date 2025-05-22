@@ -2,7 +2,6 @@
 
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
-#include <iostream>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
