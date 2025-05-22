@@ -42,12 +42,12 @@ protected:
         // collect resources from a converter that's in the middle of processing a queue.
         continue;
       }
-      unsigned char can_take = std::min<unsigned char>(actor->max_items - actor->inventory[i], converter->inventory[i]);
 
-      if (can_take > 0) {
-        actor->stats.add(InventoryItemNames[i], "get", can_take);
-        actor->update_inventory(static_cast<InventoryItem>(i), can_take);
-        converter->update_inventory(static_cast<InventoryItem>(i), -can_take);
+      int taken = actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
+
+      if (taken > 0) {
+        actor->stats.add(InventoryItemNames[i], "get", taken);
+        converter->update_inventory(static_cast<InventoryItem>(i), -taken);
         items_taken = true;
       }
     }
