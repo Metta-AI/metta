@@ -3,6 +3,6 @@ defaults:
 
 game:
   num_agents: 2
-  max_steps: 58
+  max_steps: 110
   map_builder:
-    uri: "configs/env/mettagrid/maps/memory/medium.map"
+    uri: "configs/env/mettagrid/maps/memory/passing_things.map"
