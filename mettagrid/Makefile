@@ -90,28 +90,16 @@ PYTHON_CFLAGS := $(shell $(PYTHON_BIN) -m pybind11 --includes)
 # Update the Python library definitions
 PYTHON_LIBS = -L$(PYTHON_LIB_DIR) -lpython$(PYTHON_VERSION)
 
-CXXFLAGS = -std=c++20 -Wall -g \
-	-I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) \
-	-I$(PYTHON_INCLUDE) \
-	-DPYTHON_HOME=\"$(PYTHON_HOME)\" \
-	-DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
-
 PYBIND11_INCLUDE = $(shell $(PYTHON_BIN) -m pybind11 --includes 2>/dev/null | grep -o '\-I[^ ]*pybind11[^ ]*' | head -1 | sed 's/-I//')
 NUMPY_INCLUDE = $(shell $(PYTHON_BIN) -c "import numpy; print(numpy.get_include())" 2>/dev/null)
+PYTHON_INCLUDE := $(shell $(PYTHON_BIN) -c "import sysconfig; print(sysconfig.get_config_var('INCLUDEPY'))")
 
-PYTHON_INCLUDE := $(shell \
-	INCLUDES=$$($(PYTHON_BIN) -m pybind11 --includes 2>/dev/null | grep -o '\-I[^[:space:]]*python[^[:space:]]*') ; \
-	for inc in $$INCLUDES; do \
-		path=$$(echo $$inc | sed 's/-I//'); \
-		if [ -f "$$path/Python.h" ]; then \
-			echo $$path; \
-			break; \
-		fi; \
-	done)
-
-
-CXXFLAGS += -I$(PYBIND11_INCLUDE)
-CXXFLAGS += -I$(NUMPY_INCLUDE)
+CXXFLAGS = -std=c++20 -Wall -g \
+	-I$(SRC_DIR) -I$(THIRD_PARTY_DIR) -I$(TEST_DIR) \
+	-I$(PYTHON_INCLUDE) -I$(PYBIND11_INCLUDE) -I$(NUMPY_INCLUDE)\
+	-I$(GTEST_DIR)/include -I$(GBENCHMARK_DIR)/include \
+	-DPYTHON_HOME=\"$(PYTHON_HOME)\" \
+	-DPYTHON_STDLIB=\"$(PYTHON_STDLIB)\"
 
 export LD_LIBRARY_PATH := $(PYTHON_LIB_DIR):$(LD_LIBRARY_PATH)
 export DYLD_LIBRARY_PATH := $(PYTHON_LIB_DIR):$(DYLD_LIBRARY_PATH)
@@ -124,9 +112,6 @@ ifeq ($(shell uname), Darwin)
 else
     RPATH_FLAGS =
 endif
-
-CXXFLAGS += -I$(GTEST_DIR)/include
-CXXFLAGS += -I$(GBENCHMARK_DIR)/include
 
 LDFLAGS += -L$(GBENCHMARK_DIR)/lib -lbenchmark_main -lbenchmark \
            -L$(GTEST_DIR)/lib -lgtest -lgtest_main
