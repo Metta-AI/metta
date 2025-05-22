@@ -18,11 +18,9 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    if (actor->inventory[InventoryItem::laser] == 0) {
+    if (actor->update_inventory(InventoryItem::laser, -1) == 0) {
       return false;
     }
-
-    actor->update_inventory(InventoryItem::laser, -1);
 
     // Scan the space to find the nearest agent. Prefer the middle (offset 0) before the edges (offset -1, 1).
     for (int distance = 1; distance < 4; distance++) {
