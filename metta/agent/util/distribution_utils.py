@@ -13,17 +13,18 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
 
     Args:
         action_logits: Raw logits from policy network of shape [batch_size, num_actions].
-                      These are unnormalized log-probabilities over the action space.
+                       These are unnormalized log-probabilities over the action space.
 
     Returns:
         actions: Sampled action indices of shape [batch_size]. Each element is an
-                integer in [0, num_actions) representing the sampled action.
+                 integer in [0, num_actions) representing the sampled action.
+
         log_probs: Log-probabilities of the sampled actions, shape [batch_size].
-                  Used for policy gradient computation: ∇log π(a|s).
+
         entropy: Policy entropy at each state, shape [batch_size].
-                Measures exploration vs exploitation: H(π) = -∑π(a|s)log π(a|s).
+
         action_log_probs: Full log-probability distribution over all actions,
-                         shape [batch_size, num_actions]. Same as log-softmax of logits.
+                          shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
 
     action_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
@@ -49,18 +50,20 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
 
     Args:
         action_logits: Current policy logits of shape [batch_size, num_actions].
-                      These may differ from the logits that originally generated
-                      the actions due to policy updates.
+                       These may differ from the logits that originally generated
+                       the actions due to policy updates.
+
         actions: Previously taken action indices of shape [batch_size].
-                Each element must be a valid action index in [0, num_actions).
+                 Each element must be a valid action index in [0, num_actions).
 
     Returns:
         log_probs: Log-probabilities of the given actions under current policy,
-                  shape [batch_size]. Used for importance sampling: π_new(a|s)/π_old(a|s).
+                   shape [batch_size]. Used for importance sampling: π_new(a|s)/π_old(a|s).
+
         entropy: Current policy entropy at each state, shape [batch_size].
-                Used for entropy regularization in policy optimization.
+
         action_log_probs: Full log-probability distribution over all actions,
-                         shape [batch_size, num_actions]. Same as log-softmax of logits.
+                          shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
 
     action_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
