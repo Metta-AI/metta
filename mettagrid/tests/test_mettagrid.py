@@ -17,7 +17,7 @@ np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
 np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
 
 
-def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
+def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5) -> MettaGrid:
     """Helper function to create a MettaGrid environment with minimal config."""
     # Define a simple map: empty with walls around perimeter
     game_map = np.full((height, width), "empty", dtype="<U50")
@@ -63,7 +63,9 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
         }
     }
 
-    c_env = MettaGrid(env_config, game_map)
+    # TODO - figure out this game map list stuff
+    c_env = MettaGrid(env_config, game_map.tolist())
+
     num_features = len(c_env.grid_features())
     observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
     terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
@@ -107,12 +109,12 @@ def test_observation():
 
 
 def test_grid_objects():
-    env = create_minimal_mettagrid_env()
-    objects = env.grid_objects()
+    c_env = create_minimal_mettagrid_c_env()
+    objects = c_env.grid_objects()
 
     # Test that we have the expected number of objects
     # 4 walls on each side (minus corners) + 2 agents
-    expected_walls = 2 * (env.map_width() + env.map_height() - 2)
+    expected_walls = 2 * (c_env.map_width() + c_env.map_height() - 2)
     expected_agents = 2
     assert len(objects) == expected_walls + expected_agents, "Wrong number of objects"
 
@@ -137,13 +139,13 @@ def test_grid_objects():
 
 class TestSetBuffers:
     def test_default_buffers(self):
-        env = create_minimal_mettagrid_env()
-        env.reset()
+        c_env = create_minimal_mettagrid_c_env()
+        c_env.reset()
 
-        noop_action_idx = env.action_names().index("noop")
+        noop_action_idx = c_env.action_names().index("noop")
         actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
-        obs, rewards, terminals, truncations, info = env.step(actions)
-        episode_rewards = env.get_episode_rewards()
+        obs, rewards, terminals, truncations, info = c_env.step(actions)
+        episode_rewards = c_env.get_episode_rewards()
 
         # Check strides. We've had issues where we've not correctly initialized the buffers, and have had
         # strides of zero.
