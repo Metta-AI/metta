@@ -105,32 +105,32 @@ jobs:
           # Define file types to track
           EXTENSIONS=("cpp" "cxx" "cc" "h" "hpp" "pyx" "pxd")
           SPECIAL_FILES=("mettagrid/Makefile" "setup.py" "requirements.txt" "requirements_pinned.txt")
-          
+
           # Clear the output file
           > /tmp/file_hashes.txt
-          
+
           # Hash source files by extension
           for ext in "${EXTENSIONS[@]}"; do
             find mettagrid -type f -name "*.$ext" -exec sha256sum {} \; >> /tmp/file_hashes.txt 2>/dev/null || true
           done
-          
+
           # Hash special files if they exist
           for file in "${SPECIAL_FILES[@]}"; do
             if [ -f "$file" ]; then
               sha256sum "$file" >> /tmp/file_hashes.txt
             fi
           done
-          
+
           # Add cache paths to hash
           echo "${{ steps.set-cache-paths.outputs.cache_paths }}" | tr -d '\n' | sha256sum | cut -d' ' -f1 >> /tmp/file_hashes.txt
-          
+
           # Generate final hash
           if [ -s "/tmp/file_hashes.txt" ]; then
             HASH=$(sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
           else
             HASH="empty"
           fi
-          
+
           CACHE_KEY="cpp-build-${HASH}"
           echo "cache_key=${CACHE_KEY}" >> $GITHUB_OUTPUT
           echo "Created content-based hash key ${CACHE_KEY}"
@@ -404,7 +404,7 @@ jobs:
         if: |
           github.event_name == 'pull_request' &&
           !github.event.pull_request.head.repo.fork &&
-          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true' 
+          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
