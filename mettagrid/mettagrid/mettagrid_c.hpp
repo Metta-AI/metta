@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+#include "types.hpp"
+
 // Forward declarations of existing C++ classes
 class Grid;
 class EventManager;
@@ -38,10 +40,11 @@ public:
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
-  void set_buffers(py::array_t<unsigned char, py::array::c_style>& observations,
-                   py::array_t<unsigned char, py::array::c_style>& terminals,
-                   py::array_t<unsigned char, py::array::c_style>& truncations,
-                   py::array_t<float, py::array::c_style>& rewards);
+  void set_buffers(py::array_t<c_observations_type, py::array::c_style>& observations,
+                   py::array_t<c_terminals_type, py::array::c_style>& terminals,
+                   py::array_t<c_truncations_type, py::array::c_style>& truncations,
+                   py::array_t<c_rewards_type py::array::c_style>& rewards);
+
   void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
@@ -50,7 +53,7 @@ public:
   unsigned int map_height();
   py::list grid_features();
   unsigned int num_agents();
-  py::array_t<float> get_episode_rewards();
+  py::array_t<c_rewards_type> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();
   py::object observation_space();
@@ -92,11 +95,11 @@ private:
 
   // We'd prefer to store these as more raw c-style arrays, but we need to both
   // operate on the memory directly and return them to python.
-  py::array_t<unsigned char> _observations;
-  py::array_t<unsigned char> _terminals;
-  py::array_t<unsigned char> _truncations;
-  py::array_t<float> _rewards;
-  py::array_t<float> _episode_rewards;
+  py::array_t<c_observations_type> _observations;
+  py::array_t<c_terminals_type> _terminals;
+  py::array_t<c_truncations_type> _truncations;
+  py::array_t<c_rewards_type> _rewards;
+  py::array_t<c_rewards_type> _episode_rewards;
 
   std::vector<std::string> _grid_features;
 

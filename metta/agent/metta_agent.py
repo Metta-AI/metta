@@ -136,23 +136,8 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def activate_actions(self, action_names: List[str], action_max_params: List[int], device: torch.device) -> None:
-        """
-        Activate agent actions for training.
-
-        Configures the action space by setting up action names, their parameter ranges,
-        and precomputing data structures for efficient action conversion.
-
-        Args:
-            action_names: List of action names to activate (e.g., ["move", "turn"])
-            action_max_params: List of maximum parameter values for each action
-                              (e.g., [4, 1] for up to 5 move parameters and 2 turn parameters)
-            device: Device for tensor operations
-
-        Raises:
-            TypeError: If component '_action_embeds_' is not an ActionEmbedding
-            AssertionError: If action_max_params is not a list
-        """
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
+        """Run this at the beginning of training."""
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
         self.device = device
