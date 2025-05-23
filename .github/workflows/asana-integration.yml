@@ -58,13 +58,13 @@ jobs:
                 \"workspace\": \"$ASANA_WORKSPACE_GID\"
               }
             }")
-          echo "RESPONSE: $RESPONSE"
-          
-          # Extract task GID and URL from response
           TASK_GID=$(echo $RESPONSE | jq -r '.data.gid')
+          if [[ "$TASK_GID" == "null" || -z "$TASK_GID" ]]; then
+            echo "Error: Failed to create Asana task or extract valid task GID"
+            echo "API Response: $RESPONSE"
+            exit 1;
+          fi
           TASK_URL="https://app.asana.com/0/$ASANA_PROJECT_GID/$TASK_GID"
-          
-          # Save task URL for next step
           echo "task_url=$TASK_URL" >> $GITHUB_OUTPUT
 
       - name: Update PR description
