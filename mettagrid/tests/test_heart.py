@@ -120,7 +120,7 @@ def test_heart_collection_with_reliable_movement():
 
         # Wait for heart production
         print("Step 1: Wait for heart production...")
-        for i in range(3):
+        for _i in range(3):
             obs, reward, success = perform_action("noop")
         print()
 

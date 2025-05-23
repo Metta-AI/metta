@@ -1,5 +1,3 @@
-# tests/utils.py
-
 import numpy as np
 
 from mettagrid.mettagrid_c import MettaGrid

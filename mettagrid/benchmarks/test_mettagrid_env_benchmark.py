@@ -69,7 +69,7 @@ def test_step_performance(benchmark, environment, action_generator):
             reset_count += 1
 
     # Run the benchmark
-    result = benchmark.pedantic(
+    _result = benchmark.pedantic(
         run_step,
         iterations=1000,  # Number of iterations per round
         rounds=10,  # Number of rounds to run
