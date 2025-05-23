@@ -352,8 +352,7 @@ jobs:
     needs: [graphite-ci-optimizer, setup-checks, test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_benchmark == 'true') &&
-      (needs.test.result == 'success' || github.event_name != 'pull_request' )
+      (needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -664,6 +663,10 @@ jobs:
     name: "C++ Benchmarks"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: [graphite-ci-optimizer, setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_benchmark == 'true')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -674,11 +677,7 @@ jobs:
       - name: CMake
         run: |
           source .venv/bin/activate
-          # sanity check
-          python -c 'import numpy'
           cd mettagrid
-          # sanity check again
-          python -c 'import numpy'
           make
 
       - name: Run benchmarks with JSON output
