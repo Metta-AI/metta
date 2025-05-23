@@ -80,6 +80,8 @@ export const state = {
   showViewRanges: true,
   showFogOfWar: false,
 
+  showAttackMode: false,
+
   // Playing over WebSocket
   ws: null as WebSocket | null,
   isOneToOneAction: false,
