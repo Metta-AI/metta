@@ -6,7 +6,7 @@ This proposal recommends replacing the current `LayerBase` architecture with a c
 
 **Core Insight:** `LayerBase`'s monolithic design—combining computation, lifecycle management, DAG traversal, shape management, and dependency coordination—creates fundamental testing difficulties and architectural coupling that incremental fixes cannot address.
 
-**Proposed Solution:** Replace `LayerBase` with pure computation modules (`MettaModule`) managed by a lightweight container, while preserving the valuable existing infrastructure: component registry, TensorDict communication, and Hydra configuration.
+**Proposed Solution:** Replace `LayerBase` with pure computation modules (`MettaModule`) managed by a composable wrapper architecture, while preserving the valuable existing infrastructure: component registry, TensorDict communication, and Hydra configuration.
 
 ## Current Architecture Analysis
 
@@ -60,7 +60,8 @@ These issues require architectural change rather than incremental fixes.
 1. **Separation of Concerns**: Pure computation modules separate from infrastructure management
 2. **Preserve Valuable Infrastructure**: Maintain component registry, TensorDict communication, and Hydra configuration
 3. **TorchRL-Inspired Patterns**: Apply proven patterns for explicit data dependencies and composition
-4. **Clean Migration**: Replace rather than bridge architectures for conceptual clarity
+4. **Composable Wrapper Design**: Build features through composition rather than monolithic inheritance
+5. **Clean Migration**: Replace rather than bridge architectures for conceptual clarity
 
 ### Core Components
 
@@ -72,43 +73,224 @@ Inspired by TorchRL's `TensorDictModule`, `MettaModule` handles only computation
 class MettaModule(nn.Module):
     """Pure computation module inspired by TorchRL's TensorDictModule."""
     
-    def __init__(self, in_keys=None, out_keys=None):
+    def __init__(self, in_keys=None, out_keys=None, input_shapes=None, output_shapes=None):
         super().__init__()
         self.in_keys = in_keys or []
         self.out_keys = out_keys or []
+        self.input_shapes = input_shapes or {}
+        self.output_shapes = output_shapes or {}
     
     def forward(self, tensordict: TensorDict) -> TensorDict:
         """Direct computation without DAG traversal."""
         pass
 ```
 
-#### Enhanced Component Registry
+#### Composable Container Architecture
 
-The existing `MettaAgent.components` becomes a smarter container that follows TorchRL's `TensorDictModule` pattern:
+Instead of a monolithic container, we build functionality through composable wrappers:
+
+##### 1. Base ComponentContainer: Simple Storage + Elegant Execution
 
 ```python
-from tensordict.nn import TensorDictModuleBase
-from torch import nn
-from tensordict import TensorDict
-import torch
-
 class ComponentContainer(TensorDictModuleBase):
-    """Enhanced container following TorchRL's TensorDictModule pattern."""
+    """Base container with immediate registration and elegant recursive execution.
+    
+    This is the foundation layer that provides:
+    - Simple component storage in nn.ModuleDict
+    - Elegant recursive execution pattern
+    - Basic dependency tracking
+    - TensorDictModule compliance
+    """
     
     def __init__(self):
         super().__init__()
-        self.components = nn.ModuleDict()  # Store actual components
-        self.component_configs = {}  # Store component configurations for deferred init
+        self.components = nn.ModuleDict()  # Store actual component instances
         self.dependencies = {}  # Track component dependencies
-        self.initialized = False
-        
-        # TensorDictModule interface - will be dynamically determined
-        self.in_keys = []
-        self.out_keys = []
+        self.in_keys = []  # Determined from registered components
+        self.out_keys = []  # Determined from registered components
     
-    def register_component(self, name, component_class, config, dependencies=None, 
-                          in_keys=None, out_keys=None):
-        """Register component configuration for deferred initialization."""
+    def register_component(self, name: str, component: MettaModule, dependencies: List[str] = None):
+        """Register an actual component instance immediately.
+        
+        Args:
+            name: Component name for registry and dependency resolution
+            component: Actual MettaModule instance (already initialized)
+            dependencies: List of component names this module depends on
+        """
+        self.components[name] = component
+        self.dependencies[name] = dependencies or []
+        self._update_container_keys()
+    
+    def execute_component(self, component_name: str, tensordict: TensorDict) -> TensorDict:
+        """Recursive execution preserving current elegant pattern.
+        
+        This is the heart of the architecture - the beautiful recursive execution
+        pattern that automatically handles dependency resolution and caching.
+        """
+        component = self.components[component_name]
+        
+        # Check if already computed (output presence caching)
+        if all(out_key in tensordict for out_key in component.out_keys):
+            return tensordict
+        
+        # Recursively compute dependencies first
+        for dep_name in self.dependencies[component_name]:
+            self.execute_component(dep_name, tensordict)
+        
+        # Execute this component
+        return component(tensordict)
+    
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        """TensorDictModule interface - execute all components."""
+        for component_name in self._topological_sort():
+            self.execute_component(component_name, tensordict)
+        return tensordict
+    
+    def replace_component(self, name: str, new_component: MettaModule):
+        """Preserve hotswapping capability."""
+        self.components[name] = new_component
+        self._update_container_keys()
+    
+    def _update_container_keys(self):
+        """Update container's in_keys and out_keys based on registered components."""
+        all_in_keys = set()
+        all_out_keys = set()
+        
+        for component in self.components.values():
+            all_in_keys.update(component.in_keys)
+            all_out_keys.update(component.out_keys)
+        
+        # Container's inputs are keys not produced by any component
+        self.in_keys = [key for key in all_in_keys if key not in all_out_keys]
+        self.out_keys = list(all_out_keys)
+    
+    def _topological_sort(self):
+        """Get components in dependency order."""
+        visited = set()
+        temp_visited = set()
+        result = []
+        
+        def visit(component_name):
+            if component_name in temp_visited:
+                raise ValueError(f"Circular dependency detected involving '{component_name}'")
+            if component_name in visited:
+                return
+            
+            temp_visited.add(component_name)
+            for dep_name in self.dependencies.get(component_name, []):
+                visit(dep_name)
+            temp_visited.remove(component_name)
+            visited.add(component_name)
+            result.append(component_name)
+        
+        for component_name in self.components.keys():
+            if component_name not in visited:
+                visit(component_name)
+        
+        return result
+```
+
+##### 2. SafeComponentContainer: Validation Layer
+
+```python
+class SafeComponentContainer(ComponentContainer):
+    """Adds comprehensive validation to component registration and execution.
+    
+    This wrapper adds:
+    - Component interface validation
+    - Dependency existence checking
+    - Circular dependency detection
+    - Runtime shape validation
+    """
+    
+    def register_component(self, name: str, component: MettaModule, dependencies: List[str] = None):
+        """Register component with comprehensive validation."""
+        self._validate_component(component)
+        self._validate_dependencies(name, dependencies or [])
+        super().register_component(name, component, dependencies)
+    
+    def _validate_component(self, component: MettaModule):
+        """Validate component has proper MettaModule interface."""
+        if not isinstance(component, MettaModule):
+            raise TypeError(f"Component must be a MettaModule, got {type(component)}")
+        
+        if not hasattr(component, 'in_keys') or not hasattr(component, 'out_keys'):
+            raise ValueError(f"Component must have in_keys and out_keys attributes")
+        
+        if not isinstance(component.in_keys, list) or not isinstance(component.out_keys, list):
+            raise ValueError(f"Component in_keys and out_keys must be lists")
+        
+        # Check for output key conflicts
+        for existing_name, existing_component in self.components.items():
+            overlap = set(component.out_keys) & set(existing_component.out_keys)
+            if overlap:
+                raise ValueError(f"Output key conflict: {overlap} between '{name}' and '{existing_name}'")
+    
+    def _validate_dependencies(self, name: str, dependencies: List[str]):
+        """Validate dependencies exist and check for cycles."""
+        for dep_name in dependencies:
+            if dep_name not in self.components and dep_name != name:
+                raise ValueError(f"Dependency '{dep_name}' not found for component '{name}'")
+        
+        # Create temporary dependency structure and check for cycles
+        temp_deps = self.dependencies.copy()
+        temp_deps[name] = dependencies
+        self._check_circular_dependencies(temp_deps)
+    
+    def _check_circular_dependencies(self, deps_dict: Dict[str, List[str]]):
+        """Check for circular dependencies in dependency graph."""
+        visited = set()
+        temp_visited = set()
+        
+        def visit(component_name):
+            if component_name in temp_visited:
+                raise ValueError(f"Circular dependency detected involving '{component_name}'")
+            if component_name in visited:
+                return
+            
+            temp_visited.add(component_name)
+            for dep_name in deps_dict.get(component_name, []):
+                if dep_name in deps_dict:  # Only visit if it's a registered component
+                    visit(dep_name)
+            temp_visited.remove(component_name)
+            visited.add(component_name)
+        
+        for component_name in deps_dict.keys():
+            if component_name not in visited:
+                visit(component_name)
+```
+
+##### 3. LazyComponentContainer: Deferred Initialization Layer
+
+```python
+class LazyComponentContainer(ComponentContainer):
+    """Adds deferred initialization with automatic shape inference.
+    
+    This wrapper adds:
+    - Configuration-based registration
+    - Automatic shape inference during initialization
+    - Deferred component instantiation
+    - Custom shape inference patterns
+    """
+    
+    def __init__(self):
+        super().__init__()
+        self.component_configs = {}  # Store component configurations
+        self.initialized = False
+    
+    def register_component_config(self, name: str, component_class, config: Dict[str, Any],
+                                 dependencies: List[str] = None, in_keys: List[str] = None,
+                                 out_keys: List[str] = None):
+        """Register component configuration for deferred initialization.
+        
+        Args:
+            name: Component name for registry and dependency resolution
+            component_class: Class to instantiate (e.g., LinearModule)
+            config: Configuration dict (e.g., {"out_features": 128})
+            dependencies: List of component names this module depends on
+            in_keys: Input keys for this component
+            out_keys: Output keys for this component
+        """
         self.component_configs[name] = {
             'class': component_class,
             'config': config,
@@ -118,9 +300,9 @@ class ComponentContainer(TensorDictModuleBase):
         self.dependencies[name] = dependencies or []
         
         # Update container's keys based on registered component specs
-        self._update_container_keys()
+        self._update_container_keys_from_configs()
     
-    def initialize_with_input_shapes(self, input_shapes: dict):
+    def initialize_with_input_shapes(self, input_shapes: Dict[str, tuple]):
         """Initialize all components with specified input shapes.
         
         Args:
@@ -130,9 +312,6 @@ class ComponentContainer(TensorDictModuleBase):
         if self.initialized:
             return
         
-        # Check for circular dependencies
-        self._check_dependencies()
-        
         # Validate that all container inputs have shapes specified
         for in_key in self.in_keys:
             if in_key not in input_shapes:
@@ -141,17 +320,15 @@ class ComponentContainer(TensorDictModuleBase):
         # Initialize components in dependency order
         shape_registry = input_shapes.copy()
         
-        # Initialize each component recursively
-        for component_name in self._topological_sort():
-            self._initialize_component(component_name, shape_registry)
+        for component_name in self._topological_sort_configs():
+            component = self._create_component_with_shapes(component_name, shape_registry)
+            # Register the actual component using the base class method
+            super().register_component(component_name, component, self.dependencies[component_name])
         
         self.initialized = True
     
-    def _initialize_component(self, component_name: str, shape_registry: dict):
-        """Initialize a single component with inferred input shapes."""
-        if component_name in self.components:
-            return  # Already initialized
-        
+    def _create_component_with_shapes(self, component_name: str, shape_registry: Dict[str, tuple]) -> MettaModule:
+        """Create a component instance with inferred shapes."""
         config_info = self.component_configs[component_name]
         component_class = config_info['class']
         base_config = config_info['config'].copy()
@@ -160,9 +337,11 @@ class ComponentContainer(TensorDictModuleBase):
         
         # Ensure all dependencies are initialized first
         for dep_name in self.dependencies[component_name]:
-            self._initialize_component(dep_name, shape_registry)
+            if dep_name not in self.components:
+                dep_component = self._create_component_with_shapes(dep_name, shape_registry)
+                super().register_component(dep_name, dep_component, self.dependencies[dep_name])
         
-        # Infer input shapes from dependencies or sample input
+        # Infer input shapes from shape registry
         inferred_shapes = {}
         for in_key in in_keys:
             if in_key not in shape_registry:
@@ -175,43 +354,50 @@ class ComponentContainer(TensorDictModuleBase):
         )
         
         # Create the component instance
-        component = component_class(**updated_config, in_keys=in_keys, out_keys=out_keys)
-        self.components[component_name] = component
+        component = component_class(**updated_config)
         
-        # Infer output shapes through dry run
-        self._infer_output_shapes(component, component_name, shape_registry, inferred_shapes)
+        # Infer output shapes through dry run and update shape registry
+        self._infer_output_shapes(component, shape_registry, inferred_shapes)
+        
+        return component
     
-    def _update_config_with_shapes(self, component_class, config, input_shapes, in_keys, out_keys):
+    def _update_config_with_shapes(self, component_class, config: Dict[str, Any], 
+                                  input_shapes: Dict[str, tuple], in_keys: List[str], 
+                                  out_keys: List[str]) -> Dict[str, Any]:
         """Update component config with inferred input dimensions."""
         updated_config = config.copy()
         
-        # Common patterns for different component types
+        # Allow components to define custom shape inference
         if hasattr(component_class, '_update_config_from_shapes'):
-            # Allow components to define their own shape inference
             return component_class._update_config_from_shapes(config, input_shapes, in_keys, out_keys)
         
-        # Default patterns
+        # Default patterns for common component types
         if 'LinearModule' in component_class.__name__:
-            # Linear layers typically need in_features
             if len(in_keys) == 1:
                 input_shape = input_shapes[in_keys[0]]
                 updated_config['in_features'] = input_shape[-1]  # Last dimension
+                updated_config['in_key'] = in_keys[0]
+                updated_config['out_key'] = out_keys[0]
         
         elif 'Conv2dModule' in component_class.__name__:
-            # Conv layers need in_channels
             if len(in_keys) == 1:
                 input_shape = input_shapes[in_keys[0]]
                 updated_config['in_channels'] = input_shape[0]  # Assuming CHW format
+                updated_config['in_key'] = in_keys[0]
+                updated_config['out_key'] = out_keys[0]
         
         elif 'LSTMModule' in component_class.__name__:
-            # LSTM needs input_size
             if len(in_keys) >= 1:
-                input_shape = input_shapes[in_keys[0]]  # First input key
+                input_shape = input_shapes[in_keys[0]]
                 updated_config['input_size'] = input_shape[-1]
+                # LSTMModule uses different key names
+                updated_config['in_key'] = in_keys[0]
+                updated_config['out_key'] = out_keys[0]
         
         return updated_config
     
-    def _infer_output_shapes(self, component, component_name, shape_registry, input_shapes):
+    def _infer_output_shapes(self, component: MettaModule, shape_registry: Dict[str, tuple], 
+                           input_shapes: Dict[str, tuple]):
         """Infer output shapes through a dry forward pass."""
         # Create mock input tensordict
         mock_inputs = {}
@@ -225,84 +411,13 @@ class ComponentContainer(TensorDictModuleBase):
             component.eval()
             result = component(mock_tensordict)
         
-        # Record output shapes
+        # Record output shapes (remove batch dimension)
         for out_key in component.out_keys:
             if out_key in result:
-                shape_registry[out_key] = result[out_key].shape[1:]  # Remove batch dimension
+                shape_registry[out_key] = result[out_key].shape[1:]
     
-    def _update_container_keys(self):
-        """Update container's in_keys and out_keys based on registered components."""
-        # Collect all keys from component configurations
-        all_in_keys = set()
-        all_out_keys = set()
-        
-        for config_info in self.component_configs.values():
-            all_in_keys.update(config_info['in_keys'])
-            all_out_keys.update(config_info['out_keys'])
-        
-        # Container's inputs are keys not produced by any component
-        self.in_keys = [key for key in all_in_keys if key not in all_out_keys]
-        # Container's outputs are all component outputs
-        self.out_keys = list(all_out_keys)
-    
-    def forward(self, tensordict: TensorDict) -> TensorDict:
-        """TensorDictModule interface - execute all components."""
-        if not self.initialized:
-            raise RuntimeError("ComponentContainer must be initialized with input shapes first")
-        
-        # For full execution, just run all components in dependency order
-        for component_name in self._topological_sort():
-            self._execute_component(component_name, tensordict)
-        return tensordict
-    
-    def execute_component(self, component_name: str, tensordict: TensorDict) -> TensorDict:
-        """Recursive execution preserving current elegant pattern."""
-        if not self.initialized:
-            raise RuntimeError("ComponentContainer must be initialized with input shapes first")
-        return self._execute_component(component_name, tensordict)
-    
-    def _execute_component(self, component_name: str, tensordict: TensorDict) -> TensorDict:
-        """Internal recursive execution method."""
-        component = self.components[component_name]
-        
-        # Check if already computed (caching) - check if all outputs exist
-        if all(out_key in tensordict for out_key in component.out_keys):
-            return tensordict
-        
-        # Recursively compute dependencies first
-        if component_name in self.dependencies:
-            for dep_name in self.dependencies[component_name]:
-                self._execute_component(dep_name, tensordict)
-        
-        # Execute this component
-        component(tensordict)
-        return tensordict
-    
-    def _check_dependencies(self):
-        """Check for circular dependencies."""
-        visited = set()
-        temp_visited = set()
-        
-        def visit(component_name):
-            if component_name in temp_visited:
-                raise ValueError(f"Circular dependency detected involving '{component_name}'")
-            if component_name in visited:
-                return
-            
-            temp_visited.add(component_name)
-            for dep_name in self.dependencies.get(component_name, []):
-                if dep_name not in self.component_configs:
-                    raise ValueError(f"Dependency '{dep_name}' not found for component '{component_name}'")
-                visit(dep_name)
-            temp_visited.remove(component_name)
-            visited.add(component_name)
-        
-        for component_name in self.component_configs.keys():
-            if component_name not in visited:
-                visit(component_name)
-    
-    def _topological_sort(self):
-        """Get components in dependency order."""
+    def _topological_sort_configs(self):
+        """Get component configs in dependency order."""
         visited = set()
         temp_visited = set()
         result = []
@@ -326,118 +441,120 @@ class ComponentContainer(TensorDictModuleBase):
         
         return result
     
-    def replace_component(self, name, new_module):
-        """Preserve hotswapping capability."""
-        self.components[name] = new_module
-        self._update_container_keys()
+    def _update_container_keys_from_configs(self):
+        """Update container's in_keys and out_keys based on component configurations."""
+        all_in_keys = set()
+        all_out_keys = set()
+        
+        for config_info in self.component_configs.values():
+            all_in_keys.update(config_info['in_keys'])
+            all_out_keys.update(config_info['out_keys'])
+        
+        # Container's inputs are keys not produced by any component
+        self.in_keys = [key for key in all_in_keys if key not in all_out_keys]
+        self.out_keys = list(all_out_keys)
 ```
 
-#### Recursive Execution with MettaModule
-
-Each `MettaModule` becomes purely computational, while the container handles the recursive dependency resolution:
+##### 4. SafeLazyComponentContainer: Combined Features
 
 ```python
-# Usage preserves the elegant recursive pattern:
-class MettaAgent(MettaModule):
-    def __init__(self, config):
-        super().__init__(in_keys=["observation"], out_keys=["action", "value"])
-        self.components = ComponentContainer()
-        
-        # Register components with dependencies
-        # Components are registered during initialization based on config
+class SafeLazyComponentContainer(LazyComponentContainer, SafeComponentContainer):
+    """Combines safety validation with lazy initialization.
     
-    def forward(self, tensordict: TensorDict) -> TensorDict:
-        # Option 1: Execute specific component recursively (preserves current pattern)
-        self.components.execute_component("policy", tensordict)
+    This is the full-featured container that provides:
+    - Deferred initialization with shape inference (from LazyComponentContainer)
+    - Comprehensive validation (from SafeComponentContainer) 
+    - Elegant recursive execution (from base ComponentContainer)
+    """
+    
+    def register_component_config(self, name: str, component_class, config: Dict[str, Any],
+                                 dependencies: List[str] = None, in_keys: List[str] = None,
+                                 out_keys: List[str] = None):
+        """Register component configuration with validation."""
+        # Validate the component class has proper interface
+        if not hasattr(component_class, '__bases__') or not any(
+            issubclass(base, MettaModule) for base in component_class.__mro__
+        ):
+            raise TypeError(f"Component class must inherit from MettaModule")
         
-        # Option 2: Execute all components (TensorDictModule interface)
-        # tensordict = self.components(tensordict)
-        
-        return tensordict
+        # Use LazyComponentContainer's registration
+        LazyComponentContainer.register_component_config(
+            self, name, component_class, config, dependencies, in_keys, out_keys
+        )
+    
+    def initialize_with_input_shapes(self, input_shapes: Dict[str, tuple]):
+        """Initialize with both lazy initialization and safety validation."""
+        # The safety validation happens automatically when LazyComponentContainer
+        # calls super().register_component() during initialization, which triggers
+        # SafeComponentContainer's validation logic
+        LazyComponentContainer.initialize_with_input_shapes(self, input_shapes)
 ```
 
-#### Complete Initialization Example
+### Usage Examples
 
-Here's how the deferred initialization works in practice:
-
+#### 1. Simple Immediate Usage
 ```python
-# Step 1: Register component configurations (no actual initialization yet)
-agent = MettaAgent()
+# For immediate use with pre-built components
+container = ComponentContainer()
+policy = LinearModule(in_features=64, out_features=8, in_key="features", out_key="action")
+container.register_component("policy", policy)
 
-# Register observation processor
-agent.components.register_component(
+td = TensorDict({"features": torch.randn(4, 64)}, batch_size=4)
+result = container.execute_component("policy", td)
+```
+
+#### 2. Safety-Critical Applications
+```python
+# Adds comprehensive validation
+container = SafeComponentContainer()
+container.register_component("policy", policy)  # Validates interface, checks conflicts
+```
+
+#### 3. Dynamic Architecture with Shape Inference
+```python
+# For configurations that need shape inference
+container = LazyComponentContainer()
+
+container.register_component_config(
     name="obs_processor",
     component_class=LinearModule,
     config={"out_features": 128},  # in_features will be inferred
-    dependencies=[],
     in_keys=["observation"],
     out_keys=["features"]
 )
 
-# Register policy network
-agent.components.register_component(
-    name="policy",
+container.register_component_config(
+    name="policy", 
     component_class=LinearModule,
-    config={"out_features": 8},  # in_features will be inferred from obs_processor output
+    config={"out_features": 8},  # in_features inferred from obs_processor output
     dependencies=["obs_processor"],
     in_keys=["features"],
     out_keys=["action"]
 )
 
-# Register value network
-agent.components.register_component(
-    name="value",
-    component_class=LinearModule,  
-    config={"out_features": 1},  # in_features will be inferred from obs_processor output
-    dependencies=["obs_processor"],
-    in_keys=["features"], 
-    out_keys=["value"]
-)
+# Initialize with input shapes - triggers automatic shape inference
+container.initialize_with_input_shapes({"observation": (64,)})
 
-# Step 2: Initialize with input shapes (this triggers shape inference)
-# The container automatically determined its in_keys = ["observation"] 
-agent.components.initialize_with_input_shapes({
-    "observation": (64,)  # obs_dim = 64 (without batch dimension)
-})
-
-# Now the components are fully initialized with correct dimensions:
-# - obs_processor: Linear(64 -> 128) 
-# - policy: Linear(128 -> 8)
-# - value: Linear(128 -> 1)
-
-# Step 3: Use normally
-observation = torch.randn(4, 64)
-tensordict = TensorDict({"observation": observation}, batch_size=4)
-result = agent.forward(tensordict)  # Returns updated tensordict with action, value
+# Now use normally
+td = TensorDict({"observation": torch.randn(4, 64)}, batch_size=4)
+result = container.execute_component("policy", td)  # Recursively executes obs_processor too
 ```
 
-#### Advanced Shape Inference
-
-Components can define custom shape inference logic:
-
+#### 4. Production Usage (Full Features)
 ```python
-class LSTMModule(MettaModule):
-    @classmethod
-    def _update_config_from_shapes(cls, config, input_shapes, in_keys, out_keys):
-        """Custom shape inference for LSTM."""
-        updated_config = config.copy()
-        
-        # LSTM needs input_size from first input
-        if len(in_keys) >= 1:
-            input_shape = input_shapes[in_keys[0]]
-            updated_config['input_size'] = input_shape[-1]
-        
-        # If hidden state is provided, infer hidden_size from it
-        if 'hidden' in input_shapes and 'hidden_size' not in config:
-            hidden_shape = input_shapes['hidden']
-            updated_config['hidden_size'] = hidden_shape[-1]
-        
-        return updated_config
+# Combines safety validation with lazy initialization
+container = SafeLazyComponentContainer()
+
+# Register configurations with full validation
+container.register_component_config(...)
+
+# Initialize with comprehensive validation
+container.initialize_with_input_shapes({"observation": (64,)})
 ```
 
 ## Testing in Isolation
 
-The new architecture enables true isolated testing of components:
+The wrapper-based architecture enables true isolated testing of components at every level:
 
 ### Current Testing Approach
 
@@ -456,88 +573,204 @@ def test_linear_layer():
 
 ### New Testing Approach
 
+#### Level 1: Pure Component Testing (Zero Setup)
 ```python
-# New: Direct testing with zero setup
 def test_linear_module():
-    linear = LinearModule(in_features=10, out_features=16, 
-                         in_keys=["input"], out_keys=["output"])
+    # Direct testing - no infrastructure needed
+    linear = LinearModule(in_features=10, out_features=16, in_key="input", out_key="output")
     tensordict = TensorDict({"input": torch.randn(4, 10)}, batch_size=4)
     result = linear(tensordict)
     assert result["output"].shape == (4, 16)
 
 def test_actor_module():
-    actor = PolicyNetwork(feature_dim=64, action_dim=8,
-                         in_keys=["features"], out_keys=["action"])
+    # Test any MettaModule in complete isolation
+    actor = PolicyNetwork(feature_dim=64, action_dim=8, in_key="features", out_key="action")
     tensordict = TensorDict({"features": torch.randn(2, 64)}, batch_size=2)
     result = actor(tensordict)
     assert result["action"].shape == (2, 8)
 ```
 
-## Implementation Strategy
-
-### Week 1: Foundation + Test Infrastructure
-
-**Day 1-2: Core Foundation (8 hours)**
+#### Level 2: Container Layer Testing
 ```python
-# MettaModule base class (~4 hours)
-class MettaModule(nn.Module):
-    def __init__(self, in_keys=None, out_keys=None): pass
+def test_base_container():
+    # Test storage and execution logic
+    container = ComponentContainer()
+    policy = LinearModule(64, 8, "features", "action")
+    container.register_component("policy", policy)
+    
+    td = TensorDict({"features": torch.randn(4, 64)}, batch_size=4)
+    result = container.execute_component("policy", td)
+    assert result["action"].shape == (4, 8)
 
-# ComponentContainer implementation (~4 hours)  
-class ComponentContainer(TensorDictModuleBase):
-    def register_component(self, name, component_class, config, dependencies=None): pass
-    def initialize_with_input_shapes(self, input_shapes): pass
+def test_safety_wrapper():
+    # Test validation logic independently
+    container = SafeComponentContainer()
+    
+    # Test interface validation
+    with pytest.raises(TypeError, match="must be a MettaModule"):
+        container.register_component("bad", nn.Linear(10, 5))
+    
+    # Test dependency validation
+    policy = LinearModule(64, 8, "features", "action")
+    with pytest.raises(ValueError, match="Dependency 'missing' not found"):
+        container.register_component("policy", policy, dependencies=["missing"])
+
+def test_lazy_wrapper():
+    # Test shape inference independently
+    container = LazyComponentContainer()
+    container.register_component_config(
+        "policy", LinearModule, {"out_features": 8}, 
+        in_keys=["features"], out_keys=["action"]
+    )
+    container.initialize_with_input_shapes({"features": (64,)})
+    
+    # Verify component was created with correct dimensions
+    assert container.components["policy"].linear.in_features == 64
+    assert container.components["policy"].linear.out_features == 8
 ```
 
-**Day 3-5: Parallel Component Migration + Testing (12 hours)**
+#### Level 3: Integration Testing
 ```python
-# Convert all components simultaneously (independent work)
-# LinearModule: 2 hours
-# ActorModule: 3 hours  
-# MergeModule: 3 hours
-# ObsModule, LSTMModule, etc: 4 hours total
+def test_full_pipeline():
+    # Test complete wrapper composition
+    container = SafeLazyComponentContainer()
+    
+    # Register configurations
+    container.register_component_config(...)
+    
+    # Test initialization with validation
+    container.initialize_with_input_shapes({"observation": (64,)})
+    
+    # Test execution
+    result = container.execute_component("policy", td)
 ```
 
-### Week 2: Integration + Validation
-
-**Day 1-3: MettaAgent Integration (12 hours)**
-```python
-# Integrate ComponentContainer into MettaAgent (~8 hours)
-class MettaAgent(MettaModule):
-    def __init__(self, config):
-        super().__init__(in_keys=["observation"], out_keys=["action", "value"])
-        self.components = ComponentContainer()
-
-# Config compatibility layer (~4 hours)
-```
-
-**Day 4-5: Optional Wrappers + Final Testing (8 hours)**
-```python
-# Safety wrappers (~4 hours)
-class SafeModule(MettaModule): pass
-
-# Comprehensive testing suite (~4 hours)
-```
-
-## Benefits
+## Benefits of Wrapper-Based Architecture
 
 ### Immediate Benefits
 
-1. **Streamlined Testing**: Pure computation modules eliminate manual shape configuration and lifecycle management
-2. **Clear Data Dependencies**: Explicit `in_keys`/`out_keys` make component relationships transparent
-3. **Isolated Development**: Components can be developed and tested independently without infrastructure
+1. **Clear Separation of Concerns**: Each wrapper has a single, well-defined responsibility
+   - **Base Container**: Storage + elegant recursive execution
+   - **Safety Wrapper**: Validation and error checking
+   - **Lazy Wrapper**: Shape inference and deferred initialization
+
+2. **Composability**: Mix and match features as needed
+   ```python
+   basic = ComponentContainer()              # Simple use cases
+   safe = SafeComponentContainer()           # Add validation
+   lazy = LazyComponentContainer()           # Add shape inference  
+   production = SafeLazyComponentContainer() # Full features
+   ```
+
+3. **Independent Testing**: Each layer can be tested in complete isolation
+   - Test base container with pre-built components (no shape complexity)
+   - Test safety wrapper with malformed inputs
+   - Test lazy wrapper with shape inference edge cases
+   - Test combinations through inheritance
+
+4. **Easier Debugging**: Problems are isolated to specific layers
+   - Shape inference issues → LazyComponentContainer
+   - Validation failures → SafeComponentContainer  
+   - Execution problems → Base ComponentContainer
 
 ### Medium-term Benefits
 
-1. **Cleaner Architecture**: Single responsibility modules with clear interfaces
-2. **Composition Over Inheritance**: Wrapper patterns enable feature addition without complex inheritance
-3. **Preserved Infrastructure**: Keep valuable patterns (registry, TensorDict, Hydra) while fixing component design
+1. **Incremental Adoption**: Teams can adopt features gradually
+   ```python
+   # Start simple
+   container = ComponentContainer()
+   
+   # Add safety when needed
+   container = SafeComponentContainer()
+   
+   # Add lazy features when architectures get complex
+   container = SafeLazyComponentContainer()
+   ```
+
+2. **Feature Extension**: New capabilities through additional wrappers
+   ```python
+   class ProfiledComponentContainer(ComponentContainer):
+       """Adds execution timing and memory profiling."""
+   
+   class CachedComponentContainer(ComponentContainer):
+       """Adds persistent disk caching of component outputs."""
+   
+   class DistributedComponentContainer(ComponentContainer):
+       """Adds multi-GPU component execution."""
+   ```
+
+3. **Cleaner Error Messages**: Each wrapper can provide context-specific errors
+   - Base container: "Component 'policy' not found"
+   - Safety wrapper: "Output key conflict: ['action'] between 'policy' and 'backup_policy'"
+   - Lazy wrapper: "Cannot infer shape for key 'features' needed by 'policy'"
 
 ### Long-term Benefits
 
-1. **Future PyTorch Compatibility**: Explicit interfaces ready for torch.compile and other emerging features
-2. **Advanced Research Patterns**: Container-managed execution enables sophisticated experimentation
-3. **Maintainable Codebase**: Separated concerns reduce coupling and improve code clarity
+1. **Architectural Flexibility**: Easy to experiment with new container behaviors
+2. **Performance Optimization**: Profile and optimize each layer independently
+3. **Future PyTorch Compatibility**: Clean interfaces ready for torch.compile
+4. **Research Enablement**: Easy to add experimental features as new wrappers
+
+## Implementation Strategy
+
+### Week 1: Wrapper Foundation (20 hours)
+
+**Day 1-2: Base ComponentContainer (8 hours)**
+```python
+# Base container with elegant recursive execution
+class ComponentContainer(TensorDictModuleBase):
+    def register_component(self, name, component, dependencies): pass
+    def execute_component(self, name, tensordict): pass  # The elegant recursive pattern
+    def forward(self, tensordict): pass  # TensorDictModule interface
+```
+
+**Day 3: SafeComponentContainer (4 hours)**
+```python 
+# Validation wrapper
+class SafeComponentContainer(ComponentContainer):
+    def _validate_component(self, component): pass
+    def _validate_dependencies(self, name, dependencies): pass
+    def _check_circular_dependencies(self, deps_dict): pass
+```
+
+**Day 4-5: LazyComponentContainer (8 hours)**
+```python
+# Shape inference wrapper  
+class LazyComponentContainer(ComponentContainer):
+    def register_component_config(self, name, component_class, config, ...): pass
+    def initialize_with_input_shapes(self, input_shapes): pass
+    def _create_component_with_shapes(self, name, shape_registry): pass
+```
+
+### Week 2: Integration + Validation (20 hours)
+
+**Day 1-2: SafeLazyComponentContainer + Testing (8 hours)**
+```python
+# Combined wrapper + comprehensive test suite
+class SafeLazyComponentContainer(LazyComponentContainer, SafeComponentContainer): pass
+```
+
+**Day 3-4: MettaAgent Integration (8 hours)**
+```python
+# Integrate wrapper containers into MettaAgent
+class MettaAgent(MettaModule):
+    def __init__(self, config):
+        self.components = SafeLazyComponentContainer()  # or other variants
+```
+
+**Day 5: Documentation + Examples (4 hours)**
+```python
+# Usage examples for each wrapper type
+# Migration guide from current ComponentContainer
+# Performance benchmarks
+```
+
+### Implementation Benefits
+
+1. **Parallel Development**: Each wrapper can be developed independently
+2. **Incremental Testing**: Test each layer as it's built
+3. **Risk Mitigation**: If one wrapper has issues, others still work
+4. **Clear Milestones**: Each wrapper completion is a deliverable milestone
 
 ## Migration Strategy
 
