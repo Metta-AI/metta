@@ -17,8 +17,8 @@ class MultiLeftAndRight(Scene):
         self,
         rows: int,
         columns: int,
-        total_altars: int = 4,
-        altar_ratio: float = 0.75,  # Ratio of altars that go to the side with more
+        altar_ratio: float,
+        total_altars: int,
     ):
         # Pregenerate seeds so that we could make rooms deterministic.
         agent_seed = random.randint(0, int(1e9))
@@ -79,9 +79,6 @@ class MultiLeftAndRight(Scene):
                                                 seed=altar_seed,
                                             ),
                                             "where": {"tags": ["maybe_altars_left"]},
-                                            "limit": 1,
-                                            "order_by": "random",
-                                            "order_by_seed": altar_side_seed,
                                         },
                                         {
                                             "scene": lambda: Random(
@@ -89,9 +86,6 @@ class MultiLeftAndRight(Scene):
                                                 seed=altar_seed + 1,
                                             ),
                                             "where": {"tags": ["maybe_altars_right"]},
-                                            "limit": 1,
-                                            "order_by": "random",
-                                            "order_by_seed": altar_side_seed + 1,
                                         },
                                     ],
                                 ),
