@@ -17,7 +17,9 @@
 		"files.excludeGitIgnored": true,
 		"files.autoGuessEncoding": false,
 		"files.associations": {
-			"*.pxd": "cython"
+			"*.pxd": "cython",
+			"stdexcept": "cpp",
+			"vector": "cpp"
 		},
 		"terminal.integrated.profiles.osx": {
 			"metta-0": {

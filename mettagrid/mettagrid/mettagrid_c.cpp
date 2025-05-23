@@ -33,11 +33,11 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _cfg = cfg;
 
   int num_agents = cfg["num_agents"].cast<int>();
-  _max_timestep = cfg["max_steps"].cast<unsigned int>();
+  max_timestep = cfg["max_steps"].cast<unsigned int>();
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
 
-  _current_timestep = 0;
+  current_timestep = 0;
 
   _observations = nullptr;
   _terminals = nullptr;
@@ -259,16 +259,15 @@ void MettaGrid::_step(py::array_t<int> actions) {
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Increment timestep and process events
-  _current_timestep++;
-  _event_manager->process_events(_current_timestep);
+  current_timestep++;
+  _event_manager->process_events(current_timestep);
 
   // Process actions by priority
   for (unsigned char p = 0; p <= _max_action_priority; p++) {
     for (size_t idx = 0; idx < _agents.size(); idx++) {
       int action = actions_view(idx, 0);
       if (action < 0 || action >= _num_action_handlers) {
-        printf("Invalid action: %d\n", action);
-        continue;
+        throw std::runtime_error("Invalid action in _step");
       }
 
       ActionArg arg = actions_view(idx, 1);
@@ -283,7 +282,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
         continue;
       }
 
-      _action_success[idx] = handler->handle_action(agent->id, arg, _current_timestep);
+      _action_success[idx] = handler->handle_action(agent->id, arg, current_timestep);
     }
   }
 
@@ -296,14 +295,17 @@ void MettaGrid::_step(py::array_t<int> actions) {
   }
 
   // Check for truncation
-  if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
+  if (max_timestep > 0 && current_timestep >= max_timestep) {
     std::fill_n(_truncations, _truncations_size, 1);
   }
 }
 
 py::tuple MettaGrid::reset() {
-  if (_current_timestep > 0) {
+  if (current_timestep > 0) {
     throw std::runtime_error("Cannot reset after stepping");
+  }
+  if (_observations == nullptr || _terminals == nullptr || _truncations == nullptr || _rewards == nullptr) {
+    throw std::runtime_error("Buffers not set - call set_buffers before reset");
   }
 
   // reset external buffers using direct memory access
@@ -421,10 +423,15 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
                                     static_cast<ssize_t>(obs_height),
                                     static_cast<ssize_t>(obs_width),
                                     static_cast<ssize_t>(_grid_features.size())};
+  std::vector<ssize_t> rewards_shape = {static_cast<ssize_t>(_rewards_size)};
+  std::vector<ssize_t> terminals_shape = {static_cast<ssize_t>(_terminals_size)};
+  std::vector<ssize_t> truncations_shape = {static_cast<ssize_t>(_truncations_size)};
+
+  // Create array views with explicit shape vectors
   py::array_t<c_observations_type> obs_view(obs_shape, _observations);
-  py::array_t<c_rewards_type> rewards_view(static_cast<ssize_t>(_rewards_size), _rewards);
-  py::array_t<c_terminals_type> terminals_view(static_cast<ssize_t>(_terminals_size), _terminals);
-  py::array_t<c_truncations_type> truncations_view(static_cast<ssize_t>(_truncations_size), _truncations);
+  py::array_t<c_rewards_type> rewards_view(rewards_shape, _rewards);
+  py::array_t<c_terminals_type> terminals_view(terminals_shape, _terminals);
+  py::array_t<c_truncations_type> truncations_view(truncations_shape, _truncations);
 
   return py::make_tuple(obs_view, rewards_view, terminals_view, truncations_view, py::dict());
 }
@@ -482,10 +489,6 @@ py::list MettaGrid::action_names() {
   return names;
 }
 
-unsigned int MettaGrid::current_timestep() {
-  return _current_timestep;
-}
-
 unsigned int MettaGrid::map_width() {
   return _grid->width;
 }
@@ -503,7 +506,8 @@ unsigned int MettaGrid::num_agents() {
 }
 
 py::array_t<float> MettaGrid::get_episode_rewards() {
-  return py::array_t<c_rewards_type>(static_cast<ssize_t>(_rewards_size), _episode_rewards.data());
+  std::vector<ssize_t> episode_rewards_shape = {static_cast<ssize_t>(_rewards_size)};
+  return py::array_t<c_rewards_type>(episode_rewards_shape, _episode_rewards.data());
 }
 
 py::dict MettaGrid::get_episode_stats() {
@@ -634,7 +638,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("rewards").noconvert())
       .def("grid_objects", &MettaGrid::grid_objects)
       .def("action_names", &MettaGrid::action_names)
-      .def("current_timestep", &MettaGrid::current_timestep)
       .def("map_width", &MettaGrid::map_width)
       .def("map_height", &MettaGrid::map_height)
       .def("grid_features", &MettaGrid::grid_features)
@@ -649,5 +652,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("inventory_item_names", &MettaGrid::inventory_item_names)
       .def_static("get_numpy_type_name", &MettaGrid::cpp_get_numpy_type_name, py::arg("type_id"))
       .def_readonly("obs_width", &MettaGrid::obs_width)
-      .def_readonly("obs_height", &MettaGrid::obs_height);
+      .def_readonly("obs_height", &MettaGrid::obs_height)
+      .def_readonly("max_timestep", &MettaGrid::max_timestep)
+      .def_readonly("current_timestep", &MettaGrid::current_timestep);
 }

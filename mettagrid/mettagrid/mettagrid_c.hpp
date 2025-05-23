@@ -37,6 +37,9 @@ public:
   unsigned short obs_width;
   unsigned short obs_height;
 
+  unsigned int current_timestep;
+  unsigned int max_timestep;
+
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
@@ -48,7 +51,7 @@ public:
   void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
-  unsigned int current_timestep();
+
   unsigned int map_width();
   unsigned int map_height();
   py::list grid_features();
@@ -77,8 +80,6 @@ private:
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
-  unsigned int _current_timestep;
-  unsigned int _max_timestep;
 
   std::vector<std::unique_ptr<ActionHandler>> _action_handlers;
   int _num_action_handlers;

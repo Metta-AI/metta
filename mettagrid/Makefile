@@ -379,6 +379,13 @@ build: check-build-dependencies create-dirs
 	@uv pip install -e .
 	@echo "✅ Build completed successfully."
 
+# Debug build target with assertions and debug symbols enabled
+.PHONY: build-debug
+build-debug: check-build-dependencies create-dirs
+	@echo "🐛 Building mettagrid in DEBUG mode (assertions enabled)..."
+	@DEBUG=1 uv pip install -e . --force-reinstall
+	@echo "✅ Debug build completed successfully."
+
 # Build the source object files needed for tests and benchmarks
 .PHONY: build-src-objects
 build-src-objects: check-build-dependencies create-dirs $(SRC_OBJECTS)

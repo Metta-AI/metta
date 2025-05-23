@@ -172,7 +172,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "episode/reward.mean": episode_rewards_mean,
                 "episode/reward.min": episode_rewards.min(),
                 "episode/reward.max": episode_rewards.max(),
-                "episode_length": self._c_env.current_timestep(),
+                "episode_length": self._c_env.current_timestep,
             }
         )
 
