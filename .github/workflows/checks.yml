@@ -176,10 +176,11 @@ jobs:
           uv run --active pytest --maxfail=1 --disable-warnings -q
 
       - name: Run MettaGrid C++ tests
-        working-directory: mettagrid
         run: |
-          uv run --active make
-          uv run --active make test
+          source .venv/bin/activate
+          cd mettagrid
+          make
+          make test
 
   smoke-test:
     name: "Smoke Tests"
@@ -672,8 +673,9 @@ jobs:
 
       - name: CMake
         run: |
+          source .venv/bin/activate
           cd mettagrid
-          uv run --active make
+          make
 
       - name: Run benchmarks with JSON output
         working-directory: mettagrid
