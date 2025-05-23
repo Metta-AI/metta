@@ -28,11 +28,7 @@ clean:
 	@echo "(Metta) Removing build directories (excluding .venv)"
 	@find . -type d -name 'build' -not -path "./.venv/*" -print0 | xargs -0 rm -rf 2>/dev/null || true
 	@echo "(Metta) Cleaning mettagrid build artifacts..."
-	@if [ -d "mettagrid" ]; then \
-		cd mettagrid && $(MAKE) clean || true; \
-	else \
-		echo "(Metta) mettagrid directory not found, skipping"; \
-	fi
+	rm -rf mettagrid/build mettagrid/**/*.so 2>/dev/null || true
 	@echo "(Metta) Cleaning uv build cache..."
 	rm -rf ~/.cache/uv/builds-v0
 	@echo "(Metta) Clean completed successfully"
@@ -44,7 +40,7 @@ install:
 
 test-python: check-venv
 	@echo "Running python tests with coverage"
-	pytest --cov=metta --cov-report=term-missing
+	uv run -- python -m pytest --cov=metta --cov-report=term-missing
 
 test: test-python
 
