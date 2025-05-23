@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
 
+option(BUILD_TESTS "Build C++ unit tests and benchmarks" OFF)
+
 # ========================= METTAGRID =========================
 
 set(PYBIND11_FINDPYTHON ON)
@@ -24,29 +26,26 @@ execute_process(
   OUTPUT_VARIABLE PYTHON_BASE_PREFIX
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-file(GLOB_RECURSE METTAGRID_SOURCES CONFIGURE_DEPENDS
-     ${CMAKE_CURRENT_SOURCE_DIR}/mettagrid/*.cpp)
+file(GLOB_RECURSE METTAGRID_SOURCES CONFIGURE_DEPENDS "mettagrid/*.cpp")
 
 add_library(mettagrid_obj OBJECT ${METTAGRID_SOURCES})
 
-# pull in pybind11's own includes (so <pybind11/numpy.h> resolves)
 target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11)
 
-# pull in NumPy's include dir (so the C-API macros are found)
 target_include_directories(mettagrid_obj PUBLIC ${NUMPY_INCLUDE_DIR})
 
-# Link to Python to resolve Python symbols used in pybind11 code
 target_link_libraries(mettagrid_obj PUBLIC Python3::Python)
 
-target_include_directories(mettagrid_obj
-                           PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/mettagrid")
+target_include_directories(mettagrid_obj PUBLIC "mettagrid")
+
 target_compile_definitions(mettagrid_obj
-                           PUBLIC NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION)
-target_compile_options(mettagrid_obj PUBLIC -fvisibility=hidden)
+                           PUBLIC "NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION")
+
+target_compile_options(mettagrid_obj PUBLIC "-fvisibility=hidden")
 
 pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
 
-install(TARGETS mettagrid_c DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/mettagrid")
+install(TARGETS mettagrid_c DESTINATION "mettagrid")
 
 # ========================= TESTS =========================
 
