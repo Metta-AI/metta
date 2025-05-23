@@ -16,7 +16,7 @@
                 "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
             ],
             "compilerPath": "/usr/bin/clang++",
-            // Note that there is no C20 standard. C23 is the official successor to C17. 
+            // Note that there is no C20 standard. C23 is the official successor to C17.
             "cStandard": "c17",
             "cppStandard": "c++20",
             "intelliSenseMode": "macos-clang-arm64"
