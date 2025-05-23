@@ -286,15 +286,12 @@ void MettaGrid::_step(py::array_t<int> actions) {
     }
   }
 
-  // Compute observations for next step
   _compute_observations(actions);
 
-  // Update episode rewards using direct pointer access
   for (size_t i = 0; i < _agents.size(); i++) {
     _episode_rewards[i] += _rewards[i];
   }
 
-  // Check for truncation
   if (max_timestep > 0 && current_timestep >= max_timestep) {
     std::fill_n(_truncations, _truncations_size, 1);
   }
