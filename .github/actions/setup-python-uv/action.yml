@@ -4,11 +4,6 @@ description: "Set up Python and uv with caching in a virtual environment"
 runs:
   using: "composite"
   steps:
-    - name: "Set up Python"
-      uses: actions/setup-python@v5
-      with:
-        python-version-file: ".python-version"
-
     # Set up uv - different settings based on whether we're skipping requirements
     - name: Install uv
       uses: astral-sh/setup-uv@v5
