@@ -8,8 +8,6 @@ game:
   num_agents: 4
   agent:
     max_inventory: 100
-
-    rewards:
     rewards:
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1, 0.01}
