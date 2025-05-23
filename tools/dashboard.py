@@ -24,9 +24,13 @@ def main(cfg: DictConfig) -> None:
     write_dashboard_data(config)
 
     if config.output_path.startswith("s3://"):
-        logger.info("Wrote dashboard data to S3. View dashboard at " + DASHBOARD_URL + "?data=" + http_url(config.output_path))
+        logger.info(
+            "Wrote dashboard data to S3. View dashboard at " + DASHBOARD_URL + "?data=" + http_url(config.output_path)
+        )
     else:
-        logger.info(f"Wrote dashboard data to {config.output_path}. Upload the data to " + DASHBOARD_URL + " to visualize")
+        logger.info(
+            f"Wrote dashboard data to {config.output_path}. Upload the data to " + DASHBOARD_URL + " to visualize"
+        )
 
 
 if __name__ == "__main__":
