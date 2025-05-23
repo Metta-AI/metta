@@ -12,8 +12,9 @@ game:
     border_width: 1
   agent:
     rewards:
-      heart: 0.95
+      heart: 1.0
       ore.red: 0
+      battery: 0
     default_item_max: 100
     freeze_duration: 0
 
