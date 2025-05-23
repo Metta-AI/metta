@@ -10,10 +10,7 @@ game:
   num_agents: 8
 
   agent:
-    ore.red_max: 1
-    ore.blue_max: 1
-    ore.green_max: 1
-    battery_max: 1
+    default_item_max: 1
     heart_max: 1000
     rewards:
       ore.red: 0.005

@@ -8,10 +8,7 @@ sampling: 1
 game:
 
   agent:
-    ore.red_max: 1
-    ore.blue_max: 1
-    ore.green_max: 1
-    battery_max: 1
+    default_item_max: 1
     heart_max: 1000
 
   max_steps: ${sampling:100,1000,250} # Randomize the episode length
