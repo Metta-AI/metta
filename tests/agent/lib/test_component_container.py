@@ -2,49 +2,60 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.component_container import ComponentContainer
+from metta.agent.lib.component_container import (
+    ComponentContainer,
+    LazyComponentContainer,
+    SafeComponentContainer,
+    SafeLazyComponentContainer,
+)
 from metta.agent.lib.metta_moduly import LinearModule
 
 
-class TestComponentContainer:
-    """Test ComponentContainer for agent-level component registry with dependencies."""
+class TestBaseComponentContainer:
+    """Test the base ComponentContainer with immediate registration."""
 
     def test_basic_registration(self):
-        """Test basic component registration."""
+        """Test basic component registration with actual instances."""
         container = ComponentContainer()
-        module = LinearModule(10, 5, "input", "output")
 
-        container.register_component("test_module", module)
+        # Create actual component instance
+        component = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
 
-        assert "test_module" in container
-        assert container["test_module"] is module
+        container.register_component("test_module", component)
+
+        assert "test_module" in container.components
         assert container.get_component_dependencies("test_module") == []
+        assert container.in_keys == ["input"]
+        assert container.out_keys == ["output"]
 
     def test_dependency_registration(self):
         """Test component registration with dependencies."""
         container = ComponentContainer()
 
-        obs_processor = LinearModule(10, 8, "observation", "processed_obs")
-        policy = LinearModule(8, 3, "processed_obs", "action")
+        # Create actual component instances
+        obs_processor = LinearModule(in_features=10, out_features=8, in_key="observation", out_key="processed_obs")
+        policy = LinearModule(in_features=8, out_features=3, in_key="processed_obs", out_key="action")
 
         container.register_component("obs_processor", obs_processor)
         container.register_component("policy", policy, dependencies=["obs_processor"])
 
         assert container.get_component_dependencies("obs_processor") == []
         assert container.get_component_dependencies("policy") == ["obs_processor"]
+        assert container.in_keys == ["observation"]
+        assert set(container.out_keys) == {"processed_obs", "action"}
 
     def test_execution_order_calculation(self):
         """Test execution order computation for dependency chains."""
         container = ComponentContainer()
 
         # Create dependency chain: A -> B -> C
-        a = LinearModule(10, 8, "input", "a_out")
-        b = LinearModule(8, 6, "a_out", "b_out")
-        c = LinearModule(6, 3, "b_out", "output")
+        comp_a = LinearModule(in_features=10, out_features=8, in_key="input", out_key="a_out")
+        comp_b = LinearModule(in_features=8, out_features=6, in_key="a_out", out_key="b_out")
+        comp_c = LinearModule(in_features=6, out_features=3, in_key="b_out", out_key="output")
 
-        container.register_component("A", a)
-        container.register_component("B", b, dependencies=["A"])
-        container.register_component("C", c, dependencies=["B"])
+        container.register_component("A", comp_a)
+        container.register_component("B", comp_b, dependencies=["A"])
+        container.register_component("C", comp_c, dependencies=["B"])
 
         order = container.get_execution_order("C")
         assert order == ["A", "B", "C"]
@@ -56,8 +67,9 @@ class TestComponentContainer:
         """Test recursive execution of dependencies."""
         container = ComponentContainer()
 
-        obs_processor = LinearModule(10, 8, "observation", "processed_obs")
-        policy = LinearModule(8, 3, "processed_obs", "action")
+        # Create actual component instances
+        obs_processor = LinearModule(in_features=10, out_features=8, in_key="observation", out_key="processed_obs")
+        policy = LinearModule(in_features=8, out_features=3, in_key="processed_obs", out_key="action")
 
         container.register_component("obs_processor", obs_processor)
         container.register_component("policy", policy, dependencies=["obs_processor"])
@@ -65,9 +77,8 @@ class TestComponentContainer:
         # Test data
         td = TensorDict({"observation": torch.randn(2, 10)}, batch_size=2)
 
-        # Clear cache and execute policy (should recursively execute obs_processor)
-        container.clear_cache()
-        result = container.forward("policy", td)
+        # Execute policy (should recursively execute obs_processor)
+        result = container.execute_component("policy", td)
 
         # Both outputs should be present
         assert "processed_obs" in result
@@ -75,196 +86,326 @@ class TestComponentContainer:
         assert result["processed_obs"].shape == (2, 8)
         assert result["action"].shape == (2, 3)
 
-    def test_execution_caching(self):
-        """Test that components are not re-executed within same forward pass."""
-        container = ComponentContainer()
-
-        # Create a module that tracks execution count
-        class CountingModule(LinearModule):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.execution_count = 0
-
-            def forward(self, tensordict):
-                self.execution_count += 1
-                return super().forward(tensordict)
-
-        counting_module = CountingModule(10, 8, "input", "output")
-        dependent_module = LinearModule(8, 3, "output", "final")
-
-        container.register_component("counter", counting_module)
-        container.register_component("dependent", dependent_module, dependencies=["counter"])
-
-        td = TensorDict({"input": torch.randn(2, 10)}, batch_size=2)
-
-        # Clear cache and execute dependent twice
-        container.clear_cache()
-        container.forward("dependent", td)
-        container.forward("dependent", td)  # Should use cache
-
-        # Counter should only execute once
-        assert counting_module.execution_count == 1
-
     def test_output_presence_check(self):
         """Test that components skip execution if outputs already exist."""
         container = ComponentContainer()
 
-        module = LinearModule(10, 5, "input", "output")
-        container.register_component("test", module)
+        component = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
+        container.register_component("test", component)
 
         # Pre-populate output
         td = TensorDict({"input": torch.randn(2, 10), "output": torch.randn(2, 5)}, batch_size=2)
+        original_output = td["output"].clone()
 
-        container.clear_cache()
-        result = container.forward("test", td)
+        result = container.execute_component("test", td)
 
         # Should return original pre-populated output unchanged
-        assert torch.equal(result["output"], td["output"])
+        assert torch.equal(result["output"], original_output)
 
     def test_hotswapping(self):
         """Test component replacement (hotswapping)."""
         container = ComponentContainer()
 
-        original = LinearModule(10, 5, "input", "output")
-        replacement = LinearModule(10, 8, "input", "output")  # Different output size
-
+        # Register original component
+        original = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
         container.register_component("swappable", original)
 
         td = TensorDict({"input": torch.randn(2, 10)}, batch_size=2)
 
         # Execute with original
-        container.clear_cache()
-        result1 = container.forward("swappable", td)
+        result1 = container.execute_component("swappable", td)
         assert result1["output"].shape == (2, 5)
 
-        # Replace and execute with fresh tensordict
+        # Replace with different size component
+        replacement = LinearModule(in_features=10, out_features=8, in_key="input", out_key="output")
         container.replace_component("swappable", replacement)
-        container.clear_cache()
 
         # Use fresh tensordict to ensure no cached outputs
         td_fresh = TensorDict({"input": torch.randn(2, 10)}, batch_size=2)
-        result2 = container.forward("swappable", td_fresh)
+        result2 = container.execute_component("swappable", td_fresh)
         assert result2["output"].shape == (2, 8)
 
-    def test_dependency_validation_missing(self):
-        """Test validation catches missing dependencies."""
+    def test_execute_network(self):
+        """Test full network execution."""
         container = ComponentContainer()
 
-        module = LinearModule(10, 5, "input", "output")
-        container.register_component("dependent", module, dependencies=["missing"])
+        # Create actual component instances
+        obs_processor = LinearModule(in_features=10, out_features=8, in_key="observation", out_key="processed_obs")
+        policy = LinearModule(in_features=8, out_features=3, in_key="processed_obs", out_key="action")
 
-        with pytest.raises(ValueError, match="depends on non-existent component"):
-            container.validate_dependencies()
+        container.register_component("obs_processor", obs_processor)
+        container.register_component("policy", policy, dependencies=["obs_processor"])
 
-    def test_dependency_validation_cycles(self):
-        """Test validation catches circular dependencies."""
-        container = ComponentContainer()
+        # Test data
+        td = TensorDict({"observation": torch.randn(2, 10)}, batch_size=2)
 
-        a = LinearModule(10, 8, "input_a", "output_a")
-        b = LinearModule(8, 6, "input_b", "output_b")
-        c = LinearModule(6, 10, "input_c", "output_c")
-
-        # Create circular dependency: A -> B -> C -> A
-        container.register_component("A", a, dependencies=["C"])
-        container.register_component("B", b, dependencies=["A"])
-        container.register_component("C", c, dependencies=["B"])
-
-        with pytest.raises(ValueError, match="Circular dependency detected"):
-            container.validate_dependencies()
-
-    def test_complex_dependency_graph(self):
-        """Test complex dependency graph with multiple branches."""
-        container = ComponentContainer()
-
-        # Create diamond dependency: A -> {B, C} -> D
-        a = LinearModule(10, 8, "input", "a_out")
-        b = LinearModule(8, 6, "a_out", "b_out")
-        c = LinearModule(8, 6, "a_out", "c_out")
-        # D takes concatenated input from B and C (6+6=12)
-        d = LinearModule(12, 3, "combined", "output")  # Single input key
-
-        container.register_component("A", a)
-        container.register_component("B", b, dependencies=["A"])
-        container.register_component("C", c, dependencies=["A"])
-        container.register_component("D", d, dependencies=["B", "C"])
-
-        # Validate dependencies
-        container.validate_dependencies()
-
-        # Test execution - manually combine B and C outputs for D
-        td = TensorDict({"input": torch.randn(2, 10)}, batch_size=2)
-        container.clear_cache()
-
-        # Execute B and C first
-        container.forward("B", td)
-        container.forward("C", td)
-
-        # Manually combine outputs for D input
-        combined = torch.cat([td["b_out"], td["c_out"]], dim=1)
-        td["combined"] = combined
-
-        result = container.forward("D", td)
+        # Execute full network
+        result = container.execute_network(td)
 
         # All outputs should be present
-        assert "a_out" in result
-        assert "b_out" in result
-        assert "c_out" in result
-        assert "output" in result
+        assert "processed_obs" in result
+        assert "action" in result
+        assert result["processed_obs"].shape == (2, 8)
+        assert result["action"].shape == (2, 3)
 
     def test_repr(self):
         """Test string representation."""
         container = ComponentContainer()
 
-        a = LinearModule(10, 5, "input", "output")
-        b = LinearModule(5, 3, "output", "final")
+        comp_a = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
+        comp_b = LinearModule(in_features=5, out_features=3, in_key="output", out_key="final")
 
-        container.register_component("A", a)
-        container.register_component("B", b, dependencies=["A"])
+        container.register_component("A", comp_a)
+        container.register_component("B", comp_b, dependencies=["A"])
 
         repr_str = repr(container)
         assert "ComponentContainer with 2 components" in repr_str
         assert "A: LinearModule (deps: [])" in repr_str
         assert "B: LinearModule (deps: ['A'])" in repr_str
 
-    def test_cache_clearing(self):
-        """Test cache clearing between forward passes."""
-        container = ComponentContainer()
 
-        module = LinearModule(10, 5, "input", "output")
-        container.register_component("test", module)
+class TestSafeComponentContainer:
+    """Test the SafeComponentContainer with validation."""
+
+    def test_invalid_component_type(self):
+        """Test validation catches non-MettaModule components."""
+        container = SafeComponentContainer()
+
+        with pytest.raises(TypeError, match="must be a MettaModule"):
+            container.register_component("bad", torch.nn.Linear(10, 5))
+
+    def test_missing_attributes(self):
+        """Test validation catches components without required attributes."""
+        container = SafeComponentContainer()
+
+        # Create a mock component without proper attributes
+        class BadComponent:
+            pass
+
+        bad_component = BadComponent()
+
+        with pytest.raises(TypeError, match="must be a MettaModule"):
+            container.register_component("bad", bad_component)
+
+    def test_invalid_attribute_types(self):
+        """Test validation catches components with wrong attribute types."""
+        container = SafeComponentContainer()
+
+        # Create a mock component with wrong attribute types
+        class BadComponent:
+            def __init__(self):
+                self.in_keys = "not_a_list"  # Should be a list
+                self.out_keys = "not_a_list"  # Should be a list
+
+        bad_component = BadComponent()
+
+        with pytest.raises(TypeError, match="must be a MettaModule"):
+            container.register_component("bad", bad_component)
+
+    def test_output_key_conflicts(self):
+        """Test validation catches output key conflicts."""
+        container = SafeComponentContainer()
+
+        # Register first component
+        comp1 = LinearModule(in_features=10, out_features=5, in_key="input1", out_key="conflict")
+        container.register_component("comp1", comp1)
+
+        # Try to register second component with conflicting output key
+        comp2 = LinearModule(in_features=10, out_features=5, in_key="input2", out_key="conflict")
+
+        with pytest.raises(ValueError, match="Output key conflict"):
+            container.register_component("comp2", comp2)
+
+    def test_missing_dependency(self):
+        """Test validation catches missing dependencies."""
+        container = SafeComponentContainer()
+
+        comp = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
+
+        with pytest.raises(ValueError, match="Dependency 'missing' not found"):
+            container.register_component("comp", comp, dependencies=["missing"])
+
+    def test_circular_dependencies(self):
+        """Test validation catches circular dependencies."""
+        container = SafeComponentContainer()
+
+        # Create components that would form a circular dependency
+        comp_a = LinearModule(in_features=10, out_features=8, in_key="input_a", out_key="output_a")
+        comp_b = LinearModule(in_features=8, out_features=6, in_key="input_b", out_key="output_b")
+        comp_c = LinearModule(in_features=6, out_features=10, in_key="input_c", out_key="output_c")
+
+        # Register components to create circular dependency: A -> B -> C -> A
+        container.register_component("A", comp_a)
+        container.register_component("B", comp_b, dependencies=["A"])
+
+        with pytest.raises(ValueError, match="Circular dependency detected"):
+            container.register_component("C", comp_c, dependencies=["B"])
+            # This would create a cycle if we tried: A depends on C
+            comp_a_modified = LinearModule(in_features=6, out_features=8, in_key="output_c", out_key="output_a")
+            container.replace_component("A", comp_a_modified)
+            container.dependencies["A"] = ["C"]  # Manually create cycle for test
+            container._check_circular_dependencies(container.dependencies)
+
+
+class TestLazyComponentContainer:
+    """Test the LazyComponentContainer with deferred initialization."""
+
+    def test_config_registration(self):
+        """Test registration of component configurations."""
+        container = LazyComponentContainer()
+
+        container.register_component_config(
+            name="test_module",
+            component_class=LinearModule,
+            config={"out_features": 5},
+            in_keys=["input"],
+            out_keys=["output"],
+        )
+
+        assert "test_module" in container.component_configs
+        assert container.get_component_dependencies("test_module") == []
+        assert container.in_keys == ["input"]
+        assert container.out_keys == ["output"]
+
+    def test_initialization_with_shapes(self):
+        """Test component initialization with shape inference."""
+        container = LazyComponentContainer()
+
+        container.register_component_config(
+            name="obs_processor",
+            component_class=LinearModule,
+            config={"out_features": 8},
+            in_keys=["observation"],
+            out_keys=["processed_obs"],
+        )
+
+        container.register_component_config(
+            name="policy",
+            component_class=LinearModule,
+            config={"out_features": 3},
+            dependencies=["obs_processor"],
+            in_keys=["processed_obs"],
+            out_keys=["action"],
+        )
+
+        # Initialize with shapes
+        container.initialize_with_input_shapes({"observation": (10,)})
+
+        assert container.initialized
+        assert "obs_processor" in container.components
+        assert "policy" in container.components
+
+        # Check that components were initialized with correct shapes
+        obs_processor = container.components["obs_processor"]
+        policy = container.components["policy"]
+
+        # Should be Linear(10, 8) and Linear(8, 3)
+        assert obs_processor.linear.in_features == 10
+        assert obs_processor.linear.out_features == 8
+        assert policy.linear.in_features == 8
+        assert policy.linear.out_features == 3
+
+    def test_execution_before_initialization_error(self):
+        """Test error when trying to execute before initialization."""
+        container = LazyComponentContainer()
+
+        container.register_component_config(
+            name="test",
+            component_class=LinearModule,
+            config={"out_features": 5},
+            in_keys=["input"],
+            out_keys=["output"],
+        )
 
         td = TensorDict({"input": torch.randn(2, 10)}, batch_size=2)
 
-        # Execute once
-        container.clear_cache()
-        container.forward("test", td)
-        assert "test" in container._execution_cache
+        with pytest.raises(RuntimeError, match="must be initialized with input shapes first"):
+            container.execute_component("test", td)
 
-        # Clear cache
-        container.clear_cache()
-        assert len(container._execution_cache) == 0
+        with pytest.raises(RuntimeError, match="must be initialized with input shapes first"):
+            container.execute_network(td)
 
-    def test_no_dependencies_execution(self):
-        """Test execution of component with no dependencies."""
-        container = ComponentContainer()
+    def test_initialization_error_missing_shape(self):
+        """Test error when required input shape is missing."""
+        container = LazyComponentContainer()
 
-        module = LinearModule(10, 5, "input", "output")
-        container.register_component("standalone", module)
+        container.register_component_config(
+            name="test",
+            component_class=LinearModule,
+            config={"out_features": 5},
+            in_keys=["input"],
+            out_keys=["output"],
+        )
 
-        td = TensorDict({"input": torch.randn(2, 10)}, batch_size=2)
+        with pytest.raises(ValueError, match="Shape not specified for container input"):
+            container.initialize_with_input_shapes({})  # Missing "input"
 
-        container.clear_cache()
-        result = container.forward("standalone", td)
+    def test_repr_before_and_after_init(self):
+        """Test string representation before and after initialization."""
+        container = LazyComponentContainer()
 
-        assert "output" in result
-        assert result["output"].shape == (2, 5)
+        container.register_component_config(
+            name="A", component_class=LinearModule, config={"out_features": 5}, in_keys=["input"], out_keys=["output"]
+        )
 
-    def test_execution_order_no_dependencies(self):
-        """Test execution order for component with no dependencies."""
-        container = ComponentContainer()
+        # Test before initialization
+        repr_str = repr(container)
+        assert "component configs (not initialized)" in repr_str
+        assert "A: LinearModule (deps: [])" in repr_str
 
-        module = LinearModule(10, 5, "input", "output")
-        container.register_component("standalone", module)
+        # Test after initialization
+        container.initialize_with_input_shapes({"input": (10,)})
+        repr_str = repr(container)
+        assert "components (initialized)" in repr_str
 
-        order = container.get_execution_order("standalone")
-        assert order == ["standalone"]
+
+class TestSafeLazyComponentContainer:
+    """Test the combined SafeLazyComponentContainer."""
+
+    def test_invalid_component_class(self):
+        """Test validation of component class during config registration."""
+        container = SafeLazyComponentContainer()
+
+        # Try to register a class that doesn't inherit from MettaModule
+        class BadClass:
+            pass
+
+        with pytest.raises(TypeError, match="Component class must inherit from MettaModule"):
+            container.register_component_config(
+                name="bad", component_class=BadClass, config={}, in_keys=["input"], out_keys=["output"]
+            )
+
+    def test_full_pipeline_with_validation(self):
+        """Test complete pipeline with both lazy initialization and safety validation."""
+        container = SafeLazyComponentContainer()
+
+        # Register configurations
+        container.register_component_config(
+            name="obs_processor",
+            component_class=LinearModule,
+            config={"out_features": 8},
+            in_keys=["observation"],
+            out_keys=["processed_obs"],
+        )
+
+        container.register_component_config(
+            name="policy",
+            component_class=LinearModule,
+            config={"out_features": 3},
+            dependencies=["obs_processor"],
+            in_keys=["processed_obs"],
+            out_keys=["action"],
+        )
+
+        # Initialize with shapes (includes validation)
+        container.initialize_with_input_shapes({"observation": (10,)})
+
+        # Test execution
+        td = TensorDict({"observation": torch.randn(2, 10)}, batch_size=2)
+        result = container.execute_component("policy", td)
+
+        # Both outputs should be present
+        assert "processed_obs" in result
+        assert "action" in result
+        assert result["processed_obs"].shape == (2, 8)
+        assert result["action"].shape == (2, 3)
