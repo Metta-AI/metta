@@ -111,7 +111,7 @@ def generate_valid_random_actions(
 
 
 def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[str, Any]:
-    """ "
+    """
     Move agent in specified direction with full validation.
 
     Args:
