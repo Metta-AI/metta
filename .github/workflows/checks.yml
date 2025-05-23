@@ -168,18 +168,18 @@ jobs:
 
       - name: Run Pytest on core tests
         run: |
-          uv run pytest --maxfail=1 --disable-warnings -q
+          uv run --active pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on MettaGrid tests
         working-directory: mettagrid
         run: |
-          uv run pytest --maxfail=1 --disable-warnings -q
+          uv run --active pytest --maxfail=1 --disable-warnings -q
 
       - name: Run MettaGrid C++ tests
         working-directory: mettagrid
         run: |
-          uv run make
-          uv run make test
+          uv run --active make
+          uv run --active make test
 
   smoke-test:
     name: "Smoke Tests"
@@ -207,7 +207,7 @@ jobs:
             "wandb_carbs"
           do
             echo "Checking import for $dep..."
-            uv run python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
+            uv run --active python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
               echo "❌ Failed to import $dep"
               exit 1
             }
@@ -230,7 +230,7 @@ jobs:
         run: |
           mkdir -p train_dir
           source .github/scripts/benchmark.sh
-          benchmark "train" "uv run python -m tools.train +hardware=github wandb=off"
+          benchmark "train" "uv run --active python -m tools.train +hardware=github wandb=off"
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
@@ -282,7 +282,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "replay" "uv run python -m tools.replay +hardware=github wandb=off"
+          benchmark "replay" "uv run --active python -m tools.replay +hardware=github wandb=off"
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
@@ -378,16 +378,16 @@ jobs:
 
       - name: Run Main Python benchmarks
         run: |
-          uv run pytest --benchmark-only --benchmark-json=main_benchmark_results.json
+          uv run --active pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
         working-directory: mettagrid
         run: |
-          uv run pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
+          uv run --active pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
 
       - name: Combine benchmark results
         run: |
-          uv run python - <<EOF
+          uv run --active python - <<EOF
 
           # Python Script to combine benchmark data
           import json
@@ -673,7 +673,7 @@ jobs:
       - name: CMake
         run: |
           cd mettagrid
-          uv run make
+          uv run --active make
 
       - name: Run benchmarks with JSON output
         working-directory: mettagrid
