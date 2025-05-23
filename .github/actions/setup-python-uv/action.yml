@@ -1,10 +1,6 @@
 name: "Setup Python and uv"
 description: "Set up Python and uv with caching in a virtual environment"
-inputs:
-  skip_requirements:
-    description: "Skip installing requirements.txt and only set up uv, python and the venv"
-    required: false
-    default: "false"
+
 runs:
   using: "composite"
   steps:
@@ -18,8 +14,8 @@ runs:
       uses: astral-sh/setup-uv@v5
       with:
         version: "0.7.3"
-        enable-cache: ${{ inputs.skip_requirements != 'true' }}
-        cache-dependency-glob: ${{ inputs.skip_requirements != 'true' && 'requirements*.txt' || '' }}
+        enable-cache: true
+        cache-dependency-glob: ${{ 'requirements*.txt' || '' }}
 
     - name: Create virtual environment with uv
       shell: bash
@@ -33,3 +29,14 @@ runs:
       shell: bash
       run: |
         uv pip install -r requirements.txt
+
+    - name: Build Metta C++ code
+      shell: bash
+      run: |
+        cd mettagrid
+        uv pip install -e .
+
+    - name: Build MettaGrid
+      shell: bash
+      run: |
+        uv pip install -e ./mettagrid

@@ -34,7 +34,6 @@ jobs:
           fetch-depth: 2 # Need at least 2 commits to detect merge commit messages
 
       - name: Setup Python and uv
-        id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
       - name: Configure AWS credentials
