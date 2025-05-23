@@ -16,7 +16,7 @@ game:
   recursive_map_builder: true
 
   agent:
-    max_inventory: ${sampling:0, 100, 50}
+    default_item_max: ${sampling:0, 100, 50}
     freeze_duration: ${sampling:0, 200, 10}
     hp: 10
     rewards:

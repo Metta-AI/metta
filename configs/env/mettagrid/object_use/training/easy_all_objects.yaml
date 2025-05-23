@@ -7,7 +7,7 @@ sampling: 1
 game:
   num_agents: 4
   agent:
-    max_inventory: 100
+    default_item_max: 100
 
     rewards:
       # action_failure_penalty: 0.00001
