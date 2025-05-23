@@ -76,9 +76,23 @@ fi
 VENV_PATH=".venv"
 
 # ========== CLEAN BUILD ==========
+
 if [ "$CLEAN" -eq 1 ]; then
 
-  make clean
+  echo "(Metta) Cleaning root build artifacts..."
+  echo "(Metta) Removing all '.so' files (excluding .venv)"
+  find . -type f -name '*.so' -not -path "./.venv/*" -delete || true
+  echo "(Metta) Removing build directories (excluding .venv)"
+  find . -type d -name 'build' -not -path "./.venv/*" -print0 | xargs -0 rm -rf 2>/dev/null || true
+  echo "(Metta) Cleaning mettagrid build artifacts..."
+  if [ -d "mettagrid" ]; then
+    rm -rf mettagrid/build
+    find mettagrid -name '*.so' -type f -delete || true
+  else
+    echo "(Metta) mettagrid directory not found, skipping"
+  fi
+  echo "(Metta) Cleaning uv build cache..."
+  rm -rf ~/.cache/uv/builds-v0
 
   # deactivate the venv
   echo -e "\nDeactivating current virtual environment: $VIRTUAL_ENV"

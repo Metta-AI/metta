@@ -152,9 +152,7 @@ if [ "$SETUP_MODE" = true ]; then
   
   # Copy individual files
   cp "$(git rev-parse --show-toplevel)/mettagrid/pyproject.toml" "$TMP_STORAGE/mettagrid/"
-  cp "$(git rev-parse --show-toplevel)/mettagrid/Makefile" "$TMP_STORAGE/mettagrid/"
   cp "$(git rev-parse --show-toplevel)/mettagrid/setup.py" "$TMP_STORAGE/mettagrid/"
-  cp "$(git rev-parse --show-toplevel)/Makefile" "$TMP_STORAGE/"
   cp "$(git rev-parse --show-toplevel)/pyproject.toml" "$TMP_STORAGE/"
   cp "$(git rev-parse --show-toplevel)/requirements_pinned.txt" "$TMP_STORAGE/"
   cp "$(git rev-parse --show-toplevel)/requirements.txt" "$TMP_STORAGE/"
@@ -328,9 +326,7 @@ for COMMIT in $COMMITS; do
   # Copy individual files with -f to force overwrite
   echo "Copying individual files..."
   cp -f "$TMP_STORAGE/mettagrid/pyproject.toml" "$REPO_ROOT/mettagrid/"
-  cp -f "$TMP_STORAGE/mettagrid/Makefile" "$REPO_ROOT/mettagrid/"
   cp -f "$TMP_STORAGE/mettagrid/setup.py" "$REPO_ROOT/mettagrid/"
-  cp -f "$TMP_STORAGE/Makefile" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/pyproject.toml" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/requirements_pinned.txt" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/requirements.txt" "$REPO_ROOT/"
@@ -383,7 +379,6 @@ for COMMIT in $COMMITS; do
   git add -f "$REPO_ROOT/devops"
   git add -f "$REPO_ROOT/metta/rl/pufferlib/experience.py"
   git add -f "$REPO_ROOT/mettagrid"
-  git add -f "$REPO_ROOT/Makefile"
   git add -f "$REPO_ROOT/pyproject.toml"
   git add -f "$REPO_ROOT/requirements_pinned.txt"
   git add -f "$REPO_ROOT/requirements.txt"

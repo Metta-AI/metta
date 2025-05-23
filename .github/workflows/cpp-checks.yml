@@ -104,7 +104,7 @@ jobs:
         run: |
           # Define file types to track
           EXTENSIONS=("cpp" "cxx" "cc" "h" "hpp" "pyx" "pxd")
-          SPECIAL_FILES=("mettagrid/Makefile" "setup.py" "requirements.txt" "requirements_pinned.txt")
+          SPECIAL_FILES=("setup.py" "requirements.txt" "requirements_pinned.txt")
 
           # Clear the output file
           > /tmp/file_hashes.txt
@@ -203,15 +203,9 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      - name: Install C++ dependencies (cache miss fallback)
+      - name: Build mettagrid extension (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make install-dependencies
-
-      - name: Build C++ artifacts (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make build-src-objects
+        run: uv pip install --python .venv/bin/python -e ./mettagrid
 
       - name: Save build cache
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
@@ -272,13 +266,13 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      - name: Build C++ tests
-        working-directory: mettagrid
-        run: make build-tests
+      - name: Build mettagrid extension
+        run: uv pip install --python .venv/bin/python -e ./mettagrid
 
-      - name: Run C++ tests
-        working-directory: mettagrid
-        run: make test
+      - name: Run Python tests
+        run: |
+          source .venv/bin/activate
+          pytest
 
   benchmark:
     name: "C++ Benchmarks"
@@ -311,16 +305,14 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      - name: Build C++ benchmarks
-        working-directory: mettagrid
-        run: make build-benchmarks
+      - name: Build mettagrid extension
+        run: uv pip install --python .venv/bin/python -e ./mettagrid
 
       - name: Run benchmarks with JSON output
-        working-directory: mettagrid
         run: |
           mkdir -p benchmark_output
           echo "Running benchmarks with JSON output..."
-          make bench-json
+          pytest mettagrid/benchmarks --benchmark-json=benchmark_output/results.json
           echo "Benchmark output files:"
           ls -la benchmark_output/
 
