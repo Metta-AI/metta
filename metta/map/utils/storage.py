@@ -18,6 +18,7 @@ def save_to_uri(text: str, uri: str):
         bucket, key = parse_s3_uri(uri)
         s3 = get_s3_client()
         s3.put_object(Bucket=bucket, Key=key, Body=text)
+        return
 
     filename = parse_file_uri(uri)
 
