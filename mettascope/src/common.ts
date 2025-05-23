@@ -45,6 +45,7 @@ export const ui = {
   mouseClick: false,
   mouseDoubleClick: false,
   mousePos: new Vec2f(0, 0),
+  mouseTarget: "",
   lastMousePos: new Vec2f(0, 0),
   mouseDownPos: new Vec2f(0, 0),
   scrollDelta: 0,
@@ -74,7 +75,6 @@ export const state = {
   playbackSpeed: 0.1,
 
   // What to show?
-  sortTraces: false,
   showResources: true,
   showGrid: true,
   showViewRanges: true,
@@ -101,6 +101,8 @@ export const html = {
   stepForwardButton: find('#step-forward') as HTMLImageElement,
   rewindToEndButton: find('#rewind-to-end') as HTMLImageElement,
 
+  actionButtons: find('#action-buttons'),
+
   speedButtons: [
     find('#speed1') as HTMLImageElement,
     find('#speed2') as HTMLImageElement,
@@ -110,7 +112,6 @@ export const html = {
     find('#speed6') as HTMLImageElement,
   ],
 
-  sortButton: find('#sort') as HTMLImageElement,
   resourcesButton: find('#resources') as HTMLImageElement,
   focusButton: find('#tack') as HTMLImageElement,
   gridButton: find('#grid') as HTMLImageElement,

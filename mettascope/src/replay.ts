@@ -320,6 +320,7 @@ export function initWebSocket(wsUrl: string) {
     if (data.type === "replay") {
       loadReplayJson(wsUrl, data.replay);
       Common.closeModal();
+      html.actionButtons.classList.remove("hidden");
     } else if (data.type === "replay_step") {
       loadReplayStep(data.replay_step);
     } else if (data.type === "message") {
@@ -329,7 +330,7 @@ export function initWebSocket(wsUrl: string) {
   state.ws.onopen = () => {
     Common.showModal("info",
       "Starting environment",
-      "Please wait while live environment is starting for playing..."
+      "Please wait while live environment is starting..."
     );
   };
   state.ws.onclose = () => {
