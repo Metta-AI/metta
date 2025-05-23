@@ -104,7 +104,7 @@ jobs:
         run: |
           # Define file types to track
           EXTENSIONS=("cpp" "cxx" "cc" "h" "hpp" "pyx" "pxd")
-          SPECIAL_FILES=("mettagrid/Makefile" "setup.py" "requirements.txt" "requirements_pinned.txt")
+          SPECIAL_FILES=("setup.py" "requirements.txt" "requirements_pinned.txt")
 
           # Clear the output file
           > /tmp/file_hashes.txt

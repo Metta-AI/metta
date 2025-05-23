@@ -152,7 +152,6 @@ if [ "$SETUP_MODE" = true ]; then
   
   # Copy individual files
   cp "$(git rev-parse --show-toplevel)/mettagrid/pyproject.toml" "$TMP_STORAGE/mettagrid/"
-  cp "$(git rev-parse --show-toplevel)/mettagrid/Makefile" "$TMP_STORAGE/mettagrid/"
   cp "$(git rev-parse --show-toplevel)/mettagrid/setup.py" "$TMP_STORAGE/mettagrid/"
   cp "$(git rev-parse --show-toplevel)/Makefile" "$TMP_STORAGE/"
   cp "$(git rev-parse --show-toplevel)/pyproject.toml" "$TMP_STORAGE/"
@@ -328,7 +327,6 @@ for COMMIT in $COMMITS; do
   # Copy individual files with -f to force overwrite
   echo "Copying individual files..."
   cp -f "$TMP_STORAGE/mettagrid/pyproject.toml" "$REPO_ROOT/mettagrid/"
-  cp -f "$TMP_STORAGE/mettagrid/Makefile" "$REPO_ROOT/mettagrid/"
   cp -f "$TMP_STORAGE/mettagrid/setup.py" "$REPO_ROOT/mettagrid/"
   cp -f "$TMP_STORAGE/Makefile" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/pyproject.toml" "$REPO_ROOT/"

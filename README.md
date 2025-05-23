@@ -112,6 +112,13 @@ Then run the setup script which will create a virtual environment and install de
 ./devops/setup_build.sh
 ```
 
+To (re)build the C++ Python extension used by MettaGrid outside of the setup
+script, run:
+
+```bash
+uv pip --directory mettagrid install -e .
+```
+
 # Training a Model
 
 ### Run the training
