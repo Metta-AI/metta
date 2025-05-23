@@ -4,6 +4,7 @@ import pufferlib.models
 import pufferlib.pytorch
 import torch
 import torch.nn as nn
+from einops import rearrange
 
 
 class Recurrent(pufferlib.models.LSTMWrapper):
@@ -16,11 +17,11 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         """Forward function for inference. 3x faster than using LSTM directly"""
         # Either [B, T, H, W, C] or [B, H, W, C]
         if len(observations.shape) == 5:
-            x = observations.permute(0, 1, 4, 2, 3).float()
-            x[:] /= self.policy.max_vec  # [B, C, H, W]
+            x = rearrange(observations, "b t h w c -> b t c h w").float()
+            x[:] /= self.policy.max_vec
             return self.forward_train(x, state)
         else:
-            x = observations.permute(0, 3, 1, 2).float() / self.policy.max_vec  # [B, C, H, W]
+            x = rearrange(observations, "b h w c -> b c h w").float() / self.policy.max_vec
         hidden = self.policy.encode_observations(x, state=state)
         h = state.lstm_h
         c = state.lstm_c
@@ -147,7 +148,7 @@ class Policy(nn.Module):
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Maps raw env observations → latent *hidden_size* vector."""
-        x = observations  # .permute(0, 3, 1, 2)
+        x = observations
         B = x.size(0)
 
         # 1) Conv stem -----------------------------------------------------------------------
@@ -155,7 +156,7 @@ class Policy(nn.Module):
 
         # 2) Patchify ------------------------------------------------------------------------
         x = self.proj(x)  # [B, D, h, w]
-        x = x.flatten(2).transpose(1, 2)  # [B, N, D]
+        x = rearrange(x, "b d h w -> b (h w) d")
 
         # 3) Add CLS & positional encoding ---------------------------------------------------
         cls = self.cls_token.expand(B, -1, -1)  # [B, 1, D]
@@ -167,7 +168,7 @@ class Policy(nn.Module):
         vis_feat = tokens[:, 0]  # CLS token
 
         # 5) Self vector ---------------------------------------------------------------------
-        self_vec = observations.permute(0, 2, 3, 1)[:, 5, 5, :].float()  # / self.max_vec[0, :, 0, 0]  # [B, 34]
+        self_vec = rearrange(observations, "b c h w -> b h w c")[:, 5, 5, :].float()
         self_feat = self.self_encoder(self_vec)
 
         # 6) Fuse & project ------------------------------------------------------------------

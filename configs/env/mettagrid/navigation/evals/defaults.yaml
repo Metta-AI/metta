@@ -3,12 +3,11 @@ defaults:
   - _self_
 
 game:
-  num_agents: 1
-  max_steps: 150
+  num_agents: 1 #how many agents are in the map x2
+  max_steps: ???
   agent:
     rewards:
-      heart: 1
+      heart: 0.333
   map_builder:
     _target_: mettagrid.room.ascii.Ascii
     border_width: 1
-    uri: "configs/env/mettagrid/maps/object_use/swap_in.map"
