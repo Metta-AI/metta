@@ -84,31 +84,69 @@ class MettaModule(nn.Module):
 
 #### Enhanced Component Registry
 
-The existing `MettaAgent.components` becomes a smarter container that manages both storage and execution:
+The existing `MettaAgent.components` becomes a smarter container that preserves the elegant recursive execution pattern:
 
 ```python
 class ComponentContainer(nn.ModuleDict):
-    """Enhanced version of MettaAgent.components with execution management."""
+    """Enhanced version of MettaAgent.components preserving recursive execution."""
     
     def __init__(self):
         super().__init__()
-        self.execution_graph = {}
+        self.dependencies = {}  # Track component dependencies
     
     def register_component(self, name, module, dependencies=None):
         """Register component with explicit dependencies."""
         self[name] = module  # Standard nn.ModuleDict storage
-        self.execution_graph[name] = dependencies or []
+        self.dependencies[name] = dependencies or []
     
-    def execute(self, tensordict: TensorDict) -> TensorDict:
-        """Execute components in dependency order."""
-        execution_order = self._topological_sort()
-        for component_name in execution_order:
-            self[component_name](tensordict)
+    def forward(self, component_name: str, tensordict: TensorDict) -> TensorDict:
+        """Recursive execution preserving current elegant pattern."""
+        # Check if already computed (caching)
+        if component_name in tensordict:
+            return tensordict
+        
+        # Recursively compute dependencies first
+        if component_name in self.dependencies:
+            for dep_name in self.dependencies[component_name]:
+                self.forward(dep_name, tensordict)
+        
+        # Execute this component
+        self[component_name](tensordict)
         return tensordict
     
     def replace_component(self, name, new_module):
         """Preserve hotswapping capability."""
         self[name] = new_module
+```
+
+#### Recursive Execution with MettaModule
+
+Each `MettaModule` becomes purely computational, while the container handles the recursive dependency resolution:
+
+```python
+class MettaModule(nn.Module):
+    """Pure computation module with explicit input/output contracts."""
+    
+    def __init__(self, in_keys=None, out_keys=None):
+        super().__init__()
+        self.in_keys = in_keys or []
+        self.out_keys = out_keys or []
+    
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        """Pure computation - container handles dependencies."""
+        # Component assumes its inputs are already in tensordict
+        # Performs computation and stores results
+        pass
+
+# Usage preserves the elegant recursive pattern:
+class MettaAgent(nn.Module):
+    def forward(self, observation):
+        tensordict = TensorDict({"observation": observation}, batch_size=observation.shape[0])
+        
+        # Recursively execute final component (pulls all dependencies)
+        self.components.forward("action", tensordict)
+        
+        return tensordict["action"]
 ```
 
 #### Wrapper Patterns
