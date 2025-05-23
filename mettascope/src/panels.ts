@@ -73,4 +73,12 @@ export class PanelInfo {
     }
     return false;
   }
+
+  // Update the div position and size.
+  updateDiv() {
+    this.div.style.top = this.y + 'px';
+    this.div.style.left = this.x + 'px';
+    this.div.style.width = this.width + 'px';
+    this.div.style.height = this.height + 'px';
+  }
 }
