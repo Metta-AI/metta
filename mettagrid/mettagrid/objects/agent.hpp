@@ -134,7 +134,7 @@ public:
     names.push_back("agent:color");
 
     for (const auto& name : InventoryItemNames) {
-      names.push_back("agent:inv:" + name);
+      names.push_back("inv:" + name);
     }
     return names;
   }
