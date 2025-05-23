@@ -178,9 +178,8 @@ jobs:
       - name: Run MettaGrid C++ tests
         working-directory: mettagrid
         run: |
-          source .venv/bin/activate
-          make
-          make test
+          uv run make
+          uv run make test
 
   smoke-test:
     name: "Smoke Tests"
@@ -673,9 +672,8 @@ jobs:
 
       - name: CMake
         run: |
-          source .venv/bin/activate
           cd mettagrid
-          make
+          uv run make
 
       - name: Run benchmarks with JSON output
         working-directory: mettagrid
