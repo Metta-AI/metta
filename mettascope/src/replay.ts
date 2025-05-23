@@ -181,7 +181,7 @@ function fixReplay() {
   // Example: "inv:cat_food.red" -> ["resources/unknown.png", [1, 0, 0, 1]]
   state.replay.resource_inventory = new Map();
   for (const key of state.replay.all_keys) {
-    if (key.startsWith("inv:") || key.startsWith("inv:")) {
+    if (key.startsWith("inv:")) {
       var type: string = key;
       type = removePrefix(type, "inv:")
       type = removePrefix(type, "inv:");
