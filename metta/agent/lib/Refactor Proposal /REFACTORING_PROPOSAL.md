@@ -90,6 +90,7 @@ The existing `MettaAgent.components` becomes a smarter container that follows To
 from tensordict.nn import TensorDictModuleBase
 from torch import nn
 from tensordict import TensorDict
+import torch
 
 class ComponentContainer(TensorDictModuleBase):
     """Enhanced container following TorchRL's TensorDictModule pattern."""
@@ -406,7 +407,8 @@ agent.components.initialize_with_input_shapes({
 
 # Step 3: Use normally
 observation = torch.randn(4, 64)
-action = agent.forward(observation)  # Works with any batch size
+tensordict = TensorDict({"observation": observation}, batch_size=4)
+result = agent.forward(tensordict)  # Returns updated tensordict with action, value
 ```
 
 #### Advanced Shape Inference
@@ -459,13 +461,15 @@ def test_linear_layer():
 def test_linear_module():
     linear = LinearModule(in_features=10, out_features=16, 
                          in_keys=["input"], out_keys=["output"])
-    result = linear({"input": torch.randn(4, 10)})
+    tensordict = TensorDict({"input": torch.randn(4, 10)}, batch_size=4)
+    result = linear(tensordict)
     assert result["output"].shape == (4, 16)
 
 def test_actor_module():
     actor = PolicyNetwork(feature_dim=64, action_dim=8,
                          in_keys=["features"], out_keys=["action"])
-    result = actor({"features": torch.randn(2, 64)})
+    tensordict = TensorDict({"features": torch.randn(2, 64)}, batch_size=2)
+    result = actor(tensordict)
     assert result["action"].shape == (2, 8)
 ```
 
@@ -480,8 +484,9 @@ class MettaModule(nn.Module):
     def __init__(self, in_keys=None, out_keys=None): pass
 
 # ComponentContainer implementation (~4 hours)  
-class ComponentContainer(nn.ModuleDict):
-    def execute(self, tensordict): pass
+class ComponentContainer(TensorDictModuleBase):
+    def register_component(self, name, component_class, config, dependencies=None): pass
+    def initialize_with_input_shapes(self, input_shapes): pass
 ```
 
 **Day 3-5: Parallel Component Migration + Testing (12 hours)**
@@ -561,23 +566,34 @@ class SafeModule(MettaModule): pass
 A: Largely yes, but requires validation. The component instantiation patterns should remain similar, with the main change being target class names:
 
 ```yaml
-# Config structure should remain similar
+# Config structure will need updates for new registration pattern
 components:
-  linear_1:
-    _target_: metta.agent.lib.LinearModule  # Changed from Linear
-    in_features: 64
-    out_features: 32
-    sources: ["obs_processor"]  # Dependency handling needs verification
+  obs_processor:
+    _target_: metta.agent.lib.LinearModule
+    config:
+      out_features: 128  # in_features will be inferred
+    dependencies: []
+    in_keys: ["observation"]
+    out_keys: ["features"]
+  
+  policy:
+    _target_: metta.agent.lib.LinearModule
+    config:
+      out_features: 8  # in_features will be inferred
+    dependencies: ["obs_processor"]
+    in_keys: ["features"]
+    out_keys: ["action"]
 ```
 
-However, the `sources` field and dependency management may require changes depending on how ComponentContainer handles relationships compared to current LayerBase setup. This needs careful testing during implementation.
+The `sources` field is replaced with explicit `dependencies`, and component parameters are nested under `config` to separate them from registration metadata. This requires config loader updates during implementation.
 
 **Q: Will existing saved models load correctly after migration?**
 
-A: This requires careful verification. While ComponentContainer inherits from `nn.ModuleDict` like current `MettaAgent.components`, compatibility depends on:
+A: This requires careful verification. ComponentContainer inherits from `TensorDictModuleBase` and stores components in an internal `nn.ModuleDict`. Compatibility depends on:
 - Preserving exact component names in state dict
-- Maintaining parameter structure within each component
+- Maintaining parameter structure within each component  
 - PolicyStore loading mechanisms working with new component types
+- TensorDictModuleBase state dict compatibility
 
 Model compatibility should be thoroughly tested and may require migration utilities for existing saved policies. This is a critical validation point during implementation.
 
