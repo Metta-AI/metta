@@ -49,10 +49,6 @@ class MettaModule(nn.Module):
             KeyError: If required in_keys are missing from tensordict.
         """
         # Validate input shapes if specified
-        # TODO: We don't need to validate every single time we do forward pass.
-        # We should only validate when the input shapes changes in the MettaComponentContainer.
-        # This is cleaner but may have computational overhead.
-        # so we should have a flag to skip shape validation.
         self.validate_shapes(tensordict)
 
         # Subclasses must implement actual computation
@@ -123,6 +119,171 @@ class LinearModule(MettaModule):
         return tensordict
 
 
+class ReLUModule(MettaModule):
+    """A ReLU activation module that applies element-wise rectified linear unit function."""
+
+    def __init__(self, in_key: str = "input", out_key: str = "output"):
+        """Initialize a ReLU module.
+
+        Args:
+            in_key (str): Key to read input from TensorDict
+            out_key (str): Key to write output to TensorDict
+        """
+        super().__init__(
+            in_keys=[in_key],
+            out_keys=[out_key],
+        )
+        self.relu = nn.ReLU()
+
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        """Apply ReLU activation to input tensor.
+
+        Args:
+            tensordict (TensorDict): Must contain in_key
+
+        Returns:
+            TensorDict: Same tensordict with out_key added/updated
+        """
+        tensordict[self.out_keys[0]] = self.relu(tensordict[self.in_keys[0]])
+        return tensordict
+
+
+class Conv2dModule(MettaModule):
+    """A 2D convolution module that applies convolution over input tensors."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        in_key: str = "input",
+        out_key: str = "output",
+    ):
+        """Initialize a 2D convolution module.
+
+        Args:
+            in_channels (int): Number of input channels
+            out_channels (int): Number of output channels
+            kernel_size (int): Size of the convolving kernel
+            stride (int): Stride of the convolution
+            padding (int): Padding added to input
+            in_key (str): Key to read input from TensorDict
+            out_key (str): Key to write output to TensorDict
+        """
+        super().__init__(
+            in_keys=[in_key],
+            out_keys=[out_key],
+        )
+        self.conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding)
+
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        """Apply 2D convolution to input tensor.
+
+        Args:
+            tensordict (TensorDict): Must contain in_key with shape (batch_size, in_channels, height, width)
+
+        Returns:
+            TensorDict: Same tensordict with out_key added/updated
+        """
+        tensordict[self.out_keys[0]] = self.conv2d(tensordict[self.in_keys[0]])
+        return tensordict
+
+
+class FlattenModule(MettaModule):
+    """A flatten module that flattens input tensors starting from a specified dimension."""
+
+    def __init__(self, start_dim: int = 1, in_key: str = "input", out_key: str = "output"):
+        """Initialize a flatten module.
+
+        Args:
+            start_dim (int): First dimension to flatten (default: 1, preserving batch dimension)
+            in_key (str): Key to read input from TensorDict
+            out_key (str): Key to write output to TensorDict
+        """
+        super().__init__(
+            in_keys=[in_key],
+            out_keys=[out_key],
+        )
+        self.flatten = nn.Flatten(start_dim=start_dim)
+
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        """Apply flattening to input tensor.
+
+        Args:
+            tensordict (TensorDict): Must contain in_key
+
+        Returns:
+            TensorDict: Same tensordict with out_key added/updated
+        """
+        tensordict[self.out_keys[0]] = self.flatten(tensordict[self.in_keys[0]])
+        return tensordict
+
+
+class LayerNormModule(MettaModule):
+    """A layer normalization module that normalizes inputs across features."""
+
+    def __init__(self, normalized_shape: int, in_key: str = "input", out_key: str = "output"):
+        """Initialize a layer normalization module.
+
+        Args:
+            normalized_shape (int): Size of features to normalize
+            in_key (str): Key to read input from TensorDict
+            out_key (str): Key to write output to TensorDict
+        """
+        super().__init__(
+            in_keys=[in_key],
+            out_keys=[out_key],
+            input_shapes={in_key: (normalized_shape,)},
+            output_shapes={out_key: (normalized_shape,)},
+        )
+        self.norm = nn.LayerNorm(normalized_shape)
+
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        """Apply layer normalization to input tensor.
+
+        Args:
+            tensordict (TensorDict): Must contain in_key with matching normalized_shape
+
+        Returns:
+            TensorDict: Same tensordict with out_key added/updated
+        """
+        self.validate_shapes(tensordict)
+        tensordict[self.out_keys[0]] = self.norm(tensordict[self.in_keys[0]])
+        return tensordict
+
+
+class DropoutModule(MettaModule):
+    """A dropout module that randomly zeroes some elements during training."""
+
+    def __init__(self, p: float = 0.5, in_key: str = "input", out_key: str = "output"):
+        """Initialize a dropout module.
+
+        Args:
+            p (float): Probability of an element to be zeroed
+            in_key (str): Key to read input from TensorDict
+            out_key (str): Key to write output to TensorDict
+        """
+        super().__init__(
+            in_keys=[in_key],
+            out_keys=[out_key],
+        )
+        self.dropout = nn.Dropout(p)
+
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        """Apply dropout to input tensor.
+
+        Args:
+            tensordict (TensorDict): Must contain in_key
+
+        Returns:
+            TensorDict: Same tensordict with out_key added/updated
+        """
+        tensordict[self.out_keys[0]] = self.dropout(tensordict[self.in_keys[0]])
+        return tensordict
+
+
 if __name__ == "__main__":
     # Test successful case
     print("\n=== Testing successful case ===")
@@ -147,3 +308,10 @@ if __name__ == "__main__":
         module(empty_td)
     except KeyError as e:
         print(f"Caught expected error: {e}")
+
+    # Test ReLU
+    print("\n=== Testing ReLU ===")
+    relu = ReLUModule()
+    td = TensorDict({"input": torch.randn(32, 5)}, batch_size=32)
+    output = relu(td)
+    print(f"ReLU output shape: {td['output'].shape}")
