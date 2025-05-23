@@ -4,9 +4,6 @@ normalize_rewards: false
 
 sampling: 0
 
-hidden_features:
-  grid_obs: ["agent:energy", "agent:hp"]
-
 game:
   num_agents: 24
 
@@ -40,15 +37,12 @@ game:
 
   obs_width: 11
   obs_height: 11
-  tile_size: 16
   max_steps: 1000
-  no_energy_steps: 500
 
   agent:
     max_inventory: 50
     freeze_duration: 10
     hp: 10
-    mortal: False
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0

@@ -20,16 +20,14 @@ public:
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg > 9 || arg < 1) {
       return false;
     }
 
-    if (actor->inventory[InventoryItem::laser] == 0) {
+    if (actor->update_inventory(InventoryItem::laser, -1) == 0) {
       return false;
     }
-
-    actor->update_inventory(InventoryItem::laser, -1);
 
     short distance = 1 + (arg - 1) / 3;
     short offset = -((arg - 1) % 3 - 1);
@@ -37,10 +35,10 @@ protected:
     GridLocation target_loc =
         _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
 
-    return _handle_target(actor_id, actor, target_loc);
+    return _handle_target(actor, target_loc);
   }
 
-  bool _handle_target(unsigned int actor_id, Agent* actor, GridLocation target_loc) {
+  bool _handle_target(Agent* actor, GridLocation target_loc) {
     target_loc.layer = GridLayer::Agent_Layer;
     Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
 
@@ -58,8 +56,7 @@ protected:
 
       was_frozen = agent_target->frozen > 0;
 
-      if (agent_target->inventory[InventoryItem::armor] > 0) {
-        agent_target->update_inventory(InventoryItem::armor, -1);
+      if (agent_target->update_inventory(InventoryItem::armor, -1)) {
         actor->stats.incr("attack.blocked", agent_target->group_name);
         actor->stats.incr("attack.blocked", agent_target->group_name, actor->group_name);
       } else {
@@ -78,9 +75,9 @@ protected:
           }
 
           for (int item = 0; item < InventoryItem::InventoryCount; item++) {
-            actor->stats.add(InventoryItemNames[item], "stolen", actor->group_name, agent_target->inventory[item]);
-            actor->update_inventory(static_cast<InventoryItem>(item), agent_target->inventory[item]);
-            agent_target->update_inventory(static_cast<InventoryItem>(item), -agent_target->inventory[item]);
+            int stolen = actor->update_inventory(static_cast<InventoryItem>(item), agent_target->inventory[item]);
+            agent_target->update_inventory(static_cast<InventoryItem>(item), -stolen);
+            actor->stats.add(InventoryItemNames[item], "stolen", actor->group_name, stolen);
           }
         }
 
