@@ -12,8 +12,15 @@ game:
       ore.red: ${sampling:0.005,0.1, 0.01}
       ore.blue: ${sampling:0.005,0.1, 0.01}
       ore.green: ${sampling:0.005,0.1, 0.01}
-      battery: ${sampling:0.01,1, 0.1}
+      ore.green_max: 5
+      ore.blue_max: 5
+      ore.red_max: 5
+      battery: ${sampling:0.01,0.5, 0.1}
       battery_max: 5
+      laser: ${sampling:0.005,0.1, 0.01}
+      laser_max: 5
+      blueprint: ${sampling:0.005,0.1, 0.01}
+      blueprint_max: 5
       heart: 1
       heart_max: 1000
   map_builder:
@@ -28,10 +35,10 @@ game:
       agents: 8
       style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
-        mine.red: ${sampling:0,20,10}
+        mine.red: ${sampling:0,10,10}
         # mine.blue: ${sampling:0,5,10}
         # mine.green: ${sampling:0,5,10}
-        generator.red: ${sampling:0,20,10}
+        generator.red: ${sampling:0,10,10}
         # generator.blue: ${sampling:0,5,10}
         # generator.green: ${sampling:0,5,10}
         altar: ${sampling:1,5,10}
@@ -56,8 +63,8 @@ game:
       # generator.green:
       #   cooldown: ${sampling:5, 20, 10}
       mine.red:
-        cooldown: ${sampling:15, 50, 10}
+        cooldown: ${sampling:15, 50, 20}
       # mine.blue:
-      #   cooldown: ${sampling:15, 50, 10}
+      #   cooldown: ${sampling:15, 50, 20}
       # mine.green:
-      #   cooldown: ${sampling:15, 50, 10}
+      #   cooldown: ${sampling:15, 50, 20}
