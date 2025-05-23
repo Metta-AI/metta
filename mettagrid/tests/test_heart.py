@@ -1,5 +1,5 @@
 """
-Heart Collection Test - Using Reliable Movement Controls
+Heart Collection Test
 """
 
 import numpy as np
@@ -8,8 +8,8 @@ from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.tests.actions import _get_agent_orientation, _get_agent_position, move, rotate
 
 
-def test_heart_collection_with_reliable_movement():
-    """Test heart collection using reliable movement controls."""
+def test_heart_collection():
+    """Test heart collection."""
 
     game_map = [
         ["wall", "wall", "wall", "wall", "wall", "wall"],
@@ -37,7 +37,7 @@ def test_heart_collection_with_reliable_movement():
         "objects": {
             "wall": {"type_id": 1, "hp": 100},
             "altar": {
-                "type_id": 4,  # Correct type from constants.hpp
+                "type_id": 4,
                 "hp": 100,
                 "output_heart": 1,
                 "initial_items": 0,
@@ -238,4 +238,4 @@ def test_heart_collection_with_reliable_movement():
 
 
 if __name__ == "__main__":
-    test_heart_collection_with_reliable_movement()
+    test_heart_collection()
