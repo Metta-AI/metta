@@ -42,7 +42,7 @@ jobs:
       - name: Create Asana Task
         id: create_task
         env:
-          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
+          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_API_KEY }}
           ASANA_PROJECT_GID: ${{ vars.ASANA_PROJECT_GID }}
           ASANA_WORKSPACE_GID: ${{ vars.ASANA_WORKSPACE_GID }}
         run: |
@@ -58,6 +58,7 @@ jobs:
                 \"workspace\": \"$ASANA_WORKSPACE_GID\"
               }
             }")
+          echo "RESPONSE: $RESPONSE"
           
           # Extract task GID and URL from response
           TASK_GID=$(echo $RESPONSE | jq -r '.data.gid')
