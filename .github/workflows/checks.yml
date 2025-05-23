@@ -178,6 +178,7 @@ jobs:
       - name: Run MettaGrid C++ tests
         working-directory: mettagrid
         run: |
+          source .venv/bin/activate
           make
           make test
 
@@ -672,7 +673,9 @@ jobs:
 
       - name: CMake
         working-directory: mettagrid
-        run: make
+        run: |
+          source .venv/bin/activate
+          make
 
       - name: Run benchmarks with JSON output
         working-directory: mettagrid
@@ -719,6 +722,7 @@ jobs:
           else
             echo "NO TEST RESULTS FOUND"
           fi
+
       - name: Check if main branch has benchmark data
         if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         id: check-main-benchmark
@@ -749,6 +753,7 @@ jobs:
             echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
             echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
           fi
+
       # First PR Performance run - Check for improvements (will NOT fail on alerts)
       - name: Check for Performance Improvements
         if: |
@@ -782,6 +787,7 @@ jobs:
           else
             echo "NO TEST RESULTS FOUND"
           fi
+
       # Second PR Performance run - Check for regressions (WILL fail on alerts)
       - name: Check for Performance Regressions
         if: |
