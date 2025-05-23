@@ -32,6 +32,7 @@ game:
 
   agent:
     default_item_max: 5
+    heart_max: 255
     freeze_duration: 10
     energy_reward: 0
     hp: 1
