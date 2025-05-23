@@ -1,6 +1,8 @@
 name: "Asana Integration"
 
 on:
+  pull_request:
+    types: [opened]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -24,10 +26,11 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const prNumber = ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.pull_request.number }};
             const pr = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: ${{ github.event.inputs.pr_number }}
+              pull_number: prNumber
             });
             return {
               title: pr.data.title,
@@ -76,11 +79,11 @@ jobs:
               await github.rest.pulls.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                pull_number: ${{ github.event.inputs.pr_number }},
+                pull_number: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number || github.event.pull_request.number }},
                 body: currentBody + asanaSection
               });
             }
-  
+
   create-asana-attachment-job:
     runs-on: ubuntu-latest
     name: Create pull request attachments on Asana tasks
