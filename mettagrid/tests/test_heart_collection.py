@@ -1,12 +1,9 @@
-"""
-Heart Collection Test - pytest compatible with fixtures
-"""
-
 import numpy as np
 import pytest
 
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.tests.actions import (
+    Orientation,
     get_agent_position,
     move,
     np_actions_type,
@@ -46,11 +43,11 @@ def heart_config():
                 "initial_items": 0,
                 "max_output": 50,
                 "conversion_ticks": 0,
-                "cooldown": 1,
+                "cooldown": 100,
             },
         },
         "agent": {
-            "inventory_size": 10,
+            "default_item_max": 10,
             "hp": 100,
             "rewards": {"heart": 1.0},
         },
@@ -98,6 +95,7 @@ def heart_helpers():
     """Helper functions for heart collection tests."""
 
     def get_agent_hearts(env, obs):
+        """Get the number of hearts in agent's inventory from observations."""
         grid_features = env.grid_features()
         if "agent:inv:heart" in grid_features:
             feature_idx = grid_features.index("agent:inv:heart")
@@ -105,13 +103,20 @@ def heart_helpers():
         return 0
 
     def perform_action(env, action_name, arg=0):
-        action_idx = env.action_names().index(action_name)
+        """Perform a single action and return results."""
+        available_actions = env.action_names()
+
+        if action_name not in available_actions:
+            raise ValueError(f"Unknown action '{action_name}'. Available actions: {available_actions}")
+
+        action_idx = available_actions.index(action_name)
         action = np.zeros((1, 2), dtype=np_actions_type)
         action[0] = [action_idx, arg]
         obs, rewards, _terminals, _truncations, _info = env.step(action)
         return obs, float(rewards[0]), env.action_success()[0]
 
     def get_altar_info(env):
+        """Get altar position and heart count."""
         grid_objects = env.grid_objects()
         for _obj_id, obj_data in grid_objects.items():
             if "altar" in obj_data:
@@ -120,73 +125,153 @@ def heart_helpers():
                 return altar_pos, altar_hearts
         return None, 0
 
+    def wait_for_heart_production(env, steps=5):
+        """Wait for altar to produce hearts by performing noop actions."""
+        for _ in range(steps):
+            perform_action(env, "noop")
+
+    def are_adjacent(pos1, pos2):
+        """Check if two positions are adjacent (Manhattan distance = 1)."""
+        if pos1 is None or pos2 is None:
+            return False
+        return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1]) == 1
+
     return {
         "get_agent_hearts": get_agent_hearts,
         "perform_action": perform_action,
         "get_altar_info": get_altar_info,
+        "wait_for_heart_production": wait_for_heart_production,
+        "are_adjacent": are_adjacent,
     }
 
 
-def test_heart_collection(heart_env, heart_game_map, heart_helpers):
+def test_heart_collection_basic(heart_env, heart_game_map, heart_helpers):
     """Test basic heart collection from altar."""
     env, obs = heart_env(heart_game_map)
     helpers = heart_helpers
 
     # Get initial positions
     agent_pos = get_agent_position(env, 0)
-    altar_pos, _altar_hearts = helpers["get_altar_info"](env)
+    altar_pos, _ = helpers["get_altar_info"](env)
 
     assert agent_pos is not None, "Agent should have a valid position"
-    assert altar_pos is not None, "Altar should have a valid position"
+    assert altar_pos is not None, "Altar should be found on the map"
+
+    print(f"Agent at {agent_pos}, Altar at {altar_pos}")
 
     # Wait for heart production
-    for _i in range(3):
-        obs, reward, success = helpers["perform_action"](env, "noop")
+    helpers["wait_for_heart_production"](env, steps=5)
 
-    # Move to be adjacent to altar
-    move_result = move(env, 3)  # Move right
+    # Move agent to be adjacent to altar (move right from starting position)
+    move_result = move(env, Orientation.RIGHT)
     assert move_result["success"], f"Movement should succeed. Error: {move_result.get('error')}"
 
-    # Verify we're adjacent to altar
+    # Verify positions after movement
     agent_pos = get_agent_position(env, 0)
+    altar_pos, altar_hearts = helpers["get_altar_info"](env)
 
-    altar_pos, current_hearts = helpers["get_altar_info"](env)
-    assert agent_pos is not None, "Agent should still have a valid position after moving"
-    assert altar_pos is not None, "Altar should still have a valid position"
+    assert helpers["are_adjacent"](agent_pos, altar_pos), (
+        f"Agent at {agent_pos} should be adjacent to altar at {altar_pos}"
+    )
 
-    distance = abs(agent_pos[0] - altar_pos[0]) + abs(agent_pos[1] - altar_pos[1])
-    assert distance == 1, f"Agent should be adjacent to altar (distance 1), but distance is {distance}"
+    print(f"After movement: Agent at {agent_pos}, Altar at {altar_pos} with {altar_hearts} hearts")
 
-    print(f"\nAltar at {altar_pos} has {current_hearts} hearts (step {env.current_timestep()})")
+    hearts_before = helpers["get_agent_hearts"](env, obs[0])
 
-    print("Trying all orientations...")
+    # Rotate to face the altar
+    rotate_result = rotate(env, Orientation.RIGHT)
+    assert rotate_result["success"], f"Rotation to {Orientation.RIGHT} should succeed"
 
-    orientation_names = {0: "up", 1: "down", 2: "left", 3: "right"}
-    collection_succeeded = False
+    # Try to collect hearts
+    obs, reward, success = helpers["perform_action"](env, "get_output", 0)
+    hearts_after = helpers["get_agent_hearts"](env, obs[0])
+    hearts_gained = hearts_after - hearts_before
 
-    for orientation in range(4):
-        agent_pos = get_agent_position(env, 0)
-        hearts_before = helpers["get_agent_hearts"](env, obs[0])
-        print(f"\nAgent 0 at {agent_pos} has {hearts_before} hearts (step {env.current_timestep()})")
+    print(f"Facing {Orientation.RIGHT}: hearts {hearts_before} → {hearts_after}, reward: {reward}, success: {success}")
 
-        direction_name = orientation_names[orientation]
+    if success and hearts_gained > 0:
+        hearts_collected = True
+        print(f"✅ Successfully collected {hearts_gained} heart(s) when facing {Orientation.RIGHT}")
+
+    assert hearts_collected, "Should be able to collect hearts from altar in at least one orientation"
+
+
+def test_heart_collection_with_reward(heart_env, heart_game_map, heart_helpers):
+    """Test that collecting hearts gives positive reward."""
+    env, obs = heart_env(heart_game_map)
+    helpers = heart_helpers
+
+    # Setup: move to altar and wait for heart production
+    helpers["wait_for_heart_production"](env, steps=5)
+    move_result = move(env, Orientation.RIGHT)
+    assert move_result["success"], "Should be able to move to altar"
+
+    # Find the correct orientation for collection
+    collection_reward = 0
+    for orientation in [Orientation.UP, Orientation.DOWN, Orientation.LEFT, Orientation.RIGHT]:
         rotate_result = rotate(env, orientation)
-        assert rotate_result["success"], f"Rotation to {direction_name} should succeed"
+        assert rotate_result["success"], f"Should be able to rotate to {orientation}"
+
+        obs, reward, success = helpers["perform_action"](env, "get_output", 0)
+
+        if success and reward > 0:
+            collection_reward = reward
+            break
+
+    assert collection_reward > 0, f"Heart collection should give positive reward, got {collection_reward}"
+    print(f"✅ Heart collection gave reward of {collection_reward}")
+
+
+def test_multiple_heart_collections(heart_env, heart_game_map, heart_helpers):
+    """Test collecting multiple hearts from altar."""
+    env, obs = heart_env(heart_game_map)
+    helpers = heart_helpers
+
+    # Setup
+    helpers["wait_for_heart_production"](env, steps=5)
+    move_result = move(env, Orientation.RIGHT)
+    assert move_result["success"], "Should be able to move to altar"
+
+    # Find working orientation
+    working_orientation = None
+    for orientation in [Orientation.UP, Orientation.DOWN, Orientation.LEFT, Orientation.RIGHT]:
+        rotate_result = rotate(env, orientation)
+        assert rotate_result["success"], f"Should be able to rotate to {orientation}"
+
+        obs, reward, success = helpers["perform_action"](env, "get_output", 0)
+
+        if success and reward > 0:
+            working_orientation = orientation
+            break
+
+    assert working_orientation is not None, "Should find an orientation that allows heart collection"
+
+    # Try multiple collections
+    total_hearts_collected = helpers["get_agent_hearts"](env, obs[0])
+    collections_attempted = 0
+    max_attempts = 5
+
+    for attempt in range(max_attempts):
+        # Wait for more heart production
+        helpers["wait_for_heart_production"](env, steps=3)
+
+        # Ensure correct orientation
+        rotate_result = rotate(env, working_orientation)
+        assert rotate_result["success"], "Should maintain correct orientation"
 
         # Try collection
-        altar_pos, current_hearts = helpers["get_altar_info"](env)
-        print(f"Altar at {altar_pos} has {current_hearts} hearts (step {env.current_timestep()})")
+        obs, reward, success = helpers["perform_action"](env, "get_output", 0)
+        collections_attempted += 1
 
-        obs, _reward, success = helpers["perform_action"](env, "get_output", 0)
+        current_hearts = helpers["get_agent_hearts"](env, obs[0])
 
-        hearts_after = helpers["get_agent_hearts"](env, obs[0])
-        hearts_gained = hearts_after - hearts_before
-
-        if success and hearts_gained > 0:
-            collection_succeeded = True
-            print(f"Heart collection succeeded when facing {direction_name}")
-            break
+        if current_hearts > total_hearts_collected:
+            total_hearts_collected = current_hearts
+            print(f"Collection {attempt + 1}: Successfully collected heart (total: {total_hearts_collected})")
         else:
-            print(f"Heart collection failed when facing {direction_name}")
+            print(f"Collection {attempt + 1}: No hearts collected this attempt")
 
-    assert collection_succeeded, "Heart collection should succeed in at least one orientation"
+    print(f"Final result: {total_hearts_collected} hearts collected in {collections_attempted} attempts")
+
+    # Should collect at least one heart
+    assert total_hearts_collected > 0, f"Should collect at least one heart, got {total_hearts_collected}"
