@@ -1,0 +1,149 @@
+import torch
+import torch.nn as nn
+from tensordict import TensorDict
+
+
+class MettaModule(nn.Module):
+    """Base class for all Metta computation modules.
+
+    A MettaModule is a computation unit that reads from and writes to a TensorDict.
+    The module's interface is defined by its in_keys (what it reads) and out_keys
+    (what it writes). This explicit interface enables automatic dependency resolution,
+    validation, and zero-setup testing.
+    """
+
+    def __init__(self, in_keys=None, out_keys=None, input_shapes=None, output_shapes=None):
+        """Initialize a MettaModule with explicit input and output key specifications.
+
+        Args:
+            in_keys (list[str] | None): Keys in the TensorDict that this module will read from.
+                If None, defaults to an empty list. Each key must exist in the TensorDict
+                before this module can execute.
+            out_keys (list[str] | None): Keys in the TensorDict that this module will write to.
+                If None, defaults to an empty list. These keys must be unique across all
+                modules in a ComponentContainer to prevent silent overwrites.
+            input_shapes (dict[str, tuple] | None): Expected shapes for input tensors, excluding batch dimension.
+                If None, no shape validation is performed. Example: {"input": (10,)}.
+            output_shapes (dict[str, tuple] | None): Expected shapes for output tensors, excluding batch dimension.
+                If None, no shape validation is performed. Example: {"output": (5,)}.
+        """
+        super().__init__()
+        self.in_keys = in_keys or []
+        self.out_keys = out_keys or []
+
+        # Optional shape specifications for validation
+        self.input_shapes = input_shapes or {}  # {key: shape}
+        self.output_shapes = output_shapes or {}  # {key: shape}
+
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        """Execute the module's computation on the input TensorDict.
+
+        Args:
+            tensordict (TensorDict): Input data container. Must contain all in_keys.
+
+        Returns:
+            TensorDict: The same TensorDict with out_keys added/updated.
+
+        Raises:
+            ValueError: If input shapes don't match input_shapes specification.
+            KeyError: If required in_keys are missing from tensordict.
+        """
+        # Validate input shapes if specified
+        # TODO: We don't need to validate every single time we do forward pass.
+        # We should only validate when the input shapes changes in the MettaComponentContainer.
+        # This is cleaner but may have computational overhead.
+        # so we should have a flag to skip shape validation.
+        self.validate_shapes(tensordict)
+
+        # Subclasses must implement actual computation
+        return tensordict
+
+    def validate_shapes(self, tensordict: TensorDict):
+        """Validate input tensor shapes against specifications.
+        This method is called automatically by forward() to ensure that the input tensors
+        match the expected shapes. Note that this method always returns true if you don't
+        specify input_shapes.
+
+        Args:
+            tensordict (TensorDict): Input data to validate.
+
+        Raises:
+            ValueError: If any tensor shape doesn't match its specification.
+        """
+        # Validate input shapes
+        for key in self.in_keys:
+            if key in self.input_shapes:
+                expected_shape = self.input_shapes[key]
+                actual_shape = tensordict[key].shape[1:]  # Skip batch dimension
+                if actual_shape != expected_shape:
+                    raise ValueError(f"Input shape mismatch for '{key}': expected {expected_shape}, got {actual_shape}")
+
+
+class LinearModule(MettaModule):
+    """A simple linear transformation module.
+
+    This module demonstrates how to implement a concrete MettaModule with:
+    - Explicit input/output keys
+    - Shape validation
+    - Actual computation
+    """
+
+    def __init__(self, in_features: int, out_features: int, in_key: str = "input", out_key: str = "output"):
+        """Initialize a linear transformation module.
+
+        Args:
+            in_features (int): Size of input features
+            out_features (int): Size of output features
+            in_key (str): Key to read input from TensorDict
+            out_key (str): Key to write output to TensorDict
+        """
+        super().__init__(
+            in_keys=[in_key],
+            out_keys=[out_key],
+            input_shapes={in_key: (in_features,)},
+            output_shapes={out_key: (out_features,)},
+        )
+        self.linear = nn.Linear(in_features, out_features)
+
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        """Apply linear transformation to input tensor.
+
+        Args:
+            tensordict (TensorDict): Must contain in_key with shape (batch_size, in_features)
+
+        Returns:
+            TensorDict: Same tensordict with out_key added/updated with shape (batch_size, out_features)
+        """
+        # Validate input shapes
+        self.validate_shapes(tensordict)
+
+        # Apply linear transformation
+        tensordict[self.out_keys[0]] = self.linear(tensordict[self.in_keys[0]])
+
+        return tensordict
+
+
+if __name__ == "__main__":
+    # Test successful case
+    print("\n=== Testing successful case ===")
+    module = LinearModule(in_features=10, out_features=5)
+    td = TensorDict({"input": torch.randn(32, 10)}, batch_size=32)
+    output = module(td)
+    print(f"Input shape: {td['input'].shape}")
+    print(f"Output shape: {td['output'].shape}")
+
+    # Test shape mismatch
+    print("\n=== Testing shape mismatch ===")
+    try:
+        bad_td = TensorDict({"input": torch.randn(32, 8)}, batch_size=32)  # Wrong input size
+        module(bad_td)
+    except ValueError as e:
+        print(f"Caught expected error: {e}")
+
+    # Test missing key
+    print("\n=== Testing missing key ===")
+    try:
+        empty_td = TensorDict({}, batch_size=32)  # No input key
+        module(empty_td)
+    except KeyError as e:
+        print(f"Caught expected error: {e}")
