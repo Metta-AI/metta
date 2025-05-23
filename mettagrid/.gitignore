@@ -1,3 +1,5 @@
-/tests/test_mettagrid
-/tests/grid_object_test
-/benchmarks/grid_object_benchmark
+# ignore build artifacts
+/tests/*
+!/tests/*.*
+/benchmarks/*
+!/benchmarks/*.*
