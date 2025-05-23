@@ -51,7 +51,7 @@ export function focusFullMap(panel: PanelInfo) {
   panel.focusPos(width / 2, height / 2, Math.min(panel.width / width, panel.height / height));
 }
 
-// Draw the the floor.
+// Draw the floor.
 function drawFloor() {
   const floorColor = parseHtmlColor("#CFA970");
   ctx.drawSolidRect(
@@ -617,12 +617,7 @@ export function drawMap(panel: PanelInfo) {
   }
 
   // Handle mouse events for the map panel.
-  if (
-    ui.mapPanel.inside(ui.mousePos) &&
-    !ui.miniMapPanel.inside(ui.mousePos) &&
-    !ui.tracePanel.inside(ui.mousePos) &&
-    !ui.infoPanel.inside(ui.mousePos)
-  ) {
+  if (ui.mouseTarget == "worldmap-panel") {
     if (ui.mouseDoubleClick) {
       // Toggle followSelection on double-click
       console.log("Map double click - following selection");
