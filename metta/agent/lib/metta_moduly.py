@@ -284,6 +284,102 @@ class DropoutModule(MettaModule):
         return tensordict
 
 
+class LSTMModule(MettaModule):
+    """LSTM module that handles tensor reshaping and state management automatically.
+
+    This module wraps a PyTorch LSTM with proper tensor shape handling, making it easier
+    to integrate LSTMs into neural network policies. It handles reshaping inputs/outputs,
+    manages hidden states, and ensures consistent tensor dimensions throughout the forward pass.
+
+    The module processes tensors of shape [B*TT, ...], where:
+    - B is the batch size
+    - TT is the sequence length
+    """
+
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        num_layers: int = 1,
+        in_key: str = "x",  # Match existing API
+        out_key: str = "_lstm_",  # Match existing API
+        hidden_key: str = "hidden",  # Match existing API
+        state_key: str = "state",  # Match existing API
+    ):
+        """Initialize LSTM module.
+
+        Args:
+            input_size (int): Size of input features
+            hidden_size (int): Size of hidden state
+            num_layers (int): Number of LSTM layers
+            in_key (str): Key to read input from TensorDict (default: "x")
+            out_key (str): Key to write output to TensorDict (default: "_lstm_")
+            hidden_key (str): Key for hidden state in TensorDict (default: "hidden")
+            state_key (str): Key for LSTM state in TensorDict (default: "state")
+        """
+        super().__init__(
+            in_keys=[in_key, hidden_key],
+            out_keys=[out_key, state_key],
+        )
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+
+        # Create LSTM network
+        self.lstm = nn.LSTM(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            batch_first=False,  # We handle batch dimension manually
+        )
+
+        # Initialize weights
+        for name, param in self.lstm.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1)  # Initialize bias to 1
+            elif "weight" in name:
+                nn.init.orthogonal_(param, gain=1)  # Initialize weights orthogonally
+
+    def get_initial_state(self, batch_size: int, device: torch.device) -> torch.Tensor:
+        h_state = torch.zeros(self.num_layers, batch_size, self.hidden_size, device=device)
+        c_state = torch.zeros(self.num_layers, batch_size, self.hidden_size, device=device)
+        state = torch.cat([h_state, c_state], dim=0)  # [2*num_layers, batch_size, hidden_size]
+        return state.permute(1, 0, 2)  # [batch_size, 2*num_layers, hidden_size]
+
+    @torch.compile(disable=True)
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        x = tensordict[self.in_keys[0]]  # [B*TT, input_size]
+        hidden = tensordict[self.in_keys[1]]  # [B*TT, input_size]
+        state = tensordict.get(self.out_keys[1])  # [B, 2*num_layers, hidden_size] or None
+        B = x.shape[0]
+        assert hidden.shape == (B, self.input_size)
+
+        # Handle state
+        if state is not None:
+            # Convert from [B, 2*num_layers, hidden_size] to [2*num_layers, B, hidden_size]
+            state = state.permute(1, 0, 2)
+            split_size = self.num_layers
+            state = (state[:split_size], state[split_size:])
+        else:
+            # Create initial state with correct batch size
+            state = self.get_initial_state(B, x.device)
+            state = state.permute(1, 0, 2)
+            state = (state[: self.num_layers], state[self.num_layers :])
+
+        hidden = hidden.reshape(B, 1, self.input_size).transpose(0, 1)  # [1, B, input_size]
+        hidden, state = self.lstm(hidden, state)
+        hidden = hidden.transpose(0, 1).reshape(B, self.hidden_size)
+        tensordict[self.out_keys[0]] = hidden
+
+        # Save state as [B, 2*num_layers, hidden_size]
+        if state is not None:
+            state = tuple(s.detach() for s in state)
+            state = torch.cat(state, dim=0)  # [2*num_layers, B, hidden_size]
+            state = state.permute(1, 0, 2)  # [B, 2*num_layers, hidden_size]
+            tensordict[self.out_keys[1]] = state
+        return tensordict
+
+
 if __name__ == "__main__":
     # Test successful case
     print("\n=== Testing successful case ===")
