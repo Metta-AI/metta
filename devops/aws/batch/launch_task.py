@@ -8,6 +8,7 @@ import sys
 import boto3
 
 from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
+from metta.util.fs import ensure_metta_repo_root
 from metta.util.git import (
     get_branch_commit,
     get_commit_message,
@@ -108,6 +109,8 @@ def container_config(args, task_args, job_name):
 
 
 def validate_batch_job(args, task_args, job_name, job_queue, job_definition, request):
+    from pathlib import Path
+
     critical_files = [
         "./devops/aws/batch/entrypoint.sh",
         f"./devops/{args.cmd}.sh",
@@ -123,42 +126,84 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
         critical_files.append("tools/evolve.py")
 
     # Check for configuration files mentioned in task arguments
+    config_files_to_check = []
     for task_arg in task_args:
         # Check for agent configuration
         if task_arg.startswith("agent="):
             agent_value = task_arg.split("=", 1)[1]
-            critical_files.append(f"./configs/agent/{agent_value}.yaml")
+            config_files_to_check.append(f"./configs/agent/{agent_value}.yaml")
 
         # Check for trainer configuration
         elif task_arg.startswith("trainer="):
             trainer_value = task_arg.split("=", 1)[1]
-            critical_files.append(f"./configs/trainer/{trainer_value}.yaml")
+            config_files_to_check.append(f"./configs/trainer/{trainer_value}.yaml")
 
         # Check for environment configuration
         elif task_arg.startswith("trainer.env="):
             env_value = task_arg.split("=", 1)[1]
-            critical_files.append(f"./configs/{env_value}.yaml")
+            config_files_to_check.append(f"./configs/{env_value}.yaml")
 
         # Check for evaluation configuration
         elif task_arg.startswith("trainer.eval="):
             eval_value = task_arg.split("=", 1)[1]
-            critical_files.append(f"./configs/eval/{eval_value}.yaml")
+            config_files_to_check.append(f"./configs/eval/{eval_value}.yaml")
+
+    # Add config files to critical files list
+    critical_files.extend(config_files_to_check)
 
     divider_length = 60
-
     divider = "=" * divider_length
     print(f"\n{divider}")
-    all_files_exist = True
+
+    missing_files = []
+    found_files = []
+
     for file in critical_files:
         if not os.path.exists(file):
-            all_files_exist = False
+            missing_files.append(file)
             print(red(f"❌ Missing required file: {file}"))
         else:
+            found_files.append(file)
             print(green(f"✅ Found: {file}"))
 
-    if not all_files_exist:
-        print(red("\nOne or more critical files are missing. Validation failed."))
+    if missing_files:
+        print(red("\nValidation failed - missing required files:"))
+        print(red("=" * 50))
+
+        # Group suggestions by type
+        suggestions = []
+        current_dir = Path.cwd()
+
+        # Check if we're in the wrong directory
+        if any("devops" in f for f in missing_files):
+            suggestions.append("• Ensure you're running from the repository root directory")
+            suggestions.append(f"  Current directory: {current_dir}")
+
+        # Check for config file issues
+        missing_configs = [f for f in missing_files if f.startswith("./configs/")]
+        if missing_configs:
+            suggestions.append("• Check your configuration file paths:")
+            for config in missing_configs:
+                suggestions.append(f"  {config}")
+                # Try to find similar files
+                config_dir = Path(config).parent
+                if config_dir.exists():
+                    similar_files = list(config_dir.glob("*.yaml"))
+                    if similar_files:
+                        suggestions.append(f"    Available in {config_dir}: {[f.name for f in similar_files[:3]]}")
+
+        # Check for tool files
+        missing_tools = [f for f in missing_files if f.startswith("tools/")]
+        if missing_tools:
+            suggestions.append("• Missing tool files - check your repository structure")
+
+        if suggestions:
+            print(yellow("\nSuggestions:"))
+            for suggestion in suggestions:
+                print(yellow(suggestion))
+
         sys.exit(1)
+
     print(green("All critical files found. Validation successful."))
 
     if has_unstaged_changes() and not args.skip_validation:
@@ -324,6 +369,7 @@ def main():
     parser.add_argument("--no-color", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="DEPRECATED: Show job details without submitting")
     parser.add_argument("--skip-validation", action="store_true", help="Skip confirmation prompt")
+    parser.add_argument("--no-auto-cd", action="store_true", help="Don't automatically change to repo root")
     # Add the new timeout parameter
     parser.add_argument(
         "--timeout-minutes",
@@ -333,6 +379,10 @@ def main():
     args, task_args = parser.parse_known_args()
 
     use_colors(sys.stdout.isatty() and not args.no_color)
+
+    # Ensure we're in the repository root (unless disabled)
+    if not args.no_auto_cd:
+        ensure_metta_repo_root(auto_change=True, quiet=False)
 
     specs = get_specs()
 
