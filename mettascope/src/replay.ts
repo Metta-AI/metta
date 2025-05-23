@@ -272,10 +272,12 @@ async function loadReplayJson(url: string, replayData: any) {
 export function loadReplayStep(replayStep: any) {
   // This gets us a simple replay step that we can overwrite.
 
+  console.log("Loading replay step: ", replayStep);
+
   // Update the grid objects.
   const step = replayStep.step;
 
-  state.replay.max_steps = Math.max(state.replay.max_steps, step);
+  state.replay.max_steps = Math.max(state.replay.max_steps, step+1);
   state.step = step; // Rewind to the current step.
 
   for (const gridObject of replayStep.grid_objects) {
