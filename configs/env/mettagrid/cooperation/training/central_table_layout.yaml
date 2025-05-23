@@ -17,7 +17,7 @@ game:
       ore.blue: 0.005
       ore.green: 0.005
       battery: 0.01
-      heart: 0.1 # Reduce heart reward
+      heart: 1
 
   map_builder:
     _target_: mettagrid.room.room_list.RoomList
