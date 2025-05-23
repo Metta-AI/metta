@@ -12,9 +12,7 @@ export function drawTrace(panel: PanelInfo) {
   }
 
   // Handle mouse events for the trace panel.
-  if (
-    panel.inside(ui.mousePos)
-  ) {
+  if (ui.mouseTarget == "trace-panel") {
     if (ui.mouseDoubleClick) {
       // Toggle followSelection on double-click
       console.log("Trace double click - following selection");
@@ -149,7 +147,7 @@ export function drawTrace(panel: PanelInfo) {
       }
 
       // Draw resource gain/loss.
-      if (state.showResources) {
+      if (state.showResources && j > 0) {
         // Figure out how many resources to draw.
         var number = 0;
         for (const [key, [image, color]] of state.replay.resource_inventory) {
@@ -160,8 +158,8 @@ export function drawTrace(panel: PanelInfo) {
         // Compress the resources if there are too many, so that they fit.
         var step = Math.min(32, (Common.TRACE_HEIGHT - 64) / number);
         for (const [key, [image, color]] of state.replay.resource_inventory) {
-          const prevResources = getAttr(agent, key, j);
-          const nextResources = getAttr(agent, key, j + 1);
+          const prevResources = getAttr(agent, key, j - 1);
+          const nextResources = getAttr(agent, key, j);
           const absGain = Math.abs(nextResources - prevResources);
           for (let k = 0; k < absGain; k++) {
             ctx.drawSprite(

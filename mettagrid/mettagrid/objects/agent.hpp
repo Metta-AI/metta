@@ -1,6 +1,7 @@
 #ifndef AGENT_HPP
 #define AGENT_HPP
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -16,7 +17,6 @@ public:
   unsigned char freeze_duration;
   unsigned char orientation;
   std::vector<unsigned char> inventory;
-  unsigned char max_items;
   std::vector<float> resource_rewards;
   std::vector<float> resource_reward_max;
   float action_failure_penalty;
@@ -44,7 +44,15 @@ public:
     this->freeze_duration = cfg["freeze_duration"];
     this->orientation = 0;
     this->inventory.resize(InventoryItem::InventoryCount);
-    this->max_items = cfg["max_inventory"];
+    unsigned char default_item_max = cfg["default_item_max"];
+    this->max_items_per_type.resize(InventoryItem::InventoryCount);
+    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+      if (cfg.find(InventoryItemNames[i] + "_max") != cfg.end()) {
+        this->max_items_per_type[i] = cfg[InventoryItemNames[i] + "_max"];
+      } else {
+        this->max_items_per_type[i] = default_item_max;
+      }
+    }
     this->resource_rewards.resize(InventoryItem::InventoryCount);
     for (int i = 0; i < InventoryItem::InventoryCount; i++) {
       this->resource_rewards[i] = rewards[InventoryItemNames[i]];
@@ -63,18 +71,13 @@ public:
     this->reward = reward;
   }
 
-  void update_inventory(InventoryItem item, short amount) {
-    int current_amount = this->inventory[static_cast<int>(item)];
+  int update_inventory(InventoryItem item, short amount) {
+    int current_amount = this->inventory[item];
     int new_amount = current_amount + amount;
-    if (new_amount > this->max_items) {
-      new_amount = this->max_items;
-    }
-    if (new_amount < 0) {
-      new_amount = 0;
-    }
+    new_amount = std::clamp(new_amount, 0, static_cast<int>(this->max_items_per_type[item]));
 
     int delta = new_amount - current_amount;
-    this->inventory[static_cast<int>(item)] = new_amount;
+    this->inventory[item] = new_amount;
 
     if (delta > 0) {
       this->stats.add(InventoryItemNames[item], "gained", delta);
@@ -83,6 +86,8 @@ public:
     }
 
     this->compute_resource_reward(item);
+
+    return delta;
   }
 
   inline void compute_resource_reward(InventoryItem item) {
@@ -129,10 +134,13 @@ public:
     names.push_back("agent:color");
 
     for (const auto& name : InventoryItemNames) {
-      names.push_back("agent:inv:" + name);
+      names.push_back("inv:" + name);
     }
     return names;
   }
+
+private:
+  std::vector<unsigned char> max_items_per_type;
 };
 
 #endif
