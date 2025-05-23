@@ -23,6 +23,9 @@ POLICIES=(
     "b.daphne.multiagent_training_breadcrumb_pretrained"
     "b.daphne.multiagent_training_breadcrumb_sm"
     "b.daphne.multiagent_training_breadcrumb_pretrained_sm"
+    "b.daphne.32_multiagent_training"
+    "b.daphne.32_multiagent_training_pretrained"
+    "32agents_daphne_multiagent_training"
 )
 #!/bin/bash
 
