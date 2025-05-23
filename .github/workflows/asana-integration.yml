@@ -1,0 +1,95 @@
+name: "Asana Integration"
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to create Asana task for'
+        required: true
+        type: number
+
+permissions:
+  pull-requests: write  # Needed to read PR details and add comments
+
+jobs:
+  create-asana-task:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Get PR details
+        id: pr_details
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ github.event.inputs.pr_number }}
+            });
+            return {
+              title: pr.data.title,
+              url: pr.data.html_url,
+              author: pr.data.user.login,
+              body: pr.data.body || ''
+            };
+
+      - name: Create Asana Task
+        id: create_task
+        env:
+          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
+          ASANA_PROJECT_GID: ${{ vars.ASANA_PROJECT_GID }}
+          ASANA_WORKSPACE_GID: ${{ vars.ASANA_WORKSPACE_GID }}
+        run: |
+          # Create task in Asana
+          RESPONSE=$(curl -X POST https://app.asana.com/api/1.0/tasks \
+            -H "Authorization: Bearer $ASANA_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"data\": {
+                \"name\": \"Review PR: ${{ steps.pr_details.outputs.title }}\",
+                \"notes\": \"PR by @${{ steps.pr_details.outputs.author }}\\n${{ steps.pr_details.outputs.url }}\",
+                \"projects\": [\"$ASANA_PROJECT_GID\"],
+                \"workspace\": \"$ASANA_WORKSPACE_GID\"
+              }
+            }")
+          
+          # Extract task GID and URL from response
+          TASK_GID=$(echo $RESPONSE | jq -r '.data.gid')
+          TASK_URL="https://app.asana.com/0/$ASANA_PROJECT_GID/$TASK_GID"
+          
+          # Save task URL for next step
+          echo "task_url=$TASK_URL" >> $GITHUB_OUTPUT
+
+      - name: Update PR description
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const currentBody = `${{ steps.pr_details.outputs.body }}`;
+            const asanaSection = '\n\nAsana Task:\n${{ steps.create_task.outputs.task_url }}';
+            
+            // Only add the Asana section if it doesn't already exist
+            if (!currentBody.includes('Asana Task:')) {
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: ${{ github.event.inputs.pr_number }},
+                body: currentBody + asanaSection
+              });
+            }
+  
+  create-asana-attachment-job:
+    runs-on: ubuntu-latest
+    name: Create pull request attachments on Asana tasks
+    steps:
+      - name: Create pull request attachments
+        uses: Asana/create-app-attachment-github-action@v1.3
+        id: postAttachment
+        with:
+          asana-secret: ${{ secrets.ASANA_API_KEY }}
+          allowed-projects: ${{ vars.ASANA_PROJECT_GID }}
+      - name: Get status
+        run: echo "Status is ${{ steps.postAttachment.outputs.status }}"

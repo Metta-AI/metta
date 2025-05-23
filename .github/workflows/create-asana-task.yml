@@ -1,0 +1,36 @@
+name: "Create Asana Task for PR"
+
+on:
+  pull_request:
+    types: [ready_for_review]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  create-asana-task:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Asana Task
+        env:
+          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
+          ASANA_PROJECT_GID: ${{ vars.ASANA_PROJECT_GID }}
+          ASANA_WORKSPACE_GID: ${{ vars.ASANA_WORKSPACE_GID }}
+        run: |
+          # Get PR details
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          
+          # Create task in Asana
+          curl -X POST https://app.asana.com/api/1.0/tasks \
+            -H "Authorization: Bearer $ASANA_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"data\": {
+                \"name\": \"Review PR: $PR_TITLE\",
+                \"notes\": \"PR by @$PR_AUTHOR\\n$PR_URL\",
+                \"projects\": [\"$ASANA_PROJECT_GID\"],
+                \"workspace\": \"$ASANA_WORKSPACE_GID\"
+              }
+            }" 
