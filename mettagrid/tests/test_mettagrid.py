@@ -727,7 +727,6 @@ def test_agent_walks_across_room():
         print(f"Timestep after noop: {env.current_timestep}")
 
         print("✓ Agent walking test completed (movement not working, but feedback works)")
-        return True
 
     # Continue walking in the successful direction
     print(f"\nContinuing to walk {direction_name}...")
@@ -789,4 +788,3 @@ def test_agent_walks_across_room():
             print(f"! Step {step}: Agent not visible at center - unexpected!")
 
     print("\n✓ Agent walking test completed successfully")
-    return True

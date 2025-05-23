@@ -189,11 +189,7 @@ void MettaGrid::init_action_handlers() {
 
 void MettaGrid::add_agent(Agent* agent) {
   _agents.push_back(agent);
-
-  // Only initialize if buffers are set
-  if (_rewards != nullptr) {
-    agent->init(&_rewards[_agents.size() - 1]);
-  }
+  // Don't call agent->init() until after the reward buffer is available!
 }
 
 void MettaGrid::_compute_observation(unsigned int observer_row,
@@ -386,6 +382,7 @@ void MettaGrid::set_buffers(py::array_t<c_observations_type, py::array::c_style>
   // Validate and initialize
   validate_buffers();
 
+  // assign reward slots to agents
   for (size_t i = 0; i < _agents.size(); i++) {
     _agents[i]->init(&_rewards[i]);
   }
