@@ -44,8 +44,7 @@ public:
     this->freeze_duration = cfg["freeze_duration"];
     this->orientation = 0;
     this->inventory.resize(InventoryItem::InventoryCount);
-    // We can specify default_item_max two ways, for backwards compatibility.
-    unsigned char default_item_max = cfg["max_inventory"] > 0 ? cfg["max_inventory"] : cfg["default_item_max"];
+    unsigned char default_item_max = cfg["default_item_max"];
     this->max_items_per_type.resize(InventoryItem::InventoryCount);
     for (int i = 0; i < InventoryItem::InventoryCount; i++) {
       if (cfg.find(InventoryItemNames[i] + "_max") != cfg.end()) {
