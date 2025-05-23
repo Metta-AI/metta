@@ -72,14 +72,27 @@ Inspired by TorchRL's computational modules, `MettaModule` handles only computat
 class MettaModule(nn.Module):
     """Pure computation module inspired by TorchRL patterns."""
     
-    def __init__(self, in_keys=None, out_keys=None):
+    def __init__(self, in_keys=None, out_keys=None, input_shapes=None, output_shapes=None):
         super().__init__()
         self.in_keys = in_keys or []
         self.out_keys = out_keys or []
+        
+        # Optional shape specifications for validation
+        self.input_shapes = input_shapes or {}  # {key: shape}
+        self.output_shapes = output_shapes or {}  # {key: shape}
     
     def forward(self, tensordict: TensorDict) -> TensorDict:
         """Direct computation without DAG traversal."""
         pass
+    
+    def validate_shapes(self, tensordict: TensorDict):
+        """Runtime shape validation."""
+        for key in self.in_keys:
+            if key in self.input_shapes:
+                expected_shape = self.input_shapes[key]
+                actual_shape = tensordict[key].shape[1:]  # Skip batch dimension
+                if actual_shape != expected_shape:
+                    raise ValueError(f"Shape mismatch for '{key}': expected {expected_shape}, got {actual_shape}")
 ```
 
 #### Enhanced Component Registry
@@ -101,8 +114,10 @@ class ComponentContainer(nn.ModuleDict):
     
     def forward(self, component_name: str, tensordict: TensorDict) -> TensorDict:
         """Recursive execution preserving current elegant pattern."""
-        # Check if already computed (caching)
-        if component_name in tensordict:
+        component = self[component_name]
+        
+        # Check if already computed (caching) - check if all outputs exist
+        if all(out_key in tensordict for out_key in component.out_keys):
             return tensordict
         
         # Recursively compute dependencies first
@@ -111,7 +126,7 @@ class ComponentContainer(nn.ModuleDict):
                 self.forward(dep_name, tensordict)
         
         # Execute this component
-        self[component_name](tensordict)
+        component(tensordict)
         return tensordict
     
     def replace_component(self, name, new_module):
@@ -124,27 +139,13 @@ class ComponentContainer(nn.ModuleDict):
 Each `MettaModule` becomes purely computational, while the container handles the recursive dependency resolution:
 
 ```python
-class MettaModule(nn.Module):
-    """Pure computation module with explicit input/output contracts."""
-    
-    def __init__(self, in_keys=None, out_keys=None):
-        super().__init__()
-        self.in_keys = in_keys or []
-        self.out_keys = out_keys or []
-    
-    def forward(self, tensordict: TensorDict) -> TensorDict:
-        """Pure computation - container handles dependencies."""
-        # Component assumes its inputs are already in tensordict
-        # Performs computation and stores results
-        pass
-
 # Usage preserves the elegant recursive pattern:
 class MettaAgent(nn.Module):
     def forward(self, observation):
         tensordict = TensorDict({"observation": observation}, batch_size=observation.shape[0])
         
         # Recursively execute final component (pulls all dependencies)
-        self.components.forward("action", tensordict)
+        self.components.forward("policy", tensordict)
         
         return tensordict["action"]
 ```
@@ -385,17 +386,20 @@ def test_linear_layer():
 ```python
 # New: Direct testing with zero setup
 def test_linear_module():
-    linear = LinearModule(in_features=10, out_features=16)
+    linear = LinearModule(in_features=10, out_features=16, 
+                         in_keys=["input"], out_keys=["output"])
     result = linear({"input": torch.randn(4, 10)})
     assert result["output"].shape == (4, 16)
 
 def test_actor_module():
-    actor = ActorModule(state_dim=64, action_dim=8)
-    result = actor({"state": torch.randn(2, 64)})
+    actor = PolicyNetwork(feature_dim=64, action_dim=8,
+                         in_keys=["features"], out_keys=["action"])
+    result = actor({"features": torch.randn(2, 64)})
     assert result["action"].shape == (2, 8)
 
 def test_merge_module():
-    merge = MergeModule(["input1", "input2"], merge_type="concat")
+    merge = MergeModule(in_keys=["input1", "input2"], out_keys=["merged"],
+                       merge_type="concat")
     result = merge({
         "input1": torch.randn(3, 5),
         "input2": torch.randn(3, 7)
@@ -654,6 +658,453 @@ The migration strategy needs validation during Phase 1 implementation to determi
 **Q: How does this affect training and inference pipelines?**
 
 A: Should be minimal impact if the `MettaAgent.forward()` interface remains unchanged. However, any pipeline code that directly accesses component internals or relies on LayerBase-specific behavior will need updates. This requires testing with actual training workflows.
+
+## Complete Example: MettaAgent Setup and Execution
+
+### Step 1: Define MettaModule Components
+
+```python
+class ObservationProcessor(MettaModule):
+    """Processes raw observations into features."""
+    
+    def __init__(self, obs_dim, feature_dim):
+        super().__init__(in_keys=["observation"], out_keys=["features"])
+        self.processor = nn.Linear(obs_dim, feature_dim)
+    
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        features = self.processor(tensordict["observation"])
+        tensordict["features"] = features
+        return tensordict
+
+class PolicyNetwork(MettaModule):
+    """Policy network that outputs actions."""
+    
+    def __init__(self, feature_dim, action_dim):
+        super().__init__(in_keys=["features"], out_keys=["action"])
+        self.policy = nn.Linear(feature_dim, action_dim)
+    
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        action = torch.tanh(self.policy(tensordict["features"]))
+        tensordict["action"] = action
+        return tensordict
+
+class ValueNetwork(MettaModule):
+    """Value network that estimates state values."""
+    
+    def __init__(self, feature_dim):
+        super().__init__(in_keys=["features"], out_keys=["value"])
+        self.value = nn.Linear(feature_dim, 1)
+    
+    def forward(self, tensordict: TensorDict) -> TensorDict:
+        value = self.value(tensordict["features"])
+        tensordict["value"] = value
+        return tensordict
+```
+
+### Step 2: MettaAgent Setup
+
+```python
+class MettaAgent(nn.Module):
+    def __init__(self, obs_dim=64, feature_dim=128, action_dim=8):
+        super().__init__()
+        
+        # Create ComponentContainer (enhanced version of current components registry)
+        self.components = ComponentContainer()
+        
+        # Create component instances
+        obs_processor = ObservationProcessor(obs_dim, feature_dim)
+        policy_net = PolicyNetwork(feature_dim, action_dim)
+        value_net = ValueNetwork(feature_dim)
+        
+        # Register components with their dependencies
+        self.components.register_component(
+            name="obs_processor", 
+            module=obs_processor, 
+            dependencies=[]  # No dependencies - reads raw observation
+        )
+        
+        self.components.register_component(
+            name="policy", 
+            module=policy_net, 
+            dependencies=["obs_processor"]  # Depends on processed features
+        )
+        
+        self.components.register_component(
+            name="value", 
+            module=value_net, 
+            dependencies=["obs_processor"]  # Also depends on processed features
+        )
+    
+    def forward(self, observation):
+        # Create initial tensordict
+        batch_size = observation.shape[0]
+        tensordict = TensorDict({"observation": observation}, batch_size=batch_size)
+        
+        # Request action (this will recursively pull all dependencies)
+        self.components.forward("policy", tensordict)
+        
+        return tensordict["action"]
+    
+    def get_value(self, observation):
+        # Create tensordict
+        batch_size = observation.shape[0]
+        tensordict = TensorDict({"observation": observation}, batch_size=batch_size)
+        
+        # Request value (this will recursively compute what's needed)
+        self.components.forward("value", tensordict)
+        
+        return tensordict["value"]
+```
+
+### Step 3: Computation Flow Example
+
+Let's trace through what happens when we call `agent.forward(observation)`:
+
+```python
+# Initial call
+agent = MettaAgent(obs_dim=64, feature_dim=128, action_dim=8)
+observation = torch.randn(4, 64)  # Batch of 4 observations
+action = agent.forward(observation)
+```
+
+**Detailed execution trace:**
+
+```python
+# 1. MettaAgent.forward() creates tensordict
+tensordict = TensorDict({"observation": torch.randn(4, 64)}, batch_size=4)
+
+# 2. agent.forward() calls: self.components.forward("policy", tensordict)
+
+# 3. ComponentContainer.forward("policy", tensordict):
+def forward(self, component_name: str, tensordict: TensorDict):
+    component = self[component_name]  # Get PolicyNetwork component
+    
+    # Check if "policy" outputs already computed
+    if all(out_key in tensordict for out_key in component.out_keys):  # Check for "action" in tensordict - NO
+        return tensordict
+    
+    # Recursively compute dependencies first
+    if component_name in self.dependencies:  # YES - "policy" depends on ["obs_processor"]
+        for dep_name in self.dependencies[component_name]:  # ["obs_processor"]
+            self.forward(dep_name, tensordict)  # RECURSIVE CALL
+
+# 4. ComponentContainer.forward("obs_processor", tensordict):
+def forward(self, component_name: str, tensordict: TensorDict):
+    component = self[component_name]  # Get ObservationProcessor component
+    
+    # Check if "obs_processor" outputs already computed
+    if all(out_key in tensordict for out_key in component.out_keys):  # Check for "features" in tensordict - NO
+        return tensordict
+    
+    # Recursively compute dependencies first
+    if component_name in self.dependencies:  # YES - "obs_processor" depends on []
+        for dep_name in self.dependencies[component_name]:  # [] - EMPTY
+            pass  # Nothing to do
+    
+    # Execute obs_processor component
+    component(tensordict)  # Calls ObservationProcessor.forward()
+    # tensordict now contains: {"observation": [...], "features": [...]}
+    return tensordict
+
+# 5. Back to ComponentContainer.forward("policy", tensordict):
+    # Dependencies satisfied, execute policy component
+    component(tensordict)  # Calls PolicyNetwork.forward()
+    # tensordict now contains: {"observation": [...], "features": [...], "action": [...]}
+    return tensordict
+
+# 6. Back to MettaAgent.forward():
+    return tensordict["action"]  # Return the computed action
+```
+
+### Step 4: Advanced Usage - Multiple Outputs
+
+```python
+def get_both_action_and_value(self, observation):
+    """Example showing efficient computation of multiple outputs."""
+    batch_size = observation.shape[0]
+    tensordict = TensorDict({"observation": observation}, batch_size=batch_size)
+    
+    # Request both action and value
+    self.components.forward("policy", tensordict)
+    self.components.forward("value", tensordict)
+    
+    # Both share the same feature computation - obs_processor runs only once!
+    return tensordict["action"], tensordict["value"]
+```
+
+**Efficiency of recursive pattern:**
+- `obs_processor` runs only once even though both `policy` and `value` depend on it
+- Automatic caching via checking if component outputs exist in tensordict
+- Only computes what's actually requested
+
+### Step 5: Wrapper Integration
+
+```python
+# Add safety wrapper to policy
+safe_policy = SafeModule(
+    module=PolicyNetwork(feature_dim=128, action_dim=8),
+    action_bounds=(-1.0, 1.0)
+)
+
+# Register wrapped component
+agent.components.register_component(
+    name="policy", 
+    module=safe_policy,  # Now wrapped with safety checks
+    dependencies=["obs_processor"]
+)
+
+# Execution flow identical - wrapper is transparent
+action = agent.forward(observation)  # Safety validation happens automatically
+```
+
+### Step 6: Hotswapping Components
+
+```python
+# Replace policy with a different architecture
+new_policy = PolicyNetwork(feature_dim=128, action_dim=16)  # Different action_dim
+agent.components.replace_component("policy", new_policy)
+
+# Execution flow unchanged - new policy automatically used
+action = agent.forward(observation)  # Now produces 16-dim actions
+```
+
+## Dynamic Graph Modification and Shape Management
+
+### Dynamic Hotswapping During Training
+
+Yes, the hotswapping capabilities are fully dynamic! The ComponentContainer supports real-time modifications:
+
+```python
+class ComponentContainer(nn.ModuleDict):
+    """Enhanced container supporting dynamic graph modifications."""
+    
+    def add_component(self, name, module, dependencies=None):
+        """Add new components during training."""
+        self[name] = module
+        self.dependencies[name] = dependencies or []
+    
+    def remove_component(self, name):
+        """Remove components and update dependencies."""
+        if name in self:
+            del self[name]
+            del self.dependencies[name]
+            # Clean up any dependencies that referenced this component
+            for comp_name, deps in self.dependencies.items():
+                if name in deps:
+                    deps.remove(name)
+    
+    def add_intermediate_layer(self, name, module, insert_between=None):
+        """Insert new layer between existing components."""
+        if insert_between:
+            parent, child = insert_between
+            # Update dependency chain: parent -> new_layer -> child
+            self.dependencies[child] = [name if dep == parent else dep 
+                                       for dep in self.dependencies[child]]
+            self.dependencies[name] = [parent]
+        
+        self[name] = module
+
+# Example: Adding layers during training
+def add_attention_layer_during_training(agent):
+    """Add attention mechanism between features and policy."""
+    
+    # Create new attention component
+    attention = AttentionModule(feature_dim=128)
+    
+    # Insert between obs_processor and policy
+    agent.components.add_intermediate_layer(
+        name="attention",
+        module=attention,
+        insert_between=("obs_processor", "policy")
+    )
+    
+    # Dependency graph automatically becomes:
+    # obs_processor -> attention -> policy
+    # obs_processor -> value (unchanged)
+    
+    # Next forward pass uses new architecture
+    action = agent.forward(observation)  # Now includes attention!
+
+# Example: A/B testing different architectures
+def switch_architecture_during_training(agent, use_lstm=True):
+    """Switch between feedforward and LSTM processing."""
+    
+    if use_lstm:
+        lstm_processor = LSTMProcessor(obs_dim=64, hidden_dim=128)
+        agent.components.replace_component("obs_processor", lstm_processor)
+    else:
+        ff_processor = ObservationProcessor(obs_dim=64, feature_dim=128)
+        agent.components.replace_component("obs_processor", ff_processor)
+    
+    # Training continues with new architecture immediately
+```
+
+### Shape Management and Compatibility
+
+The shape management is handled through a combination of explicit contracts and runtime validation:
+
+```python
+class ComponentContainer(nn.ModuleDict):
+    """Container with automatic shape inference and validation."""
+    
+    def _topological_sort(self):
+        """Helper method to get components in dependency order."""
+        visited = set()
+        temp_visited = set()
+        result = []
+        
+        def visit(component_name):
+            if component_name in temp_visited:
+                raise ValueError(f"Circular dependency detected involving '{component_name}'")
+            if component_name in visited:
+                return
+            
+            temp_visited.add(component_name)
+            for dep_name in self.dependencies.get(component_name, []):
+                visit(dep_name)
+            temp_visited.remove(component_name)
+            visited.add(component_name)
+            result.append(component_name)
+        
+        for component_name in self.keys():
+            if component_name not in visited:
+                visit(component_name)
+        
+        return result
+    
+    def infer_shapes(self, sample_input: TensorDict):
+        """Automatically infer and validate all component shapes."""
+        shape_registry = {}
+        
+        # Process components in dependency order
+        for component_name in self._topological_sort():
+            component = self[component_name]
+            
+            # Validate input shapes
+            for in_key in component.in_keys:
+                if in_key not in shape_registry:
+                    if in_key in sample_input:
+                        shape_registry[in_key] = sample_input[in_key].shape[1:]
+                    else:
+                        raise ValueError(f"Cannot infer shape for key '{in_key}'")
+            
+            # Mock forward pass to infer output shapes
+            mock_dict = {}
+            for in_key in component.in_keys:
+                mock_dict[in_key] = torch.zeros(1, *shape_registry[in_key])
+            
+            with torch.no_grad():
+                result = component(TensorDict(mock_dict, batch_size=1))
+            
+            # Record output shapes
+            for out_key in component.out_keys:
+                shape_registry[out_key] = result[out_key].shape[1:]
+        
+        return shape_registry
+    
+    def infer_component_shapes(self, component_name: str, sample_input: TensorDict, shape_registry: dict):
+        """Recursively infer shapes following the same pattern as execution."""
+        # Check if shapes already inferred (caching)
+        component = self[component_name]
+        if all(out_key in shape_registry for out_key in component.out_keys):
+            return shape_registry
+        
+        # Recursively infer dependency shapes first
+        if component_name in self.dependencies:
+            for dep_name in self.dependencies[component_name]:
+                self.infer_component_shapes(dep_name, sample_input, shape_registry)
+        
+        # Ensure all input shapes are available
+        for in_key in component.in_keys:
+            if in_key not in shape_registry:
+                if in_key in sample_input:
+                    shape_registry[in_key] = sample_input[in_key].shape[1:]
+                else:
+                    raise ValueError(f"Cannot infer shape for key '{in_key}': missing dependency")
+        
+        # Mock forward pass to infer this component's output shapes
+        mock_dict = {}
+        for in_key in component.in_keys:
+            mock_dict[in_key] = torch.zeros(1, *shape_registry[in_key])
+        
+        with torch.no_grad():
+            result = component(TensorDict(mock_dict, batch_size=1))
+        
+        # Record output shapes
+        for out_key in component.out_keys:
+            shape_registry[out_key] = result[out_key].shape[1:]
+        
+        return shape_registry
+
+    def validate_graph_compatibility(self, sample_input: TensorDict):
+        """Validate that all component shapes are compatible."""
+        try:
+            shape_registry = self.infer_shapes(sample_input)
+            print("Shape validation passed:")
+            for key, shape in shape_registry.items():
+                print(f"  {key}: {shape}")
+            return True
+        except Exception as e:
+            print(f"Shape validation failed: {e}")
+            return False
+    
+    def validate_component_shapes(self, component_name: str, sample_input: TensorDict):
+        """Validate shapes for a specific component using recursive inference."""
+        try:
+            shape_registry = {}
+            self.infer_component_shapes(component_name, sample_input, shape_registry)
+            print(f"Shape validation passed for '{component_name}' and dependencies:")
+            for key, shape in shape_registry.items():
+                print(f"  {key}: {shape}")
+            return True
+        except Exception as e:
+            print(f"Shape validation failed: {e}")
+            return False
+
+# Usage examples showing both approaches:
+
+# Approach 1: Validate entire graph (like current topological sort)
+agent = MettaAgent(obs_dim=64, feature_dim=128, action_dim=8)
+sample_obs = torch.randn(1, 64)
+sample_input = TensorDict({"observation": sample_obs}, batch_size=1)
+
+if agent.components.validate_graph_compatibility(sample_input):
+    print("Ready to train!")
+
+# Approach 2: Demand-driven validation (recursive, more efficient)
+# Only infer shapes needed for the "policy" component and its dependencies
+if agent.components.validate_component_shapes("policy", sample_input):
+    print("Policy component and dependencies are compatible!")
+
+# Approach 3: Dynamic shape checking when adding components
+def add_component_with_validation(agent, name, module, dependencies, sample_input):
+    """Add component with automatic shape validation."""
+    # Register the component
+    agent.components.register_component(name, module, dependencies)
+    
+    # Validate that it works with existing components
+    if agent.components.validate_component_shapes(name, sample_input):
+        print(f"Component '{name}' added successfully!")
+        return True
+    else:
+        # Remove if validation failed
+        agent.components.remove_component(name)
+        print(f"Component '{name}' failed validation and was removed")
+        return False
+```
+
+### Key Responsibilities:
+
+1. **ComponentContainer.infer_shapes()**: Automatically determines shape flow through the entire graph
+2. **ComponentContainer.validate_graph_compatibility()**: Ensures all components can work together  
+3. **MettaModule.validate_shapes()**: Runtime shape checking for individual components
+4. **Dynamic addition methods**: Handle shape validation when adding new components during training
+
+This approach provides:
+- **Explicit contracts**: Components declare their expected input/output shapes
+- **Automatic inference**: Container figures out the complete shape flow
+- **Runtime validation**: Catches shape mismatches during execution
+- **Dynamic safety**: Validates shapes when modifying graph during training
 
 ## Conclusion
 
