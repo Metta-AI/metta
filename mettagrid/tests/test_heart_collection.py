@@ -97,9 +97,10 @@ def heart_helpers():
     def get_agent_hearts(env, obs):
         """Get the number of hearts in agent's inventory from observations."""
         grid_features = env.grid_features()
-        if "agent:inv:heart" in grid_features:
-            feature_idx = grid_features.index("agent:inv:heart")
-            return int(np.sum(obs[:, :, feature_idx]))
+
+        if "inv:heart" in grid_features:
+            feature_idx = grid_features.index("inv:heart")
+            return obs[1, 1, feature_idx]
         return 0
 
     def perform_action(env, action_name, arg=0):
@@ -189,8 +190,9 @@ def test_heart_collection_basic(heart_env, heart_game_map, heart_helpers):
 
     print(f"Facing {Orientation.RIGHT}: hearts {hearts_before} → {hearts_after}, reward: {reward}, success: {success}")
 
-    if success and hearts_gained > 0:
-        hearts_collected = True
+    hearts_collected = success and hearts_gained > 0
+
+    if hearts_collected:
         print(f"✅ Successfully collected {hearts_gained} heart(s) when facing {Orientation.RIGHT}")
 
     assert hearts_collected, "Should be able to collect hearts from altar in at least one orientation"
