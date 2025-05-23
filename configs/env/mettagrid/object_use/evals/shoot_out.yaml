@@ -3,9 +3,11 @@ defaults:
   - _self_
 
 game:
-  num_agents: 1 #how many agents are in the map x2
+  num_agents: 1
   max_steps: 400
-
+  agent:
+    rewards:
+      heart: 1
   objects:
     altar:
       cooldown: 255
@@ -13,11 +15,6 @@ game:
       hp: 1
     lasery:
       initial_items: 20
-
-  agent:
-    rewards:
-      heart: 1
-
   map_builder:
     _target_: mettagrid.room.ascii.Ascii
     border_width: 1
