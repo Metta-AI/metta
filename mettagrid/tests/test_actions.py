@@ -188,10 +188,10 @@ def corridor_game_map():
 def direction_map():
     """Direction mapping for movement tests."""
     return {
-        "north": 0,  # up
-        "south": 1,  # down
-        "west": 2,  # left
-        "east": 3,  # right
+        "up": 0,  # up
+        "down": 1,  # down
+        "left": 2,  # left
+        "right": 3,  # right
     }
 
 
@@ -214,7 +214,7 @@ def test_agent_walks_across_room(configured_env, corridor_game_map, direction_ma
     )
 
     print(f"Environment created: {env.map_width()}x{env.map_height()}")
-    print(f"Initial timestep: {env.current_timestep}")
+    print(f"Initial timestep: {env.current_timestep()}")
 
     # Find a working direction
     successful_moves = []
@@ -223,7 +223,7 @@ def test_agent_walks_across_room(configured_env, corridor_game_map, direction_ma
     print("\n=== Testing which direction allows movement ===")
     working_direction = None
 
-    for direction_str in ["east", "west", "north", "south"]:
+    for direction_str in ["right", "left", "up", "down"]:
         orientation = direction_map[direction_str]
         print(f"\nTesting movement {direction_str}...")
 
@@ -319,8 +319,8 @@ def test_agent_walks_in_all_possible_directions(configured_env, corridor_game_ma
     print(f"Successful directions: {successful_directions}")
     print(f"Failed directions: {failed_directions}")
 
-    # Based on the corridor map, east should work (agent starts at (1,1), can move to (1,2))
-    # West should be blocked by wall, north/south might be blocked depending on exact positioning
+    # Based on the corridor map, "right" should work (agent starts at (1,1), can move to (1,2))
+    # left should be blocked by wall, up/down might be blocked depending on exact positioning
     assert len(successful_directions) >= 1, (
         f"Should be able to move in at least one direction. "
         f"Successful: {successful_directions}, Failed: {failed_directions}"

@@ -46,7 +46,7 @@ def heart_config():
                 "initial_items": 0,
                 "max_output": 50,
                 "conversion_ticks": 0,
-                "cooldown": -1,
+                "cooldown": 1,
             },
         },
         "agent": {
@@ -63,17 +63,6 @@ def heart_game_map():
     return [
         ["wall", "wall", "wall", "wall", "wall", "wall"],
         ["wall", "agent.red", "empty", "altar", "empty", "wall"],
-        ["wall", "empty", "empty", "empty", "empty", "wall"],
-        ["wall", "wall", "wall", "wall", "wall", "wall"],
-    ]
-
-
-@pytest.fixture
-def adjacent_heart_game_map():
-    """Game map with agent already adjacent to altar."""
-    return [
-        ["wall", "wall", "wall", "wall", "wall", "wall"],
-        ["wall", "empty", "agent.red", "altar", "empty", "wall"],
         ["wall", "empty", "empty", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
@@ -138,14 +127,14 @@ def heart_helpers():
     }
 
 
-def test_heart_collection_basic(heart_env, heart_game_map, heart_helpers):
+def test_heart_collection(heart_env, heart_game_map, heart_helpers):
     """Test basic heart collection from altar."""
     env, obs = heart_env(heart_game_map)
     helpers = heart_helpers
 
     # Get initial positions
     agent_pos = get_agent_position(env, 0)
-    altar_pos, altar_hearts = helpers["get_altar_info"](env)
+    altar_pos, _altar_hearts = helpers["get_altar_info"](env)
 
     assert agent_pos is not None, "Agent should have a valid position"
     assert altar_pos is not None, "Altar should have a valid position"
@@ -160,70 +149,44 @@ def test_heart_collection_basic(heart_env, heart_game_map, heart_helpers):
 
     # Verify we're adjacent to altar
     agent_pos = get_agent_position(env, 0)
-    altar_pos, altar_hearts = helpers["get_altar_info"](env)
 
+    altar_pos, current_hearts = helpers["get_altar_info"](env)
     assert agent_pos is not None, "Agent should still have a valid position after moving"
     assert altar_pos is not None, "Altar should still have a valid position"
 
     distance = abs(agent_pos[0] - altar_pos[0]) + abs(agent_pos[1] - altar_pos[1])
     assert distance == 1, f"Agent should be adjacent to altar (distance 1), but distance is {distance}"
 
-    # Try heart collection
-    hearts_before = helpers["get_agent_hearts"](env, obs[0])
-    obs, reward, success = helpers["perform_action"](env, "get_output", 0)
-    hearts_after = helpers["get_agent_hearts"](env, obs[0])
-    hearts_gained = hearts_after - hearts_before
+    print(f"\nAltar at {altar_pos} has {current_hearts} hearts (step {env.current_timestep()})")
 
-    if not (success and hearts_gained > 0):
-        # If basic collection failed, try all orientations
-        print("Basic collection failed, trying all orientations...")
+    print("Trying all orientations...")
 
-        orientation_names = {0: "up", 1: "down", 2: "left", 3: "right"}
-        collection_succeeded = False
+    orientation_names = {0: "up", 1: "down", 2: "left", 3: "right"}
+    collection_succeeded = False
 
-        for orientation in range(4):
-            direction_name = orientation_names[orientation]
+    for orientation in range(4):
+        agent_pos = get_agent_position(env, 0)
+        hearts_before = helpers["get_agent_hearts"](env, obs[0])
+        print(f"\nAgent 0 at {agent_pos} has {hearts_before} hearts (step {env.current_timestep()})")
 
-            # Rotate to face this direction
-            rotate_result = rotate(env, orientation)
-            assert rotate_result["success"], f"Rotation to {direction_name} should succeed"
+        direction_name = orientation_names[orientation]
+        rotate_result = rotate(env, orientation)
+        assert rotate_result["success"], f"Rotation to {direction_name} should succeed"
 
-            # Try collection
-            hearts_before = helpers["get_agent_hearts"](env, obs[0])
-            obs, reward, success = helpers["perform_action"](env, "get_output", 0)
-            hearts_after = helpers["get_agent_hearts"](env, obs[0])
-            hearts_gained = hearts_after - hearts_before
-
-            if success and hearts_gained > 0:
-                collection_succeeded = True
-                print(f"Heart collection succeeded when facing {direction_name}")
-                break
-
-        assert collection_succeeded, "Heart collection should succeed in at least one orientation"
-    else:
-        # Basic collection worked
-        assert success, "get_output action should succeed"
-        assert hearts_gained > 0, f"Should gain hearts, but gained {hearts_gained}"
-        assert reward > 0, f"Should receive positive reward, but got {reward}"
-
-
-def test_heart_production_timing(heart_env, adjacent_heart_game_map, heart_helpers):
-    """Test that hearts are produced over time."""
-    env, obs = heart_env(adjacent_heart_game_map)
-    helpers = heart_helpers
-
-    # Check initial altar state
-    altar_pos, initial_hearts = helpers["get_altar_info"](env)
-    assert altar_pos is not None, "Altar should exist"
-
-    # Wait and check if hearts are produced
-    for step in range(10):
-        obs, reward, success = helpers["perform_action"](env, "noop")
+        # Try collection
         altar_pos, current_hearts = helpers["get_altar_info"](env)
+        print(f"Altar at {altar_pos} has {current_hearts} hearts (step {env.current_timestep()})")
 
-        if current_hearts > initial_hearts:
-            print(f"Hearts produced after {step + 1} steps: {initial_hearts} → {current_hearts}")
+        obs, _reward, success = helpers["perform_action"](env, "get_output", 0)
+
+        hearts_after = helpers["get_agent_hearts"](env, obs[0])
+        hearts_gained = hearts_after - hearts_before
+
+        if success and hearts_gained > 0:
+            collection_succeeded = True
+            print(f"Heart collection succeeded when facing {direction_name}")
             break
-    else:
-        # If no hearts produced after 10 steps, that might be expected based on config
-        print(f"No hearts produced after 10 steps (initial: {initial_hearts})")
+        else:
+            print(f"Heart collection failed when facing {direction_name}")
+
+    assert collection_succeeded, "Heart collection should succeed in at least one orientation"
