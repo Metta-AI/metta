@@ -152,6 +152,7 @@ def create_metta_agent():
 
     return agent, comp1, comp2
 
+
 @pytest.fixture
 def metta_agent_with_actions(create_metta_agent):
     agent, _, _ = create_metta_agent
@@ -159,7 +160,6 @@ def metta_agent_with_actions(create_metta_agent):
     action_max_params = [1, 2, 0]
     agent.activate_actions(action_names, action_max_params, "cpu")
     return agent
-
 
 
 def test_clip_weights_calls_components(create_metta_agent):
