@@ -79,6 +79,11 @@
       "name": "Check x.md Content",
       "pattern": "(?i)\\b(file|content|implementation)\\b",
       "message": "Remember to check the x.md file for the current file contents and implementations"
+    },
+    {
+      "name": "Bash Environment",
+      "pattern": ".*",
+      "message": "Use bash with PATH including /opt/homebrew/bin and source .venv/bin/activate before python or pytest commands"
     }
   ]
 }

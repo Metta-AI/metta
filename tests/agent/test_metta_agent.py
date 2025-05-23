@@ -152,6 +152,15 @@ def create_metta_agent():
     return agent, comp1, comp2
 
 
+@pytest.fixture
+def metta_agent_with_actions(create_metta_agent):
+    agent, _, _ = create_metta_agent
+    action_names = ["action0", "action1", "action2"]
+    action_max_params = [1, 2, 0]
+    agent.activate_actions(action_names, action_max_params, "cpu")
+    return agent
+
+
 def test_clip_weights_calls_components(create_metta_agent):
     agent, comp1, comp2 = create_metta_agent
 
@@ -455,8 +464,16 @@ def test_action_conversion_edge_cases(create_metta_agent):
 
     # Convert back
     logit_indices = torch.tensor([9])
+
     result = agent._convert_logit_index_to_action(logit_indices)
     assert torch.all(result == torch.tensor([0, 9]))
+
+
+def test_convert_logit_index_to_action_invalid(metta_agent_with_actions):
+    agent = metta_agent_with_actions
+    invalid_index = agent.action_index_tensor.shape[0]
+    with pytest.raises((IndexError, RuntimeError)):
+        agent._convert_logit_index_to_action(torch.tensor([invalid_index]))
 
 
 def test_action_use(create_metta_agent):

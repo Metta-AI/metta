@@ -44,7 +44,16 @@ public:
     this->freeze_duration = cfg["freeze_duration"];
     this->orientation = 0;
     this->inventory.resize(InventoryItem::InventoryCount);
-    this->max_items = cfg["max_inventory"];
+    // We can specify default_item_max two ways, for backwards compatibility.
+    unsigned char default_item_max = cfg["max_inventory"] > 0 ? cfg["max_inventory"] : cfg["default_item_max"];
+    this->max_items_per_type.resize(InventoryItem::InventoryCount);
+    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+      if (cfg.find(InventoryItemNames[i] + "_max") != cfg.end()) {
+        this->max_items_per_type[i] = cfg[InventoryItemNames[i] + "_max"];
+      } else {
+        this->max_items_per_type[i] = default_item_max;
+      }
+    }
     this->resource_rewards.resize(InventoryItem::InventoryCount);
     for (int i = 0; i < InventoryItem::InventoryCount; i++) {
       this->resource_rewards[i] = rewards[InventoryItemNames[i]];
@@ -66,7 +75,7 @@ public:
   int update_inventory(InventoryItem item, short amount) {
     int current_amount = this->inventory[item];
     int new_amount = current_amount + amount;
-    new_amount = std::clamp(new_amount, 0, static_cast<int>(this->max_items));
+    new_amount = std::clamp(new_amount, 0, static_cast<int>(this->max_items_per_type[item]));
 
     int delta = new_amount - current_amount;
     this->inventory[item] = new_amount;
@@ -132,7 +141,7 @@ public:
   }
 
 private:
-  unsigned char max_items;
+  std::vector<unsigned char> max_items_per_type;
 };
 
 #endif
