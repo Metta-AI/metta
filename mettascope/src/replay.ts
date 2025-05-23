@@ -1,7 +1,7 @@
 import * as Common from './common.js';
-import { ctx, html, state, ui } from './common.js';
-import { onResize } from './main.js';
+import { ui, state, html, ctx } from './common.js';
 import { focusFullMap, requestFrame } from './worldmap.js';
+import { onResize } from './main.js';
 
 // Gets an attribute from a grid object respecting the current step.
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
@@ -177,14 +177,14 @@ function fixReplay() {
   // Create resource inventory mapping for faster access.
   // Example: "inv:heart" -> ["resources/heart.png", [1, 1, 1, 1]]
   // Example: "inv:ore.red" -> ["resources/ore.red.png", [1, 1, 1, 1]]
-  // Example: "inv:heart.blue" -> ["resources/heart.png", [0, 0, 1, 1]]
+  // Example: "agent:inv:heart.blue" -> ["resources/heart.png", [0, 0, 1, 1]]
   // Example: "inv:cat_food.red" -> ["resources/unknown.png", [1, 0, 0, 1]]
   state.replay.resource_inventory = new Map();
   for (const key of state.replay.all_keys) {
-    if (key.startsWith("inv:")) {
+    if (key.startsWith("inv:") || key.startsWith("agent:inv:")) {
       var type: string = key;
       type = removePrefix(type, "inv:")
-      type = removePrefix(type, "inv:");
+      type = removePrefix(type, "agent:inv:");
       var color = [1, 1, 1, 1]; // Default to white.
       for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
@@ -275,7 +275,7 @@ export function loadReplayStep(replayStep: any) {
   // Update the grid objects.
   const step = replayStep.step;
 
-  state.replay.max_steps = Math.max(state.replay.max_steps, step + 1);
+  state.replay.max_steps = Math.max(state.replay.max_steps, step+1);
   state.step = step; // Rewind to the current step.
 
   for (const gridObject of replayStep.grid_objects) {
