@@ -87,6 +87,6 @@ jobs:
         id: postAttachment
         with:
           asana-secret: ${{ secrets.ASANA_API_KEY }}
-          allowed-projects: ${{ vars.ASANA_PROJECT_GID }}
+        #   allowed-projects: ${{ vars.ASANA_PROJECT_GID }}
       - name: Get status
         run: echo "Status is ${{ steps.postAttachment.outputs.status }}"
