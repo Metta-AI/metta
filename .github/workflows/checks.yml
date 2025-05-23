@@ -147,10 +147,9 @@ jobs:
       - name: Run clang-format check
         run: |
           echo "Checking C++ formatting..."
-          find . -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
+          find metta mettagrid/mettagrid mettagrid/tests mettagrid/benchmarks -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
             -not -path "*/build/*" -not -path "*/venv/*" \
             -exec clang-format --dry-run --Werror {} +
-
 
   test:
     name: "Tests"
@@ -177,8 +176,9 @@ jobs:
           uv run pytest --maxfail=1 --disable-warnings -q
 
       - name: Run MettaGrid C++ tests
+        working-directory: mettagrid
         run: |
-          cd mettagrid
+          uv pip install -e .[dev]
           make
           make test
 

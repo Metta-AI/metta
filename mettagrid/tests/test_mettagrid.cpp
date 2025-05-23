@@ -1,7 +1,8 @@
 #include <gtest/gtest.h>
+#include <pybind11/embed.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
-#include <pybind11/embed.h>
+
 #include <cstdlib>
 
 #include "actions/attack.hpp"
@@ -51,7 +52,7 @@ private:
     }
   } python_config;
 
-  py::scoped_interpreter guard{}; // Keep Python alive for the duration of the test
+  py::scoped_interpreter guard{};  // Keep Python alive for the duration of the test
 };
 
 TEST_F(MettaGridTest, AgentCreation) {
