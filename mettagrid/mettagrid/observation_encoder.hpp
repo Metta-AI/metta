@@ -36,13 +36,16 @@ public:
     }
 
     // Generate an offset for each unique feature name.
-    std::map<std::string, size_t> features;
+    std::map<std::string, uint8_t> features;
 
     for (size_t type_id = 0; type_id < ObjectType::Count; ++type_id) {
       for (size_t i = 0; i < _type_feature_names[type_id].size(); ++i) {
         std::string feature_name = _type_feature_names[type_id][i];
         if (features.count(feature_name) == 0) {
           size_t index = features.size();
+          // We want to keep the index within the range of a byte since we plan to
+          // use this as a feature_id.
+          assert(index < 256);
           features.insert({feature_name, index});
           _feature_names.push_back(feature_name);
         }
@@ -61,7 +64,7 @@ public:
     encode(obj, obs, _offsets[obj->_type_id]);
   }
 
-  void encode(const GridObject* obj, ObsType* obs, const std::vector<unsigned int>& offsets) {
+  void encode(const GridObject* obj, ObsType* obs, const std::vector<uint8_t>& offsets) {
     obj->obs(obs, offsets);
   }
 
@@ -74,7 +77,7 @@ public:
   }
 
 private:
-  std::vector<std::vector<unsigned int>> _offsets;
+  std::vector<std::vector<uint8_t>> _offsets;
   std::vector<std::vector<std::string>> _type_feature_names;
   std::vector<std::string> _feature_names;
 };

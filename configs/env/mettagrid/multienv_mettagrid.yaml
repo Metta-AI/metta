@@ -6,6 +6,6 @@ game:
   num_agents: ${..num_agents}
 
 envs:
-  /env/mettagrid/simple: 0.5
-  /env/mettagrid/teams: 0.25
-  /env/mettagrid/bases: 0.25
+  - /env/mettagrid/simple
+  - /env/mettagrid/teams
+  - /env/mettagrid/bases

@@ -1,3 +1,21 @@
+"""
+Neural network layer library for Metta Agent.
+
+This module provides a collection of PyTorch neural network layers wrapped as Metta layers.
+Each class extends either LayerBase or ParamLayer to make standard PyTorch modules compatible
+with the Metta Agent framework, handling tensor shapes, parameter management, and integration
+with the TensorDict system.
+
+All layers in this library follow a consistent pattern:
+1. They inherit from LayerBase or ParamLayer
+2. They implement _make_net() to create the underlying PyTorch module
+3. They calculate and set the _out_tensor_shape based on the input shapes
+4. Most use the default _forward() implementation from LayerBase
+
+Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+"""
+
 from math import prod
 
 import torch
@@ -8,8 +26,12 @@ from metta.agent.lib.metta_layer import LayerBase, ParamLayer
 
 
 class Linear(ParamLayer):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a linear transformation to the incoming data: y = xA^T + b
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = [self._nn_params.out_features]
@@ -20,8 +42,12 @@ class Linear(ParamLayer):
 
 
 class ReLU(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies the rectified linear unit function element-wise: ReLU(x) = max(0, x)
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -29,8 +55,12 @@ class ReLU(LayerBase):
 
 
 class LayerNorm(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies Layer Normalization over a mini-batch of inputs
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -38,8 +68,12 @@ class LayerNorm(LayerBase):
 
 
 class Bilinear(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a bilinear transformation to the incoming data: y = x1 * A * x2^T + b
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = [self._nn_params.out_features]
@@ -59,8 +93,20 @@ class Bilinear(LayerBase):
 
 
 class Embedding(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    A lookup table that stores embeddings of fixed dictionary and size.
+
+    This layer stores embeddings for a fixed dictionary of indices, and retrieves
+    them based on input indices. The embeddings are initialized using an orthogonal
+    initialization and then scaled to have a maximum absolute value of 0.1.
+
+    The shape of the output embeddings is [num_indices, embedding_dim], where
+    num_indices can vary depending on the forward pass. Child layers should not
+    be sensitive to changes in the first dimension.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         # output shape [0] is the number of indices used in the forward pass which can change
@@ -79,8 +125,15 @@ class Embedding(LayerBase):
 
 
 class Conv2d(ParamLayer):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a 2D convolution over an input signal composed of several input channels.
+
+    This class automatically calculates output dimensions based on input shape,
+    kernel size, stride, and padding.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._set_conv_dims()
@@ -112,8 +165,12 @@ class Conv2d(ParamLayer):
 
 
 class MaxPool1d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a 1D max pooling over an input signal.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -121,8 +178,12 @@ class MaxPool1d(LayerBase):
 
 
 class MaxPool2d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a 2D max pooling over an input signal.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -130,8 +191,12 @@ class MaxPool2d(LayerBase):
 
 
 class AdaptiveAvgPool1d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a 1D adaptive average pooling over an input signal.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -139,8 +204,12 @@ class AdaptiveAvgPool1d(LayerBase):
 
 
 class AdaptiveAvgPool2d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a 2D adaptive average pooling over an input signal.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -148,8 +217,12 @@ class AdaptiveAvgPool2d(LayerBase):
 
 
 class AdaptiveMaxPool1d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a 1D adaptive max pooling over an input signal.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -157,8 +230,12 @@ class AdaptiveMaxPool1d(LayerBase):
 
 
 class AdaptiveMaxPool2d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a 2D adaptive max pooling over an input signal.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -166,8 +243,12 @@ class AdaptiveMaxPool2d(LayerBase):
 
 
 class AvgPool1d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a 1D average pooling over an input signal.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -175,8 +256,12 @@ class AvgPool1d(LayerBase):
 
 
 class AvgPool2d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies a 2D average pooling over an input signal.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -184,8 +269,12 @@ class AvgPool2d(LayerBase):
 
 
 class Dropout(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Randomly zeroes some of the elements of the input tensor with probability p.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -193,8 +282,12 @@ class Dropout(LayerBase):
 
 
 class Dropout2d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Randomly zero out entire channels of the input tensor with probability p.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -202,8 +295,12 @@ class Dropout2d(LayerBase):
 
 
 class AlphaDropout(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies Alpha Dropout, which maintains the mean and variance of the inputs.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -211,8 +308,12 @@ class AlphaDropout(LayerBase):
 
 
 class BatchNorm1d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies Batch Normalization over a 2D or 3D input.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -220,8 +321,12 @@ class BatchNorm1d(LayerBase):
 
 
 class BatchNorm2d(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Applies Batch Normalization over a 4D input.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
@@ -229,8 +334,12 @@ class BatchNorm2d(LayerBase):
 
 
 class Flatten(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    Flattens a contiguous range of dimensions into a single dimension.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = [prod(self._in_tensor_shapes[0])]
@@ -238,8 +347,12 @@ class Flatten(LayerBase):
 
 
 class Identity(LayerBase):
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
+    """
+    A placeholder identity layer that returns the input tensor unchanged.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()

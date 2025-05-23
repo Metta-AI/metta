@@ -53,10 +53,10 @@ def sample_float_distribution(cfg: FloatDistribution, rng: np.random.Generator) 
     elif isinstance(cfg, tuple) or isinstance(cfg, ListConfig):
         (dist_type, *args) = cfg
         if dist_type == "uniform":
-            assert len(args) == 2
+            assert len(args) == 2, "Uniform distribution requires [low, high]"
             return rng.uniform(args[0], args[1])
         elif dist_type == "lognormal":
-            assert len(args) == 2 or len(args) == 3
+            assert len(args) == 2 or len(args) == 3, "Lognormal distribution requires [mu, sigma] or [mu, sigma, max]"
             percentage = lognormal_from_90_percentile(args[0], args[1], rng)
             abs_max = args[2] if len(args) == 3 else None
             if abs_max is not None:
@@ -82,7 +82,7 @@ def sample_int_distribution(cfg: IntDistribution, rng: np.random.Generator) -> i
     elif isinstance(cfg, tuple) or isinstance(cfg, ListConfig):
         (dist_type, *args) = cfg
         if dist_type == "uniform":
-            assert len(args) == 2
+            assert len(args) == 2, "Uniform int distribution requires [low, high]"
             return rng.integers(args[0], args[1], endpoint=True)
         else:
             raise ValueError(f"Unknown distribution type: {dist_type}")

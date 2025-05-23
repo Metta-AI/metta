@@ -128,12 +128,13 @@ public:
     this->maybe_start_converting();
   }
 
-  void update_inventory(InventoryItem item, short amount) override {
-    HasInventory::update_inventory(item, amount);
+  int update_inventory(InventoryItem item, short amount) override {
+    int delta = HasInventory::update_inventory(item, amount);
     this->maybe_start_converting();
+    return delta;
   }
 
-  void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override {
+  void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = this->hp;
     obs[offsets[2]] = this->color;

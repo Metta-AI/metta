@@ -6,6 +6,18 @@ from metta.agent.lib.metta_layer import LayerBase
 
 
 class MergeLayerBase(LayerBase):
+    """
+    Base class for layers that combine multiple tensors from different sources.
+
+    This class provides the framework for merging tensors from multiple sources in various ways.
+    Subclasses implement specific merging operations (concatenation, addition, subtraction, averaging).
+    The class handles tensor shape validation, optional slicing of source tensors, and tracking of
+    input/output tensor dimensions.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
+
     def __init__(self, name, **cfg):
         self._ready = False
         super().__init__(name, **cfg)
@@ -80,10 +92,20 @@ class MergeLayerBase(LayerBase):
 
 
 class ConcatMergeLayer(MergeLayerBase):
-    """Concatenates tensors along a specified dimension. For vectors, use dim=1.
-    Using this for observations can concat channels (dim=1) with their
-    associated fields (). But concattenating widths and heights (dim=2 or dim=3) would
-    lead to different shapes of the field of view."""
+    """
+    Concatenates tensors along a specified dimension.
+
+    This layer combines multiple tensors by concatenating them along a specified dimension,
+    resulting in a larger tensor with the combined content. For vectors, use dim=1.
+    When used with observations, it can concatenate channels (dim=1) with their associated
+    fields. Note that concatenating along width and height dimensions (dim=2 or dim=3) would
+    lead to non-uniform shapes in the field of view.
+
+    All input tensors must use the same dimension for concatenation.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _setup_merge_layer(self):
         if not all(d == self.dims[0] for d in self.dims):
@@ -102,8 +124,15 @@ class ConcatMergeLayer(MergeLayerBase):
 
 
 class AddMergeLayer(MergeLayerBase):
-    """Combines tensors by adding their elements along a specified dimension,
-    keeping the same shape."""
+    """
+    Combines tensors by element-wise addition.
+
+    This layer adds multiple tensors element-wise, requiring that all input tensors have
+    identical shapes. The output tensor maintains the same shape as the inputs.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _setup_merge_layer(self):
         if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
@@ -120,6 +149,19 @@ class AddMergeLayer(MergeLayerBase):
 
 
 class SubtractMergeLayer(MergeLayerBase):
+    """
+    Subtracts the second tensor from the first tensor element-wise.
+
+    This layer performs element-wise subtraction between exactly two input tensors,
+    requiring that both tensors have identical shapes. The operation computes
+    outputs[0] - outputs[1], maintaining the same shape as the inputs.
+
+    Raises ValueError if more or fewer than exactly two sources are provided.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
+
     def _setup_merge_layer(self):
         if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
             raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {self.sizes}")
@@ -135,7 +177,16 @@ class SubtractMergeLayer(MergeLayerBase):
 
 
 class MeanMergeLayer(MergeLayerBase):
-    """Angrily takes the average, keeping the same shape."""
+    """
+    Computes the element-wise mean (average) of input tensors.
+
+    This layer calculates the average of all input tensors element-wise, requiring
+    that all tensors have identical shapes. The output tensor maintains the same
+    shape as the inputs.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def _setup_merge_layer(self):
         if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
@@ -153,9 +204,28 @@ class MeanMergeLayer(MergeLayerBase):
 
 
 class ExpandLayer(LayerBase):
-    """Expand a tensor along a specified dimension by either a given value (expand_value)
-    or a value from another tensor (dims_source and input_dim).
-    This layer has not been unit tested."""
+    """
+    Expands a tensor along a specified dimension.
+
+    This layer can expand a tensor in one of two ways:
+    1. By a fixed value specified by expand_value parameter
+    2. By deriving the expansion size from another tensor (specified by dims_source and source_dim)
+
+    The expanded dimension is inserted at the position specified by expand_dim.
+
+    Args:
+        name (str): Name of the layer
+        expand_dim (int): Dimension along which to expand (0 is batch dimension)
+        sources: Input source(s)
+        expand_value (int, optional): Fixed value to expand by
+        source_dim (int, optional): Dimension in the dims_source tensor to use for expansion
+        dims_source (str, optional): Name of tensor to get expansion size from
+
+    Note: This layer has not been unit tested.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def __init__(self, name, expand_dim, sources, expand_value=None, source_dim=None, dims_source=None, **cfg):
         super().__init__(name, sources, **cfg)
@@ -206,8 +276,23 @@ class ExpandLayer(LayerBase):
 
 
 class ReshapeLayer(LayerBase):
-    """Multiply two of the dims together, squeezing them into the squeezed_dim.
-    This layer has not been unit tested."""
+    """
+    Multiplies two dimensions together, squeezing them into a single dimension.
+
+    This layer combines two dimensions of a tensor by multiplying their sizes and
+    placing the result in the squeezed_dim position, while removing the popped_dim.
+    This is useful for flattening or reorganizing tensor dimensions.
+
+    Args:
+        name (str): Name of the layer
+        popped_dim (int): Dimension to be removed after multiplication
+        squeezed_dim (int): Dimension to place the combined result in
+
+    Note: This layer has not been unit tested.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def __init__(self, name, popped_dim, squeezed_dim, **cfg):
         self._ready = False
@@ -244,9 +329,23 @@ class ReshapeLayer(LayerBase):
 
 
 class BatchReshapeLayer(LayerBase):
-    """Expands at dim 1, sets equal to value at dim 0 div by B.
-    Then sets dim 0 to B. Finally, squeezes.
-    This layer has not been unit tested."""
+    """
+    Reshapes a tensor to introduce a time dimension from the batch dimension.
+
+    This layer takes a flattened batch of shape [B*TT, ...] and reshapes it to
+    [B, TT, ...] by inferring B from the "_BxTT_" value in the TensorDict.
+    It's typically used to convert between flattened and structured batch-time
+    representations.
+
+    The layer first expands the tensor at dimension 1, sets it equal to the value
+    at dimension 0 divided by B, sets dimension 0 to B, and finally squeezes
+    the tensor to remove any singleton dimensions.
+
+    Note: This layer has not been unit tested.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def __init__(self, name, **cfg):
         self._ready = False
@@ -273,8 +372,18 @@ class BatchReshapeLayer(LayerBase):
 
 
 class CenterPixelLayer(LayerBase):
-    """Returns the center pixel of a tensor shaped as (B, C, H, W).
-    H and W must be odd."""
+    """
+    Extracts the center pixel from a tensor with shape (B, C, H, W).
+
+    This layer selects only the center pixel from spatial dimensions H and W,
+    resulting in a tensor of shape (B, C). This is useful for focusing on the
+    central part of an image or feature map.
+
+    Note: H and W must be odd numbers for there to be a clear center pixel.
+
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
+    """
 
     def __init__(self, name, **cfg):
         super().__init__(name, **cfg)

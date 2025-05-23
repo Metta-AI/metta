@@ -7,13 +7,6 @@ print(f"\n===== applying conftest from {Path(__file__)} =====")
 
 # Add dependencies to sys.path if not already present
 base_dir = Path(__file__).resolve().parent
-deps_path = base_dir / "deps"
-pufferlib_path = deps_path / "pufferlib"
-mettagrid_path = deps_path / "mettagrid"
-
-for path in [str(deps_path), str(pufferlib_path), str(mettagrid_path)]:
-    if path not in sys.path:
-        sys.path.insert(0, path)
 
 print("\n===== DEBUG: Python sys.path =====")
 for i, path in enumerate(sys.path):

@@ -1,0 +1,54 @@
+.hidden {
+  display: none !important;
+}
+
+.hover-icon {
+  transition: opacity 0.3s ease;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.hover-icon:hover {
+  opacity: 1;
+}
+
+body,
+html {
+  overflow: hidden;
+  height: 100%;
+  background-color: black;
+  /* Prevent touch zooming */
+  touch-action: none;
+  -ms-touch-action: none;
+  /* Prevent content selection */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#info-panel {
+  white-space: pre-wrap;
+  overflow: auto;
+}
+#info-panel .info {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+#toast {
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+#toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+#toast.hiding {
+  opacity: 0;
+  /* Animate upward when hiding */
+  transform: translateX(-50%) translateY(-20px);
+}
+
+#modal.error {
+  background-color: #700707;
+  color: white;
+}

@@ -1,5 +1,5 @@
 defaults:
-  - sim
+  - sim_suite
   - _self_
 
 name: navigation

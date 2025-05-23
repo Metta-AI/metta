@@ -16,10 +16,6 @@ public:
     this->hp = cfg["hp"];
   }
 
-  virtual bool has_inventory() {  // TODO: make const
-    return false;
-  }
-
   virtual bool swappable() const {
     return false;
   }

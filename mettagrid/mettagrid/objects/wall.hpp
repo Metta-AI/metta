@@ -18,7 +18,7 @@ public:
     this->_swappable = cfg["swappable"];
   }
 
-  virtual void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override {
+  virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = this->hp;
     obs[offsets[2]] = this->_swappable;

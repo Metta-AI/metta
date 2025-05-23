@@ -1,7 +1,26 @@
-# docker login -u mettaai
-# docker push mettaai/metta:latest
-# docker push mettaai/metta-base:latest
+#!/bin/bash
 
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 767406518141.dkr.ecr.us-east-1.amazonaws.com
-docker tag mettaai/metta:latest 767406518141.dkr.ecr.us-east-1.amazonaws.com/metta:latest
-docker push 767406518141.dkr.ecr.us-east-1.amazonaws.com/metta:latest
+REGION=us-east-1
+ACCOUNT_ID="$1"
+DOCKER_PASSWORD="$2"
+
+if [ -z "$ACCOUNT_ID" ]; then
+  ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+fi
+
+if [ -z "$ACCOUNT_ID" ]; then
+  echo "Failed to get ACCOUNT_ID"
+  exit 1
+fi
+
+HOST="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com"
+
+echo "Uploading metta image to $HOST"
+
+if [ -z "$DOCKER_PASSWORD" ]; then
+  DOCKER_PASSWORD=$(aws ecr get-login-password --region $REGION)
+fi
+
+echo "$DOCKER_PASSWORD" | docker login --username AWS --password-stdin $HOST
+docker tag mettaai/metta:latest $HOST/metta:latest
+docker push $HOST/metta:latest

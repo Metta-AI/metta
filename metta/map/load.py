@@ -1,5 +1,5 @@
 from metta.map.utils.storable_map import StorableMap
-from mettagrid.config.room.room import Room
+from mettagrid.room.room import Room
 
 from .scene import SceneCfg, make_scene
 

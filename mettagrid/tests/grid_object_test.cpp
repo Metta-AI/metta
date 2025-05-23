@@ -41,7 +41,7 @@ TEST_F(GridLocationTest, ThreeParamConstructor) {
 // Concrete implementation of GridObject for testing
 class TestGridObject : public GridObject {
 public:
-  void obs(ObsType* obs, const vector<unsigned int>& offsets) const override {
+  void obs(ObsType* obs, const vector<uint8_t>& offsets) const override {
     // Simple implementation for testing
     obs[offsets[0]] = 1;
   }
@@ -91,7 +91,7 @@ TEST_F(GridObjectTest, InitWithCoordinatesAndLayer) {
 // Test obs method
 TEST_F(GridObjectTest, ObsMethod) {
   ObsType observations[1] = {0};
-  vector<unsigned int> offsets = {0};
+  vector<uint8_t> offsets = {0};
 
   obj.obs(observations, offsets);
 

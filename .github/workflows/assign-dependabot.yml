@@ -36,7 +36,10 @@ jobs:
           possible-reviewers: ${{ vars.DEPENDABOT_REVIEWERS || '' }}
           forced-assignees: ${{ vars.DEPENDABOT_FORCED_ASSIGNEES || '' }}
           forced-reviewers: ${{ vars.DEPENDABOT_FORCED_REVIEWERS || '' }}
-          forced-labels: ${{ vars.DEPENDABOT_FORCED_LABELS || '' }}
+          forced-labels: ""
+          clear-existing-assignees: "true"
+          clear-existing-reviewers: "true"
+          clear-existing-labels: "true"
 
       - name: Process all open Dependabot PRs
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.specific-pr == '')
@@ -48,7 +51,11 @@ jobs:
           POSSIBLE_REVIEWERS: ${{ vars.DEPENDABOT_REVIEWERS || '' }}
           FORCED_ASSIGNEES: ${{ vars.DEPENDABOT_FORCED_ASSIGNEES || '' }}
           FORCED_REVIEWERS: ${{ vars.DEPENDABOT_FORCED_REVIEWERS || '' }}
-          FORCED_LABELS: ${{ vars.DEPENDABOT_FORCED_LABELS || '' }}
+          # Define local variables for the clear flags and empty labels
+          FORCED_LABELS: ""
+          CLEAR_ASSIGNEES: "true"
+          CLEAR_REVIEWERS: "true"
+          CLEAR_LABELS: "true"
         run: |
           echo "Finding all open Dependabot PRs..."
           # Get all open PRs created by Dependabot
@@ -71,7 +78,7 @@ jobs:
             fi
 
             echo "Processing Dependabot PR #$PR_NUMBER"
-            ./.github/actions/pr-assignment/run.sh "$PR_NUMBER" "$POSSIBLE_ASSIGNEES" "$POSSIBLE_REVIEWERS" "$FORCED_ASSIGNEES" "$FORCED_REVIEWERS" "$FORCED_LABELS"
+            ./.github/actions/pr-assignment/run.sh "$PR_NUMBER" "$POSSIBLE_ASSIGNEES" "$POSSIBLE_REVIEWERS" "$FORCED_ASSIGNEES" "$FORCED_REVIEWERS" "$FORCED_LABELS" "$CLEAR_ASSIGNEES" "$CLEAR_REVIEWERS" "$CLEAR_LABELS"
             sleep 2
           done
 

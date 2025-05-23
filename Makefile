@@ -1,30 +1,51 @@
-.PHONY: all install build test clean
+.PHONY: help all install test clean test-python check-venv
 
-# Default target
-all: test
+
+# Default target when just running 'make'
+help:
+	@echo "Available targets:"
+	@echo " install - Prepare the dev environment"
+	@echo " test - Run all unit tests"
+	@echo " all - Run install and test"
+	@echo " clean - Remove build artifacts and temporary files"
+
+
+# Check if we're in a virtual environment
+check-venv:
+	@if [ -z "$$VIRTUAL_ENV" ]; then \
+		echo "ERROR: Not in a virtual environment!"; \
+		echo "Please activate the virtual environment first with:"; \
+		echo "  source .venv/bin/activate"; \
+		exit 1; \
+	else \
+		echo "... in active virtual environment: $$VIRTUAL_ENV"; \
+	fi
+
+clean:
+	@echo "(Metta) Cleaning root build artifacts..."
+	@echo "(Metta) Removing all '.so' files (excluding .venv)"
+	@find . -type f -name '*.so' -not -path "./.venv/*" -delete || true
+	@echo "(Metta) Removing build directories (excluding .venv)"
+	@find . -type d -name 'build' -not -path "./.venv/*" -print0 | xargs -0 rm -rf 2>/dev/null || true
+	@echo "(Metta) Cleaning mettagrid build artifacts..."
+	@if [ -d "mettagrid" ]; then \
+		cd mettagrid && $(MAKE) clean || true; \
+	else \
+		echo "(Metta) mettagrid directory not found, skipping"; \
+	fi
+	@echo "(Metta) Cleaning uv build cache..."
+	rm -rf ~/.cache/uv/builds-v0
+	@echo "(Metta) Clean completed successfully"
 
 # Install all project dependencies and external components
 install:
-	@echo "Running full install..."
+	@echo "Running full devops/setup_build installation script..."
 	@bash devops/setup_build.sh
 
-# Build the C/C++ extension in-place
-build:
-	@echo "Building mettagrid extension..."
-	cd mettagrid && python setup.py build_ext --inplace
-	@echo "Building metta extensions..."
-	python setup.py build_ext --inplace
+test-python: check-venv
+	@echo "Running python tests with coverage"
+	pytest --cov=metta --cov-report=term-missing
 
-# Run tests with coverage
-test: build
-	@echo "Running tests with coverage..."
-	PYTHONPATH=deps pytest --cov=mettagrid --cov-report=term-missing
+test: test-python
 
-# Clean build artifacts
-clean:
-	@echo "Cleaning build artifacts..."
-	find . -type f -name '*.so' -delete
-	find . -type d -name '__pycache__' -exec rm -rf {} +
-	find . -type d -name 'build' -exec rm -rf {} +
-	find . -type d -name '*.egg-info' -exec rm -rf {} +
-	find . -type f -name '.coverage' -delete
+all: clean install check-venv test

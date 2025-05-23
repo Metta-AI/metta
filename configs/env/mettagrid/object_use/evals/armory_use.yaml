@@ -1,16 +1,13 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/object_use/evals/defaults@
   - _self_
 
 game:
-  num_agents: 20
   max_steps: 100
-
   agent:
     rewards:
       armor: 1
       ore.red: 0
-
   objects:
     mine.red:
       initial_items: 3
@@ -21,18 +18,6 @@ game:
       cooldown: 255
 
   map_builder:
-    _target_: mettagrid.config.room.multi_room.MultiRoom
-    num_rooms: 20
-    border_width: 3
-
-    room:
-      _target_: mettagrid.config.room.random.Random
-      width: 15
-      height: 15
-      border_width: 3
-
-      agents: 1
-
-      objects:
-        armory: 1
-        mine: 1
+    objects:
+      armory: 1
+      mine: 1
