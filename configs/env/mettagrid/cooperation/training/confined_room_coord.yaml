@@ -8,18 +8,18 @@ sampling: 1
 game:
   max_steps: ${sampling:100,500,250} # Reduce and randomize the episode length
   num_agents: 8
+  
+  agent:
+    rewards:
+      ore.red: 0.005
+      ore.blue: 0.005
+      ore.green: 0.005
+      battery: 0.01
+      heart: 0.1 # Reduce heart reward
+
   map_builder:
     _target_: mettagrid.room.room_list.RoomList
     border_width: 6
-
-
-    agent:
-      rewards:
-        ore.red: 0.005
-        ore.blue: 0.005
-        ore.green: 0.005
-        battery: 0.01
-        heart: 0.1 # Reduce heart reward
 
     # Sample small rooms with a few mines, generators, and altars.
     rooms:
