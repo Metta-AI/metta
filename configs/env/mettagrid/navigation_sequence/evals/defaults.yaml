@@ -15,7 +15,7 @@ game:
       heart: 1.0
       ore.red: 0
       battery: 0
-    max_inventory: 100
+    default_item_max: 100
     freeze_duration: 0
 
   objects:

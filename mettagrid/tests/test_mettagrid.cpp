@@ -37,7 +37,7 @@ protected:
     agent_cfg["ore.green_max"] = 100;
 
     py::dict group_cfg;
-    group_cfg["max_inventory"] = 123;
+    group_cfg["default_item_max"] = 123;
     py::dict group_rewards;
     group_rewards["ore.red"] = 0.0;    // Should override agent ore.red reward
     group_rewards["ore.green"] = 0.5;  // New reward

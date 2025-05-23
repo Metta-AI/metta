@@ -41,7 +41,7 @@ export function initActionButtons() {
   })
 
   find("#action-buttons .attack").addEventListener('click', () => {
-    sendAction("attack", 2)
+    state.showAttackMode = true;
   })
 
   find("#action-buttons .attack-nearest").addEventListener('click', () => {
