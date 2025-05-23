@@ -520,8 +520,8 @@ function drawThoughtBubbles() {
 
       // Draw resources lost on the left and gained on the right.
       for (const [key, [image, color]] of state.replay.resource_inventory) {
-        const prevResources = getAttr(state.selectedGridObject, key, actionStep);
-        const nextResources = getAttr(state.selectedGridObject, key, actionStep + 1);
+        const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1);
+        const nextResources = getAttr(state.selectedGridObject, key, actionStep);
         const gained = nextResources - prevResources;
         var resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2;
         var resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2;
