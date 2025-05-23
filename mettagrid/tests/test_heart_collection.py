@@ -14,6 +14,9 @@ from mettagrid.tests.actions import (
     rotate,
 )
 
+OBS_WIDTH = 3  # should be odd
+OBS_HEIGHT = 3  # should be odd
+
 
 @pytest.fixture
 def heart_config():
@@ -21,8 +24,8 @@ def heart_config():
     return {
         "max_steps": 50,
         "num_agents": 1,
-        "obs_width": 3,
-        "obs_height": 3,
+        "obs_width": OBS_WIDTH,
+        "obs_height": OBS_HEIGHT,
         "actions": {
             "noop": {"enabled": True},
             "get_items": {"enabled": True},
@@ -100,7 +103,7 @@ def heart_helpers():
 
         if "inv:heart" in grid_features:
             feature_idx = grid_features.index("inv:heart")
-            return obs[1, 1, feature_idx]
+            return obs[OBS_WIDTH // 2, OBS_HEIGHT // 2, feature_idx]
         return 0
 
     def perform_action(env, action_name, arg=0):

@@ -12,6 +12,9 @@ from mettagrid.tests.actions import (
     np_truncations_type,
 )
 
+OBS_WIDTH = 3  # should be odd
+OBS_HEIGHT = 3  # should be odd
+
 
 @pytest.fixture
 def base_config():
@@ -19,8 +22,8 @@ def base_config():
     return {
         "max_steps": 50,
         "num_agents": 1,
-        "obs_width": 3,
-        "obs_height": 3,
+        "obs_width": OBS_WIDTH,
+        "obs_height": OBS_HEIGHT,
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
