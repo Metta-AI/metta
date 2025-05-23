@@ -317,6 +317,14 @@ class PufferTrainer:
     def _on_train_step(self):
         pass
 
+    def _apply_episode_diversity_bonus(self, multiplier, episode_length):
+        """Apply diversity bonus to the most recent episode_length rewards in buffer."""
+        # Calculate which buffer positions to modify
+        start_idx = self.experience.ptr - episode_length
+        end_idx = self.experience.ptr
+        
+        self.experience.rewards_np[start_idx:end_idx] *= multiplier
+
     @profile
     def _rollout(self):
         experience, profile = self.experience, self.profile
@@ -377,6 +385,9 @@ class PufferTrainer:
                 for i in info:
                     for k, v in unroll_nested_dict(i):
                         infos[k].append(v)
+                    
+                    if "diversity_bonus" in i:
+                        self._apply_episode_diversity_bonus(i["diversity_bonus"], i["episode_length"])
 
             with profile.env:
                 self.vecenv.send(actions)
