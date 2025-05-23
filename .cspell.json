@@ -8,6 +8,7 @@
     "autogroup",
     "autostop",
     "autostops",
+    "bencherdev",
     "bint",
     "Bloomin",
     "boundscheck",
@@ -89,6 +90,7 @@
     "malloc",
     "matplotlib",
     "maxcolwidths",
+    "maxfail",
     "memcpy",
     "metta",
     "mettabox",
@@ -159,6 +161,7 @@
     "virtualenv",
     "vloss",
     "wandb",
+    "Werror",
     "xlarge"
   ],
   "ignoreWords": [],
