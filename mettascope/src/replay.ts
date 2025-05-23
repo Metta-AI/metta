@@ -272,8 +272,6 @@ async function loadReplayJson(url: string, replayData: any) {
 export function loadReplayStep(replayStep: any) {
   // This gets us a simple replay step that we can overwrite.
 
-  console.log("Loading replay step: ", replayStep);
-
   // Update the grid objects.
   const step = replayStep.step;
 

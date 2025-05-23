@@ -147,7 +147,7 @@ export function drawTrace(panel: PanelInfo) {
       }
 
       // Draw resource gain/loss.
-      if (state.showResources) {
+      if (state.showResources && j > 0) {
         // Figure out how many resources to draw.
         var number = 0;
         for (const [key, [image, color]] of state.replay.resource_inventory) {
