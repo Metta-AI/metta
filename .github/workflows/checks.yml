@@ -672,9 +672,9 @@ jobs:
         uses: ./.github/actions/setup-python-uv
 
       - name: CMake
-        working-directory: mettagrid
         run: |
           source .venv/bin/activate
+          cd mettagrid
           make
 
       - name: Run benchmarks with JSON output
