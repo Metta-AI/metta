@@ -137,7 +137,7 @@ class TestRewardSystem:
         cfg = get_cfg("benchmark")
         env = MettaGridEnv(cfg, render_mode=None, _recursive_=False, seed=42)
 
-        obs, info = env.reset(seed=42)
+        _obs, _info = env.reset(seed=42)
         action_names = env.action_names
         get_output_idx = action_names.index("get_output")
 
@@ -170,7 +170,7 @@ class TestRewardSystem:
         # We'll use the benchmark environment and check that rewards are reasonable
 
         cfg = get_cfg("benchmark")
-        env = MettaGridEnv(cfg, render_mode=None, _recursive_=False, seed=42)
+        _env = MettaGridEnv(cfg, render_mode=None, _recursive_=False, seed=42)
 
         # Check that benchmark rewards are configured
         rewards_config = cfg.game.agent.rewards
