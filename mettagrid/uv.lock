@@ -6,21 +6,3 @@ requires-python = "==3.11.7"
 name = "mettagrid"
 version = "0.1.6"
 source = { editable = "." }
-
-[package.optional-dependencies]
-dev = [
-    { name = "pybind11" },
-]
-
-[package.metadata]
-requires-dist = [{ name = "pybind11", marker = "extra == 'dev'", specifier = "==2.10.4" }]
-provides-extras = ["dev"]
-
-[[package]]
-name = "pybind11"
-version = "2.10.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/bb/f9/a526ea001ecadd48d90ed7a61038b5ba732136d76b60357d23dc37521c58/pybind11-2.10.4.tar.gz", hash = "sha256:0bb621d3c45a049aa5923debb87c5c0e2668227905c55ebe8af722608d8ed927", size = 200838, upload-time = "2023-03-16T22:27:14.961Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/ed/68e989fdac8f352cb6d506fac111ba1e1b74c0ef3660fadeeeeb765bc03c/pybind11-2.10.4-py3-none-any.whl", hash = "sha256:ec9be0c45061c829648d7e8c98a7d041768b768c934acd15196e0f1943d9a818", size = 222321, upload-time = "2023-03-16T22:27:12.868Z" },
-]
