@@ -6,12 +6,12 @@ defaults:
 sampling: 1
 
 game:
+  max_steps: ${sampling:100,500,250} # Reduce and randomize the episode length
   num_agents: 8
   map_builder:
     _target_: mettagrid.room.room_list.RoomList
     border_width: 6
 
-    max_steps: ${sampling:100,500,250} # Reduce and randomize the episode length
 
     agent:
       rewards:
