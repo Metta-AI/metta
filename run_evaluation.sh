@@ -59,20 +59,14 @@ for i in "${!POLICIES[@]}"; do
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/navigation_db \
-<<<<<<< HEAD
         # device=cpu \
-=======
->>>>>>> c5bcee8ddfb77e323446ac0b207c7450dd9aeda9
 
     python3 -m tools.sim \
         sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/memory_db \
-<<<<<<< HEAD
         # device=cpu \
-=======
->>>>>>> c5bcee8ddfb77e323446ac0b207c7450dd9aeda9
 
     python3 -m tools.sim \
         sim=object_use \
