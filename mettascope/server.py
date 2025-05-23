@@ -29,7 +29,7 @@ def make_app(cfg: DictConfig):
         except FileNotFoundError as err:
             raise HTTPException(status_code=404, detail="Client HTML file not found") from err
 
-    @app.get("/{path:path}.css")
+    @app.get("/{path}.css")
     async def get_style_css(path: str):
         if "/" in path or "." in path:
             raise HTTPException(status_code=400, detail="Path must not contain '/' or '.'")
