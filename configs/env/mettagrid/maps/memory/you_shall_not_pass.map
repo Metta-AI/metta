@@ -3,6 +3,7 @@ W       A        W
 W                W
 W                W
 WWWWWW     WWWWWWW
+<<<<<<< HEAD
 W  a W     W  n  W
 W    W     W     W
 W    W     W     W
@@ -11,6 +12,16 @@ W n  W     W     W
 W    W     W a   W
 W    W     W     W
 W  m W     W m   W
+=======
+W  a W     W  a  W
+W    W     W     W
+W    W     W     W
+W    W     W     W
+W a  W     W     W
+W    W     W a   W
+W    W     W     W
+W  a W     W a   W
+>>>>>>> bacce50a4e64e5e597c39e56412d57c3d2af06cb
 W    W     W     W
 W    W     WWWWWWW
 W    W     W     W
@@ -32,4 +43,8 @@ W    W     W     W
 W                W
 W                W
 W                W
+<<<<<<< HEAD
 WWWWWWWWWWWWWWWWWW
+=======
+WWWWWWWWWWWWWWWWWW
+>>>>>>> bacce50a4e64e5e597c39e56412d57c3d2af06cb
