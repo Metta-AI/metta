@@ -22,7 +22,7 @@ pip_install(
 
 http_archive(
     name="com_google_googletest",
-    sha256="b4872594d7a0340caa8c4a2a4a0d1c1e6c6e3e2c1e6c6e3e2c1e6c6e3e2c1e6c",  # Update with actual sha256 if needed
+    sha256="81964fe578e9bd7c94dfdb09c8e4d6e6759e19967e397dbea48d1c10e45d0df2",  # googletest-release-1.12.1
     strip_prefix="googletest-release-1.12.1",
     urls=["https://github.com/google/googletest/archive/refs/tags/release-1.12.1.tar.gz"],
 )
