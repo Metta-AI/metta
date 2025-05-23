@@ -29,8 +29,19 @@ dependencies = { file = ["requirements.txt", "requirements_pinned.txt"] }
 source = ["mettagrid", "metta"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_functions = ["test_*"]
-python_classes = ["Test*"]
-filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests/agent/lib",
+]
+norecursedirs = [
+    "tests/eval",
+    "tests/sim",
+    "tests/map",
+    "tests/rl",
+    "tests/tools",
+    "tests/util"
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
