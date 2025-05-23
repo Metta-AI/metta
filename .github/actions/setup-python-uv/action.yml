@@ -20,12 +20,11 @@ runs:
     - name: Create virtual environment with uv
       shell: bash
       run: |
-        uv venv .venv
+        uv venv
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
 
     - name: Install pip requirements in venv
-      if: ${{ inputs.skip_requirements != 'true' }}
       shell: bash
       run: |
         uv pip install -r requirements.txt
@@ -33,7 +32,6 @@ runs:
     - name: Build Metta C++ code
       shell: bash
       run: |
-        cd mettagrid
         uv pip install -e .
 
     - name: Build MettaGrid
