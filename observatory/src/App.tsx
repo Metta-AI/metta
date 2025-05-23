@@ -130,13 +130,10 @@ function App() {
 
   // UI state
   const [selectedMetric, setSelectedMetric] = useState<string>("reward")
-  const [selectedEval, setSelectedEval] = useState<string | null>(null)
-  const [selectedReplayUrl, setSelectedReplayUrl] = useState<string | null>(null)
+  const [selectedSuite, setSelectedSuite] = useState<string>("navigation")
   const [isViewLocked, setIsViewLocked] = useState(false)
-  const [isMouseOverMap, setIsMouseOverMap] = useState(false)
-  const [isMouseOverHeatmap, setIsMouseOverHeatmap] = useState(false)
   const [lastHoveredCell, setLastHoveredCell] = useState<{shortName: string, policyUri: string} | null>(null)
-  const [selectedSuite, setSelectedSuite] = useState<string>("")
+  const [selectedCell, setSelectedCell] = useState<{shortName: string, policyUri: string} | null>(null)
   
   
   // Map image URL helper
@@ -332,78 +329,41 @@ function App() {
 
   // Map viewer functions
   const handleHeatmapHover = (event: any) => {
-    if (!event.points?.[0]) return;
+    if (!event.points?.[0]) return
     
-    const shortName = event.points[0].x;
-    const policyUri = event.points[0].y;
+    const shortName = event.points[0].x
+    const policyUri = event.points[0].y
     
-    if (shortName.toLowerCase() === 'overall' || isViewLocked) return;
-    
+    setLastHoveredCell({ shortName, policyUri })
+    if (!isViewLocked && !(shortName === "overall")) {
+      setSelectedCell({shortName, policyUri})
+    }
+  };
+
+  const openReplayUrl = (policyUri: string, evalShortName: string) => {
     const policyData = evalLookupMap.get(policyUri);
     if (!policyData) return;
     
-    const evalData = policyData.get(shortName);
-    if (!evalData) return;
-    
-    setLastHoveredCell({ shortName, policyUri });
-    setSelectedEval(evalData.evalName);
-    setSelectedReplayUrl(evalData.replayUrl);
-  };
-
-  const handleHeatmapDoubleClick = () => {
-    if (!lastHoveredCell || lastHoveredCell.shortName.toLowerCase() === 'overall') return;
-    
-    const policyData = evalLookupMap.get(lastHoveredCell.policyUri);
-    if (!policyData) return;
-    
-    const evalData = policyData.get(lastHoveredCell.shortName);
+    const evalData = policyData.get(evalShortName);
     if (!evalData?.replayUrl) return;
     
     const replay_url_prefix = "https://metta-ai.github.io/metta/?replayUrl=";
     window.open(replay_url_prefix + evalData.replayUrl, '_blank');
-  };
+  }
 
-  const handleHeatmapLeave = () => {
-    setIsMouseOverHeatmap(false);
-    if (!isViewLocked && !isMouseOverMap) {
-      setTimeout(() => {
-        if (!isMouseOverHeatmap && !isMouseOverMap) {
-          setSelectedEval(null);
-          setSelectedReplayUrl(null);
-        }
-      }, 100);
+  const handleHeatmapDoubleClick = () => {
+    if (lastHoveredCell) {
+      openReplayUrl(lastHoveredCell.policyUri, lastHoveredCell.shortName)
     }
-  };
-
-  const handleHeatmapEnter = () => {
-    setIsMouseOverHeatmap(true);
   };
 
   const toggleLock = () => {
     setIsViewLocked(!isViewLocked);
   };
 
-  const handleMapEnter = () => {
-    setIsMouseOverMap(true);
-  };
-
-  const handleMapLeave = () => {
-    setIsMouseOverMap(false);
-    if (!isViewLocked) {
-      setTimeout(() => {
-        if (!isMouseOverHeatmap && !isMouseOverMap) {
-          setSelectedEval(null);
-          setSelectedReplayUrl(null);
-        }
-      }, 100);
-    }
-  };
-
   const handleReplayClick = () => {
-    const replay_url_prefix = "https://metta-ai.github.io/metta/?replayUrl="
-    const replay_url = selectedReplayUrl ? replay_url_prefix + selectedReplayUrl : null
-    if (replay_url) {
-      window.open(replay_url, '_blank');
+    if (selectedCell ) {
+      openReplayUrl(selectedCell.policyUri, selectedCell.shortName)
     }
   };
 
@@ -433,6 +393,10 @@ function App() {
       }
     }
   }
+
+  const selectedCellData = selectedCell ? evalLookupMap.get(selectedCell.policyUri)?.get(selectedCell.shortName) : null
+  const selectedEval = selectedCellData?.evalName
+  const selectedReplayUrl = selectedCellData?.replayUrl
   
   return (
     <div style={{ 
@@ -472,38 +436,36 @@ function App() {
           ))}
         </div>
         
-        <div onMouseEnter={handleHeatmapEnter} onMouseLeave={handleHeatmapLeave}>
-          <Plot
-            data={[data]}
-            layout={{
-              title: {
-                text: `Policy Evaluation Report: ${selectedMetric}`,
-                font: {
-                  size: 24
-                }
-              },
-              height: 600,
-              width: 1000,
-              margin: { t: 50, b: 150, l: 200, r: 50 },
-              xaxis: {
-                tickangle: -45
-              },
-              yaxis: {
-                tickangle: 0,
-                automargin: true,
-                ticktext: y_label_texts,
-                tickvals: Array.from({ length: y_labels.length }, (_, i) => i),
-                tickmode: 'array'
+        <Plot
+          data={[data]}
+          layout={{
+            title: {
+              text: `Policy Evaluation Report: ${selectedMetric}`,
+              font: {
+                size: 24
               }
-            }}
-            style={{
-              margin: '0 auto',
-              display: 'block'
-            }}
-            onHover={handleHeatmapHover}
-            onDoubleClick={handleHeatmapDoubleClick}
-          />
-        </div>
+            },
+            height: 600,
+            width: 1000,
+            margin: { t: 50, b: 150, l: 200, r: 50 },
+            xaxis: {
+              tickangle: -45
+            },
+            yaxis: {
+              tickangle: 0,
+              automargin: true,
+              ticktext: y_label_texts,
+              tickvals: Array.from({ length: y_labels.length }, (_, i) => i),
+              tickmode: 'array'
+            }
+          }}
+          style={{
+            margin: '0 auto',
+            display: 'block'
+          }}
+          onHover={handleHeatmapHover}
+          onDoubleClick={handleHeatmapDoubleClick}
+        />
 
         <div style={{
           display: 'flex',
@@ -536,11 +498,7 @@ function App() {
         </div>
 
         {/* Map Viewer */}
-        <div 
-          className="map-viewer" 
-          onMouseEnter={handleMapEnter}
-          onMouseLeave={handleMapLeave}
-        >
+        <div className="map-viewer" >
           <div className="map-viewer-title">
             {selectedEval || 'Map Viewer'}
           </div>
