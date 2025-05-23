@@ -31,7 +31,7 @@ game:
       props: {}
 
   agent:
-    max_inventory: 5
+    default_item_max: 5
     freeze_duration: 10
     energy_reward: 0
     hp: 1

@@ -1,6 +1,7 @@
 #ifndef HAS_INVENTORY_HPP
 #define HAS_INVENTORY_HPP
 
+#include <algorithm>
 #include <map>
 #include <string>
 
@@ -20,14 +21,12 @@ public:
     return true;
   }
 
-  virtual void update_inventory(InventoryItem item, short amount) {
-    if (amount + this->inventory[item] > 255) {
-      amount = 255 - this->inventory[item];
-    }
-    if (amount + this->inventory[item] < 0) {
-      amount = -this->inventory[item];
-    }
-    this->inventory[item] += amount;
+  virtual int update_inventory(InventoryItem item, short amount) {
+    int initial_amount = this->inventory[item];
+    int new_amount = initial_amount + amount;
+    new_amount = std::clamp(new_amount, 0, 255);
+    this->inventory[item] = new_amount;
+    return new_amount - initial_amount;
   }
 };
 
