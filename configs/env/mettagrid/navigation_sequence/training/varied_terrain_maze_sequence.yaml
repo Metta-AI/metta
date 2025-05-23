@@ -12,7 +12,7 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      _target_: mettagrid.room.navigation.varied_terrain_sequence.VariedTerrainSequence
       width: ${sampling:75,120,60}
       height: ${sampling:75,120,60}
       border_width: ${sampling:1,6,3}
@@ -20,11 +20,26 @@ game:
       style: maze # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
         altar: ${sampling:30,75,50}
+        mine: ${sampling:30,75,50}
+        generator: ${sampling:30,75,50}
   objects:
     altar:
-      cooldown: 1000
-      input_battery: 3
+      cooldown: 255
+      input_battery: 1
       output_heart: 1
-      max_output: 5
+      max_output: 1
+      conversion_ticks: 1
+      initial_items: 0
+    mine:
+      cooldown: 255
+      output_ore: 1
+      max_output: 1
       conversion_ticks: 1
       initial_items: 1
+    generator:
+      cooldown: 255
+      input_ore: 1
+      output_battery: 1
+      max_output: 1
+      conversion_ticks: 1
+      initial_items: 0
