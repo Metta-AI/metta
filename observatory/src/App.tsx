@@ -264,7 +264,10 @@ function App() {
     evalMap.set("overall", overallValue);
   });
   const sortedPolicies = policies.sort((a, b) => policyEvalMap.get(a)!.get("overall")! - policyEvalMap.get(b)!.get("overall")!);
-  const z = sortedPolicies.map(policy => 
+  // take last 20 of sorted policies
+  const y_labels = sortedPolicies.slice(-20)
+  
+  const z = y_labels.map(policy => 
     sortedShortNamesWithOverall.map(shortName => policyEvalMap.get(policy)!.get(shortName) || 0)
   )
 
@@ -355,14 +358,14 @@ function App() {
     return `https://wandb.ai/${entity}/${project}/runs/${policyKey}`
   }
 
-  const y_label_texts = sortedPolicies.map(policy => {
+  const y_label_texts = y_labels.map(policy => {
     return `<a href="${wandb_url(policy)}" target="_blank">${policy}</a>`
   })
 
   const data: Plotly.Data = {
     z,
     x: sortedShortNamesWithOverall,
-    y: sortedPolicies,
+    y: y_labels,
     type: 'heatmap',
     colorscale: 'Viridis',
     colorbar: {
@@ -417,7 +420,7 @@ function App() {
                 tickangle: 0,
                 automargin: true,
                 ticktext: y_label_texts,
-                tickvals: Array.from({ length: sortedPolicies.length }, (_, i) => i),
+                tickvals: Array.from({ length: y_labels.length }, (_, i) => i),
                 tickmode: 'array'
               }
             }}
