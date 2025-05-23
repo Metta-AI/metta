@@ -1,7 +1,7 @@
 import * as Common from './common.js';
-import { ctx, html, state, ui } from './common.js';
-import { onResize } from './main.js';
+import { ui, state, html, ctx } from './common.js';
 import { focusFullMap, requestFrame } from './worldmap.js';
+import { onResize } from './main.js';
 
 // Gets an attribute from a grid object respecting the current step.
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
@@ -275,7 +275,7 @@ export function loadReplayStep(replayStep: any) {
   // Update the grid objects.
   const step = replayStep.step;
 
-  state.replay.max_steps = Math.max(state.replay.max_steps, step + 1);
+  state.replay.max_steps = Math.max(state.replay.max_steps, step+1);
   state.step = step; // Rewind to the current step.
 
   for (const gridObject of replayStep.grid_objects) {

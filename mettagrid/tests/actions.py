@@ -1,15 +1,53 @@
+from enum import Enum
 from typing import Any, Dict, Optional
 
 import numpy as np
 
 from mettagrid.mettagrid_c import MettaGrid
 
-# Rebuild the NumPy types using the exposed function
-np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
-np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
-np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
-np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
-np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
+# export NumPy types
+np_actions_type = np.dtype("int")
+np_observations_type = np.dtype("uint8")
+np_terminals_type = np.dtype("bool")
+np_truncations_type = np.dtype("bool")
+np_rewards_type = np.dtype("float32")
+
+
+class Orientation(Enum):
+    UP = 0
+    DOWN = 1
+    LEFT = 2
+    RIGHT = 3
+
+    def __new__(cls, value):
+        """Create new Orientation instance."""
+        if isinstance(value, str):
+            # Handle string initialization like Orientation("up")
+            value = value.upper()
+            for member in cls:
+                if member.name == value:
+                    return member
+            raise ValueError(f"Invalid orientation string: '{value}'. Valid options: {[m.name.lower() for m in cls]}")
+
+        # Handle integer initialization (internal use)
+        obj = object.__new__(cls)
+        obj._value_ = value
+        return obj
+
+    def __str__(self) -> str:
+        """String representation for printing."""
+        return self.name.lower()
+
+    @property
+    def movement_delta(self) -> tuple[int, int]:
+        """Get the (row_delta, col_delta) for this orientation."""
+        deltas = {
+            Orientation.UP: (-1, 0),
+            Orientation.DOWN: (1, 0),
+            Orientation.LEFT: (0, -1),
+            Orientation.RIGHT: (0, 1),
+        }
+        return deltas[self]
 
 
 def generate_valid_random_actions(
@@ -72,20 +110,19 @@ def generate_valid_random_actions(
     return actions
 
 
-def move(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, Any]:
+def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[str, Any]:
     """
     Move agent in specified direction with full validation.
 
     Args:
         env: MettaGrid environment
-        orientation: 0=Up, 1=Down, 2=Left, 3=Right
+        orientation: Orientation enum, string ("up", "down", "left", "right"), or int (0=Up, 1=Down, 2=Left, 3=Right)
         agent_idx: Agent index (default 0)
 
     Returns:
         Dict with movement results and validation
     """
-    orientation_names = {0: "up", 1: "down", 2: "left", 3: "right"}
-    direction_name = orientation_names.get(orientation, f"unknown({orientation})")
+    direction_name = str(orientation)
 
     result = {
         "success": False,
@@ -102,7 +139,7 @@ def move(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, Any]
         "obs_changed": False,
         "error": None,
         "direction": direction_name,
-        "target_orientation": orientation,
+        "target_orientation": orientation.value,
     }
 
     try:
@@ -119,18 +156,18 @@ def move(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, Any]
         move_action_idx = action_names.index("move")
         rotate_action_idx = action_names.index("rotate")
 
-        print(f"Moving agent {agent_idx} {direction_name} (orientation {orientation})")
+        print(f"Moving agent {agent_idx} {direction_name} (orientation {orientation.value})")
 
         # Get initial state
-        result["obs_before"] = _get_current_observation(env, agent_idx)
-        result["position_before"] = _get_agent_position(env, agent_idx)
-        result["orientation_before"] = _get_agent_orientation(env, agent_idx)
+        result["obs_before"] = get_current_observation(env, agent_idx)
+        result["position_before"] = get_agent_position(env, agent_idx)
+        result["orientation_before"] = get_agent_orientation(env, agent_idx)
 
         print(f"  Before: pos={result['position_before']}, orient={result['orientation_before']}")
 
         # Step 1: Rotate to face target direction
         rotate_action = np.zeros((env.num_agents(), 2), dtype=np_actions_type)
-        rotate_action[agent_idx] = [rotate_action_idx, orientation]
+        rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
 
         env.step(rotate_action)
         rotate_success = env.action_success()
@@ -141,9 +178,9 @@ def move(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, Any]
             return result
 
         # Verify rotation worked
-        current_orientation = _get_agent_orientation(env, agent_idx)
-        if current_orientation != orientation:
-            result["error"] = f"Rotation failed: expected {orientation}, got {current_orientation}"
+        current_orientation = get_agent_orientation(env, agent_idx)
+        if current_orientation != orientation.value:
+            result["error"] = f"Rotation failed: expected {orientation.value}, got {current_orientation}"
             return result
 
         print(f"  Rotated to face {direction_name}")
@@ -158,8 +195,8 @@ def move(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, Any]
 
         # Get final state
         result["obs_after"] = obs_after.copy()
-        result["position_after"] = _get_agent_position(env, agent_idx)
-        result["orientation_after"] = _get_agent_orientation(env, agent_idx)
+        result["position_after"] = get_agent_position(env, agent_idx)
+        result["orientation_after"] = get_agent_orientation(env, agent_idx)
 
         print(f"  After: pos={result['position_after']}, orient={result['orientation_after']}")
         print(f"  Move action success: {result['move_success']}")
@@ -169,24 +206,17 @@ def move(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, Any]
             result["moved"] = result["position_before"] != result["position_after"]
 
             if result["moved"]:
-                # Check if movement was in correct direction
+                # Check if movement was in correct direction using enum
                 dr = result["position_after"][0] - result["position_before"][0]
                 dc = result["position_after"][1] - result["position_before"][1]
 
-                expected_movements = {
-                    0: (-1, 0),  # Up
-                    1: (1, 0),  # Down
-                    2: (0, -1),  # Left
-                    3: (0, 1),  # Right
-                }
-
-                expected_dr, expected_dc = expected_movements[orientation]
+                expected_dr, expected_dc = orientation.movement_delta
                 result["moved_correctly"] = dr == expected_dr and dc == expected_dc
 
                 if result["moved_correctly"]:
                     print(f"  ✅ Moved correctly {direction_name}")
                 else:
-                    print(f"  ❌ Wrong direction. Expected {expected_movements[orientation]}, got ({dr}, {dc})")
+                    print(f"  ❌ Wrong direction. Expected {orientation.movement_delta}, got ({dr}, {dc})")
             else:
                 if result["move_success"]:
                     print("  ⚠️ Move action succeeded but position unchanged (blocked?)")
@@ -225,20 +255,20 @@ def move(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, Any]
     return result
 
 
-def rotate(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, Any]:
+def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[str, Any]:
     """
     Rotate agent to face specified direction.
 
     Args:
         env: MettaGrid environment
-        orientation: 0=Up, 1=Down, 2=Left, 3=Right
+        orientation: Orientation enum, string ("up", "down", "left", "right"), or int (0=Up, 1=Down, 2=Left, 3=Right)
         agent_idx: Agent index (default 0)
 
     Returns:
         Dict with rotation results and validation
     """
-    orientation_names = {0: "up", 1: "down", 2: "left", 3: "right"}
-    direction_name = orientation_names.get(orientation, f"unknown({orientation})")
+
+    direction_name = str(orientation)
 
     result = {
         "success": False,
@@ -248,7 +278,7 @@ def rotate(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, An
         "rotated_correctly": False,
         "error": None,
         "direction": direction_name,
-        "target_orientation": orientation,
+        "target_orientation": orientation.value,
     }
 
     try:
@@ -261,32 +291,32 @@ def rotate(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, An
         rotate_action_idx = action_names.index("rotate")
 
         # Get initial orientation
-        result["orientation_before"] = _get_agent_orientation(env, agent_idx)
+        result["orientation_before"] = get_agent_orientation(env, agent_idx)
 
-        print(f"Rotating agent {agent_idx} to face {direction_name} (orientation {orientation})")
+        print(f"Rotating agent {agent_idx} to face {direction_name} (orientation {orientation.value})")
         print(f"  Before: {result['orientation_before']}")
 
         # Perform rotation
         rotate_action = np.zeros((env.num_agents(), 2), dtype=np_actions_type)
-        rotate_action[agent_idx] = [rotate_action_idx, orientation]
+        rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
 
         env.step(rotate_action)
         action_success = env.action_success()
         result["action_success"] = bool(action_success[agent_idx])
 
         # Get final orientation
-        result["orientation_after"] = _get_agent_orientation(env, agent_idx)
+        result["orientation_after"] = get_agent_orientation(env, agent_idx)
 
         print(f"  After: {result['orientation_after']}")
         print(f"  Action success: {result['action_success']}")
 
         # Validate rotation
-        result["rotated_correctly"] = result["orientation_after"] == orientation
+        result["rotated_correctly"] = result["orientation_after"] == orientation.value
 
         if result["rotated_correctly"]:
             print(f"  ✅ Rotated correctly to face {direction_name}")
         else:
-            print(f"  ❌ Rotation failed. Expected {orientation}, got {result['orientation_after']}")
+            print(f"  ❌ Rotation failed. Expected {orientation.value}, got {result['orientation_after']}")
 
         # Overall success
         result["success"] = result["action_success"] and result["rotated_correctly"]
@@ -295,7 +325,7 @@ def rotate(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, An
             if not result["action_success"]:
                 result["error"] = "Rotate action failed"
             elif not result["rotated_correctly"]:
-                result["error"] = f"Failed to rotate to orientation {orientation}"
+                result["error"] = f"Failed to rotate to orientation {orientation.value}"
 
     except Exception as e:
         result["error"] = f"Exception during rotation: {str(e)}"
@@ -303,7 +333,7 @@ def rotate(env: MettaGrid, orientation: int, agent_idx: int = 0) -> Dict[str, An
     return result
 
 
-def _get_current_observation(env: MettaGrid, agent_idx: int):
+def get_current_observation(env: MettaGrid, agent_idx: int):
     """Get current observation using noop action."""
     try:
         action_names = env.action_names()
@@ -322,7 +352,7 @@ def _get_current_observation(env: MettaGrid, agent_idx: int):
         return obs.copy()
 
 
-def _get_agent_position(env: MettaGrid, agent_idx: int = 0) -> Optional[tuple]:
+def get_agent_position(env: MettaGrid, agent_idx: int = 0) -> Optional[tuple]:
     """Get agent's current position (r, c)."""
     try:
         grid_objects = env.grid_objects()
@@ -334,7 +364,7 @@ def _get_agent_position(env: MettaGrid, agent_idx: int = 0) -> Optional[tuple]:
         return None
 
 
-def _get_agent_orientation(env: MettaGrid, agent_idx: int = 0) -> Optional[int]:
+def get_agent_orientation(env: MettaGrid, agent_idx: int = 0) -> Optional[int]:
     """Get agent's current orientation."""
     try:
         grid_objects = env.grid_objects()
