@@ -21,6 +21,7 @@ class DashboardConfig(Config):
 class PolicyEvalMetric(BaseModel):
     policy_uri: str
     eval_name: str
+    suite: str
     metric: str
     value: float
     replay_url: str | None
@@ -75,18 +76,21 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEvalMetric]:
       SELECT
         e.policy_key || ':v' || e.policy_version AS policy_uri, 
         e.eval_name,
+        e.suite,
         m.metric,
         AVG(m.value) as value, 
         ANY_VALUE(e.replay_url) AS replay_url
       FROM episode_metrics m 
       JOIN episode_info e 
       ON m.episode_id = e.episode_id 
-      GROUP BY e.eval_name, e.policy_key, e.policy_version, m.metric
+      GROUP BY e.eval_name, e.policy_key, e.policy_version, e.suite, m.metric
     """
     ).fetchall()
 
     return [
-        PolicyEvalMetric(policy_uri=row[0], eval_name=row[1], metric=row[2], value=row[3], replay_url=row[4])
+        PolicyEvalMetric(
+            policy_uri=row[0], eval_name=row[1], suite=row[2], metric=row[3], value=row[4], replay_url=row[5]
+        )
         for row in rows
     ]
 

@@ -1,6 +1,7 @@
 export type PolicyEvalMetric = {
   policy_uri: string;
   eval_name: string;
+  suite: string;
   metric: string;
   value: number;
   replay_url: string | null;

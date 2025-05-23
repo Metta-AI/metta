@@ -68,6 +68,49 @@ const MAP_VIEWER_CSS = `
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* Tab styles */
+.suite-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  max-width: 1000px;
+  margin: 0 auto 20px auto;
+}
+
+.suite-tab {
+  padding: 8px 16px;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  color: #666;
+  border-radius: 6px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.suite-tab:hover {
+  background: #f8f8f8;
+  color: #333;
+}
+
+.suite-tab.active {
+  background: #007bff;
+  color: #fff;
+  font-weight: 500;
+}
+
+.suite-tab:first-child {
+  margin-left: 0;
+}
+
+.suite-tab:last-child {
+  margin-right: 0;
+}
 `;
 
 // Load data from API endpoints
@@ -83,6 +126,7 @@ function App() {
   // Data state
   const [matrix, setMatrix] = useState<PolicyEvalMetric[]>([])
   const [metrics, setMetrics] = useState<string[]>([])
+  const [suites, setSuites] = useState<string[]>([])
 
   // UI state
   const [selectedMetric, setSelectedMetric] = useState<string>("reward")
@@ -92,6 +136,7 @@ function App() {
   const [isMouseOverMap, setIsMouseOverMap] = useState(false)
   const [isMouseOverHeatmap, setIsMouseOverHeatmap] = useState(false)
   const [lastHoveredCell, setLastHoveredCell] = useState<{shortName: string, policyUri: string} | null>(null)
+  const [selectedSuite, setSelectedSuite] = useState<string>("")
   
   
   // Map image URL helper
@@ -136,18 +181,32 @@ function App() {
 
   useEffect(() => {
     const loadData = async () => {
-      if (repo) {
-        const [metricsData, matrixData] = await Promise.all([
+    if (repo) {
+        const [metricsData, suitesData] = await Promise.all([
           repo.getMetrics(),
-          repo.getPolicyEvals(selectedMetric)
+          repo.getSuites()
         ]);
         setMetrics(metricsData);
+        setSuites(suitesData);
+        setSelectedSuite(suitesData[0]);
+      }
+    };
+
+    loadData();
+  }, [repo]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (repo) {
+        const [matrixData] = await Promise.all([
+          repo.getPolicyEvals(selectedMetric, selectedSuite),
+        ]);
         setMatrix(matrixData);
       }
     };
 
     loadData();
-  }, [repo, selectedMetric]);
+  }, [selectedSuite, selectedMetric, repo]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -266,7 +325,7 @@ function App() {
   const sortedPolicies = policies.sort((a, b) => policyEvalMap.get(a)!.get("overall")! - policyEvalMap.get(b)!.get("overall")!);
   // take last 20 of sorted policies
   const y_labels = sortedPolicies.slice(-20)
-  
+
   const z = y_labels.map(policy => 
     sortedShortNamesWithOverall.map(shortName => policyEvalMap.get(policy)!.get(shortName) || 0)
   )
@@ -399,6 +458,19 @@ function App() {
         }}>
           Policy Evaluation Dashboard
         </h1>
+
+        <div className="suite-tabs">
+          <div style={{ fontSize: '18px', marginTop: '5px', marginRight: '10px' }}>Eval Suite:</div>
+          {suites.map(suite => (
+            <button
+              key={suite}
+              className={`suite-tab ${selectedSuite === suite ? 'active' : ''}`}
+              onClick={() => setSelectedSuite(suite)}
+            >
+              {suite}
+            </button>
+          ))}
+        </div>
         
         <div onMouseEnter={handleHeatmapEnter} onMouseLeave={handleHeatmapLeave}>
           <Plot
