@@ -6,6 +6,14 @@ defaults:
 sampling: 1
 
 game:
+
+  agent:
+    ore.red_max: 1
+    ore.blue_max: 1
+    ore.green_max: 1
+    battery_max: 1
+    heart_max: 1000
+
   max_steps: ${sampling:100,1000,250} # Randomize the episode length
   num_agents: 8
   map_builder:
@@ -15,38 +23,38 @@ game:
 
     rooms:
       - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
-        width: ${sampling:5,15,10}
-        height: ${sampling:5,15,10}
-        num_shared_generators: ${sampling:1,4,2}
-        num_altars: ${sampling:1,4,2}
-        num_mines: ${sampling:1,4,2}
+        width: ${sampling:5,10,10}
+        height: ${sampling:5,10,10}
+        num_shared_generators: ${sampling:1,3,2}
+        num_altars: ${sampling:1,3,2}
+        num_mines: ${sampling:1,3,2}
         agents:
           team_1: 2
         border_width: 2
       - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
-        width: ${sampling:5,15,10}
-        height: ${sampling:5,15,10}
-        num_shared_generators: ${sampling:1,4,2}
-        num_altars: ${sampling:1,4,2}
-        num_mines: ${sampling:1,4,2}
+        width: ${sampling:5,10,10}
+        height: ${sampling:5,10,10}
+        num_shared_generators: ${sampling:1,3,2}
+        num_altars: ${sampling:1,3,2}
+        num_mines: ${sampling:1,3,2}
         agents:
           team_2: 2
         border_width: 2
       - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
-        width: ${sampling:5,15,10}
-        height: ${sampling:5,15,10}
-        num_shared_generators: ${sampling:1,4,2}
-        num_altars: ${sampling:1,4,2}
-        num_mines: ${sampling:1,4,2}
+        width: ${sampling:5,10,10}
+        height: ${sampling:5,10,10}
+        num_shared_generators: ${sampling:1,3,2}
+        num_altars: ${sampling:1,3,2}
+        num_mines: ${sampling:1,3,2}
         agents:
           team_3: 2
         border_width: 2
       - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
-        width: ${sampling:5,15,10}
-        height: ${sampling:5,15,10}
-        num_shared_generators: ${sampling:1,4,2}
-        num_altars: ${sampling:1,4,2}
-        num_mines: ${sampling:1,4,2}
+        width: ${sampling:5,10,10}
+        height: ${sampling:5,10,10}
+        num_shared_generators: ${sampling:1,3,2}
+        num_altars: ${sampling:1,3,2}
+        num_mines: ${sampling:1,3,2}
         agents:
           team_4: 2
         border_width: 2
