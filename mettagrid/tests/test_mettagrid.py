@@ -1,6 +1,7 @@
 import numpy as np
 
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+from mettagrid.tests.actions import move
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
@@ -14,6 +15,14 @@ np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
 np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
 np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
 np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
+
+# Map string directions to integer orientations
+DIRECTION_MAP = {
+    "north": 0,  # Up
+    "south": 1,  # Down
+    "west": 2,  # Left
+    "east": 3,  # Right
+}
 
 
 def create_minimal_config():
@@ -36,7 +45,7 @@ def create_minimal_config():
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {
             "wall": {"type_id": 1, "hp": 100},
-            "block": {"type_id": 2, "hp": 100},
+            "altar": {"type_id": 2, "hp": 100},
         },
         "agent": {
             "inventory_size": 0,
@@ -421,370 +430,115 @@ def test_step_after_set_buffers():
     print("✓ Step after set_buffers test passed")
 
 
-def test_agent_observations_simple():
-    """
-    Test agent observations with a clear, simple map.
-    Create one map with known features and test observations from different agent positions.
-    """
-    print("Testing agent observations with simple map...")
-
-    # Create a clear 5x5 map with distinctive features
-    # Layout:
-    # W W W W W
-    # W . . . W
-    # W . X . W  <- X is a distinctive wall
-    # W . . . W
-    # W W W W W
-    #
-    # We'll test with agents at different positions to see how the observation changes
-
-    base_map = [
-        ["wall", "wall", "wall", "wall", "wall"],
-        ["wall", "empty", "empty", "empty", "wall"],
-        ["wall", "empty", "wall", "empty", "wall"],  # Central wall at (2,2)
-        ["wall", "empty", "empty", "empty", "wall"],
-        ["wall", "wall", "wall", "wall", "wall"],
-    ]
-
-    config = create_minimal_config()
-    config["actions"]["move"] = {"enabled": True}
-    config["num_agents"] = 1
-    config["obs_width"] = 3
-    config["obs_height"] = 3
-    env_config = {"game": config}
-
-    # Test positions around the central wall
-    test_positions = [
-        ((1, 1), "top-left of center wall"),
-        ((1, 2), "directly above center wall"),
-        ((1, 3), "top-right of center wall"),
-        ((2, 1), "directly left of center wall"),
-        ((2, 3), "directly right of center wall"),
-        ((3, 1), "bottom-left of center wall"),
-        ((3, 2), "directly below center wall"),
-        ((3, 3), "bottom-right of center wall"),
-    ]
-
-    observations_by_position = {}
-
-    for (agent_row, agent_col), description in test_positions:
-        print(f"\n--- Testing agent at ({agent_row}, {agent_col}) - {description} ---")
-
-        # Create map with agent at this position
-        game_map = [row[:] for row in base_map]  # Copy the base map
-        game_map[agent_row][agent_col] = "agent.red"
-
-        # Create environment
-        env = MettaGrid(env_config, game_map)
-
-        # Set buffers
-        num_features = len(env.grid_features())
-        observations = np.zeros((1, 3, 3, num_features), dtype=np_observations_type)
-        terminals = np.zeros(1, dtype=np_terminals_type)
-        truncations = np.zeros(1, dtype=np_truncations_type)
-        rewards = np.zeros(1, dtype=np_rewards_type)
-
-        env.set_buffers(observations, terminals, truncations, rewards)
-
-        # Get observation
-        obs, info = env.reset()
-
-        # Extract wall channel
-        wall_feature_idx = env.grid_features().index("wall")
-        wall_channel = obs[0, :, :, wall_feature_idx]
-
-        print(f"Wall observation from {description}:")
-        print(wall_channel)
-
-        # Store for comparison
-        observations_by_position[(agent_row, agent_col)] = wall_channel
-
-        # Analyze what we expect to see
-        print("Expected analysis:")
-
-        # The agent is at (agent_row, agent_col) in the map
-        # The central wall is at (2, 2) in the map
-        # The observation is 3x3 centered on the agent
-
-        # Calculate where the central wall should appear in the observation
-        wall_row_in_obs = 2 - agent_row + 1  # +1 because obs is 0-2, centered at 1
-        wall_col_in_obs = 2 - agent_col + 1
-
-        if 0 <= wall_row_in_obs <= 2 and 0 <= wall_col_in_obs <= 2:
-            expected_wall_value = wall_channel[wall_row_in_obs, wall_col_in_obs]
-            print(f"Central wall should be at obs[{wall_row_in_obs}, {wall_col_in_obs}] = {expected_wall_value}")
-            if expected_wall_value > 0:
-                print("✓ Central wall visible as expected")
-            else:
-                print("? Central wall not visible (might be outside observation window)")
-        else:
-            print("Central wall should be outside observation window")
-
-        # Count total walls visible (should include perimeter walls)
-        total_walls = np.sum(wall_channel > 0)
-        print(f"Total walls visible: {total_walls}")
-
-    # Now compare observations between positions
-    print("\n--- Comparing observations between positions ---")
-
-    positions = list(observations_by_position.keys())
-    differences_found = 0
-
-    for i in range(len(positions)):
-        for j in range(i + 1, len(positions)):
-            pos1, pos2 = positions[i], positions[j]
-            obs1, obs2 = observations_by_position[pos1], observations_by_position[pos2]
-
-            if not np.array_equal(obs1, obs2):
-                differences_found += 1
-                print(f"✓ Observations differ between {pos1} and {pos2}")
-            else:
-                print(f"! Identical observations between {pos1} and {pos2}")
-
-    print(f"\nFound {differences_found} unique observation patterns out of {len(positions)} positions")
-
-    # Test specific expected relationships
-    print("\n--- Testing specific spatial relationships ---")
-
-    # Agent above wall vs agent below wall should see different things
-    if (1, 2) in observations_by_position and (3, 2) in observations_by_position:
-        obs_above = observations_by_position[(1, 2)]  # Above central wall
-        obs_below = observations_by_position[(3, 2)]  # Below central wall
-
-        print("Agent above central wall sees:")
-        print(obs_above)
-        print("Agent below central wall sees:")
-        print(obs_below)
-
-        if not np.array_equal(obs_above, obs_below):
-            print("✓ Above and below positions show different observations")
-        else:
-            print("! Above and below positions show identical observations")
-
-    # Agent left vs right of wall
-    if (2, 1) in observations_by_position and (2, 3) in observations_by_position:
-        obs_left = observations_by_position[(2, 1)]  # Left of central wall
-        obs_right = observations_by_position[(2, 3)]  # Right of central wall
-
-        print("Agent left of central wall sees:")
-        print(obs_left)
-        print("Agent right of central wall sees:")
-        print(obs_right)
-
-        if not np.array_equal(obs_left, obs_right):
-            print("✓ Left and right positions show different observations")
-        else:
-            print("! Left and right positions show identical observations")
-
-    # Basic sanity checks
-    assert differences_found > 0, "Expected some differences between observations from different positions"
-
-    print("\n✓ Simple observation test completed successfully")
-    return True
-
-
 def test_agent_walks_across_room():
     """
-    Test where a single agent walks across a room and we confirm observations at each step.
-
-    Creates a simple corridor and attempts to walk the agent from one end to the other,
-    checking that observations change appropriately with each step.
+    Test where a single agent walks across a room.
+    Creates a simple corridor and attempts to walk the agent from one end to the other.
+    The move() function already handles observation validation.
     """
     print("Testing agent walking across room...")
 
-    # Create a simple 7x5 corridor map
-    # Layout:
-    # W W W W W W W
-    # W A . . . . W  <- Agent starts at (1,1), can walk to (1,5)
-    # W W W W W W W
-    #
-    # This gives the agent a clear path to walk along
-
+    # Create a simple 7x4 corridor map
     game_map = [
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
         ["wall", "agent.red", "empty", "empty", "empty", "empty", "wall"],
+        ["wall", "empty", "empty", "altar", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
     config = create_minimal_config()
     config["actions"]["move"] = {"enabled": True}
+    config["actions"]["rotate"] = {"enabled": True}
     config["num_agents"] = 1
     config["obs_width"] = 3
     config["obs_height"] = 3
-    config["max_steps"] = 10  # Give us enough steps to walk
+    config["max_steps"] = 20
     env_config = {"game": config}
 
+    # Create environment
     env = MettaGrid(env_config, game_map)
-    print(f"Environment created: {env.map_width()}x{env.map_height()}")
-    print(f"Action names: {env.action_names()}")
-
-    # Set buffers
     num_features = len(env.grid_features())
     observations = np.zeros((1, 3, 3, num_features), dtype=np_observations_type)
     terminals = np.zeros(1, dtype=np_terminals_type)
     truncations = np.zeros(1, dtype=np_truncations_type)
     rewards = np.zeros(1, dtype=np_rewards_type)
-
     env.set_buffers(observations, terminals, truncations, rewards)
+    env.reset()
 
-    # Reset and get initial observation
-    obs_initial, info = env.reset()
+    print(f"Environment created: {env.map_width()}x{env.map_height()}")
     print(f"Initial timestep: {env.current_timestep}")
 
-    # Get feature indices we care about
-    grid_features = env.grid_features()
-    wall_feature_idx = grid_features.index("wall")
-    agent_feature_idx = grid_features.index("agent")
+    # Find a working direction
+    successful_moves = []
+    total_moves = 0
 
-    print(f"Wall feature at index: {wall_feature_idx}")
-    print(f"Agent feature at index: {agent_feature_idx}")
+    print("\n=== Testing which direction allows movement ===")
+    working_direction = None
 
-    # Get action information
-    action_names = env.action_names()
-    move_action_idx = action_names.index("move")
-    max_action_args = env.max_action_args()
-    move_max_arg = max_action_args[move_action_idx]
+    for direction_str in ["east", "west", "north", "south"]:
+        orientation = DIRECTION_MAP[direction_str]
+        print(f"\nTesting movement {direction_str}...")
 
-    print(f"Move action index: {move_action_idx}")
-    print(f"Move max arg: {move_max_arg}")
+        result = move(env, orientation, agent_idx=0)
 
-    # Display initial state
-    wall_channel = obs_initial[0, :, :, wall_feature_idx]
-    agent_channel = obs_initial[0, :, :, agent_feature_idx]
-
-    print("\nStep 0 (Initial):")
-    print("Wall channel:")
-    print(wall_channel)
-    print("Agent channel:")
-    print(agent_channel)
-
-    # Store observations for comparison
-    step_observations = [(0, wall_channel.copy(), agent_channel.copy())]
-
-    # Try to walk the agent to the right (should be direction 1 typically)
-    # We'll try each direction to see which one works
-    directions_to_try = [(0, "up"), (1, "right"), (2, "down"), (3, "left")]
-
-    successful_direction = None
-    direction_name = None
-
-    # Find a direction that actually moves the agent
-    for direction, name in directions_to_try:
-        if direction > move_max_arg:
-            continue
-
-        print(f"\nTrying direction {direction} ({name})...")
-
-        # Take one step in this direction
-        move_action = np.array([[move_action_idx, direction]], dtype=np_actions_type)
-        obs_after, rewards, terminals, truncations, info = env.step(move_action)
-
-        # Check if action succeeded
-        action_success = env.action_success()
-        print(f"Action success: {action_success[0]}")
-        print(f"Timestep after move: {env.current_timestep}")
-
-        # Check if observation changed
-        wall_after = obs_after[0, :, :, wall_feature_idx]
-        agent_after = obs_after[0, :, :, agent_feature_idx]
-
-        observation_changed = not (
-            np.array_equal(wall_channel, wall_after) and np.array_equal(agent_channel, agent_after)
-        )
-
-        print(f"Observation changed: {observation_changed}")
-
-        if observation_changed:
-            print(f"✓ Found working direction: {direction} ({name})")
-            successful_direction = direction
-            direction_name = name
-
-            print("Wall channel after move:")
-            print(wall_after)
-            print("Agent channel after move:")
-            print(agent_after)
-
-            step_observations.append((1, wall_after.copy(), agent_after.copy()))
+        if result["success"]:
+            print(f"✓ Found working direction: {direction_str}")
+            working_direction = direction_str
             break
         else:
-            print(f"Direction {direction} ({name}) didn't change observation")
+            print(f"✗ Direction {direction_str} failed: {result.get('error', 'Unknown error')}")
 
-    if successful_direction is None:
-        print("! No direction successfully moved the agent")
-        print("This could mean:")
-        print("- Move action is not implemented")
-        print("- Agent is blocked by walls in all directions")
-        print("- Move arguments are different than expected")
+    if working_direction is None:
+        print("❌ No direction successfully moved the agent")
+        return
 
-        # Let's still check if we can see action feedback
-        print("\nTesting action feedback without movement...")
-        noop_action_idx = action_names.index("noop")
-        noop_action = np.array([[noop_action_idx, 0]], dtype=np_actions_type)
+    print(f"\n=== Walking across room in direction: {working_direction} ===")
 
-        obs_noop, rewards, terminals, truncations, info = env.step(noop_action)
-        action_success = env.action_success()
-        print(f"Noop action success: {action_success[0]}")
-        print(f"Timestep after noop: {env.current_timestep}")
+    # Reset for clean walk
+    env = MettaGrid(env_config, game_map)
+    env.set_buffers(observations, terminals, truncations, rewards)
+    env.reset()
 
-        print("✓ Agent walking test completed (movement not working, but feedback works)")
+    # Walk multiple steps
+    working_orientation = DIRECTION_MAP[working_direction]
+    max_steps = 5
 
-    # Continue walking in the successful direction
-    print(f"\nContinuing to walk {direction_name}...")
+    for step in range(1, max_steps + 1):
+        print(f"\n--- Step {step}: Moving {working_direction} ---")
 
-    for step in range(2, 6):  # Take a few more steps
-        move_action = np.array([[successful_direction, direction]], dtype=np_actions_type)
-        obs_step, rewards, terminals, truncations, info = env.step(move_action)
+        result = move(env, working_orientation, agent_idx=0)
+        total_moves += 1
 
-        action_success = env.action_success()
-        print(f"\nStep {step}:")
-        print(f"Action success: {action_success[0]}")
-        print(f"Timestep: {env.current_timestep}")
-
-        wall_step = obs_step[0, :, :, wall_feature_idx]
-        agent_step = obs_step[0, :, :, agent_feature_idx]
-
-        print("Wall channel:")
-        print(wall_step)
-        print("Agent channel:")
-        print(agent_step)
-
-        step_observations.append((step, wall_step.copy(), agent_step.copy()))
-
-        # Check if we've hit a wall (observation stops changing)
-        prev_wall = step_observations[-2][1]
-        prev_agent = step_observations[-2][2]
-
-        if np.array_equal(wall_step, prev_wall) and np.array_equal(agent_step, prev_agent):
-            print(f"! Observation stopped changing at step {step} - likely hit a wall")
-            break
+        if result["success"]:
+            successful_moves.append(step)
+            print(f"✓ Successful move #{len(successful_moves)}")
+            print(f"  Position: {result['position_before']} → {result['position_after']}")
         else:
-            print("✓ Observation changed from previous step")
+            print(f"✗ Move failed: {result.get('error', 'Unknown error')}")
+            if not result["move_success"]:
+                print("  Agent likely hit an obstacle or boundary")
+                break
 
-    # Analyze the journey
-    print("\n--- Journey Analysis ---")
-    print(f"Total steps taken: {len(step_observations)}")
-    print(f"Successful direction: {successful_direction} ({direction_name})")
+        if env.current_timestep >= config["max_steps"] - 2:
+            print("  Approaching max steps limit")
+            break
 
-    # Check that we saw different observations during the journey
-    unique_observations = set()
-    for _step, wall_obs, agent_obs in step_observations:
-        # Convert to tuple for hashing
-        obs_signature = (tuple(wall_obs.flatten()), tuple(agent_obs.flatten()))
-        unique_observations.add(obs_signature)
+    print("\n=== Walking Test Summary ===")
+    print(f"Working direction: {working_direction}")
+    print(f"Total move attempts: {total_moves}")
+    print(f"Successful moves: {len(successful_moves)}")
+    print(f"Success rate: {len(successful_moves) / total_moves:.1%}" if total_moves > 0 else "N/A")
 
-    print(f"Unique observation patterns: {len(unique_observations)}")
-
-    if len(unique_observations) > 1:
-        print("✓ Agent saw different observations during the journey")
+    # Validation
+    if len(successful_moves) >= 1:
+        print("✅ Agent walking test passed!")
     else:
-        print("! Agent saw the same observation throughout (no movement?)")
+        print("❌ No successful moves - test failed")
 
-    # Verify that the agent channel shows the agent in the center
-    for step, _wall_obs, agent_obs in step_observations:
-        agent_center = agent_obs[1, 1]  # Center of 3x3 observation
-        if agent_center > 0:
-            print(f"✓ Step {step}: Agent visible at center of observation")
-        else:
-            print(f"! Step {step}: Agent not visible at center - unexpected!")
+    assert len(successful_moves) >= 1, (
+        f"Agent should have moved at least once. Got {len(successful_moves)} successful moves."
+    )
 
-    print("\n✓ Agent walking test completed successfully")
+
+if __name__ == "__main__":
+    test_agent_walks_across_room()

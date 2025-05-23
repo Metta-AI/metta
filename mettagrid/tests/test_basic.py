@@ -5,7 +5,7 @@ import pytest
 
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.tests.utils import generate_valid_random_actions
+from mettagrid.tests.actions import generate_valid_random_actions
 from mettagrid.util.hydra import get_cfg
 
 # Rebuild the NumPy types using the exposed function

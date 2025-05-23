@@ -249,7 +249,7 @@ void MettaGrid::_compute_observations(py::array_t<int> actions) {
 void MettaGrid::_step(py::array_t<int> actions) {
   auto actions_view = actions.unchecked<2>();
 
-  // Reset rewards and observations using direct memory access
+  // Reset state for new step
   std::memset(_rewards, 0, _rewards_size * sizeof(c_rewards_type));
   std::memset(_observations, 0, _observations_size * sizeof(c_observations_type));
   std::fill(_action_success.begin(), _action_success.end(), false);
@@ -258,30 +258,72 @@ void MettaGrid::_step(py::array_t<int> actions) {
   current_timestep++;
   _event_manager->process_events(current_timestep);
 
-  // Process actions by priority
-  for (unsigned char p = 0; p <= _max_action_priority; p++) {
-    for (size_t idx = 0; idx < _agents.size(); idx++) {
-      int action = actions_view(idx, 0);
-      if (action < 0 || action >= _num_action_handlers) {
-        throw std::runtime_error("Invalid action in _step");
-      }
+  // Collect unique priority levels from action handlers
+  std::set<unsigned char> priority_levels;
+  for (const auto& handler : _action_handlers) {
+    priority_levels.insert(handler->priority);
+  }
 
-      ActionArg arg = actions_view(idx, 1);
-      auto& agent = _agents[idx];
-      auto& handler = _action_handlers[action];
+  // Process actions by priority levels (highest to lowest)
+  for (auto it = priority_levels.rbegin(); it != priority_levels.rend(); ++it) {
+    unsigned char current_priority = *it;
 
-      if (handler->priority != _max_action_priority - p) {
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+      // Skip agents who already successfully performed an action this step
+      if (_action_success[agent_idx]) {
         continue;
       }
 
-      if (arg > _max_action_args[action]) {
+      // Extract action data
+      int action_id = actions_view(agent_idx, 0);
+      ActionArg action_arg = static_cast<ActionArg>(actions_view(agent_idx, 1));
+      Agent* agent = _agents[agent_idx];
+
+      // Validate action ID
+      if (action_id < 0 || action_id >= _num_action_handlers) {
+        throw std::runtime_error("Invalid action ID " + std::to_string(action_id) + " for agent " +
+                                 std::to_string(agent_idx) + ". Valid range: 0 to " +
+                                 std::to_string(_num_action_handlers - 1));
+      }
+
+      auto& handler = _action_handlers[action_id];
+
+      // Skip if this handler doesn't match current priority level
+      if (handler->priority != current_priority) {
         continue;
       }
 
-      _action_success[idx] = handler->handle_action(agent->id, arg, current_timestep);
+      // Validate action argument
+      if (action_arg > _max_action_args[action_id]) {
+        throw std::runtime_error("Action argument " + std::to_string(action_arg) + " exceeds maximum " +
+                                 std::to_string(_max_action_args[action_id]) + " for action " +
+                                 std::to_string(action_id) + " (" + handler->action_name() + ")" + " on agent " +
+                                 std::to_string(agent_idx));
+      }
+
+      // Validate agent
+      if (agent == nullptr) {
+        throw std::runtime_error("Agent is null at index " + std::to_string(agent_idx));
+      }
+
+      // Validate agent ID
+      if (agent->id <= 0) {
+        throw std::runtime_error("Agent ID must be positive. Agent " + std::to_string(agent_idx) + " has ID " +
+                                 std::to_string(agent->id));
+      }
+
+      if (agent->id >= _grid->objects.size()) {
+        throw std::runtime_error("Agent ID " + std::to_string(agent->id) + " exceeds grid object count " +
+                                 std::to_string(_grid->objects.size()) + " for agent " + std::to_string(agent_idx));
+      }
+
+      // Execute the action
+      bool success = handler->handle_action(agent->id, action_arg, current_timestep);
+      _action_success[agent_idx] = success;
     }
   }
 
+  // Update observations and episode state
   _compute_observations(actions);
 
   for (size_t i = 0; i < _agents.size(); i++) {
