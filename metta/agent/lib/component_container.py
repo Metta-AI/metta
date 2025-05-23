@@ -56,11 +56,31 @@ class ComponentContainer(TensorDictModuleBase):
         # Execute this component
         return component(tensordict)
 
-    def forward(self, tensordict: TensorDict) -> TensorDict:
-        """TensorDictModule interface - execute all components."""
-        for component_name in self._topological_sort():
-            self.execute_component(component_name, tensordict)
-        return tensordict
+    def forward(self, *args, **kwargs) -> TensorDict:
+        """TensorDictModule interface - support both single component and full network execution.
+
+        Args:
+            If single arg is str: execute_component(component_name, tensordict)
+            If single arg is TensorDict: execute full network
+            If two args: execute_component(component_name, tensordict)
+        """
+        if len(args) == 1:
+            if isinstance(args[0], str):
+                raise ValueError("forward() with component name requires tensordict as second argument")
+            elif isinstance(args[0], TensorDict):
+                # Execute full network
+                tensordict = args[0]
+                for component_name in self._topological_sort():
+                    self.execute_component(component_name, tensordict)
+                return tensordict
+            else:
+                raise ValueError(f"Invalid argument type for forward(): {type(args[0])}")
+        elif len(args) == 2:
+            # execute_component(component_name, tensordict)
+            component_name, tensordict = args
+            return self.execute_component(component_name, tensordict)
+        else:
+            raise ValueError(f"forward() takes 1 or 2 arguments, got {len(args)}")
 
     def execute_network(self, tensordict: TensorDict) -> TensorDict:
         """Execute the full network - more explicit version of forward()."""
@@ -142,6 +162,22 @@ class ComponentContainer(TensorDictModuleBase):
             deps = self.dependencies.get(name, [])
             lines.append(f"  {name}: {type(component).__name__} (deps: {deps})")
         return "\n".join(lines)
+
+    def __len__(self) -> int:
+        """Return number of components in container."""
+        return len(self.components)
+
+    def clear_cache(self):
+        """Clear any cached outputs - ComponentContainer doesn't cache, but tests expect this method."""
+        # ComponentContainer doesn't maintain explicit cache, but this method is expected by tests
+        # The caching happens at the TensorDict level (output presence checking)
+        pass
+
+    def validate_dependencies(self, name: str, dependencies: List[str]):
+        """Validate dependencies exist - basic version for tests."""
+        for dep_name in dependencies:
+            if dep_name not in self.components and dep_name != name:
+                raise ValueError(f"Dependency '{dep_name}' not found for component '{name}'")
 
 
 class SafeComponentContainer(ComponentContainer):

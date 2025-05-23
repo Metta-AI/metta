@@ -356,6 +356,7 @@ class LSTMModule(MettaModule):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
+        self.state_key = state_key  # Store the state key for use in forward
 
         # Create LSTM network
         self.lstm = nn.LSTM(
@@ -386,6 +387,7 @@ class LSTMModule(MettaModule):
             tensordict (TensorDict): Input tensor dictionary containing:
                 - in_key: Input tensor of shape [B, input_size]
                 - hidden_key: Hidden state tensor of shape [B, hidden_size]
+                - state_key (optional): LSTM state tensor of shape [B, 2*num_layers, hidden_size]
 
         Returns:
             TensorDict: Updated tensor dictionary with:
@@ -402,12 +404,23 @@ class LSTMModule(MettaModule):
         # Prepare LSTM input: [seq_len=1, batch, input_size]
         x_seq = x.unsqueeze(0)  # [1, B, input_size]
 
-        # Prepare initial hidden state: (h_0, c_0), each [num_layers, B, hidden_size]
-        h_0 = (
-            hidden.unsqueeze(0).expand(self.num_layers, B, self.hidden_size).contiguous()
-        )  # [num_layers, B, hidden_size]
-        c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=device, dtype=hidden.dtype)
-        state = (h_0, c_0)
+        # Check if state is provided in tensordict
+        if self.state_key in tensordict.keys():
+            # Use provided state: [B, 2*num_layers, hidden_size]
+            state_tensor = tensordict[self.state_key]  # [B, 2*num_layers, hidden_size]
+            state_tensor = state_tensor.permute(1, 0, 2)  # [2*num_layers, B, hidden_size]
+
+            # Split into h and c states
+            h_0 = state_tensor[0 : self.num_layers]  # [num_layers, B, hidden_size]
+            c_0 = state_tensor[self.num_layers : 2 * self.num_layers]  # [num_layers, B, hidden_size]
+            state = (h_0, c_0)
+        else:
+            # Create initial state from hidden input
+            h_0 = (
+                hidden.unsqueeze(0).expand(self.num_layers, B, self.hidden_size).contiguous()
+            )  # [num_layers, B, hidden_size]
+            c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=device, dtype=hidden.dtype)
+            state = (h_0, c_0)
 
         # LSTM forward
         output, (h_n, c_n) = self.lstm(x_seq, state)

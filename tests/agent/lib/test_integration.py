@@ -23,11 +23,11 @@ class TestIntegration:
         """Test a complete MLP pipeline with multiple modules."""
         # Build a complete pipeline: Linear -> LayerNorm -> ReLU -> Dropout -> Linear
         modules = [
-            LinearModule(784, 256, "input", "hidden1"),
+            LinearModule(in_features=784, out_features=256, in_key="input", out_key="hidden1"),
             LayerNormModule(256, "hidden1", "norm1"),
             ReLUModule("norm1", "relu1"),
             DropoutModule(0.1, "relu1", "drop1"),
-            LinearModule(256, 10, "drop1", "output"),
+            LinearModule(in_features=256, out_features=10, in_key="drop1", out_key="output"),
         ]
 
         # Test data
@@ -54,9 +54,11 @@ class TestIntegration:
             Conv2dModule(32, 64, 3, stride=1, padding=0, in_key="relu1", out_key="conv2"),
             ReLUModule("conv2", "relu2"),
             FlattenModule(start_dim=1, in_key="relu2", out_key="flattened"),
-            LinearModule(64 * 6 * 6, 128, "flattened", "hidden"),  # Assuming 10x10 -> 6x6 after 2 convs
+            LinearModule(
+                in_features=64 * 6 * 6, out_features=128, in_key="flattened", out_key="hidden"
+            ),  # Assuming 10x10 -> 6x6 after 2 convs
             ReLUModule("hidden", "relu3"),
-            LinearModule(128, 10, "relu3", "output"),
+            LinearModule(in_features=128, out_features=10, in_key="relu3", out_key="output"),
         ]
 
         # Test data (32 batch, 3 channels, 10x10 image)
@@ -72,9 +74,9 @@ class TestIntegration:
     def test_wrapped_pipeline(self):
         """Test pipeline with various wrapper modules."""
         # Base modules
-        linear1 = LinearModule(100, 50, "input", "hidden")
+        linear1 = LinearModule(in_features=100, out_features=50, in_key="input", out_key="hidden")
         relu = ReLUModule("hidden", "activated")
-        linear2 = LinearModule(50, 10, "activated", "output")
+        linear2 = LinearModule(in_features=50, out_features=10, in_key="activated", out_key="output")
 
         # Wrap with different wrappers
         safe_linear1 = SafeModule(linear1, nan_check=True)
@@ -100,9 +102,9 @@ class TestIntegration:
 
         # Build complex pipeline with branching dependencies
         # obs -> [feature_extractor] -> [policy, value] -> combined_output
-        feature_extractor = LinearModule(64, 32, "observation", "features")
-        policy_head = LinearModule(32, 8, "features", "policy_logits")
-        value_head = LinearModule(32, 1, "features", "state_value")
+        feature_extractor = LinearModule(in_features=64, out_features=32, in_key="observation", out_key="features")
+        policy_head = LinearModule(in_features=32, out_features=8, in_key="features", out_key="policy_logits")
+        value_head = LinearModule(in_features=32, out_features=1, in_key="features", out_key="state_value")
 
         # Combiner that takes both policy and value outputs
         class CombinerModule(MettaModule):
@@ -129,7 +131,7 @@ class TestIntegration:
         # Test execution
         td = TensorDict({"observation": torch.randn(8, 64)}, batch_size=8)
         container.clear_cache()
-        result = container.forward("combiner", td)
+        result = container.execute_component("combiner", td)
 
         # Verify all outputs exist
         assert "features" in result
@@ -167,11 +169,11 @@ class TestIntegration:
     def test_gradient_flow_through_pipeline(self):
         """Test that gradients flow properly through complex pipelines."""
         modules = [
-            LinearModule(20, 15, "input", "hidden1"),
+            LinearModule(in_features=20, out_features=15, in_key="input", out_key="hidden1"),
             ReLUModule("hidden1", "relu1"),
-            LinearModule(15, 10, "relu1", "hidden2"),
+            LinearModule(in_features=15, out_features=10, in_key="relu1", out_key="hidden2"),
             ReLUModule("hidden2", "relu2"),
-            LinearModule(10, 1, "relu2", "output"),
+            LinearModule(in_features=10, out_features=1, in_key="relu2", out_key="output"),
         ]
 
         # Enable gradient computation
@@ -198,7 +200,7 @@ class TestIntegration:
 
     def test_pipeline_with_shared_modules(self):
         """Test pipeline where modules share parameters."""
-        shared_linear = LinearModule(10, 5, "input", "output")
+        shared_linear = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
 
         # Use same module in two places
         td1 = TensorDict({"input": torch.randn(4, 10)}, batch_size=4)
@@ -215,7 +217,7 @@ class TestIntegration:
 
     def test_nested_wrapper_modules(self):
         """Test nested wrapper combinations."""
-        base_module = LinearModule(10, 5, "input", "output")
+        base_module = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
 
         # Triple wrap: Safe -> Regularized -> Monitored
         safe_module = SafeModule(base_module, nan_check=True)
@@ -233,9 +235,9 @@ class TestIntegration:
     def test_large_batch_processing(self):
         """Test pipeline with large batches."""
         pipeline = [
-            LinearModule(100, 200, "input", "hidden1"),
+            LinearModule(in_features=100, out_features=200, in_key="input", out_key="hidden1"),
             ReLUModule("hidden1", "relu1"),
-            LinearModule(200, 50, "relu1", "output"),
+            LinearModule(in_features=200, out_features=50, in_key="relu1", out_key="output"),
         ]
 
         # Large batch
@@ -250,7 +252,9 @@ class TestIntegration:
 
     def test_error_propagation_in_pipeline(self):
         """Test that errors propagate correctly through pipelines."""
-        safe_module = SafeModule(LinearModule(10, 5, "input", "output"), nan_check=True)
+        safe_module = SafeModule(
+            LinearModule(in_features=10, out_features=5, in_key="input", out_key="output"), nan_check=True
+        )
 
         # Input with NaN should raise error
         td_with_nan = TensorDict({"input": torch.tensor([[float("nan")] * 10])}, batch_size=1)
@@ -281,30 +285,30 @@ class TestIntegration:
         container = ComponentContainer()
 
         # Original pipeline
-        original_module = LinearModule(10, 5, "input", "output")
+        original_module = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
         container.register_component("processor", original_module)
 
         td = TensorDict({"input": torch.randn(4, 10)}, batch_size=4)
 
         # Execute with original
         container.clear_cache()
-        result1 = container.forward("processor", td.clone())
+        result1 = container.execute_component("processor", td.clone())
         assert result1["output"].shape == (4, 5)
 
         # Hotswap to different output size
-        new_module = LinearModule(10, 8, "input", "output")
+        new_module = LinearModule(in_features=10, out_features=8, in_key="input", out_key="output")
         container.replace_component("processor", new_module)
 
         # Execute with new module
         container.clear_cache()
-        result2 = container.forward("processor", td.clone())
+        result2 = container.execute_component("processor", td.clone())
         assert result2["output"].shape == (4, 8)
 
     def test_memory_efficiency(self):
         """Test that modules don't accumulate unnecessary intermediate results."""
         import gc
 
-        modules = [LinearModule(50, 50, "input", "output") for _ in range(10)]
+        modules = [LinearModule(in_features=50, out_features=50, in_key="input", out_key="output") for _ in range(10)]
 
         # Process many batches
         for i in range(10):

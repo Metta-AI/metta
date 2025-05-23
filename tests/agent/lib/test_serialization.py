@@ -22,7 +22,7 @@ class TestSerialization:
 
     def test_linear_module_state_dict(self):
         """Test saving and loading LinearModule state dict."""
-        module = LinearModule(10, 5)
+        module = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
 
         # Generate some test data and run forward pass
         td = TensorDict({"input": torch.randn(2, 10)}, batch_size=2)
@@ -32,7 +32,7 @@ class TestSerialization:
         state_dict = module.state_dict()
 
         # Create new module and load state dict
-        new_module = LinearModule(10, 5)
+        new_module = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
         new_module.load_state_dict(state_dict)
 
         # Test that outputs are identical
@@ -56,7 +56,7 @@ class TestSerialization:
 
     def test_wrapper_module_serialization(self):
         """Test serialization of wrapped modules."""
-        base_module = LinearModule(8, 4)
+        base_module = LinearModule(in_features=8, out_features=4, in_key="input", out_key="output")
         safe_module = SafeModule(base_module, nan_check=True)
 
         td = TensorDict({"input": torch.randn(3, 8)}, batch_size=3)
@@ -66,7 +66,7 @@ class TestSerialization:
         state_dict = safe_module.state_dict()
 
         # Recreate and load
-        new_base = LinearModule(8, 4)
+        new_base = LinearModule(in_features=8, out_features=4, in_key="input", out_key="output")
         new_safe = SafeModule(new_base, nan_check=True)
         new_safe.load_state_dict(state_dict)
 
@@ -78,9 +78,9 @@ class TestSerialization:
         container = ComponentContainer()
 
         # Build a simple pipeline
-        module1 = LinearModule(5, 3, "input", "hidden")
+        module1 = LinearModule(in_features=5, out_features=3, in_key="input", out_key="hidden")
         module2 = ReLUModule("hidden", "activated")
-        module3 = LinearModule(3, 2, "activated", "output")
+        module3 = LinearModule(in_features=3, out_features=2, in_key="activated", out_key="output")
 
         container.register_component("linear1", module1)
         container.register_component("relu", module2, dependencies=["linear1"])
@@ -88,16 +88,16 @@ class TestSerialization:
 
         td = TensorDict({"input": torch.randn(2, 5)}, batch_size=2)
         container.clear_cache()
-        original_result = container.forward("linear2", td.clone())
+        original_result = container.execute_component("linear2", td.clone())
 
         # Save state dict
         state_dict = container.state_dict()
 
         # Recreate container with same structure
         new_container = ComponentContainer()
-        new_module1 = LinearModule(5, 3, "input", "hidden")
+        new_module1 = LinearModule(in_features=5, out_features=3, in_key="input", out_key="hidden")
         new_module2 = ReLUModule("hidden", "activated")
-        new_module3 = LinearModule(3, 2, "activated", "output")
+        new_module3 = LinearModule(in_features=3, out_features=2, in_key="activated", out_key="output")
 
         new_container.register_component("linear1", new_module1)
         new_container.register_component("relu", new_module2, dependencies=["linear1"])
@@ -108,7 +108,7 @@ class TestSerialization:
 
         # Test that outputs are identical
         new_container.clear_cache()
-        new_result = new_container.forward("linear2", td.clone())
+        new_result = new_container.execute_component("linear2", td.clone())
 
         assert torch.allclose(original_result["output"], new_result["output"])
 
@@ -118,7 +118,7 @@ class TestSerialization:
             save_path = os.path.join(temp_dir, "module.pt")
 
             # Create and test module
-            module = LinearModule(6, 3)
+            module = LinearModule(in_features=6, out_features=3, in_key="input", out_key="output")
             td = TensorDict({"input": torch.randn(2, 6)}, batch_size=2)
             original_output = module(td)["output"]
 
@@ -135,10 +135,10 @@ class TestSerialization:
     def test_partial_state_dict_loading(self):
         """Test loading partial state dicts (for transfer learning scenarios)."""
         # Create larger module
-        large_module = LinearModule(20, 10)
+        large_module = LinearModule(in_features=20, out_features=10, in_key="input", out_key="output")
 
         # Create smaller module with compatible first layer
-        small_module = LinearModule(20, 5)
+        small_module = LinearModule(in_features=20, out_features=5, in_key="input", out_key="output")
 
         # Get state dict from large module
         large_state = large_module.state_dict()
@@ -162,7 +162,7 @@ class TestSerialization:
 
     def test_module_pickling(self):
         """Test pickling and unpickling modules."""
-        module = LinearModule(4, 2)
+        module = LinearModule(in_features=4, out_features=2, in_key="input", out_key="output")
 
         td = TensorDict({"input": torch.randn(3, 4)}, batch_size=3)
         original_output = module(td)["output"]
@@ -180,14 +180,14 @@ class TestSerialization:
         container = ComponentContainer()
 
         # Create components
-        linear = LinearModule(3, 2, "input", "output")
+        linear = LinearModule(in_features=3, out_features=2, in_key="input", out_key="output")
         safe_linear = SafeModule(linear, nan_check=True)
 
         container.register_component("safe_processor", safe_linear)
 
         td = TensorDict({"input": torch.randn(2, 3)}, batch_size=2)
         container.clear_cache()
-        original_result = container.forward("safe_processor", td.clone())
+        original_result = container.execute_component("safe_processor", td.clone())
 
         # Pickle and unpickle
         pickled_container = pickle.dumps(container)
@@ -195,7 +195,7 @@ class TestSerialization:
 
         # Test functionality
         unpickled_container.clear_cache()
-        unpickled_result = unpickled_container.forward("safe_processor", td.clone())
+        unpickled_result = unpickled_container.execute_component("safe_processor", td.clone())
 
         assert torch.allclose(original_result["output"], unpickled_result["output"])
 
@@ -205,7 +205,7 @@ class TestSerialization:
             pytest.skip("CUDA not available for cross-device test")
 
         # Create module on CPU
-        cpu_module = LinearModule(5, 3)
+        cpu_module = LinearModule(in_features=5, out_features=3, in_key="input", out_key="output")
         td = TensorDict({"input": torch.randn(2, 5)}, batch_size=2)
         cpu_output = cpu_module(td)["output"]
 
@@ -218,7 +218,7 @@ class TestSerialization:
         gpu_state = gpu_module.state_dict()
 
         # Load into new CPU module
-        new_cpu_module = LinearModule(5, 3)
+        new_cpu_module = LinearModule(in_features=5, out_features=3, in_key="input", out_key="output")
         # Move state dict back to CPU
         cpu_state = {k: v.cpu() for k, v in gpu_state.items()}
         new_cpu_module.load_state_dict(cpu_state)
@@ -230,7 +230,7 @@ class TestSerialization:
     def test_version_compatibility_simulation(self):
         """Simulate version compatibility by testing flexible loading."""
         # Create module with current structure
-        module = LinearModule(4, 3)
+        module = LinearModule(in_features=4, out_features=3, in_key="input", out_key="output")
         state_dict = module.state_dict()
 
         # Simulate loading into slightly different module structure
@@ -242,7 +242,7 @@ class TestSerialization:
 
         # Load only compatible parts
         try:
-            new_module = LinearModule(4, 3)
+            new_module = LinearModule(in_features=4, out_features=3, in_key="input", out_key="output")
             # Filter out non-compatible keys
             compatible_state = {k: v for k, v in modified_state.items() if k in new_module.state_dict()}
             new_module.load_state_dict(compatible_state)
@@ -261,7 +261,7 @@ class TestSerialization:
             checkpoint_path = os.path.join(temp_dir, "checkpoint.pt")
 
             # Create training state
-            module = LinearModule(10, 5)
+            module = LinearModule(in_features=10, out_features=5, in_key="input", out_key="output")
             optimizer = torch.optim.Adam(module.parameters(), lr=0.001)
             epoch = 42
             loss = 0.123
@@ -316,7 +316,7 @@ class TestSerialization:
 
     def test_metadata_preservation(self):
         """Test that module metadata is preserved during serialization."""
-        module = LinearModule(7, 4, "custom_input", "custom_output")
+        module = LinearModule(in_features=7, out_features=4, in_key="custom_input", out_key="custom_output")
 
         # Verify initial metadata
         assert module.in_keys == ["custom_input"]
@@ -324,7 +324,7 @@ class TestSerialization:
 
         # Save and load
         state_dict = module.state_dict()
-        new_module = LinearModule(7, 4, "custom_input", "custom_output")
+        new_module = LinearModule(in_features=7, out_features=4, in_key="custom_input", out_key="custom_output")
         new_module.load_state_dict(state_dict)
 
         # Verify metadata preservation
@@ -340,7 +340,7 @@ class TestSerialization:
     def test_nested_module_serialization(self):
         """Test serialization of deeply nested module structures."""
         # Create nested wrapper structure
-        base = LinearModule(6, 4)
+        base = LinearModule(in_features=6, out_features=4, in_key="input", out_key="output")
         safe = SafeModule(base, nan_check=True)
         regularized = RegularizedModule(safe, l2_scale=0.01)
         monitored = WeightMonitoringModule(regularized, monitor_health=True)
@@ -352,7 +352,7 @@ class TestSerialization:
         state_dict = monitored.state_dict()
 
         # Reconstruct nested structure
-        new_base = LinearModule(6, 4)
+        new_base = LinearModule(in_features=6, out_features=4, in_key="input", out_key="output")
         new_safe = SafeModule(new_base, nan_check=True)
         new_regularized = RegularizedModule(new_safe, l2_scale=0.01)
         new_monitored = WeightMonitoringModule(new_regularized, monitor_health=True)
@@ -402,7 +402,7 @@ class TestSerialization:
 
     def test_serialization_error_handling(self):
         """Test graceful handling of serialization errors."""
-        module = LinearModule(3, 2)
+        module = LinearModule(in_features=3, out_features=2, in_key="input", out_key="output")
 
         # Test loading incompatible state dict
         incompatible_state = {
@@ -423,7 +423,7 @@ class TestSerialization:
     def test_large_module_serialization(self):
         """Test serialization of large modules."""
         # Create a reasonably large module
-        large_module = LinearModule(5000, 1000)
+        large_module = LinearModule(in_features=5000, out_features=1000, in_key="input", out_key="output")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             save_path = os.path.join(temp_dir, "large_module.pt")

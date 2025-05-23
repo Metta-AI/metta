@@ -17,7 +17,7 @@ def lstm_environment():
 
     # Create input data
     x = torch.rand(batch_size * seq_length, input_size)
-    hidden = torch.rand(batch_size * seq_length, input_size)
+    hidden = torch.rand(batch_size * seq_length, hidden_size)
 
     # Create LSTM module
     lstm = LSTMModule(
@@ -210,6 +210,6 @@ class TestLSTMModule:
             batch_size=params["batch_size"] * params["seq_length"],
         )
 
-        # Forward pass should raise assertion error
-        with pytest.raises(AssertionError):
+        # Forward pass should raise ValueError for shape mismatch
+        with pytest.raises(ValueError):
             lstm(td)

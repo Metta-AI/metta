@@ -26,7 +26,7 @@ class TestPerformance:
         batch_sizes = [32, 128, 512]
 
         for in_features, out_features in sizes:
-            module = LinearModule(in_features, out_features)
+            module = LinearModule(in_features=in_features, out_features=out_features, in_key="input", out_key="output")
             module.eval()  # Consistent timing
 
             for batch_size in batch_sizes:
@@ -91,21 +91,21 @@ class TestPerformance:
         # input -> [branch1, branch2, branch3] -> combiner -> output
 
         branch1 = [
-            LinearModule(100, 64, "input", "b1_h1"),
+            LinearModule(in_features=100, out_features=64, in_key="input", out_key="b1_h1"),
             ReLUModule("b1_h1", "b1_h2"),
-            LinearModule(64, 32, "b1_h2", "branch1_out"),
+            LinearModule(in_features=64, out_features=32, in_key="b1_h2", out_key="branch1_out"),
         ]
 
         branch2 = [
-            LinearModule(100, 128, "input", "b2_h1"),
+            LinearModule(in_features=100, out_features=128, in_key="input", out_key="b2_h1"),
             ReLUModule("b2_h1", "b2_h2"),
-            LinearModule(128, 32, "b2_h2", "branch2_out"),
+            LinearModule(in_features=128, out_features=32, in_key="b2_h2", out_key="branch2_out"),
         ]
 
         branch3 = [
-            LinearModule(100, 96, "input", "b3_h1"),
+            LinearModule(in_features=100, out_features=96, in_key="input", out_key="b3_h1"),
             ReLUModule("b3_h1", "b3_h2"),
-            LinearModule(96, 32, "b3_h2", "branch3_out"),
+            LinearModule(in_features=96, out_features=32, in_key="b3_h2", out_key="branch3_out"),
         ]
 
         # Combiner takes all branch outputs
@@ -148,7 +148,7 @@ class TestPerformance:
         # Warm up
         for _ in range(3):
             container.clear_cache()
-            _ = container.forward("combiner", td.clone())
+            _ = container.execute_component("combiner", td.clone())
 
         # Time execution
         start_time = time.time()
@@ -156,7 +156,7 @@ class TestPerformance:
 
         for _ in range(iterations):
             container.clear_cache()
-            result = container.forward("combiner", td.clone())
+            result = container.execute_component("combiner", td.clone())
 
         end_time = time.time()
         avg_time = (end_time - start_time) / iterations
@@ -167,7 +167,7 @@ class TestPerformance:
 
     def test_wrapper_module_overhead(self):
         """Test performance overhead of wrapper modules."""
-        base_module = LinearModule(1000, 500)
+        base_module = LinearModule(in_features=1000, out_features=500, in_key="input", out_key="output")
 
         # Test different wrapper combinations
         wrappers = {
@@ -222,7 +222,7 @@ class TestPerformance:
         # Create and use many modules
         modules = []
         for i in range(100):
-            module = LinearModule(100, 50)
+            module = LinearModule(in_features=100, out_features=50, in_key="input", out_key="output")
             modules.append(module)
 
             # Use the module
@@ -243,7 +243,7 @@ class TestPerformance:
 
     def test_batch_size_scaling(self):
         """Test how performance scales with batch size."""
-        module = LinearModule(512, 256)
+        module = LinearModule(in_features=512, out_features=256, in_key="input", out_key="output")
         module.eval()
 
         batch_sizes = [1, 16, 64, 256, 1024]
@@ -287,7 +287,9 @@ class TestPerformance:
 
             # Alternate between linear and ReLU
             if i % 2 == 0:
-                modules.append(LinearModule(feature_size, feature_size, in_key, out_key))
+                modules.append(
+                    LinearModule(in_features=feature_size, out_features=feature_size, in_key=in_key, out_key=out_key)
+                )
             else:
                 modules.append(ReLUModule(in_key, out_key))
 
@@ -320,7 +322,7 @@ class TestPerformance:
         import queue
         import threading
 
-        module = LinearModule(256, 128)
+        module = LinearModule(in_features=256, out_features=128, in_key="input", out_key="output")
         module.eval()
 
         # Shared queue for results
@@ -365,11 +367,11 @@ class TestPerformance:
     def test_gradient_computation_performance(self):
         """Test performance of gradient computation."""
         modules = [
-            LinearModule(512, 256, "input", "hidden1"),
+            LinearModule(in_features=512, out_features=256, in_key="input", out_key="hidden1"),
             ReLUModule("hidden1", "relu1"),
-            LinearModule(256, 128, "relu1", "hidden2"),
+            LinearModule(in_features=256, out_features=128, in_key="relu1", out_key="hidden2"),
             ReLUModule("hidden2", "relu2"),
-            LinearModule(128, 1, "relu2", "output"),
+            LinearModule(in_features=128, out_features=1, in_key="relu2", out_key="output"),
         ]
 
         # Set requires_grad for all parameters
@@ -425,8 +427,8 @@ class TestPerformance:
         container = ComponentContainer()
 
         # Create modules with caching opportunities
-        expensive_module = LinearModule(1000, 1000, "input", "expensive_output")
-        cheap_module = LinearModule(10, 5, "expensive_output", "final_output")
+        expensive_module = LinearModule(in_features=1000, out_features=1000, in_key="input", out_key="expensive_output")
+        cheap_module = LinearModule(in_features=10, out_features=5, in_key="expensive_output", out_key="final_output")
 
         container.register_component("expensive", expensive_module)
         container.register_component("cheap", cheap_module, dependencies=["expensive"])
@@ -435,12 +437,12 @@ class TestPerformance:
 
         # First execution (no cache)
         start_time = time.time()
-        result1 = container.forward("cheap", td.clone())
+        result1 = container.execute_component("cheap", td.clone())
         first_time = time.time() - start_time
 
         # Second execution (should use cache for expensive computation)
         start_time = time.time()
-        result2 = container.forward("cheap", td.clone())
+        result2 = container.execute_component("cheap", td.clone())
         second_time = time.time() - start_time
 
         # Cached execution should be faster
@@ -452,7 +454,7 @@ class TestPerformance:
     @pytest.mark.slow
     def test_stress_large_batch(self):
         """Stress test with very large batch sizes."""
-        module = LinearModule(100, 50)
+        module = LinearModule(in_features=100, out_features=50, in_key="input", out_key="output")
         module.eval()
 
         # Very large batch
@@ -476,7 +478,7 @@ class TestPerformance:
         # Create many components
         num_components = 200
         for i in range(num_components):
-            module = LinearModule(10, 10, "input", f"output_{i}")
+            module = LinearModule(in_features=10, out_features=10, in_key="input", out_key=f"output_{i}")
             container.register_component(f"component_{i}", module)
 
         td = TensorDict({"input": torch.randn(8, 10)}, batch_size=8)
@@ -489,7 +491,7 @@ class TestPerformance:
             container.clear_cache()
 
             start_time = time.time()
-            result = container.forward(component_name, td.clone())
+            result = container.execute_component(component_name, td.clone())
             execution_time = time.time() - start_time
 
             # Each execution should be fast
