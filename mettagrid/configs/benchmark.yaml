@@ -40,7 +40,7 @@ game:
   max_steps: 1000
 
   agent:
-    max_inventory: 50
+    default_item_max: 50
     freeze_duration: 10
     hp: 10
     rewards:
