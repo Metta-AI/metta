@@ -8,7 +8,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.lib.component_container import ComponentContainer
-from metta.agent.lib.metta_moduly import (
+from metta.agent.lib.metta_modules import (
     Conv2dModule,
     LinearModule,
     MettaModule,

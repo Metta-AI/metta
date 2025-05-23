@@ -8,7 +8,7 @@ from metta.agent.lib.component_container import (
     SafeComponentContainer,
     SafeLazyComponentContainer,
 )
-from metta.agent.lib.metta_moduly import LinearModule
+from metta.agent.lib.metta_modules import LinearModule
 
 
 class TestBaseComponentContainer:

@@ -2,7 +2,7 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.metta_moduly import (
+from metta.agent.lib.metta_modules import (
     Conv2dModule,
     DropoutModule,
     FlattenModule,

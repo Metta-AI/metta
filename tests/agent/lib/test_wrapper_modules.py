@@ -2,7 +2,7 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.metta_moduly import Conv2dModule, LinearModule, ReLUModule
+from metta.agent.lib.metta_modules import Conv2dModule, LinearModule, ReLUModule
 from metta.agent.lib.wrapper_modules import RegularizedModule, SafeModule, WeightMonitoringModule
 
 

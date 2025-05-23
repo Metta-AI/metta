@@ -2,7 +2,7 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.metta_moduly import LSTMModule
+from metta.agent.lib.metta_modules import LSTMModule
 
 
 @pytest.fixture

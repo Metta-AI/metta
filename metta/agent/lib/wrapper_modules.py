@@ -1,7 +1,7 @@
 import torch
 from tensordict import TensorDict
 
-from .metta_moduly import MettaModule
+from .metta_modules import MettaModule
 
 
 class SafeModule(MettaModule):

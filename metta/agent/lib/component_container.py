@@ -5,7 +5,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 from tensordict.nn import TensorDictModuleBase
 
-from metta.agent.lib.metta_moduly import MettaModule
+from metta.agent.lib.metta_modules import MettaModule
 
 
 class ComponentContainer(TensorDictModuleBase):
