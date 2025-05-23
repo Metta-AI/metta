@@ -3,6 +3,6 @@ defaults:
 
 game:
   num_agents: 1
-  max_steps: 70
+  max_steps: 150
   map_builder:
     uri: "configs/env/mettagrid/maps/memory/access_cross.map"
