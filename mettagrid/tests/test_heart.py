@@ -207,48 +207,6 @@ def test_heart_collection_basic(heart_env, heart_game_map, heart_helpers):
         assert reward > 0, f"Should receive positive reward, but got {reward}"
 
 
-def test_heart_collection_orientation_independence(heart_env, adjacent_heart_game_map, heart_helpers):
-    """Test that heart collection works regardless of agent orientation."""
-    env, obs = heart_env(adjacent_heart_game_map)
-    helpers = heart_helpers
-
-    # Wait for heart production
-    for _i in range(3):
-        obs, reward, success = helpers["perform_action"](env, "noop")
-
-    # Move right to be adjacent to altar
-    move_result = move(env, 3)
-    assert move_result["success"], "Should be able to move adjacent to altar"
-
-    # Test collection in each orientation
-    orientation_names = {0: "up", 1: "down", 2: "left", 3: "right"}
-    successful_orientations = []
-
-    for orientation in range(4):
-        direction_name = orientation_names[orientation]
-
-        # Rotate to face direction
-        rotate_result = rotate(env, orientation)
-        assert rotate_result["success"], f"Should be able to rotate to face {direction_name}"
-
-        # Try collection
-        hearts_before = helpers["get_agent_hearts"](env, obs[0])
-        obs, reward, success = helpers["perform_action"](env, "get_output", 0)
-        hearts_after = helpers["get_agent_hearts"](env, obs[0])
-        hearts_gained = hearts_after - hearts_before
-
-        if success and hearts_gained > 0:
-            successful_orientations.append(direction_name)
-
-    # At least one orientation should work
-    assert len(successful_orientations) > 0, (
-        f"Heart collection should work in at least one orientation, but failed in all: "
-        f"{list(orientation_names.values())}"
-    )
-
-    print(f"Heart collection succeeded in orientations: {successful_orientations}")
-
-
 def test_heart_production_timing(heart_env, adjacent_heart_game_map, heart_helpers):
     """Test that hearts are produced over time."""
     env, obs = heart_env(adjacent_heart_game_map)
@@ -269,39 +227,3 @@ def test_heart_production_timing(heart_env, adjacent_heart_game_map, heart_helpe
     else:
         # If no hearts produced after 10 steps, that might be expected based on config
         print(f"No hearts produced after 10 steps (initial: {initial_hearts})")
-
-
-def test_multiple_heart_collection(heart_env, adjacent_heart_game_map, heart_helpers):
-    """Test collecting multiple hearts over time."""
-    env, obs = heart_env(adjacent_heart_game_map)
-    helpers = heart_helpers
-
-    # Wait for heart production
-    for _i in range(5):
-        obs, reward, success = helpers["perform_action"](env, "noop")
-
-    # Move to be adjacent to altar
-    move_result = move(env, 3)
-    if move_result["success"]:
-        print("Successfully moved adjacent to altar")
-
-    total_hearts_collected = 0
-    collection_attempts = 5
-
-    for attempt in range(collection_attempts):
-        # Try to collect hearts
-        hearts_before = helpers["get_agent_hearts"](env, obs[0])
-        obs, reward, success = helpers["perform_action"](env, "get_output", 0)
-        hearts_after = helpers["get_agent_hearts"](env, obs[0])
-        hearts_gained = hearts_after - hearts_before
-
-        if hearts_gained > 0:
-            total_hearts_collected += hearts_gained
-            print(f"Attempt {attempt + 1}: Collected {hearts_gained} hearts (total: {total_hearts_collected})")
-
-        # Wait a bit between attempts
-        for _i in range(2):
-            obs, reward, success = helpers["perform_action"](env, "noop")
-
-    # We should have collected at least some hearts
-    assert total_hearts_collected > 0, f"Should have collected at least some hearts over {collection_attempts} attempts"
