@@ -4,9 +4,20 @@ from pathlib import Path
 
 from metta.map.load import Load
 from metta.map.utils import s3utils
-from metta.map.utils.storage import parse_file_uri
 
 from .scene import SceneCfg
+
+
+def parse_file_uri(uri: str) -> str:
+    if uri.startswith("file://"):
+        return uri.split("file://")[1]
+
+    # we don't support any other schemes
+    if "://" in uri:
+        raise ValueError(f"Invalid URI: {uri}")
+
+    # probably a local file name
+    return uri
 
 
 def get_random_map_uri(dir_uri: str) -> str:
