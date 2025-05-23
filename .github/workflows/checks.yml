@@ -338,7 +338,7 @@ jobs:
 
   benchmark:
     name: "Python Benchmarks"
-    needs: [graphite-ci-optimizer, setup-checks]
+    needs: [graphite-ci-optimizer, setup-checks, smoke-test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
