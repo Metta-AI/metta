@@ -9,21 +9,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(FetchContent)
 FetchContent_Declare(
   googletest
-  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG v1.17.0
 )
 
 FetchContent_MakeAvailable(googletest)
 
+# Disable building Benchmark's own tests
+set(BENCHMARK_ENABLE_TESTING    OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+
 FetchContent_Declare(
   googlebenchmark
   GIT_REPOSITORY https://github.com/google/benchmark.git
-  GIT_TAG main # or pin to a release, e.g. v1.7.2
+  GIT_TAG v1.9.4
 )
-
-# Disable building Benchmark's own tests (optional)
-set(BENCHMARK_ENABLE_GTEST_TESTS
-    OFF
-    CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(googlebenchmark)
 
@@ -39,17 +39,25 @@ find_package(
   REQUIRED)
 set(NUMPY_INCLUDE_DIR ${Python3_NumPy_INCLUDE_DIRS})
 
+# Get Python base prefix for proper runtime configuration
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} -c "import sys; print(sys.base_prefix)"
+  OUTPUT_VARIABLE PYTHON_BASE_PREFIX
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 file(GLOB_RECURSE METTAGRID_SOURCES CONFIGURE_DEPENDS
      ${CMAKE_CURRENT_SOURCE_DIR}/mettagrid/*.cpp)
 
-add_library(mettagrid_obj OBJECT ${METTAGRID_SOURCES} # mettagrid/*.cpp
-)
+add_library(mettagrid_obj OBJECT ${METTAGRID_SOURCES})
 
-# pull in pybind11’s own includes (so <pybind11/numpy.h> resolves)
+# pull in pybind11's own includes (so <pybind11/numpy.h> resolves)
 target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11)
 
-# pull in NumPy’s include dir (so the C-API macros are found)
+# pull in NumPy's include dir (so the C-API macros are found)
 target_include_directories(mettagrid_obj PUBLIC ${NUMPY_INCLUDE_DIR})
+
+# Link to Python to resolve Python symbols used in pybind11 code
+target_link_libraries(mettagrid_obj PUBLIC Python3::Python)
 
 target_include_directories(mettagrid_obj
                            PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/mettagrid")
@@ -72,7 +80,7 @@ file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
 
 set(PYBIND11_TESTS test_mettagrid)
 
-foreach(test_src IN LISTS TEST_SOURCES BENCH_SOURCES)
+foreach(test_src IN LISTS TEST_SOURCES)
   get_filename_component(test_name ${test_src} NAME_WE)
   get_filename_component(test_src_dir ${test_src} DIRECTORY)
 
@@ -82,16 +90,14 @@ foreach(test_src IN LISTS TEST_SOURCES BENCH_SOURCES)
     ${test_name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mettagrid"
                          ${NUMPY_INCLUDE_DIR})
 
-  # pick link libraries based on whether this test is in our pybind11 list
-  if(test_name IN_LIST PYBIND11_TESTS)
-    message(STATUS "Configuring Python-backed test: ${test_name}")
-    target_link_libraries(
-      ${test_name} PRIVATE pybind11::pybind11 Python3::Python GTest::gtest
-                           GTest::gtest_main)
-  else()
-    message(STATUS "Configuring pure C++ test: ${test_name}")
-    target_link_libraries(${test_name} PRIVATE pybind11::pybind11 GTest::gtest GTest::gtest_main)
-  endif()
+  # All tests need Python linking since they use mettagrid_obj which contains
+  # pybind11 code
+  target_link_libraries(${test_name} PRIVATE pybind11::pybind11 Python3::Python
+                                             GTest::gtest GTest::gtest_main)
+
+  # Pass Python base prefix for runtime configuration
+  target_compile_definitions(${test_name}
+                             PRIVATE PYTHON_BASE_PREFIX="${PYTHON_BASE_PREFIX}")
 
   add_test(NAME ${test_name} COMMAND ${test_name} --gtest_color=yes)
 
@@ -115,19 +121,10 @@ foreach(bench_src IN LISTS BENCH_SOURCES)
                           ${NUMPY_INCLUDE_DIR})
 
   target_link_libraries(
-    ${bench_name} PRIVATE pybind11::pybind11 benchmark::benchmark
-                          benchmark::benchmark_main)
+    ${bench_name} PRIVATE pybind11::pybind11 Python3::Python
+                          benchmark::benchmark benchmark::benchmark_main)
 
   set_target_properties(${bench_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY
                                                  "${bench_src_dir}")
 
 endforeach()
-
-# 4) “make test” → ctest “make benchmark” → just builds benchmarks; you can run
-# them manually, or add a wrapper target:
-
-add_custom_target(
-  run_benchmarks
-  DEPENDS ${BENCH_SOURCES}
-  COMMENT
-    "Building all benchmarks. Run them with ./<bench_name> in build directory.")
