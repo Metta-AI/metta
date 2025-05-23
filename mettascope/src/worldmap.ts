@@ -51,7 +51,7 @@ export function focusFullMap(panel: PanelInfo) {
   panel.focusPos(width / 2, height / 2, Math.min(panel.width / width, panel.height / height));
 }
 
-// Draw the the floor.
+// Draw the floor.
 function drawFloor() {
   const floorColor = parseHtmlColor("#CFA970");
   ctx.drawSolidRect(
