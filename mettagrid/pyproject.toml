@@ -20,9 +20,6 @@ keywords = [
     "gym",
 ]
 
-[project.optional-dependencies]
-dev = ["pybind11==2.10.4"]
- 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["mettagrid*"]
