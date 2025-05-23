@@ -108,6 +108,15 @@ simulations:
     env: env/mettagrid/navigation_sequence/evals/thecube
   navsequence/walkaround:
     env: env/mettagrid/navigation_sequence/evals/walkaround
+<<<<<<< HEAD
+=======
+  memory/easy:
+    env: env/mettagrid/memory/evals/easy
+  memory/medium:
+    env: env/mettagrid/memory/evals/medium
+  memory/hard:
+    env: env/mettagrid/memory/evals/hard
+>>>>>>> bacce50a4e64e5e597c39e56412d57c3d2af06cb
   memory/access_cross:
     env: env/mettagrid/memory/evals/access_cross
   memory/boxout:
