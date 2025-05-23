@@ -99,8 +99,6 @@ private:
 
   std::vector<bool> _action_success;
 
-  bool _reward_sharing_enabled = true;  // Default to true for backward compatibility
-
   void init_action_handlers();
   void add_agent(Agent* agent);
   void _compute_observation(unsigned int observer_r,
