@@ -109,7 +109,7 @@ def test_grid_objects():
         if obj.get("agent"):
             # agents will also have various inventory, which we don't list here
             assert set(obj).issuperset(
-                {"agent", "agent:group", "hp", "agent:frozen", "agent:orientation", "agent:color", "agent:inv:heart"}
+                {"agent", "agent:group", "hp", "agent:frozen", "agent:orientation", "agent:color", "inv:heart"}
                 | common_properties
             )
             assert obj["agent"] == 1, "Agent should have type 1"
