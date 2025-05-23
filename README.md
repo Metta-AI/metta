@@ -119,12 +119,10 @@ script, run:
 uv pip install -e ./mettagrid
 ```
 
-To run the Python test suite, first activate the virtual environment and then
-invoke `pytest`:
+To run the Python test suite:
 
 ```bash
-source .venv/bin/activate
-pytest
+uv run pytest
 ```
 
 # Training a Model

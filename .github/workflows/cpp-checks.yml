@@ -271,8 +271,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-          source .venv/bin/activate
-          pytest
+          uv run pytest
 
   benchmark:
     name: "C++ Benchmarks"
@@ -428,8 +427,8 @@ jobs:
       # Second PR Performance run - Check for regressions (WILL fail on alerts)
       - name: Check for Performance Regressions
         if: |
-          github.event_name == 'pull_request' && 
-          !github.event.pull_request.head.repo.fork && 
+          github.event_name == 'pull_request' &&
+          !github.event.pull_request.head.repo.fork &&
           steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
@@ -450,7 +449,7 @@ jobs:
                 --err \
                 --adapter cpp_google \
                 --github-actions "$GITHUB_TOKEN" \
-                --file "$file" 
+                --file "$file"
             done
           else
             echo "NO TEST RESULTS FOUND"
