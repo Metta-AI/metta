@@ -65,22 +65,7 @@ python -m devops.tools.auto_ruff_fix path/to/file
 
 ### Building
 
-```bash
-# Clean build artifacts
-make clean
-
-# Build from setup.py
-make build
-
-# Build and install
-make install
-
-# Run tests
-make test
-
-# Full clean, install, and test
-make all
-```
+uv pip install -e ./mettagrid
 
 ## Code Architecture
 

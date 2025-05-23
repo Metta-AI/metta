@@ -271,7 +271,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-          uv run pytest
+          uv run --python .venv/bin/python pytest
 
   benchmark:
     name: "C++ Benchmarks"
