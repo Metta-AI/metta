@@ -130,7 +130,7 @@ uv pip install -e .
 # This is according to scikit-build-core and PEP-517 conventions.
 # So we do another build in the next step, for testing and development.
 echo -e "\nInstalling MettaGrid..."
-uv pip --directory mettagrid install -e .[dev]
+uv pip --directory mettagrid install -e .
 
 echo -e "\nBuilding MettaGrid..."
 (cd mettagrid && make)

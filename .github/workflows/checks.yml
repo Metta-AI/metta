@@ -178,7 +178,6 @@ jobs:
       - name: Run MettaGrid C++ tests
         working-directory: mettagrid
         run: |
-          uv pip install -e .[dev]
           make
           make test
 
