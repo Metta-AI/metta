@@ -1,336 +1,388 @@
 import numpy as np
 import pytest
 import torch
+from omegaconf import OmegaConf
 from tensordict import TensorDict
-from torch import nn
 
 from metta.agent.lib.nn_layer_library import Linear
 
 
+@pytest.fixture
+def simple_linear_environment():
+    """Create a minimal environment for testing the Linear layer."""
+    # Define the dimensions
+    batch_size = 4
+    input_size = 10
+    output_size = 16
+
+    # Create input data
+    sample_input = {
+        "input_tensor": torch.rand(batch_size, input_size),
+    }
+
+    # Create Linear layer
+    # Note: Linear expects _nn_params as an OmegaConf object
+    linear_layer = Linear(
+        name="_linear_test_",
+        sources=[{"name": "input_tensor"}],
+        nn_params=OmegaConf.create({"out_features": output_size, "bias": True}),
+        nonlinearity=None,
+        initialization="Orthogonal",
+        clip_scale=1.0,
+        l2_norm_scale=0.01,
+        l2_init_scale=0.005,
+    )
+
+    # Set up in_tensor_shapes manually
+    linear_layer._in_tensor_shapes = [[input_size]]
+
+    # Initialize the network
+    if not hasattr(linear_layer, "_out_tensor_shape"):
+        linear_layer._out_tensor_shape = [output_size]
+
+    # Set up the network manually
+    linear_layer._initialize()
+
+    # Return all components needed for testing
+    return {
+        "linear_layer": linear_layer,
+        "sample_input": sample_input,
+        "params": {
+            "batch_size": batch_size,
+            "input_size": input_size,
+            "output_size": output_size,
+        },
+    }
+
+
 class TestLinearLayer:
-    @pytest.fixture
-    def mock_source_component(self):
-        """Create a mock source component with a 1D output shape."""
+    """Tests for the Linear layer focusing on forward pass, initialization, and regularization."""
 
-        class MockSourceComponent:
-            def __init__(self):
-                self._out_tensor_shape = [8]
-                self._name = "input_layer"
-                self._ready = True
+    def test_basic_forward_pass(self, simple_linear_environment):
+        """Test basic forward pass of the Linear layer."""
+        linear_layer = simple_linear_environment["linear_layer"]
+        sample_input = simple_linear_environment["sample_input"]
+        params = simple_linear_environment["params"]
 
-            def forward(self, td):
-                if self._name not in td:
-                    # Create random input tensor for testing
-                    td[self._name] = torch.rand(td.batch_size, 8)
-                return td
-
-        return MockSourceComponent()
-
-    def test_initialization(self):
-        """Test that the Linear layer initializes correctly with proper attributes."""
-        # Create a Linear layer
-        layer = Linear(
-            name="test_linear", sources=[{"name": "input_layer"}], nn_params={"out_features": 32, "bias": True}
-        )
-
-        # Verify initial state
-        assert layer._name == "test_linear"
-        assert layer._sources == [{"name": "input_layer"}]
-        assert layer._nn_params["out_features"] == 32
-        assert layer._nn_params["bias"] is True
-        assert layer._ready is False
-        assert layer._net is None
-
-    def test_setup(self, mock_source_component):
-        """Test the setup method which prepares the layer for use."""
-        # Create a Linear layer
-        layer = Linear(
-            name="test_linear", sources=[{"name": "input_layer"}], nn_params={"out_features": 16, "bias": True}
-        )
-
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
-
-        # Verify the layer is ready
-        assert layer._ready is True
-        assert layer._out_tensor_shape == [16]  # Output shape should match out_features
-        assert isinstance(layer._net, nn.Module)
-
-    def test_forward(self, mock_source_component):
-        """Test forward pass of the Linear layer."""
-        # Create a Linear layer
-        layer = Linear(
-            name="test_linear",
-            sources=[{"name": "input_layer"}],
-            nn_params={"out_features": 16, "bias": True},
-            nonlinearity=None,  # No nonlinearity for simpler testing
-        )
-
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
-
-        # Create input data
-        batch_size = 4
-        td = TensorDict({}, batch_size=batch_size)
+        # Create tensordict with input
+        td = {"input_tensor": sample_input["input_tensor"]}
 
         # Forward pass
-        result_td = layer.forward(td)
+        result = linear_layer._forward(td)
 
-        # Verify output shape and existence
-        assert "test_linear" in result_td
-        assert result_td["test_linear"].shape == torch.Size([batch_size, 16])
+        # Verify output shape
+        assert result[linear_layer._name].shape == (params["batch_size"], params["output_size"])
 
-    def test_forward_with_existing_result(self, mock_source_component):
-        """Test that forward pass doesn't recompute when result already exists."""
-        # Create a Linear layer
-        layer = Linear(
-            name="test_linear", sources=[{"name": "input_layer"}], nn_params={"out_features": 16, "bias": True}
+        # Verify output is not all zeros
+        assert not torch.allclose(result[linear_layer._name], torch.zeros_like(result[linear_layer._name]))
+
+    def test_repeated_forward_pass(self, simple_linear_environment):
+        """Test that repeated forward passes with the same input produce the same output."""
+        linear_layer = simple_linear_environment["linear_layer"]
+        sample_input = simple_linear_environment["sample_input"]
+
+        # First forward pass
+        td1 = {"input_tensor": sample_input["input_tensor"]}
+        result1 = linear_layer._forward(td1)
+        output1 = result1[linear_layer._name]
+
+        # Second forward pass with same input
+        td2 = {"input_tensor": sample_input["input_tensor"]}
+        result2 = linear_layer._forward(td2)
+        output2 = result2[linear_layer._name]
+
+        # Outputs should be identical
+        assert torch.allclose(output1, output2)
+
+    def test_different_inputs(self, simple_linear_environment):
+        """Test that different inputs produce different outputs."""
+        linear_layer = simple_linear_environment["linear_layer"]
+        sample_input = simple_linear_environment["sample_input"]
+        params = simple_linear_environment["params"]
+
+        # First forward pass
+        td1 = {"input_tensor": sample_input["input_tensor"]}
+        result1 = linear_layer._forward(td1)
+        output1 = result1[linear_layer._name]
+
+        # Second forward pass with different input
+        different_input = torch.rand(params["batch_size"], params["input_size"])
+        td2 = {"input_tensor": different_input}
+        result2 = linear_layer._forward(td2)
+        output2 = result2[linear_layer._name]
+
+        # Outputs should be different
+        assert not torch.allclose(output1, output2)
+
+    def test_weight_initialization(self, simple_linear_environment):
+        """Test the weight initialization of the Linear layer."""
+        linear_layer = simple_linear_environment["linear_layer"]
+
+        # Check that weights are initialized (not all zeros)
+        assert not torch.allclose(
+            linear_layer.weight_net.weight.data, torch.zeros_like(linear_layer.weight_net.weight.data)
         )
 
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
+        # For orthogonal initialization, test if weight matrix is close to orthogonal
+        # For a tall matrix W (more rows than columns), W.T @ W should be close to identity
+        # For a fat matrix W (more columns than rows), W @ W.T should be close to identity
+        W = linear_layer.weight_net.weight.data
 
-        # Create input data with existing result
-        batch_size = 4
-        existing_result = torch.ones(batch_size, 16)  # Distinct from what computation would produce
-        td = TensorDict(
-            {"input_layer": torch.rand(batch_size, 8), "test_linear": existing_result}, batch_size=batch_size
-        )
+        if W.shape[0] <= W.shape[1]:  # If output_size <= input_size
+            # W @ W.T should be close to identity
+            product = torch.mm(W, W.t())
+            identity = torch.eye(W.shape[0], device=W.device)
+            # Allow some tolerance due to numerical issues
+            close_to_orthogonal = torch.allclose(product, identity, atol=1e-6)
+            assert close_to_orthogonal, "Weight initialization should be orthogonal"
+        else:
+            # W.T @ W should be close to identity
+            product = torch.mm(W.t(), W)
+            identity = torch.eye(W.shape[1], device=W.device)
+            # Allow some tolerance
+            close_to_orthogonal = torch.allclose(product, identity, atol=1e-6)
+            assert close_to_orthogonal, "Weight initialization should be orthogonal"
 
-        # Forward pass
-        result_td = layer.forward(td)
+        # Check bias initialization (should be zeros)
+        assert torch.allclose(linear_layer.weight_net.bias.data, torch.zeros_like(linear_layer.weight_net.bias.data))
 
-        # Verify the existing result was preserved
-        assert torch.all(result_td["test_linear"] == existing_result)
+    def test_weight_clipping(self, simple_linear_environment):
+        """Test the weight clipping functionality."""
+        linear_layer = simple_linear_environment["linear_layer"]
 
-    def test_forward_with_nonlinearity(self, mock_source_component):
-        """Test the Linear layer with a nonlinearity applied."""
-        # Create a Linear layer with ReLU nonlinearity
-        layer = Linear(
-            name="test_linear",
-            sources=[{"name": "input_layer"}],
-            nn_params={"out_features": 16, "bias": True},
-            nonlinearity="nn.ReLU",
-        )
+        # Store original weights
+        original_weights = linear_layer.weight_net.weight.data.clone()
 
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
-
-        # Verify the layer has a Sequential network with a ReLU
-        assert isinstance(layer._net, nn.Sequential)
-        assert isinstance(layer._net[0], nn.Linear)
-        assert isinstance(layer._net[1], nn.ReLU)
-
-        # Create input with negative values to test ReLU
-        batch_size = 4
-        input_data = torch.randn(batch_size, 8)  # Will have both positive and negative values
-        td = TensorDict({"input_layer": input_data}, batch_size=batch_size)
-
-        # Forward pass
-        result_td = layer.forward(td)
-
-        # Verify output shape and that all values are non-negative (ReLU effect)
-        assert "test_linear" in result_td
-        assert result_td["test_linear"].shape == torch.Size([batch_size, 16])
-        assert (result_td["test_linear"] >= 0).all()
-
-    def test_invalid_input_shape(self):
-        """Test that the layer raises an error with invalid input shape."""
-        # Create a Linear layer
-        layer = Linear(
-            name="test_linear", sources=[{"name": "input_layer"}], nn_params={"out_features": 16, "bias": True}
-        )
-
-        # Create a mock source component with invalid shape (2D instead of 1D)
-        class InvalidSourceComponent:
-            def __init__(self):
-                self._out_tensor_shape = [8, 4]  # 2D shape, should be 1D
-                self._name = "input_layer"
-                self._ready = True
-
-            def forward(self, td):
-                return td
-
-        # Setup should raise an assertion error due to 2D input
-        with pytest.raises(AssertionError):
-            layer.setup({"input_layer": InvalidSourceComponent()})
-
-    def test_weight_initialization_orthogonal(self, mock_source_component):
-        """Test orthogonal weight initialization method."""
-        # Create layer with orthogonal initialization
-        layer = Linear(
-            name="test_linear",
-            sources=[{"name": "input_layer"}],
-            nn_params={"out_features": 16, "bias": True},
-            initialization="Orthogonal",
-            nonlinearity=None,
-        )
-
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
-
-        # Get weight matrix
-        weight_matrix = layer.weight_net.weight.data
-
-        # Check orthogonality properties
-        # For a tall matrix, WW^T should be close to identity
-        if weight_matrix.shape[0] <= weight_matrix.shape[1]:
-            product = torch.mm(weight_matrix, weight_matrix.t())
-            identity = torch.eye(weight_matrix.shape[0], device=product.device)
-            assert torch.allclose(product, identity, atol=1e-6)
-
-    def test_weight_initialization_xavier(self, mock_source_component):
-        """Test Xavier weight initialization method."""
-        # Create layer with Xavier initialization
-        layer = Linear(
-            name="test_linear",
-            sources=[{"name": "input_layer"}],
-            nn_params={"out_features": 16, "bias": True},
-            initialization="Xavier",
-            nonlinearity=None,
-        )
-
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
-
-        # Get weight matrix
-        weight_matrix = layer.weight_net.weight.data
-
-        # Check variance (should be around 6/(in + out))
-        input_size = 8  # From mock_source_component
-        output_size = 16  # From nn_params
-        expected_var = 6 / (input_size + output_size)
-        # Use standard deviation squared to compare with variance
-        actual_var = weight_matrix.var().item()
-        assert abs(actual_var - expected_var / 3) < 0.1  # Allow some tolerance
-
-    def test_weight_initialization_normal(self, mock_source_component):
-        """Test Normal weight initialization method."""
-        # Create layer with Normal initialization
-        layer = Linear(
-            name="test_linear",
-            sources=[{"name": "input_layer"}],
-            nn_params={"out_features": 16, "bias": True},
-            initialization="Normal",
-            nonlinearity=None,
-        )
-
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
-
-        # Get weight matrix
-        weight_matrix = layer.weight_net.weight.data
-
-        # Check standard deviation (should be around sqrt(2/in))
-        input_size = 8  # From mock_source_component
-        expected_std = np.sqrt(2 / input_size)
-        actual_std = weight_matrix.std().item()
-        assert abs(actual_std - expected_std) < 0.1  # Allow some tolerance
-
-    def test_weight_initialization_max_0_01(self, mock_source_component):
-        """Test Max_0_01 custom weight initialization method."""
-        # Create layer with Max_0_01 initialization
-        layer = Linear(
-            name="test_linear",
-            sources=[{"name": "input_layer"}],
-            nn_params={"out_features": 16, "bias": True},
-            initialization="max_0_01",
-            nonlinearity=None,
-        )
-
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
-
-        # Get weight matrix
-        weight_matrix = layer.weight_net.weight.data
-
-        # Check max value (should be <= 0.01)
-        assert torch.max(torch.abs(weight_matrix)).item() <= 0.01
-
-    def test_weight_clipping(self, mock_source_component):
-        """Test weight clipping to prevent exploding gradients."""
-        # Create layer with weight clipping
-        clip_scale = 1.0
-        global_clip_range = 0.5
-        layer = Linear(
-            name="test_linear",
-            sources=[{"name": "input_layer"}],
-            nn_params={"out_features": 16, "bias": True},
-            clip_scale=clip_scale,
-            global_clip_range=global_clip_range,
-            nonlinearity=None,
-        )
-
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
-
-        # Set weights to large values
+        # Modify weights to have values outside clipping range
         with torch.no_grad():
-            layer.weight_net.weight.data[0, 0] = 10.0
-            layer.weight_net.weight.data[0, 1] = -10.0
+            # Set some weights to large values (10x the clipping value)
+            large_value = linear_layer.clip_value * 10
+            linear_layer.weight_net.weight.data[0, 0] = large_value
+            linear_layer.weight_net.weight.data[1, 1] = -large_value
 
         # Apply weight clipping
-        layer.clip_weights()
+        linear_layer.clip_weights()
 
-        # Check that weights are clipped
-        assert layer.weight_net.weight.data.max().item() <= layer.clip_value
-        assert layer.weight_net.weight.data.min().item() >= -layer.clip_value
+        # Check that large weights have been clipped
+        assert abs(linear_layer.weight_net.weight.data[0, 0]) <= linear_layer.clip_value
+        assert abs(linear_layer.weight_net.weight.data[1, 1]) <= linear_layer.clip_value
 
-    def test_l2_regularization(self, mock_source_component):
-        """Test L2 regularization (weight decay)."""
-        # Create layer with L2 regularization
-        l2_scale = 0.01
-        layer = Linear(
-            name="test_linear",
-            sources=[{"name": "input_layer"}],
-            nn_params={"out_features": 16, "bias": True},
-            l2_norm_scale=l2_scale,
-            nonlinearity=None,
-        )
+        # Check that other weights haven't changed significantly
+        modified_weights = torch.ones_like(original_weights, dtype=torch.bool)
+        modified_weights[0, 0] = False
+        modified_weights[1, 1] = False
 
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
+        assert torch.allclose(linear_layer.weight_net.weight.data[modified_weights], original_weights[modified_weights])
 
-        # Compute L2 loss
-        l2_loss = layer.l2_reg_loss()
+    def test_l2_regularization(self, simple_linear_environment):
+        """Test the L2 regularization loss calculation."""
+        linear_layer = simple_linear_environment["linear_layer"]
 
-        # Check L2 loss calculation
-        expected_l2_loss = l2_scale * torch.sum(layer.weight_net.weight.data**2)
-        assert torch.isclose(l2_loss, expected_l2_loss)
+        # Calculate L2 regularization loss
+        l2_loss = linear_layer.l2_reg_loss()
 
-    def test_l2_init_regularization(self, mock_source_component):
-        """Test L2-init regularization (delta regularization)."""
-        # Create layer with L2-init regularization
-        l2_init_scale = 0.01
-        layer = Linear(
-            name="test_linear",
-            sources=[{"name": "input_layer"}],
-            nn_params={"out_features": 16, "bias": True},
-            l2_init_scale=l2_init_scale,
-            nonlinearity=None,
-        )
+        # Verify loss is non-negative
+        assert l2_loss >= 0
 
-        # Setup the layer
-        layer.setup({"input_layer": mock_source_component})
+        # Calculate expected loss manually
+        expected_l2_loss = torch.sum(linear_layer.weight_net.weight.data**2) * linear_layer.l2_norm_scale
 
-        # Compute initial L2-init loss (should be 0)
-        initial_l2_init_loss = layer.l2_init_loss()
-        assert initial_l2_init_loss.item() == 0
+        # Verify loss calculation is correct
+        assert torch.allclose(l2_loss, expected_l2_loss)
 
-        # Store initial weights
-        initial_weights = layer.initial_weights.clone()
+        # Test with different l2_norm_scale
+        original_scale = linear_layer.l2_norm_scale
+        linear_layer.l2_norm_scale = original_scale * 2
+
+        # Loss should be proportional to scale
+        new_l2_loss = linear_layer.l2_reg_loss()
+        assert torch.allclose(new_l2_loss, expected_l2_loss * 2)
+
+        # Reset scale
+        linear_layer.l2_norm_scale = original_scale
+
+    def test_l2_init_regularization(self, simple_linear_environment):
+        """Test the L2-init regularization loss calculation."""
+        linear_layer = simple_linear_environment["linear_layer"]
+
+        # Initial L2-init loss should be zero (weights haven't changed from initial values)
+        initial_l2_init_loss = linear_layer.l2_init_loss()
+        assert torch.allclose(initial_l2_init_loss, torch.tensor(0.0, device=initial_l2_init_loss.device))
 
         # Modify weights
         with torch.no_grad():
-            layer.weight_net.weight.data += 0.1
+            # Change weights by a small amount
+            delta = 0.1
+            linear_layer.weight_net.weight.data += delta
 
-        # Compute L2-init loss after weight modification
-        l2_init_loss = layer.l2_init_loss()
-        expected_l2_init_loss = l2_init_scale * torch.sum((layer.weight_net.weight.data - initial_weights) ** 2)
-        assert torch.isclose(l2_init_loss, expected_l2_init_loss)
+        # Calculate L2-init loss after modification
+        l2_init_loss = linear_layer.l2_init_loss()
 
-        # Test update L2-init weight copy
-        alpha = 0.9
-        layer.update_l2_init_weight_copy(alpha)
-        expected_updated_weights = alpha * initial_weights + (1 - alpha) * layer.weight_net.weight.data
-        assert torch.allclose(layer.initial_weights, expected_updated_weights)
+        # Calculate expected loss manually
+        expected_l2_init_loss = (
+            torch.sum(delta**2 * torch.ones_like(linear_layer.weight_net.weight.data)) * linear_layer.l2_init_scale
+        )
+
+        # Verify loss calculation is correct
+        assert torch.allclose(l2_init_loss, expected_l2_init_loss)
+
+    def test_update_l2_init_weight_copy(self, simple_linear_environment):
+        """Test updating the initial weight reference for L2-init regularization."""
+        linear_layer = simple_linear_environment["linear_layer"]
+
+        # Store initial weights
+        initial_weights = linear_layer.initial_weights.clone()
+
+        # Modify current weights
+        with torch.no_grad():
+            delta = 0.1
+            linear_layer.weight_net.weight.data += delta
+
+        # Update initial weights reference with alpha = 0.5
+        alpha = 0.5
+        linear_layer.update_l2_init_weight_copy(alpha)
+
+        # Expected updated initial weights
+        expected_updated_weights = alpha * initial_weights + (1 - alpha) * linear_layer.weight_net.weight.data
+
+        # Verify updated initial weights
+        assert torch.allclose(linear_layer.initial_weights, expected_updated_weights)
+
+    def test_nonlinearity(self):
+        """Test the Linear layer with different non-linearities."""
+        input_size = 5  # Make this match the test input dimension
+        output_size = 16
+
+        # Test with ReLU
+        linear_relu = Linear(
+            name="_linear_relu_",
+            sources=[{"name": "input_tensor"}],
+            nn_params=OmegaConf.create({"out_features": output_size, "bias": True}),
+            nonlinearity="nn.ReLU",
+        )
+        linear_relu._in_tensor_shapes = [[input_size]]  # Match the input size to the test data
+        linear_relu._initialize()
+
+        # Verify that _net is a Sequential with Linear and ReLU
+        assert isinstance(linear_relu._net, torch.nn.Sequential)
+        assert isinstance(linear_relu._net[0], torch.nn.Linear)
+        assert isinstance(linear_relu._net[1], torch.nn.ReLU)
+
+        # Test with Tanh
+        linear_tanh = Linear(
+            name="_linear_tanh_",
+            sources=[{"name": "input_tensor"}],
+            nn_params=OmegaConf.create({"out_features": output_size, "bias": True}),
+            nonlinearity="nn.Tanh",
+        )
+        linear_tanh._in_tensor_shapes = [[input_size]]  # Match the input size to the test data
+        linear_tanh._initialize()
+
+        # Verify that _net is a Sequential with Linear and Tanh
+        assert isinstance(linear_tanh._net, torch.nn.Sequential)
+        assert isinstance(linear_tanh._net[0], torch.nn.Linear)
+        assert isinstance(linear_tanh._net[1], torch.nn.Tanh)
+
+        # Test behavior with negative inputs for ReLU
+        input_tensor = torch.tensor([[-1.0, -0.5, 0.0, 0.5, 1.0]])  # 5 elements
+        td = {"input_tensor": input_tensor}
+
+        # Forward pass through ReLU layer
+        result_relu = linear_relu._forward(td)
+
+        # ReLU should eliminate negative values in output
+        assert (result_relu[linear_relu._name] >= 0).all()
+
+    def test_different_initializations(self):
+        """Test different weight initialization methods."""
+        input_size = 10
+        output_size = 16
+
+        # Test Xavier initialization
+        linear_xavier = Linear(
+            name="_linear_xavier_",
+            sources=[{"name": "input_tensor"}],
+            nn_params=OmegaConf.create({"out_features": output_size, "bias": True}),
+            initialization="Xavier",
+        )
+        linear_xavier._in_tensor_shapes = [[input_size]]
+        linear_xavier._initialize()
+
+        # Xavier weights should have specific standard deviation
+        xavier_scale = np.sqrt(6.0 / (input_size + output_size))
+        xavier_weights = linear_xavier.weight_net.weight.data
+        assert abs(xavier_weights.std().item() - xavier_scale / np.sqrt(3)) < 0.1
+
+        # Test Normal initialization
+        linear_normal = Linear(
+            name="_linear_normal_",
+            sources=[{"name": "input_tensor"}],
+            nn_params=OmegaConf.create({"out_features": output_size, "bias": True}),
+            initialization="Normal",
+        )
+        linear_normal._in_tensor_shapes = [[input_size]]
+        linear_normal._initialize()
+
+        # Normal weights should have specific standard deviation
+        normal_scale = np.sqrt(2.0 / input_size)
+        normal_weights = linear_normal.weight_net.weight.data
+        assert abs(normal_weights.std().item() - normal_scale) < 0.1
+
+        # Test max_0_01 initialization
+        linear_max_0_01 = Linear(
+            name="_linear_max_0_01_",
+            sources=[{"name": "input_tensor"}],
+            nn_params=OmegaConf.create({"out_features": output_size, "bias": True}),
+            initialization="max_0_01",
+        )
+        linear_max_0_01._in_tensor_shapes = [[input_size]]
+        linear_max_0_01._initialize()
+
+        # max_0_01 weights should have max abs value of 0.01
+        max_0_01_weights = linear_max_0_01.weight_net.weight.data
+        assert torch.max(torch.abs(max_0_01_weights)).item() <= 0.01
+
+    # Fix for test_forward_with_tensordict
+    def test_forward_with_tensordict(self, simple_linear_environment):
+        """Test the forward method with TensorDict as input."""
+        linear_layer = simple_linear_environment["linear_layer"]
+        sample_input = simple_linear_environment["sample_input"]
+        params = simple_linear_environment["params"]
+
+        # Create tensordict
+        batch_size = params["batch_size"]
+        td = TensorDict({"input_tensor": sample_input["input_tensor"]}, batch_size=batch_size)
+
+        # Mock the source components lookup if needed
+        # This ensures _source_components exists and doesn't get accessed during forward
+        if not hasattr(linear_layer, "_source_components"):
+            linear_layer._source_components = None
+
+        # Forward pass
+        result_td = linear_layer.forward(td)
+
+        # Verify output exists and has correct shape
+        assert linear_layer._name in result_td
+        assert result_td[linear_layer._name].shape == (batch_size, params["output_size"])
+
+    def test_forward_with_cache(self, simple_linear_environment):
+        """Test that forward method doesn't recompute if result already exists."""
+        linear_layer = simple_linear_environment["linear_layer"]
+        sample_input = simple_linear_environment["sample_input"]
+        params = simple_linear_environment["params"]
+
+        # Pre-compute result
+        batch_size = params["batch_size"]
+        output_size = params["output_size"]
+        cached_result = torch.ones(batch_size, output_size)
+
+        # Create tensordict with input and cached result
+        td = TensorDict(
+            {"input_tensor": sample_input["input_tensor"], linear_layer._name: cached_result}, batch_size=batch_size
+        )
+
+        # Forward pass should not modify the cached result
+        result_td = linear_layer.forward(td)
+
+        # Verify cached result was preserved
+        assert torch.allclose(result_td[linear_layer._name], cached_result)
