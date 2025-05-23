@@ -674,7 +674,11 @@ jobs:
       - name: CMake
         run: |
           source .venv/bin/activate
+          # sanity check
+          python -c 'import numpy'
           cd mettagrid
+          # sanity check again
+          python -c 'import numpy'
           make
 
       - name: Run benchmarks with JSON output
