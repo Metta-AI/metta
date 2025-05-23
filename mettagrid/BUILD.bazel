@@ -1,21 +1,39 @@
-
 package(default_visibility = ["//visibility:public"])
 
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_test")
+load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
 
-cc_binary(
+pybind_extension(
     name = "mettagrid_c",
-    srcs = glob(["mettagrid/*.cpp"]),
-    hdrs = glob(["mettagrid/**/*.hpp"]),
-    includes = ["mettagrid", "third_party"],
-    copts = ["-std=c++20", "-fPIC", "-fvisibility=hidden"],
-    linkshared = True,
+    srcs = glob(["mettagrid/**/*.cpp", "mettagrid/**/*.hpp"]),
+    includes = ["mettagrid", "mettagrid/actions"],
+    copts = [
+        "-std=c++20",
+        "-fPIC",
+        "-fvisibility=hidden",
+        "-I$(GENDIR)/mettagrid",
+        "-Imettagrid",
+    ],
 )
 
 cc_test(
     name = "mettagrid_tests",
     srcs = glob(["tests/**/*.cpp"]),
-    deps = [":mettagrid_c"],
+    deps = [
+        ":mettagrid_c",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
+    ],
     copts = ["-std=c++20"],
+    linkopts = [
+        "-undefined", "dynamic_lookup",
+    ],
+)
+
+test_suite(
+    name = "all",
+    tests = [
+        ":mettagrid_tests",
+    ],
 )
 

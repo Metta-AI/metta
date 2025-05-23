@@ -36,3 +36,8 @@ build_debug/
 **/requirements_to_remove.txt
 test_data
 **/mettagrid_debug.log
+# Bazel temp files and directories
+bazel-*
+bazel-out/
+bazel-bin/
+bazel-testlogs/

@@ -161,9 +161,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
                                 static_cast<ssize_t>(_obs_width),
                                 static_cast<ssize_t>(_grid_features.size())};
   auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
-  auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto truncations = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(float)});
+  auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)});
+  auto truncations = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)});
+  auto rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)});
 
   set_buffers(observations, terminals, truncations, rewards);
 }
@@ -452,10 +452,10 @@ py::dict MettaGrid::grid_objects() {
     for (uint8_t i = 0; i < offsets.size(); i++) {
       offsets[i] = i;
     }
-    unsigned char obj_data[type_features.size()];
+    std::vector<unsigned char> obj_data(type_features.size());
 
     // Encode object features
-    _obs_encoder->encode(obj, obj_data, offsets);
+    _obs_encoder->encode(obj, obj_data.data(), offsets);
 
     // Add features to object dict
     for (size_t i = 0; i < type_features.size(); i++) {

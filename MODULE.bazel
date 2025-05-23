@@ -1,0 +1,12 @@
+###############################################################################
+# Bazel now uses Bzlmod by default to manage external dependencies.
+# Please consider migrating your external dependencies from WORKSPACE to MODULE.bazel.
+#
+# For more details, please check https://github.com/bazelbuild/bazel/issues/18958
+###############################################################################
+
+bazel_dep(name = "rules_cc", version = "0.0.17")
+bazel_dep(name = "pybind11_bazel", version = "2.13.6")
+bazel_dep(name = "platforms", version = "0.0.10")
+bazel_dep(name = "rules_python", version = "0.26.0")
+bazel_dep(name = "googletest", version = "1.17.0")

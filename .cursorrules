@@ -62,12 +62,12 @@
     },
     {
       "name": "Provide Real File Links",
-      "pattern": "(?i)\\b(file|in)\\b.*\\b(x\\.md)\\b",
+      "pattern": "(?i)\\b(file|in)\\b.*\\b(x.md)\\b",
       "message": "Always provide links to the real files, not x.md"
     },
     {
       "name": "No Previous x.md Consideration",
-      "pattern": "(?i)\\b(previous|earlier|last)\\b.*\\bx\\.md\\b",
+      "pattern": "(?i)\\b(previous|earlier|last)\\b.*\\bx.md\\b",
       "message": "Do not consider any previous x.md files in your memory. Complain if the contents are the same as previous runs."
     },
     {
@@ -79,6 +79,21 @@
       "name": "Check x.md Content",
       "pattern": "(?i)\\b(file|content|implementation)\\b",
       "message": "Remember to check the x.md file for the current file contents and implementations"
+    },
+    {
+      "name": "Source venv before commands",
+      "pattern": ".*",
+      "message": "All shell commands must source .venv/bin/activate before running. For example: source .venv/bin/activate && <your command>"
+    },
+    {
+      "name": "Add Homebrew to PATH",
+      "pattern": ".*",
+      "message": "All shell commands must prepend /opt/homebrew/bin to PATH. For example: PATH=\"/opt/homebrew/bin:$PATH\" && source .venv/bin/activate && <your command>"
+    },
+    {
+      "name": "Use bash shell",
+      "pattern": ".*",
+      "message": "All shell commands must be run in bash, not fish or other shells"
     }
   ]
 }
