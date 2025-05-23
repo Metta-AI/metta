@@ -35,5 +35,16 @@ test_suite(
     tests = [
         ":mettagrid_tests",
     ],
+
+)
+
+cc_binary(
+    name = "bench_json",
+    srcs = ["bench_json.cc"],
+    deps = [
+        ":mettagrid",
+        "@com_google_benchmark//:benchmark",
+    ],
+    copts = ["-std=c++17"],
 )
 
