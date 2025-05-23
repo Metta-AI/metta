@@ -11,6 +11,8 @@ game:
     _target_: mettagrid.room.room_list.RoomList
     border_width: 6
 
+    max_steps: ${sampling:100,1000,250} # Randomize the episode length
+
     rooms:
       - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
         width: ${sampling:5,15,10}
