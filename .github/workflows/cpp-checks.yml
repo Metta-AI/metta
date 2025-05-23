@@ -45,6 +45,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Setup Bazel
+        uses: bazelbuild/setup-bazelisk@v3
+
 
       - name: Graphite CI Optimizer
         id: graphite_ci
@@ -203,15 +206,9 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      - name: Install C++ dependencies (cache miss fallback)
+      - name: Build C++ artifacts with Bazel (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make install-dependencies
-
-      - name: Build C++ artifacts (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        working-directory: mettagrid
-        run: make build-src-objects
+        run: bazel build //mettagrid:mettagrid_c
 
       - name: Save build cache
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
@@ -254,6 +251,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      - name: Setup Bazel
+        uses: bazelbuild/setup-bazelisk@v3
 
       - name: Setup Python and uv
         id: setup-python-uv
@@ -272,13 +271,8 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      - name: Build C++ tests
-        working-directory: mettagrid
-        run: make build-tests
-
-      - name: Run C++ tests
-        working-directory: mettagrid
-        run: make test
+      - name: Run C++ tests with Bazel
+        run: bazel test //mettagrid:all
 
   benchmark:
     name: "C++ Benchmarks"
@@ -293,6 +287,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Bazel
+        uses: bazelbuild/setup-bazelisk@v3
 
       - name: Setup Python and uv
         id: setup-python-uv
@@ -311,16 +308,13 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      - name: Build C++ benchmarks
-        working-directory: mettagrid
-        run: make build-benchmarks
+      - name: Build benchmarks with Bazel
+        run: bazel build //mettagrid:all
 
-      - name: Run benchmarks with JSON output
-        working-directory: mettagrid
+      - name: Run benchmarks with Bazel
         run: |
           mkdir -p benchmark_output
-          echo "Running benchmarks with JSON output..."
-          make bench-json
+          bazel run //mettagrid:bench_json
           echo "Benchmark output files:"
           ls -la benchmark_output/
 

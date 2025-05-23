@@ -142,6 +142,9 @@ uv pip install -r requirements.txt
 echo -e "\nInstalling Metta..."
 uv pip install -e .
 
+echo -e "\nBuilding MettaGrid C++ extension with Bazel..."
+bazel build //mettagrid:mettagrid_c || { echo "Bazel build failed"; exit 1; }
+
 echo -e "\nInstalling MettaGrid..."
 uv pip --directory mettagrid install -e .
 

@@ -27,12 +27,12 @@ clean:
 	@find . -type f -name '*.so' -not -path "./.venv/*" -delete || true
 	@echo "(Metta) Removing build directories (excluding .venv)"
 	@find . -type d -name 'build' -not -path "./.venv/*" -print0 | xargs -0 rm -rf 2>/dev/null || true
-	@echo "(Metta) Cleaning mettagrid build artifacts..."
-	@if [ -d "mettagrid" ]; then \
-		cd mettagrid && $(MAKE) clean || true; \
-	else \
-		echo "(Metta) mettagrid directory not found, skipping"; \
-	fi
+       @echo "(Metta) Cleaning mettagrid build artifacts with Bazel..."
+       @if command -v bazel >/dev/null 2>&1; then \
+               bazel clean || true; \
+       else \
+               echo "(Metta) Bazel not installed, skipping bazel clean"; \
+       fi
 	@echo "(Metta) Cleaning uv build cache..."
 	rm -rf ~/.cache/uv/builds-v0
 	@echo "(Metta) Clean completed successfully"

@@ -1,0 +1,12 @@
+package(default_visibility = ["//visibility:public"])
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+cc_binary(
+    name = "mettagrid_c",
+    srcs = glob(["mettagrid/*.cpp"]),
+    hdrs = glob(["mettagrid/**/*.hpp"]),
+    includes = ["mettagrid", "third_party"],
+    copts = ["-std=c++20", "-fPIC", "-fvisibility=hidden"],
+    linkshared = True,
+)
