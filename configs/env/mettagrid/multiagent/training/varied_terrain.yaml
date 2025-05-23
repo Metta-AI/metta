@@ -52,12 +52,12 @@ game:
   objects:
       altar:
         initial_items: ${choose:0,1}
-        cooldown: ${sampling:5, 20, 10}
+        cooldown: ${sampling:5, 50, 10}
         input_battery: 1
 
       generator.red:
         initial_items: ${choose:0,1}
-        cooldown: ${sampling:5, 20, 10}
+        cooldown: ${sampling:5, 50, 10}
       # generator.blue:
       #   cooldown: ${sampling:5, 20, 10}
       # generator.green:
