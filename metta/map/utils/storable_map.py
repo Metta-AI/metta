@@ -5,7 +5,6 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.mapgen import MapGrid
-
 from mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
