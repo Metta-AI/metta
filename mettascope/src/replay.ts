@@ -275,7 +275,7 @@ export function loadReplayStep(replayStep: any) {
   // Update the grid objects.
   const step = replayStep.step;
 
-  state.replay.max_steps = Math.max(state.replay.max_steps, step);
+  state.replay.max_steps = Math.max(state.replay.max_steps, step+1);
   state.step = step; // Rewind to the current step.
 
   for (const gridObject of replayStep.grid_objects) {
