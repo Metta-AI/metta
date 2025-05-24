@@ -1,11 +1,12 @@
 """
-Backwards compatibility adapters for observation format changes.
+Backwards compatibility adapter for observation format changes.
 
 This module contains adapters to handle breaking changes in observation formats
 between different versions of the codebase, allowing older models to work with
 newer observation formats.
 """
 
+import gymnasium as gym
 import torch
 
 
@@ -92,6 +93,41 @@ def apply_backwards_compatibility_adapters(x: torch.Tensor) -> torch.Tensor:
     # x = adapter_for_commit_hash_xyz(x)
 
     return x
+
+
+def update_observation_space_for_backwards_compatibility(obs_space: gym.spaces.Space) -> gym.spaces.Space:
+    """
+    Update observation space to match backwards compatibility transformations.
+
+    This function updates gym observation spaces to reflect the shape changes
+    that will be applied by the backwards compatibility adapters at runtime.
+
+    Args:
+        obs_space: Original gym observation space
+
+    Returns:
+        Updated observation space that matches adapter output
+    """
+    # Only handle Box spaces (which have shape, low, high, dtype)
+    if not isinstance(obs_space, gym.spaces.Box):
+        return obs_space
+
+    if obs_space.shape is None or len(obs_space.shape) != 3:
+        return obs_space
+
+    # Check if this is the 26-feature format that needs updating
+    if obs_space.shape[2] == 26:
+        # Update to 34-feature format
+        updated_shape = (obs_space.shape[0], obs_space.shape[1], 34)
+        return gym.spaces.Box(
+            low=obs_space.low.flat[0],  # Use the same bounds
+            high=obs_space.high.flat[0],
+            shape=updated_shape,
+            dtype=obs_space.dtype.type,  # Convert numpy dtype to type
+        )
+
+    # No changes needed
+    return obs_space
 
 
 def update_agent_attributes_for_backwards_compatibility(agent_attributes: dict) -> dict:

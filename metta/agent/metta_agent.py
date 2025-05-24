@@ -12,6 +12,7 @@ from torch.nn.parallel import DistributedDataParallel
 from metta.agent.adapters import (
     apply_backwards_compatibility_adapters,
     update_agent_attributes_for_backwards_compatibility,
+    update_observation_space_for_backwards_compatibility,
 )
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
@@ -24,9 +25,12 @@ logger = logging.getLogger("metta_agent")
 
 
 def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
+    # Apply backwards compatibility updates to observation space
+    updated_obs_space = update_observation_space_for_backwards_compatibility(env.single_observation_space)
+
     obs_space = gym.spaces.Dict(
         {
-            "grid_obs": env.single_observation_space,
+            "grid_obs": updated_obs_space,
             "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
         }
     )
