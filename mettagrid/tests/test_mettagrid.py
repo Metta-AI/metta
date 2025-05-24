@@ -91,20 +91,79 @@ def test_truncation_at_max_steps():
 class TestObservations:
     def test_observation_tokens(self):
         env = create_minimal_mettagrid_env(use_observation_tokens=True)
+
         # These come from constants in the C++ code, and are fragile.
         TYPE_ID_FEATURE = 1
         WALL_TYPE_ID = 1
+
         obs, info = env.reset()
+
+        # obs shape should be [num_agents, num_tokens * 3] for flattened tokens
+        # Each token consists of [location, feature_id, value]
+        print(f"Observation shape: {obs.shape}")
+
+        # Reshape to [num_agents, num_tokens, 3] for easier processing
+        num_agents = obs.shape[0]
+        num_tokens = obs.shape[1] // 3
+        obs_reshaped = obs.reshape(num_agents, num_tokens, 3)
+
+        print(f"Reshaped observation shape: {obs_reshaped.shape}")
+        print(f"Agent 0 tokens:\n{obs_reshaped[0]}")
+
         # Agent 0 starts at (1,1) and should see walls above and to the left
-        # for now we treat the walls as "something non-empty"
-        for x, y in [(0, 1), (1, 0)]:
-            location = x << 4 | y
-            token_matches = obs[0, :, :] == [location, TYPE_ID_FEATURE, WALL_TYPE_ID]
-            assert token_matches.all(axis=1).any(), f"Expected wall at location {x}, {y}"
-        for x, y in [(2, 1), (1, 2)]:
-            location = x << 4 | y
-            token_matches = obs[0, :, 0] == location
-            assert not token_matches.any(), f"Expected no tokens at location {x}, {y}"
+        # The location encoding is: (obs_r << 4) | obs_c
+        # where obs_r and obs_c are relative to the agent's observation window
+
+        # For agent at (1,1), walls should be visible at relative positions:
+        # - Wall above: relative position (0, 1) -> location = 0 << 4 | 1 = 1
+        # - Wall to left: relative position (1, 0) -> location = 1 << 4 | 0 = 16
+
+        expected_wall_locations = [1, 16]  # encoded locations for walls above and left
+
+        found_walls = []
+        for token_idx in range(num_tokens):
+            token = obs_reshaped[0, token_idx]
+            location, feature_id, value = token
+
+            # Skip empty tokens (all zeros)
+            if location == 0 and feature_id == 0 and value == 0:
+                continue
+
+            print(f"Token {token_idx}: location={location}, feature_id={feature_id}, value={value}")
+
+            # Check if this is a wall token
+            if feature_id == TYPE_ID_FEATURE and value == WALL_TYPE_ID:
+                found_walls.append(location)
+
+        print(f"Found walls at encoded locations: {found_walls}")
+        print(f"Expected wall locations: {expected_wall_locations}")
+
+        # Check that we found walls at the expected locations
+        for expected_location in expected_wall_locations:
+            assert expected_location in found_walls, f"Expected wall at encoded location {expected_location}"
+
+        # Check that no tokens exist at positions where there shouldn't be walls
+        # For example, positions (2,1) and (1,2) relative to agent should be empty
+        # These would be encoded as: (2 << 4 | 1) = 33 and (1 << 4 | 2) = 18
+        unexpected_locations = [33, 18]  # encoded locations where we don't expect objects
+
+        all_token_locations = []
+        for token_idx in range(num_tokens):
+            token = obs_reshaped[0, token_idx]
+            location, feature_id, value = token
+
+            # Skip empty tokens
+            if location == 0 and feature_id == 0 and value == 0:
+                continue
+
+            all_token_locations.append(location)
+
+        for unexpected_location in unexpected_locations:
+            assert unexpected_location not in all_token_locations, (
+                f"Unexpected token at encoded location {unexpected_location}"
+            )
+
+        print("Test passed: observation tokens are correctly formatted and positioned")
 
     def test_observations(self):
         env = create_minimal_mettagrid_env()
