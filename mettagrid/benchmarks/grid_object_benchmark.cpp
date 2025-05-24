@@ -10,8 +10,8 @@ class TestGridObject : public GridObject {
 public:
   TestGridObject() = default;
 
-  TestGridObject(TypeId type_id, GridCoord r, GridCoord c, Layer layer) {
-    init(type_id, r, c, layer);
+  TestGridObject(TypeId type_id, GridCoord r, GridCoord c) {
+    init(type_id, r, c);
   }
 
   virtual vector<PartialObservationToken> obs_features() const override {
@@ -33,7 +33,7 @@ public:
 // Benchmark initializing a GridLocation object
 static void BM_GridLocationCreation(benchmark::State& state) {
   for (auto _ : state) {
-    GridLocation loc(10, 20, 1);
+    GridLocation loc(10, 20);
     benchmark::DoNotOptimize(&loc);
     benchmark::ClobberMemory();
   }
@@ -44,7 +44,7 @@ BENCHMARK(BM_GridLocationCreation);
 static void BM_GridObjectInitWithLocation(benchmark::State& state) {
   for (auto _ : state) {
     TestGridObject obj;
-    GridLocation loc(10, 20, 1);
+    GridLocation loc(10, 20);
     obj.init(5, loc);
     benchmark::DoNotOptimize(&obj);
     benchmark::ClobberMemory();
@@ -63,11 +63,11 @@ static void BM_GridObjectInitWithCoordinates(benchmark::State& state) {
 }
 BENCHMARK(BM_GridObjectInitWithCoordinates);
 
-// Benchmark initializing a GridObject with coordinates and layer
+// Benchmark initializing a GridObject with coordinates
 static void BM_GridObjectInitWithCoordinatesAndLayer(benchmark::State& state) {
   for (auto _ : state) {
     TestGridObject obj;
-    obj.init(5, 10, 20, 1);
+    obj.init(5, 10, 20);
     benchmark::DoNotOptimize(&obj);
     benchmark::ClobberMemory();
   }
@@ -80,7 +80,7 @@ static void BM_GridObjectObs(benchmark::State& state) {
   const int numOffsets = state.range(0);
 
   // Set up the test object
-  TestGridObject obj(1, 5, 10, 0);
+  TestGridObject obj(1, 5, 10);
 
   // Create offsets vector and observation buffer
   std::vector<uint8_t> offsets(numOffsets);
@@ -108,7 +108,6 @@ static void BM_CreateManyObjects(benchmark::State& state) {
   std::mt19937 gen(rd());
   std::uniform_int_distribution<GridCoord> coordDist(0, 999);
   std::uniform_int_distribution<TypeId> typeDist(0, 10);
-  std::uniform_int_distribution<Layer> layerDist(0, 3);
 
   for (auto _ : state) {
     state.PauseTiming();  // Don't time the vector allocation
@@ -116,7 +115,7 @@ static void BM_CreateManyObjects(benchmark::State& state) {
     state.ResumeTiming();
 
     for (int i = 0; i < numObjects; ++i) {
-      objects[i].init(typeDist(gen), coordDist(gen), coordDist(gen), layerDist(gen));
+      objects[i].init(typeDist(gen), coordDist(gen), coordDist(gen));
     }
 
     benchmark::DoNotOptimize(objects.data());

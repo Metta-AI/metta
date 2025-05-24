@@ -35,7 +35,7 @@ public:
         // Configuration -- rewards that the agent will get for certain
         // actions or inventory changes.
         std::map<std::string, float> rewards) {
-    GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
+    GridObject::init(ObjectType::AgentT, GridLocation(r, c));
     MettaObject::init_mo(cfg);
 
     this->group_name = group_name;

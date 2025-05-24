@@ -39,10 +39,12 @@ protected:
   }
 
   bool _handle_target(Agent* actor, GridLocation target_loc) {
-    target_loc.layer = GridLayer::Agent_Layer;
-    Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
+    MettaObject* object_target = static_cast<MettaObject*>(_grid->object_at(target_loc));
+    if (object_target == nullptr) {
+      return false;
+    }
 
-    bool was_frozen = false;
+    Agent* agent_target = static_cast<Agent*>(object_target);
     if (agent_target) {
       actor->stats.incr(_stats.target[agent_target->_type_id]);
       actor->stats.incr(_stats.target[agent_target->_type_id], actor->group_name);
@@ -54,7 +56,7 @@ protected:
         actor->stats.incr("attack.other_team", actor->group_name);
       }
 
-      was_frozen = agent_target->frozen > 0;
+      bool was_frozen = agent_target->frozen > 0;
 
       if (agent_target->update_inventory(InventoryItem::armor, -1)) {
         actor->stats.incr("attack.blocked", agent_target->group_name);
@@ -83,11 +85,7 @@ protected:
 
         return true;
       }
-    }
-
-    target_loc.layer = GridLayer::Object_Layer;
-    MettaObject* object_target = static_cast<MettaObject*>(_grid->object_at(target_loc));
-    if (object_target) {
+    } else {
       actor->stats.incr(_stats.target[object_target->_type_id]);
       actor->stats.incr(_stats.target[object_target->_type_id], actor->group_name);
       object_target->hp -= 1;
