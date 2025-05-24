@@ -86,15 +86,6 @@ class Simulation:
             replay_writer=self._replay_writer,
         )
 
-        policy_expected_channels = policy_pr.expected_observation_channels()
-        env_expected_channels = self._vecenv.observation_space.shape[-1]
-        if policy_expected_channels != env_expected_channels:
-            logger.error(
-                f"Policy expects {policy_expected_channels} observation channels, "
-                f" but current environment provides {env_expected_channels}. Quitting early."
-            )
-            sys.exit(0)  # fake a successful outcome so that training can continue
-
         self._num_envs = num_envs
         self._min_episodes = config.num_episodes
         self._max_time_s = config.max_time_s
@@ -105,6 +96,26 @@ class Simulation:
         self._policy_store = policy_store
         self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
+
+        policy_expected_channels = self._policy_pr.expected_observation_channels()
+        npc_policy_expected_channels = self._npc_pr.expected_observation_channels() if self._npc_pr else None
+        env_expected_channels = self._vecenv.observation_space.shape[-1]
+
+        # Check main policy compatibility
+        if policy_expected_channels != env_expected_channels:
+            logger.error(
+                f"Main policy expects {policy_expected_channels} observation channels, "
+                f"but current environment provides {env_expected_channels}. Quitting early."
+            )
+            sys.exit(0)  # fake a successful outcome so that training can continue
+
+        # Check NPC policy compatibility (if it exists)
+        if npc_policy_expected_channels and npc_policy_expected_channels != env_expected_channels:
+            logger.error(
+                f"NPC policy expects {npc_policy_expected_channels} observation channels, "
+                f"but current environment provides {env_expected_channels}. Quitting early."
+            )
+            sys.exit(0)  # fake a successful outcome so that training can continue
 
         # Let every policy know the active action-set of this env.
         action_names = self._vecenv.driver_env.action_names()
