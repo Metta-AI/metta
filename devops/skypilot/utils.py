@@ -32,5 +32,5 @@ def launch_task(task: sky.Task, dry_run=False):
 
     print(f"- Check logs with: {bold(f'sky api logs {short_request_id}')}")
     print(f"- Or, visit: {bold(f'{dashboard_url()}/api/stream?request_id={short_request_id}')}")
-    print(f"  - To sign in, use credentials from your ~/.skypilot/config.yaml file.")
+    print("  - To sign in, use credentials from your ~/.skypilot/config.yaml file.")
     print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
