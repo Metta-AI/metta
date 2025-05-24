@@ -10,9 +10,8 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.adapters import (
-    apply_backwards_compatibility_adapters,
-    update_agent_attributes_for_backwards_compatibility,
-    update_observation_space_for_backwards_compatibility,
+    should_update_observation_space,
+    update_observation_space,
 )
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
@@ -25,8 +24,20 @@ logger = logging.getLogger("metta_agent")
 
 
 def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
-    # Apply backwards compatibility updates to observation space
-    updated_obs_space = update_observation_space_for_backwards_compatibility(env.single_observation_space)
+    """
+    Create policy with automatic backwards compatibility for old models.
+
+    Detects if we're loading an old 34-feature model and adjusts the observation
+    space accordingly. New models use the standard 26-feature format.
+    """
+
+    if should_update_observation_space(cfg):
+        updated_obs_space = update_observation_space(env.single_observation_space)
+        logger.info("Detected old model loading - using 34-feature observation space for compatibility")
+    else:
+        # New model - use standard 26-feature observation space
+        updated_obs_space = env.single_observation_space
+        logger.info("Using standard 26-feature observation space")
 
     obs_space = gym.spaces.Dict(
         {
@@ -93,8 +104,6 @@ class MettaAgent(nn.Module):
             "hidden_size": self.hidden_size,
             "core_num_layers": self.core_num_layers,
         }
-
-        self.agent_attributes = update_agent_attributes_for_backwards_compatibility(self.agent_attributes)
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
 
@@ -271,8 +280,6 @@ class MettaAgent(nn.Module):
         Returns:
             Tuple of (action, action_log_prob, entropy, value, log_probs)
         """
-        x = apply_backwards_compatibility_adapters(x)
-
         if __debug__:
             # Default values in case obs_shape is not available
             obs_w, obs_h, features = "W", "H", "F"

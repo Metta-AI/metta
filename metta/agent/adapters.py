@@ -6,8 +6,15 @@ between different versions of the codebase, allowing older models to work with
 newer observation formats.
 """
 
+import logging
+import os
+from typing import Union
+
 import gymnasium as gym
 import torch
+from omegaconf import DictConfig, ListConfig
+
+logger = logging.getLogger(__name__)
 
 
 def adapter_for_commit_hash_1af886ae0093c528b0e3e18537db730547115086(x: torch.Tensor) -> torch.Tensor:
@@ -108,26 +115,112 @@ def update_observation_space_for_backwards_compatibility(obs_space: gym.spaces.S
     Returns:
         Updated observation space that matches adapter output
     """
-    # Only handle Box spaces (which have shape, low, high, dtype)
-    if not isinstance(obs_space, gym.spaces.Box):
-        return obs_space
-
-    if obs_space.shape is None or len(obs_space.shape) != 3:
-        return obs_space
-
-    # Check if this is the 26-feature format that needs updating
-    if obs_space.shape[2] == 26:
-        # Update to 34-feature format
-        updated_shape = (obs_space.shape[0], obs_space.shape[1], 34)
-        return gym.spaces.Box(
-            low=obs_space.low.flat[0],  # Use the same bounds
-            high=obs_space.high.flat[0],
-            shape=updated_shape,
-            dtype=obs_space.dtype.type,  # Convert numpy dtype to type
-        )
+    if hasattr(obs_space, "shape") and len(obs_space.shape) == 3:
+        # Check if this is the 26-feature format that needs updating
+        if obs_space.shape[2] == 26:
+            # Update to 34-feature format
+            updated_shape = (obs_space.shape[0], obs_space.shape[1], 34)
+            return gym.spaces.Box(
+                low=obs_space.low.flat[0],  # Use the same bounds
+                high=obs_space.high.flat[0],
+                shape=updated_shape,
+                dtype=obs_space.dtype,
+            )
 
     # No changes needed
     return obs_space
+
+
+def should_update_observation_space(cfg: Union[DictConfig, ListConfig]) -> bool:
+    """
+    Detect if we should use old 34-feature format for backwards compatibility.
+
+    This checks if we're loading an old model that was trained with 34 features.
+
+    Args:
+        cfg: Configuration object that might contain model loading paths
+
+    Returns:
+        True if old format should be used, False for new format
+    """
+    # Check common config fields for model loading paths
+    load_paths = []
+
+    # Direct model loading paths
+    if hasattr(cfg, "load_model_path") and cfg.load_model_path:
+        load_paths.append(cfg.load_model_path)
+
+    if hasattr(cfg, "model_path") and cfg.model_path:
+        load_paths.append(cfg.model_path)
+
+    if hasattr(cfg, "checkpoint_path") and cfg.checkpoint_path:
+        load_paths.append(cfg.checkpoint_path)
+
+    if hasattr(cfg, "resume_from") and cfg.resume_from:
+        load_paths.append(cfg.resume_from)
+
+    # Check trainer config for model paths
+    if hasattr(cfg, "trainer") and cfg.trainer:
+        trainer_cfg = cfg.trainer
+        if hasattr(trainer_cfg, "load_model_path") and trainer_cfg.load_model_path:
+            load_paths.append(trainer_cfg.load_model_path)
+
+    # Check any of the found paths
+    for path in load_paths:
+        if path and _is_old_model_file(path):
+            return True
+
+    return False
+
+
+def update_observation_space(obs_space: gym.spaces.Space) -> gym.spaces.Space:
+    """
+    Update observation space from 26-feature to 34-feature format for old models.
+
+    This is a cleaner named version of update_observation_space_for_backwards_compatibility.
+
+    Args:
+        obs_space: Original gym observation space (26 features)
+
+    Returns:
+        Updated observation space (34 features) for old model compatibility
+    """
+    return update_observation_space_for_backwards_compatibility(obs_space)
+
+
+def _is_old_model_file(model_path: str) -> bool:
+    """
+    Check if a model file contains old 34-feature format weights.
+
+    Loads just the state dict to inspect for 34-feature signatures.
+    """
+    try:
+        if not os.path.exists(model_path):
+            logger.warning(f"Model path does not exist: {model_path}")
+            return False
+
+        # Load state dict to check format
+        state_dict = torch.load(model_path, map_location="cpu")
+
+        # Look for telltale signs of 34-feature format
+        for key, tensor in state_dict.items():
+            # Check for obs_norm with 34 features
+            if "obs_norm" in key and tensor.numel() == 34:
+                logger.info(f"Detected old 34-feature format in {model_path} (found {key} with 34 features)")
+                return True
+
+            # Check for linear layers with 34*11*11 = 4114 inputs
+            if "weight" in key and len(tensor.shape) == 2:
+                if tensor.shape[1] == 34 * 11 * 11:
+                    logger.info(f"Detected old 34-feature format in {model_path} (found {key} with {tensor.shape})")
+                    return True
+
+        logger.info(f"Model {model_path} appears to use new 26-feature format")
+        return False
+
+    except Exception as e:
+        logger.warning(f"Could not check model format for {model_path}: {e}")
+        return False  # Default to new format if we can't check
 
 
 def update_agent_attributes_for_backwards_compatibility(agent_attributes: dict) -> dict:
