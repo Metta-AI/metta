@@ -55,7 +55,7 @@ class PufferTrainer:
 
         self._master = True
         self._world_size = 1
-        self.device = cfg.device
+        self.device: torch.device = cfg.device
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
