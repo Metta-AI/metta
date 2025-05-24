@@ -10,6 +10,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.adapters import (
+    apply_backwards_compatibility_adapters,
     should_update_observation_space,
     update_observation_space,
 )
@@ -106,9 +107,6 @@ class MettaAgent(nn.Module):
         }
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
-
-        # self.observation_space = obs_space # for use with FeatureSetEncoder
-        # self.global_features = global_features # for use with FeatureSetEncoder
 
         self.components = nn.ModuleDict()
         component_cfgs = convert_to_dict(cfg.components)
@@ -280,6 +278,10 @@ class MettaAgent(nn.Module):
         Returns:
             Tuple of (action, action_log_prob, entropy, value, log_probs)
         """
+        # Apply backwards compatibility adapters FIRST if agent expects 34 features
+        if hasattr(self, "agent_attributes") and self.agent_attributes.get("obs_shape", [None, None, None])[2] == 34:
+            x = apply_backwards_compatibility_adapters(x)
+
         if __debug__:
             # Default values in case obs_shape is not available
             obs_w, obs_h, features = "W", "H", "F"
@@ -305,7 +307,7 @@ class MettaAgent(nn.Module):
                 assert_shape(x, (B, T, obs_w, obs_h, features), "training_input_x")
                 assert_shape(action, (B, T, 2), "training_input_action")
 
-        # Initialize dictionary for TensorDict
+        # Initialize dictionary for TensorDict with converted tensor
         td = {"x": x, "state": None}
 
         # Safely handle LSTM state

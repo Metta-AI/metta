@@ -102,35 +102,6 @@ def apply_backwards_compatibility_adapters(x: torch.Tensor) -> torch.Tensor:
     return x
 
 
-def update_observation_space_for_backwards_compatibility(obs_space: gym.spaces.Space) -> gym.spaces.Space:
-    """
-    Update observation space to match backwards compatibility transformations.
-
-    This function updates gym observation spaces to reflect the shape changes
-    that will be applied by the backwards compatibility adapters at runtime.
-
-    Args:
-        obs_space: Original gym observation space
-
-    Returns:
-        Updated observation space that matches adapter output
-    """
-    if hasattr(obs_space, "shape") and len(obs_space.shape) == 3:
-        # Check if this is the 26-feature format that needs updating
-        if obs_space.shape[2] == 26:
-            # Update to 34-feature format
-            updated_shape = (obs_space.shape[0], obs_space.shape[1], 34)
-            return gym.spaces.Box(
-                low=obs_space.low.flat[0],  # Use the same bounds
-                high=obs_space.high.flat[0],
-                shape=updated_shape,
-                dtype=obs_space.dtype,
-            )
-
-    # No changes needed
-    return obs_space
-
-
 def should_update_observation_space(cfg: Union[DictConfig, ListConfig]) -> bool:
     """
     Detect if we should use old 34-feature format for backwards compatibility.
@@ -177,15 +148,26 @@ def update_observation_space(obs_space: gym.spaces.Space) -> gym.spaces.Space:
     """
     Update observation space from 26-feature to 34-feature format for old models.
 
-    This is a cleaner named version of update_observation_space_for_backwards_compatibility.
-
     Args:
         obs_space: Original gym observation space (26 features)
 
     Returns:
         Updated observation space (34 features) for old model compatibility
     """
-    return update_observation_space_for_backwards_compatibility(obs_space)
+    if hasattr(obs_space, "shape") and len(obs_space.shape) == 3:
+        # Check if this is the 26-feature format that needs updating
+        if obs_space.shape[2] == 26:
+            # Update to 34-feature format
+            updated_shape = (obs_space.shape[0], obs_space.shape[1], 34)
+            return gym.spaces.Box(
+                low=obs_space.low.flat[0],  # Use the same bounds
+                high=obs_space.high.flat[0],
+                shape=updated_shape,
+                dtype=obs_space.dtype,
+            )
+
+    # No changes needed
+    return obs_space
 
 
 def _is_old_model_file(model_path: str) -> bool:
@@ -221,29 +203,3 @@ def _is_old_model_file(model_path: str) -> bool:
     except Exception as e:
         logger.warning(f"Could not check model format for {model_path}: {e}")
         return False  # Default to new format if we can't check
-
-
-def update_agent_attributes_for_backwards_compatibility(agent_attributes: dict) -> dict:
-    """
-    Update agent attributes to match the backwards compatibility transformations.
-
-    This function updates obs_shape and related attributes to match what the
-    adapters will produce, ensuring consistency throughout the agent.
-
-    Args:
-        agent_attributes: Dictionary containing agent configuration
-
-    Returns:
-        Updated agent_attributes dictionary
-    """
-    if "obs_shape" in agent_attributes:
-        obs_shape = agent_attributes["obs_shape"]
-        if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
-            # If we have the new 26-feature format, update to expect 34 features
-            if obs_shape[2] == 26:
-                updated_obs_shape = list(obs_shape)
-                updated_obs_shape[2] = 34
-                agent_attributes["obs_shape"] = updated_obs_shape
-                agent_attributes["num_objects"] = 34
-
-    return agent_attributes
