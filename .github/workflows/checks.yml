@@ -309,7 +309,7 @@ jobs:
         continue-on-error: true
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "evals" "./run_evals.sh smoke_test"
+          benchmark "evals" "./run_evals.sh smoke_test" || (echo "::warning Smoke test failed" && echo "smoke_test_failed=true" >> $GITHUB_OUTPUT)
 
       - name: Save evals benchmark
         id: save_evals_benchmark
@@ -335,7 +335,8 @@ jobs:
     needs: [graphite-ci-optimizer, setup-checks, smoke-test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_benchmark == 'true')
+      (needs.setup-checks.outputs.run_benchmark == 'true') &&
+      (needs.smoke-test.outputs.smoke_test_failed != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
