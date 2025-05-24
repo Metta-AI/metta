@@ -1,0 +1,7 @@
+# ignore build artifacts
+/tests/*
+!/tests/*.*
+/benchmarks/*
+!/benchmarks/*.*
+
+/Testing
