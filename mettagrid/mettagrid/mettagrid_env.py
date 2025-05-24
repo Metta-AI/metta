@@ -43,8 +43,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.labels = self._env_cfg.get("labels", None)
         self.should_reset = False
 
-        self.expected_observation_channels = None
-
         self._reset_env()
         super().__init__(buf)
 
@@ -84,7 +82,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._replay_writer.start_episode(self._episode_id, self)
 
         obs, infos = self._c_env.reset()
-
         self.should_reset = False
         return obs, infos
 

@@ -86,10 +86,12 @@ class Simulation:
             replay_writer=self._replay_writer,
         )
 
-        expected_channels = policy_pr.expected_observation_channels()
-        if expected_channels != 26:
+        policy_expected_channels = policy_pr.expected_observation_channels()
+        env_expected_channels = self._vecenv.observation_space.shape[-1]
+        if policy_expected_channels != env_expected_channels:
             logger.error(
-                f"Policy expects {expected_channels} observation channels, but current environment provides 26. Quitting early."
+                f"Policy expects {policy_expected_channels} observation channels, "
+                f" but current environment provides {env_expected_channels}. Quitting early."
             )
             sys.exit(0)
 
