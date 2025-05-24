@@ -80,10 +80,8 @@ if [ ! -z "$JOB_TIMEOUT_MINUTES" ] && [ "$NODE_INDEX" = "0" -o "$AWS_BATCH_JOB_N
   (
     timeout_log "Timeout monitor started. Will wake up after ${TIMEOUT_DISPLAY}"
 
-    # Record the start time
     START_TIME=$(date +%s)
 
-    # Sleep for the specified timeout duration
     sleep $TIMEOUT_SECONDS
 
     # Calculate how long we actually slept
