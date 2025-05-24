@@ -495,11 +495,6 @@ void MettaGrid::set_buffers(py::array_t<c_observations_type, py::array::c_style>
 }
 
 py::tuple MettaGrid::step(py::array_t<int> actions) {
-  // If step is called before reset, throw error
-  if (!_set_buffers_called) {
-    throw std::runtime_error("Cannot call step() before reset() has been called.");
-  }
-
   _step(actions);
 
   bool share_rewards = false;
