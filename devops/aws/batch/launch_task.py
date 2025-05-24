@@ -4,6 +4,7 @@ import os
 import random
 import string
 import sys
+from pathlib import Path
 
 import boto3
 
@@ -109,8 +110,6 @@ def container_config(args, task_args, job_name):
 
 
 def validate_batch_job(args, task_args, job_name, job_queue, job_definition, request):
-    from pathlib import Path
-
     critical_files = [
         "./devops/aws/batch/entrypoint.sh",
         f"./devops/{args.cmd}.sh",
