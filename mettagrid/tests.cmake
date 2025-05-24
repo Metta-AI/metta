@@ -27,6 +27,13 @@ FetchContent_MakeAvailable(googlebenchmark)
 # 1) Enable CTest
 enable_testing()
 
+# Get Python base prefix for proper runtime configuration
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} -c "import sys; print(sys.base_prefix)"
+  OUTPUT_VARIABLE PYTHONHOME
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+
 # 2) Compile & register all tests
 file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "tests/*.cpp")
 
@@ -44,9 +51,10 @@ foreach(test_src IN LISTS TEST_SOURCES)
   target_link_libraries(${test_name} PRIVATE pybind11::pybind11 Python3::Python GTest::gtest GTest::gtest_main)
 
   # Pass Python base prefix for runtime configuration
-  target_compile_definitions(${test_name} PRIVATE PYTHON_BASE_PREFIX="${PYTHON_BASE_PREFIX}")
-
   add_test(NAME ${test_name} COMMAND ${test_name} --gtest_color=yes)
+  set_tests_properties(${test_name} PROPERTIES
+    ENVIRONMENT "PYTHONHOME=${PYTHONHOME}"
+  )
 
   set_target_properties(${test_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${test_src_dir}")
 endforeach()

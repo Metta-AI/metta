@@ -21,12 +21,6 @@ find_package(
   REQUIRED)
 set(NUMPY_INCLUDE_DIR ${Python3_NumPy_INCLUDE_DIRS})
 
-# Get Python base prefix for proper runtime configuration
-execute_process(
-  COMMAND ${Python3_EXECUTABLE} -c "import sys; print(sys.base_prefix)"
-  OUTPUT_VARIABLE PYTHON_BASE_PREFIX
-  OUTPUT_STRIP_TRAILING_WHITESPACE)
-
 file(GLOB_RECURSE METTAGRID_SOURCES CONFIGURE_DEPENDS "mettagrid/*.cpp")
 
 add_library(mettagrid_obj OBJECT ${METTAGRID_SOURCES})

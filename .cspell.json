@@ -119,6 +119,7 @@
     "Pylance",
     "pynvml",
     "pytest",
+    "PYTHONHOME",
     "Pythonic",
     "PYTHONPATH",
     "randn",
