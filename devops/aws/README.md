@@ -206,7 +206,7 @@ The `batch_setup.py` script creates all the necessary AWS Batch resources:
 
 #### Prerequisites
 
-- AWS CLI installed and configured with the `softmax-root` profile
+- AWS CLI installed and configured with the `stem-root` profile
 - Required IAM roles already created:
   - `AWSBatchServiceRole`: Service role for AWS Batch
   - `ecsInstanceRole`: Instance role for EC2 instances
@@ -267,7 +267,7 @@ aws batch submit-job \
   --job-name test-job \
   --job-queue metta-jq-prod \
   --job-definition metta-batch-dist-train \
-  --profile softmax-root
+  --profile stem-root
 ```
 
 ### Advanced Troubleshooting
@@ -281,12 +281,12 @@ If jobs get stuck in the RUNNABLE state, check:
 
 ```bash
 # Check job status
-aws batch describe-jobs --jobs YOUR_JOB_ID --profile softmax-root
+aws batch describe-jobs --jobs YOUR_JOB_ID --profile stem-root
 
 # Check compute environment status
-aws batch describe-compute-environments --compute-environments YOUR_COMPUTE_ENV --profile softmax-root
+aws batch describe-compute-environments --compute-environments YOUR_COMPUTE_ENV --profile stem-root
 
 # Check ECS container instances
-aws ecs list-container-instances --cluster YOUR_ECS_CLUSTER --profile softmax-root
+aws ecs list-container-instances --cluster YOUR_ECS_CLUSTER --profile stem-root
 ```
 
