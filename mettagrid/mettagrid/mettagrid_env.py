@@ -11,6 +11,7 @@ import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
+from mettagrid.adapters import revert_observations
 from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
@@ -43,6 +44,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.labels = self._env_cfg.get("labels", None)
         self.should_reset = False
 
+        self.expected_observation_channels = None
+
         self._reset_env()
         super().__init__(buf)
 
@@ -69,6 +72,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._env = env
         # self._env = RewardTracker(self._env)
 
+    def _apply_backwards_compatibility(self, observations: np.ndarray) -> np.ndarray:
+        if (
+            hasattr(self, "expected_observation_channels")
+            and self.expected_observation_channels == 34
+            and observations.shape[-1] == 26
+        ):
+            return revert_observations(observations)
+
+        return observations
+
     def reset(self, seed=None, options=None):
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
@@ -82,6 +95,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._replay_writer.start_episode(self._episode_id, self)
 
         obs, infos = self._c_env.reset()
+
+        obs = self._apply_backwards_compatibility(obs)
+
         self.should_reset = False
         return obs, infos
 
@@ -104,7 +120,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self.process_episode_stats(infos)
             self.should_reset = True
 
-        return self.observations, self.rewards, self.terminals, self.truncations, infos
+        observations = self._apply_backwards_compatibility(self.observations)
+
+        return observations, self.rewards, self.terminals, self.truncations, infos
 
     def process_episode_stats(self, infos: Dict[str, Any]):
         episode_rewards = self._c_env.get_episode_rewards()

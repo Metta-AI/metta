@@ -9,11 +9,6 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
-from metta.agent.adapters import (
-    apply_backwards_compatibility_adapters,
-    should_update_observation_space,
-    update_observation_space,
-)
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
@@ -31,18 +26,9 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
     Detects if we're loading an old 34-feature model and adjusts the observation
     space accordingly. New models use the standard 26-feature format.
     """
-
-    if should_update_observation_space(cfg):
-        updated_obs_space = update_observation_space(env.single_observation_space)
-        logger.info("Detected old model loading - using 34-feature observation space for compatibility")
-    else:
-        # New model - use standard 26-feature observation space
-        updated_obs_space = env.single_observation_space
-        logger.info("Using standard 26-feature observation space")
-
     obs_space = gym.spaces.Dict(
         {
-            "grid_obs": updated_obs_space,
+            "grid_obs": env.single_observation_space,
             "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
         }
     )
@@ -278,10 +264,6 @@ class MettaAgent(nn.Module):
         Returns:
             Tuple of (action, action_log_prob, entropy, value, log_probs)
         """
-        # Apply backwards compatibility adapters FIRST if agent expects 34 features
-        if hasattr(self, "agent_attributes") and self.agent_attributes.get("obs_shape", [None, None, None])[2] == 34:
-            x = apply_backwards_compatibility_adapters(x)
-
         if __debug__:
             # Default values in case obs_shape is not available
             obs_w, obs_h, features = "W", "H", "F"
