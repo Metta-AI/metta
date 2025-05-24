@@ -20,12 +20,6 @@ logger = logging.getLogger("metta_agent")
 
 
 def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
-    """
-    Create policy with automatic backwards compatibility for old models.
-
-    Detects if we're loading an old 34-feature model and adjusts the observation
-    space accordingly. New models use the standard 26-feature format.
-    """
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
@@ -93,6 +87,9 @@ class MettaAgent(nn.Module):
         }
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
+
+        # self.observation_space = obs_space # for use with FeatureSetEncoder
+        # self.global_features = global_features # for use with FeatureSetEncoder
 
         self.components = nn.ModuleDict()
         component_cfgs = convert_to_dict(cfg.components)
@@ -289,7 +286,7 @@ class MettaAgent(nn.Module):
                 assert_shape(x, (B, T, obs_w, obs_h, features), "training_input_x")
                 assert_shape(action, (B, T, 2), "training_input_action")
 
-        # Initialize dictionary for TensorDict with converted tensor
+        # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
 
         # Safely handle LSTM state
