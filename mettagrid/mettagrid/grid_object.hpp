@@ -6,8 +6,6 @@
 #include <string>
 #include <vector>
 
-#include "objects/constants.hpp"
-
 using namespace std;
 
 typedef uint8_t TypeId;
