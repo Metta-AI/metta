@@ -3,7 +3,7 @@ import sys
 
 import sky
 
-from metta.util.colorama import blue
+from metta.util.colorama import blue, bold, green
 
 
 def print_tip(text: str):
@@ -26,13 +26,11 @@ def launch_task(task: sky.Task, dry_run=False):
 
     request_id = sky.jobs.launch(task)
 
-    print(f"Request ID: {request_id}")
-    (job_id, _) = sky.get(request_id)
+    print(green(f"Submitted sky.jobs.launch request: {request_id}"))
 
-    print("\nJob submitted successfully!")
+    short_request_id = request_id.split("-")[0]
 
-    # Note: direct urls don't work in skypilot dashboard yet, this always opens clusters list.
-    # Hopefully this will be fixed soon.
-    job_url = f"{dashboard_url()}/dashboard/jobs/{job_id}"
-    print(f"Open {blue(job_url)} to track your job.")
-    print("To sign in, use credentials from your ~/.skypilot/config.yaml file.")
+    print(f"- Check logs with: {bold(f'sky api logs {short_request_id}')}")
+    print(f"- Or, visit: {bold(f'{dashboard_url()}/api/stream?request_id={short_request_id}')}")
+    print(f"  - To sign in, use credentials from your ~/.skypilot/config.yaml file.")
+    print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
