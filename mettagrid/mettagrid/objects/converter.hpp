@@ -49,7 +49,7 @@ private:
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
     this->converting = true;
-    this->event_manager->schedule_event(Events::FinishConverting, this->conversion_ticks, this->id, 0);
+    this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
   }
 
 public:
@@ -113,7 +113,7 @@ public:
     if (this->cooldown > 0) {
       // Start cooldown phase
       this->cooling_down = true;
-      this->event_manager->schedule_event(Events::CoolDown, this->cooldown, this->id, 0);
+      this->event_manager->schedule_event(EventType::CoolDown, this->cooldown, this->id, 0);
     } else if (this->cooldown == 0) {
       // No cooldown, try to start converting again immediately
       this->maybe_start_converting();
