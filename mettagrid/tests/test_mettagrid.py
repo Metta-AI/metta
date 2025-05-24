@@ -78,6 +78,7 @@ def test_truncation_at_max_steps():
             # As per current C++ code, terminals are not explicitly set true on truncation.
             assert not np.any(terminals), f"Terminals should remain False at max_steps (step {step_num})"
 
+
 class TestObservations:
     def test_observation_tokens(self):
         env = create_minimal_mettagrid_env(use_observation_tokens=True)
