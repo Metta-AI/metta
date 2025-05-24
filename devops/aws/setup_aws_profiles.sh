@@ -1,14 +1,5 @@
 #!/bin/bash -e
 
-# Script usage function
-show_usage() {
-  echo "Usage: $0 [--reset]"
-  echo ""
-  echo "Options:"
-  echo "  --reset    Completely clear existing AWS configuration and cache before setup"
-  echo "  -h, --help Show this help message"
-}
-
 # Parse command line arguments
 RESET_CONFIG=false
 
@@ -18,13 +9,9 @@ while [[ $# -gt 0 ]]; do
       RESET_CONFIG=true
       shift
       ;;
-    -h|--help)
-      show_usage
-      exit 0
-      ;;
     *)
       echo "Unknown option: $1"
-      show_usage
+      echo "Usage: $0 [--reset]"
       exit 1
       ;;
   esac
@@ -33,17 +20,6 @@ done
 # Function to completely clear AWS configuration and cache
 clear_aws_completely() {
   echo "Completely clearing AWS configuration and cache..."
-  
-  # Create backup if config exists
-  if [ -f ~/.aws/config ]; then
-    echo "Creating backup of existing AWS config..."
-    cp ~/.aws/config ~/.aws/config.backup.$(date +%Y%m%d_%H%M%S)
-  fi
-  
-  if [ -f ~/.aws/credentials ]; then
-    echo "Creating backup of existing AWS credentials..."
-    cp ~/.aws/credentials ~/.aws/credentials.backup.$(date +%Y%m%d_%H%M%S)
-  fi
   
   # Remove entire AWS directory
   echo "Removing entire ~/.aws directory..."
