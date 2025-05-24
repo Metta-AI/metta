@@ -309,7 +309,7 @@ jobs:
         continue-on-error: true
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "evals" "./run_evals.sh smoke_test" || (echo "::warning Smoke test failed" && echo "smoke_test_failed=true" >> $GITHUB_OUTPUT)
+          benchmark "evals" "./run_evals.sh smoke_test" || (echo "::warning ::Smoke test failed" && echo "smoke_test_failed=true" >> $GITHUB_OUTPUT)
 
       - name: Save evals benchmark
         id: save_evals_benchmark
