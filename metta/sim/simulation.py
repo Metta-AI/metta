@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -32,6 +31,12 @@ from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
 logger = logging.getLogger(__name__)
+
+
+class SimulationCompatibilityError(Exception):
+    """Raised when there's a compatibility issue that prevents simulation from running."""
+
+    pass
 
 
 # --------------------------------------------------------------------------- #
@@ -101,21 +106,22 @@ class Simulation:
         npc_policy_expected_channels = self._npc_pr.expected_observation_channels() if self._npc_pr else None
         env_expected_channels = self._vecenv.observation_space.shape[-1]
 
-        # Check main policy compatibility
         if policy_expected_channels != env_expected_channels:
-            logger.error(
+            error_msg = (
                 f"Main policy expects {policy_expected_channels} observation channels, "
-                f"but current environment provides {env_expected_channels}. Quitting early."
+                f"but current environment provides {env_expected_channels}."
             )
-            sys.exit(0)  # fake a successful outcome so that training can continue
+            logger.error(error_msg)
+            raise SimulationCompatibilityError(error_msg)
 
         # Check NPC policy compatibility (if it exists)
         if npc_policy_expected_channels and npc_policy_expected_channels != env_expected_channels:
-            logger.error(
+            error_msg = (
                 f"NPC policy expects {npc_policy_expected_channels} observation channels, "
-                f"but current environment provides {env_expected_channels}. Quitting early."
+                f"but current environment provides {env_expected_channels}."
             )
-            sys.exit(0)  # fake a successful outcome so that training can continue
+            logger.error(error_msg)
+            raise SimulationCompatibilityError(error_msg)
 
         # Let every policy know the active action-set of this env.
         action_names = self._vecenv.driver_env.action_names()
