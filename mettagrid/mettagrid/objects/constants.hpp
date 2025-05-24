@@ -12,11 +12,6 @@ enum class EventType {
   CoolDown = 1
 };
 
-enum GridLayer {
-  Agent_Layer = 0,
-  Object_Layer = 1
-};
-
 // Changing observation feature ids will break models that have
 // been trained on the old feature ids.
 // In the future, the string -> id mapping should be stored on a
@@ -77,16 +72,5 @@ enum InventoryItem {
 
 const std::vector<std::string> InventoryItemNames =
     {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"};
-
-const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
-                                                  {ObjectType::WallT, GridLayer::Object_Layer},
-                                                  {ObjectType::MineT, GridLayer::Object_Layer},
-                                                  {ObjectType::GeneratorT, GridLayer::Object_Layer},
-                                                  {ObjectType::AltarT, GridLayer::Object_Layer},
-                                                  {ObjectType::ArmoryT, GridLayer::Object_Layer},
-                                                  {ObjectType::LaseryT, GridLayer::Object_Layer},
-                                                  {ObjectType::LabT, GridLayer::Object_Layer},
-                                                  {ObjectType::FactoryT, GridLayer::Object_Layer},
-                                                  {ObjectType::TempleT, GridLayer::Object_Layer}};
 
 #endif

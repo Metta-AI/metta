@@ -67,7 +67,7 @@ public:
   EventManager* event_manager;
 
   Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
-    GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
+    GridObject::init(type_id, GridLocation(r, c));
     MettaObject::init_mo(cfg);
     HasInventory::init_has_inventory(cfg);
     this->recipe_input.resize(InventoryItem::InventoryCount);

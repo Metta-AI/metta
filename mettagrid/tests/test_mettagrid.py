@@ -118,7 +118,7 @@ def test_grid_objects():
     expected_agents = 2
     assert len(objects) == expected_walls + expected_agents, "Wrong number of objects"
 
-    common_properties = {"r", "c", "layer", "type", "id"}
+    common_properties = {"r", "c", "type", "id"}
 
     for obj in objects.values():
         if obj.get("wall"):

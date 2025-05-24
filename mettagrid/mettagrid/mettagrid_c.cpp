@@ -41,14 +41,10 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
 
   _current_timestep = 0;
 
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
   int height = map.size();
   int width = map[0].cast<py::list>().size();
 
-  _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
+  _grid = std::make_unique<Grid>(width, height);
   _obs_encoder = std::make_unique<ObservationEncoder>();
   _grid_features = _obs_encoder->feature_names();
 
@@ -232,43 +228,39 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     // TODO: Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
     for (unsigned int r = r_start; r < r_end; r++) {
       for (unsigned int c = c_start; c < c_end; c++) {
-        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
-          GridLocation object_loc(r, c, layer);
-          auto obj = _grid->object_at(object_loc);
-          if (!obj) continue;
+        GridLocation object_loc(r, c);
+        auto obj = _grid->object_at(object_loc);
+        if (!obj) continue;
 
-          int obs_r = object_loc.r + obs_height_radius - observer_row;
-          int obs_c = object_loc.c + obs_width_radius - observer_col;
+        int obs_r = object_loc.r + obs_height_radius - observer_row;
+        int obs_c = object_loc.c + obs_width_radius - observer_col;
 
-          uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
-          ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
-          ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+        uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
+        ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
+        ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
-          size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+        size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
 
-          uint8_t location = obs_r << 4 | obs_c;
-          for (size_t i = 0; i < obj_tokens_written; i++) {
-            agent_obs_tokens[i].location = location;
-          }
-          tokens_written += obj_tokens_written;
+        uint8_t location = obs_r << 4 | obs_c;
+        for (size_t i = 0; i < obj_tokens_written; i++) {
+          agent_obs_tokens[i].location = location;
         }
+        tokens_written += obj_tokens_written;
       }
     }
   } else {
     auto observation_view = _observations.mutable_unchecked<4>();
     for (unsigned int r = r_start; r < r_end; r++) {
       for (unsigned int c = c_start; c < c_end; c++) {
-        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
-          GridLocation object_loc(r, c, layer);
-          auto obj = _grid->object_at(object_loc);
-          if (!obj) continue;
+        GridLocation object_loc(r, c);
+        auto obj = _grid->object_at(object_loc);
+        if (!obj) continue;
 
-          int obs_r = object_loc.r + obs_height_radius - observer_row;
-          int obs_c = object_loc.c + obs_width_radius - observer_col;
+        int obs_r = object_loc.r + obs_height_radius - observer_row;
+        int obs_c = object_loc.c + obs_width_radius - observer_col;
 
-          auto agent_obs = observation_view.mutable_data(agent_idx, obs_r, obs_c, 0);
-          _obs_encoder->encode(obj, agent_obs);
-        }
+        auto agent_obs = observation_view.mutable_data(agent_idx, obs_r, obs_c, 0);
+        _obs_encoder->encode(obj, agent_obs);
       }
     }
   }
@@ -488,7 +480,6 @@ py::dict MettaGrid::grid_objects() {
     obj_dict["type"] = obj->_type_id;
     obj_dict["r"] = obj->location.r;
     obj_dict["c"] = obj->location.c;
-    obj_dict["layer"] = obj->location.layer;
 
     // Get feature offsets for this object type
     auto type_features = _obs_encoder->type_feature_names()[obj->_type_id];
