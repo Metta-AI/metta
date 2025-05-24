@@ -9,6 +9,10 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
+from metta.agent.adapters import (
+    apply_backwards_compatibility_adapters,
+    update_agent_attributes_for_backwards_compatibility,
+)
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
@@ -85,6 +89,8 @@ class MettaAgent(nn.Module):
             "hidden_size": self.hidden_size,
             "core_num_layers": self.core_num_layers,
         }
+
+        self.agent_attributes = update_agent_attributes_for_backwards_compatibility(self.agent_attributes)
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
 
@@ -261,6 +267,8 @@ class MettaAgent(nn.Module):
         Returns:
             Tuple of (action, action_log_prob, entropy, value, log_probs)
         """
+        x = apply_backwards_compatibility_adapters(x)
+
         if __debug__:
             # Default values in case obs_shape is not available
             obs_w, obs_h, features = "W", "H", "F"
