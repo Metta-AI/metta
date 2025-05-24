@@ -345,7 +345,8 @@ jobs:
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_benchmark == 'true')
+      (needs.setup-checks.outputs.run_benchmark == 'true') &&
+      (needs.smoke-test.outputs.smoke_test_failed != 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
