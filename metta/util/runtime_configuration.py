@@ -25,6 +25,13 @@ def seed_everything(seed, torch_deterministic):
     torch.backends.cudnn.benchmark = not torch_deterministic
     torch.use_deterministic_algorithms(torch_deterministic)
 
+    if torch_deterministic:
+        # Set CuBLAS workspace config for deterministic behavior on CUDA >= 10.2
+        # https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
+        import os
+
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+
 
 def setup_mettagrid_environment(cfg):
     # Import mettagrid_env to ensure OmegaConf resolvers are registered before Hydra loads
