@@ -50,7 +50,7 @@ def test_mettagrid_env_no_memory_leaks():
     cfg = get_cfg("benchmark")
 
     print("Pre-warming phase:")
-    for _i in range(20):  # Reduced from 20 to 10 to speed up the test
+    for _i in range(20):
         env = MettaGridEnv(env_cfg=cfg, render_mode=None)
         _obs, _infos = env.reset()
         if hasattr(env, "close"):
