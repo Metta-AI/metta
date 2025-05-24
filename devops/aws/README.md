@@ -1,4 +1,4 @@
-# AWS Setup and Job Management Guide 
+# AWS Setup and Job Management Guide
 
 ## Initial Setup
 
