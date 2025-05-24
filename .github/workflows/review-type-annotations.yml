@@ -2,7 +2,7 @@ name: Type Annotation Review
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, reopened]
     paths:
       - '**/*.py'  # Only trigger on Python files
 
