@@ -20,7 +20,6 @@ logger = logging.getLogger("metta_agent")
 
 
 def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
-    logging.info("making policy in MettaAgent")
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
