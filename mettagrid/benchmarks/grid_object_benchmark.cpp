@@ -63,17 +63,6 @@ static void BM_GridObjectInitWithCoordinates(benchmark::State& state) {
 }
 BENCHMARK(BM_GridObjectInitWithCoordinates);
 
-// Benchmark initializing a GridObject with coordinates
-static void BM_GridObjectInitWithCoordinatesAndLayer(benchmark::State& state) {
-  for (auto _ : state) {
-    TestGridObject obj;
-    obj.init(5, 10, 20);
-    benchmark::DoNotOptimize(&obj);
-    benchmark::ClobberMemory();
-  }
-}
-BENCHMARK(BM_GridObjectInitWithCoordinatesAndLayer);
-
 // Benchmark the performance of the obs method with varying number of offsets
 static void BM_GridObjectObs(benchmark::State& state) {
   // Use the loop iteration count to vary the size of the offsets vector
