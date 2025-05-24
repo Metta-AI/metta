@@ -6,7 +6,6 @@
 #include <string>
 #include <vector>
 
-#include "objects/constants.hpp"
 using namespace std;
 
 typedef unsigned short Layer;
@@ -30,7 +29,7 @@ static_assert(sizeof(ObservationToken) == 3, "ObservationToken must be 3 bytes")
 using ObservationTokens = std::span<ObservationToken>;
 
 struct PartialObservationToken {
-  ObservationFeature feature_id;
+  uint8_t feature_id;
   uint8_t value;
 };
 

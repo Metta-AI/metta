@@ -81,13 +81,15 @@ def test_truncation_at_max_steps():
 class TestObservations:
     def test_observation_tokens(self):
         env = create_minimal_mettagrid_env(use_observation_tokens=True)
-        wall_feature_idx = env.grid_features().index("wall")
+        # These come from constants in the C++ code, and are fragile.
+        TYPE_ID_FEATURE = 1
+        WALL_TYPE_ID = 1
         obs, info = env.reset()
         # Agent 0 starts at (1,1) and should see walls above and to the left
         # for now we treat the walls as "something non-empty"
         for x, y in [(0, 1), (1, 0)]:
             location = x << 4 | y
-            token_matches = obs[0, :, :] == [location, wall_feature_idx, 1]
+            token_matches = obs[0, :, :] == [location, TYPE_ID_FEATURE, WALL_TYPE_ID]
             assert token_matches.all(axis=1).any(), f"Expected wall at location {x}, {y}"
         for x, y in [(2, 1), (1, 2)]:
             location = x << 4 | y
