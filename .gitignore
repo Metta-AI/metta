@@ -36,3 +36,7 @@ build_debug/
 **/requirements_to_remove.txt
 test_data
 **/mettagrid_debug.log
+observatory/node_modules/
+observatory/.vite/
+
+wandb
