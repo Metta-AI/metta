@@ -39,6 +39,10 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
 
   current_timestep = 0;
 
+  // Initialize mode flags
+  _gym_mode = false;
+  _set_buffers_called = false;
+
   _observations = nullptr;
   _terminals = nullptr;
   _truncations = nullptr;
@@ -166,7 +170,55 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   }
 }
 
-MettaGrid::~MettaGrid() = default;
+MettaGrid::~MettaGrid() {
+  _free_internal_buffers();
+}
+
+void MettaGrid::_setup_gym_mode() {
+  if (_gym_mode) {
+    return;  // Already allocated
+  }
+
+  size_t num_agents = _agents.size();
+  _observations_size = num_agents * obs_height * obs_width * _grid_features.size();
+  _terminals_size = num_agents;
+  _truncations_size = num_agents;
+  _rewards_size = num_agents;
+
+  _internal_observations = std::make_unique<c_observations_type[]>(_observations_size);
+  _internal_terminals = std::make_unique<c_terminals_type[]>(_terminals_size);
+  _internal_truncations = std::make_unique<c_truncations_type[]>(_truncations_size);
+  _internal_rewards = std::make_unique<c_rewards_type[]>(_rewards_size);
+
+  _observations = _internal_observations.get();
+  _terminals = _internal_terminals.get();
+  _truncations = _internal_truncations.get();
+  _rewards = _internal_rewards.get();
+
+  // resize internal buffers
+  _episode_rewards.resize(_agents.size(), 0.0f);
+
+  // assign reward slots to agents
+  for (size_t i = 0; i < _agents.size(); i++) {
+    _agents[i]->init(&_rewards[i]);
+  }
+
+  _gym_mode = true;
+}
+
+void MettaGrid::_free_internal_buffers() {
+  if (_gym_mode) {
+    _internal_observations.reset();
+    _internal_terminals.reset();
+    _internal_truncations.reset();
+    _internal_rewards.reset();
+
+    _observations = nullptr;
+    _terminals = nullptr;
+    _truncations = nullptr;
+    _rewards = nullptr;
+  }
+}
 
 void MettaGrid::init_action_handlers() {
   _num_action_handlers = _action_handlers.size();
@@ -336,11 +388,16 @@ void MettaGrid::_step(py::array_t<int> actions) {
 }
 
 py::tuple MettaGrid::reset() {
+  // If reset is called before set_buffers, enter gym mode
+  if (!_set_buffers_called) {
+    if (_observations != nullptr) {
+      throw std::runtime_error("reset called before set_buffers implies gym mode but buffers are not null?");
+    }
+    _setup_gym_mode();
+  }
+
   if (current_timestep > 0) {
     throw std::runtime_error("Cannot reset after stepping");
-  }
-  if (_observations == nullptr || _terminals == nullptr || _truncations == nullptr || _rewards == nullptr) {
-    throw std::runtime_error("Buffers not set - call set_buffers before reset");
   }
 
   // reset external buffers using direct memory access
@@ -406,6 +463,13 @@ void MettaGrid::set_buffers(py::array_t<c_observations_type, py::array::c_style>
                             py::array_t<c_terminals_type, py::array::c_style>& terminals,
                             py::array_t<c_truncations_type, py::array::c_style>& truncations,
                             py::array_t<c_rewards_type, py::array::c_style>& rewards) {
+  // If we're in gym mode, throw error
+  if (_gym_mode) {
+    throw std::runtime_error("Cannot call set_buffers when environment is in gym mode.");
+  }
+
+  _set_buffers_called = true;
+
   // Store raw pointers to Python-managed memory
   _observations = static_cast<c_observations_type*>(observations.mutable_data());
   _terminals = static_cast<c_terminals_type*>(terminals.mutable_data());
@@ -431,6 +495,11 @@ void MettaGrid::set_buffers(py::array_t<c_observations_type, py::array::c_style>
 }
 
 py::tuple MettaGrid::step(py::array_t<int> actions) {
+  // If step is called before reset, throw error
+  if (!_set_buffers_called) {
+    throw std::runtime_error("Cannot call step() before reset() has been called.");
+  }
+
   _step(actions);
 
   bool share_rewards = false;
@@ -463,7 +532,6 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
   std::vector<ssize_t> terminals_shape = {static_cast<ssize_t>(_terminals_size)};
   std::vector<ssize_t> truncations_shape = {static_cast<ssize_t>(_truncations_size)};
 
-  // Create array views with explicit shape vectors
   py::array_t<c_observations_type> obs_view(obs_shape, _observations);
   py::array_t<c_rewards_type> rewards_view(rewards_shape, _rewards);
   py::array_t<c_terminals_type> terminals_view(terminals_shape, _terminals);

@@ -6,11 +6,11 @@ import numpy as np
 from mettagrid.mettagrid_c import MettaGrid
 
 # export NumPy types
-np_actions_type = np.dtype("int")
-np_observations_type = np.dtype("uint8")
-np_terminals_type = np.dtype("bool")
-np_truncations_type = np.dtype("bool")
-np_rewards_type = np.dtype("float32")
+np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
+np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
+np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
+np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
+np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
 
 
 class Orientation(Enum):

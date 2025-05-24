@@ -94,6 +94,16 @@ private:
   // probably move ownership here.
   std::vector<Agent*> _agents;
 
+  // Mode flags
+  bool _gym_mode;
+  bool _set_buffers_called;
+
+  // Internal buffers for gym mode
+  std::unique_ptr<c_observations_type[]> _internal_observations;
+  std::unique_ptr<c_terminals_type[]> _internal_terminals;
+  std::unique_ptr<c_truncations_type[]> _internal_truncations;
+  std::unique_ptr<c_rewards_type[]> _internal_rewards;
+
   // Pointers to external buffers - these are required and must be set
   c_observations_type* _observations;
   c_terminals_type* _terminals;
@@ -122,6 +132,10 @@ private:
                             size_t agent_idx);
   void _compute_observations(py::array_t<int> actions);
   void _step(py::array_t<int> actions);
+
+  void _allocate_internal_buffers();
+  void _free_internal_buffers();
+  void _setup_gym_mode();
 };
 
 #endif  // METTAGRID_C_HPP
