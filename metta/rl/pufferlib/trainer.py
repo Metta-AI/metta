@@ -2,7 +2,6 @@ import logging
 import os
 import time
 from collections import defaultdict
-from pathlib import Path
 
 import numpy as np
 import pufferlib
@@ -89,23 +88,30 @@ class PufferTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        if checkpoint.policy_path:
-            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-            policy_record = policy_store.policy(checkpoint.policy_path)
-            if "average_reward" in checkpoint.extra_args:
-                self.average_reward = checkpoint.extra_args["average_reward"]
-        elif cfg.trainer.initial_policy.uri is not None:
-            logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
-            policy_record = policy_store.policy(cfg.trainer.initial_policy)
-        else:
-            policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
+        policy_record = None
+        load_policy_attempts = 10
+        while policy_record is None and load_policy_attempts > 0:
+            if checkpoint.policy_path:
+                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+                policy_record = policy_store.policy(checkpoint.policy_path)
+                if "average_reward" in checkpoint.extra_args:
+                    self.average_reward = checkpoint.extra_args["average_reward"]
+            elif cfg.trainer.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
+                policy_record = policy_store.policy(cfg.trainer.initial_policy)
+            else:
+                policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
 
-            if os.path.exists(policy_path):
-                logger.info(f"Loading policy from checkpoint: {policy_path}")
-                policy_record = policy_store.policy(policy_path)
-            elif self._master:
-                logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                policy_record = policy_store.create(metta_grid_env)
+                if os.path.exists(policy_path):
+                    logger.info(f"Loading policy from checkpoint: {policy_path}")
+                    policy_record = policy_store.policy(policy_path)
+                elif self._master:
+                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
+                    policy_record = policy_store.create(metta_grid_env)
+            if policy_record is not None:
+                break
+            load_policy_attempts -= 1
+            time.sleep(5)
 
         assert policy_record is not None, "No policy found"
 
@@ -284,7 +290,7 @@ class PufferTrainer:
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
-            stats_dir=Path(self.cfg.run_dir) / "stats",
+            stats_dir="/tmp/stats",
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
