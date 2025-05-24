@@ -43,15 +43,6 @@ protected:
   }
 
 private:
-  struct PythonInitializer {
-    PythonInitializer() {
-      // Set Python home to the base Python installation where the standard library lives
-      // The path is determined by CMake at build time
-      const char* base_python_path = PYTHON_BASE_PREFIX;
-      Py_SetPythonHome(Py_DecodeLocale(base_python_path, nullptr));
-    }
-  } python_config;
-
   py::scoped_interpreter guard{};  // Keep Python alive for the duration of the test
 };
 
