@@ -1,3 +1,4 @@
+import logging
 from types import SimpleNamespace
 
 import torch
@@ -6,8 +7,11 @@ from omegaconf import DictConfig
 from pufferlib.cleanrl import sample_logits
 from torch import nn
 
+logger = logging.getLogger("pufferlib/policy")
+
 
 def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
+    logging.info(f"loading policy from {path}")
     weights = torch.load(path, map_location=device, weights_only=True)
 
     try:
@@ -15,7 +19,7 @@ def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
         num_action_args, _ = weights["policy.actor.1.weight"].shape
         _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
     except Exception as e:
-        print(f"Failed automatic parse from weights: {e}")
+        logger.error(f"Failed automatic parse from weights: {e}")
         # TODO -- fix all magic numbers
         num_actions, num_action_args = 9, 10
         _, obs_channels = 128, 34
