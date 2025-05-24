@@ -53,8 +53,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _stats = std::make_unique<StatsTracker>();
 
   _event_manager->init(_grid.get(), _stats.get());
-  _event_manager->event_handlers.push_back(new ProductionHandler(_event_manager.get()));
-  _event_manager->event_handlers.push_back(new CoolDownHandler(_event_manager.get()));
+  _event_manager->event_handlers.insert(
+      {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
+  _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
 
   _action_success.resize(num_agents);
 

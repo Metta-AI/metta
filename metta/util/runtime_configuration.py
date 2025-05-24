@@ -13,12 +13,17 @@ logger = logging.getLogger("runtime_configuration")
 
 
 def seed_everything(seed, torch_deterministic):
+    # Despite these efforts, we still don't get deterministic behavior. But presumably
+    # this is better than nothing.
+    # https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
     random.seed(seed)
     np.random.seed(seed)
     if seed is not None:
         torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = torch_deterministic
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = not torch_deterministic
+    torch.use_deterministic_algorithms(torch_deterministic)
 
 
 def setup_mettagrid_environment(cfg):

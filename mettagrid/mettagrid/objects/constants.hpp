@@ -7,7 +7,7 @@
 
 #include "../grid_object.hpp"
 
-enum Events {
+enum class EventType {
   FinishConverting = 0,
   CoolDown = 1
 };
