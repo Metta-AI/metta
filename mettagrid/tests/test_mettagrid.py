@@ -8,7 +8,7 @@ OBS_HEIGHT = 3
 OBS_WIDTH = 3
 
 
-def create_minimal_mettagrid_env(max_steps=10, width=5, height=5):
+def create_minimal_mettagrid_env(max_steps=10, width=5, height=5, use_observation_tokens=False):
     """Helper function to create a MettaGrid environment with minimal config."""
     # Define a simple map: empty with walls around perimeter
     game_map = np.full((height, width), "empty", dtype="<U50")
@@ -31,6 +31,8 @@ def create_minimal_mettagrid_env(max_steps=10, width=5, height=5):
             "num_agents": NUM_AGENTS,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
+            "use_observation_tokens": use_observation_tokens,
+            "num_observation_tokens": 100,
             "actions": {
                 # don't really care about the actions for this test
                 "noop": {"enabled": True},
@@ -77,16 +79,33 @@ def test_truncation_at_max_steps():
             assert not np.any(terminals), f"Terminals should remain False at max_steps (step {step_num})"
 
 
-def test_observation():
-    env = create_minimal_mettagrid_env()
-    wall_feature_idx = env.grid_features().index("wall")
-    obs, info = env.reset()
-    # Agent 0 starts at (1,1) and should see walls above and to the left
-    # for now we treat the walls as "something non-empty"
-    assert obs[0, 0, 1, wall_feature_idx] == 1, "Expected wall above agent 0"
-    assert obs[0, 1, 0, wall_feature_idx] == 1, "Expected wall to left of agent 0"
-    assert not obs[0, 2, 1, :].any(), "Expected empty space below agent 0"
-    assert not obs[0, 1, 2, :].any(), "Expected empty space to right of agent 0"
+class TestObservations:
+    def test_observation_tokens(self):
+        env = create_minimal_mettagrid_env(use_observation_tokens=True)
+        # These come from constants in the C++ code, and are fragile.
+        TYPE_ID_FEATURE = 1
+        WALL_TYPE_ID = 1
+        obs, info = env.reset()
+        # Agent 0 starts at (1,1) and should see walls above and to the left
+        # for now we treat the walls as "something non-empty"
+        for x, y in [(0, 1), (1, 0)]:
+            location = x << 4 | y
+            token_matches = obs[0, :, :] == [location, TYPE_ID_FEATURE, WALL_TYPE_ID]
+            assert token_matches.all(axis=1).any(), f"Expected wall at location {x}, {y}"
+        for x, y in [(2, 1), (1, 2)]:
+            location = x << 4 | y
+            token_matches = obs[0, :, 0] == location
+            assert not token_matches.any(), f"Expected no tokens at location {x}, {y}"
+
+    def test_observations(self):
+        env = create_minimal_mettagrid_env()
+        wall_feature_idx = env.grid_features().index("wall")
+        obs, info = env.reset()
+        # Agent 0 starts at (1,1) and should see walls above and to the left
+        assert obs[0, 0, 1, wall_feature_idx] == 1, "Expected wall above agent 0"
+        assert obs[0, 1, 0, wall_feature_idx] == 1, "Expected wall to left of agent 0"
+        assert not obs[0, 2, 1, :].any(), "Expected empty space below agent 0"
+        assert not obs[0, 1, 2, :].any(), "Expected empty space to right of agent 0"
 
 
 def test_grid_objects():
