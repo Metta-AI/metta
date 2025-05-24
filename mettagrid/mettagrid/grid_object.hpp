@@ -8,7 +8,6 @@
 
 using namespace std;
 
-typedef unsigned short Layer;
 typedef uint8_t TypeId;
 typedef unsigned int GridCoord;
 using ObsType = uint8_t;
@@ -37,11 +36,9 @@ class GridLocation {
 public:
   GridCoord r;
   GridCoord c;
-  Layer layer;
 
-  inline GridLocation(GridCoord r, GridCoord c, Layer layer) : r(r), c(c), layer(layer) {}
-  inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c), layer(0) {}
-  inline GridLocation() : r(0), c(0), layer(0) {}
+  inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c) {}
+  inline GridLocation() : r(0), c(0) {}
 };
 
 enum Orientation {
@@ -67,11 +64,7 @@ public:
   }
 
   void init(TypeId type_id, GridCoord r, GridCoord c) {
-    init(type_id, GridLocation(r, c, 0));
-  }
-
-  void init(TypeId type_id, GridCoord r, GridCoord c, Layer layer) {
-    init(type_id, GridLocation(r, c, layer));
+    init(type_id, GridLocation(r, c));
   }
 
   virtual vector<PartialObservationToken> obs_features() const = 0;
