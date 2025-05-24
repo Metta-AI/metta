@@ -36,6 +36,12 @@ from mettagrid.stats_writer import StatsWriter
 logger = logging.getLogger(__name__)
 
 
+class SimulationCompatibilityError(Exception):
+    """Raised when there's a compatibility issue that prevents simulation from running."""
+
+    pass
+
+
 # --------------------------------------------------------------------------- #
 #   Single simulation                                                         #
 # --------------------------------------------------------------------------- #
@@ -53,7 +59,7 @@ class Simulation:
         config: SingleEnvSimulationConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
-        device: str,
+        device: torch.device,
         vectorization: str,
         suite=None,
         stats_dir: str = "/tmp/stats",
@@ -106,6 +112,27 @@ class Simulation:
         self._policy_store = policy_store
         self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
+
+        policy_expected_channels = self._policy_pr.expected_observation_channels()
+        npc_policy_expected_channels = self._npc_pr.expected_observation_channels() if self._npc_pr else None
+        env_expected_channels = self._vecenv.observation_space.shape[-1]
+
+        if policy_expected_channels != env_expected_channels:
+            error_msg = (
+                f"Main policy expects {policy_expected_channels} observation channels, "
+                f"but current environment provides {env_expected_channels}."
+            )
+            logger.error(error_msg)
+            raise SimulationCompatibilityError(error_msg)
+
+        # Check NPC policy compatibility (if it exists)
+        if npc_policy_expected_channels and npc_policy_expected_channels != env_expected_channels:
+            error_msg = (
+                f"NPC policy expects {npc_policy_expected_channels} observation channels, "
+                f"but current environment provides {env_expected_channels}."
+            )
+            logger.error(error_msg)
+            raise SimulationCompatibilityError(error_msg)
 
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
