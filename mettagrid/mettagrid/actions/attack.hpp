@@ -94,7 +94,7 @@ protected:
       actor->stats.incr("damage", ObjectTypeNames[object_target->_type_id]);
       if (object_target->hp <= 0) {
         actor->stats.incr("destroyed", ObjectTypeNames[object_target->_type_id]);
-        _grid->remove_object(object_target);
+        _grid->remove_object(object_target); // This will invalidate the pointer
       }
       return true;
     }
