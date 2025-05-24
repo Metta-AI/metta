@@ -1,11 +1,12 @@
+import { useState } from 'react';
 import Plot from 'react-plotly.js';
-import { PolicyEvalMetric } from './data_loader';
+import { HeatmapData } from './repo';
 
 interface HeatmapProps {
-  matrix: PolicyEvalMetric[];
+  data: HeatmapData;
   selectedMetric: string;
-  onHover: (event: any) => void;
-  onDoubleClick: () => void;
+  setSelectedCell: (cell: {policyUri: string, evalName: string}) => void;
+  openReplayUrl: (policyUri: string, evalName: string) => void;
 }
 
 // CSS for tabs
@@ -68,42 +69,59 @@ const wandb_url = (policyName: string) => {
   return `https://wandb.ai/${entity}/${project}/runs/${policyKey}`
 };
 
-export function Heatmap({ matrix, selectedMetric, onHover, onDoubleClick }: HeatmapProps) {
-  const policyEvalMap = new Map<string, Map<string, number>>();
-  for (const row of matrix) {
-    if (!policyEvalMap.has(row.policy_uri)) {
-      policyEvalMap.set(row.policy_uri, new Map())
-    }
-    policyEvalMap.get(row.policy_uri)?.set(getShortName(row.eval_name), row.value)
-  }
+export function Heatmap({ data, selectedMetric, setSelectedCell, openReplayUrl }: HeatmapProps) {
+  const [lastHoveredCell, setLastHoveredCell] = useState<{policyUri: string, evalName: string} | null>(null)
 
   // Convert to heatmap format
-  const policies = [...new Set(matrix.map(r => r.policy_uri))]
-  const envs = [...new Set(matrix.map(r => r.eval_name))]
-  const sortedShortNames = envs.map(getShortName).sort((a, b) => a.localeCompare(b));
+  const policies = [...new Set(data.cells.keys())]
+  const shortNameToEvalName = new Map<string, string>();
+  data.evalNames.forEach(evalName => {
+    shortNameToEvalName.set(getShortName(evalName), evalName);
+  });
+  const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => a.localeCompare(b));
 
-  const sortedShortNamesWithOverall = ["overall", ...sortedShortNames];
+  const xLabels = ["overall", ...sortedShortNames];
 
   // Iterate over the policyEvalMap, and for each policy compute the average value of the evals
-  policyEvalMap.forEach((evalMap) => {
-    const overallValue = Array.from(evalMap.values()).reduce((sum, value) => sum + value, 0) / envs.length;
-    evalMap.set("overall", overallValue);
-  });
-  const sortedPolicies = policies.sort((a, b) => policyEvalMap.get(a)!.get("overall")! - policyEvalMap.get(b)!.get("overall")!);
+  const sortedPolicies = policies.sort((a, b) => data.policyAverageScores.get(a)! - data.policyAverageScores.get(b)!);
   // take last 20 of sorted policies
   const y_labels = sortedPolicies.slice(-20)
 
+
   const z = y_labels.map(policy => 
-    sortedShortNamesWithOverall.map(shortName => policyEvalMap.get(policy)!.get(shortName) || 0)
+    [data.policyAverageScores.get(policy)!, ...sortedShortNames.map(shortName => {
+      const evalName = shortNameToEvalName.get(shortName)!
+      return data.cells.get(policy)?.get(evalName)?.value || 0
+    })]
   )
 
   const y_label_texts = y_labels.map(policy => {
     return `<a href="${wandb_url(policy)}" target="_blank">${policy}</a>`
   })
 
-  const data: Plotly.Data = {
+  const onHover = (event: any) => {
+    if (!event.points?.[0]) return
+    
+    const shortName = event.points[0].x
+    const policyUri = event.points[0].y
+
+    const evalName = shortNameToEvalName.get(shortName)!
+    
+    setLastHoveredCell({ policyUri, evalName })
+    if (!(shortName === "overall")) {
+      setSelectedCell({policyUri, evalName})
+    }
+  };
+
+  const onDoubleClick = () => {
+    if (lastHoveredCell) {
+      openReplayUrl(lastHoveredCell.policyUri, lastHoveredCell.evalName)
+    }
+  };
+
+  const plotData: Plotly.Data = {
     z,
-    x: sortedShortNamesWithOverall,
+    x: xLabels,
     y: y_labels,
     type: 'heatmap',
     colorscale: 'Viridis',
@@ -118,7 +136,7 @@ export function Heatmap({ matrix, selectedMetric, onHover, onDoubleClick }: Heat
     <>
       <style>{SUITE_TABS_CSS}</style>
       <Plot
-        data={[data]}
+        data={[plotData]}
         layout={{
           title: {
             text: `Policy Evaluation Report: ${selectedMetric}`,

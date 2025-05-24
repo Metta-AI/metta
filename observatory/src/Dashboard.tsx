@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
-import { PolicyEvalMetric } from './data_loader'
-import { Repo } from './repo'
-import { MapViewer } from './MapViewer'
-import { Heatmap } from './Heatmap'
+import { useEffect, useState } from "react";
+import { HeatmapData, Repo } from "./repo";
+import { MapViewer } from "./MapViewer";
+import { Heatmap } from "./Heatmap";
 
 // CSS for map viewer
 const MAP_VIEWER_CSS = `
@@ -120,33 +119,21 @@ interface DashboardProps {
 
 export function Dashboard({ repo }: DashboardProps) {
   // Data state
-  const [matrix, setMatrix] = useState<PolicyEvalMetric[]>([])
-  const [metrics, setMetrics] = useState<string[]>([])
-  const [suites, setSuites] = useState<string[]>([])
+  const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null);
+  const [metrics, setMetrics] = useState<string[]>([]);
+  const [suites, setSuites] = useState<string[]>([]);
 
   // UI state
-  const [selectedMetric, setSelectedMetric] = useState<string>("reward")
-  const [selectedSuite, setSelectedSuite] = useState<string>("navigation")
-  const [isViewLocked, setIsViewLocked] = useState(false)
-  const [lastHoveredCell, setLastHoveredCell] = useState<{shortName: string, policyUri: string} | null>(null)
-  const [selectedCell, setSelectedCell] = useState<{shortName: string, policyUri: string} | null>(null)
-
-  const evalLookupMap = new Map<string, Map<string, { evalName: string, replayUrl: string | null }>>();
-  matrix.forEach(row => {
-    if (!evalLookupMap.has(row.policy_uri)) {
-      evalLookupMap.set(row.policy_uri, new Map())
-    }
-    evalLookupMap.get(row.policy_uri)?.set(row.eval_name.split('/').pop() || row.eval_name, {
-      evalName: row.eval_name,
-      replayUrl: row.replay_url
-    })
-  })
+  const [selectedMetric, setSelectedMetric] = useState<string>("reward");
+  const [selectedSuite, setSelectedSuite] = useState<string>("navigation");
+  const [isViewLocked, setIsViewLocked] = useState(false);
+  const [selectedCell, setSelectedCell] = useState<{policyUri: string, evalName: string} | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
       const [metricsData, suitesData] = await Promise.all([
         repo.getMetrics(),
-        repo.getSuites()
+        repo.getSuites(),
       ]);
       setMetrics(metricsData);
       setSuites(suitesData);
@@ -158,43 +145,34 @@ export function Dashboard({ repo }: DashboardProps) {
 
   useEffect(() => {
     const loadData = async () => {
-      const [matrixData] = await Promise.all([
-        repo.getPolicyEvals(selectedMetric, selectedSuite),
-      ]);
-      setMatrix(matrixData);
+      const heatmapData = await repo.getHeatmapData(
+        selectedMetric,
+        selectedSuite
+      );
+      setHeatmapData(heatmapData);
     };
 
     loadData();
   }, [selectedSuite, selectedMetric]);
 
-  // Map viewer functions
-  const handleHeatmapHover = (event: any) => {
-    if (!event.points?.[0]) return
-    
-    const shortName = event.points[0].x
-    const policyUri = event.points[0].y
-    
-    setLastHoveredCell({ shortName, policyUri })
-    if (!isViewLocked && !(shortName === "overall")) {
-      setSelectedCell({shortName, policyUri})
+  if (!heatmapData) {
+    return <div>Loading...</div>;
+  }
+
+  // Component functions
+
+  const setSelectedCellIfNotLocked = (cell: {policyUri: string, evalName: string}) => {
+    if (!isViewLocked) {
+      setSelectedCell(cell);
     }
   };
 
-  const openReplayUrl = (policyUri: string, evalShortName: string) => {
-    const policyData = evalLookupMap.get(policyUri);
-    if (!policyData) return;
-    
-    const evalData = policyData.get(evalShortName);
+  const openReplayUrl = (policyUri: string, evalName: string) => {
+    const evalData = heatmapData?.cells.get(policyUri)?.get(evalName);
     if (!evalData?.replayUrl) return;
-    
-    const replay_url_prefix = "https://metta-ai.github.io/metta/?replayUrl=";
-    window.open(replay_url_prefix + evalData.replayUrl, '_blank');
-  }
 
-  const handleHeatmapDoubleClick = () => {
-    if (lastHoveredCell) {
-      openReplayUrl(lastHoveredCell.policyUri, lastHoveredCell.shortName)
-    }
+    const replay_url_prefix = "https://metta-ai.github.io/metta/?replayUrl=";
+    window.open(replay_url_prefix + evalData.replayUrl, "_blank");
   };
 
   const toggleLock = () => {
@@ -203,82 +181,95 @@ export function Dashboard({ repo }: DashboardProps) {
 
   const handleReplayClick = () => {
     if (selectedCell) {
-      openReplayUrl(selectedCell.policyUri, selectedCell.shortName)
+      openReplayUrl(selectedCell.policyUri, selectedCell.evalName);
     }
   };
 
-  const selectedCellData = selectedCell ? evalLookupMap.get(selectedCell.policyUri)?.get(selectedCell.shortName) : null
-  const selectedEval = selectedCellData?.evalName ?? null
-  const selectedReplayUrl = selectedCellData?.replayUrl ?? null
+  const selectedCellData = selectedCell ? heatmapData.cells.get(selectedCell.policyUri)?.get(selectedCell.evalName) : null;
+  const selectedEval = selectedCellData?.evalName ?? null;
+  const selectedReplayUrl = selectedCellData?.replayUrl ?? null;
 
   return (
-    <div style={{ 
-      fontFamily: 'Arial, sans-serif',
-      margin: 0,
-      padding: '20px',
-      background: '#f8f9fa'
-    }}>
+    <div
+      style={{
+        fontFamily: "Arial, sans-serif",
+        margin: 0,
+        padding: "20px",
+        background: "#f8f9fa",
+      }}
+    >
       <style>{MAP_VIEWER_CSS}</style>
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        background: '#fff',
-        padding: '20px',
-        borderRadius: '5px',
-        boxShadow: '0 2px 4px rgba(0,0,0,.1)'
-      }}>
-        <h1 style={{
-          color: '#333',
-          borderBottom: '1px solid #ddd',
-          paddingBottom: '10px',
-          marginBottom: '20px'
-        }}>
+      <div
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          background: "#fff",
+          padding: "20px",
+          borderRadius: "5px",
+          boxShadow: "0 2px 4px rgba(0,0,0,.1)",
+        }}
+      >
+        <h1
+          style={{
+            color: "#333",
+            borderBottom: "1px solid #ddd",
+            paddingBottom: "10px",
+            marginBottom: "20px",
+          }}
+        >
           Policy Evaluation Dashboard
         </h1>
 
         <div className="suite-tabs">
-          <div style={{ fontSize: '18px', marginTop: '5px', marginRight: '10px' }}>Eval Suite:</div>
-          {suites.map(suite => (
+          <div
+            style={{ fontSize: "18px", marginTop: "5px", marginRight: "10px" }}
+          >
+            Eval Suite:
+          </div>
+          {suites.map((suite) => (
             <button
               key={suite}
-              className={`suite-tab ${selectedSuite === suite ? 'active' : ''}`}
+              className={`suite-tab ${selectedSuite === suite ? "active" : ""}`}
               onClick={() => setSelectedSuite(suite)}
             >
               {suite}
             </button>
           ))}
         </div>
-        
-        <Heatmap
-          matrix={matrix}
-          selectedMetric={selectedMetric}
-          onHover={handleHeatmapHover}
-          onDoubleClick={handleHeatmapDoubleClick}
-        />
+        {heatmapData && (
+          <Heatmap
+            data={heatmapData}
+            selectedMetric={selectedMetric}
+            setSelectedCell={setSelectedCellIfNotLocked}
+            openReplayUrl={openReplayUrl}
+          />
+        )}
 
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          marginTop: '20px',
-          marginBottom: '30px',
-          gap: '12px'
-        }}>
-          <div style={{ color: '#666', fontSize: '14px' }}>Heatmap Metric</div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            marginTop: "20px",
+            marginBottom: "30px",
+            gap: "12px",
+          }}
+        >
+          <div style={{ color: "#666", fontSize: "14px" }}>Heatmap Metric</div>
           <select
             value={selectedMetric}
             onChange={(e) => setSelectedMetric(e.target.value)}
             style={{
-              padding: '8px 12px',
-              borderRadius: '4px',
-              border: '1px solid #ddd',
-              fontSize: '14px',
-              minWidth: '200px',
-              backgroundColor: '#fff',
-              cursor: 'pointer'
+              padding: "8px 12px",
+              borderRadius: "4px",
+              border: "1px solid #ddd",
+              fontSize: "14px",
+              minWidth: "200px",
+              backgroundColor: "#fff",
+              cursor: "pointer",
             }}
           >
-            {metrics.map(metric => (
+            {metrics.map((metric) => (
               <option key={metric} value={metric}>
                 {metric}
               </option>
@@ -295,5 +286,5 @@ export function Dashboard({ repo }: DashboardProps) {
         />
       </div>
     </div>
-  )
-} 
+  );
+}
