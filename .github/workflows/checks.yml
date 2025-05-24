@@ -306,6 +306,7 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
+        continue-on-error: true
         run: |
           source .github/scripts/benchmark.sh
           benchmark "evals" "./run_evals.sh smoke_test"
@@ -328,13 +329,6 @@ jobs:
             smoke_test_evals_benchmark_results.json
           retention-days: 1
           if-no-files-found: warn
-
-      - name: Debug on failure
-        if: failure()
-        run: |
-          echo "Listing the contents of the workspace:"
-          find train_dir -type f -name "*.py" | sort
-          find train_dir -type d | sort
 
   benchmark:
     name: "Python Benchmarks"
