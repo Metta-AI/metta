@@ -22,6 +22,7 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
+#include "types.hpp"
 
 namespace py = pybind11;
 
@@ -32,14 +33,29 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _cfg = cfg;
 
   int num_agents = cfg["num_agents"].cast<int>();
-  _max_timestep = cfg["max_steps"].cast<unsigned int>();
-  _obs_width = cfg["obs_width"].cast<unsigned short>();
-  _obs_height = cfg["obs_height"].cast<unsigned short>();
+  max_timestep = cfg["max_steps"].cast<unsigned int>();
+  obs_width = cfg["obs_width"].cast<unsigned short>();
+  obs_height = cfg["obs_height"].cast<unsigned short>();
+
   _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
-  unsigned int num_observation_tokens =
+  _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
-  _current_timestep = 0;
+  current_timestep = 0;
+
+  // Initialize mode flags
+  _gym_mode = false;
+  _set_buffers_called = false;
+
+  _observations = nullptr;
+  _terminals = nullptr;
+  _truncations = nullptr;
+  _rewards = nullptr;
+
+  _observations_size = 0;
+  _terminals_size = 0;
+  _truncations_size = 0;
+  _rewards_size = 0;
 
   std::vector<Layer> layer_for_type_id;
   for (const auto& layer : ObjectLayers) {
@@ -157,27 +173,63 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
       }
     }
   }
-
-  // Initialize buffers. The buffers are likely to be re-set by the user anyways,
-  // so nothing above should depend on them before this point.
-  std::vector<ssize_t> shape;
-  if (_use_observation_tokens) {
-    shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(num_observation_tokens), static_cast<ssize_t>(3)};
-  } else {
-    shape = {static_cast<ssize_t>(num_agents),
-             static_cast<ssize_t>(_obs_height),
-             static_cast<ssize_t>(_obs_width),
-             static_cast<ssize_t>(_grid_features.size())};
-  }
-  auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
-  auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto truncations = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(float)});
-
-  set_buffers(observations, terminals, truncations, rewards);
 }
 
-MettaGrid::~MettaGrid() = default;
+MettaGrid::~MettaGrid() {
+  _free_internal_buffers();
+}
+
+void MettaGrid::_setup_gym_mode() {
+  if (_gym_mode) {
+    return;  // Already allocated
+  }
+
+  size_t num_agents = _agents.size();
+  if (_use_observation_tokens) {
+    // Flattened: [num_agents, num_tokens * 3]
+    _observations_size = num_agents * _num_observation_tokens * 3;
+  } else {
+    // Original: [num_agents, height, width, features]
+    _observations_size = num_agents * obs_height * obs_width * _grid_features.size();
+  }
+  _terminals_size = num_agents;
+  _truncations_size = num_agents;
+  _rewards_size = num_agents;
+
+  _internal_observations = std::make_unique<c_observations_type[]>(_observations_size);
+  _internal_terminals = std::make_unique<c_terminals_type[]>(_terminals_size);
+  _internal_truncations = std::make_unique<c_truncations_type[]>(_truncations_size);
+  _internal_rewards = std::make_unique<c_rewards_type[]>(_rewards_size);
+
+  _observations = _internal_observations.get();
+  _terminals = _internal_terminals.get();
+  _truncations = _internal_truncations.get();
+  _rewards = _internal_rewards.get();
+
+  // resize internal buffers
+  _episode_rewards.resize(_agents.size(), 0.0f);
+
+  // assign reward slots to agents
+  for (size_t i = 0; i < _agents.size(); i++) {
+    _agents[i]->init(&_rewards[i]);
+  }
+
+  _gym_mode = true;
+}
+
+void MettaGrid::_free_internal_buffers() {
+  if (_gym_mode) {
+    _internal_observations.reset();
+    _internal_terminals.reset();
+    _internal_truncations.reset();
+    _internal_rewards.reset();
+
+    _observations = nullptr;
+    _terminals = nullptr;
+    _truncations = nullptr;
+    _rewards = nullptr;
+  }
+}
 
 void MettaGrid::init_action_handlers() {
   _num_action_handlers = _action_handlers.size();
@@ -199,8 +251,8 @@ void MettaGrid::init_action_handlers() {
 }
 
 void MettaGrid::add_agent(Agent* agent) {
-  agent->init(&_rewards.mutable_unchecked<1>()(_agents.size()));
   _agents.push_back(agent);
+  // Don't call agent->init() until after the reward buffer is available!
 }
 
 void MettaGrid::_compute_observation(unsigned int observer_row,
@@ -224,38 +276,51 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     c_end = _grid->width;
   }
 
-  // Fill in visible objects. Observations should have been cleared in _step, so
-  // we don't need to do that here.
   if (_use_observation_tokens) {
+    // Safe flattened token approach - no reinterpret_cast!
     size_t tokens_written = 0;
-    auto observation_view = _observations.mutable_unchecked<3>();
-    // TODO: Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
-    for (unsigned int r = r_start; r < r_end; r++) {
-      for (unsigned int c = c_start; c < c_end; c++) {
-        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+    const size_t max_tokens = _num_observation_tokens;
+    const size_t agent_offset = agent_idx * max_tokens * 3;
+
+    // Clear agent's observation buffer
+    std::memset(_observations + agent_offset, 0, max_tokens * 3 * sizeof(c_observations_type));
+
+    // TODO: Order tokens by distance for better truncation behavior
+    for (unsigned int r = r_start; r < r_end && tokens_written < max_tokens; r++) {
+      for (unsigned int c = c_start; c < c_end && tokens_written < max_tokens; c++) {
+        for (unsigned int layer = 0; layer < _grid->num_layers && tokens_written < max_tokens; layer++) {
           GridLocation object_loc(r, c, layer);
           auto obj = _grid->object_at(object_loc);
           if (!obj) continue;
 
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
+          uint8_t location = (obs_r << 4) | obs_c;  // Pack location into single byte
 
-          uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
-          ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
-          ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+          // Get object features
+          vector<PartialObservationToken> features = obj->obs_features();
 
-          size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+          // Write tokens directly to flattened buffer
+          for (const auto& feature : features) {
+            if (tokens_written >= max_tokens) break;
 
-          uint8_t location = obs_r << 4 | obs_c;
-          for (size_t i = 0; i < obj_tokens_written; i++) {
-            agent_obs_tokens[i].location = location;
+            size_t token_base = agent_offset + tokens_written * 3;
+            _observations[token_base + 0] = location;
+            _observations[token_base + 1] = feature.feature_id;
+            _observations[token_base + 2] = feature.value;
+
+            tokens_written++;
           }
-          tokens_written += obj_tokens_written;
         }
       }
     }
   } else {
-    auto observation_view = _observations.mutable_unchecked<4>();
+    // Original grid-based observations
+    size_t num_features = _grid_features.size();
+    size_t agent_stride = obs_height * obs_width * num_features;
+    size_t row_stride = obs_width * num_features;
+    size_t col_stride = num_features;
+
     for (unsigned int r = r_start; r < r_end; r++) {
       for (unsigned int c = c_start; c < c_end; c++) {
         for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
@@ -266,7 +331,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
 
-          auto agent_obs = observation_view.mutable_data(agent_idx, obs_r, obs_c, 0);
+          auto agent_obs = _observations + agent_idx * agent_stride + obs_r * row_stride + obs_c * col_stride;
           _obs_encoder->encode(obj, agent_obs);
         }
       }
@@ -277,189 +342,234 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 void MettaGrid::_compute_observations(py::array_t<int> actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
-    _compute_observation(agent->location.r, agent->location.c, _obs_width, _obs_height, idx);
+    _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx);
   }
 }
 
 void MettaGrid::_step(py::array_t<int> actions) {
   auto actions_view = actions.unchecked<2>();
 
-  // Reset rewards and observations
-  auto rewards_view = _rewards.mutable_unchecked<1>();
-
-  std::fill(
-      static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0);
-
-  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
-  auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, 0);
-
+  // Reset state for new step
+  std::memset(_rewards, 0, _rewards_size * sizeof(c_rewards_type));
+  std::memset(_observations, 0, _observations_size * sizeof(c_observations_type));
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Increment timestep and process events
-  _current_timestep++;
-  _event_manager->process_events(_current_timestep);
+  current_timestep++;
+  _event_manager->process_events(current_timestep);
 
-  // Process actions by priority
-  for (unsigned char p = 0; p <= _max_action_priority; p++) {
-    for (size_t idx = 0; idx < _agents.size(); idx++) {
-      int action = actions_view(idx, 0);
-      if (action < 0 || action >= _num_action_handlers) {
-        printf("Invalid action: %d\n", action);
+  // Collect unique priority levels from action handlers
+  std::set<unsigned char> priority_levels;
+  for (const auto& handler : _action_handlers) {
+    priority_levels.insert(handler->priority);
+  }
+
+  // Process actions by priority levels (highest to lowest)
+  for (auto it = priority_levels.rbegin(); it != priority_levels.rend(); ++it) {
+    unsigned char current_priority = *it;
+
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+      // Skip agents who already successfully performed an action this step
+      if (_action_success[agent_idx]) {
         continue;
       }
 
-      ActionArg arg = actions_view(idx, 1);
-      auto& agent = _agents[idx];
-      auto& handler = _action_handlers[action];
+      // Extract action data
+      int action_id = actions_view(agent_idx, 0);
+      ActionArg action_arg = static_cast<ActionArg>(actions_view(agent_idx, 1));
+      Agent* agent = _agents[agent_idx];
 
-      if (handler->priority != _max_action_priority - p) {
+      // Validate action ID
+      if (action_id < 0 || action_id >= _num_action_handlers) {
+        throw std::runtime_error("Invalid action ID " + std::to_string(action_id) + " for agent " +
+                                 std::to_string(agent_idx) + ". Valid range: 0 to " +
+                                 std::to_string(_num_action_handlers - 1));
+      }
+
+      auto& handler = _action_handlers[action_id];
+
+      // Skip if this handler doesn't match current priority level
+      if (handler->priority != current_priority) {
         continue;
       }
 
-      if (arg > _max_action_args[action]) {
-        continue;
+      // Validate action argument
+      if (action_arg > _max_action_args[action_id]) {
+        throw std::runtime_error("Action argument " + std::to_string(action_arg) + " exceeds maximum " +
+                                 std::to_string(_max_action_args[action_id]) + " for action " +
+                                 std::to_string(action_id) + " (" + handler->action_name() + ")" + " on agent " +
+                                 std::to_string(agent_idx));
       }
 
-      _action_success[idx] = handler->handle_action(agent->id, arg, _current_timestep);
+      // Validate agent
+      if (agent == nullptr) {
+        throw std::runtime_error("Agent is null at index " + std::to_string(agent_idx));
+      }
+
+      // Validate agent ID
+      if (agent->id <= 0) {
+        throw std::runtime_error("Agent ID must be positive. Agent " + std::to_string(agent_idx) + " has ID " +
+                                 std::to_string(agent->id));
+      }
+
+      if (agent->id >= _grid->objects.size()) {
+        throw std::runtime_error("Agent ID " + std::to_string(agent->id) + " exceeds grid object count " +
+                                 std::to_string(_grid->objects.size()) + " for agent " + std::to_string(agent_idx));
+      }
+
+      // Execute the action
+      bool success = handler->handle_action(agent->id, action_arg, current_timestep);
+      _action_success[agent_idx] = success;
     }
   }
 
-  // Compute observations for next step
+  // Update observations and episode state
   _compute_observations(actions);
 
-  // Update episode rewards
-  auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
-  for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
-    episode_rewards_view(i) += rewards_view(i);
+  for (size_t i = 0; i < _agents.size(); i++) {
+    _episode_rewards[i] += _rewards[i];
   }
 
-  // Check for truncation
-  if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
-    std::fill(static_cast<bool*>(_truncations.request().ptr),
-              static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
-              1);
+  if (max_timestep > 0 && current_timestep >= max_timestep) {
+    std::fill_n(_truncations, _truncations_size, 1);
   }
 }
 
 py::tuple MettaGrid::reset() {
-  if (_current_timestep > 0) {
+  // If reset is called before set_buffers, enter gym mode
+  if (!_set_buffers_called) {
+    if (_observations != nullptr) {
+      throw std::runtime_error("reset called before set_buffers implies gym mode but buffers are not null?");
+    }
+    _setup_gym_mode();
+  }
+
+  if (current_timestep > 0) {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
-  // Reset all buffers
-  // Views are created only for validating types; actual clearing is done via
-  // direct memory operations for speed.
+  // reset external buffers using direct memory access
+  std::memset(_terminals, 0, _terminals_size * sizeof(c_terminals_type));
+  std::memset(_truncations, 0, _truncations_size * sizeof(c_truncations_type));
+  std::memset(_rewards, 0, _rewards_size * sizeof(c_rewards_type));
+  std::memset(_observations, 0, _observations_size * sizeof(c_observations_type));
 
-  std::fill(static_cast<bool*>(_terminals.request().ptr),
-            static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
-            0);
-  std::fill(static_cast<bool*>(_truncations.request().ptr),
-            static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
-            0);
-  std::fill(static_cast<float*>(_episode_rewards.request().ptr),
-            static_cast<float*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
-            0.0f);
-  std::fill(
-      static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
-
-  // Clear observations
-  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
-  auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, 0);
+  // reset internal buffers
+  std::fill(_episode_rewards.begin(), _episode_rewards.end(), 0.0f);
 
   // Compute initial observations
   std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
   auto zero_actions = py::array_t<int>(shape);
   _compute_observations(zero_actions);
 
-  return py::make_tuple(_observations, py::dict());
+  if (_use_observation_tokens) {
+    std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
+                                      static_cast<ssize_t>(_num_observation_tokens * 3)};
+    py::array_t<c_observations_type> obs_view(obs_shape, _observations);
+    return py::make_tuple(obs_view, py::dict());
+  } else {
+    std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
+                                      static_cast<ssize_t>(obs_height),
+                                      static_cast<ssize_t>(obs_width),
+                                      static_cast<ssize_t>(_grid_features.size())};
+    py::array_t<c_observations_type> obs_view(obs_shape, _observations);
+    return py::make_tuple(obs_view, py::dict());
+  }
 }
 
 void MettaGrid::validate_buffers() {
-  // We should validate once buffers and agents are set.
-  // data types and contiguity are handled by pybind11. We still need to check
-  // shape.
+  if (_observations == nullptr || _terminals == nullptr || _truncations == nullptr || _rewards == nullptr) {
+    throw std::runtime_error("Buffers not set - call set_buffers first");
+  }
+
   unsigned int num_agents = _agents.size();
+
   if (_use_observation_tokens) {
-    auto observation_info = _observations.request();
-    auto shape = observation_info.shape;
-    if (observation_info.ndim != 3 || shape[0] != num_agents || shape[2] != 3) {
+    size_t expected_obs_size = num_agents * _num_observation_tokens * 3;
+    if (_observations_size != expected_obs_size) {
       std::stringstream ss;
-      ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["
-         << num_agents << ", [something], 3]";
+      ss << "observations buffer size is " << _observations_size << " but expected " << expected_obs_size
+         << " (agents=" << num_agents << ", tokens=" << _num_observation_tokens << ", token_size=3)";
       throw std::runtime_error(ss.str());
     }
   } else {
-    auto observation_info = _observations.request();
-    auto shape = observation_info.shape;
-    if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != _obs_height || shape[2] != _obs_width ||
-        shape[3] != _grid_features.size()) {
+    size_t expected_obs_size = num_agents * obs_height * obs_width * _grid_features.size();
+    if (_observations_size != expected_obs_size) {
       std::stringstream ss;
-      ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << ", " << shape[3]
-         << "] but expected [" << num_agents << ", " << _obs_height << ", " << _obs_width << ", "
-         << _grid_features.size() << "]";
+      ss << "observations buffer size is " << _observations_size << " but expected " << expected_obs_size
+         << " (agents=" << num_agents << ", height=" << obs_height << ", width=" << obs_width
+         << ", features=" << _grid_features.size() << ")";
       throw std::runtime_error(ss.str());
     }
   }
-  {
-    auto terminals_info = _terminals.request();
-    auto shape = terminals_info.shape;
-    if (terminals_info.ndim != 1 || shape[0] != num_agents) {
-      throw std::runtime_error("terminals has the wrong shape");
-    }
+
+  if (_terminals_size != num_agents) {
+    std::stringstream ss;
+    ss << "terminals buffer size is " << _terminals_size << " but expected " << num_agents;
+    throw std::runtime_error(ss.str());
   }
-  {
-    auto truncations_info = _truncations.request();
-    auto shape = truncations_info.shape;
-    if (truncations_info.ndim != 1 || shape[0] != num_agents) {
-      throw std::runtime_error("truncations has the wrong shape");
-    }
+
+  if (_truncations_size != num_agents) {
+    std::stringstream ss;
+    ss << "truncations buffer size is " << _truncations_size << " but expected " << num_agents;
+    throw std::runtime_error(ss.str());
   }
-  {
-    auto rewards_info = _rewards.request();
-    auto shape = rewards_info.shape;
-    if (rewards_info.ndim != 1 || shape[0] != num_agents) {
-      throw std::runtime_error("rewards has the wrong shape");
-    }
+
+  if (_rewards_size != num_agents) {
+    std::stringstream ss;
+    ss << "rewards buffer size is " << _rewards_size << " but expected " << num_agents;
+    throw std::runtime_error(ss.str());
   }
 }
 
-void MettaGrid::set_buffers(py::array_t<uint8_t, py::array::c_style>& observations,
-                            py::array_t<bool, py::array::c_style>& terminals,
-                            py::array_t<bool, py::array::c_style>& truncations,
-                            py::array_t<float, py::array::c_style>& rewards) {
-  _observations = observations;
-  _terminals = terminals;
-  _truncations = truncations;
-  _rewards = rewards;
-  _episode_rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(_rewards.shape(0))}, {sizeof(float)});
-  for (size_t i = 0; i < _agents.size(); i++) {
-    _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
+void MettaGrid::set_buffers(py::array_t<c_observations_type, py::array::c_style>& observations,
+                            py::array_t<c_terminals_type, py::array::c_style>& terminals,
+                            py::array_t<c_truncations_type, py::array::c_style>& truncations,
+                            py::array_t<c_rewards_type, py::array::c_style>& rewards) {
+  // If we're in gym mode, throw error
+  if (_gym_mode) {
+    throw std::runtime_error("Cannot call set_buffers when environment is in gym mode.");
   }
 
+  _set_buffers_called = true;
+
+  // Store raw pointers to Python-managed memory
+  _observations = static_cast<c_observations_type*>(observations.mutable_data());
+  _terminals = static_cast<c_terminals_type*>(terminals.mutable_data());
+  _truncations = static_cast<c_truncations_type*>(truncations.mutable_data());
+  _rewards = static_cast<c_rewards_type*>(rewards.mutable_data());
+
+  // Store buffer sizes
+  _observations_size = observations.size();
+  _terminals_size = terminals.size();
+  _truncations_size = truncations.size();
+  _rewards_size = rewards.size();
+
+  // resize internal buffers
+  _episode_rewards.resize(_agents.size(), 0.0f);
+
+  // Validate and initialize
   validate_buffers();
+
+  // assign reward slots to agents
+  for (size_t i = 0; i < _agents.size(); i++) {
+    _agents[i]->init(&_rewards[i]);
+  }
 }
 
 py::tuple MettaGrid::step(py::array_t<int> actions) {
   _step(actions);
 
-  auto rewards_view = _rewards.mutable_unchecked<1>();
-  // Clear group rewards
-
-  // Handle group rewards
   bool share_rewards = false;
-  // TODO: We're creating this vector every time we step, even though reward
-  // should be sparse, and so we're unlikely to use it. We could decide to only
-  // create it if we need it, but that would increase complexity.
-  std::vector<double> group_rewards(_group_sizes.size());
+  std::vector<double> group_rewards(_group_sizes.size(), 0.0);
+
   for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-    if (rewards_view(agent_idx) != 0) {
+    if (_rewards[agent_idx] != 0) {
       share_rewards = true;
       auto& agent = _agents[agent_idx];
       unsigned int group_id = agent->group;
-      float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
-      rewards_view(agent_idx) -= group_reward;
+      float group_reward = _rewards[agent_idx] * _group_reward_pct[group_id];
+      _rewards[agent_idx] -= group_reward;
       group_rewards[group_id] += group_reward / _group_sizes[group_id];
     }
   }
@@ -468,12 +578,42 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       auto& agent = _agents[agent_idx];
       unsigned int group_id = agent->group;
-      float group_reward = group_rewards[group_id];
-      rewards_view(agent_idx) += group_reward;
+      _rewards[agent_idx] += group_rewards[group_id];
     }
   }
 
-  return py::make_tuple(_observations, _rewards, _terminals, _truncations, py::dict());
+  if (_use_observation_tokens) {
+    std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
+                                      static_cast<ssize_t>(_num_observation_tokens * 3)};
+    py::array_t<c_observations_type> obs_view(obs_shape, _observations);
+
+    std::vector<ssize_t> rewards_shape = {static_cast<ssize_t>(_rewards_size)};
+    std::vector<ssize_t> terminals_shape = {static_cast<ssize_t>(_terminals_size)};
+    std::vector<ssize_t> truncations_shape = {static_cast<ssize_t>(_truncations_size)};
+
+    py::array_t<c_rewards_type> rewards_view(rewards_shape, _rewards);
+    py::array_t<c_terminals_type> terminals_view(terminals_shape, _terminals);
+    py::array_t<c_truncations_type> truncations_view(truncations_shape, _truncations);
+
+    return py::make_tuple(obs_view, rewards_view, terminals_view, truncations_view, py::dict());
+  } else {
+    // Original shape logic
+    std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
+                                      static_cast<ssize_t>(obs_height),
+                                      static_cast<ssize_t>(obs_width),
+                                      static_cast<ssize_t>(_grid_features.size())};
+
+    std::vector<ssize_t> rewards_shape = {static_cast<ssize_t>(_rewards_size)};
+    std::vector<ssize_t> terminals_shape = {static_cast<ssize_t>(_terminals_size)};
+    std::vector<ssize_t> truncations_shape = {static_cast<ssize_t>(_truncations_size)};
+
+    py::array_t<c_observations_type> obs_view(obs_shape, _observations);
+    py::array_t<c_rewards_type> rewards_view(rewards_shape, _rewards);
+    py::array_t<c_terminals_type> terminals_view(terminals_shape, _terminals);
+    py::array_t<c_truncations_type> truncations_view(truncations_shape, _truncations);
+
+    return py::make_tuple(obs_view, rewards_view, terminals_view, truncations_view, py::dict());
+  }
 }
 
 py::dict MettaGrid::grid_objects() {
@@ -499,10 +639,10 @@ py::dict MettaGrid::grid_objects() {
     for (uint8_t i = 0; i < offsets.size(); i++) {
       offsets[i] = i;
     }
-    unsigned char obj_data[type_features.size()];
+    std::vector<unsigned char> obj_data(type_features.size());
 
     // Encode object features
-    _obs_encoder->encode(obj, obj_data, offsets);
+    _obs_encoder->encode(obj, obj_data.data(), offsets);
 
     // Add features to object dict
     for (size_t i = 0; i < type_features.size(); i++) {
@@ -529,10 +669,6 @@ py::list MettaGrid::action_names() {
   return names;
 }
 
-unsigned int MettaGrid::current_timestep() {
-  return _current_timestep;
-}
-
 unsigned int MettaGrid::map_width() {
   return _grid->width;
 }
@@ -550,7 +686,8 @@ unsigned int MettaGrid::num_agents() {
 }
 
 py::array_t<float> MettaGrid::get_episode_rewards() {
-  return _episode_rewards;
+  std::vector<ssize_t> episode_rewards_shape = {static_cast<ssize_t>(_rewards_size)};
+  return py::array_t<c_rewards_type>(episode_rewards_shape, _episode_rewards.data());
 }
 
 py::dict MettaGrid::get_episode_stats() {
@@ -578,10 +715,17 @@ py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  return spaces.attr("Box")(0,
-                            255,
-                            py::make_tuple(_obs_height, _obs_width, _grid_features.size()),
-                            py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  if (_use_observation_tokens) {
+    return spaces.attr("Box")(0,
+                              255,
+                              py::make_tuple(_num_observation_tokens * 3),
+                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  } else {
+    return spaces.attr("Box")(0,
+                              255,
+                              py::make_tuple(obs_height, obs_width, _grid_features.size()),
+                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  }
 }
 
 py::list MettaGrid::action_success() {
@@ -652,6 +796,19 @@ Agent* MettaGrid::create_agent(int r,
   return new Agent(r, c, group_name, group_id, agent_cfg, rewards);
 }
 
+std::string MettaGrid::cpp_get_numpy_type_name(const char* type_id) {
+  std::string str_type_id(type_id);
+
+  if (strcmp(type_id, "observations") == 0) return NUMPY_OBSERVATIONS_TYPE;
+  if (strcmp(type_id, "terminals") == 0) return NUMPY_TERMINALS_TYPE;
+  if (strcmp(type_id, "truncations") == 0) return NUMPY_TRUNCATIONS_TYPE;
+  if (strcmp(type_id, "rewards") == 0) return NUMPY_REWARDS_TYPE;
+  if (strcmp(type_id, "actions") == 0) return NUMPY_ACTIONS_TYPE;
+  if (strcmp(type_id, "masks") == 0) return NUMPY_MASKS_TYPE;
+  if (strcmp(type_id, "success") == 0) return NUMPY_SUCCESS_TYPE;
+  return "unknown";
+}
+
 // Pybind11 module definition
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
@@ -668,7 +825,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("rewards").noconvert())
       .def("grid_objects", &MettaGrid::grid_objects)
       .def("action_names", &MettaGrid::action_names)
-      .def("current_timestep", &MettaGrid::current_timestep)
       .def("map_width", &MettaGrid::map_width)
       .def("map_height", &MettaGrid::map_height)
       .def("grid_features", &MettaGrid::grid_features)
@@ -680,5 +836,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_success", &MettaGrid::action_success)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
-      .def("inventory_item_names", &MettaGrid::inventory_item_names);
+      .def("inventory_item_names", &MettaGrid::inventory_item_names)
+      .def_static("get_numpy_type_name", &MettaGrid::cpp_get_numpy_type_name, py::arg("type_id"))
+      .def_readonly("obs_width", &MettaGrid::obs_width)
+      .def_readonly("obs_height", &MettaGrid::obs_height)
+      .def_readonly("max_timestep", &MettaGrid::max_timestep)
+      .def_readonly("current_timestep", &MettaGrid::current_timestep);
 }

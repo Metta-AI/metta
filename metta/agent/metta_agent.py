@@ -48,6 +48,9 @@ class DistributedMettaAgent(DistributedDataParallel):
         except AttributeError:
             return getattr(self.module, name)
 
+    def activate_actions(self, action_names: List[str], action_max_params: List[int], device: torch.device) -> None:
+        return self.module.activate_actions(action_names, action_max_params, device)
+
 
 class MettaAgent(nn.Module):
     def __init__(

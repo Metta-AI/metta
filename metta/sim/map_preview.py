@@ -20,9 +20,9 @@ def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
 
     preview = {
         "version": 1,
-        "action_names": env.action_names(),
-        "object_types": env.object_type_names(),
-        "inventory_items": env.inventory_item_names(),
+        "action_names": env.action_names,
+        "object_types": env.object_type_names,
+        "inventory_items": env.inventory_item_names,
         "map_size": [env.map_width, env.map_height],
         "num_agents": env.num_agents,
         "max_steps": 1,
