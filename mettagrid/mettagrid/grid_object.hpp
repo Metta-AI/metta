@@ -5,10 +5,12 @@
 #include <span>
 #include <string>
 #include <vector>
+
+#include "objects/constants.hpp"
 using namespace std;
 
 typedef unsigned short Layer;
-typedef unsigned short TypeId;
+typedef uint8_t TypeId;
 typedef unsigned int GridCoord;
 using ObsType = uint8_t;
 
@@ -26,6 +28,11 @@ struct alignas(1) ObservationToken {
 static_assert(sizeof(ObservationToken) == 3, "ObservationToken must be 3 bytes");
 
 using ObservationTokens = std::span<ObservationToken>;
+
+struct PartialObservationToken {
+  ObservationFeature feature_id;
+  uint8_t value;
+};
 
 class GridLocation {
 public:
@@ -68,10 +75,17 @@ public:
     init(type_id, GridLocation(r, c, layer));
   }
 
-  // obs_tokens is used for the new observation format.
-  // `feature_ids` should map to the features that the object is encoding, and should match the
-  // features exposed by feature_names.
-  virtual size_t obs_tokens(ObservationTokens tokens, const vector<unsigned char>& feature_ids) const = 0;
+  virtual vector<PartialObservationToken> obs_features() const = 0;
+
+  size_t obs_tokens(ObservationTokens tokens) const {
+    vector<PartialObservationToken> features = this->obs_features();
+    size_t tokens_to_write = std::min(tokens.size(), features.size());
+    for (size_t i = 0; i < tokens_to_write; i++) {
+      tokens[i].feature_id = features[i].feature_id;
+      tokens[i].value = features[i].value;
+    }
+    return tokens_to_write;
+  }
 
   virtual void obs(ObsType* obs, const vector<uint8_t>& offsets) const = 0;
 };
