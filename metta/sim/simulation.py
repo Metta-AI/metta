@@ -93,7 +93,7 @@ class Simulation:
                 f"Policy expects {policy_expected_channels} observation channels, "
                 f" but current environment provides {env_expected_channels}. Quitting early."
             )
-            sys.exit(0)
+            sys.exit(0)  # fake a successful outcome so that training can continue
 
         self._num_envs = num_envs
         self._min_episodes = config.num_episodes
