@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -76,7 +77,6 @@ class Simulation:
 
         # ----------------
         num_envs = min(config.num_episodes, os.cpu_count())
-
         logger.debug(f"Creating vecenv with {num_envs} environments")
         self._vecenv = make_vecenv(
             self._env_cfg,
@@ -86,8 +86,12 @@ class Simulation:
             replay_writer=self._replay_writer,
         )
 
-        self._vecenv.driver_env.expected_observation_channels = policy_pr.expected_observation_channels()
-        logger.info(f"set expected observation channels to {self._vecenv.driver_env.expected_observation_channels}")
+        expected_channels = policy_pr.expected_observation_channels()
+        if expected_channels != 26:
+            logger.error(
+                f"Policy expects {expected_channels} observation channels, but current environment provides 26. Quitting early."
+            )
+            sys.exit(0)
 
         self._num_envs = num_envs
         self._min_episodes = config.num_episodes
