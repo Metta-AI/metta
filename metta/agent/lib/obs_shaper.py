@@ -65,6 +65,8 @@ def adapter_for_commit_hash_1af886(x: torch.Tensor) -> torch.Tensor:
     # Features 27-33: generator, altar, armory, lasery, lab, factory, temple
     expanded_x[..., 27:34] = x[..., 19:26]
 
+    return expanded_x
+
 
 class ObsShaper(LayerBase):
     """
