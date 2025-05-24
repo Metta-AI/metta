@@ -78,6 +78,25 @@ def adapter_for_commit_hash_1af886(x: torch.Tensor, obs_shaper=None) -> torch.Te
                 obs_shaper._obs_shape[1],
             ]
 
+            # Check if there are any normalizers that need updating
+            if hasattr(obs_shaper, "_source_components") and obs_shaper._source_components:
+                for _component_name, component in obs_shaper._source_components.items():
+                    if hasattr(component, "obs_norm") and component.obs_norm.shape[-1] == 26:
+                        # Expand obs_norm from 26 to 34 features
+                        # The new features (agent inventory slots) should use the same normalization
+                        # as the corresponding shared inventory slots
+                        old_norm = component.obs_norm
+                        new_norm = torch.ones(34, dtype=old_norm.dtype, device=old_norm.device)
+
+                        # Copy existing normalization values
+                        new_norm[0:6] = old_norm[0:6]  # agent features
+                        new_norm[6:14] = old_norm[6:14]  # agent:inv slots (same as inv slots)
+                        new_norm[14:19] = old_norm[14:19]  # environment features
+                        new_norm[19:27] = old_norm[6:14]  # shared inv slots
+                        new_norm[27:34] = old_norm[19:26]  # remaining environment features
+
+                        component.obs_norm = new_norm
+
     return expanded_x
 
 
