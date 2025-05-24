@@ -2,15 +2,36 @@
 #define GRID_OBJECT_HPP
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
 using namespace std;
 
 typedef unsigned short Layer;
-typedef unsigned short TypeId;
+typedef uint8_t TypeId;
 typedef unsigned int GridCoord;
-typedef unsigned char ObsType;
+using ObsType = uint8_t;
+
+// These may make more sense in observation_encoder.hpp, but we need to include that
+// header in a lot of places, and it's nice to have these types defined in one place.
+struct alignas(1) ObservationToken {
+  uint8_t location;
+  uint8_t feature_id;
+  uint8_t value;
+};
+
+// The alignas should make sure of this, but let's be explicit.
+// We're going to be reinterpret_casting things to this type, so
+// it'll be bad if the compiler pads this type.
+static_assert(sizeof(ObservationToken) == 3, "ObservationToken must be 3 bytes");
+
+using ObservationTokens = std::span<ObservationToken>;
+
+struct PartialObservationToken {
+  uint8_t feature_id;
+  uint8_t value;
+};
 
 class GridLocation {
 public:
@@ -51,6 +72,18 @@ public:
 
   void init(TypeId type_id, GridCoord r, GridCoord c, Layer layer) {
     init(type_id, GridLocation(r, c, layer));
+  }
+
+  virtual vector<PartialObservationToken> obs_features() const = 0;
+
+  size_t obs_tokens(ObservationTokens tokens) const {
+    vector<PartialObservationToken> features = this->obs_features();
+    size_t tokens_to_write = std::min(tokens.size(), features.size());
+    for (size_t i = 0; i < tokens_to_write; i++) {
+      tokens[i].feature_id = features[i].feature_id;
+      tokens[i].value = features[i].value;
+    }
+    return tokens_to_write;
   }
 
   virtual void obs(ObsType* obs, const vector<uint8_t>& offsets) const = 0;

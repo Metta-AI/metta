@@ -18,6 +18,14 @@ public:
     this->_swappable = cfg["swappable"];
   }
 
+  virtual vector<PartialObservationToken> obs_features() const override {
+    vector<PartialObservationToken> features;
+    features.push_back({ObservationFeatureId::TypeId, _type_id});
+    features.push_back({ObservationFeatureId::Hp, hp});
+    features.push_back({ObservationFeatureId::Swappable, _swappable});
+    return features;
+  }
+
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = this->hp;
