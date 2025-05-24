@@ -2,8 +2,8 @@
 #define EVENT_H
 
 #include <cassert>
-#include <queue>
 #include <map>
+#include <queue>
 using namespace std;
 
 #include "grid.hpp"
