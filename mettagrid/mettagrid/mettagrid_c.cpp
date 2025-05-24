@@ -37,6 +37,10 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
 
+  _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
+  unsigned int num_observation_tokens =
+      cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
+
   current_timestep = 0;
 
   // Initialize mode flags
@@ -266,32 +270,60 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     c_end = _grid->width;
   }
 
-  // Calculate strides for direct memory access
-  size_t num_features = _grid_features.size();
-  size_t agent_stride = obs_height * obs_width * num_features;
-  size_t row_stride = obs_width * num_features;
-  size_t col_stride = num_features;
+  if (_use_observation_tokens) {
+    size_t tokens_written = 0;
+    auto observation_view = _observations.mutable_unchecked<3>();
 
-  // Fill in visible objects
-  for (unsigned int r = r_start; r < r_end; r++) {
-    for (unsigned int c = c_start; c < c_end; c++) {
-      for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
-        GridLocation object_loc(r, c, layer);
-        auto obj = _grid->object_at(object_loc);
-        if (!obj) continue;
+    // TODO: Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
+    for (unsigned int r = r_start; r < r_end; r++) {
+      for (unsigned int c = c_start; c < c_end; c++) {
+        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+          GridLocation object_loc(r, c, layer);
+          auto obj = _grid->object_at(object_loc);
+          if (!obj) continue;
 
-        int obs_r = object_loc.r + obs_height_radius - observer_row;
-        int obs_c = object_loc.c + obs_width_radius - observer_col;
+          int obs_r = object_loc.r + obs_height_radius - observer_row;
+          int obs_c = object_loc.c + obs_width_radius - observer_col;
 
-        // Direct pointer arithmetic - much faster than pybind11 views
-        auto agent_obs = _observations + agent_idx * agent_stride + obs_r * row_stride + obs_c * col_stride;
+          uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
+          ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
+          ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
-        _obs_encoder->encode(obj, agent_obs);
+          size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+
+          uint8_t location = obs_r << 4 | obs_c;
+          for (size_t i = 0; i < obj_tokens_written; i++) {
+            agent_obs_tokens[i].location = location;
+          }
+          tokens_written += obj_tokens_written;
+        }
+      }
+    }
+  } else {
+    // Calculate strides for direct memory access to flattened buffer
+    size_t num_features = _grid_features.size();
+    size_t agent_stride = obs_height * obs_width * num_features;
+    size_t row_stride = obs_width * num_features;
+    size_t col_stride = num_features;
+
+    for (unsigned int r = r_start; r < r_end; r++) {
+      for (unsigned int c = c_start; c < c_end; c++) {
+        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+          GridLocation object_loc(r, c, layer);
+          auto obj = _grid->object_at(object_loc);
+          if (!obj) continue;
+
+          int obs_r = object_loc.r + obs_height_radius - observer_row;
+          int obs_c = object_loc.c + obs_width_radius - observer_col;
+
+          // Direct pointer arithmetic for flattened buffer
+          auto agent_obs = _observations + agent_idx * agent_stride + obs_r * row_stride + obs_c * col_stride;
+          _obs_encoder->encode(obj, agent_obs);
+        }
       }
     }
   }
 }
-
 void MettaGrid::_compute_observations(py::array_t<int> actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
@@ -426,19 +458,30 @@ py::tuple MettaGrid::reset() {
 }
 
 void MettaGrid::validate_buffers() {
-  if (_observations == nullptr || _terminals == nullptr || _truncations == nullptr || _rewards == nullptr) {
+  if (_observations == nullptr || terminals == nullptr || truncations == nullptr || _rewards == nullptr) {
     throw std::runtime_error("Buffers not set - call set_buffers first");
   }
 
-  size_t num_agents = _agents.size();
-  size_t expected_obs_size = num_agents * obs_height * obs_width * _grid_features.size();
+  unsigned int num_agents = _agents.size();
+  auto observation_info = _observations.request();
+  auto shape = observation_info.shape;
 
-  if (_observations_size != expected_obs_size) {
-    std::stringstream ss;
-    ss << "observations buffer size is " << _observations_size << " but expected " << expected_obs_size
-       << " (agents=" << num_agents << ", height=" << obs_height << ", width=" << obs_width
-       << ", features=" << _grid_features.size() << ")";
-    throw std::runtime_error(ss.str());
+  if (_use_observation_tokens) {
+    // Expect: [num_agents, sequence_length, 3]
+    if (observation_info.ndim != 3 || shape[0] != num_agents || shape[2] != 3) {
+      throw std::runtime_error("Invalid observation shape for tokens");
+    }
+  } else {
+    // For grid case, only check flattened size
+    size_t expected_obs_size = num_agents * obs_height * obs_width * _grid_features.size();
+
+    if (_observations_size != expected_obs_size) {
+      std::stringstream ss;
+      ss << "observations buffer size is " << _observations_size << " but expected " << expected_obs_size
+         << " (agents=" << num_agents << ", height=" << obs_height << ", width=" << obs_width
+         << ", features=" << _grid_features.size() << ")";
+      throw std::runtime_error(ss.str());
+    }
   }
 
   if (_terminals_size != num_agents) {
