@@ -5,7 +5,7 @@ from tensordict import TensorDict
 from metta.agent.lib.metta_layer import LayerBase
 
 
-def adapter_for_commit_hash_1af886(x: torch.Tensor) -> torch.Tensor:
+def adapter_for_commit_hash_1af886(x: torch.Tensor, obs_shaper=None) -> torch.Tensor:
     """
     Backwards compatibility adapter for observation format changes in commit 1af886ae.
 
@@ -17,6 +17,7 @@ def adapter_for_commit_hash_1af886(x: torch.Tensor) -> torch.Tensor:
 
     Args:
         x: Input tensor with shape [..., 11, 11, 26] (new format)
+        obs_shaper: Optional ObsShaper instance to update _obs_shape when conversion happens
 
     Returns:
         Tensor with shape [..., 11, 11, 34] (old format)
@@ -65,6 +66,18 @@ def adapter_for_commit_hash_1af886(x: torch.Tensor) -> torch.Tensor:
     # Features 27-33: generator, altar, armory, lasery, lab, factory, temple
     expanded_x[..., 27:34] = x[..., 19:26]
 
+    # Update the obs_shaper's expected shape if provided
+    if obs_shaper is not None and hasattr(obs_shaper, "_obs_shape"):
+        if obs_shaper._obs_shape[-1] == 26:
+            # Update to expect 34 features instead of 26
+            obs_shaper._obs_shape = obs_shaper._obs_shape[:-1] + [34]
+            # Also update the output tensor shape accordingly
+            obs_shaper._out_tensor_shape = [
+                obs_shaper._obs_shape[2],
+                obs_shaper._obs_shape[0],
+                obs_shaper._obs_shape[1],
+            ]
+
     return expanded_x
 
 
@@ -90,7 +103,7 @@ class ObsShaper(LayerBase):
         x = td["x"]
 
         # Apply backwards compatibility adapter
-        x = adapter_for_commit_hash_1af886(x)
+        x = adapter_for_commit_hash_1af886(x, obs_shaper=self)
 
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
