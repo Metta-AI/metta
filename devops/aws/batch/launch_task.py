@@ -8,7 +8,7 @@ import sys
 import boto3
 
 from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
-from metta.util.fs import ensure_metta_repo_root
+from metta.util.fs import cd_repo_root
 from metta.util.git import (
     get_branch_commit,
     get_commit_message,
@@ -369,7 +369,6 @@ def main():
     parser.add_argument("--no-color", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="DEPRECATED: Show job details without submitting")
     parser.add_argument("--skip-validation", action="store_true", help="Skip confirmation prompt")
-    parser.add_argument("--no-auto-cd", action="store_true", help="Don't automatically change to repo root")
     # Add the new timeout parameter
     parser.add_argument(
         "--timeout-minutes",
@@ -381,8 +380,7 @@ def main():
     use_colors(sys.stdout.isatty() and not args.no_color)
 
     # Ensure we're in the repository root (unless disabled)
-    if not args.no_auto_cd:
-        ensure_metta_repo_root(auto_change=True, quiet=False)
+    cd_repo_root()
 
     specs = get_specs()
 
