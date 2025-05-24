@@ -16,7 +16,7 @@ trainer:
   #     max_steps: 1000
 
 # policy_uri: puffer:///tmp/puffer_metta.pt
-policy_uri: ${trained_policy_uri}
+policy_uri: wandb://run/daveey.lasertag.r5.2x4:v12
 # policy_uri: puffer://./train_dir/puffer/puffer_metta.pt
 
 npc_policy_uri: ${policy_uri}
@@ -36,10 +36,10 @@ replay_job:
   sim:
     env: /env/mettagrid/laser_tag
     env_overrides:
+      sampling: 1
       game:
         max_steps: 300
         group_reward_pct: 0.5
-      sampling: 1
 
 sim_job:
   # policy_agents_pct: 1
@@ -56,11 +56,7 @@ sim_job:
   #       num_rooms: 4
 
 
-<<<<<<< HEAD
-run_id: 21
-=======
 run_id: 22
->>>>>>> b8cb4627 (cp)
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

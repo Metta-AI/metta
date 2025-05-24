@@ -39,6 +39,7 @@ game:
             _target_: metta.map.scenes.random.Random
             objects:
               altar: 1
+              mine.red: 10
         - where:
             tags:
               - room_0_2
