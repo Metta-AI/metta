@@ -149,7 +149,7 @@ public:
   }
 
   void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = 1;
+    obs[offsets[0]] = _type_id;
     obs[offsets[1]] = this->hp;
     obs[offsets[2]] = this->color;
     obs[offsets[3]] = this->converting || this->cooling_down;
@@ -158,12 +158,12 @@ public:
     }
   }
 
-  static std::vector<std::string> feature_names(TypeId type_id) {
+  static std::vector<std::string> feature_names() {
     std::vector<std::string> names;
     // We use the same feature names for all converters, since this compresses
     // the observation space. At the moment we don't expose the recipe, since
     // we expect converters to be hard coded.
-    names.push_back(ObjectTypeNames[type_id]);
+    names.push_back("type_id");
     names.push_back("hp");
     names.push_back("color");
     names.push_back("converting");
