@@ -38,7 +38,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   obs_height = cfg["obs_height"].cast<unsigned short>();
 
   _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
-  unsigned int num_observation_tokens =
+  _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
   current_timestep = 0;
@@ -185,7 +185,13 @@ void MettaGrid::_setup_gym_mode() {
   }
 
   size_t num_agents = _agents.size();
-  _observations_size = num_agents * obs_height * obs_width * _grid_features.size();
+  if (_use_observation_tokens) {
+    // Flattened: [num_agents, num_tokens * 3]
+    _observations_size = num_agents * _num_observation_tokens * 3;
+  } else {
+    // Original: [num_agents, height, width, features]
+    _observations_size = num_agents * obs_height * obs_width * _grid_features.size();
+  }
   _terminals_size = num_agents;
   _truncations_size = num_agents;
   _rewards_size = num_agents;
@@ -271,36 +277,45 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   }
 
   if (_use_observation_tokens) {
+    // Safe flattened token approach - no reinterpret_cast!
     size_t tokens_written = 0;
-    auto observation_view = _observations.mutable_unchecked<3>();
+    const size_t max_tokens = _num_observation_tokens;
+    const size_t agent_offset = agent_idx * max_tokens * 3;
 
-    // TODO: Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
-    for (unsigned int r = r_start; r < r_end; r++) {
-      for (unsigned int c = c_start; c < c_end; c++) {
-        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+    // Clear agent's observation buffer
+    std::memset(_observations + agent_offset, 0, max_tokens * 3 * sizeof(c_observations_type));
+
+    // TODO: Order tokens by distance for better truncation behavior
+    for (unsigned int r = r_start; r < r_end && tokens_written < max_tokens; r++) {
+      for (unsigned int c = c_start; c < c_end && tokens_written < max_tokens; c++) {
+        for (unsigned int layer = 0; layer < _grid->num_layers && tokens_written < max_tokens; layer++) {
           GridLocation object_loc(r, c, layer);
           auto obj = _grid->object_at(object_loc);
           if (!obj) continue;
 
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
+          uint8_t location = (obs_r << 4) | obs_c;  // Pack location into single byte
 
-          uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
-          ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
-          ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+          // Get object features
+          vector<PartialObservationToken> features = obj->obs_features();
 
-          size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+          // Write tokens directly to flattened buffer
+          for (const auto& feature : features) {
+            if (tokens_written >= max_tokens) break;
 
-          uint8_t location = obs_r << 4 | obs_c;
-          for (size_t i = 0; i < obj_tokens_written; i++) {
-            agent_obs_tokens[i].location = location;
+            size_t token_base = agent_offset + tokens_written * 3;
+            _observations[token_base + 0] = location;
+            _observations[token_base + 1] = feature.feature_id;
+            _observations[token_base + 2] = feature.value;
+
+            tokens_written++;
           }
-          tokens_written += obj_tokens_written;
         }
       }
     }
   } else {
-    // Calculate strides for direct memory access to flattened buffer
+    // Original grid-based observations
     size_t num_features = _grid_features.size();
     size_t agent_stride = obs_height * obs_width * num_features;
     size_t row_stride = obs_width * num_features;
@@ -316,7 +331,6 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
 
-          // Direct pointer arithmetic for flattened buffer
           auto agent_obs = _observations + agent_idx * agent_stride + obs_r * row_stride + obs_c * col_stride;
           _obs_encoder->encode(obj, agent_obs);
         }
@@ -324,6 +338,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     }
   }
 }
+
 void MettaGrid::_compute_observations(py::array_t<int> actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
@@ -447,34 +462,38 @@ py::tuple MettaGrid::reset() {
   auto zero_actions = py::array_t<int>(shape);
   _compute_observations(zero_actions);
 
-  // Return a view of the observations buffer (no copying!)
-  std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
-                                    static_cast<ssize_t>(obs_height),
-                                    static_cast<ssize_t>(obs_width),
-                                    static_cast<ssize_t>(_grid_features.size())};
-  py::array_t<c_observations_type> obs_view(obs_shape, _observations);
-
-  return py::make_tuple(obs_view, py::dict());
+  if (_use_observation_tokens) {
+    std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
+                                      static_cast<ssize_t>(_num_observation_tokens * 3)};
+    py::array_t<c_observations_type> obs_view(obs_shape, _observations);
+    return py::make_tuple(obs_view, py::dict());
+  } else {
+    std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
+                                      static_cast<ssize_t>(obs_height),
+                                      static_cast<ssize_t>(obs_width),
+                                      static_cast<ssize_t>(_grid_features.size())};
+    py::array_t<c_observations_type> obs_view(obs_shape, _observations);
+    return py::make_tuple(obs_view, py::dict());
+  }
 }
 
 void MettaGrid::validate_buffers() {
-  if (_observations == nullptr || terminals == nullptr || truncations == nullptr || _rewards == nullptr) {
+  if (_observations == nullptr || _terminals == nullptr || _truncations == nullptr || _rewards == nullptr) {
     throw std::runtime_error("Buffers not set - call set_buffers first");
   }
 
   unsigned int num_agents = _agents.size();
-  auto observation_info = _observations.request();
-  auto shape = observation_info.shape;
 
   if (_use_observation_tokens) {
-    // Expect: [num_agents, sequence_length, 3]
-    if (observation_info.ndim != 3 || shape[0] != num_agents || shape[2] != 3) {
-      throw std::runtime_error("Invalid observation shape for tokens");
+    size_t expected_obs_size = num_agents * _num_observation_tokens * 3;
+    if (_observations_size != expected_obs_size) {
+      std::stringstream ss;
+      ss << "observations buffer size is " << _observations_size << " but expected " << expected_obs_size
+         << " (agents=" << num_agents << ", tokens=" << _num_observation_tokens << ", token_size=3)";
+      throw std::runtime_error(ss.str());
     }
   } else {
-    // For grid case, only check flattened size
     size_t expected_obs_size = num_agents * obs_height * obs_width * _grid_features.size();
-
     if (_observations_size != expected_obs_size) {
       std::stringstream ss;
       ss << "observations buffer size is " << _observations_size << " but expected " << expected_obs_size
@@ -563,20 +582,38 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
     }
   }
 
-  std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
-                                    static_cast<ssize_t>(obs_height),
-                                    static_cast<ssize_t>(obs_width),
-                                    static_cast<ssize_t>(_grid_features.size())};
-  std::vector<ssize_t> rewards_shape = {static_cast<ssize_t>(_rewards_size)};
-  std::vector<ssize_t> terminals_shape = {static_cast<ssize_t>(_terminals_size)};
-  std::vector<ssize_t> truncations_shape = {static_cast<ssize_t>(_truncations_size)};
+  if (_use_observation_tokens) {
+    std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
+                                      static_cast<ssize_t>(_num_observation_tokens * 3)};
+    py::array_t<c_observations_type> obs_view(obs_shape, _observations);
 
-  py::array_t<c_observations_type> obs_view(obs_shape, _observations);
-  py::array_t<c_rewards_type> rewards_view(rewards_shape, _rewards);
-  py::array_t<c_terminals_type> terminals_view(terminals_shape, _terminals);
-  py::array_t<c_truncations_type> truncations_view(truncations_shape, _truncations);
+    std::vector<ssize_t> rewards_shape = {static_cast<ssize_t>(_rewards_size)};
+    std::vector<ssize_t> terminals_shape = {static_cast<ssize_t>(_terminals_size)};
+    std::vector<ssize_t> truncations_shape = {static_cast<ssize_t>(_truncations_size)};
 
-  return py::make_tuple(obs_view, rewards_view, terminals_view, truncations_view, py::dict());
+    py::array_t<c_rewards_type> rewards_view(rewards_shape, _rewards);
+    py::array_t<c_terminals_type> terminals_view(terminals_shape, _terminals);
+    py::array_t<c_truncations_type> truncations_view(truncations_shape, _truncations);
+
+    return py::make_tuple(obs_view, rewards_view, terminals_view, truncations_view, py::dict());
+  } else {
+    // Original shape logic
+    std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
+                                      static_cast<ssize_t>(obs_height),
+                                      static_cast<ssize_t>(obs_width),
+                                      static_cast<ssize_t>(_grid_features.size())};
+
+    std::vector<ssize_t> rewards_shape = {static_cast<ssize_t>(_rewards_size)};
+    std::vector<ssize_t> terminals_shape = {static_cast<ssize_t>(_terminals_size)};
+    std::vector<ssize_t> truncations_shape = {static_cast<ssize_t>(_truncations_size)};
+
+    py::array_t<c_observations_type> obs_view(obs_shape, _observations);
+    py::array_t<c_rewards_type> rewards_view(rewards_shape, _rewards);
+    py::array_t<c_terminals_type> terminals_view(terminals_shape, _terminals);
+    py::array_t<c_truncations_type> truncations_view(truncations_shape, _truncations);
+
+    return py::make_tuple(obs_view, rewards_view, terminals_view, truncations_view, py::dict());
+  }
 }
 
 py::dict MettaGrid::grid_objects() {
@@ -678,10 +715,17 @@ py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  return spaces.attr("Box")(0,
-                            255,
-                            py::make_tuple(obs_height, obs_width, _grid_features.size()),
-                            py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  if (_use_observation_tokens) {
+    return spaces.attr("Box")(0,
+                              255,
+                              py::make_tuple(_num_observation_tokens * 3),
+                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  } else {
+    return spaces.attr("Box")(0,
+                              255,
+                              py::make_tuple(obs_height, obs_width, _grid_features.size()),
+                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  }
 }
 
 py::list MettaGrid::action_success() {
