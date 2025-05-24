@@ -340,13 +340,6 @@ jobs:
           retention-days: 1
           if-no-files-found: warn
 
-      - name: Debug on failure
-        if: failure()
-        run: |
-          echo "Listing the contents of the workspace:"
-          find train_dir -type f -name "*.py" | sort
-          find train_dir -type d | sort
-
   benchmark:
     name: "Python Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks]
