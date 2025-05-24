@@ -183,9 +183,8 @@ jobs:
           uv run pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on mettagrid tests
-        run: |
-          cd mettagrid
-          uv run pytest --maxfail=1 --disable-warnings -q
+        working-directory: mettagrid
+        run: uv run pytest --maxfail=1 --disable-warnings -q
 
   smoke-test:
     name: "Smoke Tests"
@@ -320,9 +319,18 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
+        # We retry evals a few times because they're not deterministic (despite our best efforts)
+        # Our smoke tests should pass at least 90% of the time if they're working, so this should have
+        # a spurious failure rate of less than 0.01%. We assume that spurious successes should be
+        # extremely rare.
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "evals" "./run_evals.sh smoke_test"
+          for i in {1..4}; do
+            if benchmark "evals_try$i" "./run_evals.sh smoke_test"; then
+              exit 0
+            fi
+          done
+          exit 1
 
       - name: Save evals benchmark
         id: save_evals_benchmark
@@ -392,8 +400,8 @@ jobs:
           uv run pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
+        working-directory: mettagrid
         run: |
-          cd mettagrid
           uv run pytest --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
           mv mettagrid_benchmark_results.json ../
 

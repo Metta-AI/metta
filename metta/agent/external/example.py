@@ -2,6 +2,7 @@ import pufferlib.models
 import pufferlib.pytorch
 import torch
 import torch.nn as nn
+from einops import rearrange
 
 
 class Recurrent(pufferlib.models.LSTMWrapper):
@@ -14,11 +15,11 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         """Forward function for inference. 3x faster than using LSTM directly"""
         # Either B, T, H, W, C or B, H, W, C
         if len(observations.shape) == 5:
-            x = observations.permute(0, 1, 4, 2, 3).float()
-            x[:] /= self.policy.max_vec  # [B, T, C, H, W]
+            x = rearrange(observations, "b t h w c -> b t c h w").float()
+            x[:] /= self.policy.max_vec
             return self.forward_train(x, state)
         else:
-            x = observations.permute(0, 3, 1, 2).float() / self.policy.max_vec  # [B, C, H, W]
+            x = rearrange(observations, "b h w c -> b c h w").float() / self.policy.max_vec
         hidden = self.policy.encode_observations(x, state=state)
         h = state.lstm_h
         c = state.lstm_c
@@ -93,7 +94,7 @@ class Policy(nn.Module):
         return (actions, value), hidden
 
     def encode_observations(self, observations, state=None):
-        features = observations.float()  # .permute(0, 3, 1, 2).float() / self.max_vec
+        features = observations.float()
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
         return torch.cat([self_features, cnn_features], dim=1)

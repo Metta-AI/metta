@@ -88,11 +88,12 @@ jobs:
         id: set-cache-paths
         shell: bash
         run: |
-          mkdir -p mettagrid/build
-
+          mkdir -p mettagrid/build/deps
+          mkdir -p mettagrid/build/mettagrid
           # Begin multiline output
           echo "cache_paths<<EOF" >> "$GITHUB_OUTPUT"
-          echo "mettagrid/build" >> "$GITHUB_OUTPUT"
+          echo "mettagrid/build/deps" >> "$GITHUB_OUTPUT"
+          echo "mettagrid/build/mettagrid" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Debug cache paths
@@ -101,25 +102,29 @@ jobs:
       - name: Generate cache key
         id: set-cache-key
         run: |
-          # Create a hash that combines all relevant files
-          find mettagrid -type f \( -name "*.cpp" -o -name "*.cxx" -o -name "*.cc" -o -name "*.h" -o -name "*.hpp" -o -name "*.pyx" -o -name "*.pxd" \) -exec sha256sum {} \; > /tmp/file_hashes.txt || true
+          # Define file types to track
+          EXTENSIONS=("cpp" "cxx" "cc" "h" "hpp" "pyx" "pxd")
+          SPECIAL_FILES=("mettagrid/Makefile" "setup.py" "requirements.txt" "requirements_pinned.txt")
 
-          # Add setup.py and requirements.txt if they exist
-          if [ -f "setup.py" ]; then
-            sha256sum setup.py >> /tmp/file_hashes.txt
-          fi
-          if [ -f "requirements.txt" ]; then
-            sha256sum requirements.txt >> /tmp/file_hashes.txt
-          fi
-          if [ -f "requirements_pinned.txt" ]; then
-            sha256sum requirements_pinned.txt >> /tmp/file_hashes.txt
-          fi
+          # Clear the output file
+          > /tmp/file_hashes.txt
 
-          # Add the cache paths string to the key hash
-          echo "${{ steps.set-cache-paths.outputs.cache_paths }}" | tr -d '\n' | sha256sum | cut -d' ' -f1 > /tmp/path_hash.txt
-          cat /tmp/path_hash.txt >> /tmp/file_hashes.txt
+          # Hash source files by extension
+          for ext in "${EXTENSIONS[@]}"; do
+            find mettagrid -type f -name "*.$ext" -exec sha256sum {} \; >> /tmp/file_hashes.txt 2>/dev/null || true
+          done
 
-          # Create the final hash
+          # Hash special files if they exist
+          for file in "${SPECIAL_FILES[@]}"; do
+            if [ -f "$file" ]; then
+              sha256sum "$file" >> /tmp/file_hashes.txt
+            fi
+          done
+
+          # Add cache paths to hash
+          echo "${{ steps.set-cache-paths.outputs.cache_paths }}" | tr -d '\n' | sha256sum | cut -d' ' -f1 >> /tmp/file_hashes.txt
+
+          # Generate final hash
           if [ -s "/tmp/file_hashes.txt" ]; then
             HASH=$(sort /tmp/file_hashes.txt | sha256sum | cut -d' ' -f1)
           else
@@ -175,6 +180,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Python dev headers
+        run: |
+          # UV does not include development headers
+          sudo apt-get update
+          sudo apt-get install -y python3-dev
+
       - name: Setup Python and uv
         id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
@@ -194,41 +205,13 @@ jobs:
 
       - name: Install C++ dependencies (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make install-dependencies
+        working-directory: mettagrid
+        run: make install-dependencies
 
       - name: Build C++ artifacts (cache miss fallback)
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make build
-
-      - name: Sanity check
-        run: |
-          cd mettagrid
-          make check-dependencies
-
-      - name: Check cache paths before saving
-        shell: bash
-        run: |
-          VIRTUAL_ENV="$GITHUB_WORKSPACE/.venv"
-          echo "VIRTUAL_ENV is: $VIRTUAL_ENV"
-
-          echo "Verifying cache paths..."
-          echo "Cache paths input:"
-          echo "${{ needs.setup-checks.outputs.cache_paths }}"
-
-          echo "${{ needs.setup-checks.outputs.cache_paths }}" | while read -r path; do
-            echo "==> $path"
-            if [[ -d "$path" ]]; then
-              echo "✓ Exists: $path"
-              ls "$path"
-            else
-              echo "❌ MISSING: $path"
-            fi
-            echo ""
-          done
+        working-directory: mettagrid
+        run: make build-src-objects
 
       - name: Save build cache
         if: steps.test-cache-cpp.outputs.cache-hit != 'true'
@@ -264,7 +247,8 @@ jobs:
     needs: [graphite-ci-optimizer, setup-checks, build-cpp]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_test == 'true')
+      (needs.setup-checks.outputs.run_test == 'true') &&
+      (needs.build-cpp.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -288,27 +272,13 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      - name: Install C++ dependencies (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make install-dependencies
-
-      - name: Build C++ artifacts (cache miss fallback)
-        if: steps.test-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make build
-
       - name: Build C++ tests
-        run: |
-          cd mettagrid
-          make build-tests
+        working-directory: mettagrid
+        run: make build-tests
 
       - name: Run C++ tests
-        run: |
-          cd mettagrid
-          make test
+        working-directory: mettagrid
+        run: make test
 
   benchmark:
     name: "C++ Benchmarks"
@@ -316,7 +286,8 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true') &&
-      (needs.test.result == 'success' || github.event_name != 'pull_request' )
+      (needs.build-cpp.result == 'success') &&
+      (needs.test.result == 'success' || github.event_name != 'pull_request')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -340,26 +311,13 @@ jobs:
           path: ${{ needs.setup-checks.outputs.cache_paths }}
           key: ${{ needs.setup-checks.outputs.cache_key }}
 
-      - name: Install C++ dependencies (cache miss fallback)
-        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make install-dependencies
-
-      - name: Build C++ artifacts (cache miss fallback)
-        if: steps.benchmark-cache-cpp.outputs.cache-hit != 'true'
-        run: |
-          cd mettagrid
-          make build
-
       - name: Build C++ benchmarks
-        run: |
-          cd mettagrid
-          make build-benchmarks
+        working-directory: mettagrid
+        run: make build-benchmarks
 
       - name: Run benchmarks with JSON output
+        working-directory: mettagrid
         run: |
-          cd mettagrid
           mkdir -p benchmark_output
           echo "Running benchmarks with JSON output..."
           make bench-json
@@ -388,8 +346,8 @@ jobs:
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: mettagrid/benchmark_output
         run: |
-          cd mettagrid/benchmark_output
           ls -al
           if ls *.json 1> /dev/null 2>&1; then
             for file in *.json; do
@@ -440,6 +398,7 @@ jobs:
             echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
             echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
           fi
+
       # First PR Performance run - Check for improvements (will NOT fail on alerts)
       - name: Check for Performance Improvements
         if: |
@@ -449,8 +408,8 @@ jobs:
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: mettagrid/benchmark_output
         run: |
-          cd mettagrid/benchmark_output
           ls -al
           if ls *.json 1> /dev/null 2>&1; then
             for file in *.json; do
@@ -473,6 +432,7 @@ jobs:
           else
             echo "NO TEST RESULTS FOUND"
           fi
+
       # Second PR Performance run - Check for regressions (WILL fail on alerts)
       - name: Check for Performance Regressions
         if: |
@@ -482,8 +442,8 @@ jobs:
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: mettagrid/benchmark_output
         run: |
-          cd mettagrid/benchmark_output
           ls -al
           if ls *.json 1> /dev/null 2>&1; then
             for file in *.json; do
