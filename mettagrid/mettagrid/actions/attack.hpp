@@ -44,8 +44,8 @@ protected:
       return false;
     }
 
-    Agent* agent_target = static_cast<Agent*>(object_target);
-    if (agent_target) {
+    Agent* agent_target = dynamic_cast<Agent*>(object_target);
+    if (agent_target != nullptr) {
       actor->stats.incr(_stats.target[agent_target->_type_id]);
       actor->stats.incr(_stats.target[agent_target->_type_id], actor->group_name);
       actor->stats.incr(_stats.target[agent_target->_type_id], actor->group_name, agent_target->group_name);

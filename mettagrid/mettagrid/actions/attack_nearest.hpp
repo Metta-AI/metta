@@ -33,8 +33,8 @@ protected:
         GridLocation target_loc =
             _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
 
-        Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
-        if (agent_target) {
+        Agent* agent_target = dynamic_cast<Agent*>(_grid->object_at(target_loc));
+        if (agent_target != nullptr) {
           return _handle_target(actor, target_loc);
         }
       }
