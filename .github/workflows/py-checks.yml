@@ -155,12 +155,15 @@ jobs:
           ruff check --exit-non-zero-on-fix .
 
   test:
-    name: "Python Tests"
+    name: "Python Tests (${{ matrix.os }})"
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-13]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
       - name: Checkout code
