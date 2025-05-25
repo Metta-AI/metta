@@ -2,6 +2,8 @@ import logging
 import uuid
 from pathlib import Path
 
+import torch
+
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -22,7 +24,7 @@ class SimulationSuite:
         config: SimulationSuiteConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
-        device: str,
+        device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
