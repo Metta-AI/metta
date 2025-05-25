@@ -451,6 +451,92 @@ TEST_F(MettaGridTest, GetOutput) {
 
 // ==================== Full Environment Step Tests ====================
 
+TEST_F(MettaGridTest, EpisodeRewards) {
+  auto config = create_minimal_config();
+  auto map = create_simple_map();
+
+  // Create MettaGrid instance
+  std::unique_ptr<MettaGrid> grid(new MettaGrid(config, map));
+
+  // Create buffers for the game state
+  size_t num_agents = grid->num_agents();
+  size_t obs_features = grid->grid_features().size();
+
+  std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(num_agents),
+                                    static_cast<ssize_t>(grid->obs_height),
+                                    static_cast<ssize_t>(grid->obs_width),
+                                    static_cast<ssize_t>(obs_features)};
+  std::vector<ssize_t> scalar_shape = {static_cast<ssize_t>(num_agents)};
+
+  auto observations = py::array_t<c_observations_type, py::array::c_style>(obs_shape);
+  auto terminals = py::array_t<c_terminals_type, py::array::c_style>(scalar_shape);
+  auto truncations = py::array_t<c_truncations_type, py::array::c_style>(scalar_shape);
+  auto rewards = py::array_t<c_rewards_type, py::array::c_style>(scalar_shape);
+
+  // Set buffers and reset
+  grid->set_buffers(observations, terminals, truncations, rewards);
+  auto reset_result = grid->reset();
+
+  // Get initial episode rewards - should be zero
+  auto episode_rewards = grid->get_episode_rewards();
+  auto episode_rewards_ptr = static_cast<c_rewards_type*>(episode_rewards.mutable_data());
+
+  for (size_t i = 0; i < num_agents; i++) {
+    EXPECT_FLOAT_EQ(episode_rewards_ptr[i], 0.0f) << "Episode reward should be 0 for agent " << i << " after reset";
+  }
+
+  // Create actions and take several steps
+  auto actions = generate_valid_actions(grid.get(), num_agents, 0, 0);  // noop actions
+
+  // Take first step
+  auto step_result1 = grid->step(actions);
+
+  // Get step rewards and episode rewards after first step
+  auto rewards_ptr = static_cast<c_rewards_type*>(rewards.mutable_data());
+  auto episode_rewards_step1 = grid->get_episode_rewards();
+  auto episode_rewards_step1_ptr = static_cast<c_rewards_type*>(episode_rewards_step1.mutable_data());
+
+  float total_step1_rewards = 0.0f;
+  for (size_t i = 0; i < num_agents; i++) {
+    total_step1_rewards += rewards_ptr[i];
+    EXPECT_FLOAT_EQ(episode_rewards_step1_ptr[i], rewards_ptr[i])
+        << "Episode reward should equal step reward for agent " << i << " after first step";
+  }
+
+  // Take second step
+  auto step_result2 = grid->step(actions);
+
+  // Get episode rewards after second step - should be cumulative
+  auto episode_rewards_step2 = grid->get_episode_rewards();
+  auto episode_rewards_step2_ptr = static_cast<c_rewards_type*>(episode_rewards_step2.mutable_data());
+
+  for (size_t i = 0; i < num_agents; i++) {
+    float expected_cumulative = episode_rewards_step1_ptr[i] + rewards_ptr[i];
+    EXPECT_FLOAT_EQ(episode_rewards_step2_ptr[i], expected_cumulative)
+        << "Episode reward should be cumulative for agent " << i << " after second step";
+  }
+
+  // Take remaining steps to verify episode rewards keep accumulating
+  float previous_episode_totals[num_agents];
+  for (size_t i = 0; i < num_agents; i++) {
+    previous_episode_totals[i] = episode_rewards_step2_ptr[i];
+  }
+
+  // Take a few more steps
+  for (int step = 2; step < 5; step++) {
+    auto step_result = grid->step(actions);
+    auto current_episode_rewards = grid->get_episode_rewards();
+    auto current_episode_ptr = static_cast<c_rewards_type*>(current_episode_rewards.mutable_data());
+
+    for (size_t i = 0; i < num_agents; i++) {
+      float expected = previous_episode_totals[i] + rewards_ptr[i];
+      EXPECT_FLOAT_EQ(current_episode_ptr[i], expected)
+          << "Episode reward should continue accumulating for agent " << i << " at step " << step;
+      previous_episode_totals[i] = current_episode_ptr[i];
+    }
+  }
+}
+
 TEST_F(MettaGridTest, BasicStepAndTerminals) {
   auto config = create_minimal_config();
   auto map = create_simple_map();
