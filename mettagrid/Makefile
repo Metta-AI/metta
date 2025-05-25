@@ -557,7 +557,6 @@ test: build build-tests debug-test-vars
 	@[ -z "$(TEST_EXECUTABLES)" ] && echo "WARNING: No test executables found!" || true
 	@for f in $(TEST_EXECUTABLES); do \
 		if [ -f "$$f" ]; then \
-			echo "Running $$f"; \
 			"$$f" --gtest_color=yes || exit 1; \
 		else \
 			echo "ERROR: Test executable $$f not found!"; \
@@ -567,7 +566,6 @@ test: build build-tests debug-test-vars
 
 .PHONY: test-%
 test-%: build $(BUILD_TEST_DIR)/%
-	@echo "Running test $*..."
 	@if [ -f "$(BUILD_TEST_DIR)/$*" ]; then \
 		"$(BUILD_TEST_DIR)/$*" --gtest_color=yes; \
 	else \
@@ -600,7 +598,6 @@ benchmark: build build-benchmarks debug-bench-vars
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
 		if [ -f "$$f" ]; then \
-			echo "Running $$f"; \
 			"$$f" || exit 1; \
 		else \
 			echo "ERROR: Benchmark executable $$f not found!"; \
@@ -615,7 +612,6 @@ bench-json: build build-benchmarks debug-bench-vars
 	@[ -z "$(BENCH_EXECUTABLES)" ] && echo "WARNING: No benchmark executables found!" || true
 	@for f in $(BENCH_EXECUTABLES); do \
 		if [ -f "$$f" ]; then \
-			echo "Running $$f with JSON output..."; \
 			"$$f" --benchmark_format=json > benchmark_output/$$(basename "$$f").json || \
 			echo "Error running $$f with JSON format"; \
 		else \
