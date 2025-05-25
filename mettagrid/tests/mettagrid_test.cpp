@@ -489,30 +489,11 @@ TEST_F(MettaGridTest, BasicStepAndTerminals) {
   // Create action array - both agents do noop (action 0, arg 0)
   auto actions = generate_valid_actions(grid.get(), num_agents, 0, 0);  // force noop actions
 
-  // Debug: print action names and generated actions
-  auto action_names = grid->action_names();
-  std::cout << "Available actions: ";
-  for (size_t i = 0; i < action_names.size(); i++) {
-    std::cout << i << "=" << action_names[i].cast<std::string>() << " ";
-  }
-  std::cout << std::endl;
-
-  auto actions_ptr = static_cast<int*>(actions.mutable_data());
-  std::cout << "Generated actions: ";
-  for (size_t i = 0; i < num_agents; i++) {
-    std::cout << "agent" << i << "=(" << actions_ptr[i * 2] << "," << actions_ptr[i * 2 + 1] << ") ";
-  }
-  std::cout << std::endl;
-
   // Take a step
   auto step_result = grid->step(actions);
 
   // Check terminals after step - should still be 0 since we haven't hit max_steps
-  std::cout << "Current timestep: " << grid->current_timestep << std::endl;
-  std::cout << "Max timestep: " << grid->max_timestep << std::endl;
-
   for (size_t i = 0; i < num_agents; i++) {
-    std::cout << "Agent " << i << " terminal: " << static_cast<int>(terminals_ptr[i]) << std::endl;
     EXPECT_EQ(terminals_ptr[i], 0) << "Terminal should be 0 for agent " << i << " after one step";
   }
 
@@ -532,11 +513,7 @@ TEST_F(MettaGridTest, BasicStepAndTerminals) {
   // Now check truncations (should be 1) and terminals (should still be 0)
   auto truncations_ptr = static_cast<c_truncations_type*>(truncations.mutable_data());
 
-  std::cout << "Final timestep: " << grid->current_timestep << std::endl;
   for (size_t i = 0; i < num_agents; i++) {
-    std::cout << "Agent " << i << " terminal: " << static_cast<int>(terminals_ptr[i])
-              << ", truncation: " << static_cast<int>(truncations_ptr[i]) << std::endl;
-
     EXPECT_EQ(terminals_ptr[i], 0) << "Terminal should still be 0 for agent " << i << " at max_timestep";
     EXPECT_EQ(truncations_ptr[i], 1) << "Truncation should be 1 for agent " << i << " at max_timestep";
   }
@@ -569,11 +546,6 @@ TEST_F(MettaGridTest, DebugMemoryValues) {
   auto truncations_ptr = static_cast<c_truncations_type*>(truncations.mutable_data());
   auto rewards_ptr = static_cast<c_rewards_type*>(rewards.mutable_data());
 
-  std::cout << "Buffer addresses:" << std::endl;
-  std::cout << "  terminals: " << static_cast<void*>(terminals_ptr) << std::endl;
-  std::cout << "  truncations: " << static_cast<void*>(truncations_ptr) << std::endl;
-  std::cout << "  rewards: " << static_cast<void*>(rewards_ptr) << std::endl;
-
   // Set some test values before calling set_buffers
   for (size_t i = 0; i < num_agents; i++) {
     terminals_ptr[i] = 99;  // Set to a distinctive value
@@ -581,47 +553,22 @@ TEST_F(MettaGridTest, DebugMemoryValues) {
     rewards_ptr[i] = 77.0f;
   }
 
-  std::cout << "Before set_buffers:" << std::endl;
-  for (size_t i = 0; i < num_agents; i++) {
-    std::cout << "  Agent " << i << ": terminal=" << static_cast<int>(terminals_ptr[i])
-              << ", truncation=" << static_cast<int>(truncations_ptr[i]) << ", reward=" << rewards_ptr[i] << std::endl;
-  }
-
   // Set buffers
   grid->set_buffers(observations, terminals, truncations, rewards);
-
-  std::cout << "After set_buffers:" << std::endl;
-  for (size_t i = 0; i < num_agents; i++) {
-    std::cout << "  Agent " << i << ": terminal=" << static_cast<int>(terminals_ptr[i])
-              << ", truncation=" << static_cast<int>(truncations_ptr[i]) << ", reward=" << rewards_ptr[i] << std::endl;
-  }
 
   // Reset
   auto reset_result = grid->reset();
 
-  std::cout << "After reset:" << std::endl;
-  for (size_t i = 0; i < num_agents; i++) {
-    std::cout << "  Agent " << i << ": terminal=" << static_cast<int>(terminals_ptr[i])
-              << ", truncation=" << static_cast<int>(truncations_ptr[i]) << ", reward=" << rewards_ptr[i] << std::endl;
-  }
-
   // Create actions
   auto actions = generate_valid_actions(grid.get(), num_agents, 0, 0);  // force noop actions
-
-  // Debug: show what actions we're using
-  auto actions_ptr = static_cast<int*>(actions.mutable_data());
-  std::cout << "Using actions: ";
-  for (size_t i = 0; i < num_agents; i++) {
-    std::cout << "agent" << i << "=(" << actions_ptr[i * 2] << "," << actions_ptr[i * 2 + 1] << ") ";
-  }
-  std::cout << std::endl;
 
   // Step
   auto step_result = grid->step(actions);
 
-  std::cout << "After step:" << std::endl;
+  // Verify the values are what we expect after the step
   for (size_t i = 0; i < num_agents; i++) {
-    std::cout << "  Agent " << i << ": terminal=" << static_cast<int>(terminals_ptr[i])
-              << ", truncation=" << static_cast<int>(truncations_ptr[i]) << ", reward=" << rewards_ptr[i] << std::endl;
+    EXPECT_EQ(terminals_ptr[i], 0) << "Terminal should be 0 for agent " << i << " after step";
+    EXPECT_EQ(truncations_ptr[i], 0) << "Truncation should be 0 for agent " << i << " after step";
+    // Note: rewards might be non-zero depending on the game logic, so we don't assert specific values
   }
 }
