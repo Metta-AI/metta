@@ -5,23 +5,22 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 4
+  num_agents: 14
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
-    border_width: 6
+    num_rooms: 1
+    border_width: 0
 
     room:
-      _target_: mettagrid.room.navigation.varied_terrain_sequence.VariedTerrainSequence
-      width: ${sampling:75,120,60}
-      height: ${sampling:75,120,60}
-      border_width: ${sampling:1,6,3}
-      agents: 1
-      style: all-sparse
+      _target_: mettagrid.room.multi_agent.boxshare.BoxShare
+      width: ${sampling:30,50,40}
+      height: ${sampling:30,50,40}
+      border_width: 0
+      agents: 14
       objects:
-        altar: ${sampling:30,75,50}
-        mine: ${sampling:30,75,50}
-        generator: ${sampling:30,75,50}
+        altar: 7
+        mine: 7
+        generator: 8
   objects:
     altar:
       cooldown: 255

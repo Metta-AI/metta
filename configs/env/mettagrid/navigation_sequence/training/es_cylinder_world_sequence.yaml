@@ -12,12 +12,11 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.varied_terrain_sequence.VariedTerrainSequence
+      _target_: mettagrid.room.navigation.cylinder_object_sequence.CylinderObjectSequence
       width: ${sampling:75,120,60}
       height: ${sampling:75,120,60}
       border_width: ${sampling:1,6,3}
       agents: 1
-      style: all-sparse
       objects:
         altar: ${sampling:30,75,50}
         mine: ${sampling:30,75,50}

@@ -34,15 +34,6 @@ simulations:
   navigation/radialmaze:
     env: env/mettagrid/navigation/evals/radialmaze
     policy_agents_pct: 1.0
-  memory/easy:
-    env: env/mettagrid/memory/evals/easy
-    policy_agents_pct: 1.0
-  memory/medium:
-    env: env/mettagrid/memory/evals/medium
-    policy_agents_pct: 1.0
-  memory/hard:
-    env: env/mettagrid/memory/evals/hard
-    policy_agents_pct: 1.0
   npc/simple:
     env: env/mettagrid/simple
     policy_agents_pct: 0.5
@@ -117,6 +108,12 @@ simulations:
     env: env/mettagrid/navigation_sequence/evals/thecube
   navsequence/walkaround:
     env: env/mettagrid/navigation_sequence/evals/walkaround
+  memory/easy:
+    env: env/mettagrid/memory/evals/easy
+  memory/medium:
+    env: env/mettagrid/memory/evals/medium
+  memory/hard:
+    env: env/mettagrid/memory/evals/hard
   memory/access_cross:
     env: env/mettagrid/memory/evals/access_cross
   memory/boxout:
@@ -161,4 +158,7 @@ simulations:
     env: env/mettagrid/memory/evals/tease_small
   memory/you_shall_not_pass:
     env: env/mettagrid/memory/evals/you_shall_not_pass
+<<<<<<< HEAD
 
+=======
+>>>>>>> 7e75466bd75398a9206a741a9976b941f66671af

@@ -2,4 +2,4 @@ defaults:
   - sim_single
   - _self_
 
-env: /env/mettagrid/navigation_sequence/training/varied_terrain_maze_sequence
+env: /env/mettagrid/multi-agent/boxshare
