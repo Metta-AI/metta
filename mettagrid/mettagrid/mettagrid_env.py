@@ -58,31 +58,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _reset_env(self):
         mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
 
-<<<<<<< HEAD
-        # Count number of agents per group
-        group_counts = {t: None for t in self._group_names}
-        for r in range(env_map.shape[0]):
-            for c in range(env_map.shape[1]):
-                if env_map[r, c].startswith("agent."):
-                    group = env_map[r, c].split(".")[1]
-                    if group not in self._group_names:
-                        raise ValueError(f"Group {group} not in {self._group_names}")
-                    # only track groups we have in the map
-                    if group_counts[group] is None:
-                        group_counts[group] = 0
-                    group_counts[group] += 1
-
-        self._group_counts = group_counts
-
-        # I haven't figured out how to get C++ code to deal with fixed-length strings; so we convert
-        # to non-fixed length strings. This is obvious very silly, but OTOH we shouldn't be using a numpy array
-        # of strings here in the first place.
-        env_map_list = env_map.tolist()
-        env_map = np.array(env_map_list)
-=======
         config_dict, env_map = mettagrid_config.to_c_args()
         self._map_labels = mettagrid_config.map_labels()
->>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
 
         self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
@@ -161,29 +138,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
-<<<<<<< HEAD
-        for group_name, group_mean in group_means.items():
-            infos.update(
-                {
-                    f"episode/reward.group.{group_name}.mean": group_mean,
-                }
-            )
-
-        if self._map_builder is not None and self._map_builder.labels is not None:
-            for label in self._map_builder.labels:
-                infos.update(
-                    {
-                        f"rewards/map:{label}": episode_rewards_mean,
-                    }
-                )
-=======
         for label in self._map_labels:
             infos.update(
                 {
                     f"rewards/map:{label}": episode_rewards_mean,
                 }
             )
->>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
 
         if self.labels is not None:
             for label in self.labels:
@@ -235,10 +195,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,
-<<<<<<< HEAD
-                agent_to_group,
-=======
->>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
                 agent_metrics,
                 self._max_steps,
                 replay_url,
