@@ -1,4 +1,3 @@
-
 #!/bin/bash
 # train.sh - Distributed training script
 set -e

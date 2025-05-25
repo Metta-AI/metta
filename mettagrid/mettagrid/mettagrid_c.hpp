@@ -81,6 +81,7 @@ private:
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
 
+  bool _use_observation_tokens;
   unsigned short _obs_width;
   unsigned short _obs_height;
 
@@ -90,7 +91,7 @@ private:
 
   // We'd prefer to store these as more raw c-style arrays, but we need to both
   // operate on the memory directly and return them to python.
-  py::array_t<unsigned char> _observations;
+  py::array_t<uint8_t> _observations;
   py::array_t<bool> _terminals;
   py::array_t<bool> _truncations;
   py::array_t<float> _rewards;
