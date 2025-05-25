@@ -4,14 +4,14 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 ## Prerequisites
 
-- AWS credentials configured with `softmax-db-admin` profile
+- AWS credentials configured with `softmax` profile
 - Access to AWS ECR in us-east-1 region
 - SkyPilot CLI installed and configured
 
 ## Usage
 
 ```bash
-./launch.sh <COMMAND> <RUN_ID> [COMMAND_ARGS...]
+./devops/skypilot/launch.py <COMMAND> <RUN_ID> [COMMAND_ARGS...]
 ```
 
 ### Parameters
@@ -24,12 +24,12 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 1. Launch a training run with default parameters:
 ```bash
-./launch.sh train my_experiment_001
+./launch.py train my_experiment_001
 ```
 
 2. Launch a training run with specific arguments:
 ```bash
-./launch.sh train my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
+./launch.py train my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
 ```
 
 ## Job Management
@@ -66,7 +66,7 @@ sky jobs cancel --all
   - Sets up environment variables
   - Uses the current git commit hash
   - Launches jobs in detached mode
-  - Uses the configuration from `./devops/skypilot/config/train.yaml`
+  - Uses the configuration from `./devops/skypilot/config/sk_train.yaml`
 
 - Jobs are launched asynchronously and will run in the background
 - Monitor job status using SkyPilot CLI or AWS console

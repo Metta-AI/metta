@@ -34,7 +34,6 @@ sweep:
 
 wandb:
   enabled: true
-  track: true
   checkpoint_interval: 1
 
 run_id: 100

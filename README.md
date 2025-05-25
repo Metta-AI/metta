@@ -100,11 +100,15 @@ This readme provides only a brief overview of research explorations. Visit the [
 
 # Installation
 
-Create a Conda environment (or use venv)
+Install uv (a fast Python package installer and resolver):
 
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
-conda create -n metta python=3.11.7
-conda activate metta
+
+Then run the setup script which will create a virtual environment and install dependencies:
+
+```bash
 ./devops/setup_build.sh
 ```
 
@@ -160,7 +164,7 @@ You can do the same process for the object-use eval artifact using: `wandb://art
 
 # Third-party Content
 
-Some sample map patterns in `configs/scenes/dcss` were adapted from the open-source game [Dungeon Crawl Stone Soup (DCSS)](https://github.com/crawl/crawl),
+Some sample map patterns in `scenes/dcss` were adapted from the open-source game [Dungeon Crawl Stone Soup (DCSS)](https://github.com/crawl/crawl),
 specifically from the file [`simple.des`](https://github.com/crawl/crawl/blob/master/crawl-ref/source/dat/des/arrival/simple.des).
 
 DCSS is licensed under the [GNU General Public License v2.0](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html).

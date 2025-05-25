@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from einops import rearrange
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
@@ -68,16 +69,16 @@ class LSTM(LayerBase):
             raise ValueError("Invalid input tensor shape", x.shape)
 
         if state is not None:
-            assert state[0].shape[1] == state[1].shape[1] == B
-        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0])
+            assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
+        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0]), (
+            f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self._in_tensor_shapes[0][0])}"
+        )
 
-        hidden = hidden.reshape(B, TT, self._in_tensor_shapes[0][0])
-        hidden = hidden.transpose(0, 1)
+        hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
         hidden, state = self._net(hidden, state)
 
-        hidden = hidden.transpose(0, 1)
-        hidden = hidden.reshape(B * TT, self.hidden_size)
+        hidden = rearrange(hidden, "t b h -> (b t) h")
 
         if state is not None:
             state = tuple(s.detach() for s in state)

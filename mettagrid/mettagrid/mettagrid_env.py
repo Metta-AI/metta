@@ -11,10 +11,9 @@ import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
 
-from mettagrid.config.utils import simple_instantiate
+from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
-from mettagrid.resolvers import register_resolvers
 from mettagrid.stats_writer import StatsWriter
 
 
@@ -35,7 +34,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._group_names = list(self._env_cfg.game.groups.keys())
         self._env_map = env_map
         self._renderer = None
-        self._map_builder = None
+        self._map_labels = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
         self._episode_id = None
@@ -57,20 +56,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        if self._env_map is None:
-            self._map_builder = simple_instantiate(
-                self._env_cfg.game.map_builder,
-                recursive=self._env_cfg.game.get("recursive_map_builder", True),
-            )
-            env_map = self._map_builder.build()
-        else:
-            env_map = self._env_map
+        mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
 
-        map_agents = np.count_nonzero(np.char.startswith(env_map, "agent"))
-        assert self._env_cfg.game.num_agents == map_agents, (
-            f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {map_agents}"
-        )
-
+<<<<<<< HEAD
         # Count number of agents per group
         group_counts = {t: None for t in self._group_names}
         for r in range(env_map.shape[0]):
@@ -91,8 +79,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # of strings here in the first place.
         env_map_list = env_map.tolist()
         env_map = np.array(env_map_list)
+=======
+        config_dict, env_map = mettagrid_config.to_c_args()
+        self._map_labels = mettagrid_config.map_labels()
+>>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
 
-        self._c_env = MettaGrid(OmegaConf.to_container(self._env_cfg), env_map)
+        self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 
@@ -100,7 +92,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._env = env
         # self._env = RewardTracker(self._env)
-        # self._env = FeatureMasker(self._env, self._cfg.hidden_features)
 
     def reset(self, seed=None, options=None):
         self._env_cfg = self._get_new_env_cfg()
@@ -170,6 +161,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
+<<<<<<< HEAD
         for group_name, group_mean in group_means.items():
             infos.update(
                 {
@@ -184,6 +176,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                         f"rewards/map:{label}": episode_rewards_mean,
                     }
                 )
+=======
+        for label in self._map_labels:
+            infos.update(
+                {
+                    f"rewards/map:{label}": episode_rewards_mean,
+                }
+            )
+>>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
 
         if self.labels is not None:
             for label in self.labels:
@@ -209,12 +209,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         replay_url = None
         if self._replay_writer:
-            assert self._episode_id is not None
+            assert self._episode_id is not None, "Episode ID must be set before writing a replay"
             replay_url = self._replay_writer.write_replay(self._episode_id)
         infos["replay_url"] = replay_url
 
         if self._stats_writer:
-            assert self._episode_id is not None
+            assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
             attributes = {
                 "seed": self._current_seed,
@@ -235,7 +235,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,
+<<<<<<< HEAD
                 agent_to_group,
+=======
+>>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
                 agent_metrics,
                 self._max_steps,
                 replay_url,
@@ -316,7 +319,3 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def inventory_item_names(self):
         return self._c_env.inventory_item_names()
-
-
-# Ensure resolvers are registered when this module is imported
-register_resolvers()

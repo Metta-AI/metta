@@ -17,12 +17,10 @@ public:
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
-    if (actor->inventory[InventoryItem::laser] == 0) {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
+    if (actor->update_inventory(InventoryItem::laser, -1) == 0) {
       return false;
     }
-
-    actor->update_inventory(InventoryItem::laser, -1);
 
     // Scan the space to find the nearest agent. Prefer the middle (offset 0) before the edges (offset -1, 1).
     for (int distance = 1; distance < 4; distance++) {
@@ -38,7 +36,7 @@ protected:
         target_loc.layer = GridLayer::Agent_Layer;
         Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
         if (agent_target) {
-          return _handle_target(actor_id, actor, target_loc);
+          return _handle_target(actor, target_loc);
         }
       }
     }

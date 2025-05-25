@@ -51,7 +51,6 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, Li
         episodes.append(ep_id)
 
         attributes = {"seed": str(i)}
-        groups = [[0], [1]]
         created_at = datetime.datetime.now()
 
         agent_metrics = {
@@ -65,9 +64,7 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, Li
         db.record_episode(
             ep_id,
             attributes,
-            groups,
             agent_metrics,
-            {},
             step_count=100,
             replay_url=None,
             created_at=created_at,

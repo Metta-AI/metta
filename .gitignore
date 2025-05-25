@@ -1,8 +1,8 @@
 *.egg-info
 *.pyc
 *.so
-__pycache__
-.DS_Store
+**/__pycache__
+**/.DS_Store
 .coverage
 .env
 .task
@@ -11,8 +11,8 @@ __pycache__
 /mettagrid/build
 /mettagrid/build_debug/
 /mettagrid/dist
-/mettagrid/player/dist
-/mettagrid/player/node_modules
+/mettascope/dist
+/mettascope/node_modules
 /mettagrid/multirun
 cython_debug
 outputs
@@ -24,7 +24,7 @@ gpu_names_cache.json
 stderr.log
 sweep_id
 personal/
-wandb/
+/wandb
 /deps/*
 terrain_maps_nohearts*
 .idea

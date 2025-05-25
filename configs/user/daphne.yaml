@@ -13,16 +13,13 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/navigation/training/multienv
-  # evaluate_interval: 10
+  env: /env/mettagrid/object_use/training/multienv_nc
+  evaluate_interval: 10
 
-# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
-# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
 
-# policy_uri: wandb://run/b.daveey.sm.train.er.new.0
-# policy_uri: wandb://run/daveey.ar.cards.1
-# policy_uri: wandb://run/b.daveey.t.32.instant
+policy_uri: wandb://run/b.georgedeane.george_sequence_no_increment
 
+<<<<<<< HEAD
 # policy_uri: wandb://run/b.daphne.terrain_multienv_lessactions:v40
 # policy_uri: wandb://run/terrain_multienv_3_single_agent:v63
 # policy_uri: wandb://run/terrain_multiagent_24_norewardsharing2
@@ -48,9 +45,9 @@ wandb:
   checkpoint_interval: 1
 
 run_id: 105
+=======
+
+run_id: 2
+>>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
-
-sweep_params: "sweep/fast"
-sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
-seed: null

@@ -6,6 +6,7 @@ import pufferlib
 import pufferlib.vector
 from omegaconf import DictConfig, ListConfig
 
+from metta.util.resolvers import register_resolvers
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
@@ -20,6 +21,9 @@ def make_env_func(
     replay_writer: Optional[ReplayWriter] = None,
     **kwargs,
 ):
+    # we are not calling into our configs hierarchy here so we need to manually register the custom resolvers
+    register_resolvers()
+
     # Create the environment instance
     env = hydra.utils.instantiate(
         cfg, cfg, render_mode=render_mode, buf=buf, stats_writer=stats_writer, replay_writer=replay_writer, **kwargs

@@ -50,11 +50,9 @@ def test_episode_lifecycle(temp_dir):
 
     # Episode attributes
     attributes = {"seed": "12345", "map_w": "10", "map_h": "20", "meta": '{"key": "value"}'}
-    groups = [[0, 1]]
 
     # Metrics
     agent_metrics = {0: {"reward": 10.5, "steps": 50.0}, 1: {"reward": 8.2, "steps": 45.0}}
-    group_metrics = {0: {"group_reward": 18.7}}
 
     # Step count and timestamps
     step_count = 100
@@ -62,9 +60,7 @@ def test_episode_lifecycle(temp_dir):
     replay_url = "https://example.com/replay.json"
 
     # Record the complete episode
-    writer.record_episode(
-        episode_id, attributes, groups, agent_metrics, group_metrics, step_count, replay_url, created_at
-    )
+    writer.record_episode(episode_id, attributes, agent_metrics, step_count, replay_url, created_at)
 
     # Verify data in database
     assert writer.db is not None
@@ -89,16 +85,6 @@ def test_episode_lifecycle(temp_dir):
             result = db.con.execute(
                 "SELECT value FROM agent_metrics WHERE episode_id = ? AND agent_id = ? AND metric = ?",
                 (episode_id, agent_id, metric),
-            ).fetchone()
-            assert result is not None
-            assert abs(result[0] - value) < 1e-6  # Compare floats with tolerance
-
-    # Check group metrics
-    for group_id, metrics in group_metrics.items():
-        for metric, value in metrics.items():
-            result = db.con.execute(
-                "SELECT value FROM group_metrics WHERE episode_id = ? AND group_id = ? AND metric = ?",
-                (episode_id, group_id, metric),
             ).fetchone()
             assert result is not None
             assert abs(result[0] - value) < 1e-6  # Compare floats with tolerance

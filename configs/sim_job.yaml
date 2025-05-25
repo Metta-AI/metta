@@ -1,18 +1,26 @@
 defaults:
   - common
   - wandb: metta_research
-  - /sim/sim_suite@replay_job.simulation_suite
+  - sim: all
   - _self_
 
-cmd: sim
 run: ???
+policy_uri: ???
 
 sim_job:
-  policy_uris: ???
+  policy_uris:
+    - ${policy_uri}
+  simulation_suite: ${sim}
   stats_dir: ${run_dir}/stats
 <<<<<<< HEAD
   stats_db_uri: ${eval_db_uri}
 =======
   stats_db_uri: ${run_dir}/stats.db
+<<<<<<< HEAD
   replay_dir: ${run_dir}/replay_dir
 >>>>>>> 3dc22dd4fb1b95dce64b3e23eee4b2e406dcff01
+=======
+  replay_dir: ${run_dir}/replays/evals
+
+cmd: sim
+>>>>>>> 7e75466bd75398a9206a741a9976b941f66671af

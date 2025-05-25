@@ -35,7 +35,6 @@ evaluator:
 
 wandb:
   enabled: false
-  track: false
   checkpoint_interval: 1
 
 sweep:

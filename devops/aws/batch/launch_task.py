@@ -4,12 +4,15 @@ import os
 import random
 import string
 import sys
+from pathlib import Path
 
 import boto3
 
 from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
+from metta.util.fs import cd_repo_root
 from metta.util.git import (
     get_branch_commit,
+    get_commit_message,
     get_current_branch,
     get_current_commit,
     has_unstaged_changes,
@@ -68,6 +71,10 @@ def container_config(args, task_args, job_name):
         {"name": "TASK_ARGS", "value": " ".join(task_args)},
     ]
 
+    # Add timeout environment variable if specified
+    if args.timeout_minutes:
+        env_vars.append({"name": "JOB_TIMEOUT_MINUTES", "value": str(args.timeout_minutes)})
+
     entrypoint_cmd = [
         "git fetch",
         f"git checkout {git_ref}",
@@ -75,6 +82,21 @@ def container_config(args, task_args, job_name):
     ]
 
     print(f"Resources: {args.num_nodes} nodes, {args.node_gpus} GPUs, {total_vcpus} vCPUs, {args.node_ram_gb}GB RAM")
+
+    # Format timeout for display if specified
+    if args.timeout_minutes:
+        timeout_hours = args.timeout_minutes // 60
+        timeout_mins = args.timeout_minutes % 60
+
+        if timeout_hours > 0:
+            if timeout_mins == 0:
+                timeout_str = f"{timeout_hours}h"
+            else:
+                timeout_str = f"{timeout_hours}h {timeout_mins}m"
+        else:
+            timeout_str = f"{timeout_mins}m"
+
+        print(yellow(f"Auto-termination: Job will terminate after {timeout_str}"))
 
     return {
         "command": ["; ".join(entrypoint_cmd)],
@@ -103,40 +125,84 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
         critical_files.append("tools/evolve.py")
 
     # Check for configuration files mentioned in task arguments
+    config_files_to_check = []
     for task_arg in task_args:
         # Check for agent configuration
         if task_arg.startswith("agent="):
             agent_value = task_arg.split("=", 1)[1]
-            critical_files.append(f"./configs/agent/{agent_value}.yaml")
+            config_files_to_check.append(f"./configs/agent/{agent_value}.yaml")
 
         # Check for trainer configuration
         elif task_arg.startswith("trainer="):
             trainer_value = task_arg.split("=", 1)[1]
-            critical_files.append(f"./configs/trainer/{trainer_value}.yaml")
+            config_files_to_check.append(f"./configs/trainer/{trainer_value}.yaml")
 
         # Check for environment configuration
         elif task_arg.startswith("trainer.env="):
             env_value = task_arg.split("=", 1)[1]
-            critical_files.append(f"./configs/{env_value}.yaml")
+            config_files_to_check.append(f"./configs/{env_value}.yaml")
 
         # Check for evaluation configuration
         elif task_arg.startswith("trainer.eval="):
             eval_value = task_arg.split("=", 1)[1]
-            critical_files.append(f"./configs/eval/{eval_value}.yaml")
+            config_files_to_check.append(f"./configs/eval/{eval_value}.yaml")
 
-    divider = "=" * 40
+    # Add config files to critical files list
+    critical_files.extend(config_files_to_check)
+
+    divider_length = 60
+    divider = "=" * divider_length
     print(f"\n{divider}")
-    all_files_exist = True
+
+    missing_files = []
+    found_files = []
+
     for file in critical_files:
         if not os.path.exists(file):
-            all_files_exist = False
+            missing_files.append(file)
             print(red(f"❌ Missing required file: {file}"))
         else:
+            found_files.append(file)
             print(green(f"✅ Found: {file}"))
 
-    if not all_files_exist:
-        print(red("\nOne or more critical files are missing. Validation failed."))
+    if missing_files:
+        print(red("\nValidation failed - missing required files:"))
+        print(red("=" * 50))
+
+        # Group suggestions by type
+        suggestions = []
+        current_dir = Path.cwd()
+
+        # Check if we're in the wrong directory
+        if any("devops" in f for f in missing_files):
+            suggestions.append("• Ensure you're running from the repository root directory")
+            suggestions.append(f"  Current directory: {current_dir}")
+
+        # Check for config file issues
+        missing_configs = [f for f in missing_files if f.startswith("./configs/")]
+        if missing_configs:
+            suggestions.append("• Check your configuration file paths:")
+            for config in missing_configs:
+                suggestions.append(f"  {config}")
+                # Try to find similar files
+                config_dir = Path(config).parent
+                if config_dir.exists():
+                    similar_files = list(config_dir.glob("*.yaml"))
+                    if similar_files:
+                        suggestions.append(f"    Available in {config_dir}: {[f.name for f in similar_files[:3]]}")
+
+        # Check for tool files
+        missing_tools = [f for f in missing_files if f.startswith("tools/")]
+        if missing_tools:
+            suggestions.append("• Missing tool files - check your repository structure")
+
+        if suggestions:
+            print(yellow("\nSuggestions:"))
+            for suggestion in suggestions:
+                print(yellow(suggestion))
+
         sys.exit(1)
+
     print(green("All critical files found. Validation successful."))
 
     if has_unstaged_changes() and not args.skip_validation:
@@ -146,7 +212,12 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
         return False
 
     # Get the git reference
+<<<<<<< HEAD
     git_ref = args.git_branch
+=======
+    git_ref = args.git_commit if args.git_commit else args.git_branch
+    commit_message = get_commit_message(args.git_commit) if args.git_commit else None
+>>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
 
     # Display job details
     print(f"\n{divider}")
@@ -162,8 +233,29 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
     print(f"Total GPUs: {args.gpus}")
     print(f"vCPUs per GPU: {args.gpu_cpus}")
     print(f"RAM per Node: {args.node_ram_gb} GB")
+
+    # Add timeout information to job summary with more prominence
+    if args.timeout_minutes:
+        timeout_hours = args.timeout_minutes // 60
+        timeout_mins = args.timeout_minutes % 60
+
+        if timeout_hours > 0:
+            if timeout_mins == 0:
+                timeout_str = f"{timeout_hours}h"
+            else:
+                timeout_str = f"{timeout_hours}h {timeout_mins}m"
+        else:
+            timeout_str = f"{timeout_mins}m"
+
+        print(bold(yellow(f"AUTO-TERMINATION: Job will terminate after {timeout_str}")))
+    else:
+        print(yellow("NO TIMEOUT SET: Job will run until completion"))
+
     print(f"Git Reference: {git_ref}")
-    print(f"{'-' * 40}")
+    if commit_message:
+        first_line = commit_message.split("\n")[0]
+        print(f"Commit Message: {yellow(first_line)}")
+    print(f"{'-' * divider_length}")
     print(f"Command: {args.cmd}")
     if task_args:
         print(yellow("\nTask Arguments:"))
@@ -204,6 +296,7 @@ def submit_batch_job(args, task_args):
         "jobQueue": job_queue,
         "jobDefinition": job_definition,
         "containerOverrides": container_config(args, task_args, job_name),
+        "retryStrategy": {"attempts": 1},
     }
 
     if args.num_nodes > 1:
@@ -233,6 +326,21 @@ def submit_batch_job(args, task_args):
     print(f"Submitted job {job_name} to queue {job_queue} with job ID {green(bold(job_id))}")
     print(blue(bold(job_url)))
 
+    # Display timeout information again after job submission
+    if args.timeout_minutes:
+        timeout_hours = args.timeout_minutes // 60
+        timeout_mins = args.timeout_minutes % 60
+
+        if timeout_hours > 0:
+            if timeout_mins == 0:
+                timeout_str = f"{timeout_hours}h"
+            else:
+                timeout_str = f"{timeout_hours}h {timeout_mins}m"
+        else:
+            timeout_str = f"{timeout_mins}m"
+
+        print(bold(yellow(f"AUTO-TERMINATION: Job will terminate after {timeout_str}")))
+
     if task_args:
         print(yellow("\nTask Arguments:"))
         for i, arg in enumerate(task_args):
@@ -258,15 +366,24 @@ def main():
     parser.add_argument("--gpu-cpus", type=int)
     parser.add_argument("--node-ram-gb", type=int)
     parser.add_argument("--copies", type=int, default=1)
-    parser.add_argument("--profile", default="stem")
+    parser.add_argument("--profile", default="softmax-db")
     parser.add_argument("--job-queue", default="metta-jq")
     parser.add_argument("--skip-push-check", action="store_true")
     parser.add_argument("--no-color", action="store_true")
     parser.add_argument("--dry-run", action="store_true", help="DEPRECATED: Show job details without submitting")
     parser.add_argument("--skip-validation", action="store_true", help="Skip confirmation prompt")
+    # Add the new timeout parameter
+    parser.add_argument(
+        "--timeout-minutes",
+        type=int,
+        help="Automatically terminate the job after this many minutes.",
+    )
     args, task_args = parser.parse_known_args()
 
     use_colors(sys.stdout.isatty() and not args.no_color)
+
+    # Ensure we're in the repository root (unless disabled)
+    cd_repo_root()
 
     specs = get_specs()
 

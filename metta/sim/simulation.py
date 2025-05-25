@@ -33,6 +33,12 @@ from mettagrid.stats_writer import StatsWriter
 logger = logging.getLogger(__name__)
 
 
+class SimulationCompatibilityError(Exception):
+    """Raised when there's a compatibility issue that prevents simulation from running."""
+
+    pass
+
+
 # --------------------------------------------------------------------------- #
 #   Single simulation                                                         #
 # --------------------------------------------------------------------------- #
@@ -96,6 +102,27 @@ class Simulation:
         self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
 
+        policy_expected_channels = self._policy_pr.expected_observation_channels()
+        npc_policy_expected_channels = self._npc_pr.expected_observation_channels() if self._npc_pr else None
+        env_expected_channels = self._vecenv.observation_space.shape[-1]
+
+        if policy_expected_channels != env_expected_channels:
+            error_msg = (
+                f"Main policy expects {policy_expected_channels} observation channels, "
+                f"but current environment provides {env_expected_channels}."
+            )
+            logger.error(error_msg)
+            raise SimulationCompatibilityError(error_msg)
+
+        # Check NPC policy compatibility (if it exists)
+        if npc_policy_expected_channels and npc_policy_expected_channels != env_expected_channels:
+            error_msg = (
+                f"NPC policy expects {npc_policy_expected_channels} observation channels, "
+                f"but current environment provides {env_expected_channels}."
+            )
+            logger.error(error_msg)
+            raise SimulationCompatibilityError(error_msg)
+
         # Let every policy know the active action-set of this env.
         action_names = self._vecenv.driver_env.action_names()
         max_args = self._vecenv.driver_env._c_env.max_action_args()
@@ -121,9 +148,9 @@ class Simulation:
     # ------------------------------------------------------------------ #
     #   public API                                                       #
     # ------------------------------------------------------------------ #
-    def simulate(self) -> SimulationResults:
+    def start_simulation(self):
         """
-        Run the simulation; returns the merged `StatsDB`.
+        Start the simulation.
         """
         logger.info(
             "Sim '%s': %d env × %d agents (%.0f%% candidate)",
@@ -134,57 +161,65 @@ class Simulation:
         )
         logger.info("Stats dir: %s", self._stats_dir)
         # ---------------- reset ------------------------------- #
-        obs, _ = self._vecenv.reset()
-        policy_state = PolicyState()
-        npc_state = PolicyState()
-        env_done_flags = [False] * self._num_envs
+        self._obs, _ = self._vecenv.reset()
+        self._policy_state = PolicyState()
+        self._npc_state = PolicyState()
+        self._env_done_flags = [False] * self._num_envs
 
-        t0 = time.time()
-        while (self._episode_counters < self._min_episodes).any() and (time.time() - t0) < self._max_time_s:
-            # ---------------- forward passes ------------------------- #
-            with torch.no_grad():
-                obs_t = torch.as_tensor(obs, device=self._device)
+        self._t0 = time.time()
 
-                # Candidate-policy agents
-                my_obs = obs_t[self._policy_idxs]
-                policy = self._policy_pr.policy()
-                policy_actions, _, _, _, _ = policy(my_obs, policy_state)
+    def generate_actions(self):
+        """
+        Generate actions for the simulation.
+        """
+        # ---------------- forward passes ------------------------- #
+        with torch.no_grad():
+            obs_t = torch.as_tensor(self._obs, device=self._device)
 
-                # NPC agents (if any)
-                if self._npc_pr is not None and len(self._npc_idxs):
-                    npc_obs = obs_t[self._npc_idxs]
-                    npc_policy = self._npc_pr.policy()
-                    npc_actions, _, _, _, _ = npc_policy(npc_obs, npc_state)
+            # Candidate-policy agents
+            my_obs = obs_t[self._policy_idxs]
+            policy = self._policy_pr.policy()
+            policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
 
-            # ---------------- action stitching ----------------------- #
-            actions = policy_actions
-            if self._npc_agents_per_env:
-                actions = torch.cat(
-                    [
-                        policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
-                        npc_actions.view(self._num_envs, self._npc_agents_per_env, -1),
-                    ],
-                    dim=1,
-                )
+            # NPC agents (if any)
+            if self._npc_pr is not None and len(self._npc_idxs):
+                npc_obs = obs_t[self._npc_idxs]
+                npc_policy = self._npc_pr.policy()
+                npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)
 
-            actions = actions.view(self._num_envs * self._agents_per_env, -1)
-            actions_np = actions.cpu().numpy()
-
-            # ---------------- env.step ------------------------------- #
-            obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
-
-            # ---------------- episode FSM ---------------------------- #
-            done_now = np.logical_or(
-                dones.reshape(self._num_envs, self._agents_per_env).all(1),
-                trunc.reshape(self._num_envs, self._agents_per_env).all(1),
+        # ---------------- action stitching ----------------------- #
+        actions = policy_actions
+        if self._npc_agents_per_env:
+            actions = torch.cat(
+                [
+                    policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
+                    npc_actions.view(self._num_envs, self._npc_agents_per_env, -1),
+                ],
+                dim=1,
             )
-            for e in range(self._num_envs):
-                if done_now[e] and not env_done_flags[e]:
-                    env_done_flags[e] = True
-                    self._episode_counters[e] += 1
-                elif not done_now[e] and env_done_flags[e]:
-                    env_done_flags[e] = False
 
+        actions = actions.view(self._num_envs * self._agents_per_env, -1)
+        actions_np = actions.cpu().numpy()
+
+        return actions_np
+
+    def step_simulation(self, actions_np: np.ndarray):
+        # ---------------- env.step ------------------------------- #
+        obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
+
+        # ---------------- episode FSM ---------------------------- #
+        done_now = np.logical_or(
+            dones.reshape(self._num_envs, self._agents_per_env).all(1),
+            trunc.reshape(self._num_envs, self._agents_per_env).all(1),
+        )
+        for e in range(self._num_envs):
+            if done_now[e] and not self._env_done_flags[e]:
+                self._env_done_flags[e] = True
+                self._episode_counters[e] += 1
+            elif not done_now[e] and self._env_done_flags[e]:
+                self._env_done_flags[e] = False
+
+    def end_simulation(self) -> SimulationResults:
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
         db = self._from_shards_and_context()
@@ -193,9 +228,21 @@ class Simulation:
             "Sim '%s' finished: %d episodes in %.1fs",
             self._name,
             int(self._episode_counters.sum()),
-            time.time() - t0,
+            time.time() - self._t0,
         )
         return SimulationResults(db)
+
+    def simulate(self) -> SimulationResults:
+        """
+        Run the simulation; returns the merged `StatsDB`.
+        """
+        self.start_simulation()
+
+        while (self._episode_counters < self._min_episodes).any() and (time.time() - self._t0) < self._max_time_s:
+            action = self.generate_actions()
+            self.step_simulation(action)
+
+        return self.end_simulation()
 
     # ------------------------- stats helpers -------------------------- #
     def _from_shards_and_context(self) -> SimulationStatsDB:
@@ -209,6 +256,27 @@ class Simulation:
             self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_pr
         )
         return db
+
+    def get_replays(self):
+        """Get all replays for this simulation."""
+        return self._replay_writer.episodes.values()
+
+    def get_replay(self):
+        """Makes sure this sim has a single replay, and return it."""
+        if len(self._replay_writer.episodes) != 1:
+            raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
+        for _, episode_replay in self._replay_writer.episodes.items():
+            return episode_replay.get_replay_data()
+
+    def get_envs(self):
+        """Returns a list of all envs in the simulation."""
+        return self._vecenv.envs
+
+    def get_env(self):
+        """Make sure this sim has a single env, and return it."""
+        if len(self._vecenv.envs) != 1:
+            raise ValueError("Attempting to get single env, but simulation has multiple envs")
+        return self._vecenv.envs[0]
 
 
 @dataclass

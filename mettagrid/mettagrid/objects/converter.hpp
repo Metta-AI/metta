@@ -49,7 +49,7 @@ private:
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
     this->converting = true;
-    this->event_manager->schedule_event(Events::FinishConverting, this->conversion_ticks, this->id, 0);
+    this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
   }
 
 public:
@@ -113,7 +113,7 @@ public:
     if (this->cooldown > 0) {
       // Start cooldown phase
       this->cooling_down = true;
-      this->event_manager->schedule_event(Events::CoolDown, this->cooldown, this->id, 0);
+      this->event_manager->schedule_event(EventType::CoolDown, this->cooldown, this->id, 0);
     } else if (this->cooldown == 0) {
       // No cooldown, try to start converting again immediately
       this->maybe_start_converting();
@@ -128,12 +128,27 @@ public:
     this->maybe_start_converting();
   }
 
-  void update_inventory(InventoryItem item, short amount) override {
-    HasInventory::update_inventory(item, amount);
+  int update_inventory(InventoryItem item, short amount) override {
+    int delta = HasInventory::update_inventory(item, amount);
     this->maybe_start_converting();
+    return delta;
   }
 
-  void obs(ObsType* obs, const std::vector<unsigned int>& offsets) const override {
+  virtual vector<PartialObservationToken> obs_features() const override {
+    vector<PartialObservationToken> features;
+    features.push_back({ObservationFeatureId::TypeId, _type_id});
+    features.push_back({ObservationFeatureId::Hp, hp});
+    features.push_back({ObservationFeatureId::Color, color});
+    features.push_back({ObservationFeatureId::ConvertingOrCoolingDown, this->converting || this->cooling_down});
+    for (uint8_t i = 0; i < InventoryItem::InventoryCount; i++) {
+      if (inventory[i] > 0) {
+        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
+      }
+    }
+    return features;
+  }
+
+  void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = this->hp;
     obs[offsets[2]] = this->color;

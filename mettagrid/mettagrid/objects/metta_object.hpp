@@ -10,14 +10,10 @@ typedef std::map<std::string, int> ObjectConfig;
 
 class MettaObject : public GridObject {
 public:
-  unsigned int hp;
+  uint8_t hp;
 
   void init_mo(ObjectConfig cfg) {
     this->hp = cfg["hp"];
-  }
-
-  virtual bool has_inventory() {  // TODO: make const
-    return false;
   }
 
   virtual bool swappable() const {

@@ -7,7 +7,7 @@
 
 #include "../grid_object.hpp"
 
-enum Events {
+enum class EventType {
   FinishConverting = 0,
   CoolDown = 1
 };
@@ -16,6 +16,25 @@ enum GridLayer {
   Agent_Layer = 0,
   Object_Layer = 1
 };
+
+// Changing observation feature ids will break models that have
+// been trained on the old feature ids.
+// In the future, the string -> id mapping should be stored on a
+// per-policy basis.
+namespace ObservationFeatureId {
+enum ObservationFeature : uint8_t {
+  TypeId = 1,
+  Group = 2,
+  Hp = 3,
+  Frozen = 4,
+  Orientation = 5,
+  Color = 6,
+  ConvertingOrCoolingDown = 7,
+  Swappable = 8,
+};
+}  // namespace ObservationFeatureId
+
+const uint8_t InventoryFeatureOffset = 100;
 
 // There should be a one-to-one mapping between ObjectType and ObjectTypeNames.
 // ObjectTypeName is mostly used for human-readability, but may be used as a key
@@ -43,6 +62,8 @@ const std::vector<std::string> ObjectTypeNames =
     {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"};
 
 enum InventoryItem {
+  // These are "ore.red", etc everywhere else. They're differently named here because
+  // of enum naming limitations.
   ore_red = 0,
   ore_blue = 1,
   ore_green = 2,

@@ -111,7 +111,10 @@ class EpisodeStatsDB:
         self,
         episode_id: str,
         attributes: Dict[str, str],
+<<<<<<< HEAD
         agent_to_group: Dict[int, int],
+=======
+>>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
         agent_metrics: Dict[int, Dict[str, float]],
         step_count: int,
         replay_url: str | None,
@@ -138,6 +141,7 @@ class EpisodeStatsDB:
                 attribute_rows,
             )
 
+<<<<<<< HEAD
         group_rows = []
         for agent_id, group_id in agent_to_group.items():
             group_rows.append((episode_id, group_id, agent_id))
@@ -152,6 +156,8 @@ class EpisodeStatsDB:
                 group_rows,
             )
 
+=======
+>>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
         self._add_metrics(episode_id, agent_metrics, "agent")
 
         self.con.commit()

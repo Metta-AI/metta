@@ -1,9 +1,10 @@
-# Generate a graphical trace of multiple runs.
+# Generate a replay file that can be used in MettaScope to visualize a single run.
 
 import platform
 import webbrowser
 
 import hydra
+from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import Simulation
@@ -17,6 +18,7 @@ from mettagrid.util.file import http_url
 
 # TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayJob(Config):
+    __init__ = Config.__init__
     sim: SingleEnvSimulationConfig
     policy_uri: str
     selector_type: str
@@ -29,10 +31,10 @@ def main(cfg):
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
-    logger = setup_mettagrid_logger("replay")
-    logger.info(f"Replaying {cfg.run}")
+    logger = setup_mettagrid_logger("metta.tools.replay")
+    logger.info(f"Replay job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
-    with WandbContext(cfg) as wandb_run:
+    with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         replay_job = ReplayJob(cfg.replay_job)
         policy_record = policy_store.policy(replay_job.policy_uri)

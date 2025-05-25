@@ -11,7 +11,7 @@ fi
 
 # Check if ruff is installed
 if ! command -v ruff &> /dev/null; then
-    echo "Error: ruff is not installed. Please install it with 'pip install ruff'."
+    echo "Error: ruff is not installed. Please install it with 'uv tool install ruff'."
     exit 1
 fi
 

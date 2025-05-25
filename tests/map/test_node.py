@@ -141,24 +141,6 @@ def run_multiple_iterations(func, iterations=10):
     return result
 
 
-def test_benchmark_area_creation(benchmark, node):
-    """Benchmark the creation of a new area."""
-
-    def create_area():
-        return node.make_area(2, 2, 2, 2, tags=["benchmark_tag"])
-
-    # Function that runs multiple iterations
-    def run_area_creation():
-        return run_multiple_iterations(create_area, iterations=10)
-
-    # Use the benchmark fixture directly
-    area = benchmark(run_area_creation)
-
-    # Verify it worked correctly
-    assert area.id is not None
-    assert "benchmark_tag" in area.tags
-
-
 def test_benchmark_select_by_tag(benchmark, node):
     """Benchmark selecting areas by tag."""
 

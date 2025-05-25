@@ -26,18 +26,14 @@ def _create_worker_db(path: Path, sim_steps: int = 0) -> str:
 
     episode_id = str(uuid.uuid4())
     attributes = {"seed": "0", "map_w": "1", "map_h": "1"}
-    groups = [[0]]
     agent_metrics = {0: {"reward": 1.0}}
-    group_metrics = {0: {"reward": 1.0}}
     replay_url = None
     created_at = datetime.datetime.now()
 
     db.record_episode(
         episode_id,
         attributes,
-        groups,
         agent_metrics,
-        group_metrics,
         sim_steps,
         replay_url,
         created_at,

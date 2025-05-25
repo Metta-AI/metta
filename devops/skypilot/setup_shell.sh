@@ -1,7 +1,4 @@
-export AWS_PROFILE=softmax-db-admin
-
-#sky
-alias sky=".venv/skypilot/bin/sky"
+export AWS_PROFILE=softmax
 
 # list jobs
 alias jq="sky jobs queue --skip-finished"
@@ -19,4 +16,4 @@ alias jll='sky jobs logs $(jq | grep -A1 TASK | grep -v TASK | awk "{print \$1}"
 alias jllc='sky jobs logs --controller $(jq | grep -A1 TASK | grep -v TASK | awk "{print \$1}")'
 
 # launch training
-alias lt="./devops/skypilot/launch.sh train"
+alias lt="./devops/skypilot/launch.py train"

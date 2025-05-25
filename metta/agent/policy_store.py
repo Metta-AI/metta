@@ -54,6 +54,11 @@ class PolicyRecord:
             self._local_path = pr.local_path()
         return self._policy
 
+    def expected_observation_channels(self) -> int:
+        policy = self.policy()
+        cnn1_weight = policy.get_parameter("components.cnn1._net.0.weight")
+        return cnn1_weight.shape[1]
+
     def num_params(self):
         return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
 
@@ -484,7 +489,7 @@ class PolicyStore:
                     modules_queue.append(submodule_name)
 
     def _load_from_puffer(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        policy = load_policy(path, self._device)
+        policy = load_policy(path, self._device, puffer=self._cfg.puffer)
         name = os.path.basename(path)
         pr = PolicyRecord(
             self,
