@@ -70,12 +70,15 @@ class SimulationSuite:
                 successful_simulations += 1
 
             except SimulationCompatibilityError as e:
-                logger.warning("Skipping simulation '%s' due to compatibility issue: %s", name, str(e))
-                continue
-            except Exception as e:
-                logger.error("Unexpected error in simulation '%s': %s", name, str(e))
-                # You can decide whether to continue or re-raise based on your needs
-                continue
+                # Only skip for NPC-related compatibility issues
+                error_msg = str(e).lower()
+                if "npc" in error_msg or "non-player" in error_msg:
+                    logger.warning("Skipping simulation '%s' due to NPC compatibility issue: %s", name, str(e))
+                    continue
+                else:
+                    # Re-raise for non-NPC compatibility issues
+                    logger.error("Critical compatibility error in simulation '%s': %s", name, str(e))
+                    raise
 
         if successful_simulations == 0:
             raise RuntimeError("No simulations could be run successfully")
