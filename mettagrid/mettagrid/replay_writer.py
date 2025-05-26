@@ -4,8 +4,8 @@ import json
 import zlib
 
 import numpy as np
-from mettagrid_env import MettaGridEnv
 
+from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.util.file import http_url, write_data
 
 
