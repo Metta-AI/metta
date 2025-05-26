@@ -189,7 +189,7 @@ jobs:
     if: false
     # if: |
     #   (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
-    needs: [graphite-ci-optimizer, setup-checks, setup-py]
+    needs: [graphite-ci-optimizer, setup-checks]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
