@@ -17,7 +17,7 @@ plotly==6.1.1
 pixie-python==4.3.0
 pydantic==2.11.5
 pynvml==11.5.3
-pyright==1.1.400
+pyright==1.1.401
 pytest-benchmark==5.1.0
 pytest-cov==6.1.1
 pytest==8.3.3
