@@ -169,6 +169,12 @@ When reviewing code, focus on:
 
 When creating PRs (triggered by @claude open-pr):
 
+### Intelligent Branch Targeting
+The workflow automatically determines the appropriate base branch:
+- **From PR Comments**: New branches are created from the current PR's branch
+- **From Issue Comments**: New branches are created from the main branch
+- **Example**: If you comment `@claude open-pr` in PR #657 (branch: `robb/0525-agent-type-changes`), Claude will create a new branch based on `robb/0525-agent-type-changes`, not main
+
 ### Branch Naming Convention
 - Use descriptive branch names with prefixes:
   - `feature/add-type-safety` - New functionality
