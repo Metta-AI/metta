@@ -51,5 +51,7 @@ jobs:
             - Use GitHub's suggestion format so users can directly commit them
             - Only remove the comment, leaving the actual code unchanged
             - If a multi-line comment should be removed, show the complete removal
-            
+
             Be polite and constructive in your feedback. Explain that these are suggestions that the developer can choose to accept or ignore.
+
+            At the end of your PR comment, include a short **TLDR** section. This section should be easy to copy and paste into another LLM and concisely list each recommended change. Use one bullet per suggestion and mention the file and line number when possible.
