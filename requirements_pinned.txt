@@ -1,4 +1,4 @@
-boto3==1.38.19
+boto3==1.38.23
 colorama==0.4.6
 duckdb==1.2.0
 einops==0.8.1
