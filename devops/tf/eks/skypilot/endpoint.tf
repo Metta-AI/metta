@@ -38,12 +38,3 @@ resource "aws_route53_record" "skypilot_api" {
 
   records = [local.lb_hostname]
 }
-
-resource "aws_route53_record" "skypilot_api" {
-  zone_id = aws_route53_zone.main.zone_id
-  name    = var.subdomain
-  type    = "CNAME"
-  ttl     = 60
-
-  records = [local.lb_hostname]
-}
