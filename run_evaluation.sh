@@ -4,28 +4,14 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-    "breadcrumb_daphne_multiagent_training"
-    "b.daphne.multiagent_training_pretrained"
-    "b.daphne.multiagent_training2"
-    "onlyred_daphne_multiagent_training"
-    "b.daphne.multiagent_training_8agents_onlyred"
-    "b.daphne.multiagent_training_4agents_onlyred"
-    "b.daphne.multiagent_training_4agents"
-    "4agents_daphne_multiagent_training"
-    "8agents_daphne_multiagent_training"
-    "b.daphne.multiagent_training"
-    "b.daphne.multiagent_training_8agents"
-    "b.daphne.objectuse_training_breadcrumb"
-    "b.daphne.objectuse_training_breadcrumb_sm"
-    "b.daphne.objectuse_training_breadcrumb_pretrained_sm"
-    "b.daphne.objectuse_training_breadcrumb_pretrained"
-    "b.daphne.multiagent_training_breadcrumb"
-    "b.daphne.multiagent_training_breadcrumb_pretrained"
-    "b.daphne.multiagent_training_breadcrumb_sm"
-    "b.daphne.multiagent_training_breadcrumb_pretrained_sm"
-    "b.daphne.32_multiagent_training"
-    "b.daphne.32_multiagent_training_pretrained"
-    "32agents_daphne_multiagent_training"
+    "b.daphne.objectuse"
+    "b.daphne.navigation_objectuse_sp"
+    "b.daphne.multiagent_8"
+    "b.daphne.npc_simple"
+    "objectuse"
+    "navigation"
+    "b.daphne.objectuse_sp"
+    "b.daphne.navigation_sp"
 )
 #!/bin/bash
 
