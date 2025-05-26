@@ -704,7 +704,8 @@ class Context3d {
     this.ensureMeshSelected();
 
     if (!this.atlasData?.[imageName]) {
-      throw new Error(`Image "${imageName}" not found in atlas`);
+      console.error(`Image "${imageName}" not found in atlas`);
+      return;
     }
 
     const [sx, sy, sw, sh] = this.atlasData[imageName]; // Source x, y, width, height from atlas.
