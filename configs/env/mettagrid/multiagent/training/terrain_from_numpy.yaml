@@ -28,12 +28,12 @@ game:
       heart_max: 1000
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 1
+    num_rooms: 4
     border_width: 6
     room:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: ${sampling:1,6,3}
-      agents: 32
+      agents: 8
       objects:
         mine.red: ${sampling:0,20,10}
         # mine.blue: ${sampling:0,5,10}

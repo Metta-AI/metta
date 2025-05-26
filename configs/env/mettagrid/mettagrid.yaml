@@ -19,7 +19,11 @@ game:
     default_item_max: ${sampling:0, 100, 50}
     # the agent should be able to pick up as many hearts as they want, even if
     # "normal" item limits are lower
-    heart_max: 255
+    heart_max: 15
+    ore.red_max: ${sampling:3, 20, 10}
+    ore.blue_max: ${sampling:3, 20, 10}
+    ore.green_max: ${sampling:3, 20, 10}
+    battery_max: ${sampling:5, 20, 10}
     freeze_duration: ${sampling:0, 200, 10}
     hp: 10
     rewards:
