@@ -45,5 +45,13 @@
       "strings": true
     },
     "editor.autoIndent": "keep"
-  }
+  },
+  "[terraform]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "editor.codeActionsOnSave": {
+      "source.formatAll.terraform": "explicit"
+    },
+  },
+  "cmake.ignoreCMakeListsMissing": true
 }
