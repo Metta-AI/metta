@@ -1,0 +1,10 @@
+_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+
+num_agents: 4
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/navigation/training/multienv
+  - /env/mettagrid/object_use/training/multienv
