@@ -1,0 +1,105 @@
+name: Claude PR Assistant
+on:
+  issue_comment:
+    types: [created]  # Triggers when someone comments on an issue or PR
+
+jobs:
+  claude-response:
+    # Only run if the comment mentions @claude
+    if: contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for accurate diffs
+
+      # Determine if this is a PR creation request
+      - name: Check for open-pr flag
+        id: check_flag
+        run: |
+          if echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
+            echo "create_pr=true" >> $GITHUB_OUTPUT
+            echo "Found open-pr flag - will create PR"
+          else
+            echo "create_pr=false" >> $GITHUB_OUTPUT
+            echo "No open-pr flag - will reply with comment"
+          fi
+
+      # Standard Claude response (comment reply)
+      - name: Claude Comment Response
+        if: steps.check_flag.outputs.create_pr == 'false'
+        uses: anthropics/claude-code-action@beta
+        with:
+          prompt: "${{ github.event.comment.body }}"
+          allowed_tools: [
+            # Git inspection commands (read-only)
+            "Bash(git status)",
+            "Bash(git log)",
+            "Bash(git show)",
+            "Bash(git blame)",
+            "Bash(git reflog)",
+            "Bash(git stash list)",
+            "Bash(git ls-files)",
+            "Bash(git branch)",
+            "Bash(git tag)",
+            "Bash(git diff)",
+            # File exploration tools
+            "View", "GlobTool", "GrepTool", "BatchTool"
+          ]
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: 10
+          timeout_minutes: 10
+
+      # Enhanced Claude for PR creation
+      - name: Claude PR Creation
+        if: steps.check_flag.outputs.create_pr == 'true'
+        uses: anthropics/claude-code-action@beta
+        with:
+          prompt: |
+            The user requested: ${{ github.event.comment.body }}
+            
+            This is a PR creation request (they used @claude open-pr). Please:
+            1. Analyze the current issue/PR context and user's request
+            2. Create a new branch with a descriptive name
+            3. Implement the requested changes
+            4. Open a pull request with:
+               - Clear title describing the changes
+               - Detailed description of what was implemented
+               - Reference to the original issue/PR if applicable
+            
+            Context from the current issue/PR:
+            - Issue/PR Number: ${{ github.event.issue.number || github.event.pull_request.number }}
+            - Title: ${{ github.event.issue.title || github.event.pull_request.title }}
+            - Body: ${{ github.event.issue.body || github.event.pull_request.body }}
+            
+          allowed_tools: [
+            # Git commands for branch creation and PR management
+            "Bash(git checkout -b *)",
+            "Bash(git add *)",
+            "Bash(git commit *)",
+            "Bash(git push *)",
+            
+            # Git inspection commands
+            "Bash(git status)",
+            "Bash(git log)",
+            "Bash(git show)",
+            "Bash(git blame)",
+            "Bash(git diff)",
+            "Bash(git branch)",
+            "Bash(git ls-files)",
+            
+            # File manipulation tools
+            "View",        # Read file contents
+            "Editor",      # Edit files
+            "GlobTool",    # Find files by pattern
+            "GrepTool",    # Search file contents
+            "BatchTool",   # Run multiple tools in parallel
+            
+            # GitHub API tools (if available)
+            "CreatePullRequest",
+            "GitHub"
+          ]
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: 20  # More turns for complex PR creation
+          timeout_minutes: 15
