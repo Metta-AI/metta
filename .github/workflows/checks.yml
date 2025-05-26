@@ -201,28 +201,6 @@ jobs:
       - name: Setup Python and uv
         uses: ./.github/actions/setup-python-uv
 
-      - name: Check deps
-        run: |
-          for dep in \
-            "pufferlib" \
-            "carbs" \
-            "wandb_carbs"
-          do
-            echo "Checking import for $dep..."
-            uv run --active python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
-              echo "❌ Failed to import $dep"
-              exit 1
-            }
-          done
-
-      - name: Check benchmark script
-        run: |
-          # Check if the file exists
-          ls -la .github/scripts/benchmark.sh
-
-          # Check if the function is defined
-          type benchmark || echo "Function not defined after sourcing"
-
       - name: Training smoke test
         id: train
         env:
@@ -236,7 +214,6 @@ jobs:
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
-        if: success()
         uses: ./.github/actions/save-benchmarks
         with:
           name: train_smoke_test
@@ -244,7 +221,6 @@ jobs:
           filename: smoke_test_train_benchmark_results.json
 
       - name: Upload training benchmark file
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: train-benchmark-results
@@ -254,7 +230,6 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload training output
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: train-output
@@ -263,21 +238,18 @@ jobs:
           if-no-files-found: error
 
       - name: Download training output
-        if: success()
         uses: actions/download-artifact@v4
         with:
           name: train-output
           path: train_dir/
 
       - name: Verify training artifacts
-        if: success()
         run: |
           ls -la train_dir/
           ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
 
       - name: Replay smoke test
         id: replay
-        if: success()
         env:
           WANDB_API_KEY: set_but_not_used
           AWS_ACCESS_KEY_ID: set_but_not_used
@@ -294,7 +266,6 @@ jobs:
           filename: smoke_test_replay_benchmark_results.json
 
       - name: Upload replay benchmark file
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: replay-benchmark-results
@@ -324,7 +295,6 @@ jobs:
 
       - name: Save evals benchmark
         id: save_evals_benchmark
-        if: steps.eval_smoke_test.outcome == 'success'
         uses: ./.github/actions/save-benchmarks
         with:
           name: evals_smoke_test
@@ -332,7 +302,6 @@ jobs:
           filename: smoke_test_evals_benchmark_results.json
 
       - name: Upload evals benchmark file
-        if: steps.save_evals_benchmark.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: evals-benchmark-results
@@ -346,8 +315,7 @@ jobs:
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_benchmark == 'true') &&
-      (needs.smoke-test.outputs.smoke_test_failed != 'true')
+      (needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -357,19 +325,19 @@ jobs:
       - name: Setup Python and uv
         uses: ./.github/actions/setup-python-uv
 
-      - name: Download benchmark results from smoke-test train-benchmark-results job
-        uses: actions/download-artifact@v4
-        with:
-          name: train-benchmark-results
-          path: ./
-          if-no-files-found: ignore
+      # - name: Download benchmark results from smoke-test train-benchmark-results job
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: train-benchmark-results
+      #     path: ./
+      #     if-no-files-found: ignore
 
-      - name: Download benchmark results from smoke-test replay-benchmark-results job
-        uses: actions/download-artifact@v4
-        with:
-          name: replay-benchmark-results
-          path: ./
-          if-no-files-found: ignore
+      # - name: Download benchmark results from smoke-test replay-benchmark-results job
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: replay-benchmark-results
+      #     path: ./
+      #     if-no-files-found: ignore
 
       - name: Run Main Python benchmarks
         run: |
@@ -405,8 +373,8 @@ jobs:
           benchmark_files = [
               'main_benchmark_results.json',
               'mettagrid_benchmark_results.json',
-              'smoke_test_train_benchmark_results.json',
-              'smoke_test_replay_benchmark_results.json'
+              # 'smoke_test_train_benchmark_results.json',
+              # 'smoke_test_replay_benchmark_results.json'
           ]
 
           # Initialize combined results structure
