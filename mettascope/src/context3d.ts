@@ -884,10 +884,6 @@ class Context3d {
     }
   }
 
-  flushMesh(): void {
-    this.flush();
-  }
-
   // Helper method to generate mipmaps for a texture.
   generateMipmaps(texture: GPUTexture, width: number, height: number): void {
     // Don't try to generate mipmaps if the device doesn't support it.
