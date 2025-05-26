@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mettagrid.mettagrid_env import MettaGridEnv
+
 import json
 import zlib
 
 import numpy as np
 
-from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.util.file import http_url, write_data
 
 
