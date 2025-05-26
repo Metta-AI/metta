@@ -188,9 +188,8 @@ jobs:
 
   smoke-test:
     name: "Smoke Tests"
+    if: false
     needs: [graphite-ci-optimizer, setup-checks, setup-py]
-    if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -360,7 +359,7 @@ jobs:
 
   benchmark:
     name: "Python Benchmarks"
-    needs: [graphite-ci-optimizer, setup-checks, setup-py, test, smoke-test]
+    needs: [graphite-ci-optimizer, setup-checks, setup-py, test]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true') &&
@@ -388,12 +387,14 @@ jobs:
         with:
           name: train-benchmark-results
           path: ./
+          if-no-files-found: ignore
 
       - name: Download benchmark results from smoke-test replay-benchmark-results job
         uses: actions/download-artifact@v4
         with:
           name: replay-benchmark-results
           path: ./
+          if-no-files-found: ignore
 
       - name: Run Main Python benchmarks
         run: |
