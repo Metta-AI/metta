@@ -24,7 +24,7 @@ FetchContent_MakeAvailable(googlebenchmark)
 
 # # ========================= TESTS =========================
 
-# 1) Enable CTest
+# Enable CTest
 enable_testing()
 
 # Get Python base prefix for proper runtime configuration
@@ -33,47 +33,49 @@ execute_process(
   OUTPUT_VARIABLE PYTHONHOME
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
+# Helper function to build tests and benchmarks.
+function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
+         LINK_LIBS # semicolon-separated list of target names
+         TEST_TYPE # "test" or "benchmark"
+)
+  file(GLOB_RECURSE sources CONFIGURE_DEPENDS ${GLOB_PATTERN})
 
-# 2) Compile & register all tests
-file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS "tests/*.cpp")
+  foreach(src IN LISTS sources)
+    get_filename_component(output_name ${src} NAME_WE)
+    get_filename_component(src_dir ${src} DIRECTORY)
 
-set(PYBIND11_TESTS test_mettagrid)
+    # Mirror source subdir under build tree.
+    # Note: this is a precaution against name collisions under `tests/` and `benchmarks/` dirs.
+    # But it's not enough since we still can get duplicate target names in cmake
+    # (since they don't include the full dir path).
+    file(RELATIVE_PATH rel_dir "${CMAKE_SOURCE_DIR}" "${src_dir}")
+    set(output_dir "${CMAKE_BINARY_DIR}/${rel_dir}")
+    file(MAKE_DIRECTORY "${output_dir}")
 
-foreach(test_src IN LISTS TEST_SOURCES)
-  get_filename_component(test_name ${test_src} NAME_WE)
-  get_filename_component(test_src_dir ${test_src} DIRECTORY)
+    add_executable(${output_name} ${src} $<TARGET_OBJECTS:mettagrid_obj>)
 
-  add_executable(${test_name} ${test_src} $<TARGET_OBJECTS:mettagrid_obj>)
+    target_include_directories(${output_name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mettagrid" ${NUMPY_INCLUDE_DIR})
 
-  target_include_directories(${test_name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mettagrid" ${NUMPY_INCLUDE_DIR})
+    target_link_libraries(${output_name} PRIVATE ${LINK_LIBS})
 
-  # All tests need Python linking since they use mettagrid_obj which contains pybind11 code
-  target_link_libraries(${test_name} PRIVATE pybind11::pybind11 Python3::Python GTest::gtest GTest::gtest_main)
+    set_target_properties(${output_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${output_dir}")
 
-  # Pass Python base prefix for runtime configuration
-  add_test(NAME ${test_name} COMMAND ${test_name} --gtest_color=yes)
-  set_tests_properties(${test_name} PROPERTIES
-    ENVIRONMENT "PYTHONHOME=${PYTHONHOME}"
-  )
+    if(TEST_TYPE STREQUAL "test")
+      add_test(NAME ${output_name} COMMAND ${output_name} --gtest_color=yes)
+      set_tests_properties(${output_name} PROPERTIES ENVIRONMENT "PYTHONHOME=${PYTHONHOME}" LABELS "test")
+    elseif(TEST_TYPE STREQUAL "benchmark")
+      add_test(NAME ${output_name} COMMAND ${output_name})
+      set_tests_properties(${output_name} PROPERTIES ENVIRONMENT "PYTHONHOME=${PYTHONHOME}" LABELS "benchmark")
+    else()
+      message(FATAL_ERROR "Invalid test type: ${TEST_TYPE}")
+    endif()
+  endforeach()
+endfunction()
 
-  set_target_properties(${test_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${test_src_dir}")
-endforeach()
+# Build tests
+mettagrid_add_tests("${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
+                      "pybind11::pybind11;Python3::Python;GTest::gtest;GTest::gtest_main" "test")
 
-# 3) Compile all benchmarks under benchmarks/
-file(GLOB_RECURSE BENCH_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.cpp")
-
-foreach(bench_src IN LISTS BENCH_SOURCES)
-
-  get_filename_component(bench_name ${bench_src} NAME_WE)
-  get_filename_component(bench_src_dir ${bench_src} DIRECTORY)
-
-  add_executable(${bench_name} ${bench_src} $<TARGET_OBJECTS:mettagrid_obj>)
-
-  target_include_directories(${bench_name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mettagrid" ${NUMPY_INCLUDE_DIR})
-
-  target_link_libraries(${bench_name} PRIVATE pybind11::pybind11 Python3::Python benchmark::benchmark
-                                              benchmark::benchmark_main)
-
-  set_target_properties(${bench_name} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${bench_src_dir}")
-
-endforeach()
+# Build benchmarks
+mettagrid_add_tests("${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.cpp"
+                      "pybind11::pybind11;Python3::Python;benchmark::benchmark;benchmark::benchmark_main" "benchmark")

@@ -179,8 +179,9 @@ jobs:
         run: |
           source .venv/bin/activate
           cd mettagrid
-          make
-          make test
+          cmake --preset debug
+          cmake --build build-debug
+          ctest --test-dir build-debug -L test
 
   smoke-test:
     name: "Smoke Tests"
@@ -672,14 +673,15 @@ jobs:
         run: |
           source .venv/bin/activate
           cd mettagrid
-          make
+          cmake --preset release
+          cmake --build build-release
 
       - name: Run benchmarks with JSON output
         working-directory: mettagrid
         run: |
           mkdir -p benchmark_output
           echo "Running benchmarks with JSON output..."
-          for f in benchmarks/*_benchmark; do
+          for f in build-release/benchmarks/*_benchmark; do
             echo "Running $f"
             "$f" --benchmark_format=json >benchmark_output/$(basename $f).json
           done

@@ -12,8 +12,7 @@ option(BUILD_TESTS "Build C++ unit tests and benchmarks" OFF)
 # ========================= METTAGRID =========================
 
 set(PYBIND11_FINDPYTHON ON)
-set(pybind11_DIR
-    "../.venv/lib/python3.11/site-packages/pybind11/share/cmake/pybind11")
+set(pybind11_DIR "../.venv/lib/python3.11/site-packages/pybind11/share/cmake/pybind11")
 find_package(pybind11 CONFIG REQUIRED)
 find_package(
   Python3
@@ -29,8 +28,7 @@ target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11 Python3::Python)
 
 target_include_directories(mettagrid_obj PUBLIC ${NUMPY_INCLUDE_DIR} "mettagrid")
 
-target_compile_definitions(mettagrid_obj
-                           PUBLIC "NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION")
+target_compile_definitions(mettagrid_obj PUBLIC "NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION")
 
 target_compile_options(mettagrid_obj PUBLIC "-fvisibility=hidden")
 
