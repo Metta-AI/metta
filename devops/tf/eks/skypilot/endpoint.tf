@@ -22,9 +22,6 @@ resource "aws_ssm_parameter" "skypilot_api_url" {
 
 removed {
   from = aws_route53_zone.main
-  lifecycle {
-    destroy = false
-  }
 }
 
 # get the zone (created in ../dns.tf)
