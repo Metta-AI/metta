@@ -85,7 +85,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:1, 20, 10}
-      initial_items: 1
+      initial_items: ${choose:0,0,0,0,1}
 
     mine.red:
       hp: 30
@@ -122,7 +122,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:0, 50, 25}
-      initial_items: 1
+      initial_items: ${choose:0,0,0,0,1}
 
     generator.blue:
       hp: 30
@@ -132,7 +132,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:0, 50, 25}
-      initial_items: 1
+      initial_items: ${choose:0,0,0,0,1}
 
     generator.green:
       hp: 30
@@ -142,7 +142,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:0, 50, 25}
-      initial_items: 1
+      initial_items: ${choose:0,0,0,0,1}
 
     armory:
       hp: 30
@@ -193,7 +193,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:0, 10, 5}
-      initial_items: 1
+      initial_items: ${choose:0,0,0,0,1}
 
     wall:
       hp: ${sampling:1, 20, 10}
