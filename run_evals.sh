@@ -52,7 +52,7 @@ if [ "$1" = "smoke_test" ]; then
   #       that scores well on that eval family, and add it here.
   #   ... because you're adding a new eval family on which we can't score well, please add the new eval
   #       family after the smoke test terminates.
-  POLICIES=("b.daphne.navigation0:v12")
+  POLICIES=("navigation")
   # We try to be as deterministic as possible, but this turns out to be less deterministic than we'd like.
   # Use device=cpu since we're probably on github. We should probably address this via
   # hardware=..., but for the most part this shouldn't matter for eval.
