@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=80", "wheel", "numpy==2.2.5", "pybind11==2.10.4"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core", "wheel", "numpy==2.2.5", "pybind11==2.10.4"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "mettagrid"
@@ -20,12 +20,11 @@ keywords = [
     "gym",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["mettagrid*"]
-
-[tool.setuptools.package-data]
-"mettagrid" = ["*.pyx", "*.pxd", "*.hpp", "*.cpp", "*.so"]
+[tool.scikit-build]
+# `release-no-tests` is faster than `release` preset.
+# `pip install` builds are done in isolated environment, so tests and benchmarks are not built here.
+# See `./README.md` for more details.
+cmake.args = ["--preset", "release-no-tests"]
 
 # Configuring pytest here causes us to ignore metta/conftest.py
 
