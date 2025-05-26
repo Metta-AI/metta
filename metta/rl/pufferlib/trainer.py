@@ -370,7 +370,8 @@ class PufferTrainer:
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
 
                 o_device = o.to(self.device, non_blocking=True)
-                actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
+                results = policy(o_device, state)
+                actions, selected_action_log_probs, _, value, _ = results[:5]
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "collected_log_probs")
@@ -476,9 +477,17 @@ class PufferTrainer:
 
                 with profile.train_forward:
                     # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
-                    _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
-                        obs, lstm_state, action=atn
-                    )
+                    results = self.policy(obs, lstm_state, action=atn)
+                    (
+                        _,
+                        new_action_log_probs,
+                        entropy,
+                        newvalue,
+                        full_log_probs_distribution,
+                        *rest,
+                    ) = results
+                    next_obs_mean = rest[0] if len(rest) > 0 else None
+                    next_obs_var = rest[1] if len(rest) > 1 else None
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
@@ -526,6 +535,18 @@ class PufferTrainer:
                         self.agent_step, full_log_probs_distribution, newvalue, obs, teacher_lstm_state
                     )
 
+                    obs_ce_loss = torch.tensor(0.0, device=self.device)
+                    if next_obs_mean is not None and next_obs_var is not None:
+                        B = experience.minibatch_rows
+                        T = experience.bptt_horizon
+                        mean = next_obs_mean.view(B, T, *next_obs_mean.shape[1:])
+                        var = next_obs_var.view(B, T, *next_obs_var.shape[1:])
+                        target = obs[:, 1:]
+                        mean = mean[:, :-1]
+                        var = var[:, :-1]
+                        var = torch.clamp(var, min=1e-6)
+                        obs_ce_loss = (0.5 * ((target - mean) ** 2 / var + torch.log(var))).mean()
+
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
                         l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
@@ -542,6 +563,7 @@ class PufferTrainer:
                         + l2_init_loss
                         + ks_action_loss
                         + ks_value_loss
+                        + obs_ce_loss
                     )
 
                 with profile.learn:
@@ -570,6 +592,7 @@ class PufferTrainer:
                     self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
                     self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
                     self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                    self.losses.obs_ce_loss += obs_ce_loss.item() / total_minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
@@ -787,6 +810,7 @@ class PufferTrainer:
             l2_init_loss=0,
             ks_action_loss=0,
             ks_value_loss=0,
+            obs_ce_loss=0,
         )
 
     def _make_vecenv(self):

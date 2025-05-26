@@ -311,6 +311,11 @@ class MettaAgent(nn.Module):
         self.components["_action_"](td)
         logits = td["_action_"]
 
+        next_obs_pred = None
+        if "_next_obs_" in self.components:
+            self.components["_next_obs_"](td)
+            next_obs_pred = td["_next_obs_"]
+
         if __debug__:
             # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
             assert_shape(logits, ("BT", "A"), "logits")
@@ -325,9 +330,14 @@ class MettaAgent(nn.Module):
         state.lstm_c = td["state"][split_size:]
 
         if action is None:
-            return self.forward_inference(value, logits)
+            outputs = self.forward_inference(value, logits)
         else:
-            return self.forward_training(value, logits, action)
+            outputs = self.forward_training(value, logits, action)
+
+        if next_obs_pred is not None:
+            mean, var = next_obs_pred
+            return (*outputs, mean, var)
+        return outputs
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """
