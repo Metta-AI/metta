@@ -97,21 +97,23 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           prompt: "${{ github.event.comment.body }}"
-          allowed_tools: [
+          allowed_tools:
             # Git inspection commands (read-only)
-            "Bash(git status)",
-            "Bash(git log)",
-            "Bash(git show)",
-            "Bash(git blame)",
-            "Bash(git reflog)",
-            "Bash(git stash list)",
-            "Bash(git ls-files)",
-            "Bash(git branch)",
-            "Bash(git tag)",
-            "Bash(git diff)",
+            - "Bash(git status)"
+            - "Bash(git log)"
+            - "Bash(git show)"
+            - "Bash(git blame)"
+            - "Bash(git reflog)"
+            - "Bash(git stash list)"
+            - "Bash(git ls-files)"
+            - "Bash(git branch)"
+            - "Bash(git tag)"
+            - "Bash(git diff)"
             # File exploration tools
-            "View", "GlobTool", "GrepTool", "BatchTool"
-          ]
+            - "View"
+            - "GlobTool"
+            - "GrepTool"
+            - "BatchTool"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           max_turns: 10
           timeout_minutes: 10
@@ -144,34 +146,33 @@ jobs:
             - Title: ${{ steps.context.outputs.title }}
             - Body: ${{ steps.context.outputs.body }}
             
-          allowed_tools: [
+          allowed_tools:
             # Git commands for branch creation and PR management
-            "Bash(git checkout -b *)",
-            "Bash(git add *)",
-            "Bash(git commit *)",
-            "Bash(git push *)",
+            - "Bash(git checkout -b *)"
+            - "Bash(git add *)"
+            - "Bash(git commit *)"
+            - "Bash(git push *)"
             
             # Git inspection commands
-            "Bash(git status)",
-            "Bash(git log)",
-            "Bash(git show)",
-            "Bash(git blame)",
-            "Bash(git diff)",
-            "Bash(git branch)",
-            "Bash(git ls-files)",
+            - "Bash(git status)"
+            - "Bash(git log)"
+            - "Bash(git show)"
+            - "Bash(git blame)"
+            - "Bash(git diff)"
+            - "Bash(git branch)"
+            - "Bash(git ls-files)"
             
             # File manipulation tools
-            "View",        # Read file contents
-            "Editor",      # Edit files
-            "GlobTool",    # Find files by pattern
-            "GrepTool",    # Search file contents
-            "BatchTool",   # Run multiple tools in parallel
+            - "View"        # Read file contents
+            - "Editor"      # Edit files
+            - "GlobTool"    # Find files by pattern
+            - "GrepTool"    # Search file contents
+            - "BatchTool"   # Run multiple tools in parallel
             
             # GitHub API tools (via GitHub CLI)
-            "Bash(gh pr create --title '*' --body '*')",
-            "Bash(gh pr view *)",
-            "Bash(gh api *)"
-          ]
+            - "Bash(gh pr create --title '*' --body '*')"
+            - "Bash(gh pr view *)"
+            - "Bash(gh api *)"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           max_turns: 20  # More turns for complex PR creation
           timeout_minutes: 15
