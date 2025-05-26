@@ -213,32 +213,26 @@ class Mesh {
     this.currentQuad += 1;
   }
 
-  // Get the current number of quads
   getQuadCount(): number {
     return this.currentQuad;
   }
 
-  // Get the vertex data for upload to GPU
   getVertexData(): Float32Array {
     return this.vertexData;
   }
 
-  // Get the number of vertices currently in use
   getCurrentVertexCount(): number {
     return this.currentVertex;
   }
 
-  // Get the vertex buffer
   getVertexBuffer(): GPUBuffer | null {
     return this.vertexBuffer;
   }
 
-  // Get the index buffer
   getIndexBuffer(): GPUBuffer | null {
     return this.indexBuffer;
   }
 
-  // Reset counters after rendering
   resetCounters(): void {
     this.currentQuad = 0;
     this.currentVertex = 0;
@@ -336,7 +330,6 @@ class Context3d {
     }
   }
 
-  // Transform manipulation methods
   save(): void {
     // Push a copy of the current transform onto the stack
     this.transformStack.push(new Mat3f(
@@ -356,24 +349,20 @@ class Context3d {
   }
 
   translate(x: number, y: number): void {
-    // Create a translation matrix and multiply current transform by it
     const translateMatrix = Mat3f.translate(x, y);
     this.currentTransform = this.currentTransform.mul(translateMatrix);
   }
 
   rotate(angle: number): void {
-    // Create a rotation matrix and multiply current transform by it
     const rotateMatrix = Mat3f.rotate(angle);
     this.currentTransform = this.currentTransform.mul(rotateMatrix);
   }
 
   scale(x: number, y: number): void {
-    // Create a scaling matrix and multiply current transform by it
     const scaleMatrix = Mat3f.scale(x, y);
     this.currentTransform = this.currentTransform.mul(scaleMatrix);
   }
 
-  // Reset transform to identity
   resetTransform(): void {
     this.currentTransform = Mat3f.identity();
   }
@@ -709,7 +698,7 @@ class Context3d {
       return;
     }
 
-    const [sx, sy, sw, sh] = this.atlasData[imageName]; // Source x, y, width, height from atlas.
+    const [sx, sy, sw, sh] = this.atlasData[imageName];
     const m = this.atlasMargin;
 
     // Calculate UV coordinates (normalized 0.0 to 1.0).
@@ -895,7 +884,6 @@ class Context3d {
     }
   }
 
-  // Alias for flush (for backward compatibility)
   flushMesh(): void {
     this.flush();
   }
