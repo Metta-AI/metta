@@ -1,4 +1,3 @@
-# mettagrid/mettagrid_env.py
 from __future__ import annotations
 
 import copy
@@ -19,7 +18,7 @@ from mettagrid.stats_writer import StatsWriter
 
 
 def required(func):
-    """Marker for properties/methods required by parent class."""
+    """Marks methods that PufferEnv requires but does not implement for override."""
     return func
 
 
@@ -83,7 +82,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # self._env = RewardTracker(self._env)
 
     @override
-    def reset(self, seed=None, options=None):
+    def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
@@ -100,7 +99,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return obs, infos
 
     @override
-    def step(self, actions):
+    def step(self, actions: list[list[int]]) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         self.actions[:] = np.array(actions).astype(np.uint32)
 
         if self._replay_writer:
