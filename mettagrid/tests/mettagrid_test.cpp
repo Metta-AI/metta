@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
+#include <pybind11/embed.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+
+#include <cstdlib>
 
 #include "actions/attack.hpp"
 #include "actions/get_output.hpp"
@@ -15,13 +18,15 @@ namespace py = pybind11;
 class MettaGridTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    // Initialize Python interpreter
-    Py_Initialize();
+    // Initialize Python interpreter if not already initialized
+    if (!Py_IsInitialized()) {
+      Py_Initialize();
+    }
   }
 
   void TearDown() override {
-    // Finalize Python interpreter
-    Py_Finalize();
+    // Note: We don't finalize Python here as it may be used by other tests
+    // Py_Finalize() can cause issues when called multiple times
   }
 
   // Helper function to create test configurations for agent/object tests
@@ -212,6 +217,9 @@ protected:
 
     return actions;
   }
+
+private:
+  py::scoped_interpreter guard{};  // Keep Python alive for the duration of the test
 };
 
 // ==================== Agent and Object Tests ====================
@@ -434,7 +442,7 @@ TEST_F(MettaGridTest, GetOutput) {
   agent->update_inventory(InventoryItem::ore_red, 1);
   EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);
 
-  // Create put_recipe_items action handler
+  // Create get_output action handler
   ActionConfig get_cfg;
   GetOutput get(get_cfg);
   get.init(&grid);
