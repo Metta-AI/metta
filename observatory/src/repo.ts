@@ -14,6 +14,12 @@ export type HeatmapData = {
   evalMaxScores: Map<string, number>;
 }
 
+/**
+ * Interface for data fetching.
+ * 
+ * Currently the data is loaded from a pre-computed JSON file.
+ * In the future, we will fetch the data from an API.
+ */
 export interface Repo {  
   getMetrics(): Promise<string[]>;
   getSuites(): Promise<string[]>;

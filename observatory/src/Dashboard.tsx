@@ -3,72 +3,8 @@ import { HeatmapData, Repo } from "./repo";
 import { MapViewer } from "./MapViewer";
 import { Heatmap } from "./Heatmap";
 
-// CSS for map viewer
-const MAP_VIEWER_CSS = `
-.map-viewer {
-    position: relative;
-    width: 1000px;
-    margin: 20px auto;
-    padding: 15px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    background: #f9f9f9;
-    min-height: 300px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-.map-viewer-title {
-    font-weight: bold;
-    text-align: center;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #eee;
-    font-size: 18px;
-}
-.map-viewer-img {
-    max-width: 100%;
-    max-height: 350px;
-    display: block;
-    margin: 0 auto;
-}
-.map-viewer-placeholder {
-    text-align: center;
-    color: #666;
-    padding: 50px 0;
-    font-style: italic;
-}
-.map-viewer-controls {
-    display: flex;
-    justify-content: center;
-    margin-top: 15px;
-    gap: 10px;
-}
-.map-button {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 5px 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #fff;
-    cursor: pointer;
-    font-size: 14px;
-}
-.map-button svg {
-    width: 14px;
-    height: 14px;
-}
-.map-button.locked {
-    background: #f0f0f0;
-    border-color: #aaa;
-}
-.map-button:hover {
-    background: #f0f0f0;
-}
-.map-button.disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
+// CSS for dashboard
+const DASHBOARD_CSS = `
 /* Tab styles */
 .suite-tabs {
   display: flex;
@@ -198,7 +134,7 @@ export function Dashboard({ repo }: DashboardProps) {
         background: "#f8f9fa",
       }}
     >
-      <style>{MAP_VIEWER_CSS}</style>
+      <style>{DASHBOARD_CSS}</style>
       <div
         style={{
           maxWidth: "1200px",
