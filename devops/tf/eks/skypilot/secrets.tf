@@ -9,7 +9,7 @@ data "aws_secretsmanager_secret_version" "lambda_ai_secret_version" {
 resource "kubernetes_secret" "lambda_ai_secret" {
   metadata {
     name = "lambda-ai-credentials"
-    namespace = var.namespace
+    namespace = "skypilot"
   }
 
   data = jsondecode(data.aws_secretsmanager_secret_version.lambda_ai_secret_version.secret_string)
