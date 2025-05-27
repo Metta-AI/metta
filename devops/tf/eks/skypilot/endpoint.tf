@@ -21,8 +21,8 @@ resource "aws_ssm_parameter" "skypilot_api_url" {
 }
 
 data "aws_route53_zone" "main" {
-  name = var.zone_domain
-  id   = "Z03090461BEBKPEGZIZ63" # tmp
+  name    = var.zone_domain
+  zone_id = "Z03090461BEBKPEGZIZ63" # tmp
 }
 
 resource "aws_route53_record" "skypilot_api" {
