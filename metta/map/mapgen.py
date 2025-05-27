@@ -1,3 +1,5 @@
+from typing import TypeAlias
+
 import numpy as np
 import numpy.typing as npt
 
@@ -5,7 +7,7 @@ from mettagrid.room.room import Room
 
 from .scene import SceneCfg, make_scene
 
-MapGrid = npt.NDArray[np.str_]
+MapGrid: TypeAlias = npt.NDArray[np.str_]
 
 
 # Root map generator, based on nodes.
