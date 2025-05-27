@@ -13,7 +13,7 @@ public:
   vector<unsigned char> inventory;
 
   void init_has_inventory(ObjectConfig cfg) {
-    this->inventory.resize(InventoryItem::InventoryCount);
+    this->inventory.resize(InventoryItem::InventoryItemCount);
   }
 
   // Whether the inventory is accessible to an agent.

@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "grid_object.hpp"
+#include "objects/constants.hpp"
 
 using namespace std;
 typedef vector<vector<vector<GridObjectId>>> GridType;
@@ -22,10 +23,17 @@ public:
 
   inline Grid(unsigned int width, unsigned int height, vector<Layer> layer_for_type_id)
       : width(width), height(height), layer_for_type_id(layer_for_type_id) {
-    num_layers = layer_for_type_id.size();
+    ValidateConstants();  // Add this line
+    num_layers = GridLayer::GridLayerCount;
+
+    for (const auto& layer : layer_for_type_id) {
+      if (layer < 0 || layer >= num_layers) {
+        throw std::invalid_argument("Layer ID " + std::to_string(layer) + " is out of bounds [0, " +
+                                    std::to_string(num_layers) + ")");
+      }
+    }
 
     grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(this->num_layers, 0)));
-
     // 0 is reserved for empty space
     objects.push_back(nullptr);
   }

@@ -2,28 +2,22 @@
 #define CONSTANTS_HPP
 
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
 #include "../grid_object.hpp"
 
-enum class EventType {
+enum EventType {
   FinishConverting = 0,
-  CoolDown = 1
+  CoolDown = 1,
+  EventTypeCount
 };
 
-// Updated to have unique layers for each object type
 enum GridLayer {
   Agent_Layer = 0,
-  Wall_Layer = 1,
-  Mine_Layer = 2,
-  Generator_Layer = 3,
-  Altar_Layer = 4,
-  Armory_Layer = 5,
-  Lasery_Layer = 6,
-  Lab_Layer = 7,
-  Factory_Layer = 8,
-  Temple_Layer = 9
+  Object_Layer = 1,
+  GridLayerCount
 };
 
 // Changing observation feature ids will break models that have
@@ -39,7 +33,7 @@ enum ObservationFeature : uint8_t {
   Orientation = 5,
   Color = 6,
   ConvertingOrCoolingDown = 7,
-  Swappable = 8,
+  Swappable = 8
 };
 }  // namespace ObservationFeatureId
 
@@ -64,7 +58,7 @@ enum ObjectType {
   FactoryT = 8,
   TempleT = 9,
   GenericConverterT = 10,
-  Count = 11
+  ObjectTypeCount
 };
 
 const std::vector<std::string> ObjectTypeNames =
@@ -81,22 +75,38 @@ enum InventoryItem {
   armor = 5,
   laser = 6,
   blueprint = 7,
-  InventoryCount = 8
+  InventoryItemCount
 };
 
 const std::vector<std::string> InventoryItemNames =
     {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"};
 
+// Runtime validation function
+inline void ValidateConstants() {
+  static bool validated = false;
+  if (!validated) {
+    if (ObjectTypeNames.size() != ObjectTypeCount) {
+      throw std::logic_error("ObjectTypeNames size (" + std::to_string(ObjectTypeNames.size()) +
+                             ") does not match ObjectTypeCount (" + std::to_string(ObjectTypeCount) + ")");
+    }
+    if (InventoryItemNames.size() != InventoryItemCount) {
+      throw std::logic_error("InventoryItemNames size (" + std::to_string(InventoryItemNames.size()) +
+                             ") does not match InventoryItemCount (" + std::to_string(InventoryItemCount) + ")");
+    }
+    validated = true;
+  }
+}
+
 // Updated ObjectLayers to assign unique layer to each object type
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
-                                                  {ObjectType::WallT, GridLayer::Wall_Layer},
-                                                  {ObjectType::MineT, GridLayer::Mine_Layer},
-                                                  {ObjectType::GeneratorT, GridLayer::Generator_Layer},
-                                                  {ObjectType::AltarT, GridLayer::Altar_Layer},
-                                                  {ObjectType::ArmoryT, GridLayer::Armory_Layer},
-                                                  {ObjectType::LaseryT, GridLayer::Lasery_Layer},
-                                                  {ObjectType::LabT, GridLayer::Lab_Layer},
-                                                  {ObjectType::FactoryT, GridLayer::Factory_Layer},
-                                                  {ObjectType::TempleT, GridLayer::Temple_Layer}};
+                                                  {ObjectType::WallT, GridLayer::Object_Layer},
+                                                  {ObjectType::MineT, GridLayer::Object_Layer},
+                                                  {ObjectType::GeneratorT, GridLayer::Object_Layer},
+                                                  {ObjectType::AltarT, GridLayer::Object_Layer},
+                                                  {ObjectType::ArmoryT, GridLayer::Object_Layer},
+                                                  {ObjectType::LaseryT, GridLayer::Object_Layer},
+                                                  {ObjectType::LabT, GridLayer::Object_Layer},
+                                                  {ObjectType::FactoryT, GridLayer::Object_Layer},
+                                                  {ObjectType::TempleT, GridLayer::Object_Layer}};
 
 #endif
