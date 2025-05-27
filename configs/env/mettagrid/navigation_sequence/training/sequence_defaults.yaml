@@ -34,7 +34,6 @@ game:
       border_width: 6
       agents: 1
       style: ???
-      num_triplets: ${sampling:30,75,50}
   objects:
       altar:
         input_battery: 1
