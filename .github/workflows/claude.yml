@@ -8,6 +8,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
+  id-token: write
 
 jobs:
   claude-response:
@@ -26,182 +27,60 @@ jobs:
           git config --global user.name "Claude Assistant"
           git config --global user.email "claude-assistant@users.noreply.github.com"
 
-      - name: Authenticate GitHub CLI
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-      - name: Parse comment and set context
-        id: context
+      - name: Check for PR creation request
+        id: check_action
         run: |
-          # Create context directory for better organization
-          mkdir -p /tmp/claude-context
-          
-          # Check if this is a PR creation request
           if echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
             echo "action=create_pr" >> $GITHUB_OUTPUT
           else
             echo "action=comment" >> $GITHUB_OUTPUT
           fi
-          
-          # Set basic context
-          echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
-          
-          # Write complex content to files with proper quoting to handle all edge cases
-          cat << 'TITLE_EOF' > /tmp/claude-context/issue_title.txt
-          ${{ github.event.issue.title }}
-          TITLE_EOF
-          
-          cat << 'BODY_EOF' > /tmp/claude-context/issue_body.txt
-          ${{ github.event.issue.body }}
-          BODY_EOF
-          
-          cat << 'COMMENT_EOF' > /tmp/claude-context/comment_body.txt
-          ${{ github.event.comment.body }}
-          COMMENT_EOF
-          
-          # Store file paths in outputs for later steps
-          echo "title_file=/tmp/claude-context/issue_title.txt" >> $GITHUB_OUTPUT
-          echo "body_file=/tmp/claude-context/issue_body.txt" >> $GITHUB_OUTPUT
-          echo "comment_file=/tmp/claude-context/comment_body.txt" >> $GITHUB_OUTPUT
-          
-          # Determine if this is a PR comment and set base branch
-          if [ "${{ github.event.issue.pull_request }}" != "" ]; then
-            echo "is_pr_comment=true" >> $GITHUB_OUTPUT
-            # Get PR branch info using GitHub CLI with robust error handling
-            if command -v gh >/dev/null 2>&1; then
-              if PR_DATA=$(gh pr view ${{ github.event.issue.number }} --json headRefName 2>/dev/null); then
-                BASE_BRANCH=$(echo "$PR_DATA" | jq -r '.headRefName // "main"')
-                echo "Successfully fetched PR branch: $BASE_BRANCH"
-              else
-                echo "Warning: Could not fetch PR data, using main as base branch"
-                BASE_BRANCH="main"
-              fi
-            else
-              echo "Warning: GitHub CLI not available, using main as base branch"
-              BASE_BRANCH="main"
-            fi
-            echo "base_branch=$BASE_BRANCH" >> $GITHUB_OUTPUT
-          else
-            echo "is_pr_comment=false" >> $GITHUB_OUTPUT
-            echo "base_branch=main" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Checkout base branch for PR creation
-        if: steps.context.outputs.action == 'create_pr'
-        run: |
-          echo "Base branch for new PR: ${{ steps.context.outputs.base_branch }}"
-          if [ "${{ steps.context.outputs.is_pr_comment }}" == "true" ]; then
-            echo "Creating new PR from existing PR branch: ${{ steps.context.outputs.base_branch }}"
-            if git fetch origin ${{ steps.context.outputs.base_branch }} 2>/dev/null; then
-              git checkout ${{ steps.context.outputs.base_branch }}
-              echo "Successfully checked out PR branch"
-            else
-              echo "Warning: Could not fetch PR branch, falling back to main"
-              git checkout main
-            fi
-          else
-            echo "Creating new PR from main branch"
-            git checkout main
-            git pull origin main || echo "Warning: Could not pull latest main, continuing with local main"
-          fi
-          echo "Current branch: $(git branch --show-current)"
-          echo "Latest commit: $(git log --oneline -1)"
 
       - name: Claude Comment Response
-        if: steps.context.outputs.action == 'comment'
+        if: steps.check_action.outputs.action == 'comment'
         uses: anthropics/claude-code-action@beta
         with:
-          prompt: |
-            User request from comment: $(cat ${{ steps.context.outputs.comment_file }})
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_model: "claude-3-5-sonnet-20241022"
+          allowed_tools: "View,GlobTool,GrepTool,BatchTool,Bash(git status),Bash(git log --oneline -10),Bash(git show),Bash(git blame *),Bash(git diff *),Bash(git branch -a),Bash(git ls-files),Bash(find . -name '*' -type f)"
+          direct_prompt: |
+            User request from comment: ${{ github.event.comment.body }}
             
             Context:
-            - Issue/PR #${{ steps.context.outputs.number }}
-            - Title: $(cat ${{ steps.context.outputs.title_file }})
-            - Issue/PR Body: $(cat ${{ steps.context.outputs.body_file }})
+            - Issue/PR #${{ github.event.issue.number }}
+            - Title: ${{ github.event.issue.title }}
             
             Please analyze the request and provide a helpful response using the available tools.
-          allowed_tools: |
-            Bash(git status)
-            Bash(git log --oneline -10)
-            Bash(git show)
-            Bash(git blame *)
-            Bash(git diff *)
-            Bash(git branch -a)
-            Bash(git ls-files)
-            Bash(find . -name "*" -type f)
-            View
-            GlobTool
-            GrepTool
-            BatchTool
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          max_turns: 10
-          timeout_minutes: 8
+            Review the code, answer questions, or provide guidance as requested.
 
       - name: Claude PR Creation
-        if: steps.context.outputs.action == 'create_pr'
+        if: steps.check_action.outputs.action == 'create_pr'
         uses: anthropics/claude-code-action@beta
         with:
-          prompt: |
-            PR Creation Request from comment: $(cat ${{ steps.context.outputs.comment_file }})
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_model: "claude-3-5-sonnet-20241022"
+          allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,BatchTool,Bash(git checkout -b *),Bash(git add .),Bash(git add *),Bash(git commit -m *),Bash(git push origin *),Bash(git push -u origin *),Bash(git status),Bash(git diff),Bash(git diff --cached),Bash(git log --oneline -5),Bash(git branch),Bash(find . -name '*' -type f -not -path './.git/*'),Bash(ls -la),Bash(cat *)"
+          direct_prompt: |
+            PR Creation Request: ${{ github.event.comment.body }}
             
             Context:
-            - Source: ${{ steps.context.outputs.is_pr_comment == 'true' && 'PR Comment' || 'Issue Comment' }}
-            - Issue/PR #${{ steps.context.outputs.number }}
-            - Title: $(cat ${{ steps.context.outputs.title_file }})
-            - Issue/PR Body: $(cat ${{ steps.context.outputs.body_file }})
-            - Base Branch: ${{ steps.context.outputs.base_branch }}
+            - Issue/PR #${{ github.event.issue.number }}
+            - Title: ${{ github.event.issue.title }}
+            - This is a ${{ github.event.issue.pull_request && 'PR comment' || 'issue comment' }}
             
             Instructions:
-            1. Create a descriptive branch name (e.g., feature/description-of-change)
-            2. Implement the requested changes
-            3. Commit with clear, conventional commit messages
-            4. Push the branch
-            5. Create a PR with:
-               - Simple, descriptive title (no special chars)
-               - Clear description of changes
-               - Reference to original issue/PR
+            1. Understand the request and analyze the current codebase
+            2. Create a new branch with a descriptive name (e.g., feature/description-of-change)
+            3. Implement the requested changes with proper code quality
+            4. Commit changes with clear, conventional commit messages
+            5. Push the branch to origin
+            6. The action will automatically create a PR for the changes
             
-            Important: Use 'gh pr create' without complex flags. Keep titles and descriptions simple.
-          allowed_tools: |
-            Bash(git checkout -b *)
-            Bash(git add .)
-            Bash(git add *)
-            Bash(git commit -m *)
-            Bash(git push origin *)
-            Bash(git push -u origin *)
-            Bash(git status)
-            Bash(git diff)
-            Bash(git diff --cached)
-            Bash(git log --oneline -5)
-            Bash(git branch)
-            Bash(git remote -v)
-            Bash(gh pr create)
-            Bash(gh pr create --title *)
-            Bash(gh pr create --body *)
-            Bash(gh pr create --draft)
-            Bash(gh pr list)
-            Bash(gh repo view)
-            View
-            Editor
-            GlobTool
-            GrepTool
-            BatchTool
-            Bash(find . -name "*" -type f -not -path "./.git/*")
-            Bash(ls -la)
-            Bash(cat *)
-            Bash(head -20 *)
-            Bash(tail -20 *)
-            Bash(wc -l *)
-            Bash(file *)
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          max_turns: 25
-          timeout_minutes: 12
-
-      - name: Handle workflow errors
-        if: failure()
-        run: |
-          echo "Workflow failed. Check the logs above for details."
-          echo "Common issues:"
-          echo "- Authentication problems"
-          echo "- Git configuration issues" 
-          echo "- Invalid branch names or commit messages"
-          echo "- GitHub CLI formatting problems"
+            Follow these steps:
+            1. First examine the codebase to understand the current state
+            2. Create and checkout a new feature branch
+            3. Make the necessary code changes
+            4. Test that your changes don't break existing functionality
+            5. Commit and push your changes
+            
+            Keep commits focused and use clear commit messages that explain what was changed and why.
