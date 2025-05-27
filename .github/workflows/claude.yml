@@ -1,0 +1,86 @@
+name: Claude PR Assistant
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  claude-response:
+    if: contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "Claude Assistant"
+          git config --global user.email "claude-assistant@users.noreply.github.com"
+
+      - name: Check for PR creation request
+        id: check_action
+        run: |
+          if echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
+            echo "action=create_pr" >> $GITHUB_OUTPUT
+          else
+            echo "action=comment" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Claude Comment Response
+        if: steps.check_action.outputs.action == 'comment'
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_model: "claude-3-5-sonnet-20241022"
+          allowed_tools: "View,GlobTool,GrepTool,BatchTool,Bash(git status),Bash(git log --oneline -10),Bash(git show),Bash(git blame *),Bash(git diff *),Bash(git branch -a),Bash(git ls-files),Bash(find . -name '*' -type f)"
+          direct_prompt: |
+            User request from comment: ${{ github.event.comment.body }}
+            
+            Context:
+            - Issue/PR #${{ github.event.issue.number }}
+            - Title: ${{ github.event.issue.title }}
+            
+            Please analyze the request and provide a helpful response using the available tools.
+            Review the code, answer questions, or provide guidance as requested.
+
+      - name: Claude PR Creation
+        if: steps.check_action.outputs.action == 'create_pr'
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_model: "claude-3-5-sonnet-20241022"
+          allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,BatchTool,Bash(git checkout -b *),Bash(git add .),Bash(git add *),Bash(git commit -m *),Bash(git push origin *),Bash(git push -u origin *),Bash(git status),Bash(git diff),Bash(git diff --cached),Bash(git log --oneline -5),Bash(git branch),Bash(find . -name '*' -type f -not -path './.git/*'),Bash(ls -la),Bash(cat *)"
+          direct_prompt: |
+            PR Creation Request: ${{ github.event.comment.body }}
+            
+            Context:
+            - Issue/PR #${{ github.event.issue.number }}
+            - Title: ${{ github.event.issue.title }}
+            - This is a ${{ github.event.issue.pull_request && 'PR comment' || 'issue comment' }}
+            
+            Instructions:
+            1. Understand the request and analyze the current codebase
+            2. Create a new branch with a descriptive name (e.g., feature/description-of-change)
+            3. Implement the requested changes with proper code quality
+            4. Commit changes with clear, conventional commit messages
+            5. Push the branch to origin
+            6. The action will automatically create a PR for the changes
+            
+            Follow these steps:
+            1. First examine the codebase to understand the current state
+            2. Create and checkout a new feature branch
+            3. Make the necessary code changes
+            4. Test that your changes don't break existing functionality
+            5. Commit and push your changes
+            
+            Keep commits focused and use clear commit messages that explain what was changed and why.
