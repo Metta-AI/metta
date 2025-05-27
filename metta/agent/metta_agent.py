@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import gymnasium as gym
 import hydra
@@ -48,13 +48,16 @@ class DistributedMettaAgent(DistributedDataParallel):
         except AttributeError:
             return getattr(self.module, name)
 
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
+        return self.module.activate_actions(action_names, action_max_params, device)
+
 
 class MettaAgent(nn.Module):
     def __init__(
         self,
         obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
         action_space: gym.spaces.Space,
-        grid_features: List[str],
+        grid_features: list[str],
         device: str,
         **cfg,
     ):
@@ -173,7 +176,9 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
-    def forward_inference(self, value: torch.Tensor, logits: torch.Tensor):
+    def forward_inference(
+        self, value: torch.Tensor, logits: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass for inference mode - samples new actions based on the policy.
 
@@ -210,7 +215,9 @@ class MettaAgent(nn.Module):
 
         return action, action_log_prob, entropy, value, log_probs
 
-    def forward_training(self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor):
+    def forward_training(
+        self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass for training mode - evaluates the policy on provided actions.
 
@@ -249,7 +256,9 @@ class MettaAgent(nn.Module):
 
         return action, action_log_prob, entropy, value, log_probs
 
-    def forward(self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None):
+    def forward(
+        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass of the MettaAgent - delegates to appropriate specialized method.
 
@@ -375,7 +384,7 @@ class MettaAgent(nn.Module):
 
         return action
 
-    def _apply_to_components(self, method_name, *args, **kwargs) -> List[torch.Tensor]:
+    def _apply_to_components(self, method_name, *args, **kwargs) -> list[torch.Tensor]:
         """
         Apply a method to all components, collecting and returning the results.
 
@@ -431,7 +440,7 @@ class MettaAgent(nn.Module):
         if self.clip_range > 0:
             self._apply_to_components("clip_weights")
 
-    def compute_weight_metrics(self, delta: float = 0.01) -> List[dict]:
+    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for all components that have weights enabled for analysis.
         Returns a list of metric dictionaries, one per component. Set analyze_weights to True in the config to turn it
         on for a given component."""
