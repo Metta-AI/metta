@@ -6,8 +6,8 @@ from gymnasium.spaces import Box, MultiDiscrete
 
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.tests.actions import generate_valid_random_actions
 from mettagrid.util.hydra import get_cfg
+from tests.actions import generate_valid_random_actions
 
 # Rebuild the NumPy types using the exposed function
 np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))

@@ -3,8 +3,8 @@ import pytest
 from omegaconf import OmegaConf
 
 from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.tests.actions import generate_valid_random_actions
 from mettagrid.util.hydra import get_cfg
+from tests.actions import generate_valid_random_actions
 
 
 @pytest.fixture
