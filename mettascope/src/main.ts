@@ -273,7 +273,6 @@ export function onFrame() {
   }
 
   ctx.flush();
-  console.log("Flushed ctx.");
 
   // Update URL parameters with current state once per frame
   updateUrlParams();
