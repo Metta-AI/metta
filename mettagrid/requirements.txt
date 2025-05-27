@@ -1,1 +1,4 @@
-../requirements.txt
+numpy>=1.20.0
+pybind11>=2.6.0
+pip
+setuptools

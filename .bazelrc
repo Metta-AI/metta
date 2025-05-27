@@ -1,0 +1,4 @@
+build --cxxopt=-std=c++20
+build --cxxopt=-fvisibility=hidden
+build --linkopt=-std=c++20
+common --enable_bzlmod

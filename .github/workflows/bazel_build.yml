@@ -1,0 +1,31 @@
+name: "Run C++ tests with Bazel"
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  push:
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
+
+jobs:
+  build-bazel:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: bazel-contrib/setup-bazel@0.14.0
+        with:
+          # Avoid downloading Bazel every time.
+          bazelisk-cache: true
+          # Store build cache per workflow.
+          disk-cache: ${{ github.workflow }}
+          # Share repository cache between workflows.
+          repository-cache: true
+
+      - name: Run
+        run: |
+          bazel test --test_output=all //mettagrid:all_cpp_tests

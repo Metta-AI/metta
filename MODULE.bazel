@@ -1,0 +1,27 @@
+module(
+    name = "metta_grid",
+)
+
+bazel_dep(name = "pybind11_bazel", version = "2.13.6")
+bazel_dep(name = "rules_python", version = "1.4.1")
+bazel_dep(name = "googletest", version = "1.17.0")
+bazel_dep(name = "google_benchmark", version = "1.9.2")
+
+PYTHON_VERSION = "3.12"
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.defaults(
+    python_version = PYTHON_VERSION,
+)
+python.toolchain(
+    configure_coverage_tool = True,
+    python_version = PYTHON_VERSION,
+)
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "reqs",
+    python_version = PYTHON_VERSION,
+    requirements_lock = "//mettagrid:requirements.txt",
+)
+
+use_repo(pip, "reqs")
