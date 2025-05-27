@@ -15,7 +15,7 @@ from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
-from metta.util import validate_arg_types
+from mettagrid.util import validate_arg_types
 
 
 def required(func):
