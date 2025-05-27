@@ -97,21 +97,21 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           prompt: "${{ github.event.comment.body }}"
-          allowed_tools:
-            - "Bash(git status)"
-            - "Bash(git log)"
-            - "Bash(git show)"
-            - "Bash(git blame)"
-            - "Bash(git reflog)"
-            - "Bash(git stash list)"
-            - "Bash(git ls-files)"
-            - "Bash(git branch)"
-            - "Bash(git tag)"
-            - "Bash(git diff)"
-            - "View"
-            - "GlobTool"
-            - "GrepTool"
-            - "BatchTool"
+          allowed_tools: |
+            Bash(git status)
+            Bash(git log)
+            Bash(git show)
+            Bash(git blame)
+            Bash(git reflog)
+            Bash(git stash list)
+            Bash(git ls-files)
+            Bash(git branch)
+            Bash(git tag)
+            Bash(git diff)
+            View
+            GlobTool
+            GrepTool
+            BatchTool
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           max_turns: 10
           timeout_minutes: 10
@@ -144,26 +144,26 @@ jobs:
             - Title: ${{ steps.context.outputs.title }}
             - Body: ${{ steps.context.outputs.body }}
             
-          allowed_tools:
-            - "Bash(git checkout -b *)"
-            - "Bash(git add *)"
-            - "Bash(git commit *)"
-            - "Bash(git push *)"
-            - "Bash(git status)"
-            - "Bash(git log)"
-            - "Bash(git show)"
-            - "Bash(git blame)"
-            - "Bash(git diff)"
-            - "Bash(git branch)"
-            - "Bash(git ls-files)"
-            - "View"
-            - "Editor"
-            - "GlobTool"
-            - "GrepTool"
-            - "BatchTool"
-            - "Bash(gh pr create --title '*' --body '*')"
-            - "Bash(gh pr view *)"
-            - "Bash(gh api *)"
+          allowed_tools: |
+            Bash(git checkout -b *)
+            Bash(git add *)
+            Bash(git commit *)
+            Bash(git push *)
+            Bash(git status)
+            Bash(git log)
+            Bash(git show)
+            Bash(git blame)
+            Bash(git diff)
+            Bash(git branch)
+            Bash(git ls-files)
+            View
+            Editor
+            GlobTool
+            GrepTool
+            BatchTool
+            Bash(gh pr create --title '*' --body '*')
+            Bash(gh pr view *)
+            Bash(gh api *)
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           max_turns: 20
           timeout_minutes: 15
