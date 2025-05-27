@@ -5,15 +5,15 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/simple
+  env: /env/mettagrid/terrain_from_numpy
   evaluate_interval: 200
-  optimizer:
-    type: muon
-  env_overrides:
-    sampling: 0.7
-    game:
-      num_agents: 36
-      max_steps: 1000
+  # optimizer:
+  #   type: muon
+  # env_overrides:
+  #   sampling: 0.7
+  #   game:
+  #     num_agents: 36
+  #     max_steps: 1000
 
 # policy_uri: puffer:///tmp/puffer_metta.pt
 policy_uri: wandb://run/daveey.dist.2x4
@@ -34,10 +34,11 @@ analyzer:
 
 replay_job:
   sim:
-    env: /env/mettagrid/terrain_from_numpy
+    env: /env/mettagrid/ants
     env_overrides:
       game:
-        max_steps: 10
+        max_steps: 300
+      sampling: 1
 
 sim_job:
   # policy_agents_pct: 1
@@ -53,10 +54,8 @@ sim_job:
   #         agents: 4
   #       num_rooms: 4
 
-wandb:
-  checkpoint_interval: 1
 
-run_id: 20
+run_id: 21
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 
