@@ -28,7 +28,8 @@ py::array_t<float> compute_gae(
   }
 
   // Initialize advantage array
-  auto advantages = py::array_t<float>({static_cast<ssize_t>(num_steps)}, {sizeof(float)});
+  auto advantages =
+      py::array_t<float>({static_cast<ssize_t>(num_steps)}, {sizeof(float)});
   auto buf_adv = advantages.mutable_unchecked<1>();
 
   if (buf_dones(num_steps - 1) == 1.0f) {
