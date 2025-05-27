@@ -1,4 +1,4 @@
-_target_: metta.env.mettagrid_env_set.MettaGridEnvSet
+_target_: metta.env.mettagrid_env_set.SamplingPrioritizedEnvSet
 
 num_agents: 4
 sampling: 1
