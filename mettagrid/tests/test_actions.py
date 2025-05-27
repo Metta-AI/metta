@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.tests.actions import (
+from tests.actions import (
     Orientation,
     get_agent_position,
     move,
