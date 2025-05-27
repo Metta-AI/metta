@@ -441,6 +441,9 @@ window.addEventListener('drop', handleDrop, false);
 
 // Header area
 html.shareButton.addEventListener('click', onShareButtonClick);
+html.helpButton.addEventListener('click', () => {
+  window.open("https://github.com/treeform/metta/blob/main/mettascope/README.md", "_blank");
+});
 
 // Bottom area
 html.scrubber.addEventListener('input', onScrubberChange);

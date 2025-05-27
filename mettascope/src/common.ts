@@ -95,6 +95,7 @@ export const html = {
 
   // Header area
   fileName: find('#file-name') as HTMLDivElement,
+  helpButton: find('#help-button') as HTMLButtonElement,
   shareButton: find('#share-button') as HTMLButtonElement,
 
   // Bottom area
