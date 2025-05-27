@@ -7,6 +7,6 @@ game:
   num_agents: ${..num_agents}
 
 envs:
-  - /env/mettagrid/cooperation/training/central_table_layout
-  - /env/mettagrid/cooperation/training/confined_room_coord
+  # - /env/mettagrid/cooperation/training/central_table_layout
+  # - /env/mettagrid/cooperation/training/confined_room_coord
   - /env/mettagrid/cooperation/training/two_rooms_coord
