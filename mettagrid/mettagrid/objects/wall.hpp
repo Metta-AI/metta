@@ -13,7 +13,7 @@ public:
   bool _swappable;
 
   Wall(GridCoord r, GridCoord c, ObjectConfig cfg) {
-    GridObject::init(ObjectType::WallT, GridLocation(r, c, GridLayer::Object_Layer));
+    GridObject::init(ObjectType::WallT, GridLocation(r, c));
     MettaObject::init_mo(cfg);
     this->_swappable = cfg["swappable"];
   }

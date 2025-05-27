@@ -134,11 +134,7 @@ TEST_F(MettaGridTest, AttackAction) {
   EXPECT_EQ(attacker->orientation, Orientation::Up);
 
   // Create a grid and add the agents to it. Then set up an attack action handler and call it.
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
   grid.add_object(attacker);
   grid.add_object(target);
 
@@ -176,11 +172,7 @@ TEST_F(MettaGridTest, PutRecipeItems) {
   agent->init(&reward);
 
   // Create a grid and add the agent
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
   grid.add_object(agent);
 
   // Create a generator that takes red ore and outputs batteries
@@ -237,11 +229,7 @@ TEST_F(MettaGridTest, GetOutput) {
   agent->init(&reward);
 
   // Create a grid and add the agent
-  std::vector<Layer> layer_for_type_id;
-  for (const auto& layer : ObjectLayers) {
-    layer_for_type_id.push_back(layer.second);
-  }
-  Grid grid(10, 10, layer_for_type_id);
+  Grid grid(10, 10);
   grid.add_object(agent);
 
   // Create a generator that takes red ore and outputs batteries
