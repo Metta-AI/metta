@@ -31,7 +31,7 @@ public:
 };
 
 // Benchmark initializing a GridLocation object
-static void BM_GridLocationCreation(benchmark::State& state) {
+static void BM_GridLocationCreation(benchmark::State& state) {  // NOLINT(runtime/references)
   for (auto _ : state) {
     GridLocation loc(10, 20, 1);
     benchmark::DoNotOptimize(&loc);
@@ -41,7 +41,7 @@ static void BM_GridLocationCreation(benchmark::State& state) {
 BENCHMARK(BM_GridLocationCreation);
 
 // Benchmark initializing a GridObject with GridLocation
-static void BM_GridObjectInitWithLocation(benchmark::State& state) {
+static void BM_GridObjectInitWithLocation(benchmark::State& state) {  // NOLINT(runtime/references)
   for (auto _ : state) {
     TestGridObject obj;
     GridLocation loc(10, 20, 1);
@@ -53,7 +53,7 @@ static void BM_GridObjectInitWithLocation(benchmark::State& state) {
 BENCHMARK(BM_GridObjectInitWithLocation);
 
 // Benchmark initializing a GridObject with coordinates
-static void BM_GridObjectInitWithCoordinates(benchmark::State& state) {
+static void BM_GridObjectInitWithCoordinates(benchmark::State& state) {  // NOLINT(runtime/references)
   for (auto _ : state) {
     TestGridObject obj;
     obj.init(5, 10, 20);
@@ -64,7 +64,7 @@ static void BM_GridObjectInitWithCoordinates(benchmark::State& state) {
 BENCHMARK(BM_GridObjectInitWithCoordinates);
 
 // Benchmark initializing a GridObject with coordinates and layer
-static void BM_GridObjectInitWithCoordinatesAndLayer(benchmark::State& state) {
+static void BM_GridObjectInitWithCoordinatesAndLayer(benchmark::State& state) {  // NOLINT(runtime/references)
   for (auto _ : state) {
     TestGridObject obj;
     obj.init(5, 10, 20, 1);
@@ -75,7 +75,7 @@ static void BM_GridObjectInitWithCoordinatesAndLayer(benchmark::State& state) {
 BENCHMARK(BM_GridObjectInitWithCoordinatesAndLayer);
 
 // Benchmark the performance of the obs method with varying number of offsets
-static void BM_GridObjectObs(benchmark::State& state) {
+static void BM_GridObjectObs(benchmark::State& state) {  // NOLINT(runtime/references)
   // Use the loop iteration count to vary the size of the offsets vector
   const int numOffsets = state.range(0);
 
@@ -100,7 +100,7 @@ static void BM_GridObjectObs(benchmark::State& state) {
 BENCHMARK(BM_GridObjectObs)->Range(1, 1 << 10);  // From 1 to 1024 offsets
 
 // Benchmark creating and initializing many objects
-static void BM_CreateManyObjects(benchmark::State& state) {
+static void BM_CreateManyObjects(benchmark::State& state) {  // NOLINT(runtime/references)
   const int numObjects = state.range(0);
 
   // Random number generator for position
@@ -128,7 +128,7 @@ static void BM_CreateManyObjects(benchmark::State& state) {
 BENCHMARK(BM_CreateManyObjects)->Range(1, 1 << 14);  // From 1 to 16384 objects
 
 // Very simplified benchmark for grid lookups
-static void BM_GridLookup(benchmark::State& state) {
+static void BM_GridLookup(benchmark::State& state) {  // NOLINT(runtime/references)
   const int size = state.range(0);
 
   // Create a simple array to simulate grid lookups
