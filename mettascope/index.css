@@ -513,7 +513,7 @@ button#help-button.hover-icon .ui/help {
 #info-panel {
     position: absolute;
     display: flex;
-    width: 308px;
+    width: 170px;
     height: 257px;
     right: 0px;
     bottom: 192px;
