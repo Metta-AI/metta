@@ -2,168 +2,206 @@ name: Claude PR Assistant
 
 on:
   issue_comment:
-    types: [created]  # Triggers when someone comments on an issue or PR
+    types: [created]
 
 permissions:
-  contents: write      # Required for creating branches and commits
-  pull-requests: write # Required for creating PRs and commenting
-  issues: write        # Required for commenting on issues
+  contents: write
+  pull-requests: write
+  issues: write
 
 jobs:
   claude-response:
-    # Only run if the comment mentions @claude
     if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch full history for accurate diffs
-          token: ${{ secrets.GITHUB_TOKEN }}  # Ensure proper authentication
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
         run: |
           git config --global user.name "Claude Assistant"
           git config --global user.email "claude-assistant@users.noreply.github.com"
 
-      - name: Check for open-pr flag
-        id: check_flag
-        run: |
-          if echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
-            echo "create_pr=true" >> $GITHUB_OUTPUT
-            echo "Found open-pr flag - will create PR"
-          else
-            echo "create_pr=false" >> $GITHUB_OUTPUT
-            echo "No open-pr flag - will reply with comment"
-          fi
+      - name: Authenticate GitHub CLI
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
-      # Set context variables properly for GitHub Actions
-      - name: Set context variables
+      - name: Parse comment and set context
         id: context
         run: |
-          if [[ "${{ github.event.issue.number }}" != "" ]]; then
-            echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
-            echo "title=$(echo '${{ github.event.issue.title }}' | sed 's/"/\\"/g')" >> $GITHUB_OUTPUT
-            echo "body=$(echo '${{ github.event.issue.body }}' | sed 's/"/\\"/g')" >> $GITHUB_OUTPUT
+          # Create context directory for better organization
+          mkdir -p /tmp/claude-context
+          
+          # Check if this is a PR creation request
+          if echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
+            echo "action=create_pr" >> $GITHUB_OUTPUT
           else
-            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-            echo "title=$(echo '${{ github.event.pull_request.title }}' | sed 's/"/\\"/g')" >> $GITHUB_OUTPUT
-            echo "body=$(echo '${{ github.event.pull_request.body }}' | sed 's/"/\\"/g')" >> $GITHUB_OUTPUT
+            echo "action=comment" >> $GITHUB_OUTPUT
           fi
-
-      - name: Get PR Context
-        if: steps.check_flag.outputs.create_pr == 'true'
-        id: pr_context
-        run: |
-          if [ "${{ github.event.issue.pull_request }}" ]; then
-            # This is a PR comment
-            PR_NUMBER="${{ github.event.issue.number }}"
+          
+          # Set basic context
+          echo "number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          
+          # Write complex content to files with proper quoting to handle all edge cases
+          cat << 'TITLE_EOF' > /tmp/claude-context/issue_title.txt
+          ${{ github.event.issue.title }}
+          TITLE_EOF
+          
+          cat << 'BODY_EOF' > /tmp/claude-context/issue_body.txt
+          ${{ github.event.issue.body }}
+          BODY_EOF
+          
+          cat << 'COMMENT_EOF' > /tmp/claude-context/comment_body.txt
+          ${{ github.event.comment.body }}
+          COMMENT_EOF
+          
+          # Store file paths in outputs for later steps
+          echo "title_file=/tmp/claude-context/issue_title.txt" >> $GITHUB_OUTPUT
+          echo "body_file=/tmp/claude-context/issue_body.txt" >> $GITHUB_OUTPUT
+          echo "comment_file=/tmp/claude-context/comment_body.txt" >> $GITHUB_OUTPUT
+          
+          # Determine if this is a PR comment and set base branch
+          if [ "${{ github.event.issue.pull_request }}" != "" ]; then
             echo "is_pr_comment=true" >> $GITHUB_OUTPUT
-            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-            
-            # Get PR details using GitHub API
-            PR_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER")
-            
-            BASE_BRANCH=$(echo "$PR_DATA" | jq -r '.head.ref')
-            BASE_REPO=$(echo "$PR_DATA" | jq -r '.head.repo.full_name')
-            
+            # Get PR branch info using GitHub CLI with robust error handling
+            if command -v gh >/dev/null 2>&1; then
+              if PR_DATA=$(gh pr view ${{ github.event.issue.number }} --json headRefName 2>/dev/null); then
+                BASE_BRANCH=$(echo "$PR_DATA" | jq -r '.headRefName // "main"')
+                echo "Successfully fetched PR branch: $BASE_BRANCH"
+              else
+                echo "Warning: Could not fetch PR data, using main as base branch"
+                BASE_BRANCH="main"
+              fi
+            else
+              echo "Warning: GitHub CLI not available, using main as base branch"
+              BASE_BRANCH="main"
+            fi
             echo "base_branch=$BASE_BRANCH" >> $GITHUB_OUTPUT
-            echo "base_repo=$BASE_REPO" >> $GITHUB_OUTPUT
-            echo "Found PR #$PR_NUMBER, will base new PR on branch: $BASE_BRANCH"
           else
-            # This is an issue comment
             echo "is_pr_comment=false" >> $GITHUB_OUTPUT
             echo "base_branch=main" >> $GITHUB_OUTPUT
-            echo "This is an issue comment, will base new PR on main branch"
           fi
 
-      - name: Checkout appropriate base branch
-        if: steps.check_flag.outputs.create_pr == 'true'
+      - name: Checkout base branch for PR creation
+        if: steps.context.outputs.action == 'create_pr'
         run: |
-          if [ "${{ steps.pr_context.outputs.is_pr_comment }}" == "true" ]; then
-            echo "Checking out PR branch: ${{ steps.pr_context.outputs.base_branch }}"
-            git fetch origin ${{ steps.pr_context.outputs.base_branch }}
-            git checkout ${{ steps.pr_context.outputs.base_branch }}
+          echo "Base branch for new PR: ${{ steps.context.outputs.base_branch }}"
+          if [ "${{ steps.context.outputs.is_pr_comment }}" == "true" ]; then
+            echo "Creating new PR from existing PR branch: ${{ steps.context.outputs.base_branch }}"
+            if git fetch origin ${{ steps.context.outputs.base_branch }} 2>/dev/null; then
+              git checkout ${{ steps.context.outputs.base_branch }}
+              echo "Successfully checked out PR branch"
+            else
+              echo "Warning: Could not fetch PR branch, falling back to main"
+              git checkout main
+            fi
           else
-            echo "Using default main branch"
+            echo "Creating new PR from main branch"
             git checkout main
+            git pull origin main || echo "Warning: Could not pull latest main, continuing with local main"
           fi
+          echo "Current branch: $(git branch --show-current)"
+          echo "Latest commit: $(git log --oneline -1)"
 
-      # Standard Claude response (comment reply)
       - name: Claude Comment Response
-        if: steps.check_flag.outputs.create_pr == 'false'
+        if: steps.context.outputs.action == 'comment'
         uses: anthropics/claude-code-action@beta
         with:
-          prompt: "${{ github.event.comment.body }}"
+          prompt: |
+            User request from comment: $(cat ${{ steps.context.outputs.comment_file }})
+            
+            Context:
+            - Issue/PR #${{ steps.context.outputs.number }}
+            - Title: $(cat ${{ steps.context.outputs.title_file }})
+            - Issue/PR Body: $(cat ${{ steps.context.outputs.body_file }})
+            
+            Please analyze the request and provide a helpful response using the available tools.
           allowed_tools: |
             Bash(git status)
-            Bash(git log)
+            Bash(git log --oneline -10)
             Bash(git show)
-            Bash(git blame)
-            Bash(git reflog)
-            Bash(git stash list)
+            Bash(git blame *)
+            Bash(git diff *)
+            Bash(git branch -a)
             Bash(git ls-files)
-            Bash(git branch)
-            Bash(git tag)
-            Bash(git diff)
+            Bash(find . -name "*" -type f)
             View
             GlobTool
             GrepTool
             BatchTool
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           max_turns: 10
-          timeout_minutes: 10
+          timeout_minutes: 8
 
-      # Enhanced Claude for PR creation
       - name: Claude PR Creation
-        if: steps.check_flag.outputs.create_pr == 'true'
+        if: steps.context.outputs.action == 'create_pr'
         uses: anthropics/claude-code-action@beta
         with:
           prompt: |
-            The user requested: ${{ github.event.comment.body }}
+            PR Creation Request from comment: $(cat ${{ steps.context.outputs.comment_file }})
             
-            This is a PR creation request (they used @claude open-pr). Please:
-            1. Analyze the current issue/PR context and user's request
-            2. Create a new branch with a descriptive name based on the appropriate base branch
-            3. Implement the requested changes
-            4. Open a pull request with:
-               - Clear title describing the changes
-               - Detailed description of what was implemented
-               - Reference to the original issue/PR if applicable
+            Context:
+            - Source: ${{ steps.context.outputs.is_pr_comment == 'true' && 'PR Comment' || 'Issue Comment' }}
+            - Issue/PR #${{ steps.context.outputs.number }}
+            - Title: $(cat ${{ steps.context.outputs.title_file }})
+            - Issue/PR Body: $(cat ${{ steps.context.outputs.body_file }})
+            - Base Branch: ${{ steps.context.outputs.base_branch }}
             
-            IMPORTANT BRANCHING CONTEXT:
-            - Comment Type: ${{ steps.pr_context.outputs.is_pr_comment == 'true' && 'PR Comment' || 'Issue Comment' }}
-            - Base Branch: ${{ steps.pr_context.outputs.base_branch }}
-            - If this is a PR comment, create your new branch FROM the PR's branch (${{ steps.pr_context.outputs.base_branch }})
-            - If this is an issue comment, create your new branch FROM main
+            Instructions:
+            1. Create a descriptive branch name (e.g., feature/description-of-change)
+            2. Implement the requested changes
+            3. Commit with clear, conventional commit messages
+            4. Push the branch
+            5. Create a PR with:
+               - Simple, descriptive title (no special chars)
+               - Clear description of changes
+               - Reference to original issue/PR
             
-            Context from the current issue/PR:
-            - Issue/PR Number: ${{ steps.context.outputs.number }}
-            - Title: ${{ steps.context.outputs.title }}
-            - Body: ${{ steps.context.outputs.body }}
-            
+            Important: Use 'gh pr create' without complex flags. Keep titles and descriptions simple.
           allowed_tools: |
             Bash(git checkout -b *)
+            Bash(git add .)
             Bash(git add *)
-            Bash(git commit *)
-            Bash(git push *)
+            Bash(git commit -m *)
+            Bash(git push origin *)
+            Bash(git push -u origin *)
             Bash(git status)
-            Bash(git log)
-            Bash(git show)
-            Bash(git blame)
             Bash(git diff)
+            Bash(git diff --cached)
+            Bash(git log --oneline -5)
             Bash(git branch)
-            Bash(git ls-files)
+            Bash(git remote -v)
+            Bash(gh pr create)
+            Bash(gh pr create --title *)
+            Bash(gh pr create --body *)
+            Bash(gh pr create --draft)
+            Bash(gh pr list)
+            Bash(gh repo view)
             View
             Editor
             GlobTool
             GrepTool
             BatchTool
-            Bash(gh pr create --title '*' --body '*')
-            Bash(gh pr view *)
-            Bash(gh api *)
+            Bash(find . -name "*" -type f -not -path "./.git/*")
+            Bash(ls -la)
+            Bash(cat *)
+            Bash(head -20 *)
+            Bash(tail -20 *)
+            Bash(wc -l *)
+            Bash(file *)
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          max_turns: 20
-          timeout_minutes: 15
+          max_turns: 25
+          timeout_minutes: 12
+
+      - name: Handle workflow errors
+        if: failure()
+        run: |
+          echo "Workflow failed. Check the logs above for details."
+          echo "Common issues:"
+          echo "- Authentication problems"
+          echo "- Git configuration issues" 
+          echo "- Invalid branch names or commit messages"
+          echo "- GitHub CLI formatting problems"
