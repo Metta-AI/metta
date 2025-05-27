@@ -37,10 +37,10 @@ game:
       agents: 8
       style: ???
       objects:
-        mine.red: ${sampling:0,10,10}
+        mine.red: ${sampling:1,10,10}
         # mine.blue: ${sampling:0,5,10}
         # mine.green: ${sampling:0,5,10}
-        generator.red: ${sampling:0,10,10}
+        generator.red: ${sampling:1,10,10}
         # generator.blue: ${sampling:0,5,10}
         # generator.green: ${sampling:0,5,10}
         altar: ${sampling:1,5,10}

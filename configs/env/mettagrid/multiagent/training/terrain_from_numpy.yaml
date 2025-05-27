@@ -35,10 +35,10 @@ game:
       border_width: ${sampling:1,6,3}
       agents: 8
       objects:
-        mine.red: ${sampling:0,20,10}
+        mine.red: ${sampling:1,20,10}
         # mine.blue: ${sampling:0,5,10}
         # mine.green: ${sampling:0,5,10}
-        generator.red: ${sampling:0,20,10}
+        generator.red: ${sampling:1,20,10}
         # generator.blue: ${sampling:0,5,10}
         # generator.green: ${sampling:0,5,10}
         altar: ${sampling:0,5,10}
