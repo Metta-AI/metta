@@ -1,5 +1,5 @@
-#ifndef ROTATE_HPP
-#define ROTATE_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_ROTATE_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_ROTATE_HPP_
 
 #include <string>
 
@@ -8,18 +8,18 @@
 
 class Rotate : public ActionHandler {
 public:
-  Rotate(const ActionConfig& cfg) : ActionHandler(cfg, "rotate") {}
+  explicit Rotate(const ActionConfig& cfg) : ActionHandler(cfg, "rotate") {}
 
   unsigned char max_arg() const override {
     return 3;
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     unsigned short orientation = arg;
     actor->orientation = orientation;
     return true;
   }
 };
 
-#endif  // ROTATE_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_ROTATE_HPP_

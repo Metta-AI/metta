@@ -1,5 +1,5 @@
-#ifndef MOVE_HPP
-#define MOVE_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_MOVE_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_MOVE_HPP_
 
 #include <string>
 
@@ -9,14 +9,14 @@
 
 class Move : public ActionHandler {
 public:
-  Move(const ActionConfig& cfg) : ActionHandler(cfg, "move") {}
+  explicit Move(const ActionConfig& cfg) : ActionHandler(cfg, "move") {}
 
   unsigned char max_arg() const override {
     return 1;
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     unsigned short direction = arg;
 
     Orientation orientation = static_cast<Orientation>(actor->orientation);
@@ -41,4 +41,4 @@ protected:
   }
 };
 
-#endif  // MOVE_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_MOVE_HPP_

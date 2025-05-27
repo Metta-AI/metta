@@ -10,12 +10,17 @@ readme = "README.md"
 requires-python = "==3.11.7"
 license = "MIT"
 
+[project.scripts]
+skypilot = "devops.skypilot.launch:main"
+skypilot-sandbox = "devops.skypilot.sandbox:main"
+
 [tool.setuptools]
-packages = ["metta", "mettagrid"]
+packages = ["metta", "mettagrid", "devops"]
 
 [tool.setuptools.package-dir]
 metta = "metta"
 mettagrid = "mettagrid"
+devops = "devops"
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt", "requirements_pinned.txt"] }

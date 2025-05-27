@@ -1,12 +1,11 @@
-.PHONY: help all install build test clean test-python check-venv
+.PHONY: help all install test clean check-venv
 
 
 # Default target when just running 'make'
 help:
 	@echo "Available targets:"
-	@echo " install - Build mettagrid using the rebuild script"
+	@echo " install - Prepare the dev environment"
 	@echo " test - Run all unit tests"
-	@echo " build - Build from setup.py"
 	@echo " all - Run install and test"
 	@echo " clean - Remove build artifacts and temporary files"
 
@@ -29,11 +28,7 @@ clean:
 	@echo "(Metta) Removing build directories (excluding .venv)"
 	@find . -type d -name 'build' -not -path "./.venv/*" -print0 | xargs -0 rm -rf 2>/dev/null || true
 	@echo "(Metta) Cleaning mettagrid build artifacts..."
-	@if [ -d "mettagrid" ]; then \
-		cd mettagrid && $(MAKE) clean || true; \
-	else \
-		echo "(Metta) mettagrid directory not found, skipping"; \
-	fi
+	cd mettagrid && $(MAKE) clean || true
 	@echo "(Metta) Cleaning uv build cache..."
 	rm -rf ~/.cache/uv/builds-v0
 	@echo "(Metta) Clean completed successfully"
@@ -43,16 +38,8 @@ install:
 	@echo "Running full devops/setup_build installation script..."
 	@bash devops/setup_build.sh
 
-test-python: check-venv
+test: check-venv
 	@echo "Running python tests with coverage"
 	pytest --cov=metta --cov-report=term-missing
 
-test: test-python
-
 all: clean install check-venv test
-
-# Build the project using setup.py
-build: check-venv
-	@echo "Building metta..."
-	uv pip install -e .
-	@echo "Build complete."

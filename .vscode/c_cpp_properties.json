@@ -5,7 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "/opt/homebrew/Cellar/googletest/1.17.0/include",
-                "/opt/homebrew/opt/googletest/include",
+                "/opt/homebrew/opt/googletest/include"
             ],
             "defines": [
                 "GTEST_HAS_PTHREAD=1"
@@ -14,10 +14,12 @@
                 "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
             ],
             "compilerPath": "/usr/bin/clang++",
-            "cStandard": "c23",
-            "cppStandard": "c++23",
+            // Note that there is no C20 standard. C23 is the official successor to C17. 
+            "cStandard": "c17", 
+            "cppStandard": "c++20",
             "intelliSenseMode": "macos-clang-x64"
         }
     ],
     "version": 4
 }
+

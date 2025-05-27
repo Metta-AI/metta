@@ -1,5 +1,5 @@
-#ifndef GET_OUTPUT_HPP
-#define GET_OUTPUT_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_
 
 #include <string>
 
@@ -11,28 +11,24 @@
 
 class GetOutput : public ActionHandler {
 public:
-  GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
+  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
 
   unsigned char max_arg() const override {
     return 0;
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::Object_Layer;
-    MettaObject* target = static_cast<MettaObject*>(_grid->object_at(target_loc));
-    if (target == nullptr || !target->has_inventory()) {
+    // get_output only works on Converters, since only Converters have an output.
+    // Once we generalize this to `get`, we should be able to get from any HasInventory object, which
+    // should include agents. That's (e.g.) why we're checking inventory_is_accessible.
+    Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
+    if (converter == nullptr) {
       return false;
     }
 
-    // ##Converter_and_HasInventory_are_the_same_thing
-    // It's more correct to cast this as a HasInventory, but right now Converters are
-    // the only implementors of HasInventory, and we also need to call maybe_start_converting
-    // on them. We should later refactor this to we call .update_inventory on the target, and
-    // have this automatically call maybe_start_converting. That's hard because we need to
-    // let it maybe schedule events.
-    Converter* converter = static_cast<Converter*>(target);
     if (!converter->inventory_is_accessible()) {
       return false;
     }
@@ -46,12 +42,12 @@ protected:
         // collect resources from a converter that's in the middle of processing a queue.
         continue;
       }
-      unsigned char can_take = std::min<unsigned char>(actor->max_items - actor->inventory[i], converter->inventory[i]);
 
-      if (can_take > 0) {
-        actor->stats.add(InventoryItemNames[i], "get", can_take);
-        actor->update_inventory(static_cast<InventoryItem>(i), can_take);
-        converter->update_inventory(static_cast<InventoryItem>(i), -can_take);
+      int taken = actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
+
+      if (taken > 0) {
+        actor->stats.add(InventoryItemNames[i], "get", taken);
+        converter->update_inventory(static_cast<InventoryItem>(i), -taken);
         items_taken = true;
       }
     }
@@ -60,4 +56,4 @@ protected:
   }
 };
 
-#endif  // GET_OUTPUT_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_

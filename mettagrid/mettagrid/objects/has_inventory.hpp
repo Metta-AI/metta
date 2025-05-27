@@ -1,6 +1,7 @@
-#ifndef HAS_INVENTORY_HPP
-#define HAS_INVENTORY_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_
 
+#include <algorithm>
 #include <map>
 #include <string>
 
@@ -15,24 +16,18 @@ public:
     this->inventory.resize(InventoryItem::InventoryCount);
   }
 
-  virtual bool has_inventory() {
-    return true;
-  }
-
   // Whether the inventory is accessible to an agent.
   virtual bool inventory_is_accessible() {
     return true;
   }
 
-  virtual void update_inventory(InventoryItem item, short amount) {
-    if (amount + this->inventory[item] > 255) {
-      amount = 255 - this->inventory[item];
-    }
-    if (amount + this->inventory[item] < 0) {
-      amount = -this->inventory[item];
-    }
-    this->inventory[item] += amount;
+  virtual int update_inventory(InventoryItem item, short amount) {
+    int initial_amount = this->inventory[item];
+    int new_amount = initial_amount + amount;
+    new_amount = std::clamp(new_amount, 0, 255);
+    this->inventory[item] = new_amount;
+    return new_amount - initial_amount;
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_

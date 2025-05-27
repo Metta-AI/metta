@@ -1,42 +1,50 @@
 #!/bin/bash
+# sweep_rollout.sh - Execute a single sweep rollout
+set -e
+
+# Parse arguments
 sweep="$1"
 args="${@:2}"
+
+# Basic validation
+if [ -z "$sweep" ]; then
+  echo "[ERROR] Sweep name is required"
+  exit 1
+fi
+
+source ./devops/setup.env
 
 DIST_ID=${DIST_ID:-localhost}
 DIST_CFG_PATH=./train_dir/sweep/$sweep/dist_$DIST_ID.yaml
 
-source ./devops/env.sh
-
+echo "[INFO] Starting sweep rollout: $sweep"
 mkdir -p ./train_dir/sweep/$sweep
 
-echo "Sweep: $sweep == creating run..."
+# Initialize sweep
+echo "[SWEEP:$sweep] Initializing sweep configuration..."
 cmd="python -m tools.sweep_init sweep_name=$sweep dist_cfg_path=$DIST_CFG_PATH $args"
-echo "Sweep: $sweep == running command: $cmd"
-$cmd
-# exit if the command failed
-if [ $? -ne 0 ]; then
-  echo "Sweep: $sweep == init failed: $cmd"
+echo "[SWEEP:$sweep] Running: $cmd"
+if ! $cmd; then
+  echo "[ERROR] Sweep initialization failed: $sweep"
   exit 1
 fi
 
-echo "Sweep: $sweep == training..."
+# Training phase
+echo "[SWEEP:$sweep] Starting training phase..."
 cmd="./devops/train.sh dist_cfg_path=$DIST_CFG_PATH data_dir=./train_dir/sweep/$sweep/runs $args"
-echo "Sweep: $sweep == running command: $cmd"
-$cmd
-# exit if the command failed
-if [ $? -ne 0 ]; then
-  echo "Sweep: $sweep == training failed: $cmd"
+echo "[SWEEP:$sweep] Running: $cmd"
+if ! $cmd; then
+  echo "[ERROR] Training failed for sweep: $sweep"
   exit 1
 fi
 
-echo "Sweep: $sweep == evaluating..."
+# Evaluation phase
+echo "[SWEEP:$sweep] Starting evaluation phase..."
 cmd="python -m tools.sweep_eval sweep_name=$sweep dist_cfg_path=$DIST_CFG_PATH data_dir=./train_dir/sweep/$sweep/runs $args"
-echo "Sweep: $sweep == running command: $cmd"
-$cmd
-# exit if the command failed
-if [ $? -ne 0 ]; then
-  echo "Sweep: $sweep == evaluation failed: $cmd"
+echo "[SWEEP:$sweep] Running: $cmd"
+if ! $cmd; then
+  echo "[ERROR] Evaluation failed for sweep: $sweep"
   exit 1
 fi
 
-exit $?
+echo "[SUCCESS] Sweep rollout completed: $sweep"

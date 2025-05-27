@@ -1,5 +1,5 @@
-#ifndef METTAGRID_OBSERVATION_ENCODER_HPP
-#define METTAGRID_OBSERVATION_ENCODER_HPP
+#ifndef METTAGRID_METTAGRID_OBSERVATION_ENCODER_HPP_
+#define METTAGRID_METTAGRID_OBSERVATION_ENCODER_HPP_
 
 #include <map>
 #include <memory>
@@ -60,6 +60,10 @@ public:
     }
   }
 
+  size_t encode_tokens(const GridObject* obj, ObservationTokens tokens) {
+    return obj->obs_tokens(tokens);
+  }
+
   void encode(const GridObject* obj, ObsType* obs) {
     encode(obj, obs, _offsets[obj->_type_id]);
   }
@@ -82,4 +86,4 @@ private:
   std::vector<std::string> _feature_names;
 };
 
-#endif  // METTAGRID_OBSERVATION_ENCODER_HPP
+#endif  // METTAGRID_METTAGRID_OBSERVATION_ENCODER_HPP_

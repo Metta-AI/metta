@@ -2,7 +2,6 @@ import logging
 import os
 import time
 from collections import defaultdict
-from pathlib import Path
 
 import numpy as np
 import pufferlib
@@ -15,11 +14,13 @@ from pufferlib.utils import profile, unroll_nested_dict
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.debug import assert_shape
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
+from metta.rl.pufferlib.policy import PufferAgent
 from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
@@ -54,7 +55,7 @@ class PufferTrainer:
 
         self._master = True
         self._world_size = 1
-        self.device = cfg.device
+        self.device: torch.device = cfg.device
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
@@ -70,7 +71,7 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.average_reward = 0.0  # Initialize average reward estimate
+        self.average_reward = 0.0
         self._current_eval_score = None
         self._eval_grouped_scores = {}
         self._eval_suite_avgs = {}
@@ -87,23 +88,30 @@ class PufferTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        if checkpoint.policy_path:
-            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-            policy_record = policy_store.policy(checkpoint.policy_path)
-            if "average_reward" in checkpoint.extra_args:
-                self.average_reward = checkpoint.extra_args["average_reward"]
-        elif cfg.trainer.initial_policy.uri is not None:
-            logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
-            policy_record = policy_store.policy(cfg.trainer.initial_policy)
-        else:
-            policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
+        policy_record = None
+        load_policy_attempts = 10
+        while policy_record is None and load_policy_attempts > 0:
+            if checkpoint.policy_path:
+                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+                policy_record = policy_store.policy(checkpoint.policy_path)
+                if "average_reward" in checkpoint.extra_args:
+                    self.average_reward = checkpoint.extra_args["average_reward"]
+            elif cfg.trainer.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
+                policy_record = policy_store.policy(cfg.trainer.initial_policy)
+            else:
+                policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
 
-            if os.path.exists(policy_path):
-                logger.info(f"Loading policy from checkpoint: {policy_path}")
-                policy_record = policy_store.policy(policy_path)
-            elif self._master:
-                logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                policy_record = policy_store.create(metta_grid_env)
+                if os.path.exists(policy_path):
+                    logger.info(f"Loading policy from checkpoint: {policy_path}")
+                    policy_record = policy_store.policy(policy_path)
+                elif self._master:
+                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
+                    policy_record = policy_store.create(metta_grid_env)
+            if policy_record is not None:
+                break
+            load_policy_attempts -= 1
+            time.sleep(5)
 
         assert policy_record is not None, "No policy found"
 
@@ -118,8 +126,8 @@ class PufferTrainer:
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
-        actions_names = metta_grid_env.action_names()
-        actions_max_params = metta_grid_env._c_env.max_action_args()
+        actions_names = metta_grid_env.action_names
+        actions_max_params = metta_grid_env.max_action_args
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
@@ -154,30 +162,31 @@ class PufferTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)), self.metta_agent
+        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        found_match = False
-        for component_name, component in self.metta_agent.components.items():
-            if hasattr(component, "_obs_shape"):
-                found_match = True
-                component_shape = (
-                    tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                )
-                if component_shape != environment_shape:
-                    raise ValueError(
-                        f"Observation space mismatch error:\n"
-                        f"component_name: {component_name}\n"
-                        f"component_shape: {component_shape}\n"
-                        f"environment_shape: {environment_shape}\n"
+        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
+            found_match = False
+            for component_name, component in self.metta_agent.components.items():
+                if hasattr(component, "_obs_shape"):
+                    found_match = True
+                    component_shape = (
+                        tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
                     )
+                    if component_shape != environment_shape:
+                        raise ValueError(
+                            f"Observation space mismatch error:\n"
+                            f"component_name: {component_name}\n"
+                            f"component_shape: {component_shape}\n"
+                            f"environment_shape: {environment_shape}\n"
+                        )
 
-        if not found_match:
-            raise ValueError(
-                "No component with observation shape found in policy. "
-                f"Environment observation shape: {environment_shape}"
-            )
+            if not found_match:
+                raise ValueError(
+                    "No component with observation shape found in policy. "
+                    f"Environment observation shape: {environment_shape}"
+                )
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
@@ -281,7 +290,7 @@ class PufferTrainer:
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
-            stats_dir=Path(self.cfg.run_dir) / "stats",
+            stats_dir="/tmp/stats",
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
@@ -361,7 +370,10 @@ class PufferTrainer:
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
 
                 o_device = o.to(self.device, non_blocking=True)
-                actions, logprob, _, value, _ = policy(o_device, state)
+                actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
+
+                if __debug__:
+                    assert_shape(selected_action_log_probs, ("BT",), "collected_log_probs")
 
                 lstm_h[:, training_env_id] = (
                     state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
@@ -377,7 +389,7 @@ class PufferTrainer:
                 value = value.flatten()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, logprob, r, d, training_env_id, mask)
+                self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
                 for i in info:
                     for k, v in unroll_nested_dict(i):
@@ -457,18 +469,25 @@ class PufferTrainer:
                     obs = experience.b_obs[mb]
                     obs = obs.to(self.device, non_blocking=True)
                     atn = experience.b_actions[mb]
-                    log_probs = experience.b_logprobs[mb]
+                    old_action_log_probs = experience.b_logprobs[mb]
                     val = experience.b_values[mb]
                     adv = experience.b_advantages[mb]
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    _, newlogprob, entropy, newvalue, new_normalized_logits = self.policy(obs, lstm_state, action=atn)
+                    # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
+                    _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
+                        obs, lstm_state, action=atn
+                    )
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
-                    logratio = newlogprob - log_probs.reshape(-1)
+                    if __debug__:
+                        assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
+                        assert_shape(old_action_log_probs, ("B", "T"), "old_action_log_probs")
+
+                    logratio = new_action_log_probs - old_action_log_probs.reshape(-1)
                     ratio = logratio.exp()
 
                     with torch.no_grad():
@@ -504,7 +523,7 @@ class PufferTrainer:
                     entropy_loss = entropy.mean()
 
                     ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                        self.agent_step, new_normalized_logits, newvalue, obs, teacher_lstm_state
+                        self.agent_step, full_log_probs_distribution, newvalue, obs, teacher_lstm_state
                     )
 
                     l2_reg_loss = torch.tensor(0.0, device=self.device)
@@ -602,7 +621,7 @@ class PufferTrainer:
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
-                "action_names": metta_grid_env.action_names(),
+                "action_names": metta_grid_env.action_names,
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
@@ -709,9 +728,6 @@ class PufferTrainer:
         return self.last_pr.uri
 
     def _make_experience_buffer(self):
-        """
-        Creates an Experience buffer for storing training data with appropriate dimensions.
-        """
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), (
             "vecenv.driver_env must be a MettaGridEnv for experience buffer"
