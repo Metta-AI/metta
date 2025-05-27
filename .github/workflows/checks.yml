@@ -155,10 +155,14 @@ jobs:
     name: "Tests"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+      needs.graphite-ci-optimizer.outputs.should_skip == 'false' &&
+      needs.setup-checks.outputs.run_test == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        os: ${{ github.ref == 'refs/heads/main' && fromJson('["ubuntu-latest", "macos-latest"]') || fromJson('["ubuntu-latest"]') }}
+      fail-fast: false
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
