@@ -6,18 +6,31 @@ sampling: 1
 
 game:
   num_agents: 4
+  agent:
+    ore.red_max: ${sampling:4,10,6}
+    battery_max: ${sampling:6,10,6}
+    heart_max: 20
+    rewards:
+      action_failure_penalty: 0
+      ore.red: ${sampling:0.005,0.1, 0.01}
+      battery: ${sampling:0.01,0.5, 0.1}
+      battery_max: 5
+      heart: 1
+      heart_max: 1000
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
     border_width: 6
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: mettagrid.room.navigation.cylinder_world_sequence.CylinderWorldSequence
+      width: ${sampling:40,80,50}
+      height: ${sampling:40,80,50}
       border_width: ${sampling:1,6,3}
       agents: 1
       objects:
-        mine.red: ${sampling:1,3,2}
-        generator.red: ${sampling:1,3,2}
-        altar: ${sampling:1,3,2}
+        altar: ${sampling:15,25,20}
+        mine: ${sampling:15,25,20}
+        generator: ${sampling:15,25,20}
   objects:
       altar:
         input_battery: 1

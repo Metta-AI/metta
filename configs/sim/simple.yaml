@@ -2,4 +2,4 @@ defaults:
   - sim_single
   - _self_
 
-env: /env/mettagrid/navigation_sequence/training/easy_peasy
+env: /env/mettagrid/navigation_sequence/training/cylinder_world
