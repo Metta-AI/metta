@@ -31,8 +31,8 @@ game:
     border_width: 6
     room:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:20,100,30}
-      height: ${sampling:20,100,30}
+      width: ${sampling:20,80,30}
+      height: ${sampling:20,80,30}
       border_width: ${sampling:1,6,3}
       agents: 8
       style: ???
