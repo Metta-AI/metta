@@ -31,7 +31,7 @@ game:
       height: ${sampling:20,50,30}
       border_width: ${sampling:1,6,3}
       agents: 1
-      style: all-sparse # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      style: all-sparse # ${choose:"dense","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
         mine: ${sampling:1,20,10}
         generator: ${sampling:1,10,2}
