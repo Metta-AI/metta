@@ -71,7 +71,7 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.average_reward = 0.0  # Initialize average reward estimate
+        self.average_reward = 0.0
         self._current_eval_score = None
         self._eval_grouped_scores = {}
         self._eval_suite_avgs = {}
@@ -728,9 +728,6 @@ class PufferTrainer:
         return self.last_pr.uri
 
     def _make_experience_buffer(self):
-        """
-        Creates an Experience buffer for storing training data with appropriate dimensions.
-        """
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), (
             "vecenv.driver_env must be a MettaGridEnv for experience buffer"

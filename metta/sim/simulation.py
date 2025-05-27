@@ -42,17 +42,11 @@ class SimulationCompatibilityError(Exception):
     pass
 
 
-# --------------------------------------------------------------------------- #
-#   Single simulation                                                         #
-# --------------------------------------------------------------------------- #
 class Simulation:
     """
     A vectorized batch of MettaGrid environments sharing the same parameters.
     """
 
-    # ------------------------------------------------------------------ #
-    #   construction                                                     #
-    # ------------------------------------------------------------------ #
     def __init__(
         self,
         name: str,
@@ -165,10 +159,7 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
-    # ------------------------------------------------------------------ #
-    #   public API                                                       #
-    # ------------------------------------------------------------------ #
-    def start_simulation(self):
+    def start_simulation(self) -> None:
         """
         Start the simulation.
         """
@@ -188,7 +179,7 @@ class Simulation:
 
         self._t0 = time.time()
 
-    def generate_actions(self):
+    def generate_actions(self) -> np.ndarray:
         """
         Generate actions for the simulation.
         """
@@ -223,7 +214,7 @@ class Simulation:
 
         return actions_np
 
-    def step_simulation(self, actions_np: np.ndarray):
+    def step_simulation(self, actions_np: np.ndarray) -> None:
         # ---------------- env.step ------------------------------- #
         obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
 
@@ -264,7 +255,6 @@ class Simulation:
 
         return self.end_simulation()
 
-    # ------------------------- stats helpers -------------------------- #
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
         # Make sure we're creating a dictionary of the right type
@@ -285,11 +275,11 @@ class Simulation:
         )
         return db
 
-    def get_replays(self):
+    def get_replays(self) -> dict:
         """Get all replays for this simulation."""
         return self._replay_writer.episodes.values()
 
-    def get_replay(self):
+    def get_replay(self) -> dict:
         """Makes sure this sim has a single replay, and return it."""
         if len(self._replay_writer.episodes) != 1:
             raise ValueError("Attempting to get single replay, but simulation has multiple episodes")

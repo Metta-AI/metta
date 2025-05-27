@@ -24,6 +24,12 @@ SYMBOLS = {
     "R": "generator.red",
     "B": "generator.blue",
     "G": "generator.green",
+    "🧱": "wall",
+    "⚙": "generator",
+    "⛩": "altar",
+    "🏭": "factory",
+    "🔬": "lab",
+    "🏰": "temple",
 }
 
 

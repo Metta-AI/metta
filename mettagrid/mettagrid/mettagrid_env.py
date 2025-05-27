@@ -1,4 +1,3 @@
-# mettagrid/mettagrid_env.py
 from __future__ import annotations
 
 import copy
@@ -30,7 +29,7 @@ np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
 
 
 def required(func):
-    """Marker for properties/methods required by parent class."""
+    """Marks methods that PufferEnv requires but does not implement for override."""
     return func
 
 
@@ -64,6 +63,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._episode_id: str = ""
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
+
+        self.labels = self._env_cfg.get("labels", None)
+        self._should_reset = False
 
         self._reset_env()
         num_agents = self._num_agents
@@ -115,6 +117,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         Reset the environment to an initial state and returns an initial observation.
         """
 
+    @override
+    def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
         self._env_cfg = self._get_new_env_cfg()
 
         self._reset_env()
@@ -244,6 +248,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         pass
 
     @property
+    def max_steps(self):
+        return self._env_cfg.game.max_steps
+
+    @property
     @required
     def single_observation_space(self):
         return self._single_observation_space
@@ -251,7 +259,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     @required
     def single_action_space(self):
-        return self._single_action_space
+        return self._env.action_space
+
+    @property
+    def action_names(self):
+        return self._env.action_names()
 
     @property
     @required
@@ -260,6 +272,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     @override
+    @required
+    def num_agents(self):
+        return self._num_agents
+
+    def render(self):
+        if self._renderer is None:
+            return None
+
+        return self._renderer.render(self._c_env.current_timestep(), self._c_env.grid_objects())
+
+    @property
     def done(self):
         return self._should_reset
 

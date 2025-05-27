@@ -10,9 +10,6 @@ from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
-# --------------------------------------------------------------------------- #
-#   Suite of simulations                                                      #
-# --------------------------------------------------------------------------- #
 class SimulationSuite:
     """
     Runs a collection of named simulations and returns **one merged StatsDB**
@@ -37,10 +34,6 @@ class SimulationSuite:
         self._device = device
         self._vectorization = vectorization
         self.name = config.name
-
-    # ------------------------------------------------------------------ #
-    #   public API                                                       #
-    # ------------------------------------------------------------------ #
 
     def simulate(self) -> SimulationResults:
         """Run every simulation, merge their DBs/replay dicts, and return a single `SimulationResults`."""

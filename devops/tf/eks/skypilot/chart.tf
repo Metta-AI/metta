@@ -57,6 +57,13 @@ resource "helm_release" "skypilot" {
     name = "lambdaAiCredentials.lambdaAiSecretName"
     value = kubernetes_secret.lambda_ai_secret.metadata[0].name
   }
+
+  set {
+    name = "apiService.config"
+    value = templatefile("${path.module}/skypilot-config.tftpl", {
+      jobs_bucket = aws_s3_bucket.skypilot_jobs.bucket
+    })
+  }
 }
 
 resource "kubernetes_secret" "skypilot_api_server_credentials" {

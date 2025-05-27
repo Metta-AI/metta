@@ -66,10 +66,10 @@ class PolicyRecord:
         cnn1_weight = policy.get_parameter("components.cnn1._net.0.weight")
         return cnn1_weight.shape[1]
 
-    def num_params(self):
+    def num_params(self) -> int:
         return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
 
-    def local_path(self):
+    def local_path(self) -> str | None:
         return self._local_path
 
     def __repr__(self):
