@@ -1,8 +1,8 @@
 """
-Unit tests and benchmarks for the compute_gae Cython function.
+Unit tests and benchmarks for the compute_gae C++ function.
 
 This module provides comprehensive testing and benchmarking for the Generalized
-Advantage Estimation (GAE) implementation in Cython, comparing it against a pure
+Advantage Estimation (GAE) implementation in C++, comparing it against a pure
 NumPy implementation for correctness and performance.
 """
 
@@ -246,7 +246,7 @@ class TestComputeGAE:
         gamma = gae_params["gamma"]
         gae_lambda = gae_params["gae_lambda"]
 
-        with pytest.raises(ValueError, match="same length"):
+        with pytest.raises(RuntimeError, match="same length"):
             compute_gae(data["dones"], data["values"], data["rewards"], gamma, gae_lambda)
 
     def test_long_trajectory(self, make_trajectory):
@@ -276,10 +276,10 @@ class TestGAEBenchmarks:
 
     @pytest.mark.parametrize("size", [100, 1000, 10000])
     def test_trajectory_size_benchmarks(self, benchmark, make_trajectory, size):
-        """Benchmark Cython implementation with different trajectory sizes."""
+        """Benchmark C++ implementation with different trajectory sizes."""
         data = make_trajectory(size)
 
-        # Benchmark Cython implementation
+        # Benchmark C++ implementation
         result = benchmark(
             compute_gae, data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
         )
@@ -288,20 +288,20 @@ class TestGAEBenchmarks:
         expected = numpy_compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
         np.testing.assert_allclose(result, expected, rtol=1e-5)
 
-    def test_cython_implementation_benchmark(self, benchmark, large_trajectory):
-        """Benchmark the Cython implementation."""
+    def test_cpp_implementation_benchmark(self, benchmark, large_trajectory):
+        """Benchmark the C++ implementation."""
         data = large_trajectory
 
         # Warmup
         for _ in range(3):
             compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
 
-        # Benchmark Cython implementation
+        # Benchmark C++ implementation
         result = benchmark(
             compute_gae, data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
         )
         assert result is not None
-        self.cython_result = result
+        self.cpp_result = result
 
     def test_numpy_implementation_benchmark(self, benchmark, large_trajectory):
         """Benchmark the NumPy implementation."""
@@ -324,7 +324,7 @@ class TestGAEBenchmarks:
         assert self.numpy_mean_time > 0
 
     def test_implementation_comparison(self, large_trajectory):
-        """Compare NumPy and Cython implementation performance without using benchmark fixture."""
+        """Compare NumPy and C++ implementation performance without using benchmark fixture."""
         data = large_trajectory
 
         # Simple manual timing
@@ -341,30 +341,30 @@ class TestGAEBenchmarks:
             )
         numpy_time = (time.perf_counter() - start) / 10
 
-        # Time Cython implementation
+        # Time C++ implementation
         start = time.perf_counter()
         for _ in range(10):
-            cython_result = compute_gae(
+            cpp_result = compute_gae(
                 data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
             )
-        cython_time = (time.perf_counter() - start) / 10
+        cpp_time = (time.perf_counter() - start) / 10
 
         # Verify results match
-        np.testing.assert_allclose(cython_result, numpy_result, rtol=1e-5)
+        np.testing.assert_allclose(cpp_result, numpy_result, rtol=1e-5)
 
         # Report speedup
-        speedup = numpy_time / cython_time
+        speedup = numpy_time / cpp_time
 
         print(f"\nManual timing comparison (trajectory size: {len(data['dones'])}):")
         print(f"NumPy implementation: {numpy_time:.6f} seconds")
-        print(f"Cython implementation: {cython_time:.6f} seconds")
+        print(f"C++ implementation: {cpp_time:.6f} seconds")
         print(f"Speedup factor: {speedup:.2f}x")
 
-        assert speedup > 1.0, f"Cython implementation should be faster (got speedup: {speedup:.2f}x)"
+        assert speedup > 1.0, f"C++ implementation should be faster (got speedup: {speedup:.2f}x)"
 
     # Do the same for realistic RL batch
     def test_realistic_batch_implementation_comparison(self, realistic_rl_batch):
-        """Compare NumPy and Cython implementation performance on realistic RL batch."""
+        """Compare NumPy and C++ implementation performance on realistic RL batch."""
         data = realistic_rl_batch
 
         # Simple manual timing
@@ -381,26 +381,26 @@ class TestGAEBenchmarks:
             )
         numpy_time = (time.perf_counter() - start) / 10
 
-        # Time Cython implementation
+        # Time C++ implementation
         start = time.perf_counter()
         for _ in range(10):
-            cython_result = compute_gae(
+            cpp_result = compute_gae(
                 data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
             )
-        cython_time = (time.perf_counter() - start) / 10
+        cpp_time = (time.perf_counter() - start) / 10
 
         # Verify results match
-        np.testing.assert_allclose(cython_result, numpy_result, rtol=2e-5)
+        np.testing.assert_allclose(cpp_result, numpy_result, rtol=2e-5)
 
         # Report speedup
-        speedup = numpy_time / cython_time
+        speedup = numpy_time / cpp_time
 
         print(f"\nRealistic RL batch comparison (size: {len(data['dones'])}):")
         print(f"NumPy implementation: {numpy_time:.6f} seconds")
-        print(f"Cython implementation: {cython_time:.6f} seconds")
+        print(f"C++ implementation: {cpp_time:.6f} seconds")
         print(f"Speedup factor: {speedup:.2f}x")
 
-        assert speedup > 1.0, f"Cython implementation should be faster (got speedup: {speedup:.2f}x)"
+        assert speedup > 1.0, f"C++ implementation should be faster (got speedup: {speedup:.2f}x)"
 
 
 if __name__ == "__main__":

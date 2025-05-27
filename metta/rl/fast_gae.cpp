@@ -28,7 +28,7 @@ py::array_t<float> compute_gae(
   }
 
   // Initialize advantage array
-  py::array_t<float> advantages(num_steps);
+  auto advantages = py::array_t<float>({static_cast<ssize_t>(num_steps)}, {sizeof(float)});
   auto buf_adv = advantages.mutable_unchecked<1>();
 
   if (buf_dones(num_steps - 1) == 1.0f) {
@@ -47,7 +47,7 @@ py::array_t<float> compute_gae(
   float nextnonterminal, delta;
 
   // Calculate advantages in reverse order
-  for (ssize_t t = num_steps - 2; t >= 0; --t) {
+  for (int t = num_steps - 2; t >= 0; --t) {
     nextnonterminal = 1.0f - buf_dones(t + 1);
     delta = buf_rewards(t) + gamma * buf_values(t + 1) * nextnonterminal -
             buf_values(t);

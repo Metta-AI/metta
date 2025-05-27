@@ -17,6 +17,9 @@ skypilot-sandbox = "devops.skypilot.sandbox:main"
 [tool.coverage.run]
 source = ["mettagrid", "metta"]
 
+[tool.scikit-build.cmake.define]
+CMAKE_BUILD_TYPE = "Release"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
