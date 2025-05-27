@@ -14,6 +14,14 @@ public:
     init(type_id, r, c, layer);
   }
 
+  virtual vector<PartialObservationToken> obs_features() const override {
+    vector<PartialObservationToken> features;
+    for (size_t i = 0; i < 10; ++i) {
+      features.push_back({static_cast<uint8_t>(i), i});
+    }
+    return features;
+  }
+
   void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     // Simple implementation for benchmarking
     for (size_t i = 0; i < offsets.size(); ++i) {

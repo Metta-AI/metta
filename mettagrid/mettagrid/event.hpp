@@ -2,18 +2,17 @@
 #define EVENT_H
 
 #include <cassert>
+#include <map>
 #include <queue>
-#include <vector>
 using namespace std;
 
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "stats_tracker.hpp"
-typedef unsigned short EventId;
 typedef int EventArg;
 struct Event {
   unsigned int timestamp;
-  EventId event_id;
+  EventType event_type;
   GridObjectId object_id;
   EventArg arg;
 
@@ -46,7 +45,7 @@ private:
 public:
   Grid* grid;
   StatsTracker* stats;
-  vector<EventHandler*> event_handlers;
+  map<EventType, unique_ptr<EventHandler>> event_handlers;
 
   EventManager() {
     this->grid = nullptr;
@@ -59,20 +58,14 @@ public:
     this->_current_timestep = 0;
   }
 
-  ~EventManager() {
-    for (auto handler : this->event_handlers) {
-      delete handler;
-    }
-  }
-
-  void schedule_event(EventId event_id, unsigned int delay, GridObjectId object_id, EventArg arg) {
+  void schedule_event(EventType event_type, unsigned int delay, GridObjectId object_id, EventArg arg) {
     Event event;
     // If the object id is 0, the object has probably not been added to the grid yet. Given
     // our current usage of events, this is an error, since we won't be able to find the object
     // later when the event resolves.
     assert(object_id != 0);
     event.timestamp = this->_current_timestep + delay;
-    event.event_id = event_id;
+    event.event_type = event_type;
     event.object_id = object_id;
     event.arg = arg;
     this->_event_queue.push(event);
@@ -87,7 +80,7 @@ public:
         break;
       }
       this->_event_queue.pop();
-      this->event_handlers[event.event_id]->handle_event(event.object_id, event.arg);
+      this->event_handlers[event.event_type]->handle_event(event.object_id, event.arg);
     }
   }
 };
