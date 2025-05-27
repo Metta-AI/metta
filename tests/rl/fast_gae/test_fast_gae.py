@@ -344,9 +344,7 @@ class TestGAEBenchmarks:
         # Time C++ implementation
         start = time.perf_counter()
         for _ in range(10):
-            cpp_result = compute_gae(
-                data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
-            )
+            cpp_result = compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
         cpp_time = (time.perf_counter() - start) / 10
 
         # Verify results match
@@ -384,9 +382,7 @@ class TestGAEBenchmarks:
         # Time C++ implementation
         start = time.perf_counter()
         for _ in range(10):
-            cpp_result = compute_gae(
-                data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
-            )
+            cpp_result = compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
         cpp_time = (time.perf_counter() - start) / 10
 
         # Verify results match
