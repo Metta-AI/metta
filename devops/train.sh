@@ -17,7 +17,11 @@ export HEARTBEAT_FILE
 
 # System configuration
 if [ -z "$NUM_CPUS" ]; then
-  NUM_CPUS=$(lscpu | grep "CPU(s)" | awk '{print $NF}' | head -n1)
+  if [ "$(uname)" == "Darwin" ]; then
+    NUM_CPUS=$(sysctl -n hw.ncpu)
+  else
+    NUM_CPUS=$(lscpu | grep "CPU(s)" | awk '{print $NF}' | head -n1)
+  fi
   NUM_CPUS=$((NUM_CPUS / 2))
 fi
 
