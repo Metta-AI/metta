@@ -98,7 +98,6 @@ jobs:
         with:
           prompt: "${{ github.event.comment.body }}"
           allowed_tools:
-            # Git inspection commands (read-only)
             - "Bash(git status)"
             - "Bash(git log)"
             - "Bash(git show)"
@@ -109,7 +108,6 @@ jobs:
             - "Bash(git branch)"
             - "Bash(git tag)"
             - "Bash(git diff)"
-            # File exploration tools
             - "View"
             - "GlobTool"
             - "GrepTool"
@@ -147,13 +145,10 @@ jobs:
             - Body: ${{ steps.context.outputs.body }}
             
           allowed_tools:
-            # Git commands for branch creation and PR management
             - "Bash(git checkout -b *)"
             - "Bash(git add *)"
             - "Bash(git commit *)"
             - "Bash(git push *)"
-            
-            # Git inspection commands
             - "Bash(git status)"
             - "Bash(git log)"
             - "Bash(git show)"
@@ -161,18 +156,14 @@ jobs:
             - "Bash(git diff)"
             - "Bash(git branch)"
             - "Bash(git ls-files)"
-            
-            # File manipulation tools
-            - "View"        # Read file contents
-            - "Editor"      # Edit files
-            - "GlobTool"    # Find files by pattern
-            - "GrepTool"    # Search file contents
-            - "BatchTool"   # Run multiple tools in parallel
-            
-            # GitHub API tools (via GitHub CLI)
+            - "View"
+            - "Editor"
+            - "GlobTool"
+            - "GrepTool"
+            - "BatchTool"
             - "Bash(gh pr create --title '*' --body '*')"
             - "Bash(gh pr view *)"
             - "Bash(gh api *)"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          max_turns: 20  # More turns for complex PR creation
+          max_turns: 20
           timeout_minutes: 15
