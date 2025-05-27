@@ -1,5 +1,5 @@
-#ifndef WALL_HPP
-#define WALL_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_WALL_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_WALL_HPP_
 
 #include <string>
 #include <vector>
@@ -16,6 +16,14 @@ public:
     GridObject::init(ObjectType::WallT, GridLocation(r, c, GridLayer::Object_Layer));
     MettaObject::init_mo(cfg);
     this->_swappable = cfg["swappable"];
+  }
+
+  virtual vector<PartialObservationToken> obs_features() const override {
+    vector<PartialObservationToken> features;
+    features.push_back({ObservationFeatureId::TypeId, _type_id});
+    features.push_back({ObservationFeatureId::Hp, hp});
+    features.push_back({ObservationFeatureId::Swappable, _swappable});
+    return features;
   }
 
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
@@ -37,4 +45,4 @@ public:
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_WALL_HPP_

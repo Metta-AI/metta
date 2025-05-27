@@ -1,0 +1,44 @@
+name: Torch Rearrangement Review
+
+on:
+  pull_request:
+    types: [opened, reopened]
+    paths:
+      - '**/*.py'
+
+jobs:
+  review-einops:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for Python file changes
+        id: check-python
+        run: |
+          PYTHON_FILES=$(git diff --name-only origin/${{ github.base_ref }} HEAD | grep "\.py$" || echo "")
+          if [ -n "$PYTHON_FILES" ]; then
+            echo "python_changes=true" >> $GITHUB_OUTPUT
+            echo "Changed Python files: $PYTHON_FILES"
+          else
+            echo "python_changes=false" >> $GITHUB_OUTPUT
+            echo "No Python files changed in this PR"
+          fi
+
+      - name: Suggest einops.rearrange
+        if: steps.check-python.outputs.python_changes == 'true'
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_model: "claude-3-7-sonnet-20250219"
+          allowed_tools: "Edit,Replace,Bash(git diff HEAD~1)"
+          direct_prompt: |
+            Please review the Python diff for PyTorch tensor operations that perform dimension reordering or reshaping via calls like `permute`, `transpose`, `view`, `reshape`, or `unsqueeze`.
+            When you find a sequence of such operations that could be expressed more clearly with `einops.rearrange`, create a GitHub suggestion using `einops.rearrange` to accomplish the same transformation.
+            Explain briefly why `einops.rearrange` is preferable.
+            Keep suggestions concise and only modify the code needed to demonstrate the `einops.rearrange` usage.
