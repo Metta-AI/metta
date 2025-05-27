@@ -24,8 +24,6 @@ done
 # check if we're in docker
 if [ -f /.dockerenv ]; then
   export IS_DOCKER=1
-else
-  export IS_DOCKER=''
 fi
 
 # Define a function to check if we're in a UV virtual environment
@@ -120,20 +118,6 @@ if ! is_uv_venv; then
   source "$VENV_PATH/bin/activate"
 fi
 
-if [ -z "$CI" ]; then
-  # ========== REPORT RESIDUAL CONDA VENV ==========
-  if command -v conda &> /dev/null; then
-    echo "Checking for conda environments associated with this project..."
-    PROJECT_NAME=$(basename "$(pwd)")
-    CONDA_ENVS=$(conda env list | grep "$PROJECT_NAME" | awk '{print $1}')
-    if [ -n "$CONDA_ENVS" ]; then
-      echo "⚠️  Found the following conda environments that might be related to this project:"
-      echo "$CONDA_ENVS"
-      echo "⚠️  You may want to manually remove these if they're no longer needed (conda env remove -n ENV_NAME)"
-    fi
-  fi
-fi
-
 # ========== BUILD AND INSTALL ==========
 
 echo -e "\nInstalling project requirements..."
@@ -142,10 +126,10 @@ uv pip install -r requirements.txt
 echo -e "\nInstalling Metta..."
 uv pip install -e .
 
+# The following will build mettagrid, cmake and all, but in isolated environment.
+# This is according to scikit-build-core and PEP-517 conventions.
 echo -e "\nInstalling MettaGrid..."
 uv pip --directory mettagrid install -e .
-
-PYTHON="uv run --active python"
 
 # ========== SANITY CHECK ==========
 echo -e "\nSanity check: verifying all local deps are importable..."
