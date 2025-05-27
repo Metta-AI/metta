@@ -16,6 +16,11 @@ POLICIES=(
     "b.daphne.objectuse_less_initial_items"
     "b.daphne.objectuse_smaller_rooms"
     "b.daphne.multiagent_8_less_initial_items"
+    "b.daphne.multiagent_8_smaller_rooms2"
+    "b.georgedeane.navseq_training"
+    "b.georgedeane.navseq_training_sp"
+    "b.georgedeane.navseq_training_sp_heartmax15"
+
 )
 #!/bin/bash
 
