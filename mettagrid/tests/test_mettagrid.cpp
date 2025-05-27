@@ -126,9 +126,9 @@ TEST_F(MettaGridTest, AttackAction) {
 
   // Give target some items to steal
   target->update_inventory(InventoryItem::heart, 2);
-  target->update_inventory(InventoryItem::battery, 3);
+  target->update_inventory(InventoryItem::battery_red, 3);
   EXPECT_EQ(target->inventory[InventoryItem::heart], 2);
-  EXPECT_EQ(target->inventory[InventoryItem::battery], 3);
+  EXPECT_EQ(target->inventory[InventoryItem::battery_red], 3);
 
   // Assert the attacker is facing the correct direction
   EXPECT_EQ(attacker->orientation, Orientation::Up);
@@ -158,9 +158,9 @@ TEST_F(MettaGridTest, AttackAction) {
 
   // Verify target's inventory was stolen
   EXPECT_EQ(target->inventory[InventoryItem::heart], 0);
-  EXPECT_EQ(target->inventory[InventoryItem::battery], 0);
+  EXPECT_EQ(target->inventory[InventoryItem::battery_red], 0);
   EXPECT_EQ(attacker->inventory[InventoryItem::heart], 2);
-  EXPECT_EQ(attacker->inventory[InventoryItem::battery], 3);
+  EXPECT_EQ(attacker->inventory[InventoryItem::battery_red], 3);
 
   // grid will delete the agents
 }
@@ -187,7 +187,7 @@ TEST_F(MettaGridTest, PutRecipeItems) {
   ObjectConfig generator_cfg;
   generator_cfg["hp"] = 30;
   generator_cfg["input_ore.red"] = 1;
-  generator_cfg["output_battery"] = 1;
+  generator_cfg["output_battery.red"] = 1;
   // Set the max_output to 0 so it won't consume things we put in it.
   generator_cfg["max_output"] = 0;
   generator_cfg["conversion_ticks"] = 1;
@@ -248,7 +248,7 @@ TEST_F(MettaGridTest, GetOutput) {
   ObjectConfig generator_cfg;
   generator_cfg["hp"] = 30;
   generator_cfg["input_ore.red"] = 1;
-  generator_cfg["output_battery"] = 1;
+  generator_cfg["output_battery.red"] = 1;
   // Set the max_output to 0 so it won't consume things we put in it.
   generator_cfg["max_output"] = 1;
   generator_cfg["conversion_ticks"] = 1;
@@ -272,9 +272,9 @@ TEST_F(MettaGridTest, GetOutput) {
   // Test getting output
   bool success = get.handle_action(agent->id, 0, 0);
   EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);      // Still have red ore
-  EXPECT_EQ(agent->inventory[InventoryItem::battery], 1);      // Also have a battery
-  EXPECT_EQ(generator->inventory[InventoryItem::battery], 0);  // Generator gave away its battery
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);          // Still have red ore
+  EXPECT_EQ(agent->inventory[InventoryItem::battery_red], 1);      // Also have a battery
+  EXPECT_EQ(generator->inventory[InventoryItem::battery_red], 0);  // Generator gave away its battery
 
   // grid will delete the agent and generator
 }
