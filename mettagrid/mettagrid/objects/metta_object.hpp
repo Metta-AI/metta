@@ -1,5 +1,5 @@
-#ifndef METTA_OBJECT_HPP
-#define METTA_OBJECT_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_METTA_OBJECT_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_METTA_OBJECT_HPP_
 
 #include <map>
 #include <string>
@@ -21,4 +21,4 @@ public:
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_METTA_OBJECT_HPP_
