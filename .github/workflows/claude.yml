@@ -30,10 +30,8 @@ jobs:
           echo "Comment Author: ${{ github.event.comment.user.login }}"
           echo "Repository: ${{ github.repository }}"
           echo "Is Pull Request: ${{ !!github.event.issue.pull_request }}"
-          echo "Runner OS: ${{ runner.os }}"
           echo "==========================="
 
-      # Determine action type and fetch depth needed
       - name: Check for PR creation request
         id: check_action
         run: |
@@ -48,43 +46,19 @@ jobs:
             echo "action=comment" >> $GITHUB_OUTPUT
             echo "fetch_depth=1" >> $GITHUB_OUTPUT
           fi
-          echo "Action set to: $(cat $GITHUB_OUTPUT)"
           echo "=============================="
 
-      # Conditional checkout based on action type
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: ${{ steps.check_action.outputs.fetch_depth == '0' && 0 || 1 }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Debug: Verify checkout and git status
-      - name: Debug - Git Status
-        run: |
-          echo "=== GIT DEBUG INFO ==="
-          echo "Current directory: $(pwd)"
-          echo "Fetch depth used: ${{ steps.check_action.outputs.fetch_depth }}"
-          echo "Git status:"
-          git status
-          echo "Current branch:"
-          git branch --show-current
-          echo "All branches:"
-          git branch -a
-          echo "Recent commits:"
-          git log --oneline -5 || echo "Limited history due to shallow clone"
-          echo "Git remote:"
-          git remote -v
-          echo "==================="
-
       - name: Configure Git
         run: |
           git config --global user.name "Claude Assistant"
           git config --global user.email "claude-assistant@users.noreply.github.com"
-          echo "Git configuration set:"
-          git config --global user.name
-          git config --global user.email
 
-      # Debug: Verify secrets are available
       - name: Debug - Check Secrets
         run: |
           echo "=== SECRETS DEBUG ==="
@@ -93,14 +67,9 @@ jobs:
           else
             echo "❌ ANTHROPIC_API_KEY is missing!"
           fi
-          if [ -n "${{ secrets.GITHUB_TOKEN }}" ]; then
-            echo "✅ GITHUB_TOKEN is set"
-          else
-            echo "❌ GITHUB_TOKEN is missing!"
-          fi
           echo "=================="
 
-      # Use official action for regular comments and questions
+      # Regular Claude responses for comments/questions
       - name: Claude Comment Response
         if: steps.check_action.outputs.action == 'comment'
         uses: anthropics/claude-code-action@beta
@@ -114,20 +83,58 @@ jobs:
             Provide helpful analysis and suggestions for code improvements.
             Focus on code review, explanations, and suggestions rather than making changes.
 
-      # Debug: Show what will be sent to Claude for PR creation
-      - name: Debug - PR Creation Context
+      # Determine target branch and generate new branch name
+      - name: Determine branches
         if: steps.check_action.outputs.action == 'create_pr'
-        run: |
-          echo "=== PR CREATION DEBUG ==="
-          echo "Action: ${{ steps.check_action.outputs.action }}"
-          echo "Will execute PR creation workflow"
-          echo "Comment: ${{ github.event.comment.body }}"
-          echo "Issue/PR #: ${{ github.event.issue.number }}"
-          echo "Title: ${{ github.event.issue.title }}"
-          echo "Is PR Comment: ${{ !!github.event.issue.pull_request }}"
-          echo "========================="
+        id: branches
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            let targetBranch = 'main'; // fallback
+            let contextInfo = '';
+            
+            if (context.payload.issue.pull_request) {
+              // Comment was made on a PR - target that PR's head branch
+              console.log("Comment made on PR, fetching PR details...");
+              const prResponse = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number
+              });
+              
+              targetBranch = prResponse.data.head.ref;
+              contextInfo = `PR #${context.issue.number} (${targetBranch})`;
+              console.log(`Will target PR branch: ${targetBranch}`);
+            } else {
+              // Comment was made on an issue - use default branch
+              const repoResponse = await github.rest.repos.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo
+              });
+              targetBranch = repoResponse.data.default_branch;
+              contextInfo = `issue #${context.issue.number} (${targetBranch})`;
+              console.log(`Will target default branch: ${targetBranch}`);
+            }
+            
+            // Generate unique branch name
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const newBranch = `claude/auto-${context.issue.number}-${timestamp}`;
+            
+            console.log(`New branch: ${newBranch} -> ${targetBranch}`);
+            
+            // Set outputs
+            core.setOutput('target_branch', targetBranch);
+            core.setOutput('new_branch', newBranch);
+            core.setOutput('context_info', contextInfo);
+            
+            return {
+              targetBranch,
+              newBranch,
+              contextInfo
+            };
 
-      # Custom PR creation workflow for "@claude open-pr" commands
+      # Claude PR creation with improved instructions
       - name: Claude PR Creation
         if: steps.check_action.outputs.action == 'create_pr'
         uses: anthropics/claude-code-action@beta
@@ -138,286 +145,257 @@ jobs:
           model: "claude-4-sonnet-20250514"
           timeout_minutes: 45
           direct_prompt: |
-            PR Creation Request: ${{ github.event.comment.body }}
+            CRITICAL: You MUST follow these exact git steps to create a PR successfully:
 
-            Context:
-            - Issue/PR #${{ github.event.issue.number }}
-            - Title: ${{ github.event.issue.title }}
-            - This is a ${{ github.event.issue.pull_request && 'PR comment' || 'issue comment' }}
+            CONTEXT:
+            - Request from: ${{ steps.branches.outputs.context_info }}
+            - Target branch: ${{ steps.branches.outputs.target_branch }}
+            - New branch: ${{ steps.branches.outputs.new_branch }}
+            - Title: "${{ github.event.issue.title }}"
 
-            IMPORTANT INSTRUCTIONS:
-            1. Analyze the current codebase to understand the context
-            2. Create a new feature branch with a descriptive name (e.g., claude/fix-description)
-            3. Implement the requested changes with proper code quality
-            4. Make focused, atomic commits with clear conventional commit messages
-            5. Push the branch to origin
-            6. DO NOT create a PR yourself - the workflow handles that
+            YOUR TASK: "${{ github.event.comment.body }}"
 
-            Steps to follow:
-            1. Use git status and git branch to see current state
-            2. Create and checkout a new branch: git checkout -b claude/descriptive-name
-            3. Examine relevant files to understand the codebase
-            4. Make the necessary code changes
-            5. Add and commit changes: git add . && git commit -m "conventional commit message"
-            6. Push the branch: git push -u origin branch-name
+            GIT WORKFLOW (follow exactly):
 
-            Keep commits focused and use clear messages. The workflow will create the PR after you finish.
-          allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,BatchTool,Bash(git status),Bash(git branch),Bash(git checkout -b *),Bash(git add .),Bash(git add *),Bash(git commit -m *),Bash(git push -u origin *),Bash(git push origin *),Bash(git diff),Bash(git diff --cached),Bash(git log --oneline -10),Bash(find . -name '*' -type f -not -path './.git/*' -not -path './node_modules/*'),Bash(ls -la),Bash(cat *)"
+            1. **Check current state:**
+               ```bash
+               git status
+               git branch --show-current
+               ```
 
-      # Debug: Check Claude PR creation results
-      - name: Debug - Claude PR Results
+            2. **Ensure you're on the correct base branch:**
+               ```bash
+               git checkout ${{ steps.branches.outputs.target_branch }}
+               git pull origin ${{ steps.branches.outputs.target_branch }}
+               ```
+
+            3. **Create and checkout your new branch FROM the target branch:**
+               ```bash
+               git checkout -b ${{ steps.branches.outputs.new_branch }}
+               ```
+
+            4. **Implement the requested changes**
+               - Make the code changes needed
+               - Test if possible
+
+            5. **CRITICAL - Commit your changes:**
+               ```bash
+               git add .
+               git status
+               git commit -m "feat: implement changes for ${{ steps.branches.outputs.context_info }}"
+               ```
+
+            6. **Push the new branch:**
+               ```bash
+               git push -u origin ${{ steps.branches.outputs.new_branch }}
+               ```
+
+            IMPORTANT RULES:
+            - Start from branch: ${{ steps.branches.outputs.target_branch }}
+            - Create new branch: ${{ steps.branches.outputs.new_branch }}
+            - MUST commit changes with git add + git commit
+            - MUST push the branch
+            - Do NOT create a pull request yourself
+            - If git commands fail, show the error and try to fix it
+
+            SUCCESS = New branch created, changes committed and pushed!
+          
+          allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,BatchTool,Bash(git status),Bash(git branch),Bash(git branch --show-current),Bash(git checkout *),Bash(git pull origin *),Bash(git checkout -b *),Bash(git add .),Bash(git add *),Bash(git commit -m *),Bash(git push -u origin *),Bash(git push origin *),Bash(git diff),Bash(git diff --cached),Bash(git log --oneline -10),Bash(find . -name '*' -type f -not -path './.git/*' -not -path './node_modules/*'),Bash(ls -la),Bash(cat *)"
+
+      # Verify Claude completed the git workflow
+      - name: Verify git state after Claude
         if: steps.check_action.outputs.action == 'create_pr'
+        id: verify_git
         run: |
-          echo "=== CLAUDE PR CREATION RESULTS ==="
-          echo "Claude step outcome: ${{ steps.claude_pr.outcome }}"
-          echo "Claude step conclusion: ${{ steps.claude_pr.conclusion }}"
-          echo "Current git status after Claude:"
-          git status
+          echo "=== VERIFYING GIT STATE ==="
           echo "Current branch:"
-          git branch --show-current
-          echo "All branches:"
-          git branch -a
+          CURRENT_BRANCH=$(git branch --show-current)
+          echo "$CURRENT_BRANCH"
+          
+          echo "Git status:"
+          git status
+          
           echo "Recent commits:"
-          git log --oneline -10
-          echo "================================="
+          git log --oneline -5
+          
+          echo "Remote branches:"
+          git branch -r
+          
+          # Check if we're on the expected branch
+          if [ "$CURRENT_BRANCH" = "${{ steps.branches.outputs.new_branch }}" ]; then
+            echo "✅ On correct branch: $CURRENT_BRANCH"
+            echo "branch_created=true" >> $GITHUB_OUTPUT
+            
+            # Check if there are commits ahead of target branch
+            git fetch origin
+            TARGET_BRANCH="${{ steps.branches.outputs.target_branch }}"
+            if git rev-list --count origin/$TARGET_BRANCH..$CURRENT_BRANCH > /dev/null 2>&1; then
+              COMMIT_COUNT=$(git rev-list --count origin/$TARGET_BRANCH..$CURRENT_BRANCH)
+              echo "✅ Found $COMMIT_COUNT commits ahead of $TARGET_BRANCH"
+              echo "has_commits=true" >> $GITHUB_OUTPUT
+              echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+            else
+              echo "❌ No commits found ahead of $TARGET_BRANCH"
+              echo "has_commits=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Wrong branch! Expected: ${{ steps.branches.outputs.new_branch }}, Got: $CURRENT_BRANCH"
+            echo "branch_created=false" >> $GITHUB_OUTPUT
+            echo "has_commits=false" >> $GITHUB_OUTPUT
+          fi
+          echo "=========================="
 
-      # Create PR automatically after Claude finishes the implementation
+      # Create PR only if git workflow was completed correctly
       - name: Create Pull Request
-        if: steps.check_action.outputs.action == 'create_pr' && (steps.claude_pr.outcome == 'success' || steps.claude_pr.outcome == 'failure')
+        if: steps.check_action.outputs.action == 'create_pr' && steps.verify_git.outputs.branch_created == 'true' && steps.verify_git.outputs.has_commits == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { execSync } = require('child_process');
-
             try {
-              console.log("=== PR CREATION DEBUG START ===");
+              console.log("=== CREATING PULL REQUEST ===");
               
-              // Get the current branch name (Claude's new branch)
-              const currentBranch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim();
-              console.log(`Current branch: ${currentBranch}`);
+              const targetBranch = "${{ steps.branches.outputs.target_branch }}";
+              const newBranch = "${{ steps.branches.outputs.new_branch }}";
+              const contextInfo = "${{ steps.branches.outputs.context_info }}";
+              const commitCount = "${{ steps.verify_git.outputs.commit_count }}";
               
-              // Determine the target branch based on where the comment was made
-              let targetBranch = 'main'; // default fallback
+              console.log(`Creating PR: ${newBranch} -> ${targetBranch}`);
+              console.log(`Context: ${contextInfo}`);
               
-              // If this comment was made on a PR, target that PR's branch
-              if (context.payload.issue.pull_request) {
-                console.log("Comment was made on a PR, fetching PR details...");
-                // Get the PR details to find the head branch
-                const prResponse = await github.rest.pulls.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: context.issue.number
-                });
-                
-                targetBranch = prResponse.data.head.ref;
-                console.log(`PR #${context.issue.number} head branch: ${targetBranch}`);
-              } else {
-                console.log("Comment was made on an issue, using default branch...");
-                // Comment was made on an issue, use default branch
-                const repoResponse = await github.rest.repos.get({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo
-                });
-                targetBranch = repoResponse.data.default_branch;
-                console.log(`Repository default branch: ${targetBranch}`);
-              }
+              // Get latest commit for PR title
+              const { execSync } = require('child_process');
+              const latestCommit = execSync('git log -1 --pretty=format:"%s"', { encoding: 'utf-8' }).trim();
               
-              console.log(`Target branch determined: ${targetBranch}`);
+              const prTitle = latestCommit.length > 50 
+                ? `${latestCommit.substring(0, 47)}...`
+                : latestCommit;
               
-              // Only create PR if we're not on the target branch
-              if (currentBranch !== targetBranch) {
-                console.log(`Creating PR: ${currentBranch} -> ${targetBranch}`);
-                
-                // Check if there are any commits on this branch compared to target
-                try {
-                  const commitCountCmd = `git rev-list --count ${targetBranch}..${currentBranch}`;
-                  console.log(`Running: ${commitCountCmd}`);
-                  const commitCount = execSync(commitCountCmd, { encoding: 'utf-8' }).trim();
-                  console.log(`Commit count: ${commitCount}`);
-                  
-                  if (parseInt(commitCount) > 0) {
-                    // Get the latest commit message for PR title
-                    const latestCommit = execSync('git log -1 --pretty=format:"%s"', { encoding: 'utf-8' }).trim();
-                    console.log(`Latest commit: ${latestCommit}`);
-                    
-                    // Create descriptive PR title
-                    const prTitle = latestCommit.startsWith('feat:') || latestCommit.startsWith('fix:') || latestCommit.startsWith('refactor:')
-                      ? latestCommit
-                      : `Claude: ${latestCommit}`;
-                    
-                    console.log(`Creating PR with title: ${prTitle}`);
-                    
-                    // Create PR targeting the original branch
-                    const prResponse = await github.rest.pulls.create({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      title: prTitle,
-                      head: currentBranch,
-                      base: targetBranch,
-                      body: [
-                        "🤖 **Automated PR created by Claude**",
-                        "",
-                        "**Original request:** ${{ github.event.comment.body }}",
-                        "",
-                        `**Context:** This PR was created in response to a comment on ${context.payload.issue.pull_request ? 'PR' : 'issue'} #${{ github.event.issue.number }}`,
-                        "",
-                        `**Target branch:** \`${targetBranch}\``,
-                        "",
-                        "**Changes:**",
-                        latestCommit,
-                        "",
-                        "**Claude execution status:** ${{ steps.claude_pr.outcome }}",
-                        "",
-                        "---",
-                        "*This PR was automatically created by the Claude Code Assistant. Please review the changes before merging.*"
-                      ].join('\n')
-                    });
-                    
-                    console.log(`✅ Created PR #${prResponse.data.number}: ${prResponse.data.html_url}`);
-                    console.log(`   Head: ${currentBranch} → Base: ${targetBranch}`);
-                    
-                    // Post success comment
-                    await github.rest.issues.createComment({
-                      issue_number: context.issue.number,
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      body: [
-                        "🚀 **PR Created Successfully!**",
-                        "",
-                        `I've implemented the requested changes and created PR #${prResponse.data.number}: ${prResponse.data.html_url}`,
-                        "",
-                        `**Branch:** \`${currentBranch}\` → \`${targetBranch}\``,
-                        "**Claude Status:** ${{ steps.claude_pr.outcome }}",
-                        "",
-                        "The changes are ready for your review. You can view the diff and test the implementation before merging.",
-                        "",
-                        "<details>",
-                        "<summary>🔍 Debug Info</summary>",
-                        "",
-                        `- Current branch: \`${currentBranch}\``,
-                        `- Target branch: \`${targetBranch}\``,
-                        `- Commits made: ${commitCount}`,
-                        `- Latest commit: ${latestCommit}`,
-                        "</details>"
-                      ].join('\n')
-                    });
-                    
-                  } else {
-                    console.log('No commits found on the new branch');
-                    await github.rest.issues.createComment({
-                      issue_number: context.issue.number,
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      body: [
-                        "⚠️ **No changes were made**",
-                        "",
-                        "I wasn't able to implement any changes based on your request.",
-                        "",
-                        "**Debug info:**",
-                        `- Current branch: \`${currentBranch}\``,
-                        `- Target branch: \`${targetBranch}\``,
-                        "- Claude status: ${{ steps.claude_pr.outcome }}",
-                        `- Commits found: ${commitCount}`,
-                        "",
-                        "This could be because:",
-                        "- The request wasn't clear enough",
-                        "- The changes are too complex for automated implementation",
-                        "- There were technical issues during implementation",
-                        "",
-                        "Please try rephrasing your request or providing more specific details."
-                      ].join('\n')
-                    });
-                  }
-                } catch (commitError) {
-                  console.log('Error checking commits:', commitError.message);
-                  console.log('Git status:', execSync('git status', { encoding: 'utf-8' }));
-                  
-                  await github.rest.issues.createComment({
-                    issue_number: context.issue.number,
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    body: [
-                      "⚠️ **Unable to verify changes**",
-                      "",
-                      `I created a branch (\`${currentBranch}\`) but couldn't verify the changes.`,
-                      "",
-                      "**Debug info:**",
-                      `- Current branch: \`${currentBranch}\``,
-                      `- Target branch: \`${targetBranch}\``,
-                      "- Claude status: ${{ steps.claude_pr.outcome }}",
-                      `- Error: ${commitError.message}`,
-                      "",
-                      "You can manually check the branch and create a PR if needed:",
-                      "",
-                      "```bash",
-                      `git checkout ${currentBranch}`,
-                      `git diff ${targetBranch}`,
-                      "```"
-                    ].join('\n')
-                  });
-                }
-              } else {
-                console.log(`Still on target branch (${targetBranch}) - no PR needed`);
-                await github.rest.issues.createComment({
-                  issue_number: context.issue.number,
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  body: [
-                    "⚠️ **Unable to create PR**",
-                    "",
-                    "Claude didn't create a new branch for the changes.",
-                    "",
-                    "**Debug info:**",
-                    `- Current branch: \`${currentBranch}\``,
-                    `- Target branch: \`${targetBranch}\``,
-                    "- Claude status: ${{ steps.claude_pr.outcome }}",
-                    "",
-                    "This might be because:",
-                    "- The changes were too complex to implement automatically",
-                    "- There were git conflicts or technical issues",
-                    "- The request needs manual implementation",
-                    "",
-                    "Please try a simpler request or implement the changes manually."
-                  ].join('\n')
-                });
-              }
+              // Create the PR targeting the original branch
+              const prResponse = await github.rest.pulls.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: prTitle,
+                head: newBranch,
+                base: targetBranch,
+                body: [
+                  "🤖 **Automated PR created by Claude**",
+                  "",
+                  "**Original request:**",
+                  "> ${{ github.event.comment.body }}",
+                  "",
+                  `**Context:** This PR addresses the request from ${contextInfo}`,
+                  `**Target:** This PR will merge into \`${targetBranch}\` (not main)`,
+                  "",
+                  "**Changes made:**",
+                  `- ${commitCount} commit(s) with: ${latestCommit}`,
+                  "",
+                  `**Branch flow:** \`${newBranch}\` → \`${targetBranch}\``,
+                  "",
+                  "---",
+                  "*This PR was automatically created by Claude Code Assistant. It targets the original feature branch for iterative development.*"
+                ].join('\n')
+              });
               
-              console.log("=== PR CREATION DEBUG END ===");
+              console.log(`✅ Created PR #${prResponse.data.number}: ${prResponse.data.html_url}`);
+              
+              // Post success comment
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: [
+                  "🚀 **PR Created Successfully!**",
+                  "",
+                  `I've implemented your request and created PR #${prResponse.data.number}:`,
+                  `${prResponse.data.html_url}`,
+                  "",
+                  `**Branch flow:** \`${newBranch}\` → \`${targetBranch}\``,
+                  `**Commits:** ${commitCount}`,
+                  `**Changes:** ${latestCommit}`,
+                  "",
+                  context.payload.issue.pull_request 
+                    ? `This PR targets your feature branch \`${targetBranch}\` for iterative development! 🔄`
+                    : "This PR is ready for review! 🎉"
+                ].join('\n')
+              });
               
             } catch (error) {
-              console.error('Error in PR creation:', error);
-              console.error('Stack trace:', error.stack);
+              console.error('Error creating PR:', error);
               
               await github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 body: [
-                  "❌ **Error creating PR**",
+                  "❌ **Failed to create PR**",
                   "",
-                  "There was an error during the PR creation process.",
+                  `Error: ${error.message}`,
                   "",
                   "**Debug info:**",
-                  "- Claude status: ${{ steps.claude_pr.outcome }}",
-                  `- Error: ${error.message}`,
+                  `- New branch: \`${{ steps.branches.outputs.new_branch }}\``,
+                  `- Target branch: \`${{ steps.branches.outputs.target_branch }}\``,
+                  `- Branch created: ${{ steps.verify_git.outputs.branch_created }}`,
+                  `- Has commits: ${{ steps.verify_git.outputs.has_commits }}`,
+                  `- Commit count: ${{ steps.verify_git.outputs.commit_count }}`,
                   "",
-                  "Please try again or implement the changes manually."
+                  "Please check the Actions logs for more details."
                 ].join('\n')
               });
             }
 
-      # Always post a final status update for debugging
-      - name: Debug - Final Status
+      # Handle case where Claude didn't follow git workflow
+      - name: Handle git workflow failure
+        if: steps.check_action.outputs.action == 'create_pr' && (steps.verify_git.outputs.branch_created != 'true' || steps.verify_git.outputs.has_commits != 'true')
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            let reason = "Unknown issue";
+            
+            if ("${{ steps.verify_git.outputs.branch_created }}" !== 'true') {
+              reason = "Claude didn't create the required branch";
+            } else if ("${{ steps.verify_git.outputs.has_commits }}" !== 'true') {
+              reason = "Claude didn't commit any changes";
+            }
+            
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: [
+                "⚠️ **Unable to create PR**",
+                "",
+                `**Reason:** ${reason}`,
+                "",
+                "**Debug info:**",
+                `- Expected branch: \`${{ steps.branches.outputs.new_branch }}\``,
+                `- Target branch: \`${{ steps.branches.outputs.target_branch }}\``,
+                `- Branch created: ${{ steps.verify_git.outputs.branch_created }}`,
+                `- Has commits: ${{ steps.verify_git.outputs.has_commits }}`,
+                `- Claude execution: ${{ steps.claude_pr.outcome }}`,
+                "",
+                "**Possible solutions:**",
+                "- Try a simpler, more specific request",
+                "- Check if the changes conflict with existing code",
+                "- Implement the changes manually if they're complex",
+                "",
+                "You can view the full execution logs in the Actions tab for more details."
+              ].join('\n')
+            });
+
+      # Final debug output
+      - name: Final Debug Summary
         if: always()
         run: |
-          echo "=== FINAL WORKFLOW STATUS ==="
-          echo "Workflow conclusion: ${{ job.status }}"
-          echo "Check action outcome: ${{ steps.check_action.outcome }}"
-          echo "Claude comment outcome: ${{ steps.claude_comment.outcome || 'N/A' }}"
-          echo "Claude PR outcome: ${{ steps.claude_pr.outcome || 'N/A' }}"
-          echo "Final git status:"
-          git status
-          echo "Final branch:"
-          git branch --show-current
+          echo "=== FINAL WORKFLOW SUMMARY ==="
+          echo "Action type: ${{ steps.check_action.outputs.action }}"
+          echo "New branch: ${{ steps.branches.outputs.new_branch }}"
+          echo "Target branch: ${{ steps.branches.outputs.target_branch }}"
+          echo "Context: ${{ steps.branches.outputs.context_info }}"
+          echo "Branch created: ${{ steps.verify_git.outputs.branch_created }}"
+          echo "Has commits: ${{ steps.verify_git.outputs.has_commits }}"
+          echo "Commit count: ${{ steps.verify_git.outputs.commit_count }}"
+          echo "Claude outcome: ${{ steps.claude_pr.outcome }}"
+          echo "Workflow status: ${{ job.status }}"
           echo "=============================="
