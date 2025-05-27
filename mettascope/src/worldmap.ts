@@ -553,7 +553,7 @@ function drawThoughtBubbles() {
 // Draw the visibility map either agent view ranges or fog of war.
 function drawVisibility() {
 
-  if (state.showViewRanges || state.showFogOfWar) {
+  if (state.showVisualRanges || state.showFogOfWar) {
     // Compute the visibility map, each agent contributes to the visibility map.
     const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
 

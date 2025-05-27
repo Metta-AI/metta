@@ -455,39 +455,39 @@ for (let i = 0; i < html.speedButtons.length; i++) {
 }
 
 
-html.resourcesButton.addEventListener('click', () => {
+html.resourcesToggle.addEventListener('click', () => {
   state.showResources = !state.showResources;
-  toggleOpacity(html.resourcesButton, state.showResources);
+  toggleOpacity(html.resourcesToggle, state.showResources);
   requestFrame();
 });
-toggleOpacity(html.resourcesButton, state.showResources);
+toggleOpacity(html.resourcesToggle, state.showResources);
 
 // Toggle follow selection state.
-html.focusButton.addEventListener('click', () => {
+html.focusToggle.addEventListener('click', () => {
   setFollowSelection(!state.followSelection);
 });
-toggleOpacity(html.focusButton, state.followSelection);
+toggleOpacity(html.focusToggle, state.followSelection);
 
-html.gridButton.addEventListener('click', () => {
+html.gridToggle.addEventListener('click', () => {
   state.showGrid = !state.showGrid;
-  toggleOpacity(html.gridButton, state.showGrid);
+  toggleOpacity(html.gridToggle, state.showGrid);
   requestFrame();
 });
-toggleOpacity(html.gridButton, state.showGrid);
+toggleOpacity(html.gridToggle, state.showGrid);
 
-html.showViewButton.addEventListener('click', () => {
-  state.showViewRanges = !state.showViewRanges;
-  toggleOpacity(html.showViewButton, state.showViewRanges);
+html.visualRangeToggle.addEventListener('click', () => {
+  state.showVisualRanges = !state.showVisualRanges;
+  toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
   requestFrame();
 });
-toggleOpacity(html.showViewButton, state.showViewRanges);
+toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
 
-html.showFogOfWarButton.addEventListener('click', () => {
+html.fogOfWarToggle.addEventListener('click', () => {
   state.showFogOfWar = !state.showFogOfWar;
-  toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+  toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
   requestFrame();
 });
-toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
 
 initActionButtons();
 
