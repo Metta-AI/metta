@@ -1,7 +1,6 @@
 # @package __global__
 
 defaults:
-  - /sim/memory@train_job.sim
   - _self_
 
 trainer:
@@ -16,4 +15,4 @@ trainer:
 #   # wandb.enabled: false
 #   wandb.track: false
 
-run: mrazo_memory_varied-terrain_v01
+run: mrazo_memory_varied-terrain_v04
