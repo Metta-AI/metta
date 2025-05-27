@@ -144,7 +144,7 @@ class Zone:
 
     def random_divide(self, size: int):
         min_size = size // 3  # TODO - configurable proportion
-        return self.rng.integers(min_size, size - min_size + 1)
+        return self.rng.integers(min_size, size - min_size + 1, dtype=int)
 
     def horizontal_split(self) -> Tuple["Zone", "Zone"]:
         first_height = self.random_divide(self.height)
@@ -174,6 +174,7 @@ class Zone:
             return self.rng.integers(
                 max(min_size, int(n * min_size_ratio)),
                 max(min_size, int(n * max_size_ratio)) + 1,
+                dtype=int,
             )
 
         room_width = random_size(self.width)
@@ -181,8 +182,8 @@ class Zone:
 
         # Randomly position the room within the zone; always leave a 1 cell border on bottom-right, otherwise the
         # rooms could touch each other.
-        shift_x = self.rng.integers(1, max(1, self.width - room_width) + 1)
-        shift_y = self.rng.integers(1, max(1, self.height - room_height) + 1)
+        shift_x = self.rng.integers(1, max(1, self.width - room_width) + 1, dtype=int)
+        shift_y = self.rng.integers(1, max(1, self.height - room_height) + 1, dtype=int)
         return Zone(self.x + shift_x, self.y + shift_y, room_width, room_height, self.rng)
 
     def transpose(self) -> "Zone":
@@ -361,7 +362,7 @@ def connect_surfaces(surface1: Surface, surface2: Surface):
     start = surface1.random_position()
     end = surface2.random_position()
 
-    turn_y = surface1.rng.integers(surface1.max_y, surface2.min_y + 1)
+    turn_y = surface1.rng.integers(surface1.max_y, surface2.min_y + 1, dtype=int)
 
     lines = [
         # Note: off-by-one errors here were quite annoying, be careful.

@@ -27,7 +27,7 @@ class Node:
 
         self._areas = []
 
-        # { "lockname": [area_id1, area_id2, ...] }
+        # { "lock_name": [area_id1, area_id2, ...] }
         self._locks = {}
         self._full_area = Area(
             id=-1,
