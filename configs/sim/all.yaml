@@ -158,7 +158,3 @@ simulations:
     env: env/mettagrid/memory/evals/tease_small
   memory/you_shall_not_pass:
     env: env/mettagrid/memory/evals/you_shall_not_pass
-<<<<<<< HEAD
-
-=======
->>>>>>> 7e75466bd75398a9206a741a9976b941f66671af

@@ -66,7 +66,7 @@ class VariedTerrainSequence(Room):
             "clumpiness": [0, 2],  # Clumpiness is not necessary when only labyrinths are used.
         },
     }
-    MIN_TRIPLET_SEPARATION_DISTANCE = 7  # Minimum Euclidean distance between centers of triplets
+    MIN_TRIPLET_SEPARATION_DISTANCE = 3  # Easier placement
 
     def __init__(
         self,
@@ -172,21 +172,14 @@ class VariedTerrainSequence(Room):
         grid = self._place_blocks(grid)
 
         # Place object triplets (altar, mine, generator).
-        num_triplets_to_place = 0
-        altar_count_cfg = self._objects.get("altar")
-        if altar_count_cfg is not None:
-            try:
-                num_triplets_to_place = int(altar_count_cfg)
-            except (ValueError, TypeError):
-                # If conversion fails or it's an unexpected type, default to 0 or log a warning
-                num_triplets_to_place = 0 
-                # Consider logging a warning here if self.logger is available
-                # print(f"Warning: Could not parse 'altar' count: {altar_count_cfg}. Defaulting to 0 triplets.")
-
-        for _ in range(num_triplets_to_place):
-            placed = self._place_object_triplet(grid)
-            if not placed:
-                break  # Stop if no more space for triplets
+        # Easy-peasy: target 100 triplets irrespective of provided altar count.
+        triplets_target = 100
+        placed_triplets = 0
+        attempts = 0
+        while placed_triplets < triplets_target and attempts < triplets_target * 20:
+            if self._place_object_triplet(grid):
+                placed_triplets += 1
+            attempts += 1
 
         # Place agents.
         for agent_symbol in agent_symbols_to_place:
@@ -477,7 +470,7 @@ class VariedTerrainSequence(Room):
 
         # Find candidate locations that are empty and adjacent to existing structures
         # The shape passed to _find_candidates is the effective shape (triplet + clearance)
-        all_possible_eff_candidates = self._find_candidates((eff_h, eff_w), require_adjacency_to_structure=True)
+        all_possible_eff_candidates = self._find_candidates((eff_h, eff_w), require_adjacency_to_structure=False)
         
         if not all_possible_eff_candidates:
             # Fallback: if no spots near structures, try any empty spot (original behavior for finding space)

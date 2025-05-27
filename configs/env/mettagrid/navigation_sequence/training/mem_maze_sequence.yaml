@@ -20,8 +20,8 @@ game:
       style: maze # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
         altar: ${sampling:1,3,3}
-        mine: ${sampling:1,3,3}
-        generator: ${sampling:1,3,3}
+        mine.red: ${sampling:1,3,3}
+        generator.red: ${sampling:1,3,3}
   objects:
     altar:
       cooldown: 5
@@ -30,15 +30,15 @@ game:
       max_output: 1
       conversion_ticks: 1
       initial_items: 0
-    mine:
+    mine.red:
       cooldown: 5
-      output_ore: 1
+      output_ore.red: 1
       max_output: 1
       conversion_ticks: 1
       initial_items: 1
-    generator:
+    generator.red:
       cooldown: 5
-      input_ore: 1
+      input_ore.red: 1
       output_battery: 1
       max_output: 1
       conversion_ticks: 1

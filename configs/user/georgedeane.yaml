@@ -13,11 +13,11 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/object_use/training/multienv_nc
+  env: /env/mettagrid/navigation_sequence/training/multienv_seq
   evaluate_interval: 10
 
 
-policy_uri: wandb://run/32agents_daphne_multiagent_training
+policy_uri: wandb://run/32_daphne_multiagent_training
 
 
 run_id: 2

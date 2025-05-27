@@ -13,14 +13,15 @@ game:
 
     room:
       _target_: mettagrid.room.navigation.cylinder_object_sequence.CylinderObjectSequence
-      width: ${sampling:75,120,60}
-      height: ${sampling:75,120,60}
+      width: ${sampling:25,70,20}
+      height: ${sampling:25,70,20}
       border_width: ${sampling:1,6,3}
       agents: 1
       objects:
-        altar: ${sampling:30,75,50}
-        mine: ${sampling:30,75,50}
-        generator: ${sampling:30,75,50}
+        altar: ${sampling:1,3,3}
+        mine: ${sampling:1,3,3}
+        generator: ${sampling:1,3,3}
+
   objects:
     altar:
       cooldown: 255

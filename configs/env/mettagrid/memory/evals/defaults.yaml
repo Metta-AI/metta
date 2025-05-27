@@ -9,11 +9,8 @@ game:
   agent:
     rewards:
       heart: 1
-<<<<<<< HEAD
-=======
       ore.red: 0
       battery: 0
->>>>>>> 7e75466bd75398a9206a741a9976b941f66671af
   map_builder:
     _target_: mettagrid.room.ascii.Ascii
     border_width: 3
