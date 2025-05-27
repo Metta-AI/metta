@@ -35,3 +35,8 @@ build_debug/
 test_data
 **/mettagrid_debug.log
 cpplint_output*
+
+observatory/node_modules/
+observatory/.vite/
+
+wandb
