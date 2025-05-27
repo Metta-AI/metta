@@ -17,4 +17,4 @@ trainer:
 #   wandb.track: false
 
 
-run: mrazo_cooperation_two-room-coord_v01
+run: mrazo_cooperation_two-room-coord_v02
