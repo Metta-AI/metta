@@ -15,6 +15,7 @@ from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from metta.util import validate_arg_types
 
 
 def required(func):
@@ -30,6 +31,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     rewards: np.ndarray
     actions: np.ndarray
 
+    @validate_arg_types
     def __init__(
         self,
         env_cfg: DictConfig,
