@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/multi_agent/defaults@
+  - /env/mettagrid/multi_agent/training/defaults@
   - _self_
 
 sampling: 1
