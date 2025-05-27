@@ -94,10 +94,14 @@ jobs:
             - Only add type annotations without changing the functionality
             - Focus on public methods and functions first, then private ones
             - Be conservative with complex types - suggest simpler types when unsure
-            
+
             If the changes don't include Python files or all Python code already has proper type annotations,
             simply mention that no changes are needed.
-            
-            Be polite and constructive in your feedback. Explain that these are suggestions that the developer 
+
+            Be polite and constructive in your feedback. Explain that these are suggestions that the developer
             can choose to accept or ignore, but emphasize the benefits of type annotations for code quality,
             readability, and error prevention.
+
+            Conclude your PR comment with a **TLDR** section summarizing the recommended type annotation changes.
+            Keep it brief so it can be copied into another LLM. Use one bullet per file and mention line numbers
+            when applicable.
