@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=64", "wheel", "numpy>=2.2.5", "Cython==3.0.12"]
-build-backend = "setuptools.build_meta"
+requires = ["scikit-build-core", "pybind11==2.10.4"]
+build-backend = "scikit_build_core.build"
 
 [project]
 name = "metta"
@@ -13,17 +13,6 @@ license = "MIT"
 [project.scripts]
 skypilot = "devops.skypilot.launch:main"
 skypilot-sandbox = "devops.skypilot.sandbox:main"
-
-[tool.setuptools]
-packages = ["metta", "mettagrid", "devops"]
-
-[tool.setuptools.package-dir]
-metta = "metta"
-mettagrid = "mettagrid"
-devops = "devops"
-
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt", "requirements_pinned.txt"] }
 
 [tool.coverage.run]
 source = ["mettagrid", "metta"]

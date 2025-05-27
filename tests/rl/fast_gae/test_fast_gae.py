@@ -11,7 +11,7 @@ import time
 import numpy as np
 import pytest
 
-from metta.rl.fast_gae import compute_gae  # Replace 'your_module' with the actual module name
+from metta.rl.fast_gae import compute_gae
 
 
 def numpy_compute_gae(dones, values, rewards, gamma, gae_lambda):
