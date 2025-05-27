@@ -204,7 +204,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #constrols-togge.hover-icon {
+.right #controls-toggle.hover-icon {
     display: block;
     width: 32px;
     height: 32px;

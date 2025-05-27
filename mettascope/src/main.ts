@@ -247,11 +247,30 @@ export function onFrame() {
 
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
-  ctx.useMesh("mini-map");
-  drawMiniMap(ui.miniMapPanel);
+
+  if (state.showMiniMap) {
+    ui.miniMapPanel.div.style.display = "block";
+    ctx.useMesh("mini-map");
+    drawMiniMap(ui.miniMapPanel);
+  } else {
+    ui.miniMapPanel.div.style.display = "none";
+  }
+
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
-  updateReadout();
+
+  if (state.showInfo) {
+    ui.infoPanel.div.style.display = "block";
+    updateReadout();
+  } else {
+    ui.infoPanel.div.style.display = "none";
+  }
+
+  if (state.showControls) {
+    html.actionButtons.style.display = "block";
+  } else {
+    html.actionButtons.style.display = "none";
+  }
 
   ctx.flush();
   console.log("Flushed ctx.");
@@ -488,6 +507,27 @@ html.fogOfWarToggle.addEventListener('click', () => {
   requestFrame();
 });
 toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
+
+html.minimapToggle.addEventListener('click', () => {
+  state.showMiniMap = !state.showMiniMap;
+  toggleOpacity(html.minimapToggle, state.showMiniMap);
+  requestFrame();
+});
+toggleOpacity(html.minimapToggle, state.showMiniMap);
+
+html.controlsToggle.addEventListener('click', () => {
+  state.showControls = !state.showControls;
+  toggleOpacity(html.controlsToggle, state.showControls);
+  requestFrame();
+});
+toggleOpacity(html.controlsToggle, state.showControls);
+
+html.infoToggle.addEventListener('click', () => {
+  state.showInfo = !state.showInfo;
+  toggleOpacity(html.infoToggle, state.showInfo);
+  requestFrame();
+});
+toggleOpacity(html.infoToggle, state.showInfo);
 
 initActionButtons();
 

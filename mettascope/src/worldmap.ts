@@ -305,6 +305,11 @@ function drawActions() {
 
 // Draw the object's inventory.
 function drawInventory() {
+
+  if (!state.showResources) {
+    return;
+  }
+
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")

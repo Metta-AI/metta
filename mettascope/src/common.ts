@@ -79,6 +79,9 @@ export const state = {
   showGrid: true,
   showVisualRanges: true,
   showFogOfWar: false,
+  showMiniMap: true,
+  showInfo: true,
+  showControls: true,
 
   showAttackMode: false,
 
@@ -119,6 +122,9 @@ export const html = {
   gridToggle: find('#grid-toggle') as HTMLImageElement,
   visualRangeToggle: find('#visual-range-toggle') as HTMLImageElement,
   fogOfWarToggle: find('#fog-of-war-toggle') as HTMLImageElement,
+  minimapToggle: find('#minimap-toggle') as HTMLImageElement,
+  controlsToggle: find('#controls-toggle') as HTMLImageElement,
+  infoToggle: find('#info-toggle') as HTMLImageElement,
 
   // Utility
   modal: find('#modal') as HTMLDivElement,
