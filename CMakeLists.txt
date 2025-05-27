@@ -6,8 +6,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(PYBIND11_FINDPYTHON ON)
-
-set(pybind11_DIR ".venv/lib/python3.11/site-packages/pybind11/share/cmake/pybind11")
+execute_process(
+  COMMAND "python" -c "import pybind11; print(pybind11.get_cmake_dir())"
+  OUTPUT_VARIABLE pybind11_DIR
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(fast_gae "metta/rl/fast_gae.cpp")
