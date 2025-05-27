@@ -53,24 +53,31 @@ html {
   color: white;
 }
 
-.help-wrapper {
-  margin-left: 8px;
-  margin-top: 5px;
+#agent-panel {
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
-.help-wrapper a {
-  display: block;
-  text-decoration: none;
+#agent-panel #agent-table {
+  height: auto;
+  width: auto;
 }
 
-#help-button {
-  width: 24px;
-  height: 24px;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.2s;
+/* Mac-like scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-#help-button:hover {
-  opacity: 1;
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5);
 }

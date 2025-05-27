@@ -181,7 +181,7 @@ canvas#global-canvas {
 #footer .right {
     position: absolute;
     display: flex;
-    width: 303px;
+    width: 340px;
     height: 32px;
     right: 20px;
     top: 50%;
@@ -243,26 +243,26 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right .sep2 {
-    display: block;
-    width: 1px;
-    height: 16px;
-    left: 154px;
-    top: 8px;
-    background-color: rgba(255, 255, 255, 0.10);
-}
-
-.right #resources-toggle.hover-icon {
+.right #agent-panel-toggle.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
-    left: 160px;
+    left: 154px;
     top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
-.right #grid-toggle.hover-icon {
+.right .sep2 {
+    display: block;
+    width: 1px;
+    height: 16px;
+    left: 191px;
+    top: 8px;
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.right #resources-toggle.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -272,7 +272,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #visual-range-toggle.hover-icon {
+.right #grid-toggle.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -282,7 +282,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #fog-of-war-toggle.hover-icon {
+.right #visual-range-toggle.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -377,6 +377,346 @@ canvas#global-canvas {
     bottom: 192px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
+}
+
+#agent-panel {
+    position: absolute;
+    display: block;
+    width: 475px;
+    height: 693px;
+    left: 50px;
+    top: 123px;
+    background-color: rgba(20, 20, 20, 0.90);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+#agent-panel #agent-table {
+    position: absolute;
+    display: flex;
+    width: 400.41px;
+    height: 58px;
+    left: 40px;
+    top: 40px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+#agent-table .header {
+    display: flex;
+    width: auto;
+    height: auto;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.header .field-header {
+    display: flex;
+    width: 100px;
+    height: 24px;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 5px 0px 5px 0px;
+    justify-content: flex-end;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.field-header .ui/sortdown {
+    display: block;
+    width: 14px;
+    height: 24px;
+    left: 43px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.field-header .text {
+    display: inline-block;
+    width: auto;
+    height: auto;
+    left: 57px;
+    top: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 24px;
+}
+
+.header .field-header {
+    display: flex;
+    width: 100px;
+    height: 24px;
+    left: 100px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 5px 0px 5px 0px;
+    justify-content: flex-end;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.field-header .ui/sortdown {
+    display: block;
+    width: 14px;
+    height: 24px;
+    left: 35px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.field-header .text {
+    display: inline-block;
+    width: auto;
+    height: auto;
+    left: 49px;
+    top: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 24px;
+}
+
+.header .field-header {
+    display: flex;
+    width: 100px;
+    height: 24px;
+    left: 200px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 5px 0px 5px 0px;
+    justify-content: flex-end;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.field-header .ui/sortdown {
+    display: block;
+    width: 14px;
+    height: 24px;
+    left: 39px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.field-header .text {
+    display: inline-block;
+    width: auto;
+    height: auto;
+    left: 53px;
+    top: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 24px;
+}
+
+.header .field-header {
+    display: flex;
+    width: 100px;
+    height: 24px;
+    left: 300px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 5px 0px 5px 0px;
+    justify-content: flex-end;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.field-header .ui/sortdown {
+    display: block;
+    width: 14px;
+    height: 24px;
+    left: 22px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.field-header .text {
+    display: inline-block;
+    width: auto;
+    height: auto;
+    left: 36px;
+    top: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 24px;
+}
+
+#agent-table .row {
+    display: flex;
+    width: auto;
+    height: auto;
+    left: 0px;
+    top: 34px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.row .cell {
+    display: flex;
+    width: 100.41px;
+    height: auto;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.cell .text {
+    display: inline-block;
+    width: 100px;
+    height: auto;
+    left: 0px;
+    top: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 24px;
+}
+
+.row .cell {
+    display: flex;
+    width: auto;
+    height: auto;
+    left: 100.41px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.cell .text {
+    display: inline-block;
+    width: 100px;
+    height: 24px;
+    left: 0px;
+    top: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 24px;
+}
+
+.row .cell {
+    display: flex;
+    width: auto;
+    height: auto;
+    left: 200.41px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.cell .text {
+    display: inline-block;
+    width: 100px;
+    height: 24px;
+    left: 0px;
+    top: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 24px;
+}
+
+.row .cell {
+    display: flex;
+    width: auto;
+    height: auto;
+    left: 300.41px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.cell .text {
+    display: inline-block;
+    width: 100px;
+    height: 24px;
+    left: 0px;
+    top: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: Scout;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 24px;
 }
 
 #header {
