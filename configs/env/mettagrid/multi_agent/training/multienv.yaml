@@ -7,9 +7,9 @@ game:
   num_agents: ${..num_agents}
 
 envs:
-  - /env/mettagrid/multi_agent/boxshare
-  - /env/mettagrid/multi_agent/boxy
-  - /env/mettagrid/multi_agent/cylinder_world
-  - /env/mettagrid/multi_agent/manhatten
-  - /env/mettagrid/multi_agent/narrow_world
-  - /env/mettagrid/multi_agent/varied_terrain
+  - /env/mettagrid/multi_agent/training/boxshare
+  - /env/mettagrid/multi_agent/training/boxy
+  - /env/mettagrid/multi_agent/training/cylinder_world
+  - /env/mettagrid/multi_agent/training/manhatten
+  - /env/mettagrid/multi_agent/training/narrow_world
+  - /env/mettagrid/multi_agent/training/varied_terrain
