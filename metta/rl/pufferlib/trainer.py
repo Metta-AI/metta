@@ -65,6 +65,8 @@ class PufferTrainer:
             self.device = f"cuda:{os.environ['LOCAL_RANK']}"
             logger.info(f"Setting up distributed training on device {self.device}")
 
+        self._apply_world_batch_size()
+
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
@@ -190,8 +192,12 @@ class PufferTrainer:
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
+            batch = self.trainer_cfg.world_batch_size
+            if batch is None:
+                batch = self.trainer_cfg.batch_size
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+                self.optimizer,
+                T_max=self.trainer_cfg.total_timesteps // batch,
             )
 
         if checkpoint.agent_step > 0:
@@ -327,6 +333,24 @@ class PufferTrainer:
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
+
+    def _apply_world_batch_size(self) -> None:
+        """Configure local batch sizes based on global settings."""
+        world_bs = getattr(self.trainer_cfg, "world_batch_size", None)
+        if world_bs is not None:
+            if world_bs % self._world_size != 0:
+                raise ValueError("world_batch_size must be divisible by world_size")
+            self.trainer_cfg.batch_size = world_bs // self._world_size
+        else:
+            self.trainer_cfg.world_batch_size = self.trainer_cfg.batch_size * self._world_size
+
+        world_mbs = getattr(self.trainer_cfg, "world_minibatch_size", None)
+        if world_mbs is not None:
+            if world_mbs % self._world_size != 0:
+                raise ValueError("world_minibatch_size must be divisible by world_size")
+            self.trainer_cfg.minibatch_size = world_mbs // self._world_size
+        else:
+            self.trainer_cfg.world_minibatch_size = self.trainer_cfg.minibatch_size * self._world_size
 
     def _on_train_step(self):
         pass

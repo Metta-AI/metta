@@ -46,6 +46,10 @@ require_contiguous_env_ids: false
 verbose: true
 
 batch_size: 262144
+# Set to define global batch sizes when using distributed training
+world_batch_size: null
+# world_minibatch_size can be used to specify a global minibatch size
+world_minibatch_size: null
 # minibatch_size: 32768
 minibatch_size: 16384
 bptt_horizon: 64
