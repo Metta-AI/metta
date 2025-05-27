@@ -1,5 +1,5 @@
-#ifndef AGENT_HPP
-#define AGENT_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_AGENT_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_AGENT_HPP_
 
 #include <algorithm>
 #include <string>
@@ -159,4 +159,4 @@ private:
   std::vector<unsigned char> max_items_per_type;
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_AGENT_HPP_

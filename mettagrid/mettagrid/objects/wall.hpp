@@ -1,5 +1,5 @@
-#ifndef WALL_HPP
-#define WALL_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_WALL_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_WALL_HPP_
 
 #include <string>
 #include <vector>
@@ -45,4 +45,4 @@ public:
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_WALL_HPP_

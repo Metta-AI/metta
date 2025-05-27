@@ -1,5 +1,5 @@
-#ifndef GET_OUTPUT_HPP
-#define GET_OUTPUT_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_
 
 #include <string>
 
@@ -11,7 +11,7 @@
 
 class GetOutput : public ActionHandler {
 public:
-  GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
+  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -56,4 +56,4 @@ protected:
   }
 };
 
-#endif  // GET_OUTPUT_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_

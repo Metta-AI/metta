@@ -1,5 +1,5 @@
-#ifndef ROTATE_HPP
-#define ROTATE_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_ROTATE_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_ROTATE_HPP_
 
 #include <string>
 
@@ -8,7 +8,7 @@
 
 class Rotate : public ActionHandler {
 public:
-  Rotate(const ActionConfig& cfg) : ActionHandler(cfg, "rotate") {}
+  explicit Rotate(const ActionConfig& cfg) : ActionHandler(cfg, "rotate") {}
 
   unsigned char max_arg() const override {
     return 3;
@@ -22,4 +22,4 @@ protected:
   }
 };
 
-#endif  // ROTATE_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_ROTATE_HPP_

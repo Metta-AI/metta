@@ -1,5 +1,5 @@
-#ifndef CONVERTER_HPP
-#define CONVERTER_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_CONVERTER_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_CONVERTER_HPP_
 
 #include <cassert>
 #include <string>
@@ -174,4 +174,4 @@ public:
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_CONVERTER_HPP_

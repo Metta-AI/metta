@@ -1,5 +1,5 @@
-#ifndef HAS_INVENTORY_HPP
-#define HAS_INVENTORY_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_
 
 #include <algorithm>
 #include <map>
@@ -30,4 +30,4 @@ public:
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_

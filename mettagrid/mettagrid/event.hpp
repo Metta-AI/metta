@@ -1,10 +1,12 @@
-#ifndef EVENT_H
-#define EVENT_H
+#ifndef METTAGRID_METTAGRID_EVENT_HPP_
+#define METTAGRID_METTAGRID_EVENT_HPP_
 
 #include <cassert>
 #include <map>
 #include <queue>
-using namespace std;
+using std::priority_queue;
+using std::map;
+using std::unique_ptr;
 
 #include "grid.hpp"
 #include "grid_object.hpp"
@@ -28,7 +30,7 @@ protected:
   EventManager* event_manager;
 
 public:
-  EventHandler(EventManager* em) {
+  explicit EventHandler(EventManager* em) {
     this->event_manager = em;
   }
 
@@ -85,4 +87,4 @@ public:
   }
 };
 
-#endif  // EVENT_H
+#endif  // METTAGRID_METTAGRID_EVENT_HPP_
