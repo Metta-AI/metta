@@ -339,7 +339,7 @@ def get_current_observation(env: MettaGrid, agent_idx: int):
         action_names = env.action_names()
         if "noop" in action_names:
             noop_idx = action_names.index("noop")
-            noop_action = np.zeros((env.num_agent, 2), dtype=np_actions_type)
+            noop_action = np.zeros((env.num_agents, 2), dtype=np_actions_type)
             noop_action[agent_idx] = [noop_idx, 0]
             obs, _, _, _, _ = env.step(noop_action)
             return obs.copy()
