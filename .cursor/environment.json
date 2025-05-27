@@ -1,0 +1,9 @@
+{
+  "agentCanUpdateSnapshot": true,
+  "install": "./devops/setup_build.sh",
+  "start": "source .venv/bin/activate",
+  "build": {
+    "context": ".",
+    "dockerfile": "Dockerfile"
+  }
+}
