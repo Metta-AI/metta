@@ -186,9 +186,8 @@ jobs:
   smoke-test:
     name: "Smoke Tests"
     # temporarily disabled
-    if: false
-    # if: |
-    #   (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     needs: [graphite-ci-optimizer, setup-checks]
     runs-on: ubuntu-latest
     timeout-minutes: 10
