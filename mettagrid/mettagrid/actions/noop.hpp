@@ -1,5 +1,5 @@
-#ifndef NOOP_HPP
-#define NOOP_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_NOOP_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_NOOP_HPP_
 
 #include <string>
 
@@ -8,7 +8,7 @@
 
 class Noop : public ActionHandler {
 public:
-  Noop(const ActionConfig& cfg) : ActionHandler(cfg, "noop") {}
+  explicit Noop(const ActionConfig& cfg) : ActionHandler(cfg, "noop") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -20,4 +20,4 @@ protected:
   }
 };
 
-#endif  // NOOP_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_NOOP_HPP_

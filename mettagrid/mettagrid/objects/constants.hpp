@@ -1,5 +1,5 @@
-#ifndef CONSTANTS_HPP
-#define CONSTANTS_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_CONSTANTS_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_CONSTANTS_HPP_
 
 #include <map>
 #include <string>
@@ -89,4 +89,4 @@ const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer
                                                   {ObjectType::FactoryT, GridLayer::Object_Layer},
                                                   {ObjectType::TempleT, GridLayer::Object_Layer}};
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_CONSTANTS_HPP_
