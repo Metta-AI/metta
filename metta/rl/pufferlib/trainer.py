@@ -2,7 +2,6 @@ import logging
 import os
 import time
 from collections import defaultdict
-from pathlib import Path
 
 import numpy as np
 import pufferlib
@@ -56,7 +55,7 @@ class PufferTrainer:
 
         self._master = True
         self._world_size = 1
-        self.device = cfg.device
+        self.device: torch.device = cfg.device
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
@@ -72,7 +71,7 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.average_reward = 0.0  # Initialize average reward estimate
+        self.average_reward = 0.0
         self._current_eval_score = None
         self._eval_grouped_scores = {}
         self._eval_suite_avgs = {}
@@ -89,23 +88,30 @@ class PufferTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        if checkpoint.policy_path:
-            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-            policy_record = policy_store.policy(checkpoint.policy_path)
-            if "average_reward" in checkpoint.extra_args:
-                self.average_reward = checkpoint.extra_args["average_reward"]
-        elif cfg.trainer.initial_policy.uri is not None:
-            logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
-            policy_record = policy_store.policy(cfg.trainer.initial_policy)
-        else:
-            policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
+        policy_record = None
+        load_policy_attempts = 10
+        while policy_record is None and load_policy_attempts > 0:
+            if checkpoint.policy_path:
+                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+                policy_record = policy_store.policy(checkpoint.policy_path)
+                if "average_reward" in checkpoint.extra_args:
+                    self.average_reward = checkpoint.extra_args["average_reward"]
+            elif cfg.trainer.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
+                policy_record = policy_store.policy(cfg.trainer.initial_policy)
+            else:
+                policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
 
-            if os.path.exists(policy_path):
-                logger.info(f"Loading policy from checkpoint: {policy_path}")
-                policy_record = policy_store.policy(policy_path)
-            elif self._master:
-                logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                policy_record = policy_store.create(metta_grid_env)
+                if os.path.exists(policy_path):
+                    logger.info(f"Loading policy from checkpoint: {policy_path}")
+                    policy_record = policy_store.policy(policy_path)
+                elif self._master:
+                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
+                    policy_record = policy_store.create(metta_grid_env)
+            if policy_record is not None:
+                break
+            load_policy_attempts -= 1
+            time.sleep(5)
 
         assert policy_record is not None, "No policy found"
 
@@ -120,8 +126,8 @@ class PufferTrainer:
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
-        actions_names = metta_grid_env.action_names()
-        actions_max_params = metta_grid_env._c_env.max_action_args()
+        actions_names = metta_grid_env.action_names
+        actions_max_params = metta_grid_env.max_action_args
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
@@ -284,7 +290,7 @@ class PufferTrainer:
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
-            stats_dir=Path(self.cfg.run_dir) / "stats",
+            stats_dir="/tmp/stats",
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
@@ -615,7 +621,7 @@ class PufferTrainer:
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
-                "action_names": metta_grid_env.action_names(),
+                "action_names": metta_grid_env.action_names,
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": time.time() - self.train_start,
@@ -722,9 +728,6 @@ class PufferTrainer:
         return self.last_pr.uri
 
     def _make_experience_buffer(self):
-        """
-        Creates an Experience buffer for storing training data with appropriate dimensions.
-        """
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), (
             "vecenv.driver_env must be a MettaGridEnv for experience buffer"

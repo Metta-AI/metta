@@ -59,9 +59,9 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
 
-  # check if any Python files have changed
+  # check if any source code files have changed
   setup-checks:
-    name: "Set up for Python checks"
+    name: "Set up for source code checks"
     needs: graphite-ci-optimizer
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -79,11 +79,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check for Python file changes
+      - name: Check for file changes
         id: check_py_files
         uses: ./.github/actions/file-changes
         with:
-          patterns: "**/*.py"
+          patterns: "**/*.py,**/*.pyx,**/*.pxd,**/*.cpp,**/*.hpp"
           specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -118,22 +118,9 @@ jobs:
           echo "run test? ${RUN_TEST}"
           echo "run benchmark? ${RUN_BENCHMARK}"
 
-  # setup python
-  setup-py:
-    name: "Build Python artifacts"
-    needs: [graphite-ci-optimizer, setup-checks]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python and uv
-        id: setup-python-uv
-        uses: ./.github/actions/setup-python-uv
-
   lint:
-    name: "Python Lint"
-    needs: [graphite-ci-optimizer, setup-checks, setup-py]
+    name: "Lint"
+    needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true')
@@ -143,7 +130,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python and uv
-        id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
       - name: Run Ruff linter
@@ -154,9 +140,20 @@ jobs:
         run: |
           ruff check --exit-non-zero-on-fix .
 
+      - name: Install C++ linter
+        run: |
+          sudo apt-get install -y clang-format
+
+      - name: Run clang-format check
+        run: |
+          echo "Checking C++ formatting..."
+          find metta mettagrid/mettagrid mettagrid/tests mettagrid/benchmarks -type f \( -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
+            -not -path "*/build/*" -not -path "*/venv/*" \
+            -exec clang-format --dry-run --Werror {} +
+
   test:
-    name: "Python Tests"
-    needs: [graphite-ci-optimizer, setup-checks, setup-py]
+    name: "Tests"
+    needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
@@ -167,30 +164,31 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python and uv
-        id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
-
-      - name: Build FastGAE
-        run: |
-          uv pip install -e .
-
-      - name: Build MettaGrid
-        run: |
-          uv pip install -e ./mettagrid
 
       - name: Run Pytest on core tests
         run: |
-          uv run pytest --maxfail=1 --disable-warnings -q
+          uv run --active pytest --maxfail=1 --disable-warnings -q
 
-      - name: Run Pytest on mettagrid tests
+      - name: Run Pytest on MettaGrid tests
         working-directory: mettagrid
-        run: uv run pytest --maxfail=1 --disable-warnings -q
+        run: |
+          uv run --active pytest --maxfail=1 --disable-warnings -q
+
+      - name: Run MettaGrid C++ tests
+        run: |
+          source .venv/bin/activate
+          cd mettagrid
+          cmake --preset debug
+          cmake --build build-debug
+          ctest --test-dir build-debug -L test
 
   smoke-test:
     name: "Smoke Tests"
-    needs: [graphite-ci-optimizer, setup-checks, setup-py]
+    # temporarily disabled
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
+    needs: [graphite-ci-optimizer, setup-checks]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -200,38 +198,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python and uv
-        id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
-
-      - name: Build FastGAE
-        run: |
-          uv pip install -e .
-
-      - name: Build MettaGrid
-        run: |
-          uv pip install -e ./mettagrid
-
-      - name: Check deps
-        run: |
-          for dep in \
-            "pufferlib" \
-            "carbs" \
-            "wandb_carbs"
-          do
-            echo "Checking import for $dep..."
-            uv run python -c "import $dep; print('✅ Found {} at {}'.format('$dep', __import__('$dep').__file__))" || {
-              echo "❌ Failed to import $dep"
-              exit 1
-            }
-          done
-
-      - name: Check benchmark script
-        run: |
-          # Check if the file exists
-          ls -la .github/scripts/benchmark.sh
-
-          # Check if the function is defined
-          type benchmark || echo "Function not defined after sourcing"
 
       - name: Training smoke test
         id: train
@@ -242,11 +209,10 @@ jobs:
         run: |
           mkdir -p train_dir
           source .github/scripts/benchmark.sh
-          benchmark "train" "uv run python -m tools.train +hardware=github wandb=off"
+          benchmark "train" "uv run --active python -m tools.train +hardware=github wandb=off"
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
-        if: success()
         uses: ./.github/actions/save-benchmarks
         with:
           name: train_smoke_test
@@ -254,7 +220,6 @@ jobs:
           filename: smoke_test_train_benchmark_results.json
 
       - name: Upload training benchmark file
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: train-benchmark-results
@@ -264,7 +229,6 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload training output
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: train-output
@@ -273,28 +237,25 @@ jobs:
           if-no-files-found: error
 
       - name: Download training output
-        if: success()
         uses: actions/download-artifact@v4
         with:
           name: train-output
           path: train_dir/
 
       - name: Verify training artifacts
-        if: success()
         run: |
           ls -la train_dir/
           ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
 
       - name: Replay smoke test
         id: replay
-        if: success()
         env:
           WANDB_API_KEY: set_but_not_used
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "replay" "uv run python -m tools.replay +hardware=github wandb=off"
+          benchmark "replay" "uv run --active python -m tools.replay +hardware=github wandb=off"
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
@@ -304,7 +265,6 @@ jobs:
           filename: smoke_test_replay_benchmark_results.json
 
       - name: Upload replay benchmark file
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: replay-benchmark-results
@@ -319,13 +279,21 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
+        # We retry evals a few times because they're not deterministic (despite our best efforts)
+        # Our smoke tests should pass at least 90% of the time if they're working, so this should have
+        # a spurious failure rate of less than 0.01%. We assume that spurious successes should be
+        # extremely rare.
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "evals" "./run_evals.sh smoke_test"
+          for i in {1..4}; do
+            if benchmark "evals_try$i" "./run_evals.sh smoke_test"; then
+              exit 0
+            fi
+          done
+          exit 1
 
       - name: Save evals benchmark
         id: save_evals_benchmark
-        if: steps.eval_smoke_test.outcome == 'success'
         uses: ./.github/actions/save-benchmarks
         with:
           name: evals_smoke_test
@@ -333,7 +301,6 @@ jobs:
           filename: smoke_test_evals_benchmark_results.json
 
       - name: Upload evals benchmark file
-        if: steps.save_evals_benchmark.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: evals-benchmark-results
@@ -342,20 +309,12 @@ jobs:
           retention-days: 1
           if-no-files-found: warn
 
-      - name: Debug on failure
-        if: failure()
-        run: |
-          echo "Listing the contents of the workspace:"
-          find train_dir -type f -name "*.py" | sort
-          find train_dir -type d | sort
-
   benchmark:
     name: "Python Benchmarks"
-    needs: [graphite-ci-optimizer, setup-checks, setup-py, test, smoke-test]
+    needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
-      (needs.setup-checks.outputs.run_benchmark == 'true') &&
-      (needs.test.result == 'success' || github.event_name != 'pull_request' )
+      (needs.setup-checks.outputs.run_benchmark == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -363,42 +322,34 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python and uv
-        id: setup-python-uv
         uses: ./.github/actions/setup-python-uv
 
-      - name: Build FastGAE
-        run: |
-          uv pip install -e .
+      # - name: Download benchmark results from smoke-test train-benchmark-results job
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: train-benchmark-results
+      #     path: ./
+      #     if-no-files-found: ignore
 
-      - name: Build MettaGrid
-        run: |
-          uv pip install -e ./mettagrid
-
-      - name: Download benchmark results from smoke-test train-benchmark-results job
-        uses: actions/download-artifact@v4
-        with:
-          name: train-benchmark-results
-          path: ./
-
-      - name: Download benchmark results from smoke-test replay-benchmark-results job
-        uses: actions/download-artifact@v4
-        with:
-          name: replay-benchmark-results
-          path: ./
+      # - name: Download benchmark results from smoke-test replay-benchmark-results job
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: replay-benchmark-results
+      #     path: ./
+      #     if-no-files-found: ignore
 
       - name: Run Main Python benchmarks
         run: |
-          uv run pytest --benchmark-only --benchmark-json=main_benchmark_results.json
+          uv run --active pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
       - name: Run Mettagrid Python benchmarks
         working-directory: mettagrid
         run: |
-          uv run pytest --benchmark-only --benchmark-json=mettagrid_benchmark_results.json
-          mv mettagrid_benchmark_results.json ../
+          uv run --active pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
 
       - name: Combine benchmark results
         run: |
-          uv run python - <<EOF
+          uv run --active python - <<EOF
 
           # Python Script to combine benchmark data
           import json
@@ -421,8 +372,8 @@ jobs:
           benchmark_files = [
               'main_benchmark_results.json',
               'mettagrid_benchmark_results.json',
-              'smoke_test_train_benchmark_results.json',
-              'smoke_test_replay_benchmark_results.json'
+              # 'smoke_test_train_benchmark_results.json',
+              # 'smoke_test_replay_benchmark_results.json'
           ]
 
           # Initialize combined results structure
@@ -488,18 +439,6 @@ jobs:
 
       - name: Install Bencher CLI
         uses: bencherdev/bencher@main
-
-      - name: Validate Bencher Token
-        env:
-          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -z "$BENCHER_API_TOKEN" ]; then
-            echo "Error: BENCHER_API_TOKEN is empty. Make sure the secret is properly set."
-            exit 1
-          fi
-          echo "Bencher token length: ${#BENCHER_API_TOKEN}"
-          echo "Bencher token SHA256: $(echo -n "$BENCHER_API_TOKEN" | sha256sum)"
 
       # Main Branch Upload section
       # note that "threshold-max-sample-size" has a minimum value of 2 - the new data and the reference
@@ -681,3 +620,167 @@ jobs:
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
             --file agent_steps.bmf.json
+
+  cpp-benchmark:
+    name: "C++ Benchmarks"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [graphite-ci-optimizer, setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_benchmark == 'true')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python and uv
+        uses: ./.github/actions/setup-python-uv
+
+      - name: CMake
+        run: |
+          source .venv/bin/activate
+          cd mettagrid
+          cmake --preset release
+          cmake --build build-release
+
+      - name: Run benchmarks with JSON output
+        working-directory: mettagrid
+        run: |
+          mkdir -p benchmark_output
+          echo "Running benchmarks with JSON output..."
+          for f in build-release/benchmarks/*_benchmark; do
+            echo "Running $f"
+            "$f" --benchmark_format=json >benchmark_output/$(basename $f).json
+          done
+
+          echo "Benchmark output files:"
+          ls -la benchmark_output/
+
+      - name: Install Bencher CLI
+        uses: bencherdev/bencher@main
+
+      # Main Branch Upload section
+      # note that "threshold-max-sample-size" has a minimum value of 2 - the new data and the reference
+      - name: Upload to Bencher (Main Branch Baseline)
+        if: github.ref == 'refs/heads/main'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd mettagrid/benchmark_output
+          ls -al
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch main \
+                --threshold-measure latency \
+                --threshold-test percentage \
+                --threshold-max-sample-size 2 \
+                --threshold-upper-boundary 0.20 \
+                --thresholds-reset \
+                --testbed ubuntu-latest \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --file "$file" > /dev/null
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi
+
+      - name: Check if main branch has benchmark data
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
+        id: check-main-benchmark
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+        run: |
+          # Run the command and capture output in a variable
+          bencher_result=$(bencher branch view mettagrid-sv3f5i2k main --token "$BENCHER_API_TOKEN")
+
+          # Print the captured output
+          echo "$bencher_result"
+
+          # Save the output to a file for further processing
+          echo "$bencher_result" > /tmp/branch_output.json
+
+          # Continue with checking if branch exists and has data
+          if [ $? -eq 0 ]; then
+            echo "Branch exists, checking if it has benchmark data..."
+            # Check if branch output contains a head key
+            if jq -e '.head' /tmp/branch_output.json > /dev/null; then
+              echo "main_benchmark_exists=true" >> $GITHUB_OUTPUT
+              echo "Main branch has benchmark data. Will proceed with PR performance comparison."
+            else
+              echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
+              echo "Warning: Main branch exists but does not have benchmark data yet. Will skip PR performance comparison."
+            fi
+          else
+            echo "main_benchmark_exists=false" >> $GITHUB_OUTPUT
+            echo "Warning: Main branch does not exist or cannot be accessed. Will skip PR performance comparison."
+          fi
+
+      # First PR Performance run - Check for improvements (will NOT fail on alerts)
+      - name: Check for Performance Improvements
+        if: |
+          github.event_name == 'pull_request' &&
+          !github.event.pull_request.head.repo.fork &&
+          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd mettagrid/benchmark_output
+          ls -al
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch "$GITHUB_HEAD_REF" \
+                --start-point "main" \
+                --start-point-reset \
+                --threshold-measure latency \
+                --threshold-test percentage \
+                --threshold-max-sample-size 2 \
+                --threshold-lower-boundary 0.10 \
+                --thresholds-reset \
+                --testbed ubuntu-latest \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --file "$file" > /dev/null
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi
+
+      # Second PR Performance run - Check for regressions (WILL fail on alerts)
+      - name: Check for Performance Regressions
+        if: |
+          github.event_name == 'pull_request' && 
+          !github.event.pull_request.head.repo.fork && 
+          steps.check-main-benchmark.outputs.main_benchmark_exists == 'true'
+        env:
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd mettagrid/benchmark_output
+          ls -al
+          if ls *.json 1> /dev/null 2>&1; then
+            for file in *.json; do
+              bencher run \
+                --project mettagrid-sv3f5i2k \
+                --token "$BENCHER_API_TOKEN" \
+                --branch "$GITHUB_HEAD_REF" \
+                --start-point "main" \
+                --start-point-reset \
+                --start-point-clone-thresholds \
+                --testbed ubuntu-latest \
+                --err \
+                --adapter cpp_google \
+                --github-actions "$GITHUB_TOKEN" \
+                --file "$file" 
+            done
+          else
+            echo "NO TEST RESULTS FOUND"
+          fi

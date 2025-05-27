@@ -111,6 +111,22 @@ public:
     return this->frozen;
   }
 
+  virtual vector<PartialObservationToken> obs_features() const override {
+    vector<PartialObservationToken> features;
+    features.push_back({ObservationFeatureId::TypeId, _type_id});
+    features.push_back({ObservationFeatureId::Group, group});
+    features.push_back({ObservationFeatureId::Hp, hp});
+    features.push_back({ObservationFeatureId::Frozen, frozen});
+    features.push_back({ObservationFeatureId::Orientation, orientation});
+    features.push_back({ObservationFeatureId::Color, color});
+    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+      if (inventory[i] > 0) {
+        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
+      }
+    }
+    return features;
+  }
+
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = group;

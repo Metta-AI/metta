@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e  # Exit immediately if any command fails
+set -e # Exit immediately if any command fails
 
 # How to use:
 # 1. First, run the setup to save your current working files:
@@ -24,9 +24,8 @@ set -e  # Exit immediately if any command fails
 # - The comprehensive log file will help you track all the jobs and their details
 # - The timestamp in the run ID will make it easy to sort and identify jobs chronologically
 #
-# When all jobs are complete, you can review the results and look for the transition point where jobs 
+# When all jobs are complete, you can review the results and look for the transition point where jobs
 # start failing - that should identify the commit that introduced the issue.
-
 
 # turn off git warnings
 git config advice.ignoredHook false
@@ -34,8 +33,8 @@ git config advice.detachedHead false
 
 # Configuration
 START_COMMIT="HEAD"
-NUM_COMMITS=10      # How many commits back to process
-COMMIT_INTERVAL=1   # Default: process every commit
+NUM_COMMITS=10    # How many commits back to process
+COMMIT_INTERVAL=1 # Default: process every commit
 USER=$(whoami)
 TMP_STORAGE="/tmp/git_debug_files_$USER"
 TIMESTAMP=$(date +%s)
@@ -58,7 +57,7 @@ show_usage() {
 }
 
 # Parse arguments
-SKIP_COMMITS=0  # Default: start from HEAD
+SKIP_COMMITS=0 # Default: start from HEAD
 for arg in "$@"; do
   case $arg in
     --setup)
@@ -85,11 +84,11 @@ done
 # Handle cleanup mode
 if [ "$CLEANUP_MODE" = true ]; then
   echo "Cleaning up debug test branches and temporary files..."
-  
+
   # Clean local branches
   echo "Deleting local debug-test branches:"
-  git branch | grep "debug-test" | xargs git branch -D 2>/dev/null || echo "No local branches to delete"
-  
+  git branch | grep "debug-test" | xargs git branch -D 2> /dev/null || echo "No local branches to delete"
+
   # Clean remote branches
   echo "Deleting remote debug-test branches:"
   remote_branches=$(git ls-remote --heads origin | grep "debug-test" | awk '{print $2}' | sed 's/refs\/heads\///')
@@ -101,7 +100,7 @@ if [ "$CLEANUP_MODE" = true ]; then
   else
     echo "No remote branches to delete"
   fi
-  
+
   # Clean up temporary files
   if [ -d "$TMP_STORAGE" ]; then
     echo "Removing temporary storage directory: $TMP_STORAGE"
@@ -109,10 +108,10 @@ if [ "$CLEANUP_MODE" = true ]; then
   else
     echo "No temporary storage directory found at $TMP_STORAGE"
   fi
-  
+
   # Clean up log files
   echo "Cleaning up debug log files..."
-  debug_logs=$(find /tmp -name "debug_log_*.txt" 2>/dev/null)
+  debug_logs=$(find /tmp -name "debug_log_*.txt" 2> /dev/null)
   if [ -n "$debug_logs" ]; then
     echo "Found log files:"
     echo "$debug_logs"
@@ -121,14 +120,14 @@ if [ "$CLEANUP_MODE" = true ]; then
   fi
 
   # Clean up summary files
-  debug_summaries=$(find /tmp -name "debug_summary_*.txt" 2>/dev/null)
+  debug_summaries=$(find /tmp -name "debug_summary_*.txt" 2> /dev/null)
   if [ -n "$debug_summaries" ]; then
     echo "Found summary files:"
     echo "$debug_summaries"
     echo "Removing summary files..."
     rm -f /tmp/debug_summary_*.txt
   fi
-  
+
   echo "Cleanup complete!"
   exit 0
 fi
@@ -136,20 +135,20 @@ fi
 # Setup mode - copy the current working files to temporary storage
 if [ "$SETUP_MODE" = true ]; then
   echo "Setting up temporary storage at $TMP_STORAGE"
-  
+
   # Create the storage directory
   mkdir -p "$TMP_STORAGE"
-  
+
   # Copy the specified files and directories
   echo "Copying files to temporary storage..."
-  
+
   # Copy directories
   cp -r "$(git rev-parse --show-toplevel)/devops" "$TMP_STORAGE/"
-  
+
   # Create subdirectories as needed
   mkdir -p "$TMP_STORAGE/mettagrid"
-  mkdir -p "$TMP_STORAGE/metta/util"  # Add directory for git utilities
-  
+  mkdir -p "$TMP_STORAGE/metta/util" # Add directory for git utilities
+
   # Copy individual files
   cp "$(git rev-parse --show-toplevel)/mettagrid/pyproject.toml" "$TMP_STORAGE/mettagrid/"
   cp "$(git rev-parse --show-toplevel)/mettagrid/Makefile" "$TMP_STORAGE/mettagrid/"
@@ -159,12 +158,12 @@ if [ "$SETUP_MODE" = true ]; then
   cp "$(git rev-parse --show-toplevel)/requirements_pinned.txt" "$TMP_STORAGE/"
   cp "$(git rev-parse --show-toplevel)/requirements.txt" "$TMP_STORAGE/"
   cp "$(git rev-parse --show-toplevel)/setup.py" "$TMP_STORAGE/"
-  
+
   # Copy git utilities module
   echo "Copying git utilities module..."
   cp "$(git rev-parse --show-toplevel)/metta/util/git.py" "$TMP_STORAGE/metta/util/"
-  cp "$(git rev-parse --show-toplevel)/metta/util/__init__.py" "$TMP_STORAGE/metta/util/" 2>/dev/null || touch "$TMP_STORAGE/metta/util/__init__.py"
-  
+  cp "$(git rev-parse --show-toplevel)/metta/util/__init__.py" "$TMP_STORAGE/metta/util/" 2> /dev/null || touch "$TMP_STORAGE/metta/util/__init__.py"
+
   # Create the patch for experience.py
   echo "Creating experience.py patch file"
   cat > "$TMP_STORAGE/experience_patch.py" << 'EOL'
@@ -199,9 +198,9 @@ if [ "$SETUP_MODE" = true ]; then
         self.b_values = self.b_values[b_flat]
         self.b_returns = self.b_advantages + self.b_values
 EOL
-  
+
   echo "Setup complete. Files saved to $TMP_STORAGE"
-  
+
   exit 0
 fi
 
@@ -238,21 +237,21 @@ fi
 
 if [ "$COMMIT_INTERVAL" -gt 1 ]; then
   echo "Using commit interval of $COMMIT_INTERVAL (processing every ${COMMIT_INTERVAL}th commit)"
-  
+
   # Get total available commits
   ALL_COMMITS=$(git rev-list $START_COMMIT)
   TOTAL_COMMITS=$(echo "$ALL_COMMITS" | wc -l | tr -d ' ')
-  
+
   # Calculate the total depth we need to go
   MAX_DEPTH=$((NUM_COMMITS * COMMIT_INTERVAL))
   TOTAL_DEPTH=$((SKIP_COMMITS + MAX_DEPTH))
-  
+
   # Make sure we don't try to go deeper than the repo history
   if [ "$TOTAL_DEPTH" -gt "$TOTAL_COMMITS" ]; then
     echo "Warning: Requested depth ($TOTAL_DEPTH) exceeds repository history ($TOTAL_COMMITS)"
     echo "Will process up to the oldest available commit"
   fi
-  
+
   # Select commits at specified intervals
   COMMITS=""
   for i in $(seq 0 $((NUM_COMMITS - 1))); do
@@ -280,51 +279,51 @@ for COMMIT in $COMMITS; do
   COMMIT_SHORT=$(git rev-parse --short "$COMMIT")
   COMMIT_DATE=$(git show -s --format=%ci "$COMMIT")
   COMMIT_MSG=$(git show -s --format=%s "$COMMIT")
-  
+
   echo ""
   echo "============================================================"
   echo "Processing commit $COUNTER of $COMMIT_COUNT: $COMMIT_SHORT"
   echo "Date: $COMMIT_DATE"
   echo "Message: $COMMIT_MSG"
   echo "============================================================"
-  
+
   # Log the commit info
   echo "" >> "$LOG_FILE"
   echo "Commit $COUNTER of $COMMIT_COUNT: $COMMIT_SHORT" >> "$LOG_FILE"
   echo "Date: $COMMIT_DATE" >> "$LOG_FILE"
   echo "Message: $COMMIT_MSG" >> "$LOG_FILE"
-  
+
   # Clean up any untracked files that might interfere with checkout
   echo "Cleaning up untracked files from previous run..."
   REPO_ROOT=$(git rev-parse --show-toplevel)
   git clean -fd "$REPO_ROOT/devops"
-  
+
   # Check out this commit
   git checkout "$COMMIT" -f
-  
+
   # Create a unique test branch
   TIMESTAMP=$(date +%s)
   TEST_BRANCH="debug-test-rwalters-$COMMIT_SHORT-$TIMESTAMP"
   echo "Creating test branch: $TEST_BRANCH"
   git checkout -b "$TEST_BRANCH"
-  
+
   # Process this commit
   REPO_ROOT=$(git rev-parse --show-toplevel)
-  
+
   # Create directory structure first
   mkdir -p "$REPO_ROOT/metta/util"
   mkdir -p "$REPO_ROOT/mettagrid"
   mkdir -p "$REPO_ROOT/devops"
-  
+
   # Copy directories with -f to force overwrite
   echo "Copying devops directory..."
-  cp -rf "$TMP_STORAGE/devops"/* "$REPO_ROOT/devops/" 2>/dev/null || :
-  
+  cp -rf "$TMP_STORAGE/devops"/* "$REPO_ROOT/devops/" 2> /dev/null || :
+
   # Copy git utilities module
   echo "Restoring git utilities module..."
   cp -f "$TMP_STORAGE/metta/util/git.py" "$REPO_ROOT/metta/util/"
   cp -f "$TMP_STORAGE/metta/util/__init__.py" "$REPO_ROOT/metta/util/"
-  
+
   # Copy individual files with -f to force overwrite
   echo "Copying individual files..."
   cp -f "$TMP_STORAGE/mettagrid/pyproject.toml" "$REPO_ROOT/mettagrid/"
@@ -335,45 +334,44 @@ for COMMIT in $COMMITS; do
   cp -f "$TMP_STORAGE/requirements_pinned.txt" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/requirements.txt" "$REPO_ROOT/"
   cp -f "$TMP_STORAGE/setup.py" "$REPO_ROOT/"
-    
 
   # Check if experience.py exists and patch it
   EXPERIENCE_PATH="$REPO_ROOT/metta/rl/pufferlib/experience.py"
   if [ -f "$EXPERIENCE_PATH" ]; then
     echo "Patching metta/rl/pufferlib/experience.py"
-    
+
     # Simple approach: truncate the file at "def flatten_batch" and append our implementation
     # First find the line number where flatten_batch starts
     FLATTEN_LINE=$(grep -n "    def flatten_batch" "$EXPERIENCE_PATH" | head -1 | cut -d: -f1)
-    
+
     if [ -n "$FLATTEN_LINE" ]; then
       echo "Found flatten_batch at line $FLATTEN_LINE - replacing it..."
-      
+
       # Keep everything before flatten_batch
       head -n $((FLATTEN_LINE - 1)) "$EXPERIENCE_PATH" > "${EXPERIENCE_PATH}.new"
-      
+
       # Add our implementation from the patch file
       cat "$TMP_STORAGE/experience_patch.py" >> "${EXPERIENCE_PATH}.new"
-      
+
       # Replace the original file
       mv "${EXPERIENCE_PATH}.new" "$EXPERIENCE_PATH"
       echo "Successfully patched experience.py"
     else
       echo "Could not find flatten_batch function in experience.py"
       echo "Adding our implementation at the end of the file..."
-      
+
       # Append our implementation to the end of the file
       echo "" >> "$EXPERIENCE_PATH"
       echo "    def flatten_batch" >> "$EXPERIENCE_PATH"
       cat "$TMP_STORAGE/experience_patch.py" >> "$EXPERIENCE_PATH"
-      
+
       echo "Added our implementation at the end of experience.py"
     fi
   else
     echo "Warning: experience.py doesn't exist in commit $COMMIT_SHORT. Skipping..."
     echo "experience.py NOT FOUND in commit $COMMIT_SHORT. Skipped." >> "$LOG_FILE"
   fi
-      
+
   # Add a marker file to force a git change
   echo "# debug test marker - testing commit $COMMIT_SHORT" > "$REPO_ROOT/DEBUG_TEST_MARKER"
 
@@ -415,22 +413,22 @@ for COMMIT in $COMMITS; do
   echo "Job submitted for commit: $COMMIT_SHORT" | tee -a "$LOG_FILE"
   echo "  Branch: $TEST_BRANCH" | tee -a "$LOG_FILE"
   echo "  Run ID: $RUN_NAME" | tee -a "$LOG_FILE"
-  
+
   # Properly escape the commit message for CSV format
   COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | sed 's/"/"""/g')
-  
+
   # Add to summary file for the final table
   echo "$RUN_NAME,$COMMIT_SHORT,\"$COMMIT_MSG_ESCAPED\",$COMMIT_DATE" >> "$SUMMARY_FILE"
 
   COUNTER=$((COUNTER + 1))
-  
+
   # Clean up any Python cache files or other untracked files before moving to the next commit
   echo "Cleaning up before moving to the next commit..."
-  find "$REPO_ROOT" -name "__pycache__" -type d -exec rm -rf {} +  2>/dev/null || :
-  find "$REPO_ROOT" -name "*.pyc" -delete 2>/dev/null || :
-  find "$REPO_ROOT" -name "*.pyo" -delete 2>/dev/null || :
-  find "$REPO_ROOT" -name ".DS_Store" -delete 2>/dev/null || :
-  
+  find "$REPO_ROOT" -name "__pycache__" -type d -exec rm -rf {} + 2> /dev/null || :
+  find "$REPO_ROOT" -name "*.pyc" -delete 2> /dev/null || :
+  find "$REPO_ROOT" -name "*.pyo" -delete 2> /dev/null || :
+  find "$REPO_ROOT" -name ".DS_Store" -delete 2> /dev/null || :
+
   # Force clean untracked files
   git clean -fd
 done
@@ -444,12 +442,12 @@ COL_WIDTH_RUNID=40
 COL_WIDTH_COMMIT=12
 COL_WIDTH_MSG=40
 COL_WIDTH_DATE=30
-TOTAL_WIDTH=$((COL_WIDTH_RUNID + COL_WIDTH_COMMIT + COL_WIDTH_MSG + COL_WIDTH_DATE + 3*3))
+TOTAL_WIDTH=$((COL_WIDTH_RUNID + COL_WIDTH_COMMIT + COL_WIDTH_MSG + COL_WIDTH_DATE + 3 * 3))
 
 # Print the summary table of submitted jobs
 echo ""
 echo "$(printf '%0.s=' $(seq 1 $TOTAL_WIDTH))"
-echo "$(printf '%*s' $(( (TOTAL_WIDTH + 23) / 2)) "SUMMARY OF SUBMITTED JOBS")"
+echo "$(printf '%*s' $(((TOTAL_WIDTH + 23) / 2)) "SUMMARY OF SUBMITTED JOBS")"
 echo "$(printf '%0.s=' $(seq 1 $TOTAL_WIDTH))"
 echo ""
 
@@ -458,17 +456,17 @@ if [ -f "$SUMMARY_FILE" ]; then
   # Create a temporary file with formatted header
   printf "%-${COL_WIDTH_RUNID}s | %-${COL_WIDTH_COMMIT}s | %-${COL_WIDTH_MSG}s | %-${COL_WIDTH_DATE}s\n" \
     "RUN_ID" "COMMIT" "COMMIT_MESSAGE" "COMMIT_DATETIME" > /tmp/header.txt
-  
+
   # Create separator line with correct lengths
   printf "%s | %s | %s | %s\n" \
     "$(printf '%0.s-' $(seq 1 $COL_WIDTH_RUNID))" \
     "$(printf '%0.s-' $(seq 1 $COL_WIDTH_COMMIT))" \
     "$(printf '%0.s-' $(seq 1 $COL_WIDTH_MSG))" \
     "$(printf '%0.s-' $(seq 1 $COL_WIDTH_DATE))" >> /tmp/header.txt
-  
+
   # Merge the header and data
   cat /tmp/header.txt > /tmp/formatted.txt
-  
+
   # Process CSV using a more portable approach without gensub
   # This avoids the GNU-specific gensub function
   tail -n +2 "$SUMMARY_FILE" | while IFS=, read -r run_id commit rest; do
@@ -482,23 +480,23 @@ if [ -f "$SUMMARY_FILE" ]; then
       commit_msg=$(echo "$rest" | cut -d, -f1)
       commit_date=$(echo "$rest" | cut -d, -f2-)
     fi
-    
+
     # Truncate message if too long
     if [ ${#commit_msg} -gt $((COL_WIDTH_MSG - 3)) ]; then
       commit_msg="${commit_msg:0:$((COL_WIDTH_MSG - 3))}..."
     fi
-    
+
     # Print formatted row
     printf "%-${COL_WIDTH_RUNID}s | %-${COL_WIDTH_COMMIT}s | %-${COL_WIDTH_MSG}s | %s\n" \
       "$run_id" "$commit" "$commit_msg" "$commit_date" >> /tmp/formatted.txt
   done
-  
+
   # Print the formatted table
   cat /tmp/formatted.txt
-  
+
   # Clean up temporary files
   rm -f /tmp/header.txt /tmp/formatted.txt
-  
+
   echo ""
   echo "Full details saved to: $SUMMARY_FILE"
 else
