@@ -17,6 +17,7 @@ from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.hydra import simple_instantiate
+from mettagrid.util import validate_arg_types
 
 
 def required(func):
@@ -32,6 +33,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     rewards: np.ndarray
     actions: np.ndarray
 
+    @validate_arg_types
     def __init__(
         self,
         env_cfg: DictConfig,
