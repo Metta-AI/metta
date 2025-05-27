@@ -14,9 +14,6 @@
 		},
 		"ruff.enable": true,
 		"ruff.nativeServer": "on",
-		"files.associations": {
-			"ostream": "cpp"
-		},
 		"files.excludeGitIgnored": true,
 		"terminal.integrated.profiles.osx": {
 			"metta-0": {
