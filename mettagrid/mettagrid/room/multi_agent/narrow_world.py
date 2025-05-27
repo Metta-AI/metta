@@ -2,11 +2,14 @@
 NarrowWorld: multi-agent environment with 1-tile-wide snaking corridors.
 Agents move through narrow channels (generated as a maze).
 Single empty bays (1×1) are carved randomly to allow passing.
-Mines, generators and altars are scattered along corridor cells in equal proportion.
+mine.reds, generators and altars are scattered along corridor cells in equal proportion.
 """
+
 from typing import List, Optional, Tuple
+
 import numpy as np
 from omegaconf import DictConfig
+
 from mettagrid.room.room import Room
 
 
@@ -21,6 +24,7 @@ class NarrowWorld(Room):
         border_width: int = 0,
         border_object: str = "wall",
         pass_bay_prob: float = 0.05,
+        team: str = "agent",
     ) -> None:
         super().__init__(border_width=border_width, border_object=border_object, labels=["narrow_world"])
         self.set_size_labels(width, height)
@@ -30,6 +34,7 @@ class NarrowWorld(Room):
         self._objects_cfg = objects
         self._rng = np.random.default_rng(seed)
         self._pass_bay_prob = pass_bay_prob
+        self._team = team
 
     def _build(self) -> np.ndarray:  # type: ignore[override]
         grid = np.full((self._h, self._w), "wall", dtype=object)
@@ -39,9 +44,9 @@ class NarrowWorld(Room):
         # Reflect corridors in grid
         grid[~self._occ] = "empty"
 
-        counts = {k: int(self._objects_cfg.get(k, 0)) for k in ("altar", "mine", "generator")}
-        object_cycle = ["altar", "mine", "generator"]
-        corridor_cells = [(int(r), int(c)) for r, c in zip(*np.where(~self._occ))]
+        counts = {k: int(self._objects_cfg.get(k, 0)) for k in ("altar", "mine.red", "generator.red")}
+        object_cycle = ["altar", "mine.red", "generator.red"]
+        corridor_cells = [(int(r), int(c)) for r, c in zip(*np.where(~self._occ), strict=False)]
         self._rng.shuffle(corridor_cells)
 
         def place_adjacent(obj: str) -> bool:
@@ -49,25 +54,25 @@ class NarrowWorld(Room):
                 if not corridor_cells:
                     return False
                 r, c = corridor_cells[self._rng.integers(0, len(corridor_cells))]
-                neighs = [(r+1,c),(r-1,c),(r,c+1),(r,c-1)]
+                neighs = [(r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)]
                 self._rng.shuffle(neighs)
-                for nr,nc in neighs:
-                    if 0<=nr<self._h and 0<=nc<self._w and self._occ[nr,nc]:
+                for nr, nc in neighs:
+                    if 0 <= nr < self._h and 0 <= nc < self._w and self._occ[nr, nc]:
                         # convert wall to object spot if currently wall
-                        grid[nr,nc]=obj
-                        self._occ[nr,nc]=True
+                        grid[nr, nc] = obj
+                        self._occ[nr, nc] = True
                         return True
             return False
 
         for obj_name in object_cycle:
-            for _ in range(counts.get(obj_name,0)):
+            for _ in range(counts.get(obj_name, 0)):
                 place_adjacent(obj_name)
 
-        empty_cells=[(r,c) for r,c in corridor_cells if not self._occ[r,c]]
+        empty_cells = [(r, c) for r, c in corridor_cells if not self._occ[r, c]]
         self._rng.shuffle(empty_cells)
         for i in range(min(self._agents_n, len(empty_cells))):
             r, c = empty_cells[i]
-            grid[r, c] = "agent.agent"
+            grid[r, c] = f"agent.{self._team}"
             self._occ[r, c] = True
         return grid
 
@@ -108,4 +113,4 @@ class NarrowWorld(Room):
                     for nr, nc in neighs:
                         if not self._occ[nr, nc]:
                             self._occ[r, c] = False
-                            break 
+                            break

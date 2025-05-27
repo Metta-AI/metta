@@ -5,14 +5,14 @@ Generates a network of 1-tile-wide tubes (cylinders) that snake around the map.
 • Tubes are carved by a biased random walk, segment length 4-12.
 • Random turns create a winding network; a handful of exterior openings are carved as entry points.
 • Passing bays: with small probability, a side alcove cell is carved (still sealed externally) so agents can step aside.
-• Objects (altar / mine / generator) are placed inside widened pockets that do not block the main tube –
+• Objects (altar / mine.red / \.red) are placed inside widened pockets that do not block the main tube –
   a 3×3 chamber is carved around the object, centred on the tube cell.
 • Agents are then placed on remaining empty cells; agent count is configurable.
 """
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 from omegaconf import DictConfig
@@ -20,6 +20,7 @@ from omegaconf import DictConfig
 from mettagrid.room.room import Room
 
 # -----------------------------------------------------------------------------
+
 
 class Manhatten(Room):
     """Grid-like interlocking corridor environment (Manhatten style)."""
@@ -39,6 +40,7 @@ class Manhatten(Room):
         alcove_prob: float = 0.15,
         corridor_spacing: int | None = None,
         heart_prob: float = 0.1,
+        team: str = "agent",
     ) -> None:
         super().__init__(border_width=border_width, border_object=border_object, labels=["snakey_cylinder"])
         self.set_size_labels(width, height)
@@ -50,6 +52,7 @@ class Manhatten(Room):
         self.alcove_prob = alcove_prob
         self.corridor_spacing = corridor_spacing
         self.heart_prob = heart_prob
+        self._team = team
 
     # ------------------------------------------------------------------
     # Utility helpers
@@ -63,9 +66,7 @@ class Manhatten(Room):
             return 0
 
     def _object_counts(self) -> Dict[str, int]:
-        return {
-            k: self._to_int(self._objects_cfg.get(k, 0)) for k in ("altar", "mine", "generator")
-        }
+        return {k: self._to_int(self._objects_cfg.get(k, 0)) for k in ("altar", "mine.red", "generator.red")}
 
     # ------------------------------------------------------------------
     # Build main grid (interlocking corridors)
@@ -114,13 +115,17 @@ class Manhatten(Room):
             if entries >= 4:
                 break
             if r == horiz_rows[0]:
-                grid[0, c] = "empty"; entries += 1
+                grid[0, c] = "empty"
+                entries += 1
             elif r == horiz_rows[-1]:
-                grid[self.H - 1, c] = "empty"; entries += 1
+                grid[self.H - 1, c] = "empty"
+                entries += 1
             elif c == vert_cols[0]:
-                grid[r, 0] = "empty"; entries += 1
+                grid[r, 0] = "empty"
+                entries += 1
             elif c == vert_cols[-1]:
-                grid[r, self.W - 1] = "empty"; entries += 1
+                grid[r, self.W - 1] = "empty"
+                entries += 1
 
         # Place objects at crossroads (intersections of corridors)
         crossroads = [(r, c) for r in horiz_rows for c in vert_cols]
@@ -134,7 +139,7 @@ class Manhatten(Room):
             obj_list.extend([name] * cnt)
         self.rng.shuffle(obj_list)
 
-        for obj, (r, c) in zip(obj_list, placement_cells):
+        for obj, (r, c) in zip(obj_list, placement_cells, strict=False):
             # widen crossroads by carving immediate neighbours (keep 3x3 open)
             for dr in (-1, 0, 1):
                 for dc in (-1, 0, 1):
@@ -144,16 +149,16 @@ class Manhatten(Room):
             grid[r, c] = obj
 
         # Place agents on remaining empty cells
-        empties = list(zip(*np.where(grid == "empty")))
+        empties = list(zip(*np.where(grid == "empty"), strict=False))
         self.rng.shuffle(empties)
         if len(empties) < self._agents_n:
             raise ValueError("Not enough empty tiles for agents; reduce number or enlarge map.")
-        for (ar, ac) in empties[: self._agents_n]:
-            grid[ar, ac] = "agent.agent"
+        for ar, ac in empties[: self._agents_n]:
+            grid[ar, ac] = f"agent.{self._team}"
 
         # Optionally place hearts in remaining unused alcoves
         remaining_alcoves = [cell for cell in alcove_cells if grid[cell[0], cell[1]] == "empty"]
-        for (r, c) in remaining_alcoves:
+        for r, c in remaining_alcoves:
             if self.rng.random() < self.heart_prob:
                 grid[r, c] = "heart"
 

@@ -5,6 +5,7 @@ extends 3-6 tiles into the outer area. Mines and generators are scattered
 around the outer area. All mines start with one ore. Altars and generators
 start empty.  Agents spawn in empty tiles across the whole map.
 """
+
 from __future__ import annotations
 
 from typing import List, Optional, Tuple
@@ -27,6 +28,7 @@ class Boxy(Room):
         seed: Optional[int] = None,
         border_width: int = 0,
         border_object: str = "wall",
+        team: str = "agent",
     ) -> None:
         super().__init__(border_width=border_width, border_object=border_object, labels=["boxy"])
         self.set_size_labels(width, height)
@@ -35,6 +37,7 @@ class Boxy(Room):
         self._agents_n = agents
         self._objects_cfg = objects or DictConfig({})
         self._rng = np.random.default_rng(seed)
+        self._team = team
 
     # ------------------------------------------------------------------
     def _to_int(self, val, default: int) -> int:
@@ -49,8 +52,8 @@ class Boxy(Room):
         self._occ = np.zeros((self._h, self._w), dtype=bool)
 
         # Parameters from YAML (with sensible fallbacks)
-        mine_total = self._to_int(self._objects_cfg.get("mine", 30), 30)
-        generator_total = self._to_int(self._objects_cfg.get("generator", 30), 30)
+        mine_total = self._to_int(self._objects_cfg.get("mine.red", 30), 30)
+        generator_total = self._to_int(self._objects_cfg.get("generator.red", 30), 30)
 
         # Determine number of boxes (and therefore altars)
         altar_cfg = self._objects_cfg.get("altar", None)
@@ -109,7 +112,7 @@ class Boxy(Room):
 
             placed_boxes += 1
 
-        # ---- scatter mines and generators outside boxes ----
+        # ---- scatter mines and generator.reds outside boxes ----
         interior_set = set(interior_coords)
         outer_coords = [
             (r, c)
@@ -120,17 +123,17 @@ class Boxy(Room):
         self._rng.shuffle(outer_coords)
 
         for r, c in outer_coords[:mine_total]:
-            grid[r, c] = "mine"
+            grid[r, c] = "mine.red"
             self._occ[r, c] = True
         for r, c in outer_coords[mine_total : mine_total + generator_total]:
-            grid[r, c] = "generator"
+            grid[r, c] = "generator.red"
             self._occ[r, c] = True
 
         # ---- place agents ----
         empty_cells = [(r, c) for r in range(self._h) for c in range(self._w) if grid[r, c] == "empty"]
         self._rng.shuffle(empty_cells)
         for r, c in empty_cells[: self._agents_n]:
-            grid[r, c] = "agent.agent"
+            grid[r, c] = f"agent.{self._team}"
             self._occ[r, c] = True
 
         return grid

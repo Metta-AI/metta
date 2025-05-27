@@ -2,4 +2,4 @@ defaults:
   - sim_single
   - _self_
 
-env: /env/mettagrid/navigation_sequence/training/cylinder_world
+env: /env/mettagrid/multi_agent/boxshare

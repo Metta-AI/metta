@@ -1,0 +1,21 @@
+_target_: metta.env.mettagrid_env_set.SamplingPrioritizedEnvSet
+
+num_agents: 24
+sampling: 1
+
+game:
+  num_agents: ${..num_agents}
+
+envs:
+  - /env/mettagrid/multi_agent/boxshare_rs
+  - /env/mettagrid/multi_agent/boxy_rs
+  - /env/mettagrid/multi_agent/cylinder_world_rs
+  - /env/mettagrid/multi_agent/manhatten_rs
+  - /env/mettagrid/multi_agent/narrow_world_rs
+  - /env/mettagrid/multi_agent/varied_terrain_rs
+  - /env/mettagrid/multi_agent/boxshare
+  - /env/mettagrid/multi_agent/boxy
+  - /env/mettagrid/multi_agent/cylinder_world
+  - /env/mettagrid/multi_agent/manhatten
+  - /env/mettagrid/multi_agent/narrow_world
+  - /env/mettagrid/multi_agent/varied_terrain

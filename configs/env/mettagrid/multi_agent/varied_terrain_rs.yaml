@@ -1,0 +1,12 @@
+defaults:
+  - /env/mettagrid/multi_agent/rs_defaults@
+  - _self_
+
+game:
+  map_builder:
+    _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+    style: ${choose:"dense","all-sparse","balanced","maze"}
+    objects:
+      mine.red: ${sampling:1,10,10}
+      generator.red: ${sampling:1,10,10}
+      altar: ${sampling:1,5,10}

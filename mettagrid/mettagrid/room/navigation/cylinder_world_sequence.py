@@ -6,7 +6,7 @@ Objects (altar, mine, generator) are placed at the center of each cylinder's cor
 No objects are placed outside of these cylinders.
 """
 
-from typing import List, Optional, Tuple, Dict
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from omegaconf import DictConfig
@@ -36,11 +36,11 @@ class CylinderWorldSequence(Room):
         width: int,
         height: int,
         objects: DictConfig,  # expects counts for altar, mine, generator under room.objects
-        agents: int | dict = 1,
+        agents: int = 1,
         seed: Optional[int] = None,
         border_width: int = 0,
         border_object: str = "wall",
-        teams: list | None = None,
+        team: str = "agent",
         cylinder_pattern_type: str = "3x3wall",
     ) -> None:
         super().__init__(border_width=border_width, border_object=border_object, labels=["cylinder_sequence"])
@@ -49,11 +49,13 @@ class CylinderWorldSequence(Room):
         self._width = width
         self._height = height
         self._agents = agents
-        self._teams = teams
+        self._team = team
         self._objects_cfg = objects
 
         self._cylinder_pattern = (
-            self.DEFAULT_CYLINDER_PATTERN_WALL if cylinder_pattern_type == "3x3wall" else self.DEFAULT_CYLINDER_PATTERN_WALL
+            self.DEFAULT_CYLINDER_PATTERN_WALL
+            if cylinder_pattern_type == "3x3wall"
+            else self.DEFAULT_CYLINDER_PATTERN_WALL
         )
         self._cyl_h, self._cyl_w = self._cylinder_pattern.shape
 
@@ -76,7 +78,7 @@ class CylinderWorldSequence(Room):
         return 0
 
     def _object_counts(self) -> Dict[str, int]:
-        return {k: self._int_from_cfg(self._objects_cfg.get(k, 0)) for k in ("altar", "mine", "generator")}
+        return {k: self._int_from_cfg(self._objects_cfg.get(k, 0)) for k in ("altar", "mine.red", "generator.red")}
 
     # ------------------------------------------------------------------
     # Grid build
@@ -84,16 +86,7 @@ class CylinderWorldSequence(Room):
     def _build(self) -> np.ndarray:  # noqa: C901
         """Build a room populated only with cylindrical corridors containing objects."""
         # Prepare agent symbols
-        agent_syms: List[str] = []
-        if self._teams is None:
-            if isinstance(self._agents, int):
-                agent_syms = ["agent.agent"] * self._agents
-        else:
-            if not isinstance(self._agents, int):
-                raise ValueError("When using teams, 'agents' must be an int count")
-            per_team = self._agents // len(self._teams) if self._teams else 0
-            for t in self._teams:
-                agent_syms += [f"agent.{t}"] * per_team
+        agent_syms = [f"agent.{self._team}"] * self._agents
 
         grid = np.full((self._height, self._width), "empty", dtype=object)
         self._occupancy = np.zeros((self._height, self._width), dtype=bool)
@@ -120,7 +113,7 @@ class CylinderWorldSequence(Room):
                 objects_pool.insert(0, obj_name)
 
         # Place agents in randomly chosen empty cells across the whole grid
-        empty_coords = list(zip(*np.where(grid == "empty")))
+        empty_coords = list(zip(*np.where(grid == "empty"), strict=False))
         self._rng.shuffle(empty_coords)
 
         if len(empty_coords) < len(agent_syms):
@@ -129,7 +122,7 @@ class CylinderWorldSequence(Room):
                 "Increase map size or reduce agent count."
             )
 
-        for sym, (pr, pc) in zip(agent_syms, empty_coords):
+        for sym, (pr, pc) in zip(agent_syms, empty_coords, strict=False):
             grid[pr, pc] = sym
             self._occupancy[pr, pc] = True
 
@@ -199,6 +192,7 @@ class CylinderWorldSequence(Room):
         grid[r0 + clearance : r0 + clearance + ph, c0 + clearance : c0 + clearance + pw] = pattern
         self._update_occ((r0 + clearance, c0 + clearance), pattern)
         return True
+
 
 # Backwards compatibility alias
 CylinderObjectSequence = CylinderWorldSequence

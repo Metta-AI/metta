@@ -5,7 +5,9 @@ that box, the others outside.  Some wall blocks of the box are replaced by
 `altar` objects are placed outside.  All counts are read from the YAML objects
 DictConfig (defaults provided).
 """
+
 from typing import List, Optional, Tuple
+
 import numpy as np
 from omegaconf import DictConfig
 
@@ -22,6 +24,7 @@ class BoxShare(Room):
         seed: Optional[int] = None,
         border_width: int = 0,
         border_object: str = "wall",
+        team: str = "agent",
     ) -> None:
         super().__init__(border_width=border_width, border_object=border_object, labels=["boxshare"])
         self.set_size_labels(width, height)
@@ -30,6 +33,7 @@ class BoxShare(Room):
         self._agents_n = agents
         self._objects_cfg = objects or DictConfig({})
         self._rng = np.random.default_rng(seed)
+        self._team = team
 
     def _to_int(self, val, default: int) -> int:
         try:
@@ -55,29 +59,32 @@ class BoxShare(Room):
                     self._occ[r, c] = True
                     wall_coords.append((r, c))
         # ---- replace some walls with generators ----
-        gen_count = self._to_int(self._objects_cfg.get("generator", 8), 8)
+        gen_count = self._to_int(self._objects_cfg.get("generator.red", 8), 8)
         self._rng.shuffle(wall_coords)
         for r, c in wall_coords[:gen_count]:
-            grid[r, c] = "generator"
+            grid[r, c] = "generator.red"
         # mark as occupied already
 
         # ---- place mines inside ----
-        in_coords = [(r, c) for r in range(top + 1, top + box_h - 1)
-                      for c in range(left + 1, left + box_w - 1)]
+        in_coords = [(r, c) for r in range(top + 1, top + box_h - 1) for c in range(left + 1, left + box_w - 1)]
         self._rng.shuffle(in_coords)
-        mine_count = self._to_int(self._objects_cfg.get("mine", 7), 7)
+        mine_count = self._to_int(self._objects_cfg.get("mine.red", 7), 7)
         placed = 0
         for r, c in in_coords:
             if placed >= mine_count:
                 break
             if grid[r, c] == "empty":
-                grid[r, c] = "mine"
+                grid[r, c] = "mine.red"
                 self._occ[r, c] = True
                 placed += 1
 
         # ---- place altars outside ----
-        out_coords = [(r, c) for r in range(self._h) for c in range(self._w)
-                      if grid[r, c] == "empty" and not (left < c < left + box_w - 1 and top < r < top + box_h - 1)]
+        out_coords = [
+            (r, c)
+            for r in range(self._h)
+            for c in range(self._w)
+            if grid[r, c] == "empty" and not (left < c < left + box_w - 1 and top < r < top + box_h - 1)
+        ]
         self._rng.shuffle(out_coords)
         altar_count = self._to_int(self._objects_cfg.get("altar", 7), 7)
         for r, c in out_coords[:altar_count]:
@@ -87,12 +94,12 @@ class BoxShare(Room):
         # ---- place agents ----
         inside_agents = self._agents_n // 2
         self._rng.shuffle(in_coords)
-        for r, c in [p for p in in_coords if grid[p[0], p[1]] == "empty"][: inside_agents]:
-            grid[r, c] = "agent.agent"
+        for r, c in [p for p in in_coords if grid[p[0], p[1]] == "empty"][:inside_agents]:
+            grid[r, c] = f"agent.{self._team}"
             self._occ[r, c] = True
         self._rng.shuffle(out_coords)
         for r, c in [p for p in out_coords if grid[p[0], p[1]] == "empty"][: (self._agents_n - inside_agents)]:
-            grid[r, c] = "agent.agent"
+            grid[r, c] = f"agent.{self._team}"
             self._occ[r, c] = True
 
         return grid
