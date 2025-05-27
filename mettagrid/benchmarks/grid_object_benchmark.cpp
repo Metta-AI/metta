@@ -3,7 +3,7 @@
 #include <random>
 #include <vector>
 
-#include "grid_object.hpp"
+#include "../mettagrid/grid_object.hpp"
 
 // Define a concrete implementation of GridObject for benchmarking
 class TestGridObject : public GridObject {
@@ -14,10 +14,10 @@ public:
     init(type_id, r, c, layer);
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
+  virtual std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
     for (size_t i = 0; i < 10; ++i) {
-      features.push_back({static_cast<uint8_t>(i), i});
+      features.push_back({static_cast<uint8_t>(i), static_cast<uint8_t>(i)});
     }
     return features;
   }

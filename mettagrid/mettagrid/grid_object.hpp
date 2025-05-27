@@ -1,12 +1,12 @@
-#ifndef GRID_OBJECT_HPP
-#define GRID_OBJECT_HPP
+#ifndef METTAGRID_METTAGRID_GRID_OBJECT_HPP_
+#define METTAGRID_METTAGRID_GRID_OBJECT_HPP_
 
-#include <cstdint>
 #include <span>
+#include <cstdint>
 #include <string>
 #include <vector>
 
-using namespace std;
+// using namespace std;  // Removed per cpplint
 
 typedef unsigned short Layer;
 typedef uint8_t TypeId;
@@ -74,10 +74,10 @@ public:
     init(type_id, GridLocation(r, c, layer));
   }
 
-  virtual vector<PartialObservationToken> obs_features() const = 0;
+  virtual std::vector<PartialObservationToken> obs_features() const = 0;
 
   size_t obs_tokens(ObservationTokens tokens) const {
-    vector<PartialObservationToken> features = this->obs_features();
+    std::vector<PartialObservationToken> features = this->obs_features();
     size_t tokens_to_write = std::min(tokens.size(), features.size());
     for (size_t i = 0; i < tokens_to_write; i++) {
       tokens[i].feature_id = features[i].feature_id;
@@ -86,7 +86,7 @@ public:
     return tokens_to_write;
   }
 
-  virtual void obs(ObsType* obs, const vector<uint8_t>& offsets) const = 0;
+  virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const = 0;
 };
 
-#endif  // GRID_OBJECT_HPP
+#endif  // METTAGRID_METTAGRID_GRID_OBJECT_HPP_

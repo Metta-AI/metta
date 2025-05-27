@@ -425,10 +425,10 @@ void MettaGrid::validate_buffers() {
   }
 }
 
-void MettaGrid::set_buffers(py::array_t<uint8_t, py::array::c_style>& observations,
-                            py::array_t<bool, py::array::c_style>& terminals,
-                            py::array_t<bool, py::array::c_style>& truncations,
-                            py::array_t<float, py::array::c_style>& rewards) {
+void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& observations,
+                            const py::array_t<bool, py::array::c_style>& terminals,
+                            const py::array_t<bool, py::array::c_style>& truncations,
+                            const py::array_t<float, py::array::c_style>& rewards) {
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;

@@ -1,5 +1,5 @@
-#ifndef PRODUCTION_HANDLER_HPP
-#define PRODUCTION_HANDLER_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_PRODUCTION_HANDLER_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_PRODUCTION_HANDLER_HPP_
 
 #include "../event.hpp"
 #include "../grid.hpp"
@@ -10,7 +10,7 @@
 // Handles the FinishConverting event
 class ProductionHandler : public EventHandler {
 public:
-  ProductionHandler(EventManager* event_manager) : EventHandler(event_manager) {}
+  explicit ProductionHandler(EventManager* event_manager) : EventHandler(event_manager) {}
 
   void handle_event(GridObjectId obj_id, EventArg arg) override {
     Converter* converter = static_cast<Converter*>(this->event_manager->grid->object(obj_id));
@@ -26,7 +26,7 @@ public:
 // Handles the CoolDown event
 class CoolDownHandler : public EventHandler {
 public:
-  CoolDownHandler(EventManager* event_manager) : EventHandler(event_manager) {}
+  explicit CoolDownHandler(EventManager* event_manager) : EventHandler(event_manager) {}
 
   void handle_event(GridObjectId obj_id, EventArg arg) override {
     Converter* converter = static_cast<Converter*>(this->event_manager->grid->object(obj_id));
@@ -38,4 +38,4 @@ public:
   }
 };
 
-#endif  // PRODUCTION_HANDLER_HPP
+#endif  // METTAGRID_METTAGRID_OBJECTS_PRODUCTION_HANDLER_HPP_

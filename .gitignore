@@ -36,3 +36,4 @@ build_debug/
 **/requirements_to_remove.txt
 test_data
 **/mettagrid_debug.log
+cpplint_output*
