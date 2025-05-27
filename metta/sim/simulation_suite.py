@@ -2,15 +2,14 @@ import logging
 import uuid
 from pathlib import Path
 
+import torch
+
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
-# --------------------------------------------------------------------------- #
-#   Suite of simulations                                                      #
-# --------------------------------------------------------------------------- #
 class SimulationSuite:
     """
     Runs a collection of named simulations and returns **one merged StatsDB**
@@ -22,7 +21,7 @@ class SimulationSuite:
         config: SimulationSuiteConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
-        device: str,
+        device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
@@ -35,10 +34,6 @@ class SimulationSuite:
         self._device = device
         self._vectorization = vectorization
         self.name = config.name
-
-    # ------------------------------------------------------------------ #
-    #   public API                                                       #
-    # ------------------------------------------------------------------ #
 
     def simulate(self) -> SimulationResults:
         """Run every simulation, merge their DBs/replay dicts, and return a single `SimulationResults`."""
