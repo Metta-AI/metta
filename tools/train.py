@@ -22,6 +22,7 @@ class TrainJob(Config):
     __init__ = Config.__init__
     evals: SimulationSuiteConfig
     map_preview_uri: Optional[str] = None
+    log_uri: Optional[str] = None
 
 
 def train(cfg, wandb_run, logger: Logger):
@@ -62,7 +63,11 @@ def main(cfg: ListConfig | DictConfig) -> int:
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
-    logger = setup_mettagrid_logger("train")
+    logger = setup_mettagrid_logger(
+        "train",
+        log_file=os.path.join(cfg.run_dir, "train.log"),
+        s3_uri=getattr(cfg.train_job, "log_uri", None),
+    )
     logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
     logger.info(

@@ -10,6 +10,7 @@ seed: 1
 
 train_job:
   map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
+  log_uri: s3://softmax-public/training_runs/${run}/train.log
   evals: ${sim}
 
 cmd: train
