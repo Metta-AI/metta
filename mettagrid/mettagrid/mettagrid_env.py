@@ -106,7 +106,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
-        self._num_agents = self._c_env.num_agents()
+        self._num_agents = self._c_env.num_agents
 
     @override
     def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
@@ -251,7 +251,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     @required
     def single_action_space(self):
-        return self._c_env.observation_space
+        return self._c_env.action_space
 
     @property
     @required

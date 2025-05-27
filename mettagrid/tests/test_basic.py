@@ -2,6 +2,7 @@ import random
 
 import numpy as np
 import pytest
+from gymnasium.spaces import Box, MultiDiscrete
 
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -54,17 +55,31 @@ def test_basic(environment):
     # ---- Test environment properties ----
     assert environment.max_steps > 0
 
-    # Check observation space
-    obs_shape = environment.single_observation_space.shape
-    assert len(obs_shape) == 3  # (width, height, channels)
-    assert obs_shape[0] > 0  # grid width
-    assert obs_shape[1] > 0  # grid height
-    assert obs_shape[2] > 0  # channels
+    # Check observation space (Box)
+    observation_space = environment.single_observation_space
 
-    # Check action space
-    [num_actions, max_arg] = environment.single_action_space.nvec.tolist()
-    assert num_actions > 0, f"num_actions: {num_actions}"
-    assert max_arg > 0, f"max_arg: {max_arg}"
+    assert isinstance(observation_space, Box), f"Expected Box observation space, got {type(observation_space)}"
+    observation_space_shape = observation_space.shape
+    assert len(observation_space_shape) == 3, (
+        f"Expected 3D observation space, got {len(observation_space_shape)}D: {observation_space_shape}"
+    )
+    assert observation_space_shape[0] > 0, f"grid width: {observation_space_shape[0]}"
+    assert observation_space_shape[1] > 0, f"grid height: {observation_space_shape[1]}"
+    assert observation_space_shape[2] > 0, f"channels: {observation_space_shape[2]}"
+
+    # Check action space (MultiDiscrete)
+    action_space = environment.single_action_space
+    assert isinstance(action_space, MultiDiscrete), f"Expected MultiDiscrete action space, got {type(action_space)}"
+    action_space_shape = action_space.shape
+    assert len(action_space_shape) == 1, (
+        f"Expected 1D action space, got {len(action_space_shape)}D: {action_space_shape}"
+    )
+    assert action_space_shape[0] > 0, f"number of discrete actions: {action_space_shape[0]}"
+    # Check that each discrete action has valid options
+    assert len(action_space.nvec) == action_space_shape[0], (
+        f"nvec length mismatch: {len(action_space.nvec)} != {action_space_shape[0]}"
+    )
+    assert all(n > 0 for n in action_space.nvec), f"all discrete actions must have > 0 options: {action_space.nvec}"
 
     # Check env properties
     assert environment.render_mode == "human"
@@ -91,7 +106,7 @@ def test_basic(environment):
 
     # Check observation structure
     [agents_in_obs, grid_width, grid_height, num_channels] = obs.shape
-    num_expected_agents = environment._c_env.num_agents()
+    num_expected_agents = environment._c_env.num_agents
     assert agents_in_obs == num_expected_agents
     assert grid_width > 0
     assert grid_height > 0
