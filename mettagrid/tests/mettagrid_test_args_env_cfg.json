@@ -1,7 +1,6 @@
 {
   "name": "GDY-MettaGrid",
   "report_stats_interval": 100,
-  "normalize_rewards": false,
   "sampling": 0,
   "game": {
     "num_agents": 24,
