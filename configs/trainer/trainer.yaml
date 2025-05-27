@@ -1,5 +1,6 @@
 num_workers: ???
 
+# curriculum: /env/mettagrid/curriculum/simple
 env: /env/mettagrid/simple
 env_overrides: {}
 
@@ -11,8 +12,6 @@ initial_policy:
   filters: {}
 
 checkpoint_dir: ${run_dir}/checkpoints
-
-glicko_scores_path: ${run_dir}/eval/glicko2
 
 evaluate_interval: 300
 checkpoint_interval: 60
