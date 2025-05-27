@@ -15,4 +15,4 @@ trainer:
 #   # wandb.enabled: false
 #   wandb.track: false
 
-run: mrazo_memory_varied-terrain_v04
+run: mrazo_memory_varied-terrain_v05
