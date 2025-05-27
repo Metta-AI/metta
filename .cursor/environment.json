@@ -1,0 +1,7 @@
+{
+  "build": {
+    "context": ".",
+    "dockerfile": "./devops/docker/Dockerfile"
+  },
+  "install": "./devops/setup_build.sh"
+}
