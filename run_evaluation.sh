@@ -79,12 +79,12 @@ for i in "${!POLICIES[@]}"; do
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/nav_sequence_db2 \
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigation_db2 ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db2 run=navigation_db2 ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db run=memory_db2 ++dashboard.output_path=s3://softmax-public/policydash/memory.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db2 run=memory_db2 ++dashboard.output_path=s3://softmax-public/policydash/memory.html
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/objectuse_db run=objectuse_db2 ++dashboard.output_path=s3://softmax-public/policydash/objectuse.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/objectuse_db2 run=objectuse_db2 ++dashboard.output_path=s3://softmax-public/policydash/objectuse.html
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/nav_sequence_db run=nav_sequence_db2 ++dashboard.output_path=s3://softmax-public/policydash/nav_sequence.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/nav_sequence_db2 run=nav_sequence_db2 ++dashboard.output_path=s3://softmax-public/policydash/nav_sequence.html
 
 done
