@@ -1,5 +1,5 @@
-#ifndef GRID_HPP
-#define GRID_HPP
+#ifndef METTAGRID_METTAGRID_GRID_HPP_
+#define METTAGRID_METTAGRID_GRID_HPP_
 
 #include <algorithm>
 #include <memory>
@@ -7,7 +7,9 @@
 
 #include "grid_object.hpp"
 
-using namespace std;
+using std::vector;
+using std::unique_ptr;
+using std::max;
 typedef vector<vector<vector<GridObjectId>>> GridType;
 
 class Grid {
@@ -32,7 +34,7 @@ public:
   virtual ~Grid() = default;
 
   inline char add_object(GridObject* obj) {
-    if (obj->location.r >= height or obj->location.c >= width or obj->location.layer >= num_layers) {
+    if (obj->location.r >= height || obj->location.c >= width || obj->location.layer >= num_layers) {
       return false;
     }
     if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
@@ -56,7 +58,7 @@ public:
   }
 
   inline char move_object(GridObjectId id, const GridLocation& loc) {
-    if (loc.r >= height or loc.c >= width or loc.layer >= num_layers) {
+    if (loc.r >= height || loc.c >= width || loc.layer >= num_layers) {
       return false;
     }
 
@@ -97,7 +99,7 @@ public:
   }
 
   inline GridObject* object_at(const GridLocation& loc) {
-    if (loc.r >= height or loc.c >= width or loc.layer >= num_layers) {
+    if (loc.r >= height || loc.c >= width || loc.layer >= num_layers) {
       return nullptr;
     }
     if (grid[loc.r][loc.c][loc.layer] == 0) {
@@ -108,7 +110,7 @@ public:
 
   inline GridObject* object_at(const GridLocation& loc, TypeId type_id) {
     GridObject* obj = object_at(loc);
-    if (obj != NULL and obj->_type_id == type_id) {
+    if (obj != NULL && obj->_type_id == type_id) {
       return obj;
     }
     return nullptr;
@@ -189,4 +191,4 @@ public:
   }
 };
 
-#endif  // GRID_HPP
+#endif  // METTAGRID_METTAGRID_GRID_HPP_

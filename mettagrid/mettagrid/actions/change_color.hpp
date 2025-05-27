@@ -1,5 +1,5 @@
-#ifndef CHANGE_COLOR_HPP
-#define CHANGE_COLOR_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_CHANGE_COLOR_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_CHANGE_COLOR_HPP_
 
 #include <string>
 
@@ -8,7 +8,7 @@
 
 class ChangeColorAction : public ActionHandler {
 public:
-  ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
+  explicit ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
 
   unsigned char max_arg() const override {
     return 3;
@@ -36,4 +36,4 @@ protected:
   }
 };
 
-#endif  // CHANGE_COLOR_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_CHANGE_COLOR_HPP_
