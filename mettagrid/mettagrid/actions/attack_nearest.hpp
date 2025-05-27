@@ -1,5 +1,5 @@
-#ifndef ATTACK_NEAREST_HPP
-#define ATTACK_NEAREST_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_ATTACK_NEAREST_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_ATTACK_NEAREST_HPP_
 
 #include <string>
 
@@ -10,7 +10,7 @@
 
 class AttackNearest : public Attack {
 public:
-  AttackNearest(const ActionConfig& cfg) : Attack(cfg, "attack_nearest") {}
+  explicit AttackNearest(const ActionConfig& cfg) : Attack(cfg, "attack_nearest") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -45,4 +45,4 @@ protected:
   }
 };
 
-#endif  // ATTACK_NEAREST_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_ATTACK_NEAREST_HPP_

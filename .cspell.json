@@ -36,6 +36,7 @@
     "copyto",
     "cpdef",
     "cppclass",
+    "cpplint",
     "cpus",
     "cstdarg",
     "cstddef",
