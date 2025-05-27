@@ -2,14 +2,15 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
-import numpy.typing as npt
 from omegaconf import DictConfig, ListConfig
+
+from metta.map.mapgen import MapGrid
 
 
 @dataclass
 class Area:
     id: int  # unique for areas in a node; not unique across nodes.
-    grid: npt.NDArray[np.str_]
+    grid: MapGrid
     tags: list[str]
 
 
@@ -17,7 +18,7 @@ class Area:
 class Node:
     _areas: list[Area]
 
-    def __init__(self, scene, grid: npt.NDArray[np.str_]):
+    def __init__(self, scene, grid: MapGrid):
         self.scene = scene
 
         # Not prefixed with `_`; scene renderers access these directly.

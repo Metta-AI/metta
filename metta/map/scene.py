@@ -1,11 +1,10 @@
 from typing import Any, List, Optional, TypedDict, Union, cast
 
 import hydra
-import numpy as np
-import numpy.typing as npt
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.config import scenes_root
+from metta.map.mapgen import MapGrid
 
 from .node import Node
 
@@ -43,7 +42,7 @@ class Scene:
         self._children = children or []
         pass
 
-    def make_node(self, grid: npt.NDArray[np.str_]):
+    def make_node(self, grid: MapGrid):
         return Node(self, grid)
 
     # Render does two things:
