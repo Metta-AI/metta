@@ -19,7 +19,6 @@ The build order is:
 from typing import List, Optional, Tuple
 
 import numpy as np
-from omegaconf import DictConfig
 
 from mettagrid.room.room import Room
 
@@ -72,7 +71,7 @@ class VariedTerrainSequence(Room):
         self,
         width: int,
         height: int,
-        objects: DictConfig,
+        num_triplets: int,
         agents: int | dict = 1,
         seed: Optional[int] = None,
         border_width: int = 0,
@@ -89,7 +88,7 @@ class VariedTerrainSequence(Room):
         self._agents = agents
         self._teams = teams
         self._occupancy_threshold = occupancy_threshold
-        self._placed_triplet_centers: List[Tuple[int, int]] = [] # For anti-clumping
+        self._placed_triplet_centers: List[Tuple[int, int]] = []  # For anti-clumping
 
         if style not in self.STYLE_PARAMETERS:
             raise ValueError(f"Unknown style: '{style}'. Available styles: {list(self.STYLE_PARAMETERS.keys())}")
@@ -131,7 +130,7 @@ class VariedTerrainSequence(Room):
             "count": clamp_count(base_params["scattered_walls"]["count"], avg_sizes["scattered_walls"])
         }
         self._blocks = {"count": clamp_count(base_params["blocks"]["count"], avg_sizes["blocks"])}
-        self._objects = objects
+        self._num_triplets = num_triplets
 
     def _build(self) -> np.ndarray:
         # Prepare agent symbols.
@@ -148,22 +147,21 @@ class VariedTerrainSequence(Room):
                     "If teams are specified, the 'agents' parameter in the constructor "
                     "must be an integer representing the total number of agents."
                 )
-            
-            if not self._teams: # Should not happen if len(self._teams) is used, but good for safety
+
+            if not self._teams:  # Should not happen if len(self._teams) is used, but good for safety
                 agents_per_team = 0
             else:
                 agents_per_team = agents_config // len(self._teams)
-            
+
             for team_name in self._teams:
                 # Ensuring team_name is string, as it might come from various config sources
                 agent_symbols_to_place += [f"agent.{str(team_name)}"] * agents_per_team
-
 
         # Create an empty grid.
         grid = np.full((self._height, self._width), "empty", dtype=object)
         # Initialize an occupancy mask: False means cell is empty, True means occupied.
         self._occupancy = np.zeros((self._height, self._width), dtype=bool)
-        self._placed_triplet_centers = [] # Reset for each build
+        self._placed_triplet_centers = []  # Reset for each build
 
         # Place features in order.
         grid = self._place_labyrinths(grid)
@@ -171,19 +169,7 @@ class VariedTerrainSequence(Room):
         grid = self._place_scattered_walls(grid)
         grid = self._place_blocks(grid)
 
-        # Place object triplets (altar, mine, generator).
-        num_triplets_to_place = 0
-        altar_count_cfg = self._objects.get("altar")
-        if altar_count_cfg is not None:
-            try:
-                num_triplets_to_place = int(altar_count_cfg)
-            except (ValueError, TypeError):
-                # If conversion fails or it's an unexpected type, default to 0 or log a warning
-                num_triplets_to_place = 0 
-                # Consider logging a warning here if self.logger is available
-                # print(f"Warning: Could not parse 'altar' count: {altar_count_cfg}. Defaulting to 0 triplets.")
-
-        for _ in range(num_triplets_to_place):
+        for _ in range(self._num_triplets):
             placed = self._place_object_triplet(grid)
             if not placed:
                 break  # Stop if no more space for triplets
@@ -210,7 +196,9 @@ class VariedTerrainSequence(Room):
         p_h, p_w = pattern.shape
         self._occupancy[r : r + p_h, c : c + p_w] |= pattern != "empty"
 
-    def _find_candidates(self, region_shape: Tuple[int, int], require_adjacency_to_structure: bool = False) -> List[Tuple[int, int]]:
+    def _find_candidates(
+        self, region_shape: Tuple[int, int], require_adjacency_to_structure: bool = False
+    ) -> List[Tuple[int, int]]:
         """
         Efficiently finds candidate top-left positions where a subregion of shape 'region_shape'
         is completely empty using a sliding window approach on the occupancy mask.
@@ -234,24 +222,28 @@ class VariedTerrainSequence(Room):
         # H, W are dimensions of self._occupancy
         H_grid, W_grid = self._occupancy.shape
         adjacent_candidates = []
-        for r_eff, c_eff in empty_candidates_coords: # r_eff, c_eff is top-left of the effective_shape region
+        for r_eff, c_eff in empty_candidates_coords:  # r_eff, c_eff is top-left of the effective_shape region
             is_adjacent = False
             # Check border cells around the (r_h, r_w) region at (r_eff, c_eff)
             for br in range(r_eff - 1, r_eff + r_h + 1):
                 for bc in range(c_eff - 1, c_eff + r_w + 1):
                     # Check if (br, bc) is on the border and within grid bounds
-                    if (br >= 0 and br < H_grid and bc >= 0 and bc < W_grid and
-                        (br < r_eff or br >= r_eff + r_h or
-                         bc < c_eff or bc >= c_eff + r_w)):
-                        if self._occupancy[br, bc]: # If an adjacent cell is occupied
+                    if (
+                        br >= 0
+                        and br < H_grid
+                        and bc >= 0
+                        and bc < W_grid
+                        and (br < r_eff or br >= r_eff + r_h or bc < c_eff or bc >= c_eff + r_w)
+                    ):
+                        if self._occupancy[br, bc]:  # If an adjacent cell is occupied
                             is_adjacent = True
                             break
                 if is_adjacent:
                     break
-            
+
             if is_adjacent:
                 adjacent_candidates.append((r_eff, c_eff))
-        
+
         return [tuple(idx) for idx in adjacent_candidates]
 
     def _choose_random_empty(self) -> Optional[Tuple[int, int]]:
@@ -344,8 +336,8 @@ class VariedTerrainSequence(Room):
         for _ in range(block_count):
             block_w_raw = self._rng.integers(2, 15)  # 2 to 14 inclusive.
             block_h_raw = self._rng.integers(2, 15)
-            block_w = int(block_w_raw) # Cast to int for type hint compatibility
-            block_h = int(block_h_raw) # Cast to int for type hint compatibility
+            block_w = int(block_w_raw)  # Cast to int for type hint compatibility
+            block_h = int(block_h_raw)  # Cast to int for type hint compatibility
             candidates = self._find_candidates((block_h, block_w))
             if candidates:
                 r, c = candidates[self._rng.integers(0, len(candidates))]
@@ -462,35 +454,35 @@ class VariedTerrainSequence(Room):
         Updates the grid and occupancy mask upon successful placement.
         """
         clearance = 1
-        object_names = ["altar", "mine.red", "generator.red"] # Order of placement
+        object_names = ["altar", "mine.red", "generator.red"]  # Order of placement
 
         # Randomly choose orientation for the 1x3/3x1 triplet
         is_horizontal = self._rng.choice([True, False])
-        
+
         p_h, p_w = (1, 3) if is_horizontal else (3, 1)
 
         # Effective shape including clearance
         eff_h, eff_w = p_h + 2 * clearance, p_w + 2 * clearance
-        
+
         if self._height < eff_h or self._width < eff_w:
-            return False # Cannot fit even one triplet's effective shape
+            return False  # Cannot fit even one triplet's effective shape
 
         # Find candidate locations that are empty and adjacent to existing structures
         # The shape passed to _find_candidates is the effective shape (triplet + clearance)
         all_possible_eff_candidates = self._find_candidates((eff_h, eff_w), require_adjacency_to_structure=True)
-        
+
         if not all_possible_eff_candidates:
             # Fallback: if no spots near structures, try any empty spot (original behavior for finding space)
             # This ensures we can still place triplets if the "near structure" constraint is too restrictive.
             all_possible_eff_candidates = self._find_candidates((eff_h, eff_w), require_adjacency_to_structure=False)
             if not all_possible_eff_candidates:
-                return False # No empty space at all
+                return False  # No empty space at all
 
-        self._rng.shuffle(all_possible_eff_candidates) # Shuffle to try candidates in random order
+        self._rng.shuffle(all_possible_eff_candidates)  # Shuffle to try candidates in random order
 
         for r_eff, c_eff in all_possible_eff_candidates:
             # r_eff, c_eff is the top-left of the *effective footprint* (triplet + clearance)
-            
+
             # Calculate top-left for actual pattern placement (within the cleared effective region)
             r_place = r_eff + clearance
             c_place = c_eff + clearance
@@ -504,28 +496,28 @@ class VariedTerrainSequence(Room):
             # Check distance to other placed triplets
             is_too_close = False
             for prev_center_r, prev_center_c in self._placed_triplet_centers:
-                dist_sq = (triplet_center_r - prev_center_r)**2 + (triplet_center_c - prev_center_c)**2
+                dist_sq = (triplet_center_r - prev_center_r) ** 2 + (triplet_center_c - prev_center_c) ** 2
                 if dist_sq < self.MIN_TRIPLET_SEPARATION_DISTANCE**2:
                     is_too_close = True
                     break
-            
+
             if is_too_close:
-                continue # Try next candidate
+                continue  # Try next candidate
 
             # If all checks pass, place the triplet
-            if is_horizontal: # Horizontal 1x3
+            if is_horizontal:  # Horizontal 1x3
                 for i, obj_name in enumerate(object_names):
                     grid[r_place, c_place + i] = obj_name
                     self._occupancy[r_place, c_place + i] = True
-            else: # Vertical 3x1
+            else:  # Vertical 3x1
                 for i, obj_name in enumerate(object_names):
                     grid[r_place + i, c_place] = obj_name
                     self._occupancy[r_place + i, c_place] = True
-            
+
             self._placed_triplet_centers.append((triplet_center_r, triplet_center_c))
-            return True # Successfully placed a triplet
-        
-        return False # No suitable candidate found after checking all possibilities
+            return True  # Successfully placed a triplet
+
+        return False  # No suitable candidate found after checking all possibilities
 
 
 # End of VariedTerrainSequence class implementation
