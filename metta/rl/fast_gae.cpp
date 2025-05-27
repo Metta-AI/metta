@@ -16,16 +16,16 @@ py::array_t<float> compute_gae(
     float gamma,
     // GAE lambda parameter for advantage estimation
     float gae_lambda) {
+  // Input validation
+  if (values.shape(0) != num_steps || rewards.shape(0) != num_steps) {
+    throw std::runtime_error("Input arrays must have the same length");
+  }
+
   // Request contiguous buffers
   auto buf_dones = dones.unchecked<1>();
   auto buf_values = values.unchecked<1>();
   auto buf_rewards = rewards.unchecked<1>();
   ssize_t num_steps = buf_dones.shape(0);
-
-  // Input validation
-  if (values.shape(0) != num_steps || rewards.shape(0) != num_steps) {
-    throw std::runtime_error("Input arrays must have the same length");
-  }
 
   // Initialize advantage array
   auto advantages =
