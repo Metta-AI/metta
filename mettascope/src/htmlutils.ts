@@ -24,3 +24,22 @@ export function find(selector: string): HTMLElement {
 export function finds(selector: string): HTMLElement[] {
   return Array.from(document.querySelectorAll(selector));
 }
+
+// Remove all children of an element.
+export function removeChildren(element: HTMLElement) {
+  while (element.firstChild) {
+    element.removeChild(element.firstChild);
+  }
+}
+
+// Walk up the DOM tree to find an attribute.
+export function walkUpAttribute(element: HTMLElement, attribute: string): string {
+  var e = element;
+  while (e != null && e != document.body) {
+    if (e.hasAttribute(attribute)) {
+      return e.getAttribute(attribute) as string;
+    }
+    e = e.parentElement as HTMLElement;
+  }
+  return "";
+}

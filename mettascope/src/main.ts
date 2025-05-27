@@ -6,6 +6,7 @@ import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.j
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
+import { initAgentTable, updateAgentTable } from './agentpanel.js';
 
 // Handle resize events.
 export function onResize() {
@@ -174,8 +175,8 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
     html.scrubber.value = state.step.toString();
   }
 
-  // Update trace panel position
-  // ui.tracePanel.panPos.setX(-state.step * 32);
+  // Update the agent table
+  updateAgentTable();
 
   // Request a new frame
   requestFrame();
@@ -188,6 +189,7 @@ function onScrubberChange() {
 
 // Handle key down events.
 function onKeyDown(event: KeyboardEvent) {
+
   if (event.key == "Escape") {
     state.selectedGridObject = null;
     setFollowSelection(false);
@@ -232,18 +234,8 @@ export function onFrame() {
 
   ctx.clear();
 
-  var fullUpdate = true;
-  if (ui.mapPanel.inside(ui.mousePos)) {
-    if (ui.mapPanel.updatePanAndZoom()) {
-      fullUpdate = false;
-    }
-  }
-
-  if (ui.tracePanel.inside(ui.mousePos)) {
-    if (ui.tracePanel.updatePanAndZoom()) {
-      fullUpdate = false;
-    }
-  }
+  ui.mapPanel.updatePanAndZoom();
+  ui.tracePanel.updatePanAndZoom();
 
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
@@ -270,6 +262,12 @@ export function onFrame() {
     html.actionButtons.style.display = "block";
   } else {
     html.actionButtons.style.display = "none";
+  }
+
+  if (state.showAgentPanel) {
+    ui.agentPanel.div.style.display = "block";
+  } else {
+    ui.agentPanel.div.style.display = "none";
   }
 
   ctx.flush();
@@ -559,7 +557,19 @@ if (localStorage.hasOwnProperty("showInfo")) {
 }
 toggleOpacity(html.infoToggle, state.showInfo);
 
+html.agentPanelToggle.addEventListener('click', () => {
+  state.showAgentPanel = !state.showAgentPanel;
+  localStorage.setItem("showAgentPanel", state.showAgentPanel.toString());
+  toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showAgentPanel")) {
+  state.showAgentPanel = localStorage.getItem("showAgentPanel") === "true";
+}
+toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
+
 initActionButtons();
+initAgentTable();
 
 window.addEventListener('load', async () => {
   // Use local atlas texture.
