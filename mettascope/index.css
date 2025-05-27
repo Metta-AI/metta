@@ -292,6 +292,36 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
+.right #grid-toggle.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 185px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #visual-range-toggle.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 222px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #fog-of-war-toggle.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 259px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
 #time-panel {
     position: absolute;
     display: flex;
