@@ -33,7 +33,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _cfg = cfg;
 
   int num_agents = cfg["num_agents"].cast<int>();
-  max_timestep = cfg["max_steps"].cast<unsigned int>();
+  max_steps = cfg["max_steps"].cast<unsigned int>();
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
 
@@ -41,7 +41,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
-  current_timestep = 0;
+  current_step = 0;
 
   // Initialize mode flags
   _gym_mode = false;
@@ -355,8 +355,8 @@ void MettaGrid::_step(py::array_t<int> actions) {
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Increment timestep and process events
-  current_timestep++;
-  _event_manager->process_events(current_timestep);
+  current_step++;
+  _event_manager->process_events(current_step);
 
   // Collect unique priority levels from action handlers
   std::set<unsigned char> priority_levels;
@@ -418,7 +418,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
       }
 
       // Execute the action
-      bool success = handler->handle_action(agent->id, action_arg, current_timestep);
+      bool success = handler->handle_action(agent->id, action_arg, current_step);
       _action_success[agent_idx] = success;
     }
   }
@@ -430,7 +430,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
     _episode_rewards[i] += _rewards[i];
   }
 
-  if (max_timestep > 0 && current_timestep >= max_timestep) {
+  if (max_steps > 0 && current_step >= max_steps) {
     std::fill_n(_truncations, _truncations_size, 1);
   }
 }
@@ -444,7 +444,7 @@ py::tuple MettaGrid::reset() {
     _setup_gym_mode();
   }
 
-  if (current_timestep > 0) {
+  if (current_step > 0) {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
@@ -669,11 +669,11 @@ py::list MettaGrid::action_names() {
   return names;
 }
 
-unsigned int MettaGrid::map_width() {
+unsigned int MettaGrid::map_width() const {
   return _grid->width;
 }
 
-unsigned int MettaGrid::map_height() {
+unsigned int MettaGrid::map_height() const {
   return _grid->height;
 }
 
@@ -681,7 +681,7 @@ py::list MettaGrid::grid_features() {
   return py::cast(_grid_features);
 }
 
-unsigned int MettaGrid::num_agents() {
+unsigned int MettaGrid::num_agents() const {
   return _agents.size();
 }
 
@@ -825,10 +825,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("rewards").noconvert())
       .def("grid_objects", &MettaGrid::grid_objects)
       .def("action_names", &MettaGrid::action_names)
-      .def("map_width", &MettaGrid::map_width)
-      .def("map_height", &MettaGrid::map_height)
+      .def_property_readonly("map_width", &MettaGrid::map_width)
+      .def_property_readonly("map_height", &MettaGrid::map_height)
       .def("grid_features", &MettaGrid::grid_features)
-      .def("num_agents", &MettaGrid::num_agents)
+      .def_property_readonly("num_agents", &MettaGrid::num_agents)
       .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
       .def("get_episode_stats", &MettaGrid::get_episode_stats)
       .def_property_readonly("action_space", &MettaGrid::action_space)
@@ -840,6 +840,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_static("get_numpy_type_name", &MettaGrid::cpp_get_numpy_type_name, py::arg("type_id"))
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
-      .def_readonly("max_timestep", &MettaGrid::max_timestep)
-      .def_readonly("current_timestep", &MettaGrid::current_timestep);
+      .def_readonly("max_steps", &MettaGrid::max_steps)
+      .def_readonly("current_step", &MettaGrid::current_step);
 }

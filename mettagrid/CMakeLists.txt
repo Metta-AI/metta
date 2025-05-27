@@ -39,5 +39,6 @@ install(TARGETS mettagrid_c DESTINATION "mettagrid")
 # ========================= TESTS =========================
 
 if(BUILD_TESTS)
+  # Pure C++ tests - no Python site-packages needed!
   include(${CMAKE_CURRENT_LIST_DIR}/tests.cmake)
 endif()

@@ -99,7 +99,7 @@ def test_basic(environment):
 
     # ---- Test environment step ----
     # Check initial timestep
-    assert environment._c_env.current_timestep == 0
+    assert environment._c_env.current_step == 0
 
     # Take a step with NoOp actions for all agents
     # Use our utility to generate valid actions for all agents
@@ -114,7 +114,7 @@ def test_basic(environment):
     obs, rewards, terminated, truncated, infos = environment.step(actions)
 
     # Check timestep increased
-    assert environment._c_env.current_timestep == 1
+    assert environment._c_env.current_step == 1
 
     # Verify observation structure
     [agents_in_obs, grid_width, grid_height, num_channels] = obs.shape
@@ -238,7 +238,7 @@ class TestEnvironmentFunctionality:
         obs, rewards, terminated, truncated, infos = environment.step(actions)
 
         # Check timestep increased
-        assert environment._c_env.current_timestep == 1
+        assert environment._c_env.current_step == 1
 
         # Verify observation structure
         [agents_in_obs, grid_width, grid_height, num_channels] = obs.shape
@@ -277,9 +277,9 @@ class TestEnvironmentFunctionality:
 
         # Check env properties
         assert environment.render_mode == "human"
-        assert environment._c_env.map_width() > 0
-        assert environment._c_env.map_height() > 0
-        num_agents = environment._c_env.num_agents()
+        assert environment._c_env.map_width > 0
+        assert environment._c_env.map_height > 0
+        num_agents = environment._c_env.num_agents
         assert num_agents > 0
         assert len(environment.action_success) == num_agents
 

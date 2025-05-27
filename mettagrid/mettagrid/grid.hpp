@@ -22,7 +22,8 @@ public:
 
   inline Grid(unsigned int width, unsigned int height, vector<Layer> layer_for_type_id)
       : width(width), height(height), layer_for_type_id(layer_for_type_id) {
-    num_layers = *max_element(layer_for_type_id.begin(), layer_for_type_id.end()) + 1;
+    num_layers = layer_for_type_id.size();
+
     grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(this->num_layers, 0)));
 
     // 0 is reserved for empty space

@@ -12,9 +12,18 @@ enum class EventType {
   CoolDown = 1
 };
 
+// Updated to have unique layers for each object type
 enum GridLayer {
   Agent_Layer = 0,
-  Object_Layer = 1
+  Wall_Layer = 1,
+  Mine_Layer = 2,
+  Generator_Layer = 3,
+  Altar_Layer = 4,
+  Armory_Layer = 5,
+  Lasery_Layer = 6,
+  Lab_Layer = 7,
+  Factory_Layer = 8,
+  Temple_Layer = 9
 };
 
 // Changing observation feature ids will break models that have
@@ -78,15 +87,16 @@ enum InventoryItem {
 const std::vector<std::string> InventoryItemNames =
     {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"};
 
+// Updated ObjectLayers to assign unique layer to each object type
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
-                                                  {ObjectType::WallT, GridLayer::Object_Layer},
-                                                  {ObjectType::MineT, GridLayer::Object_Layer},
-                                                  {ObjectType::GeneratorT, GridLayer::Object_Layer},
-                                                  {ObjectType::AltarT, GridLayer::Object_Layer},
-                                                  {ObjectType::ArmoryT, GridLayer::Object_Layer},
-                                                  {ObjectType::LaseryT, GridLayer::Object_Layer},
-                                                  {ObjectType::LabT, GridLayer::Object_Layer},
-                                                  {ObjectType::FactoryT, GridLayer::Object_Layer},
-                                                  {ObjectType::TempleT, GridLayer::Object_Layer}};
+                                                  {ObjectType::WallT, GridLayer::Wall_Layer},
+                                                  {ObjectType::MineT, GridLayer::Mine_Layer},
+                                                  {ObjectType::GeneratorT, GridLayer::Generator_Layer},
+                                                  {ObjectType::AltarT, GridLayer::Altar_Layer},
+                                                  {ObjectType::ArmoryT, GridLayer::Armory_Layer},
+                                                  {ObjectType::LaseryT, GridLayer::Lasery_Layer},
+                                                  {ObjectType::LabT, GridLayer::Lab_Layer},
+                                                  {ObjectType::FactoryT, GridLayer::Factory_Layer},
+                                                  {ObjectType::TempleT, GridLayer::Temple_Layer}};
 
 #endif

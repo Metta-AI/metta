@@ -45,7 +45,7 @@ public:
     this->_grid = grid;
   }
 
-  bool handle_action(GridObjectId actor_object_id, ActionArg arg, unsigned int current_timestep) {
+  bool handle_action(GridObjectId actor_object_id, ActionArg arg, unsigned int current_step) {
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
     if (actor->frozen > 0) {
@@ -63,7 +63,7 @@ public:
       actor->stats.incr(_stats.failure);
       actor->stats.incr("action.failure_penalty");
       *actor->reward -= actor->action_failure_penalty;
-      actor->stats.set_once(_stats.first_use, current_timestep);
+      actor->stats.set_once(_stats.first_use, current_step);
     }
 
     return result;

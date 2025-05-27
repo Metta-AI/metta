@@ -72,8 +72,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         obs_width = self._c_env.obs_width
         obs_height = self._c_env.obs_height
         grid_features_size = len(self._c_env.grid_features())
-        self._single_observation_space = self._c_env.observation_space
-        self._single_action_space = self._c_env.action_space
+
         # force buffers to the correct size
         buf = {
             "observations": np.zeros(
@@ -110,15 +109,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._num_agents = self._c_env.num_agents()
 
     @override
-    def reset(self, seed=None, options=None) -> tuple[np.ndarray, dict]:
+    def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
         """
         This method overrides the reset method from PufferEnv.
 
         Reset the environment to an initial state and returns an initial observation.
         """
-
-    @override
-    def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
         self._env_cfg = self._get_new_env_cfg()
 
         self._reset_env()
@@ -176,7 +172,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "episode/reward.mean": episode_rewards_mean,
                 "episode/reward.min": episode_rewards.min(),
                 "episode/reward.max": episode_rewards.max(),
-                "episode_length": self._c_env.current_timestep,
+                "episode_length": self._c_env.current_step,
             }
         )
 
@@ -217,10 +213,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._stats_writer:
             assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-            attributes = {
-                "seed": self._current_seed,
-                "map_w": self.map_width,
-                "map_h": self.map_height,
+            attributes: Dict[str, str] = {
+                "seed": str(self._current_seed),
+                "map_w": str(self.map_width),
+                "map_h": str(self.map_height),
             }
 
             for k, v in unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
@@ -248,39 +244,25 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         pass
 
     @property
-    def max_steps(self):
-        return self._env_cfg.game.max_steps
-
-    @property
     @required
     def single_observation_space(self):
-        return self._single_observation_space
+        return self._c_env.observation_space
 
     @property
     @required
     def single_action_space(self):
-        return self._env.action_space
-
-    @property
-    def action_names(self):
-        return self._env.action_names()
+        return self._c_env.observation_space
 
     @property
     @required
     def num_agents(self) -> int:
-        return self._num_agents
-
-    @property
-    @override
-    @required
-    def num_agents(self):
-        return self._num_agents
+        return self._c_env.num_agents
 
     def render(self):
         if self._renderer is None:
             return None
 
-        return self._renderer.render(self._c_env.current_timestep(), self._c_env.grid_objects())
+        return self._renderer.render(self._c_env.current_step(), self._c_env.grid_objects())
 
     @property
     def done(self):
@@ -288,7 +270,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def max_steps(self) -> int:
-        return int(self._env_cfg.game.max_steps)
+        return self._c_env.max_steps
 
     @property
     def grid_features(self) -> list[str]:
@@ -304,11 +286,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def map_width(self) -> int:
-        return self._c_env.map_width()
+        return self._c_env.map_width
 
     @property
     def map_height(self) -> int:
-        return self._c_env.map_height()
+        return self._c_env.map_height
 
     @property
     def grid_objects(self) -> dict[int, str]:

@@ -37,8 +37,8 @@ public:
   unsigned short obs_width;
   unsigned short obs_height;
 
-  unsigned int current_timestep;
-  unsigned int max_timestep;
+  unsigned int current_step;
+  unsigned int max_steps;
 
   // Python API methods
   py::tuple reset();
@@ -52,10 +52,10 @@ public:
   py::dict grid_objects();
   py::list action_names();
 
-  unsigned int map_width();
-  unsigned int map_height();
+  unsigned int map_width() const;
+  unsigned int map_height() const;
   py::list grid_features();
-  unsigned int num_agents();
+  unsigned int num_agents() const;
   py::array_t<c_rewards_type> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();

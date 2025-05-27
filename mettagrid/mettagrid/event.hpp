@@ -71,8 +71,8 @@ public:
     this->_event_queue.push(event);
   }
 
-  void process_events(unsigned int current_timestep) {
-    this->_current_timestep = current_timestep;
+  void process_events(unsigned int current_step) {
+    this->_current_timestep = current_step;
     Event event;
     while (!this->_event_queue.empty()) {
       event = this->_event_queue.top();

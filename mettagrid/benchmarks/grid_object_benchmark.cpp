@@ -17,7 +17,7 @@ public:
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     for (size_t i = 0; i < 10; ++i) {
-      features.push_back({static_cast<uint8_t>(i), i});
+      features.push_back({static_cast<uint8_t>(i), static_cast<uint8_t>(i)});
     }
     return features;
   }
