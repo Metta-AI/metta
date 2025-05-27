@@ -19,6 +19,7 @@ game:
     altar:
       cooldown: 255
       max_output: 1
+      initial_items: 1
     generator.red:
       cooldown: 10
     mine.red:

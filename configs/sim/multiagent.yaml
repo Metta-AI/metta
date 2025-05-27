@@ -13,8 +13,8 @@ simulations:
     env: env/mettagrid/multiagent/evals/choose_an_altar
   multiagent/circambulate:
     env: env/mettagrid/multiagent/evals/circambulate
-  multiagent/corridors:
-    env: env/mettagrid/multiagent/evals/corridors
+  multiagent/corridor:
+    env: env/mettagrid/multiagent/evals/corridor
   multiagent/corridor_team:
     env: env/mettagrid/multiagent/evals/corridor_team
   multiagent/fork:
@@ -23,10 +23,6 @@ simulations:
     env: env/mettagrid/multiagent/evals/fork_team
   multiagent/grab_the_other_first:
     env: env/mettagrid/multiagent/evals/grab_the_other_first
-  multiagent/imitation_game:
-    env: env/mettagrid/multiagent/evals/imitation_game
-  multiagent/my_channel:
-    env: env/mettagrid/multiagent/evals/my_channel
   multiagent/protect_the_resources:
     env: env/mettagrid/multiagent/evals/protect_the_resources
   multiagent/spine_maze_extended:
