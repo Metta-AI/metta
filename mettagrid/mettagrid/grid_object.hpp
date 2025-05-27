@@ -1,8 +1,8 @@
 #ifndef METTAGRID_METTAGRID_GRID_OBJECT_HPP_
 #define METTAGRID_METTAGRID_GRID_OBJECT_HPP_
 
-#include <cstdint>
 #include <span>
+#include <cstdint>
 #include <string>
 #include <vector>
 
