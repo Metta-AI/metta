@@ -5,4 +5,4 @@ defaults:
 game:
   map_builder:
     room:
-      style: all-dense
+      style: dense
