@@ -151,6 +151,9 @@ jobs:
             -not -path "*/build/*" -not -path "*/venv/*" \
             -exec clang-format --dry-run --Werror {} +
 
+      - name: Run cpplint
+        run: bash mettagrid/tests/run_cpplint.sh
+
   test:
     name: "Tests"
     needs: [graphite-ci-optimizer, setup-checks]
