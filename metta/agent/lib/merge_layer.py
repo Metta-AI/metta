@@ -136,7 +136,7 @@ class AddMergeLayer(MergeLayerBase):
 
     def _setup_merge_layer(self):
         if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
-            raise ValueError(f"For 'add', all source sizes must match. Got sizes: {self.sizes}")
+            raise ValueError(f"For 'add', all source sizes must match. Got sizes: {self._in_tensor_shapes}")
         self._merge_dim = self.dims[0]
         self._out_tensor_shape = self._in_tensor_shapes[0]
 
@@ -164,7 +164,7 @@ class SubtractMergeLayer(MergeLayerBase):
 
     def _setup_merge_layer(self):
         if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
-            raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {self.sizes}")
+            raise ValueError(f"For 'subtract', all source sizes must match. Got sizes: {self._in_tensor_shapes}")
         self._merge_dim = self.dims[0]
         self._out_tensor_shape = self._in_tensor_shapes[0]
 
@@ -190,7 +190,7 @@ class MeanMergeLayer(MergeLayerBase):
 
     def _setup_merge_layer(self):
         if not all(s == self._in_tensor_shapes[0] for s in self._in_tensor_shapes):
-            raise ValueError(f"For 'mean', all source sizes must match. Got sizes: {self.sizes}")
+            raise ValueError(f"For 'mean', all source sizes must match. Got sizes: {self._in_tensor_shapes}")
         self._merge_dim = self.dims[0]
         self._out_tensor_shape = self._in_tensor_shapes[0]
 
