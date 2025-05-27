@@ -243,23 +243,23 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #resources-toggle.hover-icon {
-    display: block;
-    width: 32px;
-    height: 32px;
-    left: 154px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
 .right .sep {
     display: block;
     width: 1px;
     height: 16px;
-    left: 191px;
+    left: 154px;
     top: 8px;
     background-color: rgba(255, 255, 255, 0.10);
+}
+
+.right #resources-toggle.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 160px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
 }
 
 .right #grid-toggle.hover-icon {
