@@ -132,9 +132,6 @@ uv pip install -e .
 echo -e "\nInstalling MettaGrid..."
 uv pip --directory mettagrid install -e .
 
-echo -e "\nBuilding MettaGrid..."
-(cd mettagrid && make)
-
 # ========== SANITY CHECK ==========
 echo -e "\nSanity check: verifying all local deps are importable..."
 
