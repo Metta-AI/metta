@@ -8,10 +8,10 @@ game:
 
 envs:
   - /env/mettagrid/navigation_sequence/training/cylinder_world
-  - /env/mettagrid/navigation_sequence/training/varied_terrain_sparse
-  - /env/mettagrid/navigation_sequence/training/varied_terrain_balanced
-  - /env/mettagrid/navigation_sequence/training/varied_terrain_maze
-  - /env/mettagrid/navigation_sequence/training/varied_terrain_dense
+  - /env/mettagrid/navigation_sequence/training/triplets_sparse
+  - /env/mettagrid/navigation_sequence/training/triplets_balanced
+  - /env/mettagrid/navigation_sequence/training/triplets_maze
+  - /env/mettagrid/navigation_sequence/training/triplets_dense
   - /env/mettagrid/navigation_sequence/training/mem_balanced
   - /env/mettagrid/navigation_sequence/training/mem_sparse
   - /env/mettagrid/navigation_sequence/training/mem_maze
