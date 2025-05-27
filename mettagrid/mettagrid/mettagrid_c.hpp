@@ -1,5 +1,5 @@
-#ifndef METTAGRID_C_HPP
-#define METTAGRID_C_HPP
+#ifndef METTAGRID_METTAGRID_METTAGRID_C_HPP_
+#define METTAGRID_METTAGRID_METTAGRID_C_HPP_
 
 #if defined(_WIN32)
 #define METTAGRID_API __declspec(dllexport)
@@ -35,10 +35,10 @@ public:
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
-  void set_buffers(py::array_t<unsigned char, py::array::c_style>& observations,
-                   py::array_t<bool, py::array::c_style>& terminals,
-                   py::array_t<bool, py::array::c_style>& truncations,
-                   py::array_t<float, py::array::c_style>& rewards);
+  void set_buffers(const py::array_t<unsigned char, py::array::c_style>& observations,
+                   const py::array_t<bool, py::array::c_style>& terminals,
+                   const py::array_t<bool, py::array::c_style>& truncations,
+                   const py::array_t<float, py::array::c_style>& rewards);
   void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
@@ -112,4 +112,4 @@ private:
   void _step(py::array_t<int> actions);
 };
 
-#endif  // METTAGRID_C_HPP
+#endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_

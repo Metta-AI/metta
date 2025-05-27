@@ -38,3 +38,4 @@ tqdm==4.67.1
 uvicorn[standard]==0.34.2
 wandb-core==0.17.0b11
 wandb==0.19.11
+cpplint==1.6.1
