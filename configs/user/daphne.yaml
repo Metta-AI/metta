@@ -13,13 +13,13 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/object_use/training/multienv_nc
+  env: /env/mettagrid/object_use/training/multienv
   evaluate_interval: 10
 
 
 policy_uri: wandb://run/b.daphne.multiagent_8_smaller_rooms2:v41
 
 
-run_id: 2
+run_id: 3
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

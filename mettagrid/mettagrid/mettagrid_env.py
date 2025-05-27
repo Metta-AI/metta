@@ -41,6 +41,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._current_seed = 0
 
         self.labels = self._env_cfg.get("labels", None)
+        self.label_visits = {}
         self.should_reset = False
 
         self._reset_env()
@@ -106,6 +107,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
+    def update_label_visits(self, label: str):
+        if label not in self.label_visits:
+            self.label_visits[label] = 0
+        self.label_visits[label] += 1
+
     def process_episode_stats(self, infos: Dict[str, Any]):
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
@@ -127,6 +133,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                     f"rewards/map:{label}": episode_rewards_mean,
                 }
             )
+            self.update_label_visits(label)
 
         if self.labels is not None:
             for label in self.labels:
@@ -135,8 +142,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                         f"rewards/env:{label}": episode_rewards_mean,
                     }
                 )
-
+                self.update_label_visits(label)
         stats = self._c_env.get_episode_stats()
+
+        infos["label_visits"] = self.label_visits
 
         infos["episode_rewards"] = episode_rewards
         infos["agent_raw"] = stats["agent"]
