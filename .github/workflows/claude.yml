@@ -9,7 +9,7 @@ on:
     types: [submitted]
 
 permissions:
-  contents: write  # Needed for creating branches and pushing commits
+  contents: write
   pull-requests: write
   issues: write
   id-token: write
@@ -18,9 +18,8 @@ jobs:
   claude-response:
     if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
-    
+
     steps:
-      # Debug: Show workflow trigger information
       - name: Debug - Workflow Context
         run: |
           echo "=== WORKFLOW DEBUG INFO ==="
@@ -140,12 +139,12 @@ jobs:
           timeout_minutes: 45
           direct_prompt: |
             PR Creation Request: ${{ github.event.comment.body }}
-            
+
             Context:
             - Issue/PR #${{ github.event.issue.number }}
             - Title: ${{ github.event.issue.title }}
             - This is a ${{ github.event.issue.pull_request && 'PR comment' || 'issue comment' }}
-            
+
             IMPORTANT INSTRUCTIONS:
             1. Analyze the current codebase to understand the context
             2. Create a new feature branch with a descriptive name (e.g., claude/fix-description)
@@ -153,7 +152,7 @@ jobs:
             4. Make focused, atomic commits with clear conventional commit messages
             5. Push the branch to origin
             6. DO NOT create a PR yourself - the workflow handles that
-            
+
             Steps to follow:
             1. Use git status and git branch to see current state
             2. Create and checkout a new branch: git checkout -b claude/descriptive-name
@@ -161,7 +160,7 @@ jobs:
             4. Make the necessary code changes
             5. Add and commit changes: git add . && git commit -m "conventional commit message"
             6. Push the branch: git push -u origin branch-name
-            
+
             Keep commits focused and use clear messages. The workflow will create the PR after you finish.
           allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,BatchTool,Bash(git status),Bash(git branch),Bash(git checkout -b *),Bash(git add .),Bash(git add *),Bash(git commit -m *),Bash(git push -u origin *),Bash(git push origin *),Bash(git diff),Bash(git diff --cached),Bash(git log --oneline -10),Bash(find . -name '*' -type f -not -path './.git/*' -not -path './node_modules/*'),Bash(ls -la),Bash(cat *)"
 
@@ -190,7 +189,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { execSync } = require('child_process');
-            
+
             try {
               console.log("=== PR CREATION DEBUG START ===");
               
