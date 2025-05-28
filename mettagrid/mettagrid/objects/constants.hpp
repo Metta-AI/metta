@@ -2,7 +2,6 @@
 #define METTAGRID_METTAGRID_OBJECTS_CONSTANTS_HPP_
 
 #include <map>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -91,7 +90,6 @@ constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = 
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
-// Updated ObjectLayers to assign unique layer to each object type
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
                                                   {ObjectType::WallT, GridLayer::Object_Layer},
                                                   {ObjectType::MineT, GridLayer::Object_Layer},
