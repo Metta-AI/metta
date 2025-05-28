@@ -1,6 +1,7 @@
 defaults:
   - /env/mettagrid/mettagrid@
 
+sampling: 1
 game:
   num_agents: 16
   max_steps: 45
