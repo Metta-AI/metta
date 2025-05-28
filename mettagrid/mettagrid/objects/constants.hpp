@@ -85,7 +85,7 @@ enum InventoryItem {
   laser = 8,
   blueprint = 9,
   InventoryItemCount
-}
+};
 
 constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {
     {"ore.red", "ore.blue", "ore.green", "battery.red", "battery.blue", "battery.green", "heart", "armor", "laser", "blueprint"}};
