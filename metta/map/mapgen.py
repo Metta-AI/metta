@@ -3,14 +3,14 @@ from dataclasses import dataclass
 import numpy as np
 
 from metta.map.types import MapGrid
-from mettagrid.room.room import Room
+from mettagrid.room.room import Level, LevelBuilder
 
 from .scene import SceneCfg, make_scene
 
 
 # Root map generator, based on nodes.
 @dataclass
-class MapGen(Room):
+class MapGen(LevelBuilder):
     width: int
     height: int
     root: SceneCfg
@@ -41,4 +41,5 @@ class MapGen(Room):
         root_node = self.root_scene.make_node(self.inner_grid())
 
         root_node.render()
-        return self.grid
+        # TODO: support labels, similarly to `mettagrid.room.room.Room`
+        return Level(self.grid, [])

@@ -14,6 +14,7 @@ from typing_extensions import override
 from mettagrid.config import MettaGridConfig
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
+from mettagrid.room.room import Level
 from mettagrid.stats_writer import StatsWriter
 
 
@@ -34,7 +35,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self,
         env_cfg: DictConfig,
         render_mode: Optional[str],
-        env_map: Optional[np.ndarray] = None,
+        level: Optional[Level] = None,
         buf=None,
         stats_writer: Optional[StatsWriter] = None,
         replay_writer: Optional[ReplayWriter] = None,
@@ -43,7 +44,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
-        self._env_map = env_map
+        self._level = level
         self._renderer = None
         self._map_labels = []
         self._stats_writer = stats_writer
@@ -67,12 +68,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
+        mettagrid_config = MettaGridConfig(self._env_cfg, self._level)
 
-        config_dict, env_map = mettagrid_config.to_c_args()
-        self._map_labels = mettagrid_config.map_labels()
+        config_dict, level = mettagrid_config.to_c_args()
+        self._map_labels = level.labels
 
-        self._c_env = MettaGrid(config_dict, env_map)
+        # Convert string array to list of strings for C++ compatibility
+        # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
+        self._c_env = MettaGrid(config_dict, level.grid.tolist())
+
         self._grid_env = self._c_env
         self._num_agents = self._c_env.num_agents()
 
