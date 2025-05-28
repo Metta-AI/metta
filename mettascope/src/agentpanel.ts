@@ -90,7 +90,7 @@ export function updateAgentTable() {
   ];
 
   for (let key of state.replay.all_keys) {
-    if (key.startsWith("agent:")) {
+    if (key.startsWith("agent:") || key.startsWith("inv:")) {
       let name = capitalize(key.replace("agent:", "").replace("inv:", "").replace(".", " "));
       headers.push([name, key]);
     }
@@ -108,7 +108,7 @@ export function updateAgentTable() {
         (headerCell.children[0] as HTMLElement).setAttribute("src", "data/ui/sort-up.png");
       }
     } else {
-      (headerCell.children[0] as HTMLElement).style.opacity = "0.2";
+      (headerCell.children[0] as HTMLElement).style.opacity = "0";
     }
     headerCell.setAttribute("data-field", headers[i][1]);
     header.appendChild(headerCell);

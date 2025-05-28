@@ -364,14 +364,14 @@ canvas#global-canvas {
 #agent-panel #agent-table {
     position: absolute;
     display: flex;
-    width: 500.41px;
+    width: 460.41px;
     height: 158px;
     left: 0px;
     top: 0px;
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 10px;
-    padding: 50px 50px 50px 50px;
+    padding: 50px 50px 50px 10px;
     background-color: rgba(0, 0, 0, 0.00);
 }
 
@@ -379,7 +379,7 @@ canvas#global-canvas {
     display: flex;
     width: auto;
     height: auto;
-    left: 50px;
+    left: 10px;
     top: 50px;
     flex-direction: row;
     flex-wrap: nowrap;
@@ -559,7 +559,7 @@ canvas#global-canvas {
     display: flex;
     width: auto;
     height: auto;
-    left: 50px;
+    left: 10px;
     top: 84px;
     flex-direction: row;
     flex-wrap: nowrap;
