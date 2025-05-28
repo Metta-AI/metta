@@ -8,11 +8,7 @@ def test_basic():
     scene = Nop(
         children=[
             {
-                "scene": InlineAscii("""
-                |WWW|
-                |aa |
-                |WWW|
-            """),
+                "scene": InlineAscii("WWW\n" + "AA \n" + "WWW\n"),
                 "where": "full",
             },
             {

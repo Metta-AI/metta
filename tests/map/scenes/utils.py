@@ -64,3 +64,8 @@ def is_connected(grid: MapGrid):
 
     # All empty cells are connected if we visited all of them
     return len(visited) == len(empty_cells)
+
+
+def check_connected(grid: MapGrid):
+    if not is_connected(grid):
+        pytest.fail("Grid is not connected:\n" + "\n".join(grid_to_ascii(grid, border=True)))
