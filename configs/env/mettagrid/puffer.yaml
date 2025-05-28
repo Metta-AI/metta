@@ -4,9 +4,11 @@ defaults:
 
 game:
   num_agents: 16
+
   agent:
     default_item_max: 50
     freeze_duration: 0
+
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: ${div:${..num_agents},4}

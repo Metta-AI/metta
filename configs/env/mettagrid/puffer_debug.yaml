@@ -5,9 +5,11 @@ defaults:
 game:
   num_agents: 2
   recursive_map_builder: false
+
   agent:
     default_item_max: 50
     freeze_duration: 0
+
   actions:
     noop:
       enabled: false
@@ -25,6 +27,7 @@ game:
       enabled: false
     change_color:
       enabled: false
+
   map_builder:
     _target_: mettagrid.room.ascii.Ascii
     uri: "configs/env/mettagrid/maps/debug/tiny_two_altars.map"
