@@ -30,8 +30,8 @@ POLICIES=(
     "b.george.navsequence_all"
     "b.george.navsequence_sequence_pretrained"
     "b.george.navsequence_mem"
-    "george_navsequence_all"
-    "george_multienv_sequence"
+    "b.george_navsequence_all"
+    "b.george_multienv_sequence"
 )
 #!/bin/bash
 
