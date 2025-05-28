@@ -2,10 +2,10 @@ defaults:
   - /env/mettagrid/mettagrid@
   - _self_
 
-sampling: 16
+sampling: 1
 
 game:
-  num_agents: 4
+  num_agents: 16
   agent:
     ore.red_max: ${sampling:4,10,6}
     battery_max: ${sampling:6,10,6}
