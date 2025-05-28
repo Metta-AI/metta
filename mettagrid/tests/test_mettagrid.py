@@ -187,9 +187,9 @@ def test_action_interface():
     assert isinstance(info, dict), "Step info should be a dictionary"
 
     # Test action success tracking
-    action_success = c_env.action_success()
-    assert action_success.shape == (NUM_AGENTS,), "Action success shape should match number of agents"
-    assert action_success.dtype == bool, "Action success should be boolean"
+    action_success: list[bool] = c_env.action_success()
+    assert len(action_success) == NUM_AGENTS, "Action success length should match number of agents"
+    assert all(isinstance(x, bool) for x in action_success), "Action success should be boolean"
 
 
 def test_environment_state_consistency():
