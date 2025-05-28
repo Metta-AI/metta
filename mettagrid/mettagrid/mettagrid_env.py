@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+import logging
 import uuid
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
@@ -26,6 +27,8 @@ np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
 np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
 np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
 np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
+
+logger = logging.getLogger("MettaGridEnv")
 
 
 def required(func):
@@ -143,12 +146,22 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         Take a step in the environment with the given actions.
 
         Args:
-            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
+            actions: A numpy array of shape (num_agents, 2) with dtype np.int32/int64
 
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
-        self.actions = actions.astype(np_actions_type, copy=False)
+
+        # Debug: Log type conversion details
+        if __debug__:
+            logger.info(f"Input actions dtype: {actions.dtype}, target dtype: {np_actions_type}")
+            logger.info(f"Actions shape: {actions.shape}, values range: [{actions.min()}, {actions.max()}]")
+
+        if __debug__:
+            # Validate actions BEFORE type conversion to catch issues early
+            from mettagrid.util.actions import validate_actions
+
+            validate_actions(self, actions, logger)
 
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)
@@ -252,12 +265,24 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     @required
-    def single_observation_space(self):
+    def single_observation_space(self) -> gym.spaces.Box:
+        """Return the observation space for a single agent.
+
+        Returns:
+            Box: A Box space with shape depending on whether observation tokens are used.
+                If using tokens: (num_agents, num_observation_tokens, 3)
+                Otherwise: (obs_height, obs_width, num_grid_features)
+        """
         return self._c_env.observation_space
 
     @property
     @required
-    def single_action_space(self):
+    def single_action_space(self) -> gym.spaces.MultiDiscrete:
+        """Return the action space for a single agent.
+
+        Returns:
+            MultiDiscrete: A MultiDiscrete space with shape (num_actions, max_action_arg + 1)
+        """
         return self._c_env.action_space
 
     @property
@@ -269,7 +294,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._renderer is None:
             return None
 
-        return self._renderer.render(self._c_env.current_step(), self._c_env.grid_objects())
+        return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
 
     @property
     def done(self):
@@ -300,7 +325,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._c_env.map_height
 
     @property
-    def grid_objects(self) -> dict[int, str]:
+    def grid_objects(self) -> dict[int, dict[str, Any]]:
         """
         Get information about all grid objects that are present in our map.
 

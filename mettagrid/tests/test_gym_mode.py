@@ -6,8 +6,8 @@ import pytest
 
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.util.actions import generate_valid_random_actions
 from mettagrid.util.hydra import get_cfg
-from tests.actions import generate_valid_random_actions
 
 # Define a constant seed for deterministic behavior
 TEST_SEED = 42

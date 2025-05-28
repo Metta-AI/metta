@@ -1,7 +1,7 @@
 import numpy as np
 
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
-from tests.actions import (
+from mettagrid.util.actions import (
     Orientation,
     get_agent_position,
     move,
