@@ -7,25 +7,23 @@ ensembles:
   - name: "basic_navigation"
     episode_activation: 0  # Starts from the beginning
     envs:
-      - /env/mettagrid/navigation/training/terrain_from_numpy
-      - /env/mettagrid/navigation/training/cylinder_world
+      - /env/mettagrid/navigation/training/varied_terrain_sparse
+      - /env/mettagrid/navigation/training/varied_terrain_dense
 
   - name: "varied_terrain"
     episode_activation: 1000  # Activates after 1000 episodes
     envs:
-      - /env/mettagrid/navigation/training/varied_terrain_sparse
       - /env/mettagrid/navigation/training/varied_terrain_balanced
+      - /env/mettagrid/navigation/training/cylinder_world
 
   - name: "advanced_navigation"
     episode_activation: 2000  # Activates after 2000 episodes
     envs:
       - /env/mettagrid/navigation/training/varied_terrain_maze
-      - /env/mettagrid/navigation/training/varied_terrain_dense
+      - /env/mettagrid/navigation/training/terrain_from_numpy
 
 # Optional parameters (with defaults shown)
 alpha: 0.6  # Priority exponent
-beta: 0.4  # Initial importance sampling weight
-beta_annealing_steps: 100000  # Steps over which beta increases to 1.0
 epsilon: 0.01  # Small constant added to priorities
-min_samples_for_norm_stats: 10  # Minimum episodes before using z-score normalization
+min_samples_for_norm_stats: 25  # Minimum episodes before using z-score normalization
 max_z_score_magnitude: 3.0  # Used to shift z-scores for priority calculation
