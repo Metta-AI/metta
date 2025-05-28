@@ -146,6 +146,16 @@ jobs:
       - name: Run cpplint
         run: ./mettagrid/tests/run_cpplint.sh
 
+      - name: Install Node dependencies
+        run: |
+          cd mettascope
+          npm install
+
+      - name: Run Mettascope lint
+        run: |
+          cd mettascope
+          ./lint.sh
+
   test:
     name: "Tests"
     needs: [graphite-ci-optimizer, setup-checks]

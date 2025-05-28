@@ -105,10 +105,10 @@ export async function readFile(file: File) {
 // Expand a sequence of values
 // [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
 function expandSequence(sequence: any[], numSteps: number): any[] {
-  var expanded: any[] = [];
-  var i = 0
-  var j = 0
-  var v: any = null
+  const expanded: any[] = [];
+  let i = 0;
+  let j = 0;
+  let v: any = null;
   for (i = 0; i < numSteps; i++) {
     if (j < sequence.length && sequence[j][0] == i) {
       v = sequence[j][1];
@@ -161,9 +161,9 @@ function fixReplay() {
   state.replay.object_images = []
   for (let i = 0; i < state.replay.object_types.length; i++) {
     const typeName = state.replay.object_types[i];
-    var image = "objects/" + typeName + ".png";
-    var imageItem = "objects/" + typeName + ".item.png";
-    var imageColor = "objects/" + typeName + ".color.png";
+    let image = "objects/" + typeName + ".png";
+    let imageItem = "objects/" + typeName + ".item.png";
+    let imageColor = "objects/" + typeName + ".color.png";
     if (!ctx.hasImage(image)) {
       console.warn("Object not supported: ", typeName);
       // Use the unknown image.
@@ -182,10 +182,10 @@ function fixReplay() {
   state.replay.resource_inventory = new Map();
   for (const key of state.replay.all_keys) {
     if (key.startsWith("inv:") || key.startsWith("agent:inv:")) {
-      var type: string = key;
+      let type: string = key;
       type = removePrefix(type, "inv:")
       type = removePrefix(type, "agent:inv:");
-      var color = [1, 1, 1, 1]; // Default to white.
+      let color = [1, 1, 1, 1]; // Default to white.
       for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
           if (ctx.hasImage("resources/" + type + ".png")) {

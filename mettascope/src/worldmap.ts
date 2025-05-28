@@ -68,7 +68,7 @@ function drawFloor() {
 // Draw the walls, based on the adjacency map, and fill any holes.
 function drawWalls() {
   // Construct wall adjacency map.
-  var wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
+  const wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
   for (const gridObject of state.replay.grid_objects) {
     const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
@@ -89,8 +89,8 @@ function drawWalls() {
     }
     const x = getAttr(gridObject, "c");
     const y = getAttr(gridObject, "r");
-    var suffix = "0";
-    var n = false, w = false, e = false, s = false;
+    let suffix = "0";
+    let n = false, w = false, e = false, s = false;
     if (wallMap.get(x, y - 1)) {
       n = true;
     }
@@ -119,7 +119,7 @@ function drawWalls() {
     const x = getAttr(gridObject, "c");
     const y = getAttr(gridObject, "r");
     // If walls to E, S and SE is filled, draw a wall fill.
-    var s = false, e = false, se = false;
+    let s = false, e = false, se = false;
     if (wallMap.get(x + 1, y)) {
       e = true;
     }
@@ -154,7 +154,7 @@ function drawObjects() {
     if (gridObject["agent_id"] !== undefined) {
       // Respect orientation of an object usually an agent.
       const orientation = getAttr(gridObject, "agent:orientation");
-      var suffix = "";
+      let suffix = "";
       if (orientation == 0) {
         suffix = "n";
       } else if (orientation == 1) {
@@ -184,7 +184,7 @@ function drawObjects() {
       );
 
       // Draw the color layer.
-      var colorIdx = getAttr(gridObject, "color");
+      const colorIdx = getAttr(gridObject, "color");
       if (colorIdx >= 0 && colorIdx < Common.COLORS.length) {
         ctx.drawSprite(
           state.replay.object_images[type][2],
@@ -220,7 +220,7 @@ function drawActions() {
       if (action_success && action != null) {
         const action_name = state.replay.action_names[action[0]];
         const orientation = getAttr(gridObject, "agent:orientation");
-        var rotation = 0;
+        let rotation = 0;
         if (orientation == 0) {
           rotation = Math.PI / 2; // North
         } else if (orientation == 1) {
@@ -464,9 +464,9 @@ function drawThoughtBubbles() {
     // We need to find a key action in the future.
     // A key action is a successful action that is not a noop, rotate or move.
     // Must not be more then 20 steps in the future.
-    var keyAction = null;
-    var keyActionStep = null;
-    for (var actionStep = state.step; actionStep < state.replay.max_steps && actionStep < state.step + 20; actionStep++) {
+    let keyAction: any = null;
+    let keyActionStep: number | null = null;
+    for (let actionStep = state.step; actionStep < state.replay.max_steps && actionStep < state.step + 20; actionStep++) {
       const action = getAttr(state.selectedGridObject, "action", actionStep);
       if (action == null || action[0] == null || action[1] == null) {
         continue;
@@ -502,7 +502,7 @@ function drawThoughtBubbles() {
         );
       }
       // Draw the action icon.
-      var iconName = "actions/icons/" + state.replay.action_names[keyAction[0]] + ".png";
+      const iconName = "actions/icons/" + state.replay.action_names[keyAction[0]] + ".png";
       if (ctx.hasImage(iconName)) {
         ctx.drawSprite(
           iconName,
@@ -528,8 +528,8 @@ function drawThoughtBubbles() {
         const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1);
         const nextResources = getAttr(state.selectedGridObject, key, actionStep);
         const gained = nextResources - prevResources;
-        var resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2;
-        var resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2;
+        let resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2;
+        let resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2;
         if (gained > 0) {
           resourceX += 32;
         } else {
@@ -566,7 +566,7 @@ function drawVisibility() {
     function updateVisibilityMap(gridObject: any) {
       const x = getAttr(gridObject, "c");
       const y = getAttr(gridObject, "r");
-      var visionSize = Math.floor(getAttr(
+      const visionSize = Math.floor(getAttr(
         gridObject,
         "agent:vision_size",
         state.step,
@@ -597,7 +597,7 @@ function drawVisibility() {
       }
     }
 
-    var color = [0, 0, 0, 0.25];
+    let color = [0, 0, 0, 0.25];
     if (state.showFogOfWar) {
       color = [0, 0, 0, 1];
     }
@@ -690,7 +690,7 @@ function drawAttackMode() {
   // Draw the attack mode.
 
   // We might be clicking on the map to attack something.
-  var gridMousePos: Vec2f | null = null;
+  let gridMousePos: Vec2f | null = null;
   if (ui.mouseUp && ui.mouseTarget == "worldmap-panel" && state.showAttackMode) {
     state.showAttackMode = false;
     const localMousePos = ui.mapPanel.transformPoint(ui.mousePos);
@@ -806,13 +806,13 @@ export function drawMap(panel: PanelInfo) {
 
 // Updates the readout of the selected object or replay info.
 export function updateReadout() {
-  var readout = ""
+  let readout = ""
   if (state.selectedGridObject !== null) {
     if (state.followSelection) {
       readout += "FOLLOWING SELECTION (double-click to unfollow)\n\n";
     }
     for (const key in state.selectedGridObject) {
-      var value = getAttr(state.selectedGridObject, key);
+      let value = getAttr(state.selectedGridObject, key);
       if (key == "type") {
         value = state.replay.object_types[value] + " (" + value + ")";
       } else if (key == "color" && value >= 0 && value < Common.COLORS.length) {
@@ -826,7 +826,7 @@ export function updateReadout() {
     readout += "Num agents: " + state.replay.num_agents + "\n";
     readout += "Max steps: " + state.replay.max_steps + "\n";
 
-    var objectTypeCounts = new Map<string, number>();
+    const objectTypeCounts = new Map<string, number>();
     for (const gridObject of state.replay.grid_objects) {
       const type = getAttr(gridObject, "type");
       const typeName = state.replay.object_types[type];

@@ -90,7 +90,7 @@ function onMouseUp() {
 // Handle mouse move events.
 function onMouseMove(event: MouseEvent) {
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
-  var target = event.target as HTMLElement;
+  let target = event.target as HTMLElement;
   while (target.id === "") {
     target = target.parentElement as HTMLElement;
   }
@@ -232,7 +232,7 @@ export function onFrame() {
 
   ctx.clear();
 
-  var fullUpdate = true;
+  let fullUpdate = true;
   if (ui.mapPanel.inside(ui.mousePos)) {
     if (ui.mapPanel.updatePanAndZoom()) {
       fullUpdate = false;

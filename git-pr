@@ -26,6 +26,9 @@ uv pip --directory mettagrid install -e .
 ruff format
 ruff check
 
+# Run TypeScript lint
+(cd mettascope && ./lint.sh)
+
 # Run tests for Metta
 uv run pytest
 # Run tests for MettaGrid
