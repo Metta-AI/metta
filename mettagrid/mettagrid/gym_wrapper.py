@@ -10,7 +10,7 @@ class SingleAgentWrapper(gym.Wrapper):
         super(SingleAgentWrapper, self).__init__(env)
 
     def step(self, action):
-        action = np.asarray(action, dtype=np.uint32)
+        action = np.asarray(action, dtype=np.int64)
         action = action[None, ...]
         observations, rewards, terminals, truncations, infos = self.env.step(action)
 
@@ -42,7 +42,7 @@ class MultiToDiscreteWrapper(gym.ActionWrapper):
         arg_counts = [a + 1 for a in max_action_args]
 
         self.n_actions = np.sum(arg_counts)
-        self.action_map = np.zeros((self.n_actions, 2), dtype=np.int32)
+        self.action_map = np.zeros((self.n_actions, 2), dtype=np.int64)
 
         i = 0
         for action, max_arg in enumerate(arg_counts):
