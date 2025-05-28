@@ -20,7 +20,18 @@ POLICIES=(
     "b.georgedeane.navseq_training"
     "b.georgedeane.navseq_training_sp"
     "b.georgedeane.navseq_training_sp_heartmax15"
-
+    "b.george.multiagent"
+    "b.george.multiagent_rewardsharing"
+    "b.george.multiagent_mixed"
+    "b.george.multiagent_rewardsharing_pretrained"
+    "b.george.multiagent_mixed_pretrained"
+    "b.george.multiagent_pretrained"
+    "b.george.navsequence_mem_pretrained"
+    "b.george.navsequence_all"
+    "b.george.navsequence_sequence_pretrained"
+    "b.george.navsequence_mem"
+    "george_navsequence_all"
+    "george_multienv_sequence"
 )
 #!/bin/bash
 
@@ -78,6 +89,14 @@ for i in "${!POLICIES[@]}"; do
         run=nav_sequence$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/nav_sequence_db2 \
+        # device=cpu \
+
+   python3 -m tools.sim \
+        sim=multi_agent \
+        run=multi_agent$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        sim_job.stats_db_uri=wandb://stats/multi_agent_db2 \
+        # device=cpu \
 
   python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db2 run=navigation_db2 ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
 
@@ -86,5 +105,7 @@ for i in "${!POLICIES[@]}"; do
   python3 -m tools.dashboard +eval_db_uri=wandb://stats/objectuse_db2 run=objectuse_db2 ++dashboard.output_path=s3://softmax-public/policydash/objectuse.html
 
   python3 -m tools.dashboard +eval_db_uri=wandb://stats/nav_sequence_db2 run=nav_sequence_db2 ++dashboard.output_path=s3://softmax-public/policydash/nav_sequence.html
+
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/multi_agent_db2 run=multi_agent_db2 ++dashboard.output_path=s3://softmax-public/policydash/multiagent.html
 
 done
