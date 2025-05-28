@@ -79,5 +79,5 @@ class MettaGridConfig:
         if self._map_builder is None:
             self.generate_map()
         if self._map_builder is None:
-            raise ValueError("generate_map failed to create a valid _map_builder")
+            return []
         return self._map_builder.labels or []

@@ -1,5 +1,5 @@
-#ifndef GET_OUTPUT_HPP
-#define GET_OUTPUT_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_
 
 #include <string>
 
@@ -11,7 +11,7 @@
 
 class GetOutput : public ActionHandler {
 public:
-  GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
+  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -36,7 +36,7 @@ protected:
     // Actions is only successful if we take at least one item.
     bool items_taken = false;
 
-    for (size_t i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (size_t i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (converter->recipe_output[i] == 0) {
         // We only want to take things the converter can produce. Otherwise it's a pain to
         // collect resources from a converter that's in the middle of processing a queue.
@@ -56,4 +56,4 @@ protected:
   }
 };
 
-#endif  // GET_OUTPUT_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_

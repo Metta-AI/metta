@@ -8,8 +8,6 @@
 .task
 .vscode/PythonImportHelper-v2-Completion.json
 /checkpoints/
-/mettagrid/build
-/mettagrid/build_debug/
 /mettagrid/dist
 /mettascope/dist
 /mettascope/node_modules
@@ -36,3 +34,9 @@ build_debug/
 **/requirements_to_remove.txt
 test_data
 **/mettagrid_debug.log
+cpplint_output*
+
+observatory/node_modules/
+observatory/.vite/
+
+wandb

@@ -60,6 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
     for (const [obj, ch] of Object.entries(asciiSymbols)) {
         asciiToObject[ch] = obj;
     }
+    asciiToObject['🧱'] = 'wall';
+    asciiToObject['⚙'] = 'generator';
+    asciiToObject['⛩'] = 'altar';
+    asciiToObject['🏭'] = 'factory';
+    asciiToObject['🔬'] = 'lab';
+    asciiToObject['🏰'] = 'temple';
     // Support old wall character
     asciiToObject['W'] = 'wall';
 

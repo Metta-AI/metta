@@ -1,5 +1,5 @@
-#ifndef STATS_TRACKER_HPP
-#define STATS_TRACKER_HPP
+#ifndef METTAGRID_METTAGRID_STATS_TRACKER_HPP_
+#define METTAGRID_METTAGRID_STATS_TRACKER_HPP_
 
 #include <map>
 #include <string>
@@ -83,4 +83,4 @@ public:
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_STATS_TRACKER_HPP_

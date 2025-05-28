@@ -1,5 +1,5 @@
-#ifndef ACTION_HANDLER_HPP
-#define ACTION_HANDLER_HPP
+#ifndef METTAGRID_METTAGRID_ACTION_HANDLER_HPP_
+#define METTAGRID_METTAGRID_ACTION_HANDLER_HPP_
 
 #include <map>
 #include <string>
@@ -33,7 +33,7 @@ public:
     _stats.failure = "action." + action_name + ".failed";
     _stats.first_use = "action." + action_name + ".first_use";
 
-    for (TypeId t = 0; t < ObjectType::Count; t++) {
+    for (TypeId t = 0; t < ObjectType::ObjectTypeCount; t++) {
       _stats.target[t] = _stats.success + "." + ObjectTypeNames[t];
       _stats.target_first_use[t] = _stats.first_use + "." + ObjectTypeNames[t];
     }
@@ -84,4 +84,4 @@ protected:
   std::string _action_name;
 };
 
-#endif  // ACTION_HANDLER_HPP
+#endif  // METTAGRID_METTAGRID_ACTION_HANDLER_HPP_

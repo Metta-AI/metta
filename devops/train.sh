@@ -6,6 +6,14 @@ set -e
 args="${@:1}"
 
 source ./devops/setup.env
+source .venv/bin/activate
+
+# Start heartbeat monitor if available
+HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
+python -m metta.util.heartbeat monitor "$HEARTBEAT_FILE" --pid $$ --timeout 600 &
+HEARTBEAT_PID=$!
+trap 'kill $HEARTBEAT_PID 2>/dev/null || true' EXIT
+export HEARTBEAT_FILE
 
 # System configuration
 if [ -z "$NUM_CPUS" ]; then

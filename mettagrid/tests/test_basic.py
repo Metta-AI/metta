@@ -103,7 +103,7 @@ class TestEnvironmentFunctionality:
 
     def test_environment_properties(self, environment):
         """Test environment properties."""
-        assert environment._max_steps > 0
+        assert environment.max_steps > 0
 
         # Check observation space
         obs_shape = environment.single_observation_space.shape
@@ -127,4 +127,4 @@ class TestEnvironmentFunctionality:
 
     def test_object_type_names(self, environment):
         """Test object type names functionality."""
-        assert environment.object_type_names() == environment._c_env.object_type_names()
+        assert environment.object_type_names == environment._c_env.object_type_names()

@@ -24,9 +24,7 @@ from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 
 SMOKE_TEST_NUM_SIMS = 1
-# Temporarily set to 0 since we don't have a model that passes yet.
-# (we made updates to the observation format that invalidated existing models)
-SMOKE_TEST_MIN_SCORE = 0.0
+SMOKE_TEST_MIN_SCORE = 0.9
 
 
 # --------------------------------------------------------------------------- #
