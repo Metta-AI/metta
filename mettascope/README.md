@@ -49,3 +49,19 @@ To regenerate the html and css files, run the following command:
 ```bash
 python tools/gen_html.py
 ```
+
+## Using
+
+```
+1) Launch VSCode/Cursor
+2) File > Open Folder... `metta/`
+3) (Optional) Create a `configs/user/USERNAME.yaml`
+In it, add this key (or other env):
+
+replay_job:
+  sim:
+    env: /env/mettagrid/laser_tag
+4) In VSCode/Cursor, at the top right, click "Run and Debug" (may be hidden in the drop down menu)
+5) In the second dropdown (default "Train Metta"), click "Play Metta"
+6) Hit the green arrow!
+```
