@@ -71,8 +71,6 @@ public:
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
 
-  static std::string cpp_get_numpy_type_name(const char* type_id);
-
   bool is_gym_mode() const {
     return _gym_mode;
   }

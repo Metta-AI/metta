@@ -4,7 +4,6 @@ import copy
 import datetime
 import logging
 import uuid
-from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
 import gymnasium as gym
@@ -19,14 +18,14 @@ from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
-# Rebuild the NumPy types using the exposed function
-np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
-np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
-np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
-np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
-np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
-np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
-np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
+# These data types must match PufferLib -- see puferlib/vector.py
+np_observations_type = np.dtype(np.uint8)
+np_terminals_type = np.dtype(np.bool_)
+np_truncations_type = np.dtype(np.bool_)
+np_rewards_type = np.dtype(np.float32)
+np_actions_type = np.dtype(np.int32)  # forced to int32 when actions are Discrete or MultiDiscrete
+np_masks_type = np.dtype(np.bool_)
+np_success_type = np.dtype(np.bool_)
 
 logger = logging.getLogger("MettaGridEnv")
 
@@ -67,28 +66,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
-        self.labels = self._env_cfg.get("labels", None)
-        self._should_reset = False
-
         self._reset_env()
-        num_agents = self._num_agents
-        obs_width = self._c_env.obs_width
-        obs_height = self._c_env.obs_height
-        grid_features_size = len(self._c_env.grid_features())
-
-        # force buffers to the correct size
-        buf = {
-            "observations": np.zeros(
-                (num_agents, obs_width, obs_height, grid_features_size), dtype=np_observations_type, order="C"
-            ),
-            "terminals": np.zeros((num_agents,), dtype=np_terminals_type, order="C"),
-            "truncations": np.zeros((num_agents,), dtype=np_truncations_type, order="C"),
-            "rewards": np.zeros((num_agents,), dtype=np_rewards_type, order="C"),
-            "actions": np.zeros((num_agents, 2), dtype=np_actions_type, order="C"),
-            "masks": np.ones((num_agents,), dtype=np_masks_type, order="C"),
-        }
-        buf_obj = SimpleNamespace(**buf)
-        super().__init__(buf_obj)
+        super().__init__()
 
         self.labels = self._env_cfg.get("labels", None)
         self._should_reset = False
@@ -151,11 +130,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
-
-        # Debug: Log type conversion details
-        if __debug__:
-            logger.info(f"Input actions dtype: {actions.dtype}, target dtype: {np_actions_type}")
-            logger.info(f"Actions shape: {actions.shape}, values range: [{actions.min()}, {actions.max()}]")
 
         if __debug__:
             # Validate actions BEFORE type conversion to catch issues early

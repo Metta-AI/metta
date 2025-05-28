@@ -5,22 +5,18 @@ import numpy as np
 import pytest
 
 from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.mettagrid_env import (
+    MettaGridEnv,
+    np_observations_type,
+    np_rewards_type,
+    np_terminals_type,
+    np_truncations_type,
+)
 from mettagrid.util.actions import generate_valid_random_actions
 from mettagrid.util.hydra import get_cfg
 
 # Define a constant seed for deterministic behavior
 TEST_SEED = 42
-
-
-# Rebuild the NumPy types using the exposed function
-np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
-np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
-np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
-np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
-np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
-np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
-np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
 
 
 @pytest.fixture

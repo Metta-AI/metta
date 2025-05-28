@@ -1,17 +1,14 @@
 import numpy as np
 
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
-from mettagrid.util.actions import (
-    Orientation,
-    get_agent_position,
-    move,
+from mettagrid.mettagrid_env import (
     np_actions_type,
     np_observations_type,
     np_rewards_type,
     np_terminals_type,
     np_truncations_type,
-    rotate,
 )
+from mettagrid.util.actions import Orientation, get_agent_position, move, rotate
 
 NUM_AGENTS = 1
 OBS_HEIGHT = 3

@@ -5,14 +5,10 @@ from typing import Any, Dict, Optional
 import numpy as np
 
 from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import MettaGridEnv
-
-# export NumPy types
-np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
-np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
-np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
-np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
-np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
+from mettagrid.mettagrid_env import (
+    MettaGridEnv,
+    np_actions_type,
+)
 
 
 class Orientation(Enum):

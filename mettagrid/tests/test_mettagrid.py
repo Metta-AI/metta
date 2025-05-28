@@ -2,19 +2,16 @@ import numpy as np
 import pytest
 
 from mettagrid.mettagrid_c import MettaGrid
+from mettagrid.mettagrid_env import (
+    np_observations_type,
+    np_rewards_type,
+    np_terminals_type,
+    np_truncations_type,
+)
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
 OBS_WIDTH = 3
-
-# Rebuild the NumPy types using the exposed function
-np_observations_type = np.dtype(MettaGrid.get_numpy_type_name("observations"))
-np_terminals_type = np.dtype(MettaGrid.get_numpy_type_name("terminals"))
-np_truncations_type = np.dtype(MettaGrid.get_numpy_type_name("truncations"))
-np_rewards_type = np.dtype(MettaGrid.get_numpy_type_name("rewards"))
-np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
-np_masks_type = np.dtype(MettaGrid.get_numpy_type_name("masks"))
-np_success_type = np.dtype(MettaGrid.get_numpy_type_name("success"))
 
 
 def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, use_observation_tokens=False):

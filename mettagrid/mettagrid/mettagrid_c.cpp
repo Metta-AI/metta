@@ -705,27 +705,23 @@ py::dict MettaGrid::get_episode_stats() {
 py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
-
   return spaces.attr("MultiDiscrete")(py::make_tuple(py::len(action_names()), _max_action_arg + 1),
-                                      py::arg("dtype") = py::module_::import("numpy").attr("int64"));
+                                      py::arg("dtype") = np_actions_dtype());
 }
 
 py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
-
   if (_use_observation_tokens) {
     // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
     // that matters to us.
-    return spaces.attr("Box")(0,
-                              255,
-                              py::make_tuple(_agents.size(), _num_observation_tokens, 3),
-                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+    return spaces.attr("Box")(
+        0, 255, py::make_tuple(_agents.size(), _num_observation_tokens, 3), py::arg("dtype") = np_observations_dtype());
   } else {
     return spaces.attr("Box")(0,
                               255,
                               py::make_tuple(obs_height, obs_width, _grid_features.size()),
-                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+                              py::arg("dtype") = np_observations_dtype());
   }
 }
 
@@ -797,19 +793,6 @@ Agent* MettaGrid::create_agent(int r,
   return new Agent(r, c, group_name, group_id, agent_cfg, rewards);
 }
 
-std::string MettaGrid::cpp_get_numpy_type_name(const char* type_id) {
-  std::string str_type_id(type_id);
-
-  if (strcmp(type_id, "observations") == 0) return NUMPY_OBSERVATIONS_TYPE;
-  if (strcmp(type_id, "terminals") == 0) return NUMPY_TERMINALS_TYPE;
-  if (strcmp(type_id, "truncations") == 0) return NUMPY_TRUNCATIONS_TYPE;
-  if (strcmp(type_id, "rewards") == 0) return NUMPY_REWARDS_TYPE;
-  if (strcmp(type_id, "actions") == 0) return NUMPY_ACTIONS_TYPE;
-  if (strcmp(type_id, "masks") == 0) return NUMPY_MASKS_TYPE;
-  if (strcmp(type_id, "success") == 0) return NUMPY_SUCCESS_TYPE;
-  return "unknown";
-}
-
 // Pybind11 module definition
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
@@ -838,7 +821,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
       .def("inventory_item_names", &MettaGrid::inventory_item_names)
-      .def_static("get_numpy_type_name", &MettaGrid::cpp_get_numpy_type_name, py::arg("type_id"))
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
