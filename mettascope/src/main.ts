@@ -174,11 +174,18 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
   if (!skipScrubberUpdate) {
     html.scrubber.value = state.step.toString();
   }
-
-  // Update the agent table
   updateAgentTable();
+  requestFrame();
+}
 
-  // Request a new frame
+// Centralized function to select an object.
+export function updateSelection(object: any, setFollow = false) {
+  state.selectedGridObject = object;
+  if (setFollow) {
+    setFollowSelection(true);
+  }
+  console.info("Selected object:", state.selectedGridObject);
+  updateAgentTable();
   requestFrame();
 }
 
@@ -191,7 +198,7 @@ function onScrubberChange() {
 function onKeyDown(event: KeyboardEvent) {
 
   if (event.key == "Escape") {
-    state.selectedGridObject = null;
+    updateSelection(null);
     setFollowSelection(false);
   }
   // '[' and ']' to scrub forward and backward.
@@ -350,8 +357,7 @@ async function parseUrlParams() {
     if (urlParams.get('selectedObjectId') !== null) {
       const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
       if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
-        state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
-        setFollowSelection(true);
+        updateSelection(state.replay.grid_objects[selectedObjectId], true);
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
         ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
         console.info("Selected object via query parameter:", state.selectedGridObject);
