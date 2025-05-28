@@ -7,11 +7,11 @@ normalize_rewards: false
 sampling: 0
 
 game:
-  num_agents: 2
+  num_agents: 16
   obs_width: 11
   obs_height: 11
   max_steps: 1000
-  recursive_map_builder: false
+  recursive_map_builder: true
 
   agent:
     default_item_max: 50
@@ -158,21 +158,21 @@ game:
 
   actions:
     noop:
-      enabled: false
+      enabled: true
     move:
-      enabled: false
+      enabled: true
     rotate:
       enabled: true
     put_items:
-      enabled: false
+      enabled: true
     get_items:
       enabled: true
     attack:
-      enabled: false
+      enabled: true
     swap:
-      enabled: false
+      enabled: true
     change_color:
-      enabled: false
+      enabled: true
 
   reward_sharing:
     groups:
@@ -186,7 +186,27 @@ game:
         team_4: 0.5
 
   map_builder:
-    _target_: mettagrid.room.ascii.Ascii
-    uri: "configs/env/mettagrid/maps/debug/tiny_two_altars.map"
-    border_width: 0
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${div:${..num_agents},4}
+    border_width: 6
+
+    room:
+      _target_: mettagrid.room.random.Random
+      width: 25
+      height: 25
+      border_width: 0
+
+      agents: 4
+
+      objects:
+        mine: 10
+        generator: 2
+        altar: 1
+        armory: 1
+        lasery: 1
+        lab: 1
+        factory: 1
+        temple: 1
+
+        wall: 40
 
