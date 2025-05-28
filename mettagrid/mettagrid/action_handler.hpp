@@ -1,5 +1,5 @@
-#ifndef ACTION_HANDLER_HPP
-#define ACTION_HANDLER_HPP
+#ifndef METTAGRID_METTAGRID_ACTION_HANDLER_HPP_
+#define METTAGRID_METTAGRID_ACTION_HANDLER_HPP_
 
 #include <map>
 #include <string>
@@ -84,4 +84,4 @@ protected:
   std::string _action_name;
 };
 
-#endif  // ACTION_HANDLER_HPP
+#endif  // METTAGRID_METTAGRID_ACTION_HANDLER_HPP_

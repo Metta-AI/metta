@@ -1,5 +1,5 @@
-#ifndef ATTACK_HPP
-#define ATTACK_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_ATTACK_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_ATTACK_HPP_
 
 #include <string>
 
@@ -11,7 +11,7 @@
 
 class Attack : public ActionHandler {
 public:
-  Attack(const ActionConfig& cfg, const std::string& action_name = "attack") : ActionHandler(cfg, action_name) {
+  explicit Attack(const ActionConfig& cfg, const std::string& action_name = "attack") : ActionHandler(cfg, action_name) {
     priority = 1;
   }
 
@@ -93,8 +93,8 @@ protected:
       object_target->hp -= 1;
       actor->stats.incr("damage", ObjectTypeNames[object_target->_type_id]);
       if (object_target->hp <= 0) {
-        _grid->remove_object(object_target);
         actor->stats.incr("destroyed", ObjectTypeNames[object_target->_type_id]);
+        _grid->remove_object(object_target);  // This will invalidate the pointer
       }
       return true;
     }
@@ -103,4 +103,4 @@ protected:
   }
 };
 
-#endif  // ATTACK_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_ATTACK_HPP_

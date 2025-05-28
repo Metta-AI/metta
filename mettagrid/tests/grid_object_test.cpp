@@ -1,4 +1,4 @@
-#include "grid_object.hpp"
+#include "../mettagrid/grid_object.hpp"
 
 #include <gtest/gtest.h>
 
@@ -41,7 +41,12 @@ TEST_F(GridLocationTest, ThreeParamConstructor) {
 // Concrete implementation of GridObject for testing
 class TestGridObject : public GridObject {
 public:
-  void obs(ObsType* obs, const vector<uint8_t>& offsets) const override {
+  std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
+    features.push_back({1, 1});
+    return features;
+  }
+  void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     // Simple implementation for testing
     obs[offsets[0]] = 1;
   }
@@ -91,7 +96,7 @@ TEST_F(GridObjectTest, InitWithCoordinatesAndLayer) {
 // Test obs method
 TEST_F(GridObjectTest, ObsMethod) {
   ObsType observations[1] = {0};
-  vector<uint8_t> offsets = {0};
+  std::vector<uint8_t> offsets = {0};
 
   obj.obs(observations, offsets);
 

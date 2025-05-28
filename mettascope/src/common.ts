@@ -77,8 +77,11 @@ export const state = {
   // What to show?
   showResources: true,
   showGrid: true,
-  showViewRanges: true,
+  showVisualRanges: true,
   showFogOfWar: false,
+  showMiniMap: true,
+  showInfo: true,
+  showControls: true,
 
   showAttackMode: false,
 
@@ -92,6 +95,7 @@ export const html = {
 
   // Header area
   fileName: find('#file-name') as HTMLDivElement,
+  helpButton: find('#help-button') as HTMLButtonElement,
   shareButton: find('#share-button') as HTMLButtonElement,
 
   // Bottom area
@@ -114,11 +118,14 @@ export const html = {
     find('#speed6') as HTMLImageElement,
   ],
 
-  resourcesButton: find('#resources') as HTMLImageElement,
-  focusButton: find('#tack') as HTMLImageElement,
-  gridButton: find('#grid') as HTMLImageElement,
-  showViewButton: find('#eye') as HTMLImageElement,
-  showFogOfWarButton: find('#cloud') as HTMLImageElement,
+  resourcesToggle: find('#resources-toggle') as HTMLImageElement,
+  focusToggle: find('#focus-toggle') as HTMLImageElement,
+  gridToggle: find('#grid-toggle') as HTMLImageElement,
+  visualRangeToggle: find('#visual-range-toggle') as HTMLImageElement,
+  fogOfWarToggle: find('#fog-of-war-toggle') as HTMLImageElement,
+  minimapToggle: find('#minimap-toggle') as HTMLImageElement,
+  controlsToggle: find('#controls-toggle') as HTMLImageElement,
+  infoToggle: find('#info-toggle') as HTMLImageElement,
 
   // Utility
   modal: find('#modal') as HTMLDivElement,
@@ -130,9 +137,9 @@ export function setFollowSelection(map: boolean | null) {
   if (map != null) {
     state.followSelection = map;
     if (map) {
-      html.focusButton.style.opacity = "1";
+      html.focusToggle.style.opacity = "1";
     } else {
-      html.focusButton.style.opacity = "0.2";
+      html.focusToggle.style.opacity = "0.2";
     }
   }
 }

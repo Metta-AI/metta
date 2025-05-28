@@ -18,6 +18,12 @@ SYMBOLS = {
     "E": "agent.team_2",
     "R": "agent.team_3",
     "T": "agent.team_4",
+    "🧱": "wall",
+    "⚙": "generator",
+    "⛩": "altar",
+    "🏭": "factory",
+    "🔬": "lab",
+    "🏰": "temple",
 }
 
 

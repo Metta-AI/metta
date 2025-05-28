@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
+#include <pybind11/embed.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+
+#include <cstdlib>
 
 #include "actions/attack.hpp"
 #include "actions/get_output.hpp"
@@ -14,16 +17,6 @@ namespace py = pybind11;
 
 class MettaGridTest : public ::testing::Test {
 protected:
-  void SetUp() override {
-    // Initialize Python interpreter
-    Py_Initialize();
-  }
-
-  void TearDown() override {
-    // Finalize Python interpreter
-    Py_Finalize();
-  }
-
   // Helper function to create test configurations
   py::dict create_test_configs() {
     py::dict agent_cfg;
@@ -48,6 +41,9 @@ protected:
     configs["group_cfg"] = group_cfg;
     return configs;
   }
+
+private:
+  py::scoped_interpreter guard{};  // Keep Python alive for the duration of the test
 };
 
 TEST_F(MettaGridTest, AgentCreation) {
