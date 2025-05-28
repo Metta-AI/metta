@@ -24,7 +24,6 @@ enum GridLayer {
 // been trained on the old feature ids.
 // In the future, the string -> id mapping should be stored on a
 // per-policy basis.
-namespace ObservationFeatureId {
 enum ObservationFeature : uint8_t {
   TypeId = 1,
   Group = 2,
@@ -33,9 +32,8 @@ enum ObservationFeature : uint8_t {
   Orientation = 5,
   Color = 6,
   ConvertingOrCoolingDown = 7,
-  Swappable = 8
+  Swappable = 8 ObservationFeatureCount
 };
-}  // namespace ObservationFeatureId
 
 const uint8_t InventoryFeatureOffset = 100;
 
