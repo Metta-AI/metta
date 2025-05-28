@@ -29,13 +29,7 @@ from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulati
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
-from metta.util.tensor_conversion import tensor_to_numpy
-from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.mettagrid_env import MettaGridEnv
-
-# Get the correct numpy dtype for actions
-np_actions_type = np.dtype(MettaGrid.get_numpy_type_name("actions"))
-
 
 torch.set_float32_matmul_precision("high")
 
@@ -403,11 +397,8 @@ class PufferTrainer:
                         infos[k].append(v)
 
             with profile.env:
-                actions_np = tensor_to_numpy(
-                    actions,
-                    np_actions_type,
-                )
-                self.vecenv.send(actions_np)
+                actions = actions.cpu().numpy()
+                self.vecenv.send(actions)
 
         with profile.eval_misc:
             for k, v in infos.items():
