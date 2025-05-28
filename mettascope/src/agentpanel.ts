@@ -1,6 +1,7 @@
 import { find, finds, removeChildren, walkUpAttribute } from "./htmlutils.js";
 import { state, setFollowSelection } from "./common.js";
 import { getAttr } from "./replay.js";
+import { updateSelection } from "./main.js";
 
 const agentPanel = find("#agent-panel");
 const agentTable = find("#agent-table");
@@ -20,8 +21,7 @@ export function initAgentTable() {
       for (let i = 0; i < state.replay.grid_objects.length; i++) {
         let gridObject = state.replay.grid_objects[i];
         if (getAttr(gridObject, "agent_id") == agentId) {
-          state.selectedGridObject = gridObject;
-          setFollowSelection(true);
+          updateSelection(gridObject, true)
           break;
         }
       }
@@ -137,32 +137,11 @@ export function updateAgentTable() {
   for (let i = 0; i < agents.length; i++) {
     let agent = agents[i];
     if (agent != null) {
-      // let row = rowTemplate.cloneNode(true) as HTMLElement;
-      // row.setAttribute("data-agent-id", getAttr(agent, "agent_id").toString());
-      // header.appendChild(row);
-
-      // let cell = cellTemplate.cloneNode(true) as HTMLElement;
-      // cell.children[0].textContent = getAttr(agent, "agent_id").toString();
-      // row.appendChild(cell);
-
-      // cell = cellTemplate.cloneNode(true) as HTMLElement;
-      // cell.children[0].textContent = getAttr(agent, "total_reward").toFixed(3);
-      // row.appendChild(cell);
-
-      // cell = cellTemplate.cloneNode(true) as HTMLElement;
-      // cell.children[0].textContent = getAttr(agent, "agent:inv:heart").toString();
-      // row.appendChild(cell);
-
-      // cell = cellTemplate.cloneNode(true) as HTMLElement;
-      // cell.children[0].textContent = getAttr(agent, "agent:inv:ore.red").toString();
-      // row.appendChild(cell);
-
-      // cell = cellTemplate.cloneNode(true) as HTMLElement;
-      // cell.children[0].textContent = getAttr(agent, "agent:inv:battery").toString();
-      // row.appendChild(cell);
-
       let row = rowTemplate.cloneNode(true) as HTMLElement;
       row.setAttribute("data-agent-id", getAttr(agent, "agent_id").toString());
+      if (state.selectedGridObject != null && getAttr(agent, "agent_id") == getAttr(state.selectedGridObject, "agent_id")) {
+        row.classList.add("selected");
+      }
       for (let i = 0; i < headers.length; i++) {
         let cell = cellTemplate.cloneNode(true) as HTMLElement;
         let value = getAttr(agent, headers[i][1])
