@@ -4,7 +4,7 @@ from metta.map.scenes.inline_ascii import InlineAscii
 from tests.map.scenes.utils import check_grid, scene_to_node
 
 
-def test_compare():
+def test_basic():
     scene = InlineAscii(
         data="""
 W A W
@@ -23,7 +23,7 @@ W   W
     )
 
 
-def test_with_row_column():
+def test_row_column():
     scene = InlineAscii(
         data="W A W",
         row=1,

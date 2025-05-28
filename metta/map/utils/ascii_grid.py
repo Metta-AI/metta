@@ -53,6 +53,16 @@ def ascii_to_grid_object(ascii: str) -> str:
     raise ValueError(f"Unknown character: {ascii}")
 
 
+def add_pretty_border(lines: list[str]) -> list[str]:
+    width = len(lines[0])
+    border_lines = ["┌" + "─" * width + "┐"]
+    for row in lines:
+        border_lines.append("│" + row + "│")
+    border_lines.append("└" + "─" * width + "┘")
+    lines = border_lines
+    return lines
+
+
 def grid_to_ascii(grid: MapGrid, border: bool = False) -> list[str]:
     lines: list[str] = []
     for r in range(grid.shape[0]):
@@ -62,12 +72,7 @@ def grid_to_ascii(grid: MapGrid, border: bool = False) -> list[str]:
         lines.append("".join(row))
 
     if border:
-        width = len(lines[0])
-        border_lines = ["┌" + "─" * width + "┐"]
-        for row in lines:
-            border_lines.append("│" + row + "│")
-        border_lines.append("└" + "─" * width + "┘")
-        lines = border_lines
+        lines = add_pretty_border(lines)
 
     return lines
 
