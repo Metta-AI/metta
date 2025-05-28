@@ -119,11 +119,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._reset_env()
 
+        self.observations = self.observations.astype(np_observations_type, copy=False)
+        self.terminals = self.terminals.astype(np_terminals_type, copy=False)
+        self.truncations = self.truncations.astype(np_truncations_type, copy=False)
+        self.rewards = self.rewards.astype(np_rewards_type, copy=False)
+
         if not self._c_env.is_gym_mode():
-            self.observations = self.observations.astype(np_observations_type, copy=False)
-            self.terminals = self.terminals.astype(np_terminals_type, copy=False)
-            self.truncations = self.truncations.astype(np_truncations_type, copy=False)
-            self.rewards = self.rewards.astype(np_rewards_type, copy=False)
             self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         self._episode_id = self._make_episode_id()
@@ -147,7 +148,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
         """
-        np.copyto(self.actions, actions.astype(np_actions_type))
+        self.actions = actions.astype(np_actions_type, copy=False)
 
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)
