@@ -28,7 +28,7 @@ private:
     }
     // Check if the converter is already at max output.
     unsigned short total_output = 0;
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (this->recipe_output[i] > 0) {
         total_output += this->inventory[i];
       }
@@ -37,13 +37,13 @@ private:
       return;
     }
     // Check if the converter has enough input.
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (this->inventory[i] < this->recipe_input[i]) {
         return;
       }
     }
     // produce.
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       this->inventory[i] -= this->recipe_input[i];
     }
     // All the previous returns were "we don't start converting".
@@ -70,9 +70,9 @@ public:
     GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
     MettaObject::init_mo(cfg);
     HasInventory::init_has_inventory(cfg);
-    this->recipe_input.resize(InventoryItem::InventoryCount);
-    this->recipe_output.resize(InventoryItem::InventoryCount);
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    this->recipe_input.resize(InventoryItem::InventoryItemCount);
+    this->recipe_output.resize(InventoryItem::InventoryItemCount);
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       this->recipe_input[i] = cfg["input_" + InventoryItemNames[i]];
       this->recipe_output[i] = cfg["output_" + InventoryItemNames[i]];
     }
@@ -86,7 +86,7 @@ public:
     // Initialize inventory with initial_items for all output types
     // Default to recipe_output values if initial_items is not present
     unsigned char initial_items = cfg["initial_items"];
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (this->recipe_output[i] > 0) {
         HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items);
       }
@@ -104,7 +104,7 @@ public:
     this->converting = false;
 
     // Add output to inventory
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (this->recipe_output[i] > 0) {
         HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i]);
       }
@@ -136,11 +136,11 @@ public:
 
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.push_back({ObservationFeatureId::TypeId, _type_id});
-    features.push_back({ObservationFeatureId::Hp, hp});
-    features.push_back({ObservationFeatureId::Color, color});
-    features.push_back({ObservationFeatureId::ConvertingOrCoolingDown, this->converting || this->cooling_down});
-    for (uint8_t i = 0; i < InventoryItem::InventoryCount; i++) {
+    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::Hp, hp});
+    features.push_back({ObservationFeature::Color, color});
+    features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
+    for (uint8_t i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (inventory[i] > 0) {
         features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
       }
@@ -153,7 +153,7 @@ public:
     obs[offsets[1]] = this->hp;
     obs[offsets[2]] = this->color;
     obs[offsets[3]] = this->converting || this->cooling_down;
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       obs[offsets[4] + i] = this->inventory[i];
     }
   }
@@ -167,7 +167,7 @@ public:
     names.push_back("hp");
     names.push_back("color");
     names.push_back("converting");
-    for (unsigned int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       names.push_back("inv:" + InventoryItemNames[i]);
     }
     return names;
