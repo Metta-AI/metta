@@ -23,12 +23,10 @@ check-venv:
 
 clean:
 	@echo "(Metta) Cleaning root build artifacts..."
-	@echo "(Metta) Removing all '.so' files (excluding .venv)"
-	@find . -type f -name '*.so' -not -path "./.venv/*" -delete || true
 	@echo "(Metta) Removing build directories (excluding .venv)"
-	@find . -type d -name 'build' -not -path "./.venv/*" -print0 | xargs -0 rm -rf 2>/dev/null || true
+	rm -rf build
 	@echo "(Metta) Cleaning mettagrid build artifacts..."
-	cd mettagrid && $(MAKE) clean || true
+	cd mettagrid && rm -rf build-debug build-release
 	@echo "(Metta) Cleaning uv build cache..."
 	rm -rf ~/.cache/uv/builds-v0
 	@echo "(Metta) Clean completed successfully"

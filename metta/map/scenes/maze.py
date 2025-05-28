@@ -140,5 +140,3 @@ class MazeKruskal(Scene):
         for anchor in ALL_ANCHORS:
             x, y = anchor_to_position(anchor, width, height)
             node.make_area(x, y, 1, 1, tags=[anchor])
-
-        return grid
