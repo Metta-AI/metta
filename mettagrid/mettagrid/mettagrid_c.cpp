@@ -841,5 +841,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
-      .def_readonly("current_step", &MettaGrid::current_step);
+      .def_readonly("current_step", &MettaGrid::current_step)
+      .def("is_gym_mode", &MettaGrid::is_gym_mode);
 }
