@@ -1,6 +1,6 @@
 # @package __global__
 defaults:
-  - /env/mettagrid-base/mettagrid@
+  - /env/mettagrid/mettagrid@
   - _self_
 
 game:
