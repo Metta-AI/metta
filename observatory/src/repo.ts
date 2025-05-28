@@ -1,9 +1,10 @@
-import { DashboardData } from './data_loader';
+import { DashboardData, PolicyEval, PolicyEvalMetric } from './data_loader';
 
 export type HeatmapCell = {
   evalName: string;
   replayUrl: string | null;
   value: number;
+  num_agents: number;
 }
 
 export type HeatmapData = {
@@ -21,37 +22,55 @@ export type HeatmapData = {
  * In the future, we will fetch the data from an API.
  */
 export interface Repo {  
-  getMetrics(): Promise<string[]>;
   getSuites(): Promise<string[]>;
+  getMetrics(suite: string): Promise<string[]>;
+  getGroupIds(suite: string): Promise<number[]>;
 
-  getHeatmapData(metric: string, suite: string): Promise<HeatmapData>;
+  getHeatmapData(metric: string, suite: string, groupId: number | null): Promise<HeatmapData>;
 }
 
 export class DataRepo implements Repo {
   constructor(private dashboardData: DashboardData) {
   }
 
-  async getMetrics(): Promise<string[]> {
-    return [...new Set(this.dashboardData.policy_eval_metrics.map(row => row.metric))].sort();
+  async getMetrics(suite: string): Promise<string[]> {
+    return [...new Set(this.dashboardData.policy_evals.filter(row => row.suite === suite).flatMap(row => row.policy_eval_metrics.map(metric => metric.metric)))].sort();
   }
 
   async getSuites(): Promise<string[]> {
-    return [...new Set(this.dashboardData.policy_eval_metrics.map(row => row.suite))].sort();
+    return [...new Set(this.dashboardData.policy_evals.map(row => row.suite))].sort();
   }
 
-  async getHeatmapData(metric: string, suite: string): Promise<HeatmapData> {
+  async getGroupIds(suite: string): Promise<number[]> {
+    return [...new Set(this.dashboardData.policy_evals.filter(row => row.suite === suite).flatMap(row => row.policy_eval_metrics.map(metric => metric.group_id)))].sort();
+  }
+
+  async getHeatmapData(metric: string, suite: string, groupId: number | null): Promise<HeatmapData> {
     const evalNames = new Set<string>();
     const cells = new Map<string, Map<string, HeatmapCell>>();
-    this.dashboardData.policy_eval_metrics.forEach(row => {
-      if (row.suite === suite) {
-        evalNames.add(row.eval_name);
-        if (row.metric === metric) {
-          let policyData = cells.get(row.policy_uri);
+    
+    this.dashboardData.policy_evals.forEach((policyEval: PolicyEval) => {
+      if (policyEval.suite === suite) {
+        evalNames.add(policyEval.eval_name);
+        const relevantMetrics = policyEval.policy_eval_metrics.filter((m: PolicyEvalMetric) => m.metric === metric && (groupId === null || m.group_id === groupId));
+        if (relevantMetrics.length > 0) {
+          let policyData = cells.get(policyEval.policy_uri);
           if (!policyData) {
             policyData = new Map<string, HeatmapCell>();
-            cells.set(row.policy_uri, policyData);
+            cells.set(policyEval.policy_uri, policyData);
           }
-          policyData.set(row.eval_name, { evalName: row.eval_name, replayUrl: row.replay_url, value: row.value });
+          const cell = {
+            evalName: policyEval.eval_name,
+            replayUrl: policyEval.replay_url,
+            value: 0,
+            num_agents: 0
+          }
+          policyData.set(policyEval.eval_name, cell);
+
+          relevantMetrics.forEach((m: PolicyEvalMetric) => {
+            cell.value += m.sum_value;
+            cell.num_agents += m.num_agents;
+          });
         }
       }
     });

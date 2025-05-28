@@ -64,14 +64,12 @@ export function Dashboard({ repo }: DashboardProps) {
   const [selectedSuite, setSelectedSuite] = useState<string>("navigation");
   const [isViewLocked, setIsViewLocked] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{policyUri: string, evalName: string} | null>(null);
+  const [availableGroupIds, setAvailableGroupIds] = useState<string[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
-      const [metricsData, suitesData] = await Promise.all([
-        repo.getMetrics(),
-        repo.getSuites(),
-      ]);
-      setMetrics(metricsData);
+      const suitesData = await repo.getSuites();
       setSuites(suitesData);
       setSelectedSuite(suitesData[0]);
     };
@@ -81,15 +79,29 @@ export function Dashboard({ repo }: DashboardProps) {
 
   useEffect(() => {
     const loadData = async () => {
+      const [metricsData, groupIdsData] = await Promise.all([
+        repo.getMetrics(selectedSuite),
+        repo.getGroupIds(selectedSuite),
+      ]);
+      setMetrics(metricsData);
+      setAvailableGroupIds(["", ...groupIdsData.map(groupId => groupId.toString())]);
+    };
+
+    loadData();
+  }, [selectedSuite]);
+
+  useEffect(() => {
+    const loadData = async () => {
       const heatmapData = await repo.getHeatmapData(
         selectedMetric,
-        selectedSuite
+        selectedSuite,
+        selectedGroupId
       );
       setHeatmapData(heatmapData);
     };
 
     loadData();
-  }, [selectedSuite, selectedMetric]);
+  }, [selectedSuite, selectedMetric, selectedGroupId]);
 
   if (!heatmapData) {
     return <div>Loading...</div>;
@@ -208,6 +220,38 @@ export function Dashboard({ repo }: DashboardProps) {
             {metrics.map((metric) => (
               <option key={metric} value={metric}>
                 {metric}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            marginTop: "20px",
+            marginBottom: "30px",
+            gap: "12px",
+          }}
+        >
+          <div style={{ color: "#666", fontSize: "14px" }}>Group ID</div>
+          <select
+            value={selectedGroupId?.toString() ?? ""}
+            onChange={(e) => setSelectedGroupId(e.target.value ? parseInt(e.target.value) : null)}
+            style={{
+              padding: "8px 12px",
+              borderRadius: "4px",
+              border: "1px solid #ddd",
+              fontSize: "14px",
+              minWidth: "200px",
+              backgroundColor: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            {availableGroupIds.map((groupId) => (
+              <option key={groupId} value={groupId}>
+                {groupId}
               </option>
             ))}
           </select>
