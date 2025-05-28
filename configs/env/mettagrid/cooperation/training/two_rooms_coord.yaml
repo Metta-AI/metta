@@ -8,7 +8,8 @@ sampling: 1
 game:
 
   agent:
-    default_item_max: 1
+    ore_max: 1
+    battery_max: 1
     heart_max: 1000
 
   max_steps: ${sampling:100,1000,250} # Randomize the episode length
@@ -58,19 +59,19 @@ game:
 
   objects:
     altar:
-      cooldown: ${sampling:10,25,15}
+      cooldown: ${sampling:1,10,1}
       input_battery: 1
-      max_output: 100
-      conversion_ticks: ${sampling:10,25,15}
+      max_output: 10
+      conversion_ticks: 1
       initial_items: 0
     generator:
-      cooldown: ${sampling:10,25,15}
-      max_output: 100
-      conversion_ticks: ${sampling:10,25,15}
+      cooldown: ${sampling:1,10,1}
+      max_output: 10
+      conversion_ticks: ${sampling:1,10,5}
       initial_items: 0
     mine:
-      cooldown: ${sampling:10,25,15}
-      max_output: 100
+      cooldown: ${sampling:1,10,1}
+      max_output: 10
       conversion_ticks: 1
       initial_items: 1
 
