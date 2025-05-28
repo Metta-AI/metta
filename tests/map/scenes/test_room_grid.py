@@ -1,9 +1,11 @@
 import numpy as np
+import pytest
 
 from metta.map.scenes.room_grid import RoomGrid
+from tests.map.scenes.utils import scene_to_node
 
 
-def test_room_grid_with_rows_columns(scene_to_node):
+def test_room_grid_with_rows_columns():
     # Test creating a 2x3 grid of rooms
     scene = RoomGrid(rows=2, columns=3, border_width=1, border_object="wall")
     node = scene_to_node(scene, (10, 10))
@@ -21,7 +23,7 @@ def test_room_grid_with_rows_columns(scene_to_node):
     assert all(pos[0] == "empty" and pos[1] == "empty" for pos in room_positions)
 
 
-def test_room_grid_with_layout(scene_to_node):
+def test_room_grid_with_layout():
     # Test creating rooms with a specific layout and tags
     layout = [["room1", "room2"], ["room3", "room4"]]
 
@@ -41,29 +43,19 @@ def test_room_grid_with_layout(scene_to_node):
 # === BENCHMARK TESTS ===
 
 
-def test_benchmark_room_grid_creation_small(benchmark, scene_to_node):
-    """Benchmark creating a small room grid (3x3)."""
+@pytest.fixture(scope="module", params=[(3, 3), (10, 10)], ids=["3x3", "10x10"])
+def benchmark_size(request):
+    return request.param
 
-    def create_small_grid():
-        # Create a new node with a larger grid to fit the rooms
-        scene = RoomGrid(rows=3, columns=3, border_width=1, border_object="wall")
+
+def test_benchmark_room_grid(benchmark, benchmark_size):
+    """Benchmark creating a room grid."""
+
+    def create_grid():
+        scene = RoomGrid(rows=benchmark_size[0], columns=benchmark_size[1], border_width=1, border_object="wall")
         node = scene_to_node(scene, (100, 100))
 
         return node.select_areas({})
 
-    areas = benchmark(create_small_grid)
-    assert len(areas) == 9  # 3x3 grid should have 9 rooms
-
-
-def test_benchmark_room_grid_creation_large(benchmark, scene_to_node):
-    """Benchmark creating a large room grid (10x10)."""
-
-    def create_large_grid():
-        # Create a new node with a larger grid to fit the rooms
-        scene = RoomGrid(rows=10, columns=10, border_width=1, border_object="wall")
-        node = scene_to_node(scene, (100, 100))
-
-        return node.select_areas({})
-
-    areas = benchmark(create_large_grid)
-    assert len(areas) == 100  # 10x10 grid should have 100 rooms
+    areas = benchmark(create_grid)
+    assert len(areas) == benchmark_size[0] * benchmark_size[1]
