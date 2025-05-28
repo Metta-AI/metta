@@ -8,7 +8,7 @@ from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from mettagrid.util.file import http_url
 
-DASHBOARD_URL = "https://softmax-public.s3.us-east-1.amazonaws.com/observatory/index.html"
+DASHBOARD_URL = "https://metta-ai.github.io/metta/observatory/"
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="dashboard_job")
