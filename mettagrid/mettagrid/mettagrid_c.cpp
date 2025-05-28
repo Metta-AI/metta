@@ -277,7 +277,6 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   }
 
   if (_use_observation_tokens) {
-    // Safe flattened token approach - no reinterpret_cast!
     size_t tokens_written = 0;
     const size_t max_tokens = _num_observation_tokens;
     const size_t agent_offset = agent_idx * max_tokens * 3;
@@ -463,8 +462,8 @@ py::tuple MettaGrid::reset() {
   _compute_observations(zero_actions);
 
   if (_use_observation_tokens) {
-    std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
-                                      static_cast<ssize_t>(_num_observation_tokens * 3)};
+    std::vector<ssize_t> obs_shape = {
+        static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
     py::array_t<c_observations_type> obs_view(obs_shape, _observations);
     return py::make_tuple(obs_view, py::dict());
   } else {
@@ -583,8 +582,8 @@ py::tuple MettaGrid::step(py::array_t<int> actions) {
   }
 
   if (_use_observation_tokens) {
-    std::vector<ssize_t> obs_shape = {static_cast<ssize_t>(_agents.size()),
-                                      static_cast<ssize_t>(_num_observation_tokens * 3)};
+    std::vector<ssize_t> obs_shape = {
+        static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
     py::array_t<c_observations_type> obs_view(obs_shape, _observations);
 
     std::vector<ssize_t> rewards_shape = {static_cast<ssize_t>(_rewards_size)};
@@ -716,9 +715,11 @@ py::object MettaGrid::observation_space() {
   auto spaces = gym.attr("spaces");
 
   if (_use_observation_tokens) {
+    // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
+    // that matters to us.
     return spaces.attr("Box")(0,
                               255,
-                              py::make_tuple(_num_observation_tokens * 3),
+                              py::make_tuple(_agents.size(), _num_observation_tokens, 3),
                               py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
   } else {
     return spaces.attr("Box")(0,
