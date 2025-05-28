@@ -382,25 +382,26 @@ canvas#global-canvas {
 #agent-panel {
     position: absolute;
     display: block;
-    width: 475px;
+    width: 795px;
     height: 693px;
     left: 50px;
     top: 123px;
     background-color: rgba(20, 20, 20, 0.90);
-    border-radius: 20px;
+    border-radius: 2px;
     overflow: hidden;
 }
 
 #agent-panel #agent-table {
     position: absolute;
     display: flex;
-    width: 400.41px;
-    height: 58px;
-    left: 40px;
-    top: 40px;
+    width: 500.41px;
+    height: 158px;
+    left: 0px;
+    top: 0px;
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 10px;
+    padding: 50px 50px 50px 50px;
     background-color: rgba(0, 0, 0, 0.00);
 }
 
@@ -408,10 +409,10 @@ canvas#global-canvas {
     display: flex;
     width: auto;
     height: auto;
-    left: 0px;
-    top: 0px;
+    left: 50px;
+    top: 50px;
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
@@ -431,7 +432,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.field-header .ui/sortdown {
+.field-header .ui/no-sort {
     display: block;
     width: 14px;
     height: 24px;
@@ -446,16 +447,16 @@ canvas#global-canvas {
     width: auto;
     height: auto;
     left: 57px;
-    top: 0px;
+    top: 1.50px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
-    font-size: 20px;
+    font-size: 16px;
     text-align: right;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 24px;
+    line-height: 20.80px;
 }
 
 .header .field-header {
@@ -473,11 +474,11 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.field-header .ui/sortdown {
+.field-header .ui/no-sort {
     display: block;
     width: 14px;
     height: 24px;
-    left: 35px;
+    left: 31px;
     top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
@@ -487,17 +488,17 @@ canvas#global-canvas {
     display: inline-block;
     width: auto;
     height: auto;
-    left: 49px;
-    top: 0px;
+    left: 45px;
+    top: 1.50px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
-    font-size: 20px;
+    font-size: 16px;
     text-align: right;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 24px;
+    line-height: 20.80px;
 }
 
 .header .field-header {
@@ -515,11 +516,11 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.field-header .ui/sortdown {
+.field-header .ui/no-sort {
     display: block;
     width: 14px;
     height: 24px;
-    left: 39px;
+    left: 38px;
     top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
@@ -529,17 +530,17 @@ canvas#global-canvas {
     display: inline-block;
     width: auto;
     height: auto;
-    left: 53px;
-    top: 0px;
+    left: 52px;
+    top: 1.50px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
-    font-size: 20px;
+    font-size: 16px;
     text-align: right;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 24px;
+    line-height: 20.80px;
 }
 
 .header .field-header {
@@ -557,11 +558,11 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.field-header .ui/sortdown {
+.field-header .ui/no-sort {
     display: block;
     width: 14px;
     height: 24px;
-    left: 22px;
+    left: 23px;
     top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
@@ -571,25 +572,25 @@ canvas#global-canvas {
     display: inline-block;
     width: auto;
     height: auto;
-    left: 36px;
-    top: 0px;
+    left: 37px;
+    top: 1.50px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
-    font-size: 20px;
+    font-size: 16px;
     text-align: right;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 24px;
+    line-height: 20.80px;
 }
 
 #agent-table .row {
     display: flex;
     width: auto;
     height: auto;
-    left: 0px;
-    top: 34px;
+    left: 50px;
+    top: 84px;
     flex-direction: row;
     flex-wrap: nowrap;
     background-color: rgba(0, 0, 0, 0.00);
@@ -615,14 +616,14 @@ canvas#global-canvas {
     left: 0px;
     top: 0px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Mono;
     font-style: normal;
     font-weight: 400;
-    font-size: 20px;
+    font-size: 16px;
     text-align: right;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 24px;
+    line-height: 20.80px;
 }
 
 .row .cell {
@@ -647,14 +648,14 @@ canvas#global-canvas {
     left: 0px;
     top: 0px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Mono;
     font-style: normal;
     font-weight: 400;
-    font-size: 20px;
+    font-size: 16px;
     text-align: right;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 24px;
+    line-height: 20.80px;
 }
 
 .row .cell {
@@ -678,14 +679,14 @@ canvas#global-canvas {
     left: 0px;
     top: 0px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Mono;
     font-style: normal;
     font-weight: 400;
-    font-size: 20px;
+    font-size: 16px;
     text-align: right;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 24px;
+    line-height: 20.80px;
 }
 
 .row .cell {
@@ -709,14 +710,14 @@ canvas#global-canvas {
     left: 0px;
     top: 0px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Mono;
     font-style: normal;
     font-weight: 400;
-    font-size: 20px;
+    font-size: 16px;
     text-align: right;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 24px;
+    line-height: 20.80px;
 }
 
 #header {
@@ -745,18 +746,18 @@ canvas#global-canvas {
     position: absolute;
     display: inline-block;
     width: 701px;
-    height: 29px;
+    height: 31px;
     left: 85px;
     top: 18px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
     font-size: 24px;
     text-align: left;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 28.80px;
+    line-height: 31.20px;
 }
 
 #header #logo {
@@ -818,10 +819,10 @@ button#help-button.hover-icon .icon {
     position: absolute;
     display: flex;
     width: 616px;
-    height: 237px;
+    height: 274px;
     left: 50%;
     top: 50%;
-    transform: translate(-307.50px, -118.50px);
+    transform: translate(-307.50px, -137px);
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 32px;
@@ -843,14 +844,14 @@ button#help-button.hover-icon .icon {
     top: 64px;
     align-self: stretch;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
     font-size: 40px;
     text-align: center;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 48px;
+    line-height: 52px;
 }
 
 #modal .message {
@@ -858,27 +859,27 @@ button#help-button.hover-icon .icon {
     width: 100%;
     height: auto;
     left: 64px;
-    top: 144px;
+    top: 148px;
     align-self: stretch;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
     font-size: 24px;
     text-align: center;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 28.80px;
+    line-height: 31.20px;
 }
 
 #toast {
     position: absolute;
     display: flex;
-    width: 267px;
-    height: 49px;
+    width: 317px;
+    height: 51px;
     left: 50%;
     bottom: 23px;
-    transform: translate(-133.50px, 0);
+    transform: translate(-158.50px, 0);
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 11px;
@@ -898,14 +899,14 @@ button#help-button.hover-icon .icon {
     left: 20px;
     top: 10px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
     font-size: 24px;
     text-align: left;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 28.80px;
+    line-height: 31.20px;
 }
 
 #info-panel {
