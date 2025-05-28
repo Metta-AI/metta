@@ -2,7 +2,6 @@
 #define METTAGRID_METTAGRID_OBJECTS_CONSTANTS_HPP_
 
 #include <map>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -91,23 +90,6 @@ constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = 
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
-// Runtime validation function
-inline void ValidateConstants() {
-  static bool validated = false;
-  if (!validated) {
-    if (ObjectTypeNames.size() != ObjectTypeCount) {
-      throw std::logic_error("ObjectTypeNames size (" + std::to_string(ObjectTypeNames.size()) +
-                             ") does not match ObjectTypeCount (" + std::to_string(ObjectTypeCount) + ")");
-    }
-    if (InventoryItemNames.size() != InventoryItemCount) {
-      throw std::logic_error("InventoryItemNames size (" + std::to_string(InventoryItemNames.size()) +
-                             ") does not match InventoryItemCount (" + std::to_string(InventoryItemCount) + ")");
-    }
-    validated = true;
-  }
-}
-
-// Updated ObjectLayers to assign unique layer to each object type
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
                                                   {ObjectType::WallT, GridLayer::Object_Layer},
                                                   {ObjectType::MineT, GridLayer::Object_Layer},
