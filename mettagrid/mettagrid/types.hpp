@@ -43,11 +43,11 @@ inline py::object np_success_dtype() {
 }
 
 typedef uint8_t c_observations_type;
-typedef uint8_t c_terminals_type;
-typedef uint8_t c_truncations_type;
+typedef bool c_terminals_type;
+typedef bool c_truncations_type;
 typedef float c_rewards_type;
 typedef int32_t c_actions_type;
-typedef uint8_t c_masks_type;
-typedef uint8_t c_success_type;
+typedef bool c_masks_type;
+typedef bool c_success_type;
 
 #endif  // METTAGRID_METTAGRID_TYPES_HPP

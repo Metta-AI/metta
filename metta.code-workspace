@@ -19,7 +19,8 @@
 		"files.associations": {
 			"*.pxd": "cython",
 			"stdexcept": "cpp",
-			"vector": "cpp"
+			"vector": "cpp",
+			"array": "cpp"
 		},
 		"terminal.integrated.profiles.osx": {
 			"metta-0": {

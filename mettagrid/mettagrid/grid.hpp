@@ -8,9 +8,9 @@
 #include "grid_object.hpp"
 #include "objects/constants.hpp"
 
-using std::vector;
-using std::unique_ptr;
 using std::max;
+using std::unique_ptr;
+using std::vector;
 typedef vector<vector<vector<GridObjectId>>> GridType;
 
 class Grid {
@@ -25,7 +25,6 @@ public:
 
   inline Grid(unsigned int width, unsigned int height, vector<Layer> layer_for_type_id)
       : width(width), height(height), layer_for_type_id(layer_for_type_id) {
-    ValidateConstants();  // Add this line
     num_layers = GridLayer::GridLayerCount;
 
     for (const auto& layer : layer_for_type_id) {
