@@ -5,7 +5,7 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 4
+  num_agents: 16
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
@@ -13,7 +13,7 @@ game:
     room:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: ${sampling:1,6,3}
-      agents: 1
+      agents: 4
       objects:
         mine.red: ${sampling:1,3,2}
         generator.red: ${sampling:1,3,2}

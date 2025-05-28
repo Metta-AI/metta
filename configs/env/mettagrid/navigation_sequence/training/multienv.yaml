@@ -1,6 +1,6 @@
 _target_: metta.env.mettagrid_env_set.SamplingPrioritizedEnvSet
 
-num_agents: 4
+num_agents: 16
 sampling: 1
 
 game:
@@ -8,10 +8,6 @@ game:
 
 envs:
   - /env/mettagrid/navigation_sequence/training/cylinder_world
-  - /env/mettagrid/navigation_sequence/training/triplets_sparse
-  - /env/mettagrid/navigation_sequence/training/triplets_balanced
-  - /env/mettagrid/navigation_sequence/training/triplets_maze
-  - /env/mettagrid/navigation_sequence/training/triplets_dense
   - /env/mettagrid/navigation_sequence/training/mem_balanced
   - /env/mettagrid/navigation_sequence/training/mem_sparse
   - /env/mettagrid/navigation_sequence/training/mem_maze
@@ -21,3 +17,6 @@ envs:
   - /env/mettagrid/navigation_sequence/training/sequence_balanced
   - /env/mettagrid/navigation_sequence/training/sequence_maze
   - /env/mettagrid/navigation_sequence/training/sequence_dense
+  - /env/mettagrid/memory/training/easy
+  - /env/mettagrid/memory/training/medium
+  - /env/mettagrid/memory/training/hard

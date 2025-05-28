@@ -17,9 +17,9 @@ trainer:
   evaluate_interval: 10
 
 
-policy_uri: wandb://run/b.daphne.multiagent_8_smaller_rooms2:v41
+policy_uri: wandb://run/b.george.navsequence_all:v35
 
 
-run_id: 3
+run_id: 5
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
