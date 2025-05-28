@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import datetime
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 import gymnasium as gym
 import numpy as np
@@ -11,11 +11,11 @@ import pufferlib
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import override
 
-from mettagrid.config import MettaGridConfig
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from mettagrid.util.hydra import simple_instantiate
 
 
 def required(func):
@@ -68,9 +68,24 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        mettagrid_config = MettaGridConfig(self._env_cfg, self._level)
+        # Prepare the level
+        level = self._level
+        if level is None:
+            map_builder = simple_instantiate(
+                self._env_cfg.game.map_builder,
+                recursive=self._env_cfg.game.get("recursive_map_builder", True),
+            )
+            level = map_builder.build()
 
-        config_dict, level = mettagrid_config.to_c_args()
+        # Validate the level
+        level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
+        assert self._env_cfg.game.num_agents == level_agents, (
+            f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {level_agents}"
+        )
+
+        # Convert to container for C++ code with explicit casting to Dict[str, Any]
+        config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._env_cfg))
+
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
