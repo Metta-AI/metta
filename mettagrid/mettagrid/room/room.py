@@ -1,6 +1,7 @@
 from typing import Optional
 
 import numpy as np
+import numpy.typing as npt
 
 
 class GameObject:
@@ -24,7 +25,7 @@ class Room:
         else:
             self.labels.append("large")
 
-    def build(self):
+    def build(self) -> npt.NDArray[np.str_]:
         room = self._build()
         return self._add_border(room)
 

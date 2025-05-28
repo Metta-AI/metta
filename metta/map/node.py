@@ -4,7 +4,7 @@ from typing import List, Optional
 import numpy as np
 from omegaconf import DictConfig, ListConfig
 
-from metta.map.mapgen import MapGrid
+from metta.map.types import MapGrid
 
 
 @dataclass

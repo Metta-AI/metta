@@ -4,7 +4,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.config import scenes_root
-from metta.map.mapgen import MapGrid
+from metta.map.types import MapGrid
 
 from .node import Node
 

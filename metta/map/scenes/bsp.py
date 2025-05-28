@@ -3,9 +3,9 @@ from typing import Any, List, Literal, Optional, Tuple
 
 import numpy as np
 
-from metta.map.mapgen import MapGrid
 from metta.map.node import Node
 from metta.map.scene import Scene
+from metta.map.types import MapGrid
 from metta.map.utils.random import MaybeSeed
 
 logger = logging.getLogger(__name__)
