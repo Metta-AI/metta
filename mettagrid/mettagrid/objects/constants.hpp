@@ -24,7 +24,13 @@ enum GridLayer {
 // been trained on the old feature ids.
 // In the future, the string -> id mapping should be stored on a
 // per-policy basis.
-enum ObservationFeature : uint8_t {
+//
+// NOTE: We use a namespace here to avoid naming collisions:
+// - 'TypeId' conflicts with the typedef uint8_t TypeId in grid_object.hpp
+// - 'Orientation' conflicts with the enum class Orientation defined above
+// The namespace allows us to use these descriptive names without conflicts.
+namespace ObservationFeature {
+enum ObservationFeatureEnum : uint8_t {
   TypeId = 1,
   Group = 2,
   Hp = 3,
@@ -32,8 +38,10 @@ enum ObservationFeature : uint8_t {
   Orientation = 5,
   Color = 6,
   ConvertingOrCoolingDown = 7,
-  Swappable = 8 ObservationFeatureCount
+  Swappable = 8,
+  ObservationFeatureCount
 };
+}  // namespace ObservationFeature
 
 const uint8_t InventoryFeatureOffset = 100;
 
@@ -59,8 +67,10 @@ enum ObjectType {
   ObjectTypeCount
 };
 
-const std::vector<std::string> ObjectTypeNames =
-    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"};
+constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {
+    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"}};
+
+const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
 
 enum InventoryItem {
   // These are "ore.red", etc everywhere else. They're differently named here because
@@ -76,25 +86,10 @@ enum InventoryItem {
   InventoryItemCount
 };
 
-const std::vector<std::string> InventoryItemNames =
-    {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"};
+constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {
+    {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"}};
 
-// Runtime validation function
-inline void ValidateConstants() {
-  static bool validated = false;
-  if (!validated) {
-    if (ObjectTypeNames.size() != ObjectType::ObjectTypeCount) {
-      throw std::logic_error("ObjectTypeNames size (" + std::to_string(ObjectTypeNames.size()) +
-                             ") does not match ObjectTypeCount (" + std::to_string(ObjectType::ObjectTypeCount) + ")");
-    }
-    if (InventoryItemNames.size() != InventoryItem::InventoryItemCount) {
-      throw std::logic_error("InventoryItemNames size (" + std::to_string(InventoryItemNames.size()) +
-                             ") does not match InventoryItemCount (" +
-                             std::to_string(InventoryItem::InventoryItemCount) + ")");
-    }
-    validated = true;
-  }
-}
+const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
 // Updated ObjectLayers to assign unique layer to each object type
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
