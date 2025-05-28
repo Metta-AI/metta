@@ -2,7 +2,29 @@ import numpy as np
 import pytest
 
 from metta.map.scenes.room_grid import RoomGrid
-from tests.map.scenes.utils import scene_to_node
+from tests.map.scenes.utils import check_grid, scene_to_node
+
+
+def test_room_grid_compare():
+    # Test creating a 2x3 grid of rooms
+    scene = RoomGrid(rows=2, columns=3, border_width=1, border_object="wall")
+    node = scene_to_node(scene, (10, 10))
+
+    check_grid(
+        node,
+        """
+|  #  #  ##|
+|  #  #  ##|
+|  #  #  ##|
+|  #  #  ##|
+|##########|
+|  #  #  ##|
+|  #  #  ##|
+|  #  #  ##|
+|  #  #  ##|
+|##########|
+""",
+    )
 
 
 def test_room_grid_with_rows_columns():
