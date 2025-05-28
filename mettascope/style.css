@@ -1,3 +1,25 @@
+/* Font declarations */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('data/fonts/IBMPlexMono-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('data/fonts/IBMPlexSans-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('data/fonts/IBMPlexSans-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+}
+
 .hidden {
   display: none !important;
 }
@@ -27,10 +49,6 @@ html {
 #info-panel {
   white-space: pre-wrap;
   overflow: auto;
-}
-#info-panel .info {
-  font-family: monospace;
-  font-size: 12px;
 }
 
 #toast {
@@ -74,10 +92,10 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.3);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(255, 255, 255, 0.5);
 }
