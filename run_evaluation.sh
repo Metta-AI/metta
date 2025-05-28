@@ -19,7 +19,7 @@ POLICIES=(
     # "b.daphne.multiagent_8_smaller_rooms2"
     "b.georgedeane.navseq_training"
     "b.georgedeane.navseq_training_sp"
-    "b.georgedeane.navseq_training_sp_heartmax15"
+    # "b.georgedeane.navseq_training_sp_heartmax15"
     "b.george.multiagent"
     "b.george.multiagent_rewardsharing"
     "b.george.multiagent_mixed"
