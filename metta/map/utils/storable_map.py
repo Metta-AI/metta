@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-from metta.map.mapgen import MapGrid
+from metta.map.types import MapGrid
 from mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,16 @@ ascii_symbols = {
 }
 
 reverse_ascii_symbols = {v: k for k, v in ascii_symbols.items()}
+reverse_ascii_symbols.update(
+    {
+        "🧱": "wall",
+        "⚙": "generator",
+        "⛩": "altar",
+        "🏭": "factory",
+        "🔬": "lab",
+        "🏰": "temple",
+    }
+)
 
 
 def grid_object_to_ascii(name: str) -> str:

@@ -1,5 +1,5 @@
-#ifndef PUT_RECIPE_ITEMS_HPP
-#define PUT_RECIPE_ITEMS_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_PUT_RECIPE_ITEMS_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_PUT_RECIPE_ITEMS_HPP_
 
 #include <string>
 
@@ -11,7 +11,7 @@
 
 class PutRecipeItems : public ActionHandler {
 public:
-  PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_recipe_items") {}
+  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_recipe_items") {}
 
   unsigned char max_arg() const override {
     return 0;
@@ -48,4 +48,4 @@ protected:
   }
 };
 
-#endif  // PUT_RECIPE_ITEMS_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_PUT_RECIPE_ITEMS_HPP_

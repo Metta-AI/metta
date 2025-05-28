@@ -1,5 +1,5 @@
-#ifndef HAS_INVENTORY_HPP
-#define HAS_INVENTORY_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_
 
 #include <algorithm>
 #include <map>
@@ -13,7 +13,7 @@ public:
   vector<unsigned char> inventory;
 
   void init_has_inventory(ObjectConfig cfg) {
-    this->inventory.resize(InventoryItem::InventoryCount);
+    this->inventory.resize(InventoryItem::InventoryItemCount);
   }
 
   // Whether the inventory is accessible to an agent.
@@ -30,4 +30,4 @@ public:
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_HAS_INVENTORY_HPP_

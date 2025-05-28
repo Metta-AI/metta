@@ -128,12 +128,8 @@ uv pip install -e .
 
 # The following will build mettagrid, cmake and all, but in isolated environment.
 # This is according to scikit-build-core and PEP-517 conventions.
-# So we do another build in the next step, for testing and development.
 echo -e "\nInstalling MettaGrid..."
 uv pip --directory mettagrid install -e .
-
-echo -e "\nBuilding MettaGrid..."
-(cd mettagrid && make)
 
 # ========== SANITY CHECK ==========
 echo -e "\nSanity check: verifying all local deps are importable..."
@@ -141,7 +137,7 @@ echo -e "\nSanity check: verifying all local deps are importable..."
 for dep in \
   "pufferlib" \
   "carbs" \
-  "metta.rl.fast_gae.fast_gae" \
+  "metta.rl.fast_gae" \
   "mettagrid.mettagrid_env" \
   "mettagrid.mettagrid_c" \
   "wandb_carbs"; do

@@ -247,14 +247,32 @@ export function onFrame() {
 
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
-  ctx.useMesh("mini-map");
-  drawMiniMap(ui.miniMapPanel);
+
+  if (state.showMiniMap) {
+    ui.miniMapPanel.div.style.display = "block";
+    ctx.useMesh("mini-map");
+    drawMiniMap(ui.miniMapPanel);
+  } else {
+    ui.miniMapPanel.div.style.display = "none";
+  }
+
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
-  updateReadout();
+
+  if (state.showInfo) {
+    ui.infoPanel.div.style.display = "block";
+    updateReadout();
+  } else {
+    ui.infoPanel.div.style.display = "none";
+  }
+
+  if (state.showControls) {
+    html.actionButtons.style.display = "block";
+  } else {
+    html.actionButtons.style.display = "none";
+  }
 
   ctx.flush();
-  console.log("Flushed ctx.");
 
   // Update URL parameters with current state once per frame
   updateUrlParams();
@@ -422,10 +440,14 @@ window.addEventListener('drop', handleDrop, false);
 
 // Header area
 html.shareButton.addEventListener('click', onShareButtonClick);
+html.helpButton.addEventListener('click', () => {
+  window.open("https://github.com/treeform/metta/blob/main/mettascope/README.md", "_blank");
+});
 
 // Bottom area
 html.scrubber.addEventListener('input', onScrubberChange);
-html.scrubber.setAttribute("type", "range")
+html.scrubber.setAttribute("type", "range");
+html.scrubber.setAttribute("value", "0");
 
 html.rewindToStartButton.addEventListener('click', () => {
   setIsPlaying(false);
@@ -454,40 +476,88 @@ for (let i = 0; i < html.speedButtons.length; i++) {
   );
 }
 
-
-html.resourcesButton.addEventListener('click', () => {
+html.resourcesToggle.addEventListener('click', () => {
   state.showResources = !state.showResources;
-  toggleOpacity(html.resourcesButton, state.showResources);
+  localStorage.setItem("showResources", state.showResources.toString());
+  toggleOpacity(html.resourcesToggle, state.showResources);
   requestFrame();
 });
-toggleOpacity(html.resourcesButton, state.showResources);
+if (localStorage.hasOwnProperty("showResources")) {
+  state.showResources = localStorage.getItem("showResources") === "true";
+}
+toggleOpacity(html.resourcesToggle, state.showResources);
 
 // Toggle follow selection state.
-html.focusButton.addEventListener('click', () => {
+html.focusToggle.addEventListener('click', () => {
   setFollowSelection(!state.followSelection);
 });
-toggleOpacity(html.focusButton, state.followSelection);
+toggleOpacity(html.focusToggle, state.followSelection);
 
-html.gridButton.addEventListener('click', () => {
+html.gridToggle.addEventListener('click', () => {
   state.showGrid = !state.showGrid;
-  toggleOpacity(html.gridButton, state.showGrid);
+  localStorage.setItem("showGrid", state.showGrid.toString());
+  toggleOpacity(html.gridToggle, state.showGrid);
   requestFrame();
 });
-toggleOpacity(html.gridButton, state.showGrid);
+if (localStorage.hasOwnProperty("showGrid")) {
+  state.showGrid = localStorage.getItem("showGrid") === "true";
+}
+toggleOpacity(html.gridToggle, state.showGrid);
 
-html.showViewButton.addEventListener('click', () => {
-  state.showViewRanges = !state.showViewRanges;
-  toggleOpacity(html.showViewButton, state.showViewRanges);
+html.visualRangeToggle.addEventListener('click', () => {
+  state.showVisualRanges = !state.showVisualRanges;
+  localStorage.setItem("showVisualRanges", state.showVisualRanges.toString());
+  toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
   requestFrame();
 });
-toggleOpacity(html.showViewButton, state.showViewRanges);
+if (localStorage.hasOwnProperty("showVisualRanges")) {
+  state.showVisualRanges = localStorage.getItem("showVisualRanges") === "true";
+}
+toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
 
-html.showFogOfWarButton.addEventListener('click', () => {
+html.fogOfWarToggle.addEventListener('click', () => {
   state.showFogOfWar = !state.showFogOfWar;
-  toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+  localStorage.setItem("showFogOfWar", state.showFogOfWar.toString());
+  toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
   requestFrame();
 });
-toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+if (localStorage.hasOwnProperty("showFogOfWar")) {
+  state.showFogOfWar = localStorage.getItem("showFogOfWar") === "true";
+}
+toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
+
+html.minimapToggle.addEventListener('click', () => {
+  state.showMiniMap = !state.showMiniMap;
+  localStorage.setItem("showMiniMap", state.showMiniMap.toString());
+  toggleOpacity(html.minimapToggle, state.showMiniMap);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showMiniMap")) {
+  state.showMiniMap = localStorage.getItem("showMiniMap") === "true";
+}
+toggleOpacity(html.minimapToggle, state.showMiniMap);
+
+html.controlsToggle.addEventListener('click', () => {
+  state.showControls = !state.showControls;
+  localStorage.setItem("showControls", state.showControls.toString());
+  toggleOpacity(html.controlsToggle, state.showControls);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showControls")) {
+  state.showControls = localStorage.getItem("showControls") === "true";
+}
+toggleOpacity(html.controlsToggle, state.showControls);
+
+html.infoToggle.addEventListener('click', () => {
+  state.showInfo = !state.showInfo;
+  localStorage.setItem("showInfo", state.showInfo.toString());
+  toggleOpacity(html.infoToggle, state.showInfo);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showInfo")) {
+  state.showInfo = localStorage.getItem("showInfo") === "true";
+}
+toggleOpacity(html.infoToggle, state.showInfo);
 
 initActionButtons();
 

@@ -1,5 +1,5 @@
-#ifndef WALL_HPP
-#define WALL_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_WALL_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_WALL_HPP_
 
 #include <string>
 #include <vector>
@@ -20,9 +20,9 @@ public:
 
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.push_back({ObservationFeatureId::TypeId, _type_id});
-    features.push_back({ObservationFeatureId::Hp, hp});
-    features.push_back({ObservationFeatureId::Swappable, _swappable});
+    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::Hp, hp});
+    features.push_back({ObservationFeature::Swappable, _swappable});
     return features;
   }
 
@@ -45,4 +45,4 @@ public:
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_WALL_HPP_

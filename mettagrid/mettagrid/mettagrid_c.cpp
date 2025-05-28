@@ -384,7 +384,12 @@ void MettaGrid::validate_buffers() {
   if (_use_observation_tokens) {
     auto observation_info = _observations.request();
     auto shape = observation_info.shape;
-    if (observation_info.ndim != 3 || shape[0] != num_agents || shape[2] != 3) {
+    if (observation_info.ndim != 3) {
+      std::stringstream ss;
+      ss << "observations has " << observation_info.ndim << " dimensions but expected 3";
+      throw std::runtime_error(ss.str());
+    }
+    if (shape[0] != num_agents || shape[2] != 3) {
       std::stringstream ss;
       ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["
          << num_agents << ", [something], 3]";
@@ -425,10 +430,10 @@ void MettaGrid::validate_buffers() {
   }
 }
 
-void MettaGrid::set_buffers(py::array_t<uint8_t, py::array::c_style>& observations,
-                            py::array_t<bool, py::array::c_style>& terminals,
-                            py::array_t<bool, py::array::c_style>& truncations,
-                            py::array_t<float, py::array::c_style>& rewards) {
+void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& observations,
+                            const py::array_t<bool, py::array::c_style>& terminals,
+                            const py::array_t<bool, py::array::c_style>& truncations,
+                            const py::array_t<float, py::array::c_style>& rewards) {
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;
@@ -578,10 +583,19 @@ py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  return spaces.attr("Box")(0,
-                            255,
-                            py::make_tuple(_obs_height, _obs_width, _grid_features.size()),
-                            py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  if (_use_observation_tokens) {
+    // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
+    // that matters to us.
+    return spaces.attr("Box")(0,
+                              255,
+                              py::make_tuple(_observations.shape(1), _observations.shape(2)),
+                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  } else {
+    return spaces.attr("Box")(0,
+                              255,
+                              py::make_tuple(_obs_height, _obs_width, _grid_features.size()),
+                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  }
 }
 
 py::list MettaGrid::action_success() {
