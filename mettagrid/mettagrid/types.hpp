@@ -1,5 +1,5 @@
-#ifndef TYPES_HPP
-#define TYPES_HPP
+#ifndef METTAGRID_METTAGRID_TYPES_HPP
+#define METTAGRID_METTAGRID_TYPES_HPP
 
 // ============================================================================
 // NUMPY TYPE NAME MACROS
@@ -23,4 +23,4 @@ typedef uint8_t c_success_type;
 #define NUMPY_MASKS_TYPE "uint8"         // match c_masks_type
 #define NUMPY_SUCCESS_TYPE "uint8"       // match c_success_type
 
-#endif  // TYPES_HPP
+#endif  // METTAGRID_METTAGRID_TYPES_HPP

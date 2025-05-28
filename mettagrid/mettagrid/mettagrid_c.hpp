@@ -1,5 +1,5 @@
-#ifndef METTAGRID_C_HPP
-#define METTAGRID_C_HPP
+#ifndef METTAGRID_METTAGRID_METTAGRID_C_HPP_
+#define METTAGRID_METTAGRID_METTAGRID_C_HPP_
 
 #if defined(_WIN32)
 #define METTAGRID_API __declspec(dllexport)
@@ -145,4 +145,4 @@ private:
   void _setup_gym_mode();
 };
 
-#endif  // METTAGRID_C_HPP
+#endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_
