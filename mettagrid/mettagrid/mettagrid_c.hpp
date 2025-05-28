@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+#include "types.hpp"
+
 // Forward declarations of existing C++ classes
 class Grid;
 class EventManager;
@@ -34,11 +36,11 @@ public:
 
   // Python API methods
   py::tuple reset();
-  py::tuple step(py::array_t<int> actions);
-  void set_buffers(const py::array_t<unsigned char, py::array::c_style>& observations,
-                   const py::array_t<bool, py::array::c_style>& terminals,
-                   const py::array_t<bool, py::array::c_style>& truncations,
-                   const py::array_t<float, py::array::c_style>& rewards);
+  py::tuple step(py::array_t<c_actions_type> actions);
+  void set_buffers(const py::array_t<c_observations_type, py::array::c_style>& observations,
+                   const py::array_t<c_terminals_type, py::array::c_style>& terminals,
+                   const py::array_t<c_truncations_type, py::array::c_style>& truncations,
+                   const py::array_t<c_rewards_type, py::array::c_style>& rewards);
   void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
@@ -61,6 +63,8 @@ public:
                              unsigned int group_id,
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
+
+  static std::string cpp_get_numpy_type_name(const char* type_id);
 
 private:
   // Member variables
@@ -91,11 +95,11 @@ private:
 
   // We'd prefer to store these as more raw c-style arrays, but we need to both
   // operate on the memory directly and return them to python.
-  py::array_t<uint8_t> _observations;
-  py::array_t<bool> _terminals;
-  py::array_t<bool> _truncations;
-  py::array_t<float> _rewards;
-  py::array_t<float> _episode_rewards;
+  py::array_t<c_observations_type> _observations;
+  py::array_t<c_terminals_type> _terminals;
+  py::array_t<c_truncations_type> _truncations;
+  py::array_t<c_rewards_type> _rewards;
+  py::array_t<c_rewards_type> _episode_rewards;
 
   std::vector<std::string> _grid_features;
 
@@ -108,8 +112,8 @@ private:
                             unsigned short obs_width,
                             unsigned short obs_height,
                             size_t agent_idx);
-  void _compute_observations(py::array_t<int> actions);
-  void _step(py::array_t<int> actions);
+  void _compute_observations(py::array_t<c_actions_type> actions);
+  void _step(py::array_t<c_actions_type> actions);
 };
 
 #endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_

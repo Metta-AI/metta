@@ -169,10 +169,13 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
              static_cast<ssize_t>(_obs_width),
              static_cast<ssize_t>(_grid_features.size())};
   }
-  auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
-  auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto truncations = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
-  auto rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(float)});
+  auto observations = py::array_t<c_observations_type, py::array::c_style>(shape);
+  auto terminals =
+      py::array_t<c_terminals_type, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(c_terminals_type)});
+  auto truncations = py::array_t<c_truncations_type, py::array::c_style>({static_cast<ssize_t>(num_agents)},
+                                                                         {sizeof(c_truncations_type)});
+  auto rewards =
+      py::array_t<c_rewards_type, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(c_rewards_type)});
 
   set_buffers(observations, terminals, truncations, rewards);
 }
@@ -274,14 +277,14 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   }
 }
 
-void MettaGrid::_compute_observations(py::array_t<int> actions) {
+void MettaGrid::_compute_observations(py::array_t<c_actions_type> actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(agent->location.r, agent->location.c, _obs_width, _obs_height, idx);
   }
 }
 
-void MettaGrid::_step(py::array_t<int> actions) {
+void MettaGrid::_step(py::array_t<c_actions_type> actions) {
   auto actions_view = actions.unchecked<2>();
 
   // Reset rewards and observations
@@ -290,7 +293,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0);
 
-  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
+  auto obs_ptr = static_cast<c_observations_type*>(_observations.request().ptr);
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, 0);
 
@@ -351,26 +354,27 @@ py::tuple MettaGrid::reset() {
   // Views are created only for validating types; actual clearing is done via
   // direct memory operations for speed.
 
-  std::fill(static_cast<bool*>(_terminals.request().ptr),
-            static_cast<bool*>(_terminals.request().ptr) + _terminals.size(),
+  std::fill(static_cast<c_terminals_type*>(_terminals.request().ptr),
+            static_cast<c_terminals_type*>(_terminals.request().ptr) + _terminals.size(),
             0);
-  std::fill(static_cast<bool*>(_truncations.request().ptr),
-            static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
+  std::fill(static_cast<c_truncations_type*>(_truncations.request().ptr),
+            static_cast<c_truncations_type*>(_truncations.request().ptr) + _truncations.size(),
             0);
-  std::fill(static_cast<float*>(_episode_rewards.request().ptr),
-            static_cast<float*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
+  std::fill(static_cast<c_rewards_type*>(_episode_rewards.request().ptr),
+            static_cast<c_rewards_type*>(_episode_rewards.request().ptr) + _episode_rewards.size(),
             0.0f);
-  std::fill(
-      static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
+  std::fill(static_cast<c_rewards_type*>(_rewards.request().ptr),
+            static_cast<c_rewards_type*>(_rewards.request().ptr) + _rewards.size(),
+            0.0f);
 
   // Clear observations
-  auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
+  auto obs_ptr = static_cast<c_observations_type*>(_observations.request().ptr);
   auto obs_size = _observations.size();
   std::fill(obs_ptr, obs_ptr + obs_size, 0);
 
   // Compute initial observations
   std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
-  auto zero_actions = py::array_t<int>(shape);
+  auto zero_actions = py::array_t<c_actions_type>(shape);
   _compute_observations(zero_actions);
 
   return py::make_tuple(_observations, py::dict());
@@ -430,15 +434,16 @@ void MettaGrid::validate_buffers() {
   }
 }
 
-void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& observations,
-                            const py::array_t<bool, py::array::c_style>& terminals,
-                            const py::array_t<bool, py::array::c_style>& truncations,
-                            const py::array_t<float, py::array::c_style>& rewards) {
+void MettaGrid::set_buffers(const py::array_t<c_observations_type, py::array::c_style>& observations,
+                            const py::array_t<c_terminals_type, py::array::c_style>& terminals,
+                            const py::array_t<c_truncations_type, py::array::c_style>& truncations,
+                            const py::array_t<c_rewards_type, py::array::c_style>& rewards) {
   _observations = observations;
   _terminals = terminals;
   _truncations = truncations;
   _rewards = rewards;
-  _episode_rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(_rewards.shape(0))}, {sizeof(float)});
+  _episode_rewards = py::array_t<c_rewards_type, py::array::c_style>({static_cast<ssize_t>(_rewards.shape(0))},
+                                                                     {sizeof(c_rewards_type)});
   for (size_t i = 0; i < _agents.size(); i++) {
     _agents[i]->init(&_rewards.mutable_unchecked<1>()(i));
   }
@@ -446,7 +451,7 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   validate_buffers();
 }
 
-py::tuple MettaGrid::step(py::array_t<int> actions) {
+py::tuple MettaGrid::step(py::array_t<c_actions_type> actions) {
   _step(actions);
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
@@ -554,7 +559,7 @@ unsigned int MettaGrid::num_agents() {
   return _agents.size();
 }
 
-py::array_t<float> MettaGrid::get_episode_rewards() {
+py::array_t<c_rewards_type> MettaGrid::get_episode_rewards() {
   return _episode_rewards;
 }
 
@@ -622,7 +627,7 @@ Agent* MettaGrid::create_agent(int r,
                                const py::dict& agent_cfg_py) {
   // Rewards default to 0 for inventory unless overridden.
   // But we should be rewarding these all the time, e.g., for hearts.
-  std::map<std::string, float> rewards;
+  std::map<std::string, c_rewards_type> rewards;
   for (const auto& inv_item : InventoryItemNames) {
     // TODO: We shouldn't need to populate this with 0, since that's
     // the default anyways. Confirm that we don't care about the keys
@@ -639,13 +644,13 @@ Agent* MettaGrid::create_agent(int r,
   if (agent_cfg_py.contains("rewards")) {
     py::dict rewards_py = agent_cfg_py["rewards"];
     for (const auto& [key, value] : rewards_py) {
-      rewards[key.cast<std::string>()] = value.cast<float>();
+      rewards[key.cast<std::string>()] = value.cast<c_rewards_type>();
     }
   }
   if (group_cfg_py.contains("rewards")) {
     py::dict rewards_py = group_cfg_py["rewards"];
     for (const auto& [key, value] : rewards_py) {
-      rewards[key.cast<std::string>()] = value.cast<float>();
+      rewards[key.cast<std::string>()] = value.cast<c_rewards_type>();
     }
   }
 
@@ -664,6 +669,18 @@ Agent* MettaGrid::create_agent(int r,
   }
 
   return new Agent(r, c, group_name, group_id, agent_cfg, rewards);
+}
+
+std::string MettaGrid::cpp_get_numpy_type_name(const char* type_id) {
+  std::string str_type_id(type_id);
+
+  if (strcmp(type_id, "observations") == 0) return NUMPY_OBSERVATIONS_TYPE;
+  if (strcmp(type_id, "terminals") == 0) return NUMPY_TERMINALS_TYPE;
+  if (strcmp(type_id, "truncations") == 0) return NUMPY_TRUNCATIONS_TYPE;
+  if (strcmp(type_id, "rewards") == 0) return NUMPY_REWARDS_TYPE;
+  if (strcmp(type_id, "actions") == 0) return NUMPY_ACTIONS_TYPE;
+
+  return "unknown";
 }
 
 // Pybind11 module definition
@@ -694,5 +711,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_success", &MettaGrid::action_success)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
-      .def("inventory_item_names", &MettaGrid::inventory_item_names);
+      .def("inventory_item_names", &MettaGrid::inventory_item_names)
+      .def_static("get_numpy_type_name", &MettaGrid::cpp_get_numpy_type_name, py::arg("type_id"));
 }
