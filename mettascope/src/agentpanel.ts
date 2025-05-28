@@ -3,7 +3,6 @@ import { state, setFollowSelection } from "./common.js";
 import { getAttr } from "./replay.js";
 import { updateSelection } from "./main.js";
 
-const agentPanel = find("#agent-panel");
 const agentTable = find("#agent-table");
 const header = find("#agent-table .header");
 const fieldHeaderTemplate = finds("#agent-table .field-header")[0];
@@ -38,32 +37,6 @@ export function initAgentTable() {
       updateAgentTable();
     }
   });
-
-  // agentPanel.addEventListener("mousedown", (event) => {
-  //   if (event.target == agentPanel) {
-  //     dragging = true;
-  //     dragStartX = event.clientX;
-  //     dragStartY = event.clientY;
-  //     console.log("start dragging");
-  //   }
-  // });
-
-  // agentPanel.addEventListener("mousemove", (event) => {
-  //   if (dragging) {
-  //     let x = event.clientX;
-  //     let y = event.clientY;
-  //     let left = x - dragStartX;
-  //     let top = y - dragStartY;
-  //     agentPanel.style.left = left + "px";
-  //     agentPanel.style.top = top + "px";
-  //     console.log("dragging");
-  //   }
-  // });
-
-  // agentPanel.addEventListener("mouseup", (event) => {
-  //   dragging = false;
-  //   console.log("stop dragging");
-  // });
 }
 
 // Capitalize the first letter of every word in a string.
@@ -72,9 +45,6 @@ function capitalize(str: string) {
   return str.split(" ").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
 }
 
-var dragging = false;
-var dragStartX = 0;
-var dragStartY = 0;
 var mainSort = "total_reward";
 var sortDirection = -1;
 var sortStepFinal = false;
