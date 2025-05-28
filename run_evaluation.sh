@@ -34,6 +34,7 @@ POLICIES=(
     "b.george_multienv_sequence"
     "mrazo_cooperation_two-room-cord_v06"
     "mrazo_cooperation_two-room-coord_v05"
+    "mrazo_memory_varied-terrain_v05"
 )
 #!/bin/bash
 
