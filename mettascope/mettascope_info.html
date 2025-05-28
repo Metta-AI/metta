@@ -151,31 +151,17 @@ strong {
 </div>
 
 <div class="controls-section">
-  <h3>Visualization Controls</h3>
-  <ul>
-    <li><strong>Grid Toggle</strong>: Show/hide the grid with the grid button</li>
-    <li><strong>Resource Display</strong>: Toggle visibility of resources (hearts and other items) with the heart icon</li>
-    <li><strong>Fog of War</strong>: Show/hide fog of war with the cloud icon, revealing what agents can and cannot see</li>
-    <li><strong>View Modes</strong>: 
-      <ul>
-        <li><strong>Pin Icon</strong>: Toggle agent following mode, keeping the selected agent centered</li>
-        <li><strong>Eye Icon</strong>: Toggle agent vision range visualization to see how far each agent can see</li>
-      </ul>
-    </li>
-  </ul>
-</div>
-
-<div class="controls-section">
   <h3>Action Traces</h3>
   <p>
-    The action traces visualization shows the history of agent movements and interactions. You can:
+    The action traces visualization shows the history of agent actions. You can:
   </p>
   <ul>
     <li><strong>Zoom</strong>: Use mouse wheel to zoom in/out of the traces</li>
     <li><strong>Pan</strong>: Click and drag to move around the trace view</li>
     <li><strong>Trace Colors</strong>: Different colors represent different types of actions:
       <ul>
-        <li><span style="color: #24C76B">Green</span>: Movement and rotation actions</li>
+        <li><span style="color: #24C76B">Green</span>: Movement actions</li>
+        <li><span style="color: #4ECDC4">Light Green</span>: Rotation actions</li>
         <li><span style="color: #FF6B6B">Red</span>: Attack actions</li>
         <li><span style="color: #FFD93D">Yellow</span>: Resource collection and management</li>
         <li><span style="color: #4ECDC4">Cyan</span>: Frozen state</li>
@@ -185,11 +171,22 @@ strong {
 </div>
 
 <div class="controls-section">
+  <h3>Visualization Controls</h3>
+  <ul>
+    <li><strong>Grid Toggle</strong>: Show/hide the grid with the grid button</li>
+    <li><strong>Resource Display</strong>: Toggle visibility of resources (hearts and other items) with the heart icon</li>
+    <li><strong>Fog of War</strong>: Show/hide fog of war with the cloud icon, revealing what agents can and cannot see</li>
+    <li><strong>Agent Following</strong>: Toggle agent following mode with the pin icon, keeping the selected agent centered</li>
+    <li><strong>Vision Range</strong>: Toggle agent vision range visualization with the eye icon to see how far each agent can see</li>
+  </ul>
+</div>
+
+<div class="controls-section">
   <h3>Navigation</h3>
   <ul>
     <li><strong>Pan</strong>: Click and drag to move the view</li>
     <li><strong>Zoom</strong>: Use mouse wheel to zoom in/out</li>
-    <li><strong>Selection</strong>: Click on units to select them</li>
+    <li><strong>Selection</strong>: Click on units to select them and view their details</li>
   </ul>
 </div>
 
@@ -212,7 +209,7 @@ strong {
 
 <h2>Agent Controls</h2>
 
-<img src="data/ui/agent_controls.png?v=1" alt="MettaScope Controls" class="controls-image">
+<img src="data/ui/agent_controls.png" alt="MettaScope Controls" class="controls-image">
 
 <p>
 When you select an agent, you can take direct control using these keyboard commands:
@@ -220,16 +217,16 @@ When you select an agent, you can take direct control using these keyboard comma
 
 <div class="keyboard-controls">
   <div class="keyboard-control">
-    <span class="key">A</span> Rotate West
+    <span class="key">A</span> Rotate West (or move West if already facing West)
   </div>
   <div class="keyboard-control">
-    <span class="key">W</span> Rotate North
+    <span class="key">W</span> Rotate North (or move North if already facing North)
   </div>
   <div class="keyboard-control">
-    <span class="key">S</span> Rotate South
+    <span class="key">S</span> Rotate South (or move South if already facing South)
   </div>
   <div class="keyboard-control">
-    <span class="key">D</span> Rotate East
+    <span class="key">D</span> Rotate East (or move East if already facing East)
   </div>
   <div class="keyboard-control">
     <span class="key">F</span> Move Forward
