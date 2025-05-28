@@ -12,9 +12,9 @@ from omegaconf import DictConfig, OmegaConf
 from typing_extensions import override
 
 from mettagrid.config import MettaGridConfig
+from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
 from mettagrid.replay_writer import ReplayWriter
-from mettagrid.room.room import Level
 from mettagrid.stats_writer import StatsWriter
 
 

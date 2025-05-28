@@ -4,10 +4,10 @@ import hydra
 import numpy as np
 from omegaconf.omegaconf import OmegaConf
 
-import mettagrid.room.room
 import mettascope.server
 from metta.map.utils.storable_map import StorableMap, grid_to_ascii
 from metta.sim.map_preview import write_local_map_preview
+from mettagrid.level_builder import Level
 from mettagrid.mettagrid_env import MettaGridEnv
 
 ShowMode = Literal["mettascope", "ascii", "ascii_border", "none"]
@@ -23,9 +23,7 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
         env_cfg = OmegaConf.load("./configs/env/mettagrid/mettagrid.yaml")
         env_cfg.game.num_agents = num_agents
 
-        env = MettaGridEnv(
-            cast(Any, env_cfg), level=mettagrid.room.room.Level(storable_map.grid, []), render_mode="none"
-        )
+        env = MettaGridEnv(cast(Any, env_cfg), level=Level(storable_map.grid, []), render_mode="none")
 
         file_path = write_local_map_preview(env)
         url_path = file_path.split("mettascope/")[-1]

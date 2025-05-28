@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional, Tuple, cast
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-from mettagrid.room.room import Level
+from mettagrid.level_builder import Level
 from mettagrid.util.hydra import simple_instantiate
 
 

@@ -1,35 +1,9 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
 import numpy.typing as npt
 
-
-@dataclass
-class Level:
-    # Two-dimensional grid of strings.
-    # Possible values: "wall", "empty", "agent", etc.
-    # For the full list, see `mettagrid_c.cpp`.
-    grid: npt.NDArray[np.str_]
-
-    # List of labels. These will be used for `rewards/map:...` episode stats.
-    labels: list[str]
-
-
-class LevelBuilder(ABC):
-    """
-    A base class for building MettaGridEnv levels.
-
-    Right now we have two implementations:
-    1. `mettagrid.room.room.Room` and its subclasses
-    2. `metta.map.mapgen.MapGen`
-
-    MapGen system is more flexible and the current plan is to refactor away the Room class hierarchy.
-    """
-
-    @abstractmethod
-    def build(self) -> Level: ...
+from mettagrid.level_builder import Level, LevelBuilder
 
 
 class Room(LevelBuilder):
