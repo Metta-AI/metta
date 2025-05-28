@@ -85,13 +85,14 @@ const std::vector<std::string> InventoryItemNames =
 inline void ValidateConstants() {
   static bool validated = false;
   if (!validated) {
-    if (ObjectTypeNames.size() != ObjectTypeCount) {
+    if (ObjectTypeNames.size() != ObjectType::ObjectTypeCount) {
       throw std::logic_error("ObjectTypeNames size (" + std::to_string(ObjectTypeNames.size()) +
-                             ") does not match ObjectTypeCount (" + std::to_string(ObjectTypeCount) + ")");
+                             ") does not match ObjectTypeCount (" + std::to_string(ObjectType::ObjectTypeCount) + ")");
     }
-    if (InventoryItemNames.size() != InventoryItemCount) {
+    if (InventoryItemNames.size() != InventoryItem::InventoryItemCount) {
       throw std::logic_error("InventoryItemNames size (" + std::to_string(InventoryItemNames.size()) +
-                             ") does not match InventoryItemCount (" + std::to_string(InventoryItemCount) + ")");
+                             ") does not match InventoryItemCount (" +
+                             std::to_string(InventoryItem::InventoryItemCount) + ")");
     }
     validated = true;
   }
