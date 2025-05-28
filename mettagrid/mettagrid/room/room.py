@@ -3,14 +3,10 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 
-
-class GameObject:
-    def __init__(self, name: str, symbol: str):
-        self.name = name
-        self.symbol = symbol
+from mettagrid.level_builder import Level, LevelBuilder
 
 
-class Room:
+class Room(LevelBuilder):
     def __init__(self, border_width: int = 0, border_object: str = "wall", labels: Optional[list] = None):
         self._border_width = border_width
         self._border_object = border_object
@@ -25,9 +21,10 @@ class Room:
         else:
             self.labels.append("large")
 
-    def build(self) -> npt.NDArray[np.str_]:
-        room = self._build()
-        return self._add_border(room)
+    def build(self) -> Level:
+        grid = self._build()
+        bordered_grid = self._add_border(grid)
+        return Level(bordered_grid, self.labels)
 
     def _add_border(self, room):
         b = self._border_width
@@ -36,5 +33,5 @@ class Room:
         final_level[b : b + h, b : b + w] = room
         return final_level
 
-    def _build(self):
+    def _build(self) -> npt.NDArray[np.str_]:
         raise NotImplementedError("Subclass must implement _build method")
