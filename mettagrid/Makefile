@@ -1,4 +1,4 @@
-.PHONY: clean test build help
+.PHONY: clean test build help install
 
 # Default target
 help:
@@ -22,3 +22,6 @@ test: build
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf build-debug build-release
+
+install:
+	uv pip install -e .

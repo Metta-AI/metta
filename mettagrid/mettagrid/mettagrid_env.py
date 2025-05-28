@@ -42,8 +42,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     ):
         self._render_mode = render_mode
         self._cfg_template = env_cfg
-        self._env_cfg = self._get_new_env_cfg()
-        self._env_map = env_map
+        self._c_env_cfg = self._get_new_env_cfg()
+        self._c_env_map = env_map
         self._renderer = None
         self._map_labels = []
         self._stats_writer = stats_writer
@@ -52,10 +52,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
-        self.labels = self._env_cfg.get("labels", None)
+        self.labels = self._c_env_cfg.get("labels", None)
         self._should_reset = False
 
         self._reset_env()
+
+        self._num_agents = self._c_env.num_agents
         super().__init__(buf)
 
     def _make_episode_id(self):
@@ -67,23 +69,22 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return env_cfg
 
     def _reset_env(self):
-        mettagrid_config = MettaGridConfig(self._env_cfg, self._env_map)
+        mettagrid_config = MettaGridConfig(self._c_env_cfg, self._c_env_map)
 
         config_dict, env_map = mettagrid_config.to_c_args()
         self._map_labels = mettagrid_config.map_labels()
 
         self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
-        self._num_agents = self._c_env.num_agents()
 
         env = self._grid_env
 
-        self._env = env
-        # self._env = RewardTracker(self._env)
+        self._c_env = env
+        # self._c_env = RewardTracker(self._c_env)
 
     @override
     def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
-        self._env_cfg = self._get_new_env_cfg()
+        self._c_env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
@@ -107,7 +108,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._c_env.step(self.actions)
 
-        if self._env_cfg.normalize_rewards:
+        if self._c_env_cfg.normalize_rewards:
             self.rewards -= self.rewards.mean()
 
         if self._replay_writer:
@@ -131,7 +132,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "episode/reward.mean": episode_rewards_mean,
                 "episode/reward.min": episode_rewards.min(),
                 "episode/reward.max": episode_rewards.max(),
-                "episode_length": self._c_env.current_timestep(),
+                "episode_length": self._c_env.current_step,
             }
         )
 
@@ -178,7 +179,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "map_h": self.map_height,
             }
 
-            for k, v in pufferlib.utils.unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
+            for k, v in pufferlib.utils.unroll_nested_dict(OmegaConf.to_container(self._c_env_cfg, resolve=False)):
                 attributes[f"config.{k.replace('/', '.')}"] = str(v)
 
             agent_metrics = {}
@@ -204,25 +205,21 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def max_steps(self):
-        return self._env_cfg.game.max_steps
+        return self._c_env_cfg.game.max_steps
 
     @property
     @required
     def single_observation_space(self):
-        return self._env.observation_space
+        return self._c_env.observation_space
 
     @property
     @required
     def single_action_space(self):
-        return self._env.action_space
+        return self._c_env.action_space
 
     @property
     def action_names(self):
-        return self._env.action_names()
-
-    @property
-    def player_count(self):
-        return self._num_agents
+        return self._c_env.action_names()
 
     @property
     @required
@@ -241,7 +238,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def grid_features(self):
-        return self._env.grid_features()
+        return self._c_env.grid_features()
 
     @property
     def global_features(self):
@@ -253,11 +250,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def map_width(self) -> int:
-        return self._c_env.map_width()
+        return self._c_env.map_width
 
     @property
     def map_height(self) -> int:
-        return self._c_env.map_height()
+        return self._c_env.map_height
 
     @property
     def grid_objects(self):
