@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from metta.map.types import MapGrid
-from mettagrid.level import Level, LevelBuilder
+from mettagrid.level_builder import Level, LevelBuilder
 
 from .scene import SceneCfg, make_scene
 
