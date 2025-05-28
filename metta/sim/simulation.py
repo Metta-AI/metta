@@ -29,7 +29,7 @@ from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
-from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.mettagrid_env import MettaGridEnv, np_actions_type
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
@@ -210,7 +210,7 @@ class Simulation:
             )
 
         actions = actions.view(self._num_envs * self._agents_per_env, -1)
-        actions_np = actions.cpu().numpy()
+        actions_np = actions.cpu().numpy().astype(np_actions_type)
 
         return actions_np
 
