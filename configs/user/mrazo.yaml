@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 trainer:
-  env: env/mettagrid/memory/training/multienv
+  env: env/mettagrid/navigation/training/navigation_ensemble
   # initial_policy:
   #   uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
   # evaluate_interval: 100
@@ -15,4 +15,4 @@ trainer:
 #   # wandb.enabled: false
 #   wandb.track: false
 
-run: mrazo_memory_varied-terrain_v05
+run: mrazo_navigation_ensemble_v01
