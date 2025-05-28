@@ -10,6 +10,8 @@ game:
   num_agents: ???
   obs_width: 11
   obs_height: 11
+  use_observation_tokens: true
+  num_observation_tokens: 100
   max_steps: 1000
 
   # default for the old map builder; new metta.map.mapgen requires false
