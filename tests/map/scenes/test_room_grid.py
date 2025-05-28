@@ -5,7 +5,7 @@ from metta.map.scenes.room_grid import RoomGrid
 from tests.map.scenes.utils import check_grid, scene_to_node
 
 
-def test_room_grid_compare():
+def test_exact():
     # Test creating a 2x3 grid of rooms
     scene = RoomGrid(rows=2, columns=3, border_width=1, border_object="wall")
     node = scene_to_node(scene, (10, 10))
@@ -27,7 +27,7 @@ def test_room_grid_compare():
     )
 
 
-def test_room_grid_with_rows_columns():
+def test_with_rows_columns():
     # Test creating a 2x3 grid of rooms
     scene = RoomGrid(rows=2, columns=3, border_width=1, border_object="wall")
     node = scene_to_node(scene, (10, 10))
@@ -45,7 +45,7 @@ def test_room_grid_with_rows_columns():
     assert all(pos[0] == "empty" and pos[1] == "empty" for pos in room_positions)
 
 
-def test_room_grid_with_layout():
+def test_with_layout():
     # Test creating rooms with a specific layout and tags
     layout = [["room1", "room2"], ["room3", "room4"]]
 
