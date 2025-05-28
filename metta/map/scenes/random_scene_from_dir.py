@@ -42,5 +42,5 @@ class RandomSceneFromDir(Scene):
             }
         ]
 
-    def _render(self, _):
+    def _render(self, node):
         pass
