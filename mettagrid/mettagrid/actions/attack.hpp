@@ -11,7 +11,8 @@
 
 class Attack : public ActionHandler {
 public:
-  explicit Attack(const ActionConfig& cfg, const std::string& action_name = "attack") : ActionHandler(cfg, action_name) {
+  explicit Attack(const ActionConfig& cfg, const std::string& action_name = "attack")
+      : ActionHandler(cfg, action_name) {
     priority = 1;
   }
 

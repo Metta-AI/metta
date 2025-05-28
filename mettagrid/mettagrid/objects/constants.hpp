@@ -24,8 +24,13 @@ enum GridLayer {
 // been trained on the old feature ids.
 // In the future, the string -> id mapping should be stored on a
 // per-policy basis.
-namespace ObservationFeatureId {
-enum ObservationFeature : uint8_t {
+//
+// NOTE: We use a namespace here to avoid naming collisions:
+// - 'TypeId' conflicts with the typedef uint8_t TypeId in grid_object.hpp
+// - 'Orientation' conflicts with the enum class Orientation defined above
+// The namespace allows us to use these descriptive names without conflicts.
+namespace ObservationFeature {
+enum ObservationFeatureEnum : uint8_t {
   TypeId = 1,
   Group = 2,
   Hp = 3,
@@ -33,9 +38,10 @@ enum ObservationFeature : uint8_t {
   Orientation = 5,
   Color = 6,
   ConvertingOrCoolingDown = 7,
-  Swappable = 8
+  Swappable = 8,
+  ObservationFeatureCount
 };
-}  // namespace ObservationFeatureId
+}  // namespace ObservationFeature
 
 const uint8_t InventoryFeatureOffset = 100;
 
@@ -61,8 +67,10 @@ enum ObjectType {
   ObjectTypeCount
 };
 
-const std::vector<std::string> ObjectTypeNames =
-    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"};
+constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {
+    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"}};
+
+const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
 
 enum InventoryItem {
   // These are "ore.red", etc everywhere else. They're differently named here because
@@ -78,8 +86,10 @@ enum InventoryItem {
   InventoryItemCount
 };
 
-const std::vector<std::string> InventoryItemNames =
-    {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"};
+constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {
+    {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"}};
+
+const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
 // Runtime validation function
 inline void ValidateConstants() {

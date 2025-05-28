@@ -181,7 +181,7 @@ canvas#global-canvas {
 #footer .right {
     position: absolute;
     display: flex;
-    width: 180px;
+    width: 303px;
     height: 32px;
     right: 20px;
     top: 50%;
@@ -194,7 +194,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #resources.hover-icon {
+.right #focus-toggle.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
@@ -204,41 +204,89 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-.right #tack.hover-icon {
+.right .sep1 {
     display: block;
-    width: 32px;
-    height: 32px;
+    width: 1px;
+    height: 16px;
     left: 37px;
+    top: 8px;
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.right #minimap-toggle.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 43px;
     top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
-.right #grid.hover-icon {
+.right #controls-toggle.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
-    left: 74px;
+    left: 80px;
     top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
-.right #eye.hover-icon {
+.right #info-toggle.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
-    left: 111px;
+    left: 117px;
     top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
-.right #cloud.hover-icon {
+.right .sep2 {
+    display: block;
+    width: 1px;
+    height: 16px;
+    left: 154px;
+    top: 8px;
+    background-color: rgba(255, 255, 255, 0.10);
+}
+
+.right #resources-toggle.hover-icon {
     display: block;
     width: 32px;
     height: 32px;
-    left: 148px;
+    left: 160px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #grid-toggle.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 197px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #visual-range-toggle.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 234px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.right #fog-of-war-toggle.hover-icon {
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 271px;
     top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
@@ -364,6 +412,28 @@ button#share-button.hover-icon .icon {
     overflow: hidden;
 }
 
+#header button#help-button.hover-icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    right: 58px;
+    top: 15px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+button#help-button.hover-icon .icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
 #modal {
     position: absolute;
     display: flex;
@@ -461,7 +531,7 @@ button#share-button.hover-icon .icon {
 #info-panel {
     position: absolute;
     display: flex;
-    width: 308px;
+    width: 170px;
     height: 257px;
     right: 0px;
     bottom: 192px;
@@ -497,7 +567,7 @@ button#share-button.hover-icon .icon {
     height: 178px;
     left: 0px;
     top: 849px;
-    background-color: rgba(0, 103, 2, 1.00);
+    background-color: rgba(0, 0, 0, 1.00);
     overflow: hidden;
 }
 

@@ -43,22 +43,22 @@ public:
     this->frozen = 0;
     this->freeze_duration = cfg["freeze_duration"];
     this->orientation = 0;
-    this->inventory.resize(InventoryItemCount);
+    this->inventory.resize(InventoryItem::InventoryItemCount);
     unsigned char default_item_max = cfg["default_item_max"];
-    this->max_items_per_type.resize(InventoryItemCount);
-    for (int i = 0; i < InventoryItemCount; i++) {
+    this->max_items_per_type.resize(InventoryItem::InventoryItemCount);
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (cfg.find(InventoryItemNames[i] + "_max") != cfg.end()) {
         this->max_items_per_type[i] = cfg[InventoryItemNames[i] + "_max"];
       } else {
         this->max_items_per_type[i] = default_item_max;
       }
     }
-    this->resource_rewards.resize(InventoryItemCount);
-    for (int i = 0; i < InventoryItemCount; i++) {
+    this->resource_rewards.resize(InventoryItem::InventoryItemCount);
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       this->resource_rewards[i] = rewards[InventoryItemNames[i]];
     }
-    this->resource_reward_max.resize(InventoryItemCount);
-    for (int i = 0; i < InventoryItemCount; i++) {
+    this->resource_reward_max.resize(InventoryItem::InventoryItemCount);
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       this->resource_reward_max[i] = rewards[InventoryItemNames[i] + "_max"];
     }
     this->action_failure_penalty = rewards["action_failure_penalty"];
@@ -96,7 +96,7 @@ public:
     }
 
     float new_reward = 0;
-    for (int i = 0; i < InventoryItemCount; i++) {
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       float max_val = static_cast<float>(this->inventory[i]);
       if (max_val > this->resource_reward_max[i]) {
         max_val = this->resource_reward_max[i];
@@ -113,13 +113,13 @@ public:
 
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.push_back({ObservationFeatureId::TypeId, _type_id});
-    features.push_back({ObservationFeatureId::Group, group});
-    features.push_back({ObservationFeatureId::Hp, hp});
-    features.push_back({ObservationFeatureId::Frozen, frozen});
-    features.push_back({ObservationFeatureId::Orientation, orientation});
-    features.push_back({ObservationFeatureId::Color, color});
-    for (int i = 0; i < InventoryItemCount; i++) {
+    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::Group, group});
+    features.push_back({ObservationFeature::Hp, hp});
+    features.push_back({ObservationFeature::Frozen, frozen});
+    features.push_back({ObservationFeature::Orientation, orientation});
+    features.push_back({ObservationFeature::Color, color});
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (inventory[i] > 0) {
         features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
       }
