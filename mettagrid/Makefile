@@ -1,11 +1,12 @@
-.PHONY: clean test build help
+.PHONY: clean test build help install
 
 # Default target
 help:
 	@echo "Available targets:"
-	@echo "  build - Build in debug mode"
-	@echo "  test  - Build and run all tests"
-	@echo "  clean - Clean all build artifacts"
+	@echo "  build   - Build in debug mode"
+	@echo "  test    - Build and run all tests"
+	@echo "  clean   - Clean all build artifacts"
+	@echo "  install - Install package in editable mode"
 
 # Build in debug mode
 build:
@@ -22,3 +23,8 @@ test: build
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf build-debug build-release
+
+# Install package in editable mode
+install:
+	@echo "Installing package in editable mode..."
+	uv pip install -e .

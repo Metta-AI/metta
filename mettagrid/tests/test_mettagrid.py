@@ -98,16 +98,15 @@ class TestObservations:
 
         obs, info = c_env.reset()
 
-        # obs shape should be [num_agents, num_tokens * 3] for flattened tokens
+        # obs shape should be [num_agents, num_tokens, 3]
         # Each token consists of [location, feature_id, value]
         print(f"Observation shape: {obs.shape}")
 
-        # Reshape to [num_agents, num_tokens, 3] for easier processing
-        num_agents = obs.shape[0]
-        num_tokens = obs.shape[1] // 3
-        obs_reshaped = obs.reshape(num_agents, num_tokens, 3)
+        # The observation is already in the correct shape
+        num_agents, num_tokens, _ = obs.shape
+        obs_reshaped = obs  # No need to reshape
 
-        print(f"Reshaped observation shape: {obs_reshaped.shape}")
+        print(f"Observation shape (already correct): {obs_reshaped.shape}")
         print(f"Agent 0 tokens:\n{obs_reshaped[0]}")
 
         # Agent 0 starts at (1,1) and should see walls above and to the left
