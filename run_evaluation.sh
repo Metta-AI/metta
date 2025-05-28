@@ -92,7 +92,7 @@ for i in "${!POLICIES[@]}"; do
         # device=cpu \
 
    python3 -m tools.sim \
-        sim=multi_agent \
+        sim=multiagent \
         run=multi_agent$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/multi_agent_db2 \
