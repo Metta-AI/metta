@@ -241,33 +241,33 @@ export function onFrame() {
   drawMap(ui.mapPanel);
 
   if (state.showMiniMap) {
-    ui.miniMapPanel.div.style.display = "block";
+    ui.miniMapPanel.div.classList.remove("hidden");
     ctx.useMesh("mini-map");
     drawMiniMap(ui.miniMapPanel);
   } else {
-    ui.miniMapPanel.div.style.display = "none";
+    ui.miniMapPanel.div.classList.add("hidden");
   }
 
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
 
   if (state.showInfo) {
-    ui.infoPanel.div.style.display = "block";
+    ui.infoPanel.div.classList.remove("hidden");
     updateReadout();
   } else {
-    ui.infoPanel.div.style.display = "none";
+    ui.infoPanel.div.classList.add("hidden");
   }
 
   if (state.showControls) {
-    html.actionButtons.style.display = "block";
+    html.actionButtons.classList.remove("hidden");
   } else {
-    html.actionButtons.style.display = "none";
+    html.actionButtons.classList.add("hidden");
   }
 
   if (state.showAgentPanel) {
-    ui.agentPanel.div.style.display = "block";
+    ui.agentPanel.div.classList.remove("hidden");
   } else {
-    ui.agentPanel.div.style.display = "none";
+    ui.agentPanel.div.classList.add("hidden");
   }
 
   ctx.flush();
@@ -416,6 +416,8 @@ onResize();
 html.modal.classList.add("hidden");
 html.toast.classList.add("hiding");
 html.actionButtons.classList.add("hidden");
+ui.infoPanel.div.classList.add("hidden");
+ui.agentPanel.div.classList.add("hidden");
 
 // Each panel has a div we use for event handling.
 // But rendering happens bellow on global canvas.
