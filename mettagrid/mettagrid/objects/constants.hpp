@@ -7,22 +7,29 @@
 
 #include "../grid_object.hpp"
 
-enum class EventType {
+enum EventType {
   FinishConverting = 0,
-  CoolDown = 1
+  CoolDown = 1,
+  EventTypeCount
 };
 
 enum GridLayer {
   Agent_Layer = 0,
-  Object_Layer = 1
+  Object_Layer = 1,
+  GridLayerCount
 };
 
 // Changing observation feature ids will break models that have
 // been trained on the old feature ids.
 // In the future, the string -> id mapping should be stored on a
 // per-policy basis.
-namespace ObservationFeatureId {
-enum ObservationFeature : uint8_t {
+//
+// NOTE: We use a namespace here to avoid naming collisions:
+// - 'TypeId' conflicts with the typedef uint8_t TypeId in grid_object.hpp
+// - 'Orientation' conflicts with the enum class Orientation defined above
+// The namespace allows us to use these descriptive names without conflicts.
+namespace ObservationFeature {
+enum ObservationFeatureEnum : uint8_t {
   TypeId = 1,
   Group = 2,
   Hp = 3,
@@ -31,8 +38,9 @@ enum ObservationFeature : uint8_t {
   Color = 6,
   ConvertingOrCoolingDown = 7,
   Swappable = 8,
+  ObservationFeatureCount
 };
-}  // namespace ObservationFeatureId
+}  // namespace ObservationFeature
 
 const uint8_t InventoryFeatureOffset = 100;
 
@@ -55,11 +63,13 @@ enum ObjectType {
   FactoryT = 8,
   TempleT = 9,
   GenericConverterT = 10,
-  Count = 11
+  ObjectTypeCount
 };
 
-const std::vector<std::string> ObjectTypeNames =
-    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"};
+constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {
+    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"}};
+
+const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
 
 enum InventoryItem {
   // These are "ore.red", etc everywhere else. They're differently named here because
@@ -72,11 +82,13 @@ enum InventoryItem {
   armor = 5,
   laser = 6,
   blueprint = 7,
-  InventoryCount = 8
+  InventoryItemCount
 };
 
-const std::vector<std::string> InventoryItemNames =
-    {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"};
+constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {
+    {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"}};
+
+const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
                                                   {ObjectType::WallT, GridLayer::Object_Layer},
