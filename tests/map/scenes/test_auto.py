@@ -3,7 +3,7 @@ from typing import cast
 from omegaconf import OmegaConf
 
 from metta.map.scenes.auto import Auto, AutoConfig
-from tests.map.scenes.utils import is_connected, scene_to_node
+from tests.map.scenes.utils import assert_connected, scene_to_node
 
 
 def test_basic():
@@ -31,4 +31,4 @@ def test_basic():
     scene = Auto(config=cast(AutoConfig, config))
     node = scene_to_node(scene, (10, 10))
 
-    assert is_connected(node.grid)
+    assert_connected(node.grid)

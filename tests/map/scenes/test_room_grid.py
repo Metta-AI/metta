@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from metta.map.scenes.room_grid import RoomGrid
-from tests.map.scenes.utils import check_grid, scene_to_node
+from tests.map.scenes.utils import assert_grid, scene_to_node
 
 
 def test_exact():
@@ -10,7 +10,7 @@ def test_exact():
     scene = RoomGrid(rows=2, columns=3, border_width=1, border_object="wall")
     node = scene_to_node(scene, (10, 10))
 
-    check_grid(
+    assert_grid(
         node,
         """
 |  #  #  ##|

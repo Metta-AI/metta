@@ -20,7 +20,7 @@ def scene_to_node(scene: Scene, shape: tuple[int, int]):
     return node
 
 
-def check_grid(node: Node, ascii_grid: str):
+def assert_grid(node: Node, ascii_grid: str):
     grid_lines = grid_to_ascii(node.grid)
     expected_lines, _, _ = bordered_text_to_lines(ascii_grid)
 
@@ -66,6 +66,6 @@ def is_connected(grid: MapGrid):
     return len(visited) == len(empty_cells)
 
 
-def check_connected(grid: MapGrid):
+def assert_connected(grid: MapGrid):
     if not is_connected(grid):
         pytest.fail("Grid is not connected:\n" + "\n".join(grid_to_ascii(grid, border=True)))

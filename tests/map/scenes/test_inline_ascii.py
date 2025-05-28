@@ -1,7 +1,7 @@
 import pytest
 
 from metta.map.scenes.inline_ascii import InlineAscii
-from tests.map.scenes.utils import check_grid, scene_to_node
+from tests.map.scenes.utils import assert_grid, scene_to_node
 
 
 def test_basic():
@@ -13,7 +13,7 @@ W   W
     )
     node = scene_to_node(scene, (3, 7))
 
-    check_grid(
+    assert_grid(
         node,
         """
 |# A #  |
@@ -31,7 +31,7 @@ def test_row_column():
     )
     node = scene_to_node(scene, (3, 7))
 
-    check_grid(
+    assert_grid(
         node,
         """
 |       |

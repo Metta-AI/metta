@@ -1,7 +1,7 @@
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.scenes.nop import Nop
 from metta.map.scenes.remove_agents import RemoveAgents
-from tests.map.scenes.utils import check_grid, scene_to_node
+from tests.map.scenes.utils import assert_grid, scene_to_node
 
 
 def test_basic():
@@ -19,7 +19,7 @@ def test_basic():
     )
     node = scene_to_node(scene, (3, 3))
 
-    check_grid(
+    assert_grid(
         node,
         """
             |###|
