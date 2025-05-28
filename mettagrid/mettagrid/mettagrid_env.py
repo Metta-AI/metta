@@ -56,8 +56,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
 
         self._reset_env()
-
-        self._num_agents = self._c_env.num_agents
         super().__init__(buf)
 
     def _make_episode_id(self):
@@ -76,11 +74,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._c_env = MettaGrid(config_dict, env_map)
         self._grid_env = self._c_env
-
-        env = self._grid_env
-
-        self._c_env = env
-        # self._c_env = RewardTracker(self._c_env)
 
     @override
     def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
@@ -124,7 +117,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def process_episode_stats(self, infos: Dict[str, Any]):
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
-        episode_rewards_mean = episode_rewards_sum / self._num_agents
+        episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 
         infos.update(
             {
@@ -162,7 +155,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             for n, v in agent_stats.items():
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
-            infos["agent"][n] = v / self._num_agents
+            infos["agent"][n] = v / self._c_env.num_agents
 
         replay_url = None
         if self._replay_writer:
@@ -224,7 +217,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     @required
     def num_agents(self):
-        return self._num_agents
+        return self._c_env.num_agents
 
     def render(self):
         if self._renderer is None:
