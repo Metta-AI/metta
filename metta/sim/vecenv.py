@@ -1,12 +1,12 @@
 import logging
 from typing import Optional
 
-import hydra
 import pufferlib
 import pufferlib.vector
-from omegaconf import DictConfig, ListConfig
 
 from metta.util.resolvers import register_resolvers
+from mettagrid.curriculum import Curriculum
+from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
@@ -14,7 +14,7 @@ logger = logging.getLogger("vecenv")
 
 
 def make_env_func(
-    cfg: DictConfig,
+    curriculum: Curriculum,
     buf=None,
     render_mode="rgb_array",
     stats_writer: Optional[StatsWriter] = None,
@@ -25,8 +25,13 @@ def make_env_func(
     register_resolvers()
 
     # Create the environment instance
-    env = hydra.utils.instantiate(
-        cfg, cfg, render_mode=render_mode, buf=buf, stats_writer=stats_writer, replay_writer=replay_writer, **kwargs
+    env = MettaGridEnv(
+        curriculum,
+        render_mode=render_mode,
+        buf=buf,
+        stats_writer=stats_writer,
+        replay_writer=replay_writer,
+        **kwargs,
     )
     # Ensure the environment is properly initialized
     if hasattr(env, "_c_env") and env._c_env is None:
@@ -35,7 +40,7 @@ def make_env_func(
 
 
 def make_vecenv(
-    env_cfg: DictConfig | ListConfig,
+    curriculum: Curriculum,
     vectorization: str,
     num_envs=1,
     batch_size=None,
@@ -60,7 +65,7 @@ def make_vecenv(
         raise ValueError(f"num_envs must be at least 1, got {num_envs}")
 
     env_kwargs = {
-        "cfg": env_cfg,
+        "curriculum": curriculum,
         "render_mode": render_mode,
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
