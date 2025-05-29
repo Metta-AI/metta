@@ -370,7 +370,7 @@ jobs:
           name: cpp-benchmark-results
           path: mettagrid/benchmark_output/*.json
           retention-days: 1
-
+            
   upload-benchmarks:
     name: "Process All Benchmarks"
     needs: [python-benchmark, cpp-benchmark, setup-checks]
@@ -397,6 +397,23 @@ jobs:
           path: ./benchmarks/
         continue-on-error: true
 
+      - name: Debug downloaded artifacts
+        shell: bash
+        run: |
+          echo "=== Checking downloaded artifacts ==="
+          ls -la ./benchmarks/ || echo "No benchmarks directory"
+          
+          echo "=== Python benchmark files content ==="
+          for file in ./benchmarks/main_benchmark_results.json ./benchmarks/mettagrid_benchmark_results.json; do
+            if [ -f "$file" ]; then
+              echo "--- $file ---"
+              echo "File size: $(wc -c < "$file") bytes"
+              head -20 "$file" || echo "Could not read $file"
+            else
+              echo "$file not found"
+            fi
+          done
+
       - name: Combine all benchmark results
         uses: ./.github/actions/combine-all-benchmarks
         with:
@@ -404,6 +421,39 @@ jobs:
           cpp_files: './benchmarks/*.json'
           output_file: 'unified_benchmark_results.json'
           bmf_output: 'special_metrics.bmf.json'
+
+      - name: Validate generated BMF files
+        shell: bash
+        run: |
+          echo "=== Validating generated BMF files ==="
+          
+          if [ -f "unified_benchmark_results.json" ]; then
+            if jq empty unified_benchmark_results.json; then
+              echo "✅ unified_benchmark_results.json is valid JSON"
+              echo "File size: $(wc -c < unified_benchmark_results.json) bytes"
+              echo "Number of benchmarks: $(jq 'length' unified_benchmark_results.json)"
+              echo "Sample benchmark names:"
+              jq -r 'keys[0:3][]' unified_benchmark_results.json || echo "No benchmarks found"
+            else
+              echo "❌ unified_benchmark_results.json is invalid JSON"
+              exit 1
+            fi
+          else
+            echo "❌ unified_benchmark_results.json not found"
+            exit 1
+          fi
+          
+          if [ -f "special_metrics.bmf.json" ]; then
+            if jq empty special_metrics.bmf.json; then
+              echo "✅ special_metrics.bmf.json is valid JSON"
+              echo "Number of special metric benchmarks: $(jq 'length' special_metrics.bmf.json)"
+            else
+              echo "❌ special_metrics.bmf.json is invalid JSON"
+              exit 1
+            fi
+          else
+            echo "⚠️  special_metrics.bmf.json not found (this is optional)"
+          fi
 
       - name: Check for performance improvements (all benchmarks)
         uses: ./.github/actions/call-bencher-api
@@ -422,3 +472,13 @@ jobs:
           mode: 'regressions'
           benchmark_file: 'unified_benchmark_results.json'
           bmf_file: 'special_metrics.bmf.json'
+
+      - name: Upload benchmark artifacts for debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-benchmark-results
+          path: |
+            unified_benchmark_results.json
+            special_metrics.bmf.json
+          retention-days: 7

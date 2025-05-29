@@ -1,5 +1,5 @@
 name: 'Run Unified Bencher Analysis'
-description: 'Run Bencher analysis on unified benchmark results'
+description: 'Run Bencher analysis on unified benchmark results in BMF format'
 inputs:
   bencher_token:
     description: 'Bencher API token'
@@ -11,10 +11,10 @@ inputs:
     description: 'Analysis mode: improvements or regressions'
     required: true
   benchmark_file:
-    description: 'Unified benchmark results file'
+    description: 'Unified benchmark results file (BMF format)'
     required: true
   bmf_file:
-    description: 'BMF file with special metrics'
+    description: 'BMF file with special metrics (optional)'
     required: false
   project_id:
     description: 'Bencher project ID'
@@ -56,9 +56,9 @@ runs:
       run: |
         echo "📊 Uploading baseline data to main branch..."
         
-        # Upload main benchmark results - use json adapter for unified format
+        # Upload main benchmark results - BMF format uses json adapter
         if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
-          echo "Uploading unified benchmark results..."
+          echo "Uploading unified benchmark results (BMF format)..."
           bencher run \
             --project ${{ inputs.project_id }} \
             --token "$BENCHER_API_TOKEN" \
@@ -71,14 +71,14 @@ runs:
             --testbed ubuntu-latest \
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
-            --file "${{ inputs.benchmark_file }}" > /dev/null
+            --file "${{ inputs.benchmark_file }}"
         else
           echo "⚠️  No benchmark file found or file is empty: ${{ inputs.benchmark_file }}"
         fi
         
-        # Upload special metrics if they exist
+        # Also upload special metrics with performance-specific thresholds if available
         if [ -f "${{ inputs.bmf_file }}" ] && [ -s "${{ inputs.bmf_file }}" ]; then
-          echo "Uploading special metrics..."
+          echo "Uploading special performance metrics..."
           bencher run \
             --project ${{ inputs.project_id }} \
             --token "$BENCHER_API_TOKEN" \
@@ -92,7 +92,7 @@ runs:
             --testbed ubuntu-latest \
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
-            --file "${{ inputs.bmf_file }}" > /dev/null
+            --file "${{ inputs.bmf_file }}"
         fi
 
     # PR: Improvements mode (non-failing)
@@ -109,7 +109,7 @@ runs:
       run: |
         echo "🔍 Checking for performance improvements..."
         
-        # Check latency improvements - use json adapter for unified format
+        # Check latency improvements (lower latency is better)
         if [ -f "${{ inputs.benchmark_file }}" ]; then
           echo "Checking latency improvements..."
           bencher run \
@@ -126,10 +126,10 @@ runs:
             --testbed ubuntu-latest \
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
-            --file "${{ inputs.benchmark_file }}" > /dev/null || true
+            --file "${{ inputs.benchmark_file }}" || true
         fi
         
-        # Check special metric improvements
+        # Check special metric improvements (higher is better for these metrics)
         if [ -f "${{ inputs.bmf_file }}" ] && [ -s "${{ inputs.bmf_file }}" ]; then
           echo "Checking special metric improvements..."
           bencher run \
@@ -147,7 +147,7 @@ runs:
             --testbed ubuntu-latest \
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
-            --file "${{ inputs.bmf_file }}" > /dev/null || true
+            --file "${{ inputs.bmf_file }}" || true
         fi
 
     # PR: Regressions mode (failing)
@@ -166,7 +166,7 @@ runs:
         
         exit_code=0
         
-        # Check latency regressions - use json adapter for unified format
+        # Check latency regressions (lower latency is better)
         if [ -f "${{ inputs.benchmark_file }}" ]; then
           echo "Checking latency regressions..."
           if ! bencher run \
@@ -186,7 +186,7 @@ runs:
           fi
         fi
         
-        # Check special metric regressions
+        # Check special metric regressions (higher is better for these metrics)
         if [ -f "${{ inputs.bmf_file }}" ] && [ -s "${{ inputs.bmf_file }}" ]; then
           echo "Checking special metric regressions..."
           if ! bencher run \
