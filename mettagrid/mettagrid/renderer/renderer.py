@@ -1,26 +1,14 @@
 from __future__ import annotations
 
-import shutil
 from typing import Dict, List
+
+from mettagrid.room.ascii import SYMBOLS as MAP_SYMBOLS
 
 
 class AsciiRenderer:
     """Simple ASCII renderer for ``MettaGridEnv``."""
 
-    SYMBOLS = {
-        "empty": " ",
-        "wall": "█",  # Full block character
-        "generator": "G",  # Changed from ⚙
-        "altar": "A",  # Changed from ⛩
-        "factory": "F",  # Changed from 🏭
-        "lab": "L",  # Changed from 🔬
-        "temple": "T",  # Changed from 🏰
-        "armory": "r",
-        "lasery": "l",
-        "mine": "g",
-        "converter": "c",
-        "agent": "A",
-    }
+    SYMBOLS = {v: k for k, v in MAP_SYMBOLS.items()}
 
     def __init__(self, object_type_names: List[str]):
         self._object_type_names = object_type_names
@@ -29,9 +17,6 @@ class AsciiRenderer:
         self._min_col = 0
         self._height = 0
         self._width = 0
-        self._terminal_height = 0
-        self._terminal_width = 0
-        self._update_terminal_size()
         self._last_buffer = None
         # Clear screen and hide cursor on init
         print("\033[?25l", end="")  # Hide cursor
@@ -41,15 +26,6 @@ class AsciiRenderer:
     def __del__(self):
         # Show cursor when renderer is destroyed
         print("\033[?25h", end="")
-
-    def _update_terminal_size(self):
-        """Update the terminal size information."""
-        try:
-            self._terminal_height, self._terminal_width = shutil.get_terminal_size()
-        except (AttributeError, OSError):
-            # Fallback if terminal size can't be determined
-            self._terminal_height = 24
-            self._terminal_width = 80
 
     def _compute_bounds(self, grid_objects: Dict[int, dict]):
         rows = []
