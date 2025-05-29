@@ -105,11 +105,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
-        if self._render_mode is not None:
-            from .renderer.renderer import AsciiRenderer
-
-            self._renderer = AsciiRenderer(self.object_type_names)
-
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         self._episode_id = self._make_episode_id()
