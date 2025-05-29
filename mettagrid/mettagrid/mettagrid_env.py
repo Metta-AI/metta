@@ -16,6 +16,7 @@ from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from mettagrid.util import validate_arg_types
 from mettagrid.util.hydra import simple_instantiate
 
 
@@ -32,6 +33,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     rewards: np.ndarray
     actions: np.ndarray
 
+    @validate_arg_types
     def __init__(
         self,
         env_cfg: DictConfig,
@@ -42,6 +44,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        if not isinstance(env_cfg, DictConfig):
+            raise TypeError(f"env_cfg must be an OmegaConf DictConfig, got {type(env_cfg)}")
+        if render_mode is not None and not isinstance(render_mode, str):
+            raise TypeError(f"render_mode must be str or None, got {type(render_mode)}")
+        if env_map is not None and not isinstance(env_map, np.ndarray):
+            raise TypeError(f"env_map must be a numpy.ndarray, got {type(env_map)}")
+        if stats_writer is not None and not isinstance(stats_writer, StatsWriter):
+            raise TypeError("stats_writer must be a StatsWriter instance or None")
+        if replay_writer is not None and not isinstance(replay_writer, ReplayWriter):
+            raise TypeError("replay_writer must be a ReplayWriter instance or None")
         self._render_mode = render_mode
         self._cfg_template = env_cfg
         self._env_cfg = self._get_new_env_cfg()
