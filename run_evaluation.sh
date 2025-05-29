@@ -56,12 +56,12 @@ for i in "${!POLICIES[@]}"; do
     echo "Running full sequence eval for policy $POLICY_URI"
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
-    python3 -m tools.sim \
-        sim=navigation \
-        run=navigation$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/navigation_db \
-        # device=cpu \
+    # python3 -m tools.sim \
+    #     sim=navigation \
+    #     run=navigation$IDX \
+    #     policy_uri=wandb://run/$POLICY_URI \
+    #     sim_job.stats_db_uri=wandb://stats/navigation_db \
+    #     # device=cpu \
 
     python3 -m tools.sim \
         sim=memory \
@@ -85,14 +85,14 @@ for i in "${!POLICIES[@]}"; do
         sim_job.stats_db_uri=wandb://stats/nav_sequence_db \
         # device=cpu \
 
-   python3 -m tools.sim \
-        sim=multiagent \
-        run=multi_agent$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/multi_agent_db \
+#    python3 -m tools.sim \
+#         sim=multiagent \
+#         run=multi_agent$IDX \
+#         policy_uri=wandb://run/$POLICY_URI \
+#         sim_job.stats_db_uri=wandb://stats/multi_agent_db \
         # device=cpu \
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigation_db2 ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
+#   python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigation_db2 ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
 
   python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db run=memory_db2 ++dashboard.output_path=s3://softmax-public/policydash/memory.html
 
@@ -100,6 +100,6 @@ for i in "${!POLICIES[@]}"; do
 
   python3 -m tools.dashboard +eval_db_uri=wandb://stats/nav_sequence_db run=nav_sequence_db2 ++dashboard.output_path=s3://softmax-public/policydash/nav_sequence.html
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/multi_agent_db run=multi_agent_db2 ++dashboard.output_path=s3://softmax-public/policydash/multiagent.html
+#   python3 -m tools.dashboard +eval_db_uri=wandb://stats/multi_agent_db run=multi_agent_db2 ++dashboard.output_path=s3://softmax-public/policydash/multiagent.html
 
 done
