@@ -31,7 +31,8 @@ game:
       width: ${sampling:20,60,50}
       height: ${sampling:20,60,50}
       border_width: ${sampling:1,6,3}
-      label: memory
+      labels:
+        - memory
       agents: 4
       style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
