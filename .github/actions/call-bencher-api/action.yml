@@ -12,7 +12,7 @@ inputs:
     required: true
   project_id:
     description: 'Bencher project ID'
-    default: 'mettagrid-sv3f5i2k'
+    default: 'metta'
 
 runs:
   using: 'composite'
