@@ -95,7 +95,7 @@ export function Heatmap({ data, selectedMetric, setSelectedCell, openReplayUrl }
       if (!cell) {
         return 0
       }
-      return cell.value / cell.num_agents
+      return cell.value
     })]
   )
 

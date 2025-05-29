@@ -4,7 +4,6 @@ export type HeatmapCell = {
   evalName: string;
   replayUrl: string | null;
   value: number;
-  num_agents: number;
 }
 
 export type HeatmapData = {
@@ -14,6 +13,13 @@ export type HeatmapData = {
   evalAverageScores: Map<string, number>;
   evalMaxScores: Map<string, number>;
 }
+
+export type GroupDiff = {
+  group_1: string;
+  group_2: string;
+}
+
+export type GroupHeatmapMetric = GroupDiff | string
 
 /**
  * Interface for data fetching.
@@ -26,7 +32,7 @@ export interface Repo {
   getMetrics(suite: string): Promise<string[]>;
   getGroupIds(suite: string): Promise<string[]>;
 
-  getHeatmapData(metric: string, suite: string, groupId: string): Promise<HeatmapData>;
+  getHeatmapData(metric: string, suite: string, groupMetric: GroupHeatmapMetric): Promise<HeatmapData>;
 }
 
 export class DataRepo implements Repo {
@@ -45,33 +51,38 @@ export class DataRepo implements Repo {
     return [...new Set(this.dashboardData.policy_evals.filter(row => row.suite === suite).flatMap(row => row.policy_eval_metrics.map(metric => metric.group_id)))].sort();
   }
 
-  async getHeatmapData(metric: string, suite: string, groupId: string): Promise<HeatmapData> {
+  async getHeatmapData(metric: string, suite: string, groupMetric: GroupHeatmapMetric): Promise<HeatmapData> {
     const evalNames = new Set<string>();
     const cells = new Map<string, Map<string, HeatmapCell>>();
     
     this.dashboardData.policy_evals.forEach((policyEval: PolicyEval) => {
       if (policyEval.suite === suite) {
         evalNames.add(policyEval.eval_name);
-        const relevantMetrics = policyEval.policy_eval_metrics.filter((m: PolicyEvalMetric) => m.metric === metric && (groupId === "" || m.group_id === groupId));
-        if (relevantMetrics.length > 0) {
-          let policyData = cells.get(policyEval.policy_uri);
-          if (!policyData) {
-            policyData = new Map<string, HeatmapCell>();
-            cells.set(policyEval.policy_uri, policyData);
-          }
-          const cell = {
-            evalName: policyEval.eval_name,
-            replayUrl: policyEval.replay_url,
-            value: 0,
-            num_agents: 0
-          }
-          policyData.set(policyEval.eval_name, cell);
-
-          relevantMetrics.forEach((m: PolicyEvalMetric) => {
-            cell.value += m.sum_value;
-            cell.num_agents += m.num_agents;
-          });
+        const relevantMetrics = policyEval.policy_eval_metrics.filter((m: PolicyEvalMetric) => m.metric === metric);
+        let value = 0;
+        if (typeof groupMetric === "string") {
+          const groupMetrics = relevantMetrics.filter((m: PolicyEvalMetric) => (groupMetric === "" || m.group_id === groupMetric));
+          const totalValue = groupMetrics.reduce((sum, m) => sum + m.sum_value, 0);
+          const totalAgents = groupMetrics.reduce((sum, m) => sum + m.num_agents, 0);
+          value = totalValue / totalAgents;
+        } else {
+          const group1Metric = relevantMetrics.find((m: PolicyEvalMetric) => m.group_id === groupMetric.group_1);
+          const group2Metric = relevantMetrics.find((m: PolicyEvalMetric) => m.group_id === groupMetric.group_2);
+          const group1Value = group1Metric ? group1Metric.sum_value / group1Metric.num_agents : 0;
+          const group2Value = group2Metric ? group2Metric.sum_value / group2Metric.num_agents : 0;
+          value = group1Value - group2Value;
         }
+
+        let policyData = cells.get(policyEval.policy_uri);
+        if (!policyData) {
+          policyData = new Map<string, HeatmapCell>();
+          cells.set(policyEval.policy_uri, policyData);
+        }
+        policyData.set(policyEval.eval_name, {
+          evalName: policyEval.eval_name,
+          replayUrl: policyEval.replay_url,
+          value: value,
+        });
       }
     });
 

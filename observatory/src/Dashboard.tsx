@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HeatmapData, Repo } from "./repo";
+import { GroupHeatmapMetric, HeatmapData, Repo } from "./repo";
 import { MapViewer } from "./MapViewer";
 import { Heatmap } from "./Heatmap";
 
@@ -64,8 +64,17 @@ export function Dashboard({ repo }: DashboardProps) {
   const [selectedSuite, setSelectedSuite] = useState<string>("navigation");
   const [isViewLocked, setIsViewLocked] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{policyUri: string, evalName: string} | null>(null);
-  const [availableGroupIds, setAvailableGroupIds] = useState<string[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>([]);
+  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>("");
+  
+  const parseGroupMetric = (label: string): GroupHeatmapMetric => {
+    if (label.includes(" - ")) {
+      const [group1, group2] = label.split(" - ");
+      return { group_1: group1, group_2: group2 };
+    } else {
+      return label;
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -84,7 +93,18 @@ export function Dashboard({ repo }: DashboardProps) {
         repo.getGroupIds(selectedSuite),
       ]);
       setMetrics(metricsData);
-      setAvailableGroupIds(["", ...groupIdsData]);
+
+      const groupDiffs: string[] = [];
+      for (const groupId1 of groupIdsData) {
+        for (const groupId2 of groupIdsData) {
+          if (groupId1 !== groupId2) {
+            groupDiffs.push(`${groupId1} - ${groupId2}`);
+          }
+        }
+      }
+
+      const groupMetrics: string[] = ["",  ...groupIdsData, ...groupDiffs];
+      setAvailableGroupMetrics(groupMetrics);
     };
 
     loadData();
@@ -95,13 +115,13 @@ export function Dashboard({ repo }: DashboardProps) {
       const heatmapData = await repo.getHeatmapData(
         selectedMetric,
         selectedSuite,
-        selectedGroupId
+        parseGroupMetric(selectedGroupMetric)
       );
       setHeatmapData(heatmapData);
     };
 
     loadData();
-  }, [selectedSuite, selectedMetric, selectedGroupId]);
+  }, [selectedSuite, selectedMetric, selectedGroupMetric]);
 
   if (!heatmapData) {
     return <div>Loading...</div>;
@@ -235,10 +255,10 @@ export function Dashboard({ repo }: DashboardProps) {
             gap: "12px",
           }}
         >
-          <div style={{ color: "#666", fontSize: "14px" }}>Group ID</div>
+          <div style={{ color: "#666", fontSize: "14px" }}>Group Metric</div>
           <select
-            value={selectedGroupId}
-            onChange={(e) => setSelectedGroupId(e.target.value)}
+            value={selectedGroupMetric}
+            onChange={(e) => setSelectedGroupMetric(e.target.value)}
             style={{
               padding: "8px 12px",
               borderRadius: "4px",
@@ -249,9 +269,9 @@ export function Dashboard({ repo }: DashboardProps) {
               cursor: "pointer",
             }}
           >
-            {availableGroupIds.map((groupId) => (
-              <option key={groupId} value={groupId}>
-                {groupId}
+            {availableGroupMetrics.map((groupMetric) => (
+              <option key={groupMetric} value={groupMetric}>
+                {groupMetric === "" ? "Total" : groupMetric}
               </option>
             ))}
           </select>
