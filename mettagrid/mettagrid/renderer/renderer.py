@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from typing import Dict, List
 
 
@@ -8,12 +9,12 @@ class AsciiRenderer:
 
     SYMBOLS = {
         "empty": " ",
-        "wall": "🧱",
-        "generator": "⚙",
-        "altar": "⛩",
-        "factory": "🏭",
-        "lab": "🔬",
-        "temple": "🏰",
+        "wall": "█",  # Full block character
+        "generator": "G",  # Changed from ⚙
+        "altar": "A",  # Changed from ⛩
+        "factory": "F",  # Changed from 🏭
+        "lab": "L",  # Changed from 🔬
+        "temple": "T",  # Changed from 🏰
         "armory": "r",
         "lasery": "l",
         "mine": "g",
@@ -28,6 +29,27 @@ class AsciiRenderer:
         self._min_col = 0
         self._height = 0
         self._width = 0
+        self._terminal_height = 0
+        self._terminal_width = 0
+        self._update_terminal_size()
+        self._last_buffer = None
+        # Clear screen and hide cursor on init
+        print("\033[?25l", end="")  # Hide cursor
+        print("\033[2J", end="")  # Clear screen
+        print("\033[H", end="")  # Move to home position
+
+    def __del__(self):
+        # Show cursor when renderer is destroyed
+        print("\033[?25h", end="")
+
+    def _update_terminal_size(self):
+        """Update the terminal size information."""
+        try:
+            self._terminal_height, self._terminal_width = shutil.get_terminal_size()
+        except (AttributeError, OSError):
+            # Fallback if terminal size can't be determined
+            self._terminal_height = 24
+            self._terminal_width = 80
 
     def _compute_bounds(self, grid_objects: Dict[int, dict]):
         rows = []
@@ -69,4 +91,17 @@ class AsciiRenderer:
             if 0 <= r < self._height and 0 <= c < self._width:
                 grid[r][c] = self._symbol_for(obj)
         lines = ["".join(row) for row in grid]
-        return "\n".join(lines)
+
+        # Create current buffer
+        current_buffer = "\n".join(lines)
+
+        # If this is the first render or the buffer has changed
+        if self._last_buffer is None or current_buffer != self._last_buffer:
+            # Move to home position
+            print("\033[H", end="")
+            # Print the new buffer
+            print(current_buffer, end="", flush=True)
+            # Update last buffer
+            self._last_buffer = current_buffer
+
+        return current_buffer
