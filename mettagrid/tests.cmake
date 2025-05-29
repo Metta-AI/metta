@@ -33,6 +33,12 @@ execute_process(
   OUTPUT_VARIABLE PYTHONHOME
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
+# Get Python site-packages directory
+execute_process(
+  COMMAND ${Python3_EXECUTABLE} -c "import site; print(site.getsitepackages()[0])"
+  OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 # Helper function to build tests and benchmarks.
 function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
          LINK_LIBS # semicolon-separated list of target names
@@ -62,10 +68,14 @@ function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/te
 
     if(TEST_TYPE STREQUAL "test")
       add_test(NAME ${output_name} COMMAND ${output_name} --gtest_color=yes)
-      set_tests_properties(${output_name} PROPERTIES ENVIRONMENT "PYTHONHOME=${PYTHONHOME}" LABELS "test")
+      set_tests_properties(${output_name} PROPERTIES 
+        ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES}"
+        LABELS "test")
     elseif(TEST_TYPE STREQUAL "benchmark")
       add_test(NAME ${output_name} COMMAND ${output_name})
-      set_tests_properties(${output_name} PROPERTIES ENVIRONMENT "PYTHONHOME=${PYTHONHOME}" LABELS "benchmark")
+      set_tests_properties(${output_name} PROPERTIES 
+        ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES}"
+        LABELS "benchmark")
     else()
       message(FATAL_ERROR "Invalid test type: ${TEST_TYPE}")
     endif()
