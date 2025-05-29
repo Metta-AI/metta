@@ -44,7 +44,7 @@ runs:
                 
                 bench_metrics = {}
                 
-                kpis = ["agent_steps_per_second", "env_steps_per_second"]
+                kpis = ["agent_rate", "env_rate"]
                 
                 for kpi_name in kpis:
                     if kpi_name in extra_info and isinstance(extra_info[kpi_name], (int, float)):
@@ -69,8 +69,8 @@ runs:
                 # Check if counters are in user_counters or directly in bench
                 counters = bench.get("user_counters", bench)
                 
-                # Extract custom counters (agent_steps_per_second, env_steps_per_second)
-                kpis = ["agent_steps_per_second", "env_steps_per_second"]
+                # Extract custom counters (agent_rate, env_rate)
+                kpis = ["agent_rate", "env_rate"]
                 
                 for kpi_name in kpis:
                     if kpi_name in counters:

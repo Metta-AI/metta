@@ -84,8 +84,8 @@ runs:
           
           # Core throughput KPIs (higher is better - alert only on regressions)
           declare -A THROUGHPUT_METRICS=(
-            ["agent_steps_per_second"]="Main agent performance KPI"
-            ["env_steps_per_second"]="Main environment performance KPI"
+            ["agent_rate"]="Main agent performance KPI"
+            ["env_rate"]="Main environment performance KPI"
           )
           
           for metric in "${!THROUGHPUT_METRICS[@]}"; do
@@ -123,8 +123,8 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         echo "📊 Checking for performance improvements (informational only)..."
-        echo "- agent_steps_per_second: Checking for >20% improvements" 
-        echo "- env_steps_per_second: Checking for >20% improvements"
+        echo "- agent_rate: Checking for >20% improvements" 
+        echo "- env_rate: Checking for >20% improvements"
 
         if [ -f "${{ inputs.benchmark_file }}" ]; then
           # Create a temporary branch name for improvement detection
@@ -137,8 +137,8 @@ runs:
             --branch "$IMPROVEMENT_BRANCH" \
             --start-point main \
             --start-point-reset \
-            --threshold-measure "agent_steps_per_second" \
-            --threshold-measure "env_steps_per_second" \
+            --threshold-measure "agent_rate" \
+            --threshold-measure "env_rate" \
             --threshold-test percentage \
             --threshold-max-sample-size 2 \
             --threshold-upper-boundary 0.20 \
@@ -165,8 +165,8 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         echo "🚨 Checking for performance regressions (will fail if detected)..."
-        echo "- agent_steps_per_second: Will fail if >20% slower than baseline" 
-        echo "- env_steps_per_second: Will fail if >20% slower than baseline"
+        echo "- agent_rate: Will fail if >20% slower than baseline" 
+        echo "- env_rate: Will fail if >20% slower than baseline"
 
         if [ -f "${{ inputs.benchmark_file }}" ]; then
           # This run will fail the CI if regressions are detected

@@ -14,9 +14,14 @@ def cfg():
 
 
 @pytest.fixture
-def environment(cfg):
-    """Create and initialize the environment."""
+def environment(cfg, num_agents):
+    """Create and initialize the environment with specified number of agents."""
+    # Override the number of agents in the configuration
+    cfg.env.num_agents = num_agents
+
+    print(f"\nConfiguring environment with {num_agents} agents")
     print(OmegaConf.to_yaml(cfg))
+
     env = MettaGridEnv(cfg, render_mode="human", recursive=False)
     env.reset()
     yield env
@@ -44,13 +49,17 @@ def action_generator(environment):
     return generate_actions
 
 
-def test_step_performance(benchmark, environment, action_generator):
+@pytest.mark.parametrize("num_agents", [1, 2, 4, 8, 16])
+def test_step_performance(benchmark, environment, action_generator, num_agents):
     """
     Benchmark pure step method performance without reset overhead.
 
     CRITICAL ASSUMPTION: Episodes last longer than benchmark iterations.
     This test measures raw step performance by avoiding resets during timing.
     Uses deterministically random actions.
+
+    Args:
+        num_agents: Number of agents to test (parametrized: 1, 2, 4, 8, 16)
     """
     env = environment
 
@@ -84,18 +93,55 @@ def test_step_performance(benchmark, environment, action_generator):
 
     # Calculate throughput KPIs from timing
     ops_kilo = benchmark.stats["ops"]
-    env_steps_per_second = ops_kilo * 1000.0
-    agent_steps_per_second = env_steps_per_second * env.num_agents
+    env_rate = ops_kilo * 1000.0
+    agent_rate = env_rate * env.num_agents
 
-    print("\nPure Step Performance Results:")
+    print(f"\nPure Step Performance Results ({num_agents} agents):")
     print(f"Latency: {benchmark.stats['mean']:.6f} seconds")
-    print(f"Environment steps per second: {env_steps_per_second:.2f}")
-    print(f"Agent steps per second: {agent_steps_per_second:.2f}")
+    print(f"Environment rate (steps per second): {env_rate:.2f}")
+    print(f"Agent rate (steps per second): {agent_rate:.2f}")
 
     # Report KPIs
     benchmark.extra_info.update(
         {
-            "env_steps_per_second": env_steps_per_second,
-            "agent_steps_per_second": agent_steps_per_second,
+            "env_rate": env_rate,
+            "agent_rate": agent_rate,
         }
     )
+
+
+def test_create_env_performance(benchmark, cfg):
+    """
+    Benchmark environment creation.
+
+    This test measures the time to create a new environment instance
+    and perform a reset operation.
+
+    """
+
+    def create_and_reset():
+        """Create a new environment and reset it."""
+        env = MettaGridEnv(cfg, render_mode="human", recursive=False)
+        obs = env.reset()
+        # Cleanup
+        del env
+        return obs
+
+    # Run the benchmark
+    benchmark.pedantic(
+        create_and_reset,
+        iterations=100,
+        rounds=10,
+        warmup_rounds=2,
+    )
+
+    # Calculate KPIs
+    create_reset_time = benchmark.stats["mean"]
+    env_rate = 1.0 / create_reset_time
+
+    print("\nCreate & Reset Performance Results:")
+    print(f"Create + Reset time: {create_reset_time:.6f} seconds")
+    print(f"Create + Reset operations per second: {env_rate:.2f}")
+
+    # Report KPIs
+    benchmark.extra_info.update({"env_rate": env_rate})
