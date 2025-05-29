@@ -63,9 +63,6 @@
 			}
 		},
 		"terminal.integrated.cwd": "${workspaceFolder}",
-		"terminal.integrated.splitCwd": "workspaceRoot",
-		"cSpell.words": [
-			"verview"
-		]
+		"terminal.integrated.splitCwd": "workspaceRoot"
 	}
 }
