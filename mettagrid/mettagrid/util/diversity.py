@@ -37,7 +37,7 @@ def calculate_diversity_bonus(
     group_stds = {g: np.std(episode_rewards[group_ids == g]) + 1e-6 for g in unique_groups}
 
     # Initialize scaling factors array
-    diversity_factors = np.ones_like(episode_rewards)
+    diversity_factors = np.ones_like(episode_rewards, dtype=float)
 
     # Calculate scaling factor for each agent
     for agent_idx in range(num_agents):
