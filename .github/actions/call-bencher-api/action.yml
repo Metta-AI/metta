@@ -48,12 +48,8 @@ runs:
         BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        echo "📊 Uploading baseline data with 3-measure thresholds..."
-        echo "Measures: latency (built-in), agent_steps_per_second, env_steps_per_second"
-
         if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
-          echo "🏷️  Creating measures with proper units..."
-          
+
           # Create measures with proper units (idempotent)
           bencher measure create \
             --project ${{ inputs.project_id }} \
@@ -69,8 +65,7 @@ runs:
             --slug "env_steps_per_second" \
             --units "steps/sec" 2>/dev/null || echo "Measure env_steps_per_second already exists"
           
-          echo "🎯 Setting up ultra-simple thresholds..."
-          
+  
           # Built-in latency measure (lower is better - alert on increases)
           echo "Setting upper threshold for latency (built-in timing measure)"
           bencher run \
@@ -84,7 +79,7 @@ runs:
             --testbed ubuntu-latest \
             --adapter json \
             --github-actions "$GITHUB_TOKEN" \
-            --file "${{ inputs.benchmark_file }}" || echo "⚠️  Could not set latency threshold"
+            --file "${{ inputs.benchmark_file }}" || echo "⚠️ Could not set latency threshold"
           
           # Core throughput KPIs (higher is better - alert on ANY 20% change)
           declare -A THROUGHPUT_METRICS=(
@@ -109,9 +104,9 @@ runs:
               --file "${{ inputs.benchmark_file }}" || echo "⚠️  Could not set threshold for $metric"
           done
           
-          echo "✅ Ultra-simple 3-measure thresholds configured with proper units"
+          echo "✅ Thresholds configured"
         else
-          echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
+          echo "⚠️ No benchmark file found: ${{ inputs.benchmark_file }}"
         fi
 
     # PR: Check for significant changes in the 3 core measures
@@ -125,15 +120,13 @@ runs:
         BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        echo "🚨 Checking for significant changes in 3 core measures..."
+        echo "🚨 Checking for significant changes..."
         echo "- latency: ±20% timing changes"
         echo "- agent_steps_per_second: ±20% throughput changes" 
         echo "- env_steps_per_second: ±20% throughput changes"
 
         if [ -f "${{ inputs.benchmark_file }}" ]; then
-          echo "Running performance check with ultra-simple thresholds..."
-          
-          # Single run that checks all 3 measures using pre-configured thresholds
+        
           bencher run \
             --project ${{ inputs.project_id }} \
             --token "$BENCHER_API_TOKEN" \

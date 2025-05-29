@@ -1,5 +1,5 @@
 name: "Combine All Benchmark Results"
-description: "Combine Python and C++ benchmark results into unified BMF format"
+description: "Combine Python and C++ benchmark results into unified bencher BMF format"
 inputs:
   python_files:
     description: "Comma-separated Python benchmark files"
@@ -131,7 +131,7 @@ runs:
 
         # Write unified results in BMF format
         if len(unified_results) == 0:
-            print("⚠️  Warning: No benchmarks found to combine!")
+            print("⚠️ Warning: No benchmarks found to combine!")
             # Create empty BMF object
             with open('${{ inputs.output_file }}', 'w') as f:
                 json.dump({}, f)
@@ -140,7 +140,7 @@ runs:
                 json.dump(unified_results, f, indent=2)
 
         print(f"✅ Combined {len(unified_results)} benchmarks in BMF format")
-        print("📊 Using 3 core measures: latency, agent_steps_per_second, env_steps_per_second")
+        print("📊 Using 3 measures: latency, agent_steps_per_second, env_steps_per_second")
 
         # Debug: Print sample of what we generated
         if unified_results:
