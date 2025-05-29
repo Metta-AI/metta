@@ -5,6 +5,7 @@ import random
 import numpy as np
 import psutil
 import pytest
+from hydra import compose, initialize
 
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -46,7 +47,7 @@ def get_memory_usage():
     return process.memory_info().rss / (1024 * 1024)  # Convert to MB
 
 
-def test_mettagrid_env_no_memory_leaks():
+def test_mettagrid_env_no_memory_leaks(cfg):
     """
     Test that the MettaGridEnv can be reset multiple times without memory leaks.
     Uses a binning strategy to detect true memory growth while ignoring outliers.
@@ -60,7 +61,9 @@ def test_mettagrid_env_no_memory_leaks():
     np.random.seed(TEST_SEED)
     random.seed(TEST_SEED)
 
-    for i in range(num_iterations):
+    num_iterations = 20  # Increase this for more thorough testing
+
+    for _ in range(num_iterations):
         # Create the environment
         curriculum = SingleTaskCurriculum("test", cfg)
         env = MettaGridEnv(curriculum, render_mode=None)
@@ -85,10 +88,11 @@ def test_mettagrid_env_no_memory_leaks():
     memory_readings = []
 
     for i in range(num_iterations):
-        env = MettaGridEnv(env_cfg=cfg, render_mode=None)
+        curriculum = SingleTaskCurriculum("test", cfg)
+        env = MettaGridEnv(curriculum, render_mode=None)
 
         # Do multiple resets
-        for _j in range(3):
+        for _ in range(3):
             _obs, _infos = env.reset()
 
         if hasattr(env, "close"):
