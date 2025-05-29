@@ -82,14 +82,15 @@ runs:
       run: |
         if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
           
-          # Core throughput KPIs (higher is better - alert on ANY 20% change)
+          # Core throughput KPIs (higher is better - alert only on regressions)
           declare -A THROUGHPUT_METRICS=(
             ["agent_steps_per_second"]="Main agent performance KPI"
             ["env_steps_per_second"]="Main environment performance KPI"
           )
           
           for metric in "${!THROUGHPUT_METRICS[@]}"; do
-            echo "Setting bidirectional threshold for ${THROUGHPUT_METRICS[$metric]}: $metric"
+            echo "Setting regression threshold for ${THROUGHPUT_METRICS[$metric]}: $metric"
+            echo "Will alert if performance drops by more than 20%"
             bencher run \
               --project ${{ inputs.project_id }} \
               --token "$BENCHER_API_TOKEN" \
@@ -98,20 +99,19 @@ runs:
               --threshold-test percentage \
               --threshold-max-sample-size 2 \
               --threshold-lower-boundary 0.20 \
-              --threshold-upper-boundary 0.20 \
               --testbed ubuntu-latest \
               --adapter json \
               --github-actions "$GITHUB_TOKEN" \
               --file "${{ inputs.benchmark_file }}" || echo "⚠️  Could not set threshold for $metric"
           done
           
-          echo "✅ Thresholds configured"
+          echo "✅ Regression thresholds configured (20% performance drop triggers alert)"
         else
           echo "⚠️ No benchmark file found: ${{ inputs.benchmark_file }}"
         fi
 
-    # PR: Check for significant changes
-    - name: Check for significant changes in KPIs
+    # PR: First check for improvements (informational only)
+    - name: Check for performance improvements in KPIs
       if: |
         github.event_name == 'pull_request' &&
         !github.event.pull_request.head.repo.fork &&
@@ -122,12 +122,54 @@ runs:
         BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        echo "🚨 Checking for significant changes..."
-        echo "- agent_steps_per_second: ±20% throughput changes" 
-        echo "- env_steps_per_second: ±20% throughput changes"
+        echo "📊 Checking for performance improvements (informational only)..."
+        echo "- agent_steps_per_second: Checking for >20% improvements" 
+        echo "- env_steps_per_second: Checking for >20% improvements"
 
         if [ -f "${{ inputs.benchmark_file }}" ]; then
+          # Create a temporary branch name for improvement detection
+          IMPROVEMENT_BRANCH="${GITHUB_HEAD_REF}-improvements"
+          
+          # Run without --err to just report improvements
+          bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$IMPROVEMENT_BRANCH" \
+            --start-point main \
+            --start-point-reset \
+            --threshold-measure "agent_steps_per_second" \
+            --threshold-measure "env_steps_per_second" \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-upper-boundary 0.20 \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.benchmark_file }}" || echo "📈 Performance improvements detected!"
+            
+          echo "✅ Improvement check completed"
+        else
+          echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
+        fi
 
+    # PR: Then check for regressions (fail on detection)
+    - name: Check for performance regressions in KPIs
+      if: |
+        github.event_name == 'pull_request' &&
+        !github.event.pull_request.head.repo.fork &&
+        steps.check-main.outputs.main_exists == 'true' &&
+        steps.check-main.outputs.main_has_data == 'true'
+      shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        echo "🚨 Checking for performance regressions (will fail if detected)..."
+        echo "- agent_steps_per_second: Will fail if >20% slower than baseline" 
+        echo "- env_steps_per_second: Will fail if >20% slower than baseline"
+
+        if [ -f "${{ inputs.benchmark_file }}" ]; then
+          # This run will fail the CI if regressions are detected
           bencher run \
             --project ${{ inputs.project_id }} \
             --token "$BENCHER_API_TOKEN" \
@@ -141,7 +183,7 @@ runs:
             --github-actions "$GITHUB_TOKEN" \
             --file "${{ inputs.benchmark_file }}"
             
-          echo "✅ No significant changes detected in KPIs"
+          echo "✅ No performance regressions detected in KPIs"
         else
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
           exit 1
