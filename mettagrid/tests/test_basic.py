@@ -49,7 +49,7 @@ class TestEnvironmentFunctionality:
 
     def test_env_initialization(self, environment):
         """Test environment initialization."""
-        assert environment._renderer is None
+        assert environment._renderer is not None
         assert environment._c_env is not None
         assert environment._grid_env is not None
         assert environment._c_env == environment._grid_env
