@@ -7,9 +7,6 @@
       "style": {
         "useBlockStatements": "off",
         "useSingleVarDeclarator": "off"
-      },
-      "complexity": {
-        "noExcessiveCognitiveComplexity": "off"
       }
     }
   },
