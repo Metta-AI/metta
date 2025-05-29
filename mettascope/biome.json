@@ -6,6 +6,9 @@
     "rules": {
       "style": {
         "useSingleVarDeclarator": "off"
+      },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "off"
       }
     }
   },
