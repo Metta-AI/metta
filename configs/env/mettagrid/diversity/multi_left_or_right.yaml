@@ -33,5 +33,5 @@ game:
       rows: 8
       columns: 8
       total_altars: 4     # Total number of altars in each room
-      altar_ratio: 0.75   # One side of the room with have more altars, which side is random. 
+      altar_ratio: 0.75   # One side of the room will have more altars, which side is random. 
                           # altar_ratio sets how many of the total altars will be on the side with more.
