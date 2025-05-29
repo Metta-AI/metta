@@ -11,6 +11,7 @@ from omegaconf import OmegaConf
 from pufferlib.utils import unroll_nested_dict
 from typing_extensions import override
 
+from metta.util import validate_arg_types
 from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
@@ -32,6 +33,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     rewards: np.ndarray
     actions: np.ndarray
 
+    @validate_arg_types
     def __init__(
         self,
         curriculum: Curriculum,
@@ -42,16 +44,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
-        if not isinstance(env_cfg, DictConfig):
-            raise TypeError(f"env_cfg must be an OmegaConf DictConfig, got {type(env_cfg)}")
-        if render_mode is not None and not isinstance(render_mode, str):
-            raise TypeError(f"render_mode must be str or None, got {type(render_mode)}")
-        if env_map is not None and not isinstance(env_map, np.ndarray):
-            raise TypeError(f"env_map must be a numpy.ndarray, got {type(env_map)}")
-        if stats_writer is not None and not isinstance(stats_writer, StatsWriter):
-            raise TypeError("stats_writer must be a StatsWriter instance or None")
-        if replay_writer is not None and not isinstance(replay_writer, ReplayWriter):
-            raise TypeError("replay_writer must be a ReplayWriter instance or None")
         self._render_mode = render_mode
         self._curriculum = curriculum
         self._task = self._curriculum.get_task()
@@ -87,7 +79,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
         assert self._task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {self._task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
+            f"Number of agents {self._task.env_cfg().game.num_agents} "
+            f"does not match number of agents in map {level_agents}"
         )
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
@@ -133,7 +126,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
             self._should_reset = True
-            self._task.complete(self.rewards.mean())
+            self._task.complete(self._c_env.get_episode_rewards().mean())
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
@@ -149,6 +142,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "episode/reward.min": episode_rewards.min(),
                 "episode/reward.max": episode_rewards.max(),
                 "episode_length": self._c_env.current_step,
+                f"task/{self._task.name()}/reward": episode_rewards_mean,
             }
         )
 

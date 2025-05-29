@@ -1,15 +1,18 @@
 import pytest
 from omegaconf import OmegaConf
+from omegaconf.errors import ConfigAttributeError
 
+from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 
 
 def test_invalid_env_map_type_raises():
     cfg = OmegaConf.create({})
-    with pytest.raises(TypeError):
-        MettaGridEnv(cfg, render_mode=None, env_map={})
+    curriculum = SingleTaskCurriculum("test", cfg)
+    with pytest.raises(ConfigAttributeError):
+        MettaGridEnv(curriculum, render_mode=None, env_map={})
 
 
 def test_invalid_env_cfg_type_raises():
-    with pytest.raises(TypeError):
+    with pytest.raises(AssertionError):
         MettaGridEnv({}, render_mode=None)
