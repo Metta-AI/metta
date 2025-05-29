@@ -32,15 +32,31 @@ runs:
       run: |
         # Run the command and capture output
         if bencher branch view ${{ inputs.project_id }} main --token "$BENCHER_API_TOKEN" > /tmp/branch_output.json 2>/dev/null; then
-          # Check if branch has benchmark data (head field)
-          if jq -e '.head' /tmp/branch_output.json > /dev/null; then
-            echo "main_exists=true" >> $GITHUB_OUTPUT
-            echo "main_has_data=true" >> $GITHUB_OUTPUT
-            echo "✅ Main branch exists and has benchmark data"
+          echo "Branch info retrieved, checking for benchmark data..."
+          
+          # Debug: show what we got
+          echo "Branch data:"
+          cat /tmp/branch_output.json | jq '.'
+          
+          # Check if branch has valid benchmark data
+          # We need to check if head exists AND is not null AND has actual benchmark data
+          if jq -e '.head != null' /tmp/branch_output.json > /dev/null; then
+            # Try to verify the head actually has accessible data by checking for thresholds
+            if bencher threshold list ${{ inputs.project_id }} \
+                --branch main \
+                --token "$BENCHER_API_TOKEN" > /tmp/thresholds.json 2>/dev/null; then
+              echo "main_exists=true" >> $GITHUB_OUTPUT
+              echo "main_has_data=true" >> $GITHUB_OUTPUT
+              echo "✅ Main branch exists and has benchmark data with thresholds"
+            else
+              echo "main_exists=true" >> $GITHUB_OUTPUT
+              echo "main_has_data=false" >> $GITHUB_OUTPUT
+              echo "⚠️ Main branch exists but thresholds/data not accessible yet"
+            fi
           else
             echo "main_exists=true" >> $GITHUB_OUTPUT
             echo "main_has_data=false" >> $GITHUB_OUTPUT
-            echo "⚠️ Main branch exists but has no benchmark data yet"
+            echo "⚠️ Main branch exists but has no benchmark data yet (head is null)"
           fi
         else
           echo "main_exists=false" >> $GITHUB_OUTPUT
