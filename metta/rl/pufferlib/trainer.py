@@ -9,7 +9,7 @@ import torch
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from pufferlib.utils import profile
+from pufferlib.utils import profile, unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -29,7 +29,6 @@ from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulati
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
-from metta.util.datastruct import flatten_config
 from mettagrid.mettagrid_env import MettaGridEnv
 
 torch.set_float32_matmul_precision("high")
@@ -393,7 +392,7 @@ class PufferTrainer:
                 self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
                 for i in info:
-                    for k, v in flatten_config(i):
+                    for k, v in unroll_nested_dict(i):
                         infos[k].append(v)
 
             with profile.env:
