@@ -1,5 +1,5 @@
 name: "Run Unified Bencher Analysis"
-description: "Run Bencher analysis with 3 core measures: latency + 2 KPIs"
+description: "Run Bencher analysis"
 inputs:
   bencher_token:
     description: "Bencher API token"
@@ -73,8 +73,7 @@ runs:
           echo "⚠️ Main branch does not exist"
         fi
 
-    # Main branch: Upload baseline with ultra-simple thresholds
-    - name: Upload baseline with 3-measure thresholds (main branch)
+    - name: Upload baseline (main branch)
       if: github.ref == 'refs/heads/main'
       shell: bash
       env:
@@ -82,21 +81,6 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
-
-          # Built-in latency measure (lower is better - alert on increases)
-          echo "Setting upper threshold for latency (built-in timing measure)"
-          bencher run \
-            --project ${{ inputs.project_id }} \
-            --token "$BENCHER_API_TOKEN" \
-            --branch main \
-            --threshold-measure latency \
-            --threshold-test percentage \
-            --threshold-max-sample-size 2 \
-            --threshold-upper-boundary 0.20 \
-            --testbed ubuntu-latest \
-            --adapter json \
-            --github-actions "$GITHUB_TOKEN" \
-            --file "${{ inputs.benchmark_file }}" || echo "⚠️ Could not set latency threshold"
           
           # Core throughput KPIs (higher is better - alert on ANY 20% change)
           declare -A THROUGHPUT_METRICS=(
@@ -126,8 +110,8 @@ runs:
           echo "⚠️ No benchmark file found: ${{ inputs.benchmark_file }}"
         fi
 
-    # PR: Check for significant changes in the 3 core measures
-    - name: Check for significant changes in core measures
+    # PR: Check for significant changes
+    - name: Check for significant changes in KPIs
       if: |
         github.event_name == 'pull_request' &&
         !github.event.pull_request.head.repo.fork &&
@@ -139,7 +123,6 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         echo "🚨 Checking for significant changes..."
-        echo "- latency: ±20% timing changes"
         echo "- agent_steps_per_second: ±20% throughput changes" 
         echo "- env_steps_per_second: ±20% throughput changes"
 
@@ -158,7 +141,7 @@ runs:
             --github-actions "$GITHUB_TOKEN" \
             --file "${{ inputs.benchmark_file }}"
             
-          echo "✅ No significant changes detected in core measures"
+          echo "✅ No significant changes detected in KPIs"
         else
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
           exit 1

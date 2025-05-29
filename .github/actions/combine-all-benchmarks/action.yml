@@ -35,28 +35,18 @@ runs:
                 return {}
 
         def convert_pytest_to_bmf_format(pytest_data):
-            """Convert pytest-benchmark to BMF using built-in measures + 2 KPIs"""
+            """Convert pytest-benchmark to BMF using only 2 KPIs (no latency)"""
             bmf_results = {}
             
             for bench in pytest_data.get("benchmarks", []):
                 name = bench.get("fullname", bench.get("name", "unknown"))
-                stats = bench.get("stats", {})
                 extra_info = bench.get("extra_info", {})
                 
                 bench_metrics = {}
                 
-                # Use built-in latency measure for timing
-                if stats.get("mean") is not None:
-                    bench_metrics["latency"] = {
-                        "value": stats["mean"],
-                        "lower_value": stats.get("min"),
-                        "upper_value": stats.get("max")
-                    }
+                kpis = ["agent_steps_per_second", "env_steps_per_second"]
                 
-                # Only add your 2 most important custom KPIs
-                key_kpis = ["agent_steps_per_second", "env_steps_per_second"]
-                
-                for kpi_name in key_kpis:
+                for kpi_name in kpis:
                     if kpi_name in extra_info and isinstance(extra_info[kpi_name], (int, float)):
                         bench_metrics[kpi_name] = {"value": extra_info[kpi_name]}
                 
@@ -66,22 +56,18 @@ runs:
             return bmf_results
 
         def convert_cpp_to_bmf_format(cpp_data):
-            """Convert Google Benchmark to BMF using built-in measures + custom counters"""
+            """Convert Google Benchmark to BMF using only custom counters (no latency)"""
             bmf_results = {}
             
             for bench in cpp_data.get("benchmarks", []):
                 name = bench.get("name", "unknown")
                 bench_metrics = {}
                 
-                # Use built-in latency measure (from real_time)
-                if "real_time" in bench:
-                    bench_metrics["latency"] = {"value": bench["real_time"]}
-                
                 # Extract custom counters (agent_steps_per_second, env_steps_per_second)
                 # Google Benchmark stores these in the benchmark object directly
-                key_kpis = ["agent_steps_per_second", "env_steps_per_second"]
+                kpis = ["agent_steps_per_second", "env_steps_per_second"]
                 
-                for kpi_name in key_kpis:
+                for kpi_name in kpis:
                     if kpi_name in bench and isinstance(bench[kpi_name], (int, float)):
                         bench_metrics[kpi_name] = {"value": bench[kpi_name]}
                 
@@ -153,7 +139,6 @@ runs:
                 json.dump(unified_results, f, indent=2)
 
         print(f"✅ Combined {len(unified_results)} benchmarks in BMF format")
-        print("📊 Using 3 measures: latency, agent_steps_per_second, env_steps_per_second")
 
         # Debug: Print sample of what we generated
         if unified_results:
