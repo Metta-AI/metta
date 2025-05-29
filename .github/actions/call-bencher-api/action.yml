@@ -1,0 +1,217 @@
+name: 'Run Unified Bencher Analysis'
+description: 'Run Bencher analysis on unified benchmark results'
+inputs:
+  bencher_token:
+    description: 'Bencher API token'
+    required: true
+  github_token:
+    description: 'GitHub token'
+    required: true
+  mode:
+    description: 'Analysis mode: improvements or regressions'
+    required: true
+  benchmark_file:
+    description: 'Unified benchmark results file'
+    required: true
+  bmf_file:
+    description: 'BMF file with special metrics'
+    required: false
+  project_id:
+    description: 'Bencher project ID'
+    default: 'mettagrid-sv3f5i2k'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Bencher CLI
+      uses: bencherdev/bencher@main
+
+    - name: Install jq
+      shell: bash
+      run: sudo apt-get install -y jq
+
+    - name: Check main branch status
+      id: check-main
+      shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+      run: |
+        if bencher branch view ${{ inputs.project_id }} main --token "$BENCHER_API_TOKEN" > /tmp/branch_output.json 2>/dev/null; then
+          if jq -e '.head' /tmp/branch_output.json > /dev/null; then
+            echo "main_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "main_exists=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "main_exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    # Main branch: Upload baseline data
+    - name: Upload baseline (main branch)
+      if: github.ref == 'refs/heads/main'
+      shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        echo "📊 Uploading baseline data to main branch..."
+        
+        # Upload main benchmark results - use json adapter for unified format
+        if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
+          echo "Uploading unified benchmark results..."
+          bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch main \
+            --threshold-measure latency \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-upper-boundary 0.20 \
+            --thresholds-reset \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.benchmark_file }}" > /dev/null
+        else
+          echo "⚠️  No benchmark file found or file is empty: ${{ inputs.benchmark_file }}"
+        fi
+        
+        # Upload special metrics if they exist
+        if [ -f "${{ inputs.bmf_file }}" ] && [ -s "${{ inputs.bmf_file }}" ]; then
+          echo "Uploading special metrics..."
+          bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch main \
+            --threshold-measure agent_steps_per_second \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-lower-boundary 0.20 \
+            --threshold-upper-boundary _ \
+            --thresholds-reset \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.bmf_file }}" > /dev/null
+        fi
+
+    # PR: Improvements mode (non-failing)
+    - name: Check for improvements
+      if: |
+        inputs.mode == 'improvements' &&
+        github.event_name == 'pull_request' &&
+        !github.event.pull_request.head.repo.fork &&
+        steps.check-main.outputs.main_exists == 'true'
+      shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        echo "🔍 Checking for performance improvements..."
+        
+        # Check latency improvements - use json adapter for unified format
+        if [ -f "${{ inputs.benchmark_file }}" ]; then
+          echo "Checking latency improvements..."
+          bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point main \
+            --start-point-reset \
+            --threshold-measure latency \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-lower-boundary 0.10 \
+            --thresholds-reset \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.benchmark_file }}" > /dev/null || true
+        fi
+        
+        # Check special metric improvements
+        if [ -f "${{ inputs.bmf_file }}" ] && [ -s "${{ inputs.bmf_file }}" ]; then
+          echo "Checking special metric improvements..."
+          bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point main \
+            --start-point-reset \
+            --threshold-measure agent_steps_per_second \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-upper-boundary 0.10 \
+            --threshold-lower-boundary _ \
+            --thresholds-reset \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.bmf_file }}" > /dev/null || true
+        fi
+
+    # PR: Regressions mode (failing)
+    - name: Check for regressions
+      if: |
+        inputs.mode == 'regressions' &&
+        github.event_name == 'pull_request' &&
+        !github.event.pull_request.head.repo.fork &&
+        steps.check-main.outputs.main_exists == 'true'
+      shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        echo "🚨 Checking for performance regressions..."
+        
+        exit_code=0
+        
+        # Check latency regressions - use json adapter for unified format
+        if [ -f "${{ inputs.benchmark_file }}" ]; then
+          echo "Checking latency regressions..."
+          if ! bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point main \
+            --start-point-reset \
+            --start-point-clone-thresholds \
+            --err \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.benchmark_file }}"; then
+            echo "❌ Latency regression detected"
+            exit_code=1
+          fi
+        fi
+        
+        # Check special metric regressions
+        if [ -f "${{ inputs.bmf_file }}" ] && [ -s "${{ inputs.bmf_file }}" ]; then
+          echo "Checking special metric regressions..."
+          if ! bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point main \
+            --start-point-reset \
+            --threshold-measure agent_steps_per_second \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-lower-boundary 0.20 \
+            --threshold-upper-boundary _ \
+            --err \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.bmf_file }}"; then
+            echo "❌ Special metric regression detected"
+            exit_code=1
+          fi
+        fi
+        
+        if [ $exit_code -eq 0 ]; then
+          echo "✅ No regressions detected"
+        fi
+        
+        exit $exit_code

@@ -1,0 +1,185 @@
+name: 'Combine All Benchmark Results'
+description: 'Combine Python and C++ benchmark results into unified format'
+inputs:
+  python_files:
+    description: 'Comma-separated Python benchmark files'
+    required: true
+  cpp_files:
+    description: 'Glob pattern for C++ benchmark files'
+    required: true
+  output_file:
+    description: 'Unified output file'
+    required: true
+  bmf_output:
+    description: 'BMF file for special metrics'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Combine all benchmarks
+      shell: bash
+      run: |
+        python3 - <<EOF
+        import json
+        import glob
+        import os
+
+        def safe_load_json(file_path):
+            try:
+                if os.path.exists(file_path):
+                    with open(file_path, 'r') as f:
+                        content = f.read().strip()
+                        if content:
+                            return json.loads(content)
+                return {}
+            except (json.JSONDecodeError, FileNotFoundError):
+                print(f"Warning: Could not load {file_path}")
+                return {}
+
+        def convert_pytest_to_bencher_format(pytest_data):
+            """Convert pytest-benchmark format to Bencher JSON format"""
+            bencher_benchmarks = []
+            
+            for bench in pytest_data.get("benchmarks", []):
+                # Extract basic info
+                name = bench.get("fullname", bench.get("name", "unknown"))
+                stats = bench.get("stats", {})
+                
+                # Convert to Bencher format
+                bencher_bench = {
+                    "name": name,
+                    "latency": {
+                        "value": stats.get("mean", 0),
+                        "lower_value": stats.get("min", 0),
+                        "upper_value": stats.get("max", 0)
+                    }
+                }
+                
+                # Add extra metrics if they exist
+                extra_info = bench.get("extra_info", {})
+                if extra_info:
+                    for key, value in extra_info.items():
+                        if isinstance(value, (int, float)):
+                            bencher_bench[key] = {"value": value}
+                
+                bencher_benchmarks.append(bencher_bench)
+            
+            return bencher_benchmarks
+
+        def convert_cpp_to_bencher_format(cpp_data):
+            """Convert Google Benchmark format to Bencher JSON format"""
+            bencher_benchmarks = []
+            
+            for bench in cpp_data.get("benchmarks", []):
+                name = bench.get("name", "unknown")
+                
+                # Google Benchmark typically reports real_time and cpu_time
+                real_time = bench.get("real_time", 0)
+                
+                bencher_bench = {
+                    "name": name,
+                    "latency": {
+                        "value": real_time
+                    }
+                }
+                
+                # Add other metrics
+                if "cpu_time" in bench:
+                    bencher_bench["cpu_time"] = {"value": bench["cpu_time"]}
+                if "iterations" in bench:
+                    bencher_bench["iterations"] = {"value": bench["iterations"]}
+                
+                bencher_benchmarks.append(bencher_bench)
+            
+            return bencher_benchmarks
+
+        # Initialize unified results in Bencher JSON format
+        unified_results = []
+
+        # Process Python benchmark files
+        python_files = "${{ inputs.python_files }}".split(',')
+        for file_path in python_files:
+            file_path = file_path.strip()
+            if not file_path:
+                continue
+            
+            data = safe_load_json(file_path)
+            if data and "benchmarks" in data and len(data["benchmarks"]) > 0:
+                print(f"Processing Python file: {file_path} ({len(data['benchmarks'])} benchmarks)")
+                bencher_benchmarks = convert_pytest_to_bencher_format(data)
+                
+                # Add source tag
+                for bench in bencher_benchmarks:
+                    bench["name"] = f"python/{bench['name']}"
+                
+                unified_results.extend(bencher_benchmarks)
+            else:
+                print(f"Skipping empty or invalid Python file: {file_path}")
+
+        # Process C++ benchmark files  
+        cpp_pattern = "${{ inputs.cpp_files }}"
+        cpp_files = glob.glob(cpp_pattern)
+        
+        for file_path in cpp_files:
+            # Skip if it's actually a Python file that got picked up
+            if any(py_file.strip().endswith(os.path.basename(file_path)) for py_file in python_files):
+                continue
+                
+            data = safe_load_json(file_path)
+            if data and "benchmarks" in data and len(data["benchmarks"]) > 0:
+                print(f"Processing C++ file: {file_path} ({len(data['benchmarks'])} benchmarks)")
+                bencher_benchmarks = convert_cpp_to_bencher_format(data)
+                
+                # Add source tag
+                for bench in bencher_benchmarks:
+                    bench["name"] = f"cpp/{bench['name']}"
+                
+                unified_results.extend(bencher_benchmarks)
+            else:
+                print(f"Skipping empty or invalid C++ file: {file_path}")
+
+        # Write unified results in Bencher JSON format
+        if len(unified_results) == 0:
+            print("⚠️  Warning: No benchmarks found to combine!")
+            # Create empty file to prevent errors
+            with open('${{ inputs.output_file }}', 'w') as f:
+                json.dump([], f)
+        else:
+            with open('${{ inputs.output_file }}', 'w') as f:
+                json.dump(unified_results, f, indent=2)
+
+        print(f"✅ Combined {len(unified_results)} benchmarks from Python and C++")
+
+        # Extract special metrics for BMF format
+        if "${{ inputs.bmf_output }}":
+            special_metrics = {}
+            
+            # Look for special metrics in the original Python data
+            for file_path in python_files:
+                file_path = file_path.strip()
+                if not file_path:
+                    continue
+                
+                data = safe_load_json(file_path)
+                for bench in data.get("benchmarks", []):
+                    extra_info = bench.get("extra_info", {})
+                    bench_name = f"python/{bench.get('fullname', bench.get('name', 'unknown'))}"
+                    
+                    if "agent_steps_per_second" in extra_info:
+                        special_metrics[bench_name] = {
+                            "agent_steps_per_second": {"value": extra_info["agent_steps_per_second"]}
+                        }
+                        
+                    # Add other special metrics as needed
+                    for metric in ["env_steps_per_second", "resets_per_second"]:
+                        if metric in extra_info:
+                            if bench_name not in special_metrics:
+                                special_metrics[bench_name] = {}
+                            special_metrics[bench_name][metric] = {"value": extra_info[metric]}
+
+            with open('${{ inputs.bmf_output }}', 'w') as f:
+                json.dump(special_metrics, f, indent=2)
+                
+            print(f"✅ Extracted {len(special_metrics)} special metrics")
+        EOF
