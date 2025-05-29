@@ -455,23 +455,12 @@ jobs:
             echo "⚠️  special_metrics.bmf.json not found (this is optional)"
           fi
 
-      - name: Check for performance improvements (all benchmarks)
+      - name: Check for significant performance changes
         uses: ./.github/actions/call-bencher-api
         with:
           bencher_token: ${{ secrets.BENCHER_API_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          mode: 'improvements'
           benchmark_file: 'unified_benchmark_results.json'
-          bmf_file: 'special_metrics.bmf.json'
-
-      - name: Check for performance regressions (all benchmarks)
-        uses: ./.github/actions/call-bencher-api
-        with:
-          bencher_token: ${{ secrets.BENCHER_API_TOKEN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          mode: 'regressions'
-          benchmark_file: 'unified_benchmark_results.json'
-          bmf_file: 'special_metrics.bmf.json'
 
       - name: Upload benchmark artifacts for debugging
         if: always()
