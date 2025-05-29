@@ -30,14 +30,22 @@ runs:
       env:
         BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
       run: |
+        # Run the command and capture output
         if bencher branch view ${{ inputs.project_id }} main --token "$BENCHER_API_TOKEN" > /tmp/branch_output.json 2>/dev/null; then
+          # Check if branch has benchmark data (head field)
           if jq -e '.head' /tmp/branch_output.json > /dev/null; then
             echo "main_exists=true" >> $GITHUB_OUTPUT
+            echo "main_has_data=true" >> $GITHUB_OUTPUT
+            echo "✅ Main branch exists and has benchmark data"
           else
-            echo "main_exists=false" >> $GITHUB_OUTPUT
+            echo "main_exists=true" >> $GITHUB_OUTPUT
+            echo "main_has_data=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Main branch exists but has no benchmark data yet"
           fi
         else
           echo "main_exists=false" >> $GITHUB_OUTPUT
+          echo "main_has_data=false" >> $GITHUB_OUTPUT
+          echo "⚠️ Main branch does not exist"
         fi
 
     # Main branch: Upload baseline with ultra-simple thresholds
@@ -98,7 +106,8 @@ runs:
       if: |
         github.event_name == 'pull_request' &&
         !github.event.pull_request.head.repo.fork &&
-        steps.check-main.outputs.main_exists == 'true'
+        steps.check-main.outputs.main_exists == 'true' &&
+        steps.check-main.outputs.main_has_data == 'true'
       shell: bash
       env:
         BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
@@ -129,3 +138,16 @@ runs:
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
           exit 1
         fi
+
+    # PR: Skip threshold check if main has no data yet
+    - name: Skip threshold check (main has no data)
+      if: |
+        github.event_name == 'pull_request' &&
+        !github.event.pull_request.head.repo.fork &&
+        steps.check-main.outputs.main_exists == 'true' &&
+        steps.check-main.outputs.main_has_data == 'false'
+      shell: bash
+      run: |
+        echo "⚠️ Skipping performance comparison - main branch has no benchmark data yet"
+        echo "This is normal for the first PR after enabling benchmarks."
+        echo "Once this PR merges, future PRs will have baseline data for comparison."
