@@ -1,4 +1,4 @@
-name: Claude Assistant
+name: "Claude Assistant"
 
 on:
   issue_comment:

@@ -1,4 +1,4 @@
-name: README Accuracy Review
+name: "README Accuracy Review"
 
 on:
   pull_request:
