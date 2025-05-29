@@ -220,8 +220,10 @@ function fixReplay() {
   }
   if (oldMapSize[0] != state.replay.map_size[0] || oldMapSize[1] != state.replay.map_size[1]) {
     // Map size changed, update the map.
-    console.info("Map size changed");
+    console.info("Map size changed to: ", state.replay.map_size[0], "x", state.replay.map_size[1]);
     focusFullMap(ui.mapPanel);
+    // Force a resize to update the minimap panel.
+    onResize();
   }
 
   console.info("replay: ", state.replay);
@@ -275,7 +277,7 @@ export function loadReplayStep(replayStep: any) {
   // Update the grid objects.
   const step = replayStep.step;
 
-  state.replay.max_steps = Math.max(state.replay.max_steps, step);
+  state.replay.max_steps = Math.max(state.replay.max_steps, step + 1);
   state.step = step; // Rewind to the current step.
 
   for (const gridObject of replayStep.grid_objects) {
@@ -320,6 +322,7 @@ export function initWebSocket(wsUrl: string) {
     if (data.type === "replay") {
       loadReplayJson(wsUrl, data.replay);
       Common.closeModal();
+      html.actionButtons.classList.remove("hidden");
     } else if (data.type === "replay_step") {
       loadReplayStep(data.replay_step);
     } else if (data.type === "message") {
@@ -329,7 +332,7 @@ export function initWebSocket(wsUrl: string) {
   state.ws.onopen = () => {
     Common.showModal("info",
       "Starting environment",
-      "Please wait while live environment is starting for playing..."
+      "Please wait while live environment is starting..."
     );
   };
   state.ws.onclose = () => {

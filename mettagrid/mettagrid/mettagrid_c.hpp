@@ -1,5 +1,5 @@
-#ifndef METTAGRID_C_HPP
-#define METTAGRID_C_HPP
+#ifndef METTAGRID_METTAGRID_METTAGRID_C_HPP_
+#define METTAGRID_METTAGRID_METTAGRID_C_HPP_
 
 #if defined(_WIN32)
 #define METTAGRID_API __declspec(dllexport)
@@ -32,17 +32,23 @@ public:
   MettaGrid(py::dict env_cfg, py::list map);
   ~MettaGrid();
 
+  unsigned short obs_width;
+  unsigned short obs_height;
+
+  unsigned int current_step;
+  unsigned int max_steps;
+
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
-  void set_buffers(py::array_t<unsigned char, py::array::c_style>& observations,
-                   py::array_t<bool, py::array::c_style>& terminals,
-                   py::array_t<bool, py::array::c_style>& truncations,
-                   py::array_t<float, py::array::c_style>& rewards);
+  void set_buffers(const py::array_t<unsigned char, py::array::c_style>& observations,
+                   const py::array_t<bool, py::array::c_style>& terminals,
+                   const py::array_t<bool, py::array::c_style>& truncations,
+                   const py::array_t<float, py::array::c_style>& rewards);
   void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
-  unsigned int current_timestep();
+
   unsigned int map_width();
   unsigned int map_height();
   py::list grid_features();
@@ -69,8 +75,6 @@ private:
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
-  unsigned int _current_timestep;
-  unsigned int _max_timestep;
 
   std::vector<std::unique_ptr<ActionHandler>> _action_handlers;
   int _num_action_handlers;
@@ -81,8 +85,7 @@ private:
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
 
-  unsigned short _obs_width;
-  unsigned short _obs_height;
+  bool _use_observation_tokens;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
@@ -90,7 +93,7 @@ private:
 
   // We'd prefer to store these as more raw c-style arrays, but we need to both
   // operate on the memory directly and return them to python.
-  py::array_t<unsigned char> _observations;
+  py::array_t<uint8_t> _observations;
   py::array_t<bool> _terminals;
   py::array_t<bool> _truncations;
   py::array_t<float> _rewards;
@@ -111,4 +114,4 @@ private:
   void _step(py::array_t<int> actions);
 };
 
-#endif  // METTAGRID_C_HPP
+#endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_

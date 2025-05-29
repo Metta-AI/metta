@@ -2,7 +2,7 @@ defaults:
   - /env/mettagrid/mettagrid@
 
 game:
-  num_agents: 16  #how many agents are in the map x2
+  num_agents: 16
   max_steps: 70
   agent:
     rewards:

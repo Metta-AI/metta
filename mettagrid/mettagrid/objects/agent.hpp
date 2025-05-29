@@ -1,6 +1,7 @@
-#ifndef AGENT_HPP
-#define AGENT_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_AGENT_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_AGENT_HPP_
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -16,7 +17,6 @@ public:
   unsigned char freeze_duration;
   unsigned char orientation;
   std::vector<unsigned char> inventory;
-  unsigned char max_items;
   std::vector<float> resource_rewards;
   std::vector<float> resource_reward_max;
   float action_failure_penalty;
@@ -43,14 +43,22 @@ public:
     this->frozen = 0;
     this->freeze_duration = cfg["freeze_duration"];
     this->orientation = 0;
-    this->inventory.resize(InventoryItem::InventoryCount);
-    this->max_items = cfg["max_inventory"];
-    this->resource_rewards.resize(InventoryItem::InventoryCount);
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    this->inventory.resize(InventoryItem::InventoryItemCount);
+    unsigned char default_item_max = cfg["default_item_max"];
+    this->max_items_per_type.resize(InventoryItem::InventoryItemCount);
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      if (cfg.find(InventoryItemNames[i] + "_max") != cfg.end()) {
+        this->max_items_per_type[i] = cfg[InventoryItemNames[i] + "_max"];
+      } else {
+        this->max_items_per_type[i] = default_item_max;
+      }
+    }
+    this->resource_rewards.resize(InventoryItem::InventoryItemCount);
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       this->resource_rewards[i] = rewards[InventoryItemNames[i]];
     }
-    this->resource_reward_max.resize(InventoryItem::InventoryCount);
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    this->resource_reward_max.resize(InventoryItem::InventoryItemCount);
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       this->resource_reward_max[i] = rewards[InventoryItemNames[i] + "_max"];
     }
     this->action_failure_penalty = rewards["action_failure_penalty"];
@@ -63,18 +71,13 @@ public:
     this->reward = reward;
   }
 
-  void update_inventory(InventoryItem item, short amount) {
-    int current_amount = this->inventory[static_cast<int>(item)];
+  int update_inventory(InventoryItem item, short amount) {
+    int current_amount = this->inventory[item];
     int new_amount = current_amount + amount;
-    if (new_amount > this->max_items) {
-      new_amount = this->max_items;
-    }
-    if (new_amount < 0) {
-      new_amount = 0;
-    }
+    new_amount = std::clamp(new_amount, 0, static_cast<int>(this->max_items_per_type[item]));
 
     int delta = new_amount - current_amount;
-    this->inventory[static_cast<int>(item)] = new_amount;
+    this->inventory[item] = new_amount;
 
     if (delta > 0) {
       this->stats.add(InventoryItemNames[item], "gained", delta);
@@ -83,15 +86,17 @@ public:
     }
 
     this->compute_resource_reward(item);
+
+    return delta;
   }
 
   inline void compute_resource_reward(InventoryItem item) {
-    if (this->resource_rewards[static_cast<int>(item)] == 0) {
+    if (this->resource_rewards[item] == 0) {
       return;
     }
 
     float new_reward = 0;
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       float max_val = static_cast<float>(this->inventory[i]);
       if (max_val > this->resource_reward_max[i]) {
         max_val = this->resource_reward_max[i];
@@ -106,6 +111,22 @@ public:
     return this->frozen;
   }
 
+  virtual vector<PartialObservationToken> obs_features() const override {
+    vector<PartialObservationToken> features;
+    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::Group, group});
+    features.push_back({ObservationFeature::Hp, hp});
+    features.push_back({ObservationFeature::Frozen, frozen});
+    features.push_back({ObservationFeature::Orientation, orientation});
+    features.push_back({ObservationFeature::Color, color});
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      if (inventory[i] > 0) {
+        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
+      }
+    }
+    return features;
+  }
+
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
     obs[offsets[1]] = group;
@@ -114,7 +135,7 @@ public:
     obs[offsets[4]] = orientation;
     obs[offsets[5]] = color;
 
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (int i = 0; i < InventoryItemCount; i++) {
       obs[offsets[6 + i]] = inventory[i];
     }
   }
@@ -129,10 +150,13 @@ public:
     names.push_back("agent:color");
 
     for (const auto& name : InventoryItemNames) {
-      names.push_back("agent:inv:" + name);
+      names.push_back("inv:" + name);
     }
     return names;
   }
+
+private:
+  std::vector<unsigned char> max_items_per_type;
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_AGENT_HPP_

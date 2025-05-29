@@ -1,5 +1,5 @@
-#ifndef PUT_RECIPE_ITEMS_HPP
-#define PUT_RECIPE_ITEMS_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_PUT_RECIPE_ITEMS_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_PUT_RECIPE_ITEMS_HPP_
 
 #include <string>
 
@@ -11,14 +11,14 @@
 
 class PutRecipeItems : public ActionHandler {
 public:
-  PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_recipe_items") {}
+  explicit PutRecipeItems(const ActionConfig& cfg) : ActionHandler(cfg, "put_recipe_items") {}
 
   unsigned char max_arg() const override {
     return 0;
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::Object_Layer;
     // put_recipe_items only works on Converters, since only Converters have a recipe.
@@ -31,18 +31,21 @@ protected:
 
     bool success = false;
     for (size_t i = 0; i < converter->recipe_input.size(); i++) {
-      unsigned int inv = std::min(converter->recipe_input[i], actor->inventory[i]);
-      if (inv == 0) {
-        continue;
+      int max_to_put = std::min(converter->recipe_input[i], actor->inventory[i]);
+      if (max_to_put > 0) {
+        int put = converter->update_inventory(static_cast<InventoryItem>(i), max_to_put);
+        if (put > 0) {
+          // We should be able to put this many items into the converter. If not, something is wrong.
+          int delta = actor->update_inventory(static_cast<InventoryItem>(i), -put);
+          assert(delta == -put);
+          actor->stats.add(InventoryItemNames[i], "put", put);
+          success = true;
+        }
       }
-      actor->update_inventory(static_cast<InventoryItem>(i), -inv);
-      converter->update_inventory(static_cast<InventoryItem>(i), inv);
-      actor->stats.add(InventoryItemNames[i], "put", inv);
-      success = true;
     }
 
     return success;
   }
 };
 
-#endif  // PUT_RECIPE_ITEMS_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_PUT_RECIPE_ITEMS_HPP_

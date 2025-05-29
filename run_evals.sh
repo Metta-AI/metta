@@ -4,42 +4,7 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-  "daveey.dist.2x4"
-  "navigation_training:v35"
-  "b.daphne.navigation0"
-  "daphne_navigation_train"
-  "b.daphne.navigation1"
-  "b.daphne.navigation3"
-  "b.daphne.navigation4"
-  "gd2_sharing24_03"
-  "gd2_sharing24_06"
-  "gd2_sharing_48"
-  "gd2_sharing_24"
-  "gd2_sharing48_03"
-  "gd2_sharing48_06"
-  "MRM_test_mettabox"
-  "georged_48_no_sharing"
-  "georged_24_no_sharing"
-  "dd_object_use_easy2"
-  "daphne.3object_use_no_colors"
-  "daphne.3object_use_colors"
-  "daphne.2object_use_colors_pretrained"
-  "b.daphne.USER.navigation_before_refactor"
-
-  "b.daphne.object_use_colored_converters"
-  "b.daphne.object_use_onlyred"
-  "b.daphne.object_use_colored_converters_ent0.05"
-  "b.daphne.object_use_onlyred_ent0.05"
-
-  "b.daphne.object_use_colored_converters2"
-  "b.daphne.object_use_onlyred2"
-  "b.daphne.object_use_colored_converters_ent0.052"
-  "b.daphne.object_use_onlyred_ent0.052"
-
-  "b.georgedeane.george_sequence_no_increment"
-  "b.georgedeane.george_sequence_incremental"
-  "george_sequence_incremental"
-  "george2_multienv_noincrement"
+  "sasmith.flattened_layers.baseline.2"
 )
 MESSAGE="Running full sequence eval"
 MAYBE_SMOKE_TEST=""
@@ -52,12 +17,11 @@ if [ "$1" = "smoke_test" ]; then
   #       that scores well on that eval family, and add it here.
   #   ... because you're adding a new eval family on which we can't score well, please add the new eval
   #       family after the smoke test terminates.
-  POLICIES=("b.daphne.navigation0:v12")
-  # Use a fixed seed so tests are deterministic. It's okay to change this seed if you have
-  # a reason -- we just don't want tests to fail spuriously.
+  POLICIES=("sasmith.new_battery_colors")
+  # We try to be as deterministic as possible, but this turns out to be less deterministic than we'd like.
   # Use device=cpu since we're probably on github. We should probably address this via
   # hardware=..., but for the most part this shouldn't matter for eval.
-  MAYBE_SMOKE_TEST="+sim_job.smoke_test=True seed=31415 device=cpu"
+  MAYBE_SMOKE_TEST="+sim_job.smoke_test=True seed=31415 torch_deterministic=True device=cpu"
   MESSAGE="Running smoke test eval"
 elif [ -n "$1" ]; then
   echo "Invalid argument: $1"

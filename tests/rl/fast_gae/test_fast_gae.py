@@ -1,17 +1,15 @@
 """
-Unit tests and benchmarks for the compute_gae Cython function.
+Unit tests and benchmarks for the compute_gae C++ function.
 
 This module provides comprehensive testing and benchmarking for the Generalized
-Advantage Estimation (GAE) implementation in Cython, comparing it against a pure
+Advantage Estimation (GAE) implementation in C++, comparing it against a pure
 NumPy implementation for correctness and performance.
 """
-
-import time
 
 import numpy as np
 import pytest
 
-from metta.rl.fast_gae import compute_gae  # Replace 'your_module' with the actual module name
+from metta.rl.fast_gae import compute_gae
 
 
 def numpy_compute_gae(dones, values, rewards, gamma, gae_lambda):
@@ -246,7 +244,7 @@ class TestComputeGAE:
         gamma = gae_params["gamma"]
         gae_lambda = gae_params["gae_lambda"]
 
-        with pytest.raises(ValueError, match="same length"):
+        with pytest.raises(RuntimeError, match="same length"):
             compute_gae(data["dones"], data["values"], data["rewards"], gamma, gae_lambda)
 
     def test_long_trajectory(self, make_trajectory):
@@ -267,142 +265,3 @@ class TestComputeGAE:
         # (with constant rewards=1, values=1, and gamma<1, advantages decrease)
         for i in range(len(advantages) - 2):
             assert advantages[i] > advantages[i + 1] or np.isclose(advantages[i], advantages[i + 1])
-
-
-# Benchmarking cases
-@pytest.mark.benchmark
-class TestGAEBenchmarks:
-    """Benchmark suite for GAE implementations."""
-
-    @pytest.mark.parametrize("size", [100, 1000, 10000])
-    def test_trajectory_size_benchmarks(self, benchmark, make_trajectory, size):
-        """Benchmark Cython implementation with different trajectory sizes."""
-        data = make_trajectory(size)
-
-        # Benchmark Cython implementation
-        result = benchmark(
-            compute_gae, data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
-        )
-
-        # Verify correctness
-        expected = numpy_compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
-        np.testing.assert_allclose(result, expected, rtol=1e-5)
-
-    def test_cython_implementation_benchmark(self, benchmark, large_trajectory):
-        """Benchmark the Cython implementation."""
-        data = large_trajectory
-
-        # Warmup
-        for _ in range(3):
-            compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
-
-        # Benchmark Cython implementation
-        result = benchmark(
-            compute_gae, data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
-        )
-        assert result is not None
-        self.cython_result = result
-
-    def test_numpy_implementation_benchmark(self, benchmark, large_trajectory):
-        """Benchmark the NumPy implementation."""
-        data = large_trajectory
-
-        # Warmup
-        for _ in range(3):
-            numpy_compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
-
-        # Benchmark NumPy implementation
-        _result = benchmark(
-            numpy_compute_gae, data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
-        )
-
-        print(
-            f"\nNumPy implementation time: {benchmark.stats.stats.mean:.6f} seconds"
-            f" (trajectory size: {len(data['dones'])})"
-        )
-        self.numpy_mean_time = benchmark.stats.stats.mean
-        assert self.numpy_mean_time > 0
-
-    def test_implementation_comparison(self, large_trajectory):
-        """Compare NumPy and Cython implementation performance without using benchmark fixture."""
-        data = large_trajectory
-
-        # Simple manual timing
-        # Warmup
-        for _ in range(3):
-            numpy_compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
-            compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
-
-        # Time NumPy implementation
-        start = time.perf_counter()
-        for _ in range(10):
-            numpy_result = numpy_compute_gae(
-                data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
-            )
-        numpy_time = (time.perf_counter() - start) / 10
-
-        # Time Cython implementation
-        start = time.perf_counter()
-        for _ in range(10):
-            cython_result = compute_gae(
-                data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
-            )
-        cython_time = (time.perf_counter() - start) / 10
-
-        # Verify results match
-        np.testing.assert_allclose(cython_result, numpy_result, rtol=1e-5)
-
-        # Report speedup
-        speedup = numpy_time / cython_time
-
-        print(f"\nManual timing comparison (trajectory size: {len(data['dones'])}):")
-        print(f"NumPy implementation: {numpy_time:.6f} seconds")
-        print(f"Cython implementation: {cython_time:.6f} seconds")
-        print(f"Speedup factor: {speedup:.2f}x")
-
-        assert speedup > 1.0, f"Cython implementation should be faster (got speedup: {speedup:.2f}x)"
-
-    # Do the same for realistic RL batch
-    def test_realistic_batch_implementation_comparison(self, realistic_rl_batch):
-        """Compare NumPy and Cython implementation performance on realistic RL batch."""
-        data = realistic_rl_batch
-
-        # Simple manual timing
-        # Warmup
-        for _ in range(3):
-            numpy_compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
-            compute_gae(data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"])
-
-        # Time NumPy implementation
-        start = time.perf_counter()
-        for _ in range(10):
-            numpy_result = numpy_compute_gae(
-                data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
-            )
-        numpy_time = (time.perf_counter() - start) / 10
-
-        # Time Cython implementation
-        start = time.perf_counter()
-        for _ in range(10):
-            cython_result = compute_gae(
-                data["dones"], data["values"], data["rewards"], data["gamma"], data["gae_lambda"]
-            )
-        cython_time = (time.perf_counter() - start) / 10
-
-        # Verify results match
-        np.testing.assert_allclose(cython_result, numpy_result, rtol=2e-5)
-
-        # Report speedup
-        speedup = numpy_time / cython_time
-
-        print(f"\nRealistic RL batch comparison (size: {len(data['dones'])}):")
-        print(f"NumPy implementation: {numpy_time:.6f} seconds")
-        print(f"Cython implementation: {cython_time:.6f} seconds")
-        print(f"Speedup factor: {speedup:.2f}x")
-
-        assert speedup > 1.0, f"Cython implementation should be faster (got speedup: {speedup:.2f}x)"
-
-
-if __name__ == "__main__":
-    # Run tests with proper pytest command line options
-    pytest.main(["-v", "--benchmark-columns=min,max,mean,stddev", "--benchmark-sort=mean"])

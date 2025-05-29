@@ -1,13 +1,16 @@
-#ifndef GRID_HPP
-#define GRID_HPP
+#ifndef METTAGRID_METTAGRID_GRID_HPP_
+#define METTAGRID_METTAGRID_GRID_HPP_
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 
 #include "grid_object.hpp"
 
-using namespace std;
-typedef vector<vector<vector<GridObjectId> > > GridType;
+using std::vector;
+using std::unique_ptr;
+using std::max;
+typedef vector<vector<vector<GridObjectId>>> GridType;
 
 class Grid {
 public:
@@ -17,27 +20,21 @@ public:
   Layer num_layers;
 
   GridType grid;
-  vector<GridObject*> objects;
+  vector<std::unique_ptr<GridObject>> objects;
 
   inline Grid(unsigned int width, unsigned int height, vector<Layer> layer_for_type_id)
       : width(width), height(height), layer_for_type_id(layer_for_type_id) {
     num_layers = *max_element(layer_for_type_id.begin(), layer_for_type_id.end()) + 1;
-    grid.resize(height, vector<vector<GridObjectId> >(width, vector<GridObjectId>(this->num_layers, 0)));
+    grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(this->num_layers, 0)));
 
     // 0 is reserved for empty space
     objects.push_back(nullptr);
   }
 
-  inline ~Grid() {
-    for (unsigned long id = 1; id < objects.size(); ++id) {
-      if (objects[id] != nullptr) {
-        delete objects[id];
-      }
-    }
-  }
+  virtual ~Grid() = default;
 
   inline char add_object(GridObject* obj) {
-    if (obj->location.r >= height or obj->location.c >= width or obj->location.layer >= num_layers) {
+    if (obj->location.r >= height || obj->location.c >= width || obj->location.layer >= num_layers) {
       return false;
     }
     if (this->grid[obj->location.r][obj->location.c][obj->location.layer] != 0) {
@@ -45,24 +42,23 @@ public:
     }
 
     obj->id = this->objects.size();
-    this->objects.push_back(obj);
+    this->objects.push_back(std::unique_ptr<GridObject>(obj));
     this->grid[obj->location.r][obj->location.c][obj->location.layer] = obj->id;
     return true;
   }
 
-  inline void remove_object(GridObject* obj) {
+  // Removes and object from the grid and gives ownership of the object to the caller.
+  // Since the caller is now the owner, this can make the raw pointer invalid, if the
+  // returned unique_ptr is destroyed.
+  inline unique_ptr<GridObject> remove_object(GridObject* obj) {
     this->grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
-    // delete obj;
+    auto obj_ptr = this->objects[obj->id].release();
     this->objects[obj->id] = nullptr;
-  }
-
-  inline void remove_object(GridObjectId id) {
-    GridObject* obj = this->objects[id];
-    this->remove_object(obj);
+    return std::unique_ptr<GridObject>(obj_ptr);
   }
 
   inline char move_object(GridObjectId id, const GridLocation& loc) {
-    if (loc.r >= height or loc.c >= width or loc.layer >= num_layers) {
+    if (loc.r >= height || loc.c >= width || loc.layer >= num_layers) {
       return false;
     }
 
@@ -70,7 +66,7 @@ public:
       return false;
     }
 
-    GridObject* obj = objects[id];
+    GridObject* obj = object(id);
     grid[loc.r][loc.c][loc.layer] = id;
     grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
     obj->location = loc;
@@ -78,12 +74,12 @@ public:
   }
 
   inline void swap_objects(GridObjectId id1, GridObjectId id2) {
-    GridObject* obj1 = objects[id1];
+    GridObject* obj1 = object(id1);
     GridLocation loc1 = obj1->location;
     Layer layer1 = loc1.layer;
     grid[loc1.r][loc1.c][loc1.layer] = 0;
 
-    GridObject* obj2 = objects[id2];
+    GridObject* obj2 = object(id2);
     GridLocation loc2 = obj2->location;
     Layer layer2 = loc2.layer;
     grid[loc2.r][loc2.c][loc2.layer] = 0;
@@ -99,22 +95,22 @@ public:
   }
 
   inline GridObject* object(GridObjectId obj_id) {
-    return objects[obj_id];
+    return objects[obj_id].get();
   }
 
   inline GridObject* object_at(const GridLocation& loc) {
-    if (loc.r >= height or loc.c >= width or loc.layer >= num_layers) {
+    if (loc.r >= height || loc.c >= width || loc.layer >= num_layers) {
       return nullptr;
     }
     if (grid[loc.r][loc.c][loc.layer] == 0) {
       return nullptr;
     }
-    return objects[grid[loc.r][loc.c][loc.layer]];
+    return object(grid[loc.r][loc.c][loc.layer]);
   }
 
   inline GridObject* object_at(const GridLocation& loc, TypeId type_id) {
     GridObject* obj = object_at(loc);
-    if (obj != NULL and obj->_type_id == type_id) {
+    if (obj != NULL && obj->_type_id == type_id) {
       return obj;
     }
     return nullptr;
@@ -130,7 +126,7 @@ public:
   }
 
   inline const GridLocation location(GridObjectId id) {
-    return objects[id]->location;
+    return object(id)->location;
   }
 
   inline const GridLocation relative_location(const GridLocation& loc,
@@ -195,4 +191,4 @@ public:
   }
 };
 
-#endif  // GRID_HPP
+#endif  // METTAGRID_METTAGRID_GRID_HPP_

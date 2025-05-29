@@ -1,5 +1,5 @@
-#ifndef METTA_OBJECT_HPP
-#define METTA_OBJECT_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_METTA_OBJECT_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_METTA_OBJECT_HPP_
 
 #include <map>
 #include <string>
@@ -10,7 +10,7 @@ typedef std::map<std::string, int> ObjectConfig;
 
 class MettaObject : public GridObject {
 public:
-  unsigned int hp;
+  uint8_t hp;
 
   void init_mo(ObjectConfig cfg) {
     this->hp = cfg["hp"];
@@ -21,4 +21,4 @@ public:
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_METTA_OBJECT_HPP_

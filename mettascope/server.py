@@ -29,10 +29,12 @@ def make_app(cfg: DictConfig):
         except FileNotFoundError as err:
             raise HTTPException(status_code=404, detail="Client HTML file not found") from err
 
-    @app.get("/style.css")
-    async def get_style_css():
+    @app.get("/{path}.css")
+    async def get_style_css(path: str):
+        if "/" in path or "." in path:
+            raise HTTPException(status_code=400, detail="Path must not contain '/' or '.'")
         try:
-            with open("mettascope/style.css", "r") as file:
+            with open(f"mettascope/{path}.css", "r") as file:
                 css_content = file.read()
             return HTMLResponse(content=css_content, media_type="text/css")
         except FileNotFoundError as err:
@@ -65,10 +67,35 @@ def make_app(cfg: DictConfig):
 
         current_step = 0
         action_message = None
+        actions = np.zeros((env.num_agents, 2))
         total_rewards = np.zeros(env.num_agents)
 
+        async def send_replay_step():
+            grid_objects = []
+            for i, grid_object in enumerate(env.grid_objects.values()):
+                if len(grid_objects) <= i:
+                    grid_objects.append({})
+                for key, value in grid_object.items():
+                    grid_objects[i][key] = value
+                if "agent_id" in grid_object:
+                    agent_id = grid_object["agent_id"]
+                    grid_objects[i]["action_success"] = bool(env.action_success[agent_id])
+                    grid_objects[i]["action"] = actions[agent_id].tolist()
+                    grid_objects[i]["reward"] = env.rewards[agent_id].item()
+                    total_rewards[agent_id] += env.rewards[agent_id]
+                    grid_objects[i]["total_reward"] = total_rewards[agent_id].item()
+
+            await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
+
+        # Send the first replay step.
+        await send_replay_step()
+
         while True:
-            # While the client we are sending messages to it.
+            # Main message loop.
+
+            message = await websocket.receive_json()
+            if message["type"] == "action":
+                action_message = message
 
             if current_step < 1000:
                 await send_message(type="message", message="Step!")
@@ -80,30 +107,11 @@ def make_app(cfg: DictConfig):
                     actions[agent_id][1] = action_message["action"][1]
                 sim.step_simulation(actions)
 
-                grid_objects = []
-                for i, grid_object in enumerate(env.grid_objects.values()):
-                    if len(grid_objects) <= i:
-                        grid_objects.append({})
-                    for key, value in grid_object.items():
-                        grid_objects[i][key] = value
-                    if "agent_id" in grid_object:
-                        agent_id = grid_object["agent_id"]
-                        grid_objects[i]["action_success"] = bool(env.action_success[agent_id])
-                        grid_objects[i]["action"] = actions[agent_id].tolist()
-                        grid_objects[i]["reward"] = env.rewards[agent_id].item()
-                        total_rewards[agent_id] += env.rewards[agent_id]
-                        grid_objects[i]["total_reward"] = total_rewards[agent_id].item()
-
-                await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
-
+                await send_replay_step()
                 current_step += 1
 
-            if current_step > 1:
-                message = await websocket.receive_json()
-                if message["type"] == "action":
-                    action_message = message
-                # yield control to other coroutines
-                await asyncio.sleep(0)
+            # yield control to other coroutines
+            await asyncio.sleep(0)
 
         sim.end_simulation()
 

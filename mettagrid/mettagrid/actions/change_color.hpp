@@ -1,5 +1,5 @@
-#ifndef CHANGE_COLOR_HPP
-#define CHANGE_COLOR_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_CHANGE_COLOR_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_CHANGE_COLOR_HPP_
 
 #include <string>
 
@@ -8,14 +8,14 @@
 
 class ChangeColorAction : public ActionHandler {
 public:
-  ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
+  explicit ChangeColorAction(const ActionConfig& cfg) : ActionHandler(cfg, "change_color") {}
 
   unsigned char max_arg() const override {
     return 3;
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg == 0) {  // Increment
       if (actor->color < 255) {
         actor->color += 1;
@@ -36,4 +36,4 @@ protected:
   }
 };
 
-#endif  // CHANGE_COLOR_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_CHANGE_COLOR_HPP_
