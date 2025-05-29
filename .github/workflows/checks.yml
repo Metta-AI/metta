@@ -415,7 +415,7 @@ jobs:
           bmf_file: 'special_metrics.bmf.json'
 
       - name: Check for performance regressions (all benchmarks)
-        uses: ./.github/actions/run-bencher-unified
+        uses: ./.github/actions/call-bencher-api
         with:
           bencher_token: ${{ secrets.BENCHER_API_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
