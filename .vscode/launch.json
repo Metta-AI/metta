@@ -58,6 +58,16 @@
             ]
         },
         {
+          "name": "Dashboard",
+          "type": "debugpy",
+          "request": "launch",
+          "module": "tools.dashboard",
+          "args": [
+              "+user=${env:USER}",
+              "+hardware=macbook"
+          ]
+        },        
+        {
             "name": "Analyze",
             "type": "debugpy",
             "request": "launch",
