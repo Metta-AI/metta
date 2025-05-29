@@ -50,22 +50,6 @@ runs:
       run: |
         if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
 
-          # Create measures with proper units (idempotent)
-          bencher measure create \
-            --project ${{ inputs.project_id }} \
-            --token "$BENCHER_API_TOKEN" \
-            --name "agent_steps_per_second" \
-            --slug "agent_steps_per_second" \
-            --units "steps/sec" 2>/dev/null || echo "Measure agent_steps_per_second already exists"
-
-          bencher measure create \
-            --project ${{ inputs.project_id }} \
-            --token "$BENCHER_API_TOKEN" \
-            --name "env_steps_per_second" \
-            --slug "env_steps_per_second" \
-            --units "steps/sec" 2>/dev/null || echo "Measure env_steps_per_second already exists"
-          
-  
           # Built-in latency measure (lower is better - alert on increases)
           echo "Setting upper threshold for latency (built-in timing measure)"
           bencher run \
@@ -126,7 +110,7 @@ runs:
         echo "- env_steps_per_second: ±20% throughput changes"
 
         if [ -f "${{ inputs.benchmark_file }}" ]; then
-        
+
           bencher run \
             --project ${{ inputs.project_id }} \
             --token "$BENCHER_API_TOKEN" \
