@@ -4,7 +4,7 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-  "sasmith.flattened_layers.baseline.2"
+  "sasmith.ablate_type_1_hots"
 )
 MESSAGE="Running full sequence eval"
 MAYBE_SMOKE_TEST=""
@@ -17,7 +17,7 @@ if [ "$1" = "smoke_test" ]; then
   #       that scores well on that eval family, and add it here.
   #   ... because you're adding a new eval family on which we can't score well, please add the new eval
   #       family after the smoke test terminates.
-  POLICIES=("sasmith.new_battery_colors")
+  POLICIES=("sasmith.ablate_type_1_hots")
   # We try to be as deterministic as possible, but this turns out to be less deterministic than we'd like.
   # Use device=cpu since we're probably on github. We should probably address this via
   # hardware=..., but for the most part this shouldn't matter for eval.
