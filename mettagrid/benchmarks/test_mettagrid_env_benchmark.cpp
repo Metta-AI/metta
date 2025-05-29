@@ -159,7 +159,7 @@ py::list CreateDefaultMap(int num_agents_per_team = 2) {
 }
 
 // Static benchmark for step performance
-static void BM_MettaGridStep(benchmark::State& state) {
+static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/references)
   // Note: Python interpreter must be initialized before this runs
 
   // Setup with default 4 agents (2 per team)
@@ -209,7 +209,7 @@ static void BM_MettaGridStep(benchmark::State& state) {
 }
 
 // Static benchmark for reset performance
-static void BM_MettaGridReset(benchmark::State& state) {
+static void BM_MettaGridReset(benchmark::State& state) {  // NOLINT(runtime/references)
   // Setup configuration with default 4 agents
   auto cfg = CreateBenchmarkConfig(4);
   auto map = CreateDefaultMap(2);
@@ -227,7 +227,7 @@ static void BM_MettaGridReset(benchmark::State& state) {
 }
 
 // Remove the automatic items_per_second from BM_EnvironmentCreation
-static void BM_EnvironmentCreation(benchmark::State& state) {
+static void BM_EnvironmentCreation(benchmark::State& state) {  // NOLINT(runtime/references)
   auto cfg = CreateBenchmarkConfig(4);
   auto map = CreateDefaultMap(2);
 
@@ -241,7 +241,7 @@ static void BM_EnvironmentCreation(benchmark::State& state) {
 }
 
 // Parameterized benchmark for different agent counts
-static void BM_MettaGridStepAgentScaling(benchmark::State& state) {
+static void BM_MettaGridStepAgentScaling(benchmark::State& state) {  // NOLINT(runtime/references)
   int num_agents_per_team = state.range(0);
   int total_agents = num_agents_per_team * 2;
 
