@@ -39,24 +39,33 @@ runs:
           cat /tmp/branch_output.json | jq '.'
           
           # Check if branch has valid benchmark data
-          # We need to check if head exists AND is not null AND has actual benchmark data
           if jq -e '.head != null' /tmp/branch_output.json > /dev/null; then
-            # Try to verify the head actually has accessible data by checking for thresholds
-            if bencher threshold list ${{ inputs.project_id }} \
+            # The key check: try to list reports on the main branch
+            # This will fail if there's no actual benchmark data
+            if bencher report list ${{ inputs.project_id }} \
                 --branch main \
-                --token "$BENCHER_API_TOKEN" > /tmp/thresholds.json 2>/dev/null; then
-              echo "main_exists=true" >> $GITHUB_OUTPUT
-              echo "main_has_data=true" >> $GITHUB_OUTPUT
-              echo "✅ Main branch exists and has benchmark data with thresholds"
+                --token "$BENCHER_API_TOKEN" > /tmp/reports.json 2>/dev/null; then
+              
+              # Check if we actually have reports
+              report_count=$(jq 'length' /tmp/reports.json)
+              if [ "$report_count" -gt 0 ]; then
+                echo "main_exists=true" >> $GITHUB_OUTPUT
+                echo "main_has_data=true" >> $GITHUB_OUTPUT
+                echo "✅ Main branch exists and has $report_count benchmark reports"
+              else
+                echo "main_exists=true" >> $GITHUB_OUTPUT
+                echo "main_has_data=false" >> $GITHUB_OUTPUT
+                echo "⚠️ Main branch exists but has no benchmark reports yet"
+              fi
             else
               echo "main_exists=true" >> $GITHUB_OUTPUT
               echo "main_has_data=false" >> $GITHUB_OUTPUT
-              echo "⚠️ Main branch exists but thresholds/data not accessible yet"
+              echo "⚠️ Main branch exists but cannot list reports (no data yet)"
             fi
           else
             echo "main_exists=true" >> $GITHUB_OUTPUT
             echo "main_has_data=false" >> $GITHUB_OUTPUT
-            echo "⚠️ Main branch exists but has no benchmark data yet (head is null)"
+            echo "⚠️ Main branch exists but has no head (no data yet)"
           fi
         else
           echo "main_exists=false" >> $GITHUB_OUTPUT
@@ -155,15 +164,34 @@ runs:
           exit 1
         fi
 
-    # PR: Skip threshold check if main has no data yet
-    - name: Skip threshold check (main has no data)
+    # PR: Upload data without comparison if main has no data
+    - name: Upload PR data without comparison (main has no data)
       if: |
         github.event_name == 'pull_request' &&
         !github.event.pull_request.head.repo.fork &&
-        steps.check-main.outputs.main_exists == 'true' &&
-        steps.check-main.outputs.main_has_data == 'false'
+        (steps.check-main.outputs.main_exists == 'false' || steps.check-main.outputs.main_has_data == 'false')
       shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        echo "⚠️ Skipping performance comparison - main branch has no benchmark data yet"
-        echo "This is normal for the first PR after enabling benchmarks."
+        echo "⚠️ Uploading PR benchmark data without comparison"
+        echo "Main branch has no benchmark data yet - this is normal for the first PR."
         echo "Once this PR merges, future PRs will have baseline data for comparison."
+        
+        if [ -f "${{ inputs.benchmark_file }}" ]; then
+          # Just upload the data without threshold checks
+          bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.benchmark_file }}"
+            
+          echo "✅ PR benchmark data uploaded successfully"
+        else
+          echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
+          exit 1
+        fi

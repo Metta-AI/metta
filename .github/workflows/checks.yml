@@ -448,6 +448,7 @@ jobs:
           bencher_token: ${{ secrets.BENCHER_API_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           benchmark_file: "unified_benchmark_results.json"
+        continue-on-error: true
 
       - name: Upload benchmark artifacts for debugging
         if: always()
