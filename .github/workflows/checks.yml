@@ -305,7 +305,7 @@ jobs:
           if-no-files-found: warn
 
   python-benchmark:
-    name: "Generate Python Benchmarks"
+    name: "Python Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -338,7 +338,7 @@ jobs:
           retention-days: 1
 
   cpp-benchmark:
-    name: "Generate C++ Benchmarks"
+    name: "C++ Benchmarks"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
@@ -372,7 +372,7 @@ jobs:
           retention-days: 1
 
   upload-benchmarks:
-    name: "Process All Benchmarks"
+    name: "Upload Benchmarks"
     needs: [python-benchmark, cpp-benchmark, setup-checks]
     if: |
       (needs.setup-checks.outputs.run_benchmark == 'true') &&

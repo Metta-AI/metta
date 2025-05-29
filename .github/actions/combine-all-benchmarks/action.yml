@@ -75,20 +75,18 @@ runs:
                 name = bench.get("name", "unknown")
                 bench_metrics = {}
                 
-                # Google Benchmark metrics - convert to BMF format
-                if "real_time" in bench:
-                    bench_metrics["latency"] = {"value": bench["real_time"]}
-                if "cpu_time" in bench:
-                    bench_metrics["cpu_time"] = {"value": bench["cpu_time"]}
-                if "iterations" in bench:
-                    bench_metrics["iterations"] = {"value": bench["iterations"]}
+                # Only include meaningful performance metrics from C++ benchmarks
+                # Filter out metadata and configuration values
+                meaningful_metrics = {
+                    "real_time": "latency",  # Map real_time to standard latency measure
+                    "cpu_time": "cpu_time",  # Keep cpu_time as performance metric
+                }
                 
-                # Add other benchmark-specific metrics
-                for key, value in bench.items():
-                    if key not in ["name", "real_time", "cpu_time", "iterations"] and isinstance(value, (int, float)):
-                        bench_metrics[key] = {"value": value}
+                for cpp_key, bmf_key in meaningful_metrics.items():
+                    if cpp_key in bench and isinstance(bench[cpp_key], (int, float)):
+                        bench_metrics[bmf_key] = {"value": bench[cpp_key]}
                 
-                # Only add benchmark if we have metrics
+                # Only add benchmark if we have meaningful metrics
                 if bench_metrics:
                     bmf_results[name] = bench_metrics
             
