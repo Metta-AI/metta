@@ -189,7 +189,7 @@ TEST_F(MettaGridCppTest, AttackAction) {
   attack.init(&grid);
 
   // Perform attack (arg 5 targets directly in front)
-  bool success = attack.handle_action(attacker->id, 5, 0);
+  bool success = attack.handle_action(attacker->id, 5);
   EXPECT_TRUE(success);
 
   // Verify laser was consumed
@@ -248,14 +248,14 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   put.init(&grid);
 
   // Test putting matching items
-  bool success = put.handle_action(agent->id, 0, 0);
+  bool success = put.handle_action(agent->id, 0);
   EXPECT_TRUE(success);
   EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 0);      // Red ore consumed
   EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);     // Blue ore unchanged
   EXPECT_EQ(generator->inventory[InventoryItem::ore_red], 1);  // Red ore added to generator
 
   // Test putting non-matching items
-  success = put.handle_action(agent->id, 0, 0);
+  success = put.handle_action(agent->id, 0);
   EXPECT_FALSE(success);                                        // Should fail since we only have blue ore left
   EXPECT_EQ(agent->inventory[InventoryItem::ore_blue], 1);      // Blue ore unchanged
   EXPECT_EQ(generator->inventory[InventoryItem::ore_blue], 0);  // No blue ore in generator
@@ -303,7 +303,7 @@ TEST_F(MettaGridCppTest, GetOutput) {
   get.init(&grid);
 
   // Test getting output
-  bool success = get.handle_action(agent->id, 0, 0);
+  bool success = get.handle_action(agent->id, 0);
   EXPECT_TRUE(success);
   EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);          // Still have red ore
   EXPECT_EQ(agent->inventory[InventoryItem::battery_red], 1);      // Also have a battery
