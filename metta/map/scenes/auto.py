@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-from omegaconf import Node
 
+from metta.map.node import Node
 from metta.map.scene import Scene, TypedChild
 from metta.map.scenes.bsp import BSPLayout
 from metta.map.scenes.make_connected import MakeConnected
