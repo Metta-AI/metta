@@ -179,32 +179,48 @@ def get_llm_summary(
     genai.configure(api_key=api_key)
 
     system_prompt = """
-You are a technical writing assistant specialized in summarizing software development activity. You receive detailed information about pull requests (PRs) merged into the Metta-AI/metta GitHub repository and create structured, technical, and concise Markdown summaries suitable for direct posting to Discord. 
+You are a technical writing assistant specialized in summarizing software development activity.
+You receive detailed information about pull requests (PRs) merged into the Metta-AI/metta
+GitHub repository and create structured, technical, and concise Markdown summaries suitable
+for direct posting to Discord. 
 
-Always adhere closely to the formatting and linking guidelines provided in the user prompt. Focus exclusively on technical accuracy, clarity, and readability.
+Always adhere closely to the formatting and linking guidelines provided in the user prompt.
+Focus exclusively on technical accuracy, clarity, and readability.
     """
 
     # Construct the instruction for the first line dynamically
     first_line_instruction = (
-        f"Your first line of output MUST be the following Markdown heading, using the provided dates: "
-        f"## Summary of changes from {start_date_str} to {end_date_str}\\n\\n"
+        f"Your first line of output MUST be the following Markdown heading, "
+        f"using the provided dates: "
+        f"## Summary of changes from {start_date_str} to {end_date_str}\n\n"
     )
 
     prompt_prefix = f"""{first_line_instruction}
-You will receive a list of all pull requests (PRs) merged into the repository [Metta-AI/metta](https://github.com/Metta-AI/metta) in the past week. Each PR entry contains the title, description, and diff of changes.
+You will receive a list of all pull requests (PRs) merged into the repository
+[Metta-AI/metta](https://github.com/Metta-AI/metta) in the past week. Each PR entry
+contains the title, description, and diff of changes.
 
-Create a structured summary using Markdown, clearly highlighting the important technical changes made during the week:
+Create a structured summary using Markdown, clearly highlighting the important
+technical changes made during the week:
 
 1. **Executive Summary:**  
-   A concise paragraph summarizing the week's key technical developments and their overall impact.
+   A concise paragraph summarizing the week's key technical developments and their
+   overall impact.
 
 2. **Internal API Changes:**  
-   If there were changes to internal APIs, explicitly list and explain these here, clearly indicating the impact on other developers. Always include PR references in brackets like [#123](https://github.com/Metta-AI/metta/pull/123).
+   If there were changes to internal APIs, explicitly list and explain these here,
+   clearly indicating the impact on other developers. Always include PR references
+   in brackets like [#123](https://github.com/Metta-AI/metta/pull/123).
 
 3. **Detailed Breakdown:**  
-   Group related PRs by feature, component, or theme. Clearly explain what changed, why it matters, and mention notable PRs using linked references ([#PR_Number](https://github.com/Metta-AI/metta/pull/PR_Number)). You do **not** need to mention every PR—skip trivial changes.
+   Group related PRs by feature, component, or theme. Clearly explain what changed,
+   why it matters, and mention notable PRs using linked references
+   ([#PR_Number](https://github.com/Metta-AI/metta/pull/PR_Number)). You do **not**
+   need to mention every PR—skip trivial changes.
 
-Use Markdown extensively (headings, bullet points, code blocks) to create a structured and easily readable summary. Your output will be directly posted into Discord, so do NOT include any additional text or explanations outside the requested structure.
+Use Markdown extensively (headings, bullet points, code blocks) to create a structured
+and easily readable summary. Your output will be directly posted into Discord, so do
+NOT include any additional text or explanations outside the requested structure.
     """
 
     try:
@@ -236,7 +252,8 @@ def main():
             diff_character_limit = int(diff_character_limit)
         except ValueError:
             print(
-                f"Warning: Invalid DIFF_CHARACTER_LIMIT '{diff_character_limit}', using default {DEFAULT_DIFF_LIMIT} characters."
+                f"Warning: Invalid DIFF_CHARACTER_LIMIT '{diff_character_limit}', "
+                f"using default {DEFAULT_DIFF_LIMIT} characters."
             )
             diff_character_limit = DEFAULT_DIFF_LIMIT
     else:
