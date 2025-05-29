@@ -32,5 +32,6 @@ game:
       _target_: metta.map.scenes.multi_left_and_right.MultiLeftAndRight
       rows: 8
       columns: 8
-      total_altars: 4  # Total number of altars in each room
-      altar_ratio: 0.75  # Ratio of altars that go to the side with more (e.g., 0.75 means 3:1 split)
+      total_altars: 4     # Total number of altars in each room
+      altar_ratio: 0.75   # One side of the room with have more altars, which side is random. 
+                          # altar_ratio sets how many of the total altars will be on the side with more.
