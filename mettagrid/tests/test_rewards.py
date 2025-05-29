@@ -1,6 +1,6 @@
 import numpy as np
 
-from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.mettagrid_env import (
     np_actions_type,
     np_observations_type,

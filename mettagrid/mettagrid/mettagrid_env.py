@@ -19,7 +19,7 @@ from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.hydra import simple_instantiate
 
-# These data types must match PufferLib -- see puferlib/vector.py
+# These data types must match PufferLib -- see pufferlib/vector.py
 np_observations_type = np.dtype(np.uint8)
 np_terminals_type = np.dtype(bool)
 np_truncations_type = np.dtype(bool)
