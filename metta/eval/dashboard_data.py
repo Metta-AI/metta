@@ -113,8 +113,12 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
         key = (policy_uri, eval_name)
         if key not in policy_evals:
             policy_evals[key] = PolicyEval(
-                policy_uri=policy_uri, eval_name=eval_name, suite=suite, replay_url=replay_url, group_num_agents={}, 
-                policy_eval_metrics=[]
+                policy_uri=policy_uri,
+                eval_name=eval_name,
+                suite=suite,
+                replay_url=replay_url,
+                group_num_agents={},
+                policy_eval_metrics=[],
             )
         policy_evals[key].group_num_agents[str(group_id)] = num_agents
 
