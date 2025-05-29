@@ -1,21 +1,21 @@
-name: 'Run Unified Bencher Analysis'
-description: 'Run Bencher analysis with 3 core measures: latency + 2 KPIs'
+name: "Run Unified Bencher Analysis"
+description: "Run Bencher analysis with 3 core measures: latency + 2 KPIs"
 inputs:
   bencher_token:
-    description: 'Bencher API token'
+    description: "Bencher API token"
     required: true
   github_token:
-    description: 'GitHub token'
+    description: "GitHub token"
     required: true
   benchmark_file:
-    description: 'Unified benchmark results file (BMF format)'
+    description: "Unified benchmark results file (BMF format)"
     required: true
   project_id:
-    description: 'Bencher project ID'
-    default: 'metta'
+    description: "Bencher project ID"
+    default: "metta"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Install Bencher CLI
       uses: bencherdev/bencher@main
@@ -50,7 +50,7 @@ runs:
       run: |
         echo "📊 Uploading baseline data with 3-measure thresholds..."
         echo "Measures: latency (built-in), agent_steps_per_second, env_steps_per_second"
-        
+
         if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
           echo "🏷️  Creating measures with proper units..."
           
@@ -129,7 +129,7 @@ runs:
         echo "- latency: ±20% timing changes"
         echo "- agent_steps_per_second: ±20% throughput changes" 
         echo "- env_steps_per_second: ±20% throughput changes"
-        
+
         if [ -f "${{ inputs.benchmark_file }}" ]; then
           echo "Running performance check with ultra-simple thresholds..."
           

@@ -323,7 +323,7 @@ jobs:
         run: |
           # Main benchmarks
           uv run --active pytest --benchmark-only --benchmark-json=main_benchmark_results.json
-          
+
           # Mettagrid benchmarks  
           cd mettagrid
           uv run --active pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
@@ -358,7 +358,7 @@ jobs:
           cd mettagrid
           cmake --preset release
           cmake --build build-release
-          
+
           mkdir -p benchmark_output
           for f in build-release/benchmarks/*_benchmark; do
             "$f" --benchmark_format=json > benchmark_output/$(basename $f).json
@@ -402,7 +402,7 @@ jobs:
         run: |
           echo "=== Checking downloaded artifacts ==="
           ls -la ./benchmarks/ || echo "No benchmarks directory"
-          
+
           echo "=== Python benchmark files content ==="
           for file in ./benchmarks/main_benchmark_results.json ./benchmarks/mettagrid_benchmark_results.json; do
             if [ -f "$file" ]; then
@@ -417,15 +417,15 @@ jobs:
       - name: Combine all benchmark results
         uses: ./.github/actions/combine-all-benchmarks
         with:
-          python_files: './benchmarks/main_benchmark_results.json,./benchmarks/mettagrid_benchmark_results.json'
-          cpp_files: './benchmarks/*.json'
-          output_file: 'unified_benchmark_results.json'
+          python_files: "./benchmarks/main_benchmark_results.json,./benchmarks/mettagrid_benchmark_results.json"
+          cpp_files: "./benchmarks/*.json"
+          output_file: "unified_benchmark_results.json"
 
       - name: Validate generated BMF files
         shell: bash
         run: |
           echo "=== Validating generated BMF files ==="
-          
+
           if [ -f "unified_benchmark_results.json" ]; then
             if jq empty unified_benchmark_results.json; then
               echo "✅ unified_benchmark_results.json is valid JSON"
@@ -441,7 +441,7 @@ jobs:
             echo "❌ unified_benchmark_results.json not found"
             exit 1
           fi
-          
+
           if [ -f "special_metrics.bmf.json" ]; then
             if jq empty special_metrics.bmf.json; then
               echo "✅ special_metrics.bmf.json is valid JSON"
@@ -459,7 +459,7 @@ jobs:
         with:
           bencher_token: ${{ secrets.BENCHER_API_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          benchmark_file: 'unified_benchmark_results.json'
+          benchmark_file: "unified_benchmark_results.json"
 
       - name: Upload benchmark artifacts for debugging
         if: always()
