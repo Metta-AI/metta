@@ -13,10 +13,6 @@ game:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1, 0.01}
-      ore.blue: ${sampling:0.005,0.1, 0.01}
-      ore.green: ${sampling:0.005,0.1, 0.01}
-      ore.green_max: 3
-      ore.blue_max: 3
       ore.red_max: 3
       battery: ${sampling:0.01,0.5, 0.1}
       battery_max: 1
@@ -41,8 +37,8 @@ game:
       agents: 1
       style: all-sparse # ${choose:"all-sparse","balanced","dense","maze"}
       objects:
-        mine: ${sampling:1,20,10}
-        generator: ${sampling:1,10,2}
+        mine.red: ${sampling:1,20,10}
+        generator.red: ${sampling:1,10,2}
         altar: ${sampling:1,5,1}
         armory: ${sampling:1,5,1}
         lasery: ${sampling:1,5,1}
