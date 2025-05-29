@@ -114,7 +114,7 @@ TEST_F(MettaGridCppTest, GridCreation) {
 
   EXPECT_EQ(grid.width, 10);
   EXPECT_EQ(grid.height, 5);
-  EXPECT_EQ(grid.num_layers, 2);
+  EXPECT_EQ(grid.num_layers, GridLayer::GridLayerCount);
 }
 
 TEST_F(MettaGridCppTest, GridObjectManagement) {

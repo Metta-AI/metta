@@ -3,6 +3,7 @@ import pytest
 from omegaconf import OmegaConf
 
 from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.util.actions import generate_valid_random_actions
 from mettagrid.util.hydra import get_cfg
 
 
@@ -13,9 +14,18 @@ def cfg():
 
 
 @pytest.fixture
-def environment(cfg):
-    """Create and initialize the environment."""
+def environment(cfg, num_agents):
+    """Create and initialize the environment with specified number of agents."""
+    # Override the number of agents in the configuration
+    cfg.game.num_agents = num_agents
+    num_rooms = min(num_agents, 4)
+    cfg.game.map_builder.num_rooms = num_rooms
+    agents_per_room = num_agents // num_rooms
+    cfg.game.map_builder.room.agents = agents_per_room
+
+    print(f"\nConfiguring environment with {num_agents} agents")
     print(OmegaConf.to_yaml(cfg))
+
     env = MettaGridEnv(cfg, render_mode="human", recursive=False)
     env.reset()
     yield env
@@ -24,114 +34,118 @@ def environment(cfg):
 
 
 @pytest.fixture
-def single_action(environment):
-    """Generate an array of actions with shape (num_agents, 2) to use for benchmarking."""
-    return environment.action_space.sample()[0]
-
-
-def test_step_performance(benchmark, environment, single_action):
-    """Benchmark just the step method performance."""
-
+def action_generator(environment):
+    """
+    Create a deterministic action generator function.
+    Returns a function that generates different valid actions each call,
+    but the sequence is deterministic across test runs.
+    """
+    # Set the global random seed once for deterministic sequences
     np.random.seed(42)
 
-    def run_step():
-        obs, rewards, terminated, truncated, infos = environment.step(single_action)
-        # Check if any episodes terminated or truncated
-        if np.any(terminated) or np.any(truncated):
-            environment.reset()
+    def generate_actions():
+        return generate_valid_random_actions(
+            environment,
+            num_agents=environment.num_agents,
+            seed=None,  # Use current numpy random state
+        )
 
-    # Run the benchmark
-    benchmark.pedantic(
-        run_step,
-        iterations=1000,  # Number of iterations per round
-        rounds=10,  # Number of rounds to run
-        warmup_rounds=0,  # Number of warmup rounds to discard
-    )
+    return generate_actions
 
 
-def test_step_performance_no_reset(benchmark, environment, single_action):
+@pytest.mark.parametrize("num_agents", [1, 2, 4, 8, 16])
+def test_step_performance(benchmark, environment, action_generator, num_agents):
     """
-    Benchmark just the env.step() method performance.
-    This test excludes environment reset time by relying on the CRITICAL ASSUMPTION
-    that a single episode will last longer than the number of iterations
-    configured for the benchmark (e.g., 1000 steps per round). An initial reset
-    is performed before the benchmark, but no resets are handled *during* the
-    timed iterations.
-    """
-    np.random.seed(42)
+    Benchmark pure step method performance without reset overhead.
 
+    CRITICAL ASSUMPTION: Episodes last longer than benchmark iterations.
+    This test measures raw step performance by avoiding resets during timing.
+    Uses deterministically random actions.
+
+    Args:
+        num_agents: Number of agents to test (parametrized: 1, 2, 4, 8, 16)
+    """
     env = environment
-    # Perform initial reset before benchmarking. This is not timed.
+
+    # Perform initial reset (not timed)
     env.reset()
 
-    # Get the number of agents in the environment
-    num_agents = env.num_agents
+    # Pre-generate a sequence of deterministic actions for consistent timing
+    total_iterations = 1000 * 20  # iterations * rounds
+    action_sequence = []
+    for _ in range(total_iterations):
+        action_sequence.append(action_generator())
+
+    iteration_counter = 0
 
     def run_step():
-        # This function is called repeatedly by pytest-benchmark.
-        # It only contains the env.step() call, relying on the assumption
-        # that the environment has been reset initially and will not
-        # terminate during the benchmark's iterations per round (e.g., 1000 steps).
-        # If this assumption is violated, env.step() might be called on a
-        # terminated environment, potentially leading to errors or incorrect behavior.
-        obs, rewards, terminated, truncated, infos = env.step(single_action)
-        # The 'terminated' status from env.step() is intentionally not used here
-        # to trigger a reset within the benchmarked function, due to the
-        # aforementioned assumption about episode length relative to benchmark iterations.
+        """Pure step operation with pre-generated deterministic actions."""
+        nonlocal iteration_counter
+        actions = action_sequence[iteration_counter % len(action_sequence)]
+        iteration_counter += 1
+
+        _obs, _rewards, _terminated, _truncated, _infos = env.step(actions)
+        # Intentionally ignore termination states to measure pure step performance
 
     # Run the benchmark
     benchmark.pedantic(
         run_step,
-        iterations=1000,  # Number of iterations per round
-        rounds=20,  # Number of rounds to run
-        warmup_rounds=10,  # Number of warmup rounds to discard
+        iterations=1000,
+        rounds=20,
+        warmup_rounds=5,
     )
 
-    # Calculate and print agent steps per second from benchmark data
-    # benchmark.stats['ops'] should give the value from the 'OPS (Kops/s)' column.
+    # Calculate throughput KPIs from timing
     ops_kilo = benchmark.stats["ops"]
-    env_steps_per_second = ops_kilo * 1000.0
+    env_rate = ops_kilo * 1000.0
+    agent_rate = env_rate * env.num_agents
 
-    agent_steps_per_second = env_steps_per_second * num_agents
+    print(f"\nPure Step Performance Results ({num_agents} agents):")
+    print(f"Latency: {benchmark.stats['mean']:.6f} seconds")
+    print(f"Environment rate (steps per second): {env_rate:.2f}")
+    print(f"Agent rate (steps per second): {agent_rate:.2f}")
 
-    print(f"\nEnvironment Kilo OPS (from stats): {ops_kilo:.2f} Kops/s")
-    print(f"Environment steps per second: {env_steps_per_second:.2f} ops/s")
-    print(f"Agents: {num_agents}")
-    print(f"Agent steps per second: {agent_steps_per_second:.2f} ops/s")
-
-    # Add custom info to the benchmark report
-    benchmark.extra_info["num_agents"] = num_agents
-    benchmark.extra_info["env_steps_per_second"] = env_steps_per_second
-    benchmark.extra_info["agent_steps_per_second"] = agent_steps_per_second
+    # Report KPIs
+    benchmark.extra_info.update(
+        {
+            "env_rate": env_rate,
+            "agent_rate": agent_rate,
+        }
+    )
 
 
-def test_reset_performance(benchmark, environment):
+def test_create_env_performance(benchmark, cfg):
     """
-    Benchmark just the env.reset() method performance.
+    Benchmark environment creation.
+
+    This test measures the time to create a new environment instance
+    and perform a reset operation.
+
     """
-    np.random.seed(42)
 
-    env = environment
-
-    def run_reset():
-        # This function is called repeatedly by pytest-benchmark.
-        # It only contains the env.reset() call.
-        env.reset()
+    def create_and_reset():
+        """Create a new environment and reset it."""
+        env = MettaGridEnv(cfg, render_mode="human", recursive=False)
+        obs = env.reset()
+        # Cleanup
+        del env
+        return obs
 
     # Run the benchmark
     benchmark.pedantic(
-        run_reset,
-        iterations=1,  # Number of iterations per round
-        rounds=200,  # Number of rounds to run
-        warmup_rounds=50,  # Number of warmup rounds to discard
+        create_and_reset,
+        iterations=10,
+        rounds=3,
+        warmup_rounds=1,
     )
 
-    # Calculate and print resets per second from benchmark data
-    ops_kilo = benchmark.stats["ops"]
-    resets_per_second = ops_kilo * 1000.0
+    # Calculate KPIs
+    create_reset_time = benchmark.stats["mean"]
+    env_rate = 1.0 / create_reset_time
 
-    print(f"\nEnvironment Kilo OPS (from stats): {ops_kilo:.2f} Kops/s")
-    print(f"Resets per second: {resets_per_second:.2f} ops/s")
+    print("\nCreate & Reset Performance Results:")
+    print(f"Create + Reset time: {create_reset_time:.6f} seconds")
+    print(f"Create + Reset operations per second: {env_rate:.2f}")
 
-    # Add custom info to the benchmark report
-    benchmark.extra_info["resets_per_second"] = resets_per_second
+    # Report KPIs
+    benchmark.extra_info.update({"env_rate": env_rate})
