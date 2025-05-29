@@ -12,8 +12,12 @@ game:
       ore.blue.max: ${sampling:1, 50, 10}
       ore.green: ${sampling:0, 1, 0.1}
       ore.green.max: ${sampling:1, 50, 10}
-      battery: ${sampling:0, 1, 0.1}
-      battery_max: ${sampling:1, 50, 10}
+      battery.red: ${sampling:0, 1, 0.1}
+      battery.red_max: ${sampling:1, 50, 10}
+      battery.blue: ${sampling:0, 1, 0.1}
+      battery.blue_max: ${sampling:1, 50, 10}
+      battery.green: ${sampling:0, 1, 0.1}
+      battery.green_max: ${sampling:1, 50, 10}
       heart: ${sampling:0, 1, 0.1}
       heart_max: ${sampling:1, 50, 10}
       laser: ${sampling:0, 1, 0.1}
@@ -35,8 +39,12 @@ game:
           ore.blue.max: ${sampling:1, 50, 10}
           ore.green: ${sampling:0, 1, 0.1}
           ore.green.max: ${sampling:1, 50, 10}
-          battery: ${sampling:0, 1, 0.1}
-          battery_max: ${sampling:1, 50, 10}
+          battery.red: ${sampling:0, 1, 0.1}
+          battery.red_max: ${sampling:1, 50, 10}
+          battery.blue: ${sampling:0, 1, 0.1}
+          battery.blue_max: ${sampling:1, 50, 10}
+          battery.green: ${sampling:0, 1, 0.1}
+          battery.green_max: ${sampling:1, 50, 10}
           heart: ${sampling:0, 1, 0.1}
           heart_max: ${sampling:1, 50, 10}
           laser: ${sampling:0, 1, 0.1}
@@ -57,8 +65,12 @@ game:
           ore.blue.max: ${sampling:1, 50, 10}
           ore.green: ${sampling:0, 1, 0.1}
           ore.green.max: ${sampling:1, 50, 10}
-          battery: ${sampling:0, 1, 0.1}
-          battery_max: ${sampling:1, 50, 10}
+          battery.red: ${sampling:0, 1, 0.1}
+          battery.red_max: ${sampling:1, 50, 10}
+          battery.blue: ${sampling:0, 1, 0.1}
+          battery.blue_max: ${sampling:1, 50, 10}
+          battery.green: ${sampling:0, 1, 0.1}
+          battery.green_max: ${sampling:1, 50, 10}
           heart: ${sampling:0, 1, 0.1}
           heart_max: ${sampling:1, 50, 10}
           laser: ${sampling:0, 1, 0.1}
@@ -79,8 +91,12 @@ game:
           ore.blue.max: ${sampling:1, 50, 10}
           ore.green: ${sampling:0, 1, 0.1}
           ore.green.max: ${sampling:1, 50, 10}
-          battery: ${sampling:0, 1, 0.1}
-          battery_max: ${sampling:1, 50, 10}
+          battery.red: ${sampling:0, 1, 0.1}
+          battery.red_max: ${sampling:1, 50, 10}
+          battery.blue: ${sampling:0, 1, 0.1}
+          battery.blue_max: ${sampling:1, 50, 10}
+          battery.green: ${sampling:0, 1, 0.1}
+          battery.green_max: ${sampling:1, 50, 10}
           heart: ${sampling:0, 1, 0.1}
           heart_max: ${sampling:1, 50, 10}
           laser: ${sampling:0, 1, 0.1}
