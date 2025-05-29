@@ -1,4 +1,4 @@
-name: Claude Assistant
+name: "Claude Assistant"
 
 on:
   issue_comment:
@@ -93,7 +93,7 @@ jobs:
           script: |
             let targetBranch = 'main'; // fallback
             let contextInfo = '';
-            
+
             if (context.payload.issue.pull_request) {
               // Comment was made on a PR - target that PR's head branch
               console.log("Comment made on PR, fetching PR details...");
@@ -116,18 +116,18 @@ jobs:
               contextInfo = `issue #${context.issue.number} (${targetBranch})`;
               console.log(`Will target default branch: ${targetBranch}`);
             }
-            
+
             // Generate unique branch name
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
             const newBranch = `claude/auto-${context.issue.number}-${timestamp}`;
-            
+
             console.log(`New branch: ${newBranch} -> ${targetBranch}`);
-            
+
             // Set outputs
             core.setOutput('target_branch', targetBranch);
             core.setOutput('new_branch', newBranch);
             core.setOutput('context_info', contextInfo);
-            
+
             return {
               targetBranch,
               newBranch,
@@ -199,7 +199,7 @@ jobs:
             - If git commands fail, show the error and try to fix it
 
             SUCCESS = New branch created, changes committed and pushed!
-          
+
           allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,BatchTool,Bash(git status),Bash(git branch),Bash(git branch --show-current),Bash(git checkout *),Bash(git pull origin *),Bash(git checkout -b *),Bash(git add .),Bash(git add *),Bash(git commit -m *),Bash(git push -u origin *),Bash(git push origin *),Bash(git diff),Bash(git diff --cached),Bash(git log --oneline -10),Bash(find . -name '*' -type f -not -path './.git/*' -not -path './node_modules/*'),Bash(ls -la),Bash(cat *)"
 
       # Verify Claude completed the git workflow
@@ -211,16 +211,16 @@ jobs:
           echo "Current branch:"
           CURRENT_BRANCH=$(git branch --show-current)
           echo "$CURRENT_BRANCH"
-          
+
           echo "Git status:"
           git status
-          
+
           echo "Recent commits:"
           git log --oneline -5
-          
+
           echo "Remote branches:"
           git branch -r
-          
+
           # Check if we're on the expected branch
           if [ "$CURRENT_BRANCH" = "${{ steps.branches.outputs.new_branch }}" ]; then
             echo "✅ On correct branch: $CURRENT_BRANCH"
@@ -352,13 +352,13 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             let reason = "Unknown issue";
-            
+
             if ("${{ steps.verify_git.outputs.branch_created }}" !== 'true') {
               reason = "Claude didn't create the required branch";
             } else if ("${{ steps.verify_git.outputs.has_commits }}" !== 'true') {
               reason = "Claude didn't commit any changes";
             }
-            
+
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
