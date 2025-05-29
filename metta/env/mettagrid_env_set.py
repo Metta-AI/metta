@@ -361,14 +361,24 @@ class ProgressiveEnvSet(MettaGridEnv):
         buf=None,
         alpha: float = 0.6,
         epsilon: float = 0.01,
-        min_samples_for_norm_stats: Optional[int] = None,  # Allow override from config
-        max_z_score_magnitude: Optional[float] = None,  # Allow override from config
+        min_samples_for_norm_stats: Optional[int] = None,
+        max_z_score_magnitude: Optional[float] = None,
         **kwargs,
     ):
         # List to store parsed ensemble configurations
         self._parsed_ensembles = []
-        # Store the global number of agents from config
-        self._num_agents_global = env_cfg.num_agents
+
+        # Get num_agents from the first environment if not specified in env_cfg
+        if hasattr(env_cfg, "num_agents"):
+            self._num_agents_global = env_cfg.num_agents
+        else:
+            # Read from the first environment in the first ensemble
+            if not env_cfg.ensembles or not env_cfg.ensembles[0].envs:
+                raise ValueError("No ensembles or environments defined in the configuration.")
+
+            first_env_path = env_cfg.ensembles[0].envs[0]
+            first_env_cfg = config_from_path(first_env_path)
+            self._num_agents_global = first_env_cfg.game.num_agents
 
         # Set minimum samples required for normalization statistics
         # Use provided value or fall back to default class constant
@@ -446,16 +456,16 @@ class ProgressiveEnvSet(MettaGridEnv):
         self._current_ensemble_idx = None
         self._current_env_idx_in_ensemble = None
 
+        # Ensure the env_cfg has the expected game structure for the trainer
+        OmegaConf.set_struct(env_cfg, False)  # Allow modification
+        if not OmegaConf.select(env_cfg, "game"):
+            env_cfg.game = OmegaConf.create({"num_agents": self._num_agents_global})
+        elif not OmegaConf.select(env_cfg, "game.num_agents"):
+            env_cfg.game.num_agents = self._num_agents_global
+        OmegaConf.set_struct(env_cfg, True)  # Re-enable struct mode
+
         # Initialize the base environment with a dummy configuration
         dummy_initial_cfg_for_super = OmegaConf.create({"game": {"num_agents": self._num_agents_global}})
-
-        # Ensure the env_cfg has the expected game structure for the trainer
-        if not OmegaConf.select(env_cfg, "game"):
-            # Add the game structure to env_cfg so the trainer can access it
-            OmegaConf.set_struct(env_cfg, False)  # Allow modification
-            env_cfg.game = OmegaConf.create({"num_agents": self._num_agents_global})
-            OmegaConf.set_struct(env_cfg, True)  # Re-enable struct mode
-
         super().__init__(dummy_initial_cfg_for_super, render_mode, buf=buf, env_map=None, **kwargs)
         self._cfg_template = None
 
