@@ -43,20 +43,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
 
   current_step = 0;
 
-  // Initialize mode flags
-  _gym_mode = false;
-  _set_buffers_called = false;
-
-  _observations = nullptr;
-  _terminals = nullptr;
-  _truncations = nullptr;
-  _rewards = nullptr;
-
-  _observations_size = 0;
-  _terminals_size = 0;
-  _truncations_size = 0;
-  _rewards_size = 0;
-
   std::vector<Layer> layer_for_type_id;
   for (const auto& layer : ObjectLayers) {
     layer_for_type_id.push_back(layer.second);
@@ -173,6 +159,24 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
       }
     }
   }
+
+  // Initialize buffers. The buffers are likely to be re-set by the user anyways,
+  // so nothing above should depend on them before this point.
+  std::vector<ssize_t> shape;
+  if (_use_observation_tokens) {
+    shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(num_observation_tokens), static_cast<ssize_t>(3)};
+  } else {
+    shape = {static_cast<ssize_t>(num_agents),
+             static_cast<ssize_t>(obs_height),
+             static_cast<ssize_t>(obs_width),
+             static_cast<ssize_t>(_grid_features.size())};
+  }
+  auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
+  auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
+  auto truncations = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
+  auto rewards = py::array_t<float, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(float)});
+
+  set_buffers(observations, terminals, truncations, rewards);
 }
 
 MettaGrid::~MettaGrid() {
@@ -492,12 +496,14 @@ void MettaGrid::validate_buffers() {
       throw std::runtime_error(ss.str());
     }
   } else {
-    size_t expected_obs_size = num_agents * obs_height * obs_width * _grid_features.size();
-    if (_observations_size != expected_obs_size) {
+    auto observation_info = _observations.request();
+    auto shape = observation_info.shape;
+    if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != obs_height || shape[2] != obs_width ||
+        shape[3] != _grid_features.size()) {
       std::stringstream ss;
-      ss << "observations buffer size is " << _observations_size << " but expected " << expected_obs_size
-         << " (agents=" << num_agents << ", height=" << obs_height << ", width=" << obs_width
-         << ", features=" << _grid_features.size() << ")";
+      ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << ", " << shape[3]
+         << "] but expected [" << num_agents << ", " << obs_height << ", " << obs_width << ", " << _grid_features.size()
+         << "]";
       throw std::runtime_error(ss.str());
     }
   }

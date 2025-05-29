@@ -1,10 +1,10 @@
-name: Torch Rearrangement Review
+name: "Torch Rearrangement Review"
 
 on:
   pull_request:
     types: [opened, reopened]
     paths:
-      - '**/*.py'
+      - "**/*.py"
 
 jobs:
   review-einops:

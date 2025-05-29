@@ -228,21 +228,37 @@ def test_grid_features(environment):
 class TestEnvironmentFunctionality:
     """Test suite for MettaGrid environment functionality."""
 
-    def test_timestep(self, environment):
-        """Test that timestep increments correctly."""
+    def test_env_initialization(self, environment):
+        """Test environment initialization."""
+        assert environment._renderer is None
+        assert environment._c_env is not None
+        assert environment._grid_env is not None
+        assert environment._c_env == environment._grid_env
+        assert environment.done is False
+
+    def test_env_reset(self, environment):
+        """Test environment reset functionality."""
+        # Reset should return observation and info
+        obs, info = environment.reset()
+
+        # Check observation structure
+        [num_agents, grid_width, grid_height, num_channels] = obs.shape
+        num_expected_agents = environment._c_env.num_agents
+        assert num_agents == num_expected_agents
+        assert grid_width > 0
+        assert grid_height > 0
+        assert 20 <= num_channels <= 50
+
+    def test_env_step(self, environment):
+        """Test environment step functionality."""
         environment.reset()
 
-        # Generate a valid action for all agents
-        num_agents = environment.num_agents
-        actions = generate_valid_random_actions(
-            environment,
-            num_agents,
-            force_action_type=0,
-            force_action_arg=0,
-            seed=TEST_SEED,
-        )
+        # Check initial timestep
+        assert environment._c_env.current_step == 0
 
-        obs, rewards, terminated, truncated, infos = environment.step(actions)
+        num_agents = environment._c_env.num_agents
+        # Take a step with NoOp actions for all agents
+        (obs, rewards, terminated, truncated, infos) = environment.step([[0, 0]] * num_agents)
 
         # Check timestep increased
         assert environment._c_env.current_step == 1

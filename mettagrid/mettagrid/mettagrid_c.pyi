@@ -1,5 +1,6 @@
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
+import gymnasium as gym
 import numpy as np
 
 class MettaGrid:
@@ -10,8 +11,8 @@ class MettaGrid:
     map_width: int
     map_height: int
     num_agents: int
-    action_space: Any  # Typically gym.spaces.MultiDiscrete
-    observation_space: Any  # Typically gym.spaces.Box
+    action_space: gym.spaces.MultiDiscrete
+    observation_space: gym.spaces.Box
 
     def __init__(self, env_cfg: dict, map: list) -> None: ...
     def reset(self) -> Tuple[np.ndarray, dict]: ...
