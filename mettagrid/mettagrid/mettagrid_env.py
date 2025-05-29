@@ -16,8 +16,8 @@ from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
-from mettagrid.util.hydra import simple_instantiate
 from mettagrid.util import validate_arg_types
+from mettagrid.util.hydra import simple_instantiate
 
 
 def required(func):
