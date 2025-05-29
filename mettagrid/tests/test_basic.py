@@ -1,6 +1,7 @@
 import pytest
 from omegaconf import OmegaConf
 
+from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.util.hydra import get_cfg
 
@@ -12,7 +13,8 @@ def environment():
     cfg = get_cfg("benchmark")
     print(OmegaConf.to_yaml(cfg))
 
-    env = MettaGridEnv(cfg, render_mode="human", _recursive_=False)
+    curriculum = SingleTaskCurriculum("benchmark", cfg)
+    env = MettaGridEnv(curriculum, render_mode="human")
     env.reset()
     yield env
     # Cleanup after test
