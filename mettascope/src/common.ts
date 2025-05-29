@@ -33,164 +33,164 @@ export const TRACE_WIDTH = 54;
 
 // Colors for resources
 export const COLORS: [string, [number, number, number, number]][] = [
-	["red", parseHtmlColor("#E4433A")],
-	["green", parseHtmlColor("#66BB6A")],
-	["blue", parseHtmlColor("#3498DB")],
+  ["red", parseHtmlColor("#E4433A")],
+  ["green", parseHtmlColor("#66BB6A")],
+  ["blue", parseHtmlColor("#3498DB")],
 ];
 
 export const ui = {
-	// Mouse events
-	mouseDown: false,
-	mouseUp: false,
-	mouseClick: false,
-	mouseDoubleClick: false,
-	mousePos: new Vec2f(0, 0),
-	mouseTarget: "",
-	lastMousePos: new Vec2f(0, 0),
-	mouseDownPos: new Vec2f(0, 0),
-	scrollDelta: 0,
-	lastClickTime: 0, // For double-click detection
+  // Mouse events
+  mouseDown: false,
+  mouseUp: false,
+  mouseClick: false,
+  mouseDoubleClick: false,
+  mousePos: new Vec2f(0, 0),
+  mouseTarget: "",
+  lastMousePos: new Vec2f(0, 0),
+  mouseDownPos: new Vec2f(0, 0),
+  scrollDelta: 0,
+  lastClickTime: 0, // For double-click detection
 
-	// Split between trace and info panels.
-	traceSplit: DEFAULT_TRACE_SPLIT,
-	traceDragging: false,
+  // Split between trace and info panels.
+  traceSplit: DEFAULT_TRACE_SPLIT,
+  traceDragging: false,
 
-	// Panels
-	mapPanel: new PanelInfo("#worldmap-panel"),
-	miniMapPanel: new PanelInfo("#minimap-panel"),
-	tracePanel: new PanelInfo("#trace-panel"),
-	infoPanel: new PanelInfo("#info-panel"),
+  // Panels
+  mapPanel: new PanelInfo("#worldmap-panel"),
+  miniMapPanel: new PanelInfo("#minimap-panel"),
+  tracePanel: new PanelInfo("#trace-panel"),
+  infoPanel: new PanelInfo("#info-panel"),
 };
 
 export const state = {
-	// Replay data and player state
-	replay: null as any,
-	selectedGridObject: null as any,
-	followSelection: false, // Flag to follow selected entity
+  // Replay data and player state
+  replay: null as any,
+  selectedGridObject: null as any,
+  followSelection: false, // Flag to follow selected entity
 
-	// Playback state
-	step: 0,
-	isPlaying: false,
-	partialStep: 0,
-	playbackSpeed: 0.1,
+  // Playback state
+  step: 0,
+  isPlaying: false,
+  partialStep: 0,
+  playbackSpeed: 0.1,
 
-	// What to show?
-	showResources: true,
-	showGrid: true,
-	showVisualRanges: true,
-	showFogOfWar: false,
-	showMiniMap: true,
-	showInfo: true,
-	showControls: true,
+  // What to show?
+  showResources: true,
+  showGrid: true,
+  showVisualRanges: true,
+  showFogOfWar: false,
+  showMiniMap: true,
+  showInfo: true,
+  showControls: true,
 
-	showAttackMode: false,
+  showAttackMode: false,
 
-	// Playing over WebSocket
-	ws: null as WebSocket | null,
-	isOneToOneAction: false,
+  // Playing over WebSocket
+  ws: null as WebSocket | null,
+  isOneToOneAction: false,
 };
 
 export const html = {
-	globalCanvas: find("#global-canvas") as HTMLCanvasElement,
+  globalCanvas: find("#global-canvas") as HTMLCanvasElement,
 
-	// Header area
-	fileName: find("#file-name") as HTMLDivElement,
-	helpButton: find("#help-button") as HTMLButtonElement,
-	shareButton: find("#share-button") as HTMLButtonElement,
+  // Header area
+  fileName: find("#file-name") as HTMLDivElement,
+  helpButton: find("#help-button") as HTMLButtonElement,
+  shareButton: find("#share-button") as HTMLButtonElement,
 
-	// Bottom area
-	scrubber: find("#main-scrubber") as HTMLInputElement,
+  // Bottom area
+  scrubber: find("#main-scrubber") as HTMLInputElement,
 
-	rewindToStartButton: find("#rewind-to-start") as HTMLImageElement,
-	stepBackButton: find("#step-back") as HTMLImageElement,
-	playButton: find("#play") as HTMLButtonElement,
-	stepForwardButton: find("#step-forward") as HTMLImageElement,
-	rewindToEndButton: find("#rewind-to-end") as HTMLImageElement,
+  rewindToStartButton: find("#rewind-to-start") as HTMLImageElement,
+  stepBackButton: find("#step-back") as HTMLImageElement,
+  playButton: find("#play") as HTMLButtonElement,
+  stepForwardButton: find("#step-forward") as HTMLImageElement,
+  rewindToEndButton: find("#rewind-to-end") as HTMLImageElement,
 
-	actionButtons: find("#action-buttons"),
+  actionButtons: find("#action-buttons"),
 
-	speedButtons: [
-		find("#speed1") as HTMLImageElement,
-		find("#speed2") as HTMLImageElement,
-		find("#speed3") as HTMLImageElement,
-		find("#speed4") as HTMLImageElement,
-		find("#speed5") as HTMLImageElement,
-		find("#speed6") as HTMLImageElement,
-	],
+  speedButtons: [
+    find("#speed1") as HTMLImageElement,
+    find("#speed2") as HTMLImageElement,
+    find("#speed3") as HTMLImageElement,
+    find("#speed4") as HTMLImageElement,
+    find("#speed5") as HTMLImageElement,
+    find("#speed6") as HTMLImageElement,
+  ],
 
-	resourcesToggle: find("#resources-toggle") as HTMLImageElement,
-	focusToggle: find("#focus-toggle") as HTMLImageElement,
-	gridToggle: find("#grid-toggle") as HTMLImageElement,
-	visualRangeToggle: find("#visual-range-toggle") as HTMLImageElement,
-	fogOfWarToggle: find("#fog-of-war-toggle") as HTMLImageElement,
-	minimapToggle: find("#minimap-toggle") as HTMLImageElement,
-	controlsToggle: find("#controls-toggle") as HTMLImageElement,
-	infoToggle: find("#info-toggle") as HTMLImageElement,
+  resourcesToggle: find("#resources-toggle") as HTMLImageElement,
+  focusToggle: find("#focus-toggle") as HTMLImageElement,
+  gridToggle: find("#grid-toggle") as HTMLImageElement,
+  visualRangeToggle: find("#visual-range-toggle") as HTMLImageElement,
+  fogOfWarToggle: find("#fog-of-war-toggle") as HTMLImageElement,
+  minimapToggle: find("#minimap-toggle") as HTMLImageElement,
+  controlsToggle: find("#controls-toggle") as HTMLImageElement,
+  infoToggle: find("#info-toggle") as HTMLImageElement,
 
-	// Utility
-	modal: find("#modal") as HTMLDivElement,
-	toast: find("#toast") as HTMLDivElement,
+  // Utility
+  modal: find("#modal") as HTMLDivElement,
+  toast: find("#toast") as HTMLDivElement,
 };
 
 // Set the follow selection state, you can pass null to leave a state unchanged.
 export function setFollowSelection(map: boolean | null) {
-	if (map != null) {
-		state.followSelection = map;
-		if (map) {
-			html.focusToggle.style.opacity = "1";
-		} else {
-			html.focusToggle.style.opacity = "0.2";
-		}
-	}
+  if (map != null) {
+    state.followSelection = map;
+    if (map) {
+      html.focusToggle.style.opacity = "1";
+    } else {
+      html.focusToggle.style.opacity = "0.2";
+    }
+  }
 }
 
 // Show the modal
 export function showModal(type: string, title: string, message: string) {
-	html.modal.classList.remove("hidden");
-	html.modal.classList.add(type);
-	const header = html.modal.querySelector(".header");
-	if (header) {
-		header.textContent = title;
-	}
-	const content = html.modal.querySelector(".message");
-	if (content) {
-		content.textContent = message;
-	}
-	console.log("showing modal", html.modal, type, title, message);
+  html.modal.classList.remove("hidden");
+  html.modal.classList.add(type);
+  const header = html.modal.querySelector(".header");
+  if (header) {
+    header.textContent = title;
+  }
+  const content = html.modal.querySelector(".message");
+  if (content) {
+    content.textContent = message;
+  }
+  console.log("showing modal", html.modal, type, title, message);
 }
 
 // Close the modal
 export function closeModal() {
-	// Remove error class from modal.
-	html.modal.classList.remove("error");
-	html.modal.classList.remove("info");
-	html.modal.classList.add("hidden");
+  // Remove error class from modal.
+  html.modal.classList.remove("error");
+  html.modal.classList.remove("info");
+  html.modal.classList.add("hidden");
 }
 
 // Functions to show and hide toast notifications
 export function showToast(message: string, duration = 3000) {
-	// Set the message
-	const msg = html.toast.querySelector(".message");
-	if (msg != null) {
-		msg.textContent = message;
-	}
-	// Remove any existing classes
-	html.toast.classList.remove("hiding");
-	// Make the toast visible
-	html.toast.classList.add("visible");
-	// Set a timeout to hide the toast after the specified duration
-	setTimeout(() => {
-		hideToast();
-	}, duration);
+  // Set the message
+  const msg = html.toast.querySelector(".message");
+  if (msg != null) {
+    msg.textContent = message;
+  }
+  // Remove any existing classes
+  html.toast.classList.remove("hiding");
+  // Make the toast visible
+  html.toast.classList.add("visible");
+  // Set a timeout to hide the toast after the specified duration
+  setTimeout(() => {
+    hideToast();
+  }, duration);
 }
 
 // Hides the currently visible toast with an upward animation
 export function hideToast() {
-	// Add the hiding class for the upward animation
-	html.toast.classList.add("hiding");
-	// Remove the visible class after the animation completes
-	setTimeout(() => {
-		html.toast.classList.remove("visible");
-		html.toast.classList.remove("hiding");
-	}, 300); // Match the transition duration from CSS
+  // Add the hiding class for the upward animation
+  html.toast.classList.add("hiding");
+  // Remove the visible class after the animation completes
+  setTimeout(() => {
+    html.toast.classList.remove("visible");
+    html.toast.classList.remove("hiding");
+  }, 300); // Match the transition duration from CSS
 }

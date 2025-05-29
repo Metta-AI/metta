@@ -1,6 +1,10 @@
 {
-	"files": {
-		"ignore": ["dist"]
-	},
-	"linter": {}
+  "files": {
+    "ignore": ["dist"]
+  },
+  "linter": {},
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2
+  }
 }
