@@ -9,6 +9,7 @@ class AsciiRenderer:
     """Simple ASCII renderer for ``MettaGridEnv``."""
 
     SYMBOLS = {v: k for k, v in MAP_SYMBOLS.items()}
+    SYMBOLS["wall"] = "█"
 
     def __init__(self, object_type_names: List[str]):
         self._object_type_names = object_type_names
