@@ -1,0 +1,39 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: navsequence
+
+simulations:
+  navsequence/cylinder:
+    env: env/mettagrid/navsequence/evals/cylinder
+  navsequence/obstacles0:
+    env: env/mettagrid/navsequence/evals/obstacles0
+  navsequence/obstacles1:
+    env: env/mettagrid/navsequence/evals/obstacles1
+  navsequence/obstacles2:
+    env: env/mettagrid/navsequence/evals/obstacles2
+  navsequence/obstacles3:
+    env: env/mettagrid/navsequence/evals/obstacles3
+  navsequence/corridors:
+    env: env/mettagrid/navsequence/evals/corridors
+  navsequence/cylinder_easy:
+    env: env/mettagrid/navsequence/evals/cylinder_easy
+  navsequence/honeypot:
+    env: env/mettagrid/navsequence/evals/honeypot
+  navsequence/knotty:
+    env: env/mettagrid/navsequence/evals/knotty
+  navsequence/memory_palace:
+    env: env/mettagrid/navsequence/evals/memory_palace
+  navsequence/radial_large:
+    env: env/mettagrid/navsequence/evals/radial_large
+  navsequence/radial_mini:
+    env: env/mettagrid/navsequence/evals/radial_mini
+  navsequence/radial_small:
+    env: env/mettagrid/navsequence/evals/radial_small
+  navsequence/swirls:
+    env: env/mettagrid/navsequence/evals/swirls
+  navsequence/thecube:
+    env: env/mettagrid/navsequence/evals/thecube
+  navsequence/walkaround:
+    env: env/mettagrid/navsequence/evals/walkaround
