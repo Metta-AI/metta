@@ -1,7 +1,7 @@
 export class Grid {
   private width: number;
   private height: number;
-  private data: Uint8Array; // or Uint32Array if you want to pack 32 bools per int
+  private data: Uint8Array;  // or Uint32Array if you want to pack 32 bools per int
 
   constructor(width: number, height: number) {
     this.width = width;

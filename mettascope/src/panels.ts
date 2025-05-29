@@ -1,32 +1,28 @@
-import * as Common from "./common.js";
-import { ui } from "./common.js";
-import { find } from "./htmlutils.js";
-import { Mat3f, Vec2f } from "./vector_math.js";
+import { Vec2f, Mat3f } from './vector_math.js';
+import * as Common from './common.js';
+import { ui } from './common.js';
+import { find } from './htmlutils.js'
 
 export class PanelInfo {
-  public x = 0;
-  public y = 0;
-  public width = 0;
-  public height = 0;
-  public name = "";
-  public isPanning = false;
+  public x: number = 0;
+  public y: number = 0;
+  public width: number = 0;
+  public height: number = 0;
+  public name: string = "";
+  public isPanning: boolean = false;
   public panPos: Vec2f = new Vec2f(0, 0);
   public zoomLevel: number = Common.DEFAULT_ZOOM_LEVEL;
   public div: HTMLElement;
 
   constructor(name: string) {
     this.name = name;
-    this.div = find(name);
+    this.div = find(name)
   }
 
   // Check if a point is inside the panel.
   inside(point: Vec2f): boolean {
-    return (
-      point.x() >= this.x &&
-      point.x() < this.x + this.width &&
-      point.y() >= this.y &&
-      point.y() < this.y + this.height
-    );
+    return point.x() >= this.x && point.x() < this.x + this.width &&
+      point.y() >= this.y && point.y() < this.y + this.height;
   }
 
   // Transform a point from the canvas to the map coordinate system.
@@ -39,12 +35,16 @@ export class PanelInfo {
 
   // Make the panel focus on a specific position in the panel.
   focusPos(x: number, y: number, zoomLevel: number) {
-    this.panPos = new Vec2f(-x, -y);
+    this.panPos = new Vec2f(
+      -x,
+      -y
+    );
     this.zoomLevel = zoomLevel;
   }
 
   // Update the pan and zoom level based on the mouse position and scroll delta.
   updatePanAndZoom(): boolean {
+
     if (ui.mouseClick) {
       this.isPanning = true;
     }
@@ -62,12 +62,8 @@ export class PanelInfo {
 
     if (ui.scrollDelta !== 0) {
       const oldMousePoint = this.transformPoint(ui.mousePos);
-      this.zoomLevel =
-        this.zoomLevel + ui.scrollDelta / Common.SCROLL_ZOOM_FACTOR;
-      this.zoomLevel = Math.max(
-        Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL),
-        Common.MIN_ZOOM_LEVEL,
-      );
+      this.zoomLevel = this.zoomLevel + ui.scrollDelta / Common.SCROLL_ZOOM_FACTOR;
+      this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL);
       const newMousePoint = this.transformPoint(ui.mousePos);
       if (oldMousePoint != null && newMousePoint != null) {
         this.panPos = this.panPos.add(newMousePoint.sub(oldMousePoint));
@@ -80,9 +76,9 @@ export class PanelInfo {
 
   // Update the div position and size.
   updateDiv() {
-    this.div.style.top = `${this.y}px`;
-    this.div.style.left = `${this.x}px`;
-    this.div.style.width = `${this.width}px`;
-    this.div.style.height = `${this.height}px`;
+    this.div.style.top = this.y + 'px';
+    this.div.style.left = this.x + 'px';
+    this.div.style.width = this.width + 'px';
+    this.div.style.height = this.height + 'px';
   }
 }

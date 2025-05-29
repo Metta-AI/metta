@@ -5,6 +5,7 @@
   "linter": {
     "rules": {
       "style": {
+        "useBlockStatements": "off",
         "useSingleVarDeclarator": "off"
       },
       "complexity": {

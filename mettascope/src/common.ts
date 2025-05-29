@@ -1,22 +1,22 @@
-import { Context3d } from "./context3d.js";
-import { find, parseHtmlColor } from "./htmlutils.js";
-import { PanelInfo } from "./panels.js";
-import { Vec2f } from "./vector_math.js";
+import { Vec2f } from './vector_math.js';
+import { Context3d } from './context3d.js';
+import { find, parseHtmlColor } from './htmlutils.js';
+import { PanelInfo } from './panels.js';
 
 // The 3d context, used for nearly everything.
-export const ctx = new Context3d(find("#global-canvas") as HTMLCanvasElement);
+export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement);
 
 // Constants
 export const MIN_ZOOM_LEVEL = 0.025;
 export const MAX_ZOOM_LEVEL = 2.0;
 export const DEFAULT_ZOOM_LEVEL = 1 / 2;
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4;
-export const SPLIT_DRAG_THRESHOLD = 10; // pixels to detect split dragging
-export const SCROLL_ZOOM_FACTOR = 1000; // divisor for scroll delta to zoom conversion
-export const DEFAULT_TRACE_SPLIT = 0.8; // default horizontal split ratio
-export const PANEL_BOTTOM_MARGIN = 60; // bottom margin for panels
-export const HEADER_HEIGHT = 60; // height of the header
-export const SCRUBBER_HEIGHT = 120; // height of the scrubber
+export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
+export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
+export const DEFAULT_TRACE_SPLIT = 0.80;  // default horizontal split ratio
+export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
+export const HEADER_HEIGHT = 60;          // height of the header
+export const SCRUBBER_HEIGHT = 120;        // height of the scrubber
 export const SPEEDS = [0.02, 0.1, 0.25, 0.5, 1.0, 5.0];
 
 // Map constants
@@ -91,46 +91,46 @@ export const state = {
 };
 
 export const html = {
-  globalCanvas: find("#global-canvas") as HTMLCanvasElement,
+  globalCanvas: find('#global-canvas') as HTMLCanvasElement,
 
   // Header area
-  fileName: find("#file-name") as HTMLDivElement,
-  helpButton: find("#help-button") as HTMLButtonElement,
-  shareButton: find("#share-button") as HTMLButtonElement,
+  fileName: find('#file-name') as HTMLDivElement,
+  helpButton: find('#help-button') as HTMLButtonElement,
+  shareButton: find('#share-button') as HTMLButtonElement,
 
   // Bottom area
-  scrubber: find("#main-scrubber") as HTMLInputElement,
+  scrubber: find('#main-scrubber') as HTMLInputElement,
 
-  rewindToStartButton: find("#rewind-to-start") as HTMLImageElement,
-  stepBackButton: find("#step-back") as HTMLImageElement,
-  playButton: find("#play") as HTMLButtonElement,
-  stepForwardButton: find("#step-forward") as HTMLImageElement,
-  rewindToEndButton: find("#rewind-to-end") as HTMLImageElement,
+  rewindToStartButton: find('#rewind-to-start') as HTMLImageElement,
+  stepBackButton: find('#step-back') as HTMLImageElement,
+  playButton: find('#play') as HTMLButtonElement,
+  stepForwardButton: find('#step-forward') as HTMLImageElement,
+  rewindToEndButton: find('#rewind-to-end') as HTMLImageElement,
 
-  actionButtons: find("#action-buttons"),
+  actionButtons: find('#action-buttons'),
 
   speedButtons: [
-    find("#speed1") as HTMLImageElement,
-    find("#speed2") as HTMLImageElement,
-    find("#speed3") as HTMLImageElement,
-    find("#speed4") as HTMLImageElement,
-    find("#speed5") as HTMLImageElement,
-    find("#speed6") as HTMLImageElement,
+    find('#speed1') as HTMLImageElement,
+    find('#speed2') as HTMLImageElement,
+    find('#speed3') as HTMLImageElement,
+    find('#speed4') as HTMLImageElement,
+    find('#speed5') as HTMLImageElement,
+    find('#speed6') as HTMLImageElement,
   ],
 
-  resourcesToggle: find("#resources-toggle") as HTMLImageElement,
-  focusToggle: find("#focus-toggle") as HTMLImageElement,
-  gridToggle: find("#grid-toggle") as HTMLImageElement,
-  visualRangeToggle: find("#visual-range-toggle") as HTMLImageElement,
-  fogOfWarToggle: find("#fog-of-war-toggle") as HTMLImageElement,
-  minimapToggle: find("#minimap-toggle") as HTMLImageElement,
-  controlsToggle: find("#controls-toggle") as HTMLImageElement,
-  infoToggle: find("#info-toggle") as HTMLImageElement,
+  resourcesToggle: find('#resources-toggle') as HTMLImageElement,
+  focusToggle: find('#focus-toggle') as HTMLImageElement,
+  gridToggle: find('#grid-toggle') as HTMLImageElement,
+  visualRangeToggle: find('#visual-range-toggle') as HTMLImageElement,
+  fogOfWarToggle: find('#fog-of-war-toggle') as HTMLImageElement,
+  minimapToggle: find('#minimap-toggle') as HTMLImageElement,
+  controlsToggle: find('#controls-toggle') as HTMLImageElement,
+  infoToggle: find('#info-toggle') as HTMLImageElement,
 
   // Utility
-  modal: find("#modal") as HTMLDivElement,
-  toast: find("#toast") as HTMLDivElement,
-};
+  modal: find('#modal') as HTMLDivElement,
+  toast: find('#toast') as HTMLDivElement,
+}
 
 // Set the follow selection state, you can pass null to leave a state unchanged.
 export function setFollowSelection(map: boolean | null) {
@@ -146,13 +146,13 @@ export function setFollowSelection(map: boolean | null) {
 
 // Show the modal
 export function showModal(type: string, title: string, message: string) {
-  html.modal.classList.remove("hidden");
+  html.modal.classList.remove('hidden');
   html.modal.classList.add(type);
-  const header = html.modal.querySelector(".header");
+  const header = html.modal.querySelector('.header');
   if (header) {
     header.textContent = title;
   }
-  const content = html.modal.querySelector(".message");
+  const content = html.modal.querySelector('.message');
   if (content) {
     content.textContent = message;
   }
@@ -162,22 +162,22 @@ export function showModal(type: string, title: string, message: string) {
 // Close the modal
 export function closeModal() {
   // Remove error class from modal.
-  html.modal.classList.remove("error");
-  html.modal.classList.remove("info");
-  html.modal.classList.add("hidden");
+  html.modal.classList.remove('error');
+  html.modal.classList.remove('info');
+  html.modal.classList.add('hidden');
 }
 
 // Functions to show and hide toast notifications
 export function showToast(message: string, duration = 3000) {
   // Set the message
-  const msg = html.toast.querySelector(".message");
+  let msg = html.toast.querySelector('.message')
   if (msg != null) {
-    msg.textContent = message;
+    msg.textContent = message
   }
   // Remove any existing classes
-  html.toast.classList.remove("hiding");
+  html.toast.classList.remove('hiding');
   // Make the toast visible
-  html.toast.classList.add("visible");
+  html.toast.classList.add('visible');
   // Set a timeout to hide the toast after the specified duration
   setTimeout(() => {
     hideToast();
@@ -187,10 +187,10 @@ export function showToast(message: string, duration = 3000) {
 // Hides the currently visible toast with an upward animation
 export function hideToast() {
   // Add the hiding class for the upward animation
-  html.toast.classList.add("hiding");
+  html.toast.classList.add('hiding');
   // Remove the visible class after the animation completes
   setTimeout(() => {
-    html.toast.classList.remove("visible");
-    html.toast.classList.remove("hiding");
+    html.toast.classList.remove('visible');
+    html.toast.classList.remove('hiding');
   }, 300); // Match the transition duration from CSS
 }

@@ -1,9 +1,9 @@
-import * as Common from "./common.js";
-import { ctx, html, setFollowSelection, state, ui } from "./common.js";
-import { parseHtmlColor } from "./htmlutils.js";
-import type { PanelInfo } from "./panels.js";
-import { getAttr } from "./replay.js";
-import { Mat3f, Vec2f } from "./vector_math.js";
+import { Vec2f, Mat3f } from './vector_math.js';
+import * as Common from './common.js';
+import { ui, state, html, ctx, setFollowSelection } from './common.js';
+import { getAttr } from './replay.js';
+import { PanelInfo } from './panels.js';
+import { parseHtmlColor } from './htmlutils.js';
 
 export function drawMiniMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
@@ -15,13 +15,11 @@ export function drawMiniMap(panel: PanelInfo) {
     // Pan the main map to the mini map's mouse position.
     const miniMapMousePos = new Vec2f(
       Math.round(localMousePos.x() / Common.MINI_MAP_TILE_SIZE),
-      Math.round(localMousePos.y() / Common.MINI_MAP_TILE_SIZE),
+      Math.round(localMousePos.y() / Common.MINI_MAP_TILE_SIZE)
     );
     ui.mapPanel.panPos = new Vec2f(
-      -miniMapMousePos.x() * Common.TILE_SIZE -
-        (state.replay.map_size[0] * Common.TILE_SIZE) / 2,
-      -miniMapMousePos.y() * Common.TILE_SIZE -
-        (state.replay.map_size[1] * Common.TILE_SIZE) / 2,
+      -miniMapMousePos.x() * Common.TILE_SIZE - state.replay.map_size[0] * Common.TILE_SIZE / 2,
+      -miniMapMousePos.y() * Common.TILE_SIZE - state.replay.map_size[1] * Common.TILE_SIZE / 2
     );
     state.followSelection = false;
   }
@@ -37,7 +35,7 @@ export function drawMiniMap(panel: PanelInfo) {
     0,
     state.replay.map_size[0] * Common.MINI_MAP_TILE_SIZE,
     state.replay.map_size[1] * Common.MINI_MAP_TILE_SIZE,
-    parseHtmlColor("#E7D4B7"),
+    parseHtmlColor("#E7D4B7")
   );
 
   // Draw grid objects on the mini map.
@@ -46,7 +44,7 @@ export function drawMiniMap(panel: PanelInfo) {
     const y = getAttr(gridObject, "r");
     const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
-    let color = parseHtmlColor("#FFFFFF");
+    var color = parseHtmlColor("#FFFFFF");
     if (typeName === "wall") {
       color = parseHtmlColor("#61574B");
     } else if (typeName === "agent") {
@@ -57,7 +55,7 @@ export function drawMiniMap(panel: PanelInfo) {
       y * Common.MINI_MAP_TILE_SIZE,
       Common.MINI_MAP_TILE_SIZE,
       Common.MINI_MAP_TILE_SIZE,
-      color,
+      color
     );
   }
 
@@ -68,28 +66,23 @@ export function drawMiniMap(panel: PanelInfo) {
     const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
     if (typeName === "agent") {
-      ctx.drawSprite(
-        "minimapPip.png",
+      ctx.drawSprite("minimapPip.png",
         x * Common.MINI_MAP_TILE_SIZE + 1,
         y * Common.MINI_MAP_TILE_SIZE + 1,
         [1, 0, 0, 1],
         1,
-        0,
-      );
+        0);
+      continue;
     }
   }
 
   // Draw where the screen is on the mini map.
   const pos = new Vec2f(
-    (-ui.mapPanel.panPos.x() / Common.TILE_SIZE) * Common.MINI_MAP_TILE_SIZE,
-    (-ui.mapPanel.panPos.y() / Common.TILE_SIZE) * Common.MINI_MAP_TILE_SIZE,
+    -ui.mapPanel.panPos.x() / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE,
+    -ui.mapPanel.panPos.y() / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE
   );
-  const width =
-    (ui.mapPanel.width / ui.mapPanel.zoomLevel / Common.TILE_SIZE) *
-    Common.MINI_MAP_TILE_SIZE;
-  const height =
-    (ui.mapPanel.height / ui.mapPanel.zoomLevel / Common.TILE_SIZE) *
-    Common.MINI_MAP_TILE_SIZE;
+  const width = ui.mapPanel.width / ui.mapPanel.zoomLevel / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE;
+  const height = ui.mapPanel.height / ui.mapPanel.zoomLevel / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE;
 
   ctx.drawStrokeRect(
     pos.x() - width / 2,
@@ -97,7 +90,7 @@ export function drawMiniMap(panel: PanelInfo) {
     width,
     height,
     1,
-    [1, 1, 1, 1],
+    [1, 1, 1, 1]
   );
 
   ctx.restore();
