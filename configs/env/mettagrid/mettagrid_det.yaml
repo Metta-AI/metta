@@ -1,36 +1,27 @@
-sampling: 0
 game:
   num_agents: ???
   obs_width: 11
   obs_height: 11
+  tile_size: 16
   max_steps: 1000
+  no_energy_steps: 500
 
-  # default for the old map builder; new metta.map.mapgen requires false
+  # default for the old map builder; new mettagrid.map.mapgen requires false
   recursive_map_builder: true
 
   agent:
-    default_item_max: ${sampling:0, 100, 50}
-    # the agent should be able to pick up as many hearts as they want, even if
-    # "normal" item limits are lower
-    heart_max: 255
-    freeze_duration: ${sampling:0, 200, 10}
+    max_inventory: 50
+    freeze_duration: 10
     hp: 10
+    mortal: False
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
-
       ore.red: 0.005
-      ore.blue: 0.005
+      ore.blue: 0
       ore.green: 0.005
-      ore.red_max: 4
-      ore.blue_max: 4
-      ore.green_max: 4
-      battery.red: 0.01
-      battery.blue: 0.01
-      battery.green: 0.01
-      battery.red_max: 5
-      battery.blue_max: 5
-      battery.green_max: 5
+      battery: 0.01
+      battery_max: 5
       heart: 1
       heart_max: 1000
 
@@ -77,11 +68,11 @@ game:
   objects:
     altar:
       hp: 30
-      input_battery.red: 3
+      input_battery: 3
       output_heart: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:1, 20, 10}
+      cooldown: 10
       initial_items: 1
 
     mine.red:
@@ -90,7 +81,7 @@ game:
       color: 0
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 100, 50}
+      cooldown: 50
       initial_items: 1
 
     mine.blue:
@@ -99,7 +90,7 @@ game:
       output_ore.blue: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 100, 50}
+      cooldown: 50
       initial_items: 1
 
     mine.green:
@@ -108,37 +99,37 @@ game:
       color: 2
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 100, 50}
+      cooldown: 50
       initial_items: 1
 
     generator.red:
       hp: 30
       input_ore.red: 1
-      output_battery.red: 1
+      output_battery: 1
       color: 0
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 50, 25}
+      cooldown: 25
       initial_items: 1
 
     generator.blue:
       hp: 30
       input_ore.blue: 1
-      output_battery.blue: 1
+      output_battery: 1
       color: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 50, 25}
+      cooldown: 25
       initial_items: 1
 
     generator.green:
       hp: 30
       input_ore.green: 1
-      output_battery.green: 1
+      output_battery: 1
       color: 2
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 50, 25}
+      cooldown: 25
       initial_items: 1
 
     armory:
@@ -147,39 +138,39 @@ game:
       output_armor: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 20, 10}
+      cooldown: 10
       initial_items: 1
 
     lasery:
       hp: 30
       input_ore.red: 1
-      input_battery.red: 2
+      input_battery: 2
       output_laser: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 20, 10}
+      cooldown: 10
       initial_items: 1
 
     lab:
       hp: 30
       input_ore.red: 3
-      input_battery.red: 3
+      input_battery: 3
       output_blueprint: 1
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 10, 5}
+      cooldown: 5
       initial_items: 1
 
     factory:
       hp: 30
       input_blueprint: 1
       input_ore.red: 5
-      input_battery.red: 5
+      input_battery: 5
       output_armor: 5
       output_laser: 5
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 10, 5}
+      cooldown: 5
       initial_items: 1
 
     temple:
@@ -189,15 +180,15 @@ game:
       output_heart: 5
       max_output: 5
       conversion_ticks: 1
-      cooldown: ${sampling:0, 10, 5}
+      cooldown: 5
       initial_items: 1
 
     wall:
-      hp: ${sampling:1, 20, 10}
+      hp: 20
       swappable: false
 
     block:
-      hp: ${sampling:1, 20, 10}
+      hp: 20
       swappable: true
 
   actions:

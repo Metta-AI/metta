@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import datetime
 import uuid
 from typing import Any, Dict, Optional, cast
@@ -8,10 +7,11 @@ from typing import Any, Dict, Optional, cast
 import gymnasium as gym
 import numpy as np
 import pufferlib
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from pufferlib.utils import unroll_nested_dict
 from typing_extensions import override
 
+from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
@@ -34,7 +34,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def __init__(
         self,
-        env_cfg: DictConfig,
+        curriculum: Curriculum,
         render_mode: Optional[str],
         level: Optional[Level] = None,
         buf=None,
@@ -53,8 +53,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if replay_writer is not None and not isinstance(replay_writer, ReplayWriter):
             raise TypeError("replay_writer must be a ReplayWriter instance or None")
         self._render_mode = render_mode
-        self._cfg_template = env_cfg
-        self._env_cfg = self._get_new_env_cfg()
+        self._curriculum = curriculum
+        self._task = self._curriculum.get_task()
         self._level = level
         self._renderer = None
         self._map_labels = []
@@ -64,7 +64,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
-        self.labels = self._env_cfg.get("labels", None)
+        self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
 
         self._reset_env()
@@ -73,29 +73,25 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
-    def _get_new_env_cfg(self):
-        env_cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
-        OmegaConf.resolve(env_cfg)
-        return env_cfg
-
     def _reset_env(self):
         # Prepare the level
+        self._task = self._curriculum.get_task()
         level = self._level
         if level is None:
             map_builder = simple_instantiate(
-                self._env_cfg.game.map_builder,
-                recursive=self._env_cfg.game.get("recursive_map_builder", True),
+                self._task.env_cfg().game.map_builder,
+                recursive=self._task.env_cfg().game.get("recursive_map_builder", True),
             )
             level = map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert self._env_cfg.game.num_agents == level_agents, (
-            f"Number of agents {self._env_cfg.game.num_agents} does not match number of agents in map {level_agents}"
+        assert self._task.env_cfg().game.num_agents == level_agents, (
+            f"Number of agents {self._task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
-        config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._env_cfg))
+        config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))
 
         self._map_labels = level.labels
 
@@ -107,7 +103,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override
     def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
-        self._env_cfg = self._get_new_env_cfg()
         self._reset_env()
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
@@ -131,9 +126,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._c_env.step(self.actions)
 
-        if self._env_cfg.normalize_rewards:
-            self.rewards -= self.rewards.mean()
-
         if self._replay_writer:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
 
@@ -141,6 +133,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self.terminals.all() or self.truncations.all():
             self.process_episode_stats(infos)
             self._should_reset = True
+            self._task.complete(self.rewards.mean())
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
@@ -202,7 +195,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "map_h": self.map_height,
             }
 
-            for k, v in unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
+            for k, v in unroll_nested_dict(OmegaConf.to_container(self._task.env_cfg(), resolve=False)):
                 attributes[f"config.{k.replace('/', '.')}"] = str(v)
 
             agent_metrics = {}
@@ -228,7 +221,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     def max_steps(self):
-        return self._env_cfg.game.max_steps
+        return self._task.env_cfg().game.max_steps
 
     @property
     @required
