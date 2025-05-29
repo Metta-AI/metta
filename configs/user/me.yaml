@@ -5,3 +5,7 @@
 
 run: andre_local_2025_05_26_a
 policy_uri: wandb://run/andre_local_2025_05_26_a
+
+# replay_job:
+#   sim:
+#     env: /env/mettagrid/laser_tag
