@@ -179,7 +179,7 @@ static void BM_MettaGridReset(benchmark::State& state) {  // NOLINT(runtime/refe
 }
 
 // Environment creation benchmark (no Python equivalent)
-static void BM_EnvironmentCreation(benchmark::State& state) {
+static void BM_EnvironmentCreation(benchmark::State& state) {  // NOLINT(runtime/references)
   auto cfg = CreateBenchmarkConfig(4);
   auto map = CreateDefaultMap(2);
 
