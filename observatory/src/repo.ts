@@ -63,13 +63,18 @@ export class DataRepo implements Repo {
         if (typeof groupMetric === "string") {
           const groupMetrics = relevantMetrics.filter((m: PolicyEvalMetric) => (groupMetric === "" || m.group_id === groupMetric));
           const totalValue = groupMetrics.reduce((sum, m) => sum + m.sum_value, 0);
-          const totalAgents = groupMetrics.reduce((sum, m) => sum + m.num_agents, 0);
+          let totalAgents = 0
+          if (groupMetric === "") {
+            totalAgents = Object.values(policyEval.group_num_agents).reduce((sum, num) => sum + num, 0);
+          } else {
+            totalAgents = policyEval.group_num_agents[groupMetric];
+          }
           value = totalValue / totalAgents;
         } else {
           const group1Metric = relevantMetrics.find((m: PolicyEvalMetric) => m.group_id === groupMetric.group_1);
           const group2Metric = relevantMetrics.find((m: PolicyEvalMetric) => m.group_id === groupMetric.group_2);
-          const group1Value = group1Metric ? group1Metric.sum_value / group1Metric.num_agents : 0;
-          const group2Value = group2Metric ? group2Metric.sum_value / group2Metric.num_agents : 0;
+          const group1Value = group1Metric ? group1Metric.sum_value / policyEval.group_num_agents[groupMetric.group_1] : 0;
+          const group2Value = group2Metric ? group2Metric.sum_value / policyEval.group_num_agents[groupMetric.group_2] : 0;
           value = group1Value - group2Value;
         }
 

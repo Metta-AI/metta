@@ -2,7 +2,6 @@ export type PolicyEvalMetric = {
   metric: string;
   group_id: string;
   sum_value: number;
-  num_agents: number;
 }
 
 export type PolicyEval = {
@@ -10,6 +9,7 @@ export type PolicyEval = {
   eval_name: string;
   suite: string;
   replay_url: string | null;
+  group_num_agents: Record<string, number>;
   policy_eval_metrics: PolicyEvalMetric[];
 }
 
