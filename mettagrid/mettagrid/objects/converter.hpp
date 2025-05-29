@@ -72,7 +72,7 @@ public:
   bool cooling_down;               // Currently in cooldown phase
   unsigned char color;
   EventManager* event_manager;
-  StatsTracker stats;  // Add stats tracking
+  StatsTracker stats;
 
   Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
     GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
