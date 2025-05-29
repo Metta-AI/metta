@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from gymnasium.spaces import Box, MultiDiscrete
 
+from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import (
     MettaGridEnv,
 )
@@ -22,8 +23,11 @@ def environment():
     random.seed(TEST_SEED)
 
     cfg = get_cfg("benchmark")
-    env = MettaGridEnv(cfg, render_mode="human", _recursive_=False, seed=TEST_SEED)
-    env.reset(seed=TEST_SEED)
+    print(OmegaConf.to_yaml(cfg))
+
+    curriculum = SingleTaskCurriculum("benchmark", cfg)
+    env = MettaGridEnv(curriculum, render_mode="human")
+    env.reset()
     yield env
     # Cleanup after test
     del env

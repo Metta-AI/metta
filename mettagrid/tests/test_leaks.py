@@ -4,22 +4,35 @@ import random
 
 import numpy as np
 import psutil
+import pytest
 
+from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.util.hydra import get_cfg
 
 # Define a constant seed for deterministic behavior
 TEST_SEED = 42
 
 
-def test_mettagrid_env_reset():
+@pytest.fixture(scope="module")
+def cfg():
+    # Initialize Hydra with the correct relative path
+    with initialize(version_base=None, config_path="../configs"):
+        # Load the default config
+        cfg = compose(config_name="test_basic")
+        yield cfg
+
+
+def test_mettagrid_env_init(cfg):
+    """Test that the MettaGridEnv can be initialized properly."""
+    curriculum = SingleTaskCurriculum("test", cfg)
+    env = MettaGridEnv(curriculum, render_mode=None)
+    assert env is not None, "Failed to initialize MettaGridEnv"
+
+
+def test_mettagrid_env_reset(cfg):
     """Test that the MettaGridEnv can be reset multiple times without memory leaks."""
-    np.random.seed(TEST_SEED)
-    random.seed(TEST_SEED)
-
-    cfg = get_cfg("benchmark")
-
-    env = MettaGridEnv(env_cfg=cfg, render_mode=None)
+    curriculum = SingleTaskCurriculum("test", cfg)
+    env = MettaGridEnv(curriculum, render_mode=None)
     # Reset the environment multiple times
     for _ in range(10):
         obs, infos = env.reset()
@@ -47,14 +60,17 @@ def test_mettagrid_env_no_memory_leaks():
     np.random.seed(TEST_SEED)
     random.seed(TEST_SEED)
 
-    cfg = get_cfg("benchmark")
+    for i in range(num_iterations):
+        # Create the environment
+        curriculum = SingleTaskCurriculum("test", cfg)
+        env = MettaGridEnv(curriculum, render_mode=None)
 
-    print("Pre-warming phase:")
-    for _i in range(20):
-        env = MettaGridEnv(env_cfg=cfg, render_mode=None)
-        _obs, _infos = env.reset()
-        if hasattr(env, "close"):
-            env.close()
+        # Reset the environment multiple times
+        for _ in range(5):
+            observation = env.reset()
+            assert observation is not None, "Reset should return a valid observation"
+
+        # Explicitly delete the environment to release resources
         del env
         gc.collect()
 

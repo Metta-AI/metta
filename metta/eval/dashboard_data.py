@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import Dict, List
 
 from pydantic import BaseModel
 
@@ -19,85 +19,123 @@ class DashboardConfig(Config):
 
 
 class PolicyEvalMetric(BaseModel):
+    metric: str
+    group_id: str
+    sum_value: float
+
+
+class PolicyEval(BaseModel):
     policy_uri: str
     eval_name: str
     suite: str
-    metric: str
-    value: float
     replay_url: str | None
-
-
-class DashboardData(BaseModel):
+    group_num_agents: Dict[str, int]
     policy_eval_metrics: List[PolicyEvalMetric]
 
 
-def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEvalMetric]:
+class DashboardData(BaseModel):
+    policy_evals: List[PolicyEval]
+
+
+def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
     db.con.execute(
         """
       CREATE VIEW IF NOT EXISTS episode_info AS (
-          WITH episode_agents AS (
-            SELECT episode_id,
-            COUNT(*) as num_agents 
-            FROM agent_policies 
-            GROUP BY episode_id
-          )
           SELECT 
             e.id as episode_id,
             s.name as eval_name,
             s.suite,
             s.env,
-            s.policy_key,
-            s.policy_version,
+            s.policy_key || ':v' || s.policy_version AS policy_uri,
             e.created_at,
             e.replay_url,
-            episode_agents.num_agents 
           FROM simulations s 
-          JOIN episodes e ON e.simulation_id = s.id 
-          JOIN episode_agents ON e.id = episode_agents.episode_id)
+          JOIN episodes e ON e.simulation_id = s.id)
       """
     )
 
     db.con.execute(
         """
       CREATE VIEW IF NOT EXISTS episode_metrics AS (
-        WITH totals AS (
-            SELECT episode_id, metric, SUM(value) as value 
-            FROM agent_metrics 
-            GROUP BY episode_id, metric
-        ) 
-        SELECT t.episode_id, t.metric, t.value / e.num_agents as value 
-        FROM totals t 
-        JOIN episode_info e ON t.episode_id = e.episode_id)
+        WITH agent_metrics_with_groups AS (
+            SELECT 
+                am.episode_id,
+                am.agent_id,
+                ag.group_id,
+                am.metric,
+                am.value
+            FROM agent_metrics am
+            JOIN agent_groups ag ON am.episode_id = ag.episode_id AND am.agent_id = ag.agent_id
+        )
+        SELECT 
+            episode_id,
+            group_id,
+            metric,
+            SUM(value) as value,
+        FROM agent_metrics_with_groups
+        GROUP BY episode_id, group_id, metric
+    )
     """
     )
 
-    rows = db.con.execute(
+    # Returns (policy_uri, eval_name, suite, group_id, num_agents, replay_url)
+    eval_info_rows = db.con.execute(
+        """
+        SELECT e.policy_uri, e.eval_name, e.suite, ag.group_id, COUNT(*) as num_agents, 
+          ANY_VALUE(e.replay_url) as replay_url
+        FROM episode_info e
+        JOIN agent_groups ag ON e.episode_id = ag.episode_id
+        GROUP BY e.policy_uri, e.eval_name, e.suite, ag.group_id
+        """
+    ).fetchall()
+
+    # Returns (policy_uri, eval_name, group_id, metric, value)
+    metric_rows = db.con.execute(
         """
       SELECT
-        e.policy_key || ':v' || e.policy_version AS policy_uri, 
+        e.policy_uri, 
         e.eval_name,
-        e.suite,
+        m.group_id,
         m.metric,
-        AVG(m.value) as value, 
-        ANY_VALUE(e.replay_url) AS replay_url
+        SUM(m.value) as value
       FROM episode_metrics m 
       JOIN episode_info e 
       ON m.episode_id = e.episode_id 
-      GROUP BY e.eval_name, e.policy_key, e.policy_version, e.suite, m.metric
+      GROUP BY e.policy_uri, e.eval_name, m.group_id, m.metric
     """
     ).fetchall()
 
-    return [
-        PolicyEvalMetric(
-            policy_uri=row[0], eval_name=row[1], suite=row[2], metric=row[3], value=row[4], replay_url=row[5]
+    # Group metrics by policy_uri, eval_name, suite
+    policy_evals = {}
+
+    for eval_info_row in eval_info_rows:
+        policy_uri, eval_name, suite, group_id, num_agents, replay_url = eval_info_row
+        key = (policy_uri, eval_name)
+        if key not in policy_evals:
+            policy_evals[key] = PolicyEval(
+                policy_uri=policy_uri,
+                eval_name=eval_name,
+                suite=suite,
+                replay_url=replay_url,
+                group_num_agents={},
+                policy_eval_metrics=[],
+            )
+        policy_evals[key].group_num_agents[str(group_id)] = num_agents
+
+    for metric_row in metric_rows:
+        policy_uri, eval_name, group_id, metric, value = metric_row
+        key = (policy_uri, eval_name)
+        assert key in policy_evals, f"Policy eval {key} not found"
+        policy_evals[key].policy_eval_metrics.append(
+            PolicyEvalMetric(metric=metric, group_id=str(group_id), sum_value=value)
         )
-        for row in rows
-    ]
+
+    return list(policy_evals.values())
 
 
 def write_dashboard_data(dashboard_cfg: DashboardConfig):
     with SimulationStatsDB.from_uri(dashboard_cfg.eval_db_uri) as db:
         metrics = get_policy_eval_metrics(db)
-        content = DashboardData(policy_eval_metrics=metrics).model_dump_json()
+        content = DashboardData(policy_evals=metrics).model_dump_json()
 
     write_data(dashboard_cfg.output_path, content, content_type="application/json")

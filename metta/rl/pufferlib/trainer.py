@@ -3,6 +3,7 @@ import os
 import time
 from collections import defaultdict
 
+import hydra
 import numpy as np
 import pufferlib
 import torch
@@ -29,6 +30,7 @@ from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulati
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, np_actions_type
 
 torch.set_float32_matmul_precision("high")
@@ -50,7 +52,6 @@ class PufferTrainer:
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
-        self.env_cfg = config_from_path(self.trainer_cfg.env, self.trainer_cfg.env_overrides)
         self.sim_suite_config = sim_suite_config
 
         self._master = True
@@ -77,6 +78,13 @@ class PufferTrainer:
         self._eval_suite_avgs = {}
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
+        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
+
+        if "curriculum" in self.trainer_cfg:
+            curriculum_cfg = config_from_path(self.trainer_cfg.curriculum, env_overrides)
+            self._curriculum = hydra.utils.instantiate(curriculum_cfg)
+        else:
+            self._curriculum = SamplingCurriculum(self.trainer_cfg.env, env_overrides)
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -203,9 +211,9 @@ class PufferTrainer:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
         self.replay_sim_config = SingleEnvSimulationConfig(
-            env=self.trainer_cfg.env,
+            env="/env/mettagrid/mettagrid",
             num_episodes=1,
-            env_overrides=self.trainer_cfg.env_overrides,
+            env_overrides=self._curriculum.get_task().env_cfg(),
         )
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
@@ -789,8 +797,10 @@ class PufferTrainer:
 
     def _make_vecenv(self):
         """Create a vectorized environment."""
-        # Create the vectorized environment
-        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // self.env_cfg.game.num_agents
+
+        num_agents = self._curriculum.get_task().env_cfg().game.num_agents
+
+        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // num_agents
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
@@ -804,7 +814,7 @@ class PufferTrainer:
             )
 
         self.vecenv = make_vecenv(
-            self.env_cfg,
+            self._curriculum,
             self.cfg.vectorization,
             num_envs=num_envs,
             batch_size=self.batch_size,
