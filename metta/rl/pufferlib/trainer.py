@@ -26,10 +26,11 @@ from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 
 torch.set_float32_matmul_precision("high")
@@ -78,9 +79,12 @@ class PufferTrainer:
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
-        curriculum_cfg = config_from_path(self.trainer_cfg.curriculum, env_overrides)
-        self._curriculum = hydra.utils.instantiate(curriculum_cfg)
 
+        if "curriculum" in self.trainer_cfg:
+            curriculum_cfg = config_from_path(self.trainer_cfg.curriculum, env_overrides)
+            self._curriculum = hydra.utils.instantiate(curriculum_cfg)
+        else:
+            self._curriculum = SamplingCurriculum(self.trainer_cfg.env, env_overrides)
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -206,10 +210,11 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        # xcxc
-        # self.replay_sim_config = SingleEnvSimulationConfig(
-        #     env=self.trainer_cfg.env, num_episodes=1, env_overrides=self._curriculum.get_task().env_cfg()
-        # )
+        self.replay_sim_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 

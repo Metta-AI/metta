@@ -28,6 +28,7 @@ from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
+from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
@@ -72,7 +73,6 @@ class Simulation:
         else:
             env_overrides = None
 
-        self._env_cfg = config_from_path(config.env, env_overrides)
         self._env_name = config.env
 
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
@@ -87,8 +87,10 @@ class Simulation:
         # ----------------
         num_envs = min(config.num_episodes, os.cpu_count() or 1)
         logger.info(f"Creating vecenv with {num_envs} environments")
+        curriculum = SamplingCurriculum(config.env, env_overrides)
+        env_cfg = curriculum.get_task().env_cfg()
         self._vecenv = make_vecenv(
-            self._env_cfg,
+            curriculum,
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
@@ -98,7 +100,7 @@ class Simulation:
         self._num_envs = num_envs
         self._min_episodes = config.num_episodes
         self._max_time_s = config.max_time_s
-        self._agents_per_env = self._env_cfg.game.num_agents
+        self._agents_per_env = env_cfg.game.num_agents
 
         # ---------------- policies ------------------------------------- #
         self._policy_pr = policy_pr
