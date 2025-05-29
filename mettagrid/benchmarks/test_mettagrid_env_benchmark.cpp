@@ -157,14 +157,11 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
     benchmark::DoNotOptimize(result);
   }
 
-  // Calculate actual steps per second
-  double total_time_seconds = static_cast<double>(state.cumulative_time_used()) / 1e9;
-  double env_steps_per_second = static_cast<double>(state.iterations()) / total_time_seconds;
-  double agent_steps_per_second = env_steps_per_second * num_agents;
-
-  // Store as raw values - no Counter wrapper
-  state.counters["env_steps_per_second"] = env_steps_per_second;
-  state.counters["agent_steps_per_second"] = agent_steps_per_second;
+  // Report steps/second as custom counters
+  // Use the automatic rate calculation but store as raw values
+  state.counters["env_steps_per_second"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
+  state.counters["agent_steps_per_second"] =
+      benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
 }
 
 // Matching Python test_reset_performance
@@ -213,13 +210,9 @@ static void BM_MettaGridStepAgentScaling(benchmark::State& state) {  // NOLINT(r
     benchmark::DoNotOptimize(result);
   }
 
-  // Calculate actual steps per second
-  double total_time_seconds = static_cast<double>(state.cumulative_time_used()) / 1e9;
-  double env_steps_per_second = static_cast<double>(state.iterations()) / total_time_seconds;
-  double agent_steps_per_second = env_steps_per_second * total_agents;
-
-  state.counters["env_steps_per_second"] = env_steps_per_second;
-  state.counters["agent_steps_per_second"] = agent_steps_per_second;
+  state.counters["env_steps_per_second"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
+  state.counters["agent_steps_per_second"] =
+      benchmark::Counter(state.iterations() * total_agents, benchmark::Counter::kIsRate);
 }
 
 // Register benchmarks to match Python tests
