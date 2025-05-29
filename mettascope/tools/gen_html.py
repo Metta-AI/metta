@@ -475,7 +475,7 @@ html, body {
             primary_axis_sizing = element.get("primaryAxisSizingMode")
             counter_axis_sizing = element.get("counterAxisSizingMode")
 
-            if primary_axis_sizing == "FIXED":
+            if primary_axis_sizing == "FIXED" or primary_axis_sizing is None:
                 # Fixed size is handled by the width/height already set
                 pass
             elif primary_axis_sizing == "AUTO":
@@ -483,8 +483,10 @@ html, body {
                     css["width"] = "auto"
                 else:
                     css["height"] = "auto"
+            else:
+                print("Unknown primary axis sizing mode:", primary_axis_sizing)
 
-            if counter_axis_sizing == "FIXED":
+            if counter_axis_sizing == "FIXED" or counter_axis_sizing is None:
                 # Fixed size is handled by the width/height already set
                 pass
             elif counter_axis_sizing == "AUTO":
@@ -492,6 +494,8 @@ html, body {
                     css["height"] = "auto"
                 else:
                     css["width"] = "auto"
+            else:
+                print("Unknown counter axis sizing mode:", counter_axis_sizing)
 
         if parent and "layoutMode" in parent:
             # Handle auto layout child properties
@@ -520,19 +524,28 @@ html, body {
                 css["flex-shrink"] = "1"
                 css["flex-basis"] = "auto"
 
-            # Handle sizing modes for children
-            h_sizing = element.get("layoutSizingHorizontal")
-            v_sizing = element.get("layoutSizingVertical")
+            layout_sizing_horizontal = element.get("layoutSizingHorizontal")
+            layout_sizing_vertical = element.get("layoutSizingVertical")
 
-            if h_sizing == "FILL":
+            if layout_sizing_horizontal == "FIXED":
+                # Fixed size is handled by the width/height already set
+                pass
+            elif layout_sizing_horizontal == "FILL":
                 css["width"] = "100%"
-            elif h_sizing == "HUG":
-                css["width"] = "auto"
+            elif layout_sizing_horizontal == "HUG":
+                css["width"] = "fit-content"
+            else:
+                print("Unknown layout sizing horizontal:", layout_sizing_horizontal)
 
-            if v_sizing == "FILL":
+            if layout_sizing_vertical == "FIXED":
+                # Fixed size is handled by the width/height already set
+                pass
+            elif layout_sizing_vertical == "FILL":
                 css["height"] = "100%"
-            elif v_sizing == "HUG":
-                css["height"] = "auto"
+            elif layout_sizing_vertical == "HUG":
+                css["height"] = "fit-content"
+            else:
+                print("Unknown layout sizing vertical:", layout_sizing_vertical)
 
     def compute_text_properties(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
         """Computes the text properties"""

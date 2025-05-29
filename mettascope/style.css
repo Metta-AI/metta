@@ -103,3 +103,17 @@ html {
 .selected {
   background-color: rgba(255, 255, 255, 0.1) !important;
 }
+
+.show-on-hover {
+  transition: opacity 0.3s ease;
+  opacity: 0;
+}
+
+.show-on-hover:hover {
+  opacity: 1;
+}
+
+
+.column .name {
+  white-space: nowrap;
+}
