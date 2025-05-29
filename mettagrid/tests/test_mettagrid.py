@@ -1,6 +1,6 @@
 import numpy as np
 
-from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+from mettagrid.mettagrid_c import MettaGrid
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3

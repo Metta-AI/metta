@@ -9,10 +9,11 @@ import gymnasium as gym
 import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
+from pufferlib.utils import unroll_nested_dict
 from typing_extensions import override
 
 from mettagrid.level_builder import Level
-from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.hydra import simple_instantiate
@@ -191,7 +192,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "map_h": self.map_height,
             }
 
-            for k, v in pufferlib.utils.unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
+            for k, v in unroll_nested_dict(OmegaConf.to_container(self._env_cfg, resolve=False)):
                 attributes[f"config.{k.replace('/', '.')}"] = str(v)
 
             agent_metrics = {}
@@ -242,7 +243,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._renderer is None:
             return None
 
-        return self._renderer.render(self._c_env.current_timestep(), self._c_env.grid_objects())
+        return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
 
     @property
     def done(self):
