@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 
 import pytest
 
-from metta.eval.dashboard_data import PolicyEval, PolicyEvalMetric, get_policy_eval_metrics
+from metta.eval.dashboard_data import PolicyEvalMetric, get_policy_eval_metrics
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
