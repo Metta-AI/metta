@@ -32,14 +32,14 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _cfg = cfg;
 
   int num_agents = cfg["num_agents"].cast<int>();
-  _max_timestep = cfg["max_steps"].cast<unsigned int>();
-  _obs_width = cfg["obs_width"].cast<unsigned short>();
-  _obs_height = cfg["obs_height"].cast<unsigned short>();
+  max_steps = cfg["max_steps"].cast<unsigned int>();
+  obs_width = cfg["obs_width"].cast<unsigned short>();
+  obs_height = cfg["obs_height"].cast<unsigned short>();
   _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
   unsigned int num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
-  _current_timestep = 0;
+  current_step = 0;
 
   std::vector<Layer> layer_for_type_id;
   for (const auto& layer : ObjectLayers) {
@@ -165,8 +165,8 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
     shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(num_observation_tokens), static_cast<ssize_t>(3)};
   } else {
     shape = {static_cast<ssize_t>(num_agents),
-             static_cast<ssize_t>(_obs_height),
-             static_cast<ssize_t>(_obs_width),
+             static_cast<ssize_t>(obs_height),
+             static_cast<ssize_t>(obs_width),
              static_cast<ssize_t>(_grid_features.size())};
   }
   auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
@@ -277,7 +277,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 void MettaGrid::_compute_observations(py::array_t<int> actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
-    _compute_observation(agent->location.r, agent->location.c, _obs_width, _obs_height, idx);
+    _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx);
   }
 }
 
@@ -297,8 +297,8 @@ void MettaGrid::_step(py::array_t<int> actions) {
   std::fill(_action_success.begin(), _action_success.end(), false);
 
   // Increment timestep and process events
-  _current_timestep++;
-  _event_manager->process_events(_current_timestep);
+  current_step++;
+  _event_manager->process_events(current_step);
 
   // Process actions by priority
   for (unsigned char p = 0; p <= _max_action_priority; p++) {
@@ -321,7 +321,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
         continue;
       }
 
-      _action_success[idx] = handler->handle_action(agent->id, arg, _current_timestep);
+      _action_success[idx] = handler->handle_action(agent->id, arg, current_step);
     }
   }
 
@@ -335,7 +335,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
   }
 
   // Check for truncation
-  if (_max_timestep > 0 && _current_timestep >= _max_timestep) {
+  if (max_steps > 0 && current_step >= max_steps) {
     std::fill(static_cast<bool*>(_truncations.request().ptr),
               static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
               1);
@@ -343,7 +343,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
 }
 
 py::tuple MettaGrid::reset() {
-  if (_current_timestep > 0) {
+  if (current_step > 0) {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
@@ -398,12 +398,12 @@ void MettaGrid::validate_buffers() {
   } else {
     auto observation_info = _observations.request();
     auto shape = observation_info.shape;
-    if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != _obs_height || shape[2] != _obs_width ||
+    if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != obs_height || shape[2] != obs_width ||
         shape[3] != _grid_features.size()) {
       std::stringstream ss;
       ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << ", " << shape[3]
-         << "] but expected [" << num_agents << ", " << _obs_height << ", " << _obs_width << ", "
-         << _grid_features.size() << "]";
+         << "] but expected [" << num_agents << ", " << obs_height << ", " << obs_width << ", " << _grid_features.size()
+         << "]";
       throw std::runtime_error(ss.str());
     }
   }
@@ -534,10 +534,6 @@ py::list MettaGrid::action_names() {
   return names;
 }
 
-unsigned int MettaGrid::current_timestep() {
-  return _current_timestep;
-}
-
 unsigned int MettaGrid::map_width() {
   return _grid->width;
 }
@@ -593,7 +589,7 @@ py::object MettaGrid::observation_space() {
   } else {
     return spaces.attr("Box")(0,
                               255,
-                              py::make_tuple(_obs_height, _obs_width, _grid_features.size()),
+                              py::make_tuple(obs_height, obs_width, _grid_features.size()),
                               py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
   }
 }
@@ -682,11 +678,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("rewards").noconvert())
       .def("grid_objects", &MettaGrid::grid_objects)
       .def("action_names", &MettaGrid::action_names)
-      .def("current_timestep", &MettaGrid::current_timestep)
-      .def("map_width", &MettaGrid::map_width)
-      .def("map_height", &MettaGrid::map_height)
+      .def_property_readonly("map_width", &MettaGrid::map_width)
+      .def_property_readonly("map_height", &MettaGrid::map_height)
       .def("grid_features", &MettaGrid::grid_features)
-      .def("num_agents", &MettaGrid::num_agents)
+      .def_property_readonly("num_agents", &MettaGrid::num_agents)
       .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
       .def("get_episode_stats", &MettaGrid::get_episode_stats)
       .def_property_readonly("action_space", &MettaGrid::action_space)
@@ -694,5 +689,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_success", &MettaGrid::action_success)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
-      .def("inventory_item_names", &MettaGrid::inventory_item_names);
+      .def("inventory_item_names", &MettaGrid::inventory_item_names)
+      .def_readonly("obs_width", &MettaGrid::obs_width)
+      .def_readonly("obs_height", &MettaGrid::obs_height)
+      .def_readonly("max_steps", &MettaGrid::max_steps)
+      .def_readonly("current_step", &MettaGrid::current_step);
 }
