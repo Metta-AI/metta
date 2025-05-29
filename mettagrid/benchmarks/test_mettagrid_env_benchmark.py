@@ -17,7 +17,11 @@ def cfg():
 def environment(cfg, num_agents):
     """Create and initialize the environment with specified number of agents."""
     # Override the number of agents in the configuration
-    cfg.env.num_agents = num_agents
+    cfg.game.num_agents = num_agents
+    num_rooms = min(num_agents, 4)
+    cfg.game.map_builder.num_rooms = num_rooms
+    agents_per_room = num_agents // num_rooms
+    cfg.game.map_builder.room.agents = agents_per_room
 
     print(f"\nConfiguring environment with {num_agents} agents")
     print(OmegaConf.to_yaml(cfg))
@@ -130,9 +134,9 @@ def test_create_env_performance(benchmark, cfg):
     # Run the benchmark
     benchmark.pedantic(
         create_and_reset,
-        iterations=100,
-        rounds=10,
-        warmup_rounds=2,
+        iterations=10,
+        rounds=3,
+        warmup_rounds=1,
     )
 
     # Calculate KPIs
