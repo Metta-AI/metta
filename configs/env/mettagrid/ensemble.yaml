@@ -1,0 +1,44 @@
+_target_: metta.env.mettagrid_env_set.ProgressiveEnvSet
+
+# Specify the expected number of agents for all environments in this ensemble
+game:
+  num_agents: 4
+
+# Define ensembles with their activation episodes
+ensembles:
+- name: "basic_navigation"
+    episode_activation: 0  # Starts from the beginning
+    envs:
+      - /env/mettagrid/navigation/training/varied_terrain_sparse
+      - /env/mettagrid/navigation/training/varied_terrain_dense
+
+  - name: "advanced_navigation"
+    episode_activation: 500  # Starts from the beginning
+    envs:
+      - /env/mettagrid/navigation/training/varied_terrain_balanced
+      - /env/mettagrid/navigation/training/cylinder_world
+      - /env/mettagrid/navigation/training/varied_terrain_maze
+
+  - name: "object_use_ensemble"
+    episode_activation: 1500  # Activates after 1000 episodes
+    envs:
+      - /env/mettagrid/object_use/training/terrain_from_numpy
+      - /env/mettagrid/object_use/training/varied_terrain_sparse
+      - /env/mettagrid/object_use/training/varied_terrain_balanced
+      - /env/mettagrid/object_use/training/varied_terrain_maze
+      - /env/mettagrid/object_use/training/varied_terrain_dense
+      - /env/mettagrid/object_use/training/easy_all_objects
+
+  - name: "memory_ensemble"
+    episode_activation: 3000  # Activates after 3000 episodes
+    envs:
+      - /env/mettagrid/memory/training/varied_terrain_sparse
+      - /env/mettagrid/memory/training/varied_terrain_dense
+      - /env/mettagrid/memory/training/varied_terrain_balanced
+      - /env/mettagrid/memory/training/varied_terrain_maze
+
+# Optional parameters (with defaults shown)
+alpha: 0.6  # Priority exponent
+epsilon: 0.01  # Small constant added to priorities
+min_samples_for_norm_stats: 25  # Minimum episodes before using z-score normalization
+max_z_score_magnitude: 3.0  # Used to shift z-scores for priority calculation
