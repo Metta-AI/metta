@@ -5,6 +5,7 @@ defaults:
 
 trainer:
   env: env/mettagrid/navigation/training/navigation_ensemble
+  wandb.enabled: true
   # initial_policy:
   #   uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
   # evaluate_interval: 100
