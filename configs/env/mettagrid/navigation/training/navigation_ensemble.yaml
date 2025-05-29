@@ -2,6 +2,10 @@ _target_: metta.env.mettagrid_env_set.ProgressiveEnvSet
 
 num_agents: 4
 
+# Add the game structure that the trainer expects
+game:
+  num_agents: 4
+
 # Define ensembles with their activation episodes
 ensembles:
   - name: "basic_navigation"
