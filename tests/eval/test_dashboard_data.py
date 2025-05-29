@@ -95,7 +95,7 @@ def test_get_policy_eval_metrics(test_db):
     assert "http://replay/" in policy_eval.replay_url
 
     # Check metrics
-    metrics_by_group: Dict[int, Dict[str, PolicyEvalMetric]] = {}
+    metrics_by_group: Dict[str, Dict[str, PolicyEvalMetric]] = {}
     for m in policy_eval.policy_eval_metrics:
         metrics_by_group[m.group_id] = metrics_by_group.get(m.group_id, {})
         metrics_by_group[m.group_id][m.metric] = m
@@ -103,14 +103,14 @@ def test_get_policy_eval_metrics(test_db):
     assert len(metrics_by_group) == 2  # Two agent groups
 
     # Group 1 metrics (agent 0)
-    group1_metrics = {m.metric: m for m in metrics_by_group[1].values()}
+    group1_metrics = {m.metric: m for m in metrics_by_group['1'].values()}
     assert len(group1_metrics) == 2  # reward and score
     assert group1_metrics["reward"].sum_value == pytest.approx(6)  # 1 + 2 + 3
     assert group1_metrics["reward"].num_agents == 3  # One agent per episode
     assert group1_metrics["score"].sum_value == pytest.approx(9)  # 2 + 3 + 4
 
     # Group 2 metrics (agent 1)
-    group2_metrics = {m.metric: m for m in metrics_by_group[2].values()}
+    group2_metrics = {m.metric: m for m in metrics_by_group['2'].values()}
     assert len(group2_metrics) == 2  # reward and score
     assert group2_metrics["reward"].sum_value == pytest.approx(7.5)  # 1.5 + 2.5 + 3.5
     assert group2_metrics["score"].sum_value == pytest.approx(10.5)  # 2.5 + 3.5 + 4.5
