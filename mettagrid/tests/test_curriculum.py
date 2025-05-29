@@ -8,7 +8,7 @@ from mettagrid import curriculum
 
 @pytest.fixture
 def env_cfg():
-    return OmegaConf.create({"sampling": 0, "game": {"map": {"width": 10, "height": 10}}})
+    return OmegaConf.create({"sampling": 0, "game": {"num_agents": 1, "map": {"width": 10, "height": 10}}})
 
 
 def test_single_task_curriculum(env_cfg):
