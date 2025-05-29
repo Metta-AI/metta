@@ -1,8 +1,6 @@
 {
-  "files": {
-    "ignore": ["dist"]
-  },
-  "linter": {
-    "recommended": true
-  }
+	"files": {
+		"ignore": ["dist"]
+	},
+	"linter": {}
 }

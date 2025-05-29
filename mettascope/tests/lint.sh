@@ -8,4 +8,4 @@ cd "$(dirname "$0")"
 npm install
 
 # Run Biome lint
-npm run lint
+npx biome check

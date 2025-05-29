@@ -1,76 +1,76 @@
 .hidden {
-  display: none !important;
+	display: none !important;
 }
 
 .hover-icon {
-  transition: opacity 0.3s ease;
-  cursor: pointer;
-  opacity: 0.75;
+	transition: opacity 0.3s ease;
+	cursor: pointer;
+	opacity: 0.75;
 }
 .hover-icon:hover {
-  opacity: 1;
+	opacity: 1;
 }
 
 body,
 html {
-  overflow: hidden;
-  height: 100%;
-  background-color: black;
-  /* Prevent touch zooming */
-  touch-action: none;
-  -ms-touch-action: none;
-  /* Prevent content selection */
-  user-select: none;
-  -webkit-user-select: none;
+	overflow: hidden;
+	height: 100%;
+	background-color: black;
+	/* Prevent touch zooming */
+	touch-action: none;
+	-ms-touch-action: none;
+	/* Prevent content selection */
+	user-select: none;
+	-webkit-user-select: none;
 }
 
 #info-panel {
-  white-space: pre-wrap;
-  overflow: auto;
+	white-space: pre-wrap;
+	overflow: auto;
 }
 #info-panel .info {
-  font-family: monospace;
-  font-size: 12px;
+	font-family: monospace;
+	font-size: 12px;
 }
 
 #toast {
-  opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+	opacity: 0;
+	transition: opacity 0.3s ease, transform 0.3s ease;
 }
 #toast.visible {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  pointer-events: auto;
+	opacity: 1;
+	transform: translateX(-50%) translateY(0);
+	pointer-events: auto;
 }
 #toast.hiding {
-  opacity: 0;
-  /* Animate upward when hiding */
-  transform: translateX(-50%) translateY(-20px);
+	opacity: 0;
+	/* Animate upward when hiding */
+	transform: translateX(-50%) translateY(-20px);
 }
 
 #modal.error {
-  background-color: #700707;
-  color: white;
+	background-color: #700707;
+	color: white;
 }
 
 .help-wrapper {
-  margin-left: 8px;
-  margin-top: 5px;
+	margin-left: 8px;
+	margin-top: 5px;
 }
 
 .help-wrapper a {
-  display: block;
-  text-decoration: none;
+	display: block;
+	text-decoration: none;
 }
 
 #help-button {
-  width: 24px;
-  height: 24px;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.2s;
+	width: 24px;
+	height: 24px;
+	cursor: pointer;
+	opacity: 0.7;
+	transition: opacity 0.2s;
 }
 
 #help-button:hover {
-  opacity: 1;
+	opacity: 1;
 }
