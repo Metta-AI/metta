@@ -83,7 +83,7 @@ def sample_int_distribution(cfg: IntDistribution, rng: np.random.Generator) -> i
         (dist_type, *args) = cfg
         if dist_type == "uniform":
             assert len(args) == 2, "Uniform int distribution requires [low, high]"
-            return rng.integers(args[0], args[1], endpoint=True)
+            return rng.integers(args[0], args[1], endpoint=True, dtype=int)
         else:
             raise ValueError(f"Unknown distribution type: {dist_type}")
     else:

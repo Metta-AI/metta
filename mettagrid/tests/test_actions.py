@@ -2,14 +2,16 @@ import numpy as np
 import pytest
 
 from mettagrid.mettagrid_c import MettaGrid
-from tests.actions import (
-    Orientation,
-    get_agent_position,
-    move,
+from mettagrid.mettagrid_env import (
     np_observations_type,
     np_rewards_type,
     np_terminals_type,
     np_truncations_type,
+)
+from mettagrid.util.actions import (
+    Orientation,
+    get_agent_position,
+    move,
 )
 
 OBS_WIDTH = 3  # should be odd
@@ -226,8 +228,8 @@ def test_agent_walks_across_room(configured_env, corridor_game_map):
         },
     )
 
-    print(f"Environment created: {env.map_width()}x{env.map_height()}")
-    print(f"Initial timestep: {env.current_timestep()}")
+    print(f"Environment created: {env.map_width}x{env.map_height}")
+    print(f"Initial timestep: {env.current_step}")
 
     # Find a working direction using Orientation enum
     successful_moves = []
@@ -293,7 +295,7 @@ def test_agent_walks_across_room(configured_env, corridor_game_map):
                 print("  Agent likely hit an obstacle or boundary")
                 break
 
-        if env.current_timestep() >= 18:
+        if env.current_step >= 18:
             print("  Approaching max steps limit")
             break
 
