@@ -1,4 +1,4 @@
-name: Type Annotation Review
+name: "Type Annotation Review"
 
 on:
   pull_request:

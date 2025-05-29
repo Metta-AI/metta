@@ -41,7 +41,10 @@ class MettaGridEnvSet(MettaGridEnv):
         self._env_performance = np.zeros(self._num_envs, dtype=np.float32)  # Track performance for each env
         self._env_visits = np.zeros(self._num_envs, dtype=np.int32)  # Count how many times each env is visited
 
-        super().__init__(env_cfg, render_mode, buf=buf, env_map=None, **kwargs)
+        # Get initial environment config
+        self._env_cfg = self._get_new_env_cfg()
+
+        super().__init__(env_cfg, render_mode, buf=buf, level=None, **kwargs)
         self._cfg_template = None  # we don't use this with multiple envs, so we clear it to emphasize that fact
 
     def _update_priorities(self, env_idx: int, performance: float):

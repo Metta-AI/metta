@@ -13,16 +13,16 @@ game:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1, 0.01}
-      ore.red_max: 3
-      battery: ${sampling:0.01,0.5, 0.1}
-      battery_max: 1
+      battery.red: ${sampling:0.01,1, 0.1}
+      battery.red_max: 5
+      heart: 1
+      heart_max: 1000
       laser: ${sampling:0.005,0.1, 0.01}
       laser_max: 1
       blueprint: ${sampling:0.005,0.1, 0.01}
       blueprint_max: 1
       armor: ${sampling:0.005,0.1, 0.01}
-      heart: 1
-      heart_max: 1000
+      armor_max: 1
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 4

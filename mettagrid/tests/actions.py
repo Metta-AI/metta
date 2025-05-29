@@ -75,7 +75,7 @@ def generate_valid_random_actions(
         np.random.seed(seed)
 
     # Get the action space parameters
-    num_actions = env.single_action_space.nvec[0]
+    num_actions = env._c_env.single_action_space.nvec[0]
 
     # Get the maximum argument values for each action type
     max_args = env._c_env.max_action_args()
@@ -166,7 +166,7 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
         print(f"  Before: pos={result['position_before']}, orient={result['orientation_before']}")
 
         # Step 1: Rotate to face target direction
-        rotate_action = np.zeros((env.num_agents(), 2), dtype=np_actions_type)
+        rotate_action = np.zeros((env.num_agents, 2), dtype=np_actions_type)
         rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
 
         env.step(rotate_action)
@@ -186,7 +186,7 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
         print(f"  Rotated to face {direction_name}")
 
         # Step 2: Move forward
-        move_action = np.zeros((env.num_agents(), 2), dtype=np_actions_type)
+        move_action = np.zeros((env.num_agents, 2), dtype=np_actions_type)
         move_action[agent_idx] = [move_action_idx, 0]  # Move forward
 
         obs_after, rewards, terminals, truncations, info = env.step(move_action)
@@ -297,7 +297,7 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict
         print(f"  Before: {result['orientation_before']}")
 
         # Perform rotation
-        rotate_action = np.zeros((env.num_agents(), 2), dtype=np_actions_type)
+        rotate_action = np.zeros((env.num_agents, 2), dtype=np_actions_type)
         rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
 
         env.step(rotate_action)
@@ -339,7 +339,7 @@ def get_current_observation(env: MettaGrid, agent_idx: int):
         action_names = env.action_names()
         if "noop" in action_names:
             noop_idx = action_names.index("noop")
-            noop_action = np.zeros((env.num_agents(), 2), dtype=np_actions_type)
+            noop_action = np.zeros((env.num_agents, 2), dtype=np_actions_type)
             noop_action[agent_idx] = [noop_idx, 0]
             obs, _, _, _, _ = env.step(noop_action)
             return obs.copy()
