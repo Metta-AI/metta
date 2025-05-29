@@ -2,7 +2,7 @@ name: "README Accuracy Review"
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened]
 
 jobs:
   review-readme:
