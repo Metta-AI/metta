@@ -26,6 +26,7 @@ game:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
     border_width: 6
+    label: sequence
     room:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
       width: ${sampling:50,100,60}
