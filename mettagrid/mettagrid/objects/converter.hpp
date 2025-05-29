@@ -149,12 +149,13 @@ public:
   }
 
   void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = _type_id;
-    obs[offsets[1]] = this->hp;
-    obs[offsets[2]] = this->color;
-    obs[offsets[3]] = this->converting || this->cooling_down;
+    obs[offsets[0]] = 1;
+    obs[offsets[1]] = _type_id;
+    obs[offsets[2]] = this->hp;
+    obs[offsets[3]] = this->color;
+    obs[offsets[4]] = this->converting || this->cooling_down;
     for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      obs[offsets[4] + i] = this->inventory[i];
+      obs[offsets[5] + i] = this->inventory[i];
     }
   }
 
@@ -163,6 +164,7 @@ public:
     // We use the same feature names for all converters, since this compresses
     // the observation space. At the moment we don't expose the recipe, since
     // we expect converters to be hard coded.
+    names.push_back("converter");
     names.push_back("type_id");
     names.push_back("hp");
     names.push_back("color");

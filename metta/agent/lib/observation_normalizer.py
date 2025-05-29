@@ -7,6 +7,7 @@ from metta.agent.lib.metta_layer import LayerBase
 # These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 # but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
 OBS_NORMALIZATIONS = {
+    "agent": 1,
     "agent:group": 10,
     "agent:hp": 30,
     "agent:frozen": 1,
@@ -14,6 +15,7 @@ OBS_NORMALIZATIONS = {
     "agent:orientation": 1,
     "agent:shield": 1,
     "agent:color": 255,
+    "converter": 1,
     "inv:ore.red": 100,
     "inv:ore.blue": 100,
     "inv:ore.green": 100,
@@ -25,11 +27,9 @@ OBS_NORMALIZATIONS = {
     "inv:armor": 100,
     "inv:blueprint": 100,
     "last_action": 10,
-    "temple:ready": 1,
     "last_action_argument": 10,
     "agent:kinship": 10,
     "hp": 30,
-    "ready": 1,
     "converting": 1,
     "color": 10,
     "swappable": 1,
