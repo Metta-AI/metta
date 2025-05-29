@@ -2,7 +2,13 @@
   "files": {
     "ignore": ["dist"]
   },
-  "linter": {},
+  "linter": {
+    "rules": {
+      "style": {
+        "useSingleVarDeclarator": "off"
+      }
+    }
+  },
   "formatter": {
     "indentStyle": "space",
     "indentWidth": 2

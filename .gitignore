@@ -40,3 +40,4 @@ observatory/node_modules/
 observatory/.vite/
 
 wandb
+.cache
