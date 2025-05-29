@@ -22,12 +22,13 @@ class RoomList(Room):
         room_labels = []
 
         for room in self._room_configs:
-            room_array = room.build()
-            max_height = max(max_height, room_array.shape[0])
-            max_width = max(max_width, room_array.shape[1])
-            rooms.append(room_array)
+            room_level = room.build()
+            grid = room_level.grid
+            max_height = max(max_height, grid.shape[0])
+            max_width = max(max_width, grid.shape[1])
+            rooms.append(grid)
             # how do we want to account for room lists with different labels?
-            room_labels.append(room.labels)
+            room_labels.append(room_level.labels)
 
         # Find overlapping labels between all rooms
         common_labels = set.intersection(*[set(labels) for labels in room_labels])

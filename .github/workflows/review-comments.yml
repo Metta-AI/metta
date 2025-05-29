@@ -1,4 +1,4 @@
-name: Code Comment Review
+name: "Code Comment Review"
 
 on:
   pull_request:

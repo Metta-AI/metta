@@ -199,8 +199,8 @@ class ConvChainSlow(Scene):
 
         # Run the Metropolis algorithm
         for _ in range(self._iterations * node.width * node.height):
-            x = self._rng.integers(0, node.width)
-            y = self._rng.integers(0, node.height)
+            x = self._rng.integers(0, node.width, dtype=int)
+            y = self._rng.integers(0, node.height, dtype=int)
             metropolis(x, y)
 
         # Apply the generated field to the node grid

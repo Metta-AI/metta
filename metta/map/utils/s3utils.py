@@ -17,7 +17,7 @@ def get_s3_client():
     # no strict dependency on boto3 in mettagrid, install if you need it
     import boto3
 
-    # AWS_PROFILE won't be neceesary for most people, but some envirnoments can have multiple profiles
+    # AWS_PROFILE won't be necessary for most people, but some environments can have multiple profiles
     # (Boto3 doesn't pick up the env variable automatically)
     session = boto3.Session(profile_name=os.environ.get("AWS_PROFILE", None))
     return session.client("s3")

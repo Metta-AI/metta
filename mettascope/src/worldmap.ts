@@ -305,6 +305,11 @@ function drawActions() {
 
 // Draw the object's inventory.
 function drawInventory() {
+
+  if (!state.showResources) {
+    return;
+  }
+
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
@@ -553,7 +558,7 @@ function drawThoughtBubbles() {
 // Draw the visibility map either agent view ranges or fog of war.
 function drawVisibility() {
 
-  if (state.showViewRanges || state.showFogOfWar) {
+  if (state.showVisualRanges || state.showFogOfWar) {
     // Compute the visibility map, each agent contributes to the visibility map.
     const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
 

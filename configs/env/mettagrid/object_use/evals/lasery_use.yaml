@@ -8,11 +8,11 @@ game:
     rewards:
       laser: 1
       ore.red: 0
-      battery: 0
+      battery.red: 0
   objects:
     generator.red:
       initial_items: 2
-      output_battery: 2
+      output_battery.red: 2
       cooldown: 255
     mine:
       cooldown: 255

@@ -220,8 +220,10 @@ function fixReplay() {
   }
   if (oldMapSize[0] != state.replay.map_size[0] || oldMapSize[1] != state.replay.map_size[1]) {
     // Map size changed, update the map.
-    console.info("Map size changed");
+    console.info("Map size changed to: ", state.replay.map_size[0], "x", state.replay.map_size[1]);
     focusFullMap(ui.mapPanel);
+    // Force a resize to update the minimap panel.
+    onResize();
   }
 
   console.info("replay: ", state.replay);
@@ -275,7 +277,7 @@ export function loadReplayStep(replayStep: any) {
   // Update the grid objects.
   const step = replayStep.step;
 
-  state.replay.max_steps = Math.max(state.replay.max_steps, step+1);
+  state.replay.max_steps = Math.max(state.replay.max_steps, step + 1);
   state.step = step; // Rewind to the current step.
 
   for (const gridObject of replayStep.grid_objects) {

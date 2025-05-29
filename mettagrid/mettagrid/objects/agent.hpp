@@ -43,22 +43,22 @@ public:
     this->frozen = 0;
     this->freeze_duration = cfg["freeze_duration"];
     this->orientation = 0;
-    this->inventory.resize(InventoryItem::InventoryCount);
+    this->inventory.resize(InventoryItem::InventoryItemCount);
     unsigned char default_item_max = cfg["default_item_max"];
-    this->max_items_per_type.resize(InventoryItem::InventoryCount);
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    this->max_items_per_type.resize(InventoryItem::InventoryItemCount);
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (cfg.find(InventoryItemNames[i] + "_max") != cfg.end()) {
         this->max_items_per_type[i] = cfg[InventoryItemNames[i] + "_max"];
       } else {
         this->max_items_per_type[i] = default_item_max;
       }
     }
-    this->resource_rewards.resize(InventoryItem::InventoryCount);
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    this->resource_rewards.resize(InventoryItem::InventoryItemCount);
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       this->resource_rewards[i] = rewards[InventoryItemNames[i]];
     }
-    this->resource_reward_max.resize(InventoryItem::InventoryCount);
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    this->resource_reward_max.resize(InventoryItem::InventoryItemCount);
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       this->resource_reward_max[i] = rewards[InventoryItemNames[i] + "_max"];
     }
     this->action_failure_penalty = rewards["action_failure_penalty"];
@@ -91,12 +91,12 @@ public:
   }
 
   inline void compute_resource_reward(InventoryItem item) {
-    if (this->resource_rewards[static_cast<int>(item)] == 0) {
+    if (this->resource_rewards[item] == 0) {
       return;
     }
 
     float new_reward = 0;
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       float max_val = static_cast<float>(this->inventory[i]);
       if (max_val > this->resource_reward_max[i]) {
         max_val = this->resource_reward_max[i];
@@ -113,13 +113,13 @@ public:
 
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.push_back({ObservationFeatureId::TypeId, _type_id});
-    features.push_back({ObservationFeatureId::Group, group});
-    features.push_back({ObservationFeatureId::Hp, hp});
-    features.push_back({ObservationFeatureId::Frozen, frozen});
-    features.push_back({ObservationFeatureId::Orientation, orientation});
-    features.push_back({ObservationFeatureId::Color, color});
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::Group, group});
+    features.push_back({ObservationFeature::Hp, hp});
+    features.push_back({ObservationFeature::Frozen, frozen});
+    features.push_back({ObservationFeature::Orientation, orientation});
+    features.push_back({ObservationFeature::Color, color});
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (inventory[i] > 0) {
         features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
       }
@@ -135,7 +135,7 @@ public:
     obs[offsets[4]] = orientation;
     obs[offsets[5]] = color;
 
-    for (int i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (int i = 0; i < InventoryItemCount; i++) {
       obs[offsets[6 + i]] = inventory[i];
     }
   }

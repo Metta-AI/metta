@@ -62,7 +62,7 @@ class TestEnvironmentFunctionality:
 
         # Check observation structure
         [num_agents, grid_width, grid_height, num_channels] = obs.shape
-        num_expected_agents = environment._c_env.num_agents()
+        num_expected_agents = environment._c_env.num_agents
         assert num_agents == num_expected_agents
         assert grid_width > 0
         assert grid_height > 0
@@ -73,14 +73,14 @@ class TestEnvironmentFunctionality:
         environment.reset()
 
         # Check initial timestep
-        assert environment._c_env.current_timestep() == 0
+        assert environment._c_env.current_step == 0
 
-        num_agents = environment._c_env.num_agents()
+        num_agents = environment._c_env.num_agents
         # Take a step with NoOp actions for all agents
         (obs, rewards, terminated, truncated, infos) = environment.step([[0, 0]] * num_agents)
 
         # Check timestep increased
-        assert environment._c_env.current_timestep() == 1
+        assert environment._c_env.current_step == 1
 
         # Verify observation structure
         [agents_in_obs, grid_width, grid_height, num_channels] = obs.shape
@@ -119,9 +119,9 @@ class TestEnvironmentFunctionality:
 
         # Check env properties
         assert environment.render_mode == "human"
-        assert environment._c_env.map_width() > 0
-        assert environment._c_env.map_height() > 0
-        num_agents = environment._c_env.num_agents()
+        assert environment._c_env.map_width > 0
+        assert environment._c_env.map_height > 0
+        num_agents = environment.num_agents
         assert num_agents > 0
         assert environment.action_success.shape == (num_agents,)
 

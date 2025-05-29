@@ -28,5 +28,5 @@ class RandomScene(Scene):
 
         return [{"scene": scene, "where": "full"}]
 
-    def _render(self, _):
+    def _render(self, node):
         pass

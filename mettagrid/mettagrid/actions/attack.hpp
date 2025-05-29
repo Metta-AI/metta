@@ -11,7 +11,8 @@
 
 class Attack : public ActionHandler {
 public:
-  explicit Attack(const ActionConfig& cfg, const std::string& action_name = "attack") : ActionHandler(cfg, action_name) {
+  explicit Attack(const ActionConfig& cfg, const std::string& action_name = "attack")
+      : ActionHandler(cfg, action_name) {
     priority = 1;
   }
 
@@ -74,7 +75,7 @@ protected:
             actor->stats.incr("attack.win.other_team", actor->group_name);
           }
 
-          for (int item = 0; item < InventoryItem::InventoryCount; item++) {
+          for (int item = 0; item < InventoryItem::InventoryItemCount; item++) {
             int stolen = actor->update_inventory(static_cast<InventoryItem>(item), agent_target->inventory[item]);
             agent_target->update_inventory(static_cast<InventoryItem>(item), -stolen);
             actor->stats.add(InventoryItemNames[item], "stolen", actor->group_name, stolen);
