@@ -349,347 +349,6 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-#agent-panel {
-    position: absolute;
-    display: block;
-    width: 795px;
-    height: 693px;
-    left: 50px;
-    top: 123px;
-    background-color: rgba(20, 20, 20, 0.90);
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-#agent-panel #agent-table {
-    position: absolute;
-    display: flex;
-    width: 460.41px;
-    height: 158px;
-    left: 0px;
-    top: 0px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 10px;
-    padding: 50px 50px 50px 10px;
-    background-color: rgba(0, 0, 0, 0.00);
-}
-
-#agent-table .header {
-    display: flex;
-    width: auto;
-    height: auto;
-    left: 10px;
-    top: 50px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.header .field-header {
-    display: flex;
-    width: 100px;
-    height: 24px;
-    left: 0px;
-    top: 0px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    padding: 5px 0px 5px 0px;
-    justify-content: flex-end;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.field-header .ui/no-sort {
-    display: block;
-    width: 14px;
-    height: 24px;
-    left: 43px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.field-header .text {
-    display: inline-block;
-    width: auto;
-    height: auto;
-    left: 57px;
-    top: 1.50px;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
-}
-
-.header .field-header {
-    display: flex;
-    width: 100px;
-    height: 24px;
-    left: 100px;
-    top: 0px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    padding: 5px 0px 5px 0px;
-    justify-content: flex-end;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.field-header .ui/no-sort {
-    display: block;
-    width: 14px;
-    height: 24px;
-    left: 31px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.field-header .text {
-    display: inline-block;
-    width: auto;
-    height: auto;
-    left: 45px;
-    top: 1.50px;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
-}
-
-.header .field-header {
-    display: flex;
-    width: 100px;
-    height: 24px;
-    left: 200px;
-    top: 0px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    padding: 5px 0px 5px 0px;
-    justify-content: flex-end;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.field-header .ui/no-sort {
-    display: block;
-    width: 14px;
-    height: 24px;
-    left: 38px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.field-header .text {
-    display: inline-block;
-    width: auto;
-    height: auto;
-    left: 52px;
-    top: 1.50px;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
-}
-
-.header .field-header {
-    display: flex;
-    width: 100px;
-    height: 24px;
-    left: 300px;
-    top: 0px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    padding: 5px 0px 5px 0px;
-    justify-content: flex-end;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.field-header .ui/no-sort {
-    display: block;
-    width: 14px;
-    height: 24px;
-    left: 23px;
-    top: 0px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.field-header .text {
-    display: inline-block;
-    width: auto;
-    height: auto;
-    left: 37px;
-    top: 1.50px;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
-}
-
-#agent-table .row {
-    display: flex;
-    width: auto;
-    height: auto;
-    left: 10px;
-    top: 84px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    background-color: rgba(0, 0, 0, 0.00);
-}
-
-.row .cell {
-    display: flex;
-    width: 100.41px;
-    height: auto;
-    left: 0px;
-    top: 0px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.cell .text {
-    display: inline-block;
-    width: 100px;
-    height: auto;
-    left: 0px;
-    top: 0px;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Mono;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
-}
-
-.row .cell {
-    display: flex;
-    width: auto;
-    height: auto;
-    left: 100.41px;
-    top: 0px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 10px;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
-    overflow: hidden;
-}
-
-.cell .text {
-    display: inline-block;
-    width: 100px;
-    height: 24px;
-    left: 0px;
-    top: 0px;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Mono;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
-}
-
-.row .cell {
-    display: flex;
-    width: auto;
-    height: auto;
-    left: 200.41px;
-    top: 0px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 10px;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
-}
-
-.cell .text {
-    display: inline-block;
-    width: 100px;
-    height: 24px;
-    left: 0px;
-    top: 0px;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Mono;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
-}
-
-.row .cell {
-    display: flex;
-    width: auto;
-    height: auto;
-    left: 300.41px;
-    top: 0px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 10px;
-    justify-content: center;
-    align-items: center;
-    background-color: rgba(0, 0, 0, 0.00);
-}
-
-.cell .text {
-    display: inline-block;
-    width: 100px;
-    height: 24px;
-    left: 0px;
-    top: 0px;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Mono;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 16px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 20.80px;
-}
-
 #header {
     position: absolute;
     display: block;
@@ -809,7 +468,7 @@ button#help-button.hover-icon .icon {
 #modal .header {
     display: inline-block;
     width: 100%;
-    height: auto;
+    height: fit-content;
     left: 64px;
     top: 64px;
     align-self: stretch;
@@ -827,7 +486,7 @@ button#help-button.hover-icon .icon {
 #modal .message {
     display: inline-block;
     width: 100%;
-    height: auto;
+    height: fit-content;
     left: 64px;
     top: 148px;
     align-self: stretch;
@@ -864,8 +523,8 @@ button#help-button.hover-icon .icon {
 
 #toast .message {
     display: inline-block;
-    width: auto;
-    height: auto;
+    width: fit-content;
+    height: fit-content;
     left: 20px;
     top: 10px;
     color: rgba(255, 255, 255, 1.00);
@@ -896,8 +555,8 @@ button#help-button.hover-icon .icon {
 
 #info-panel .info {
     display: inline-block;
-    width: auto;
-    height: auto;
+    width: fit-content;
+    height: fit-content;
     left: 16px;
     top: 16px;
     color: rgba(255, 255, 255, 1.00);
@@ -1415,4 +1074,728 @@ button#help-button.hover-icon .icon {
     transform: translate(-29px, -29px);
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
+}
+
+#agent-panel {
+    position: absolute;
+    display: flex;
+    height: 594px;
+    left: 0px;
+    right: 0px;
+    top: 64px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 10px 10px 10px 10px;
+    background-color: rgba(28, 29, 30, 1.00);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+#agent-panel .table {
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 10px;
+    top: 10px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 1px;
+    padding: 1px 1px 1px 1px;
+    background-color: rgba(51, 51, 51, 1.00);
+}
+
+.table .column {
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 1px;
+    top: 1px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 1px;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.column .header-cell {
+    display: flex;
+    width: fit-content;
+    height: 38px;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.header-cell .icon {
+    display: block;
+    width: 17px;
+    height: 20px;
+    left: 4px;
+    top: 9px;
+}
+
+.header-cell .name {
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    left: 25px;
+    top: 10px;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.header-cell .show-on-hover {
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 83px;
+    top: 5px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 4px 4px 4px 4px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(79, 79, 79, 1.00);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.show-on-hover .drop-down-icon {
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 4px;
+    top: 4px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 39px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 78px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 117px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 156px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 195px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 234px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 273px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 312px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 351px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 390px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 429px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.data-cell .name {
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    left: 4px;
+    top: 10px;
+    flex-grow: 1.0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: right;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.table .new-column {
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    left: 117px;
+    top: 1px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 1px;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.new-column .header-cell {
+    display: flex;
+    width: fit-content;
+    height: 38px;
+    left: 0px;
+    top: 0px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.header-cell input#new-column-input::placeholder {
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.header-cell input#new-column-input {
+    display: flex;
+    width: 141px;
+    height: fit-content;
+    left: 4px;
+    top: 4px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 6px 5px 6px 5px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+    border-radius: 2px;
+    overflow: hidden;
+    border-color: rgba(255, 255, 255, 1.00);
+    border-width: 1px;
+    border-style: solid;
+    color: rgba(130, 130, 130, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 39px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 78px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 117px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 156px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 195px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 234px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 273px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 312px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 351px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 390px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
+}
+
+.new-column .data-cell {
+    display: flex;
+    width: 100%;
+    height: 38px;
+    left: 0px;
+    top: 429px;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 4px 4px 4px 4px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(28, 29, 30, 1.00);
 }
