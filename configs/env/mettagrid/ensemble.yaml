@@ -6,7 +6,7 @@ game:
 
 # Define ensembles with their activation episodes
 ensembles:
-- name: "basic_navigation"
+  - name: "basic_navigation"
     episode_activation: 0  # Starts from the beginning
     envs:
       - /env/mettagrid/navigation/training/varied_terrain_sparse
