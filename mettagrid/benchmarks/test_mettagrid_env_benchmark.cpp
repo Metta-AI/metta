@@ -11,6 +11,17 @@
 
 namespace py = pybind11;
 
+// TODO: Currently this benchmark requires Python/pybind11 because the MettaGrid
+// API is tightly coupled with Python types (py::dict, py::list, py::array_t).
+//
+// The goal is to refactor MettaGrid to have a pure C++ core with a thin Python
+// wrapper layer. When that refactoring is complete, we should be able to:
+// 1. Remove all pybind11 includes from this benchmark
+// 2. Remove the Python interpreter initialization
+// 3. Work directly with C++ types (std::vector, std::map, etc.)
+//
+// We'll know we've succeeded when this file has zero references to pybind11!
+
 // Helper functions for creating configuration and map
 py::dict CreateBenchmarkConfig(int num_agents) {
   py::dict cfg;
@@ -164,68 +175,8 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
       benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
 }
 
-// Matching Python test_reset_performance
-static void BM_MettaGridReset(benchmark::State& state) {  // NOLINT(runtime/references)
-  auto cfg = CreateBenchmarkConfig(4);
-  auto map = CreateDefaultMap(2);
-  auto env = std::make_unique<MettaGrid>(cfg, map);
-
-  // For each iteration, call reset
-  for (auto _ : state) {
-    auto result = env->reset();
-    benchmark::DoNotOptimize(result);
-  }
-}
-
-// Parameterized benchmark for different agent counts
-static void BM_MettaGridStepAgentScaling(benchmark::State& state) {  // NOLINT(runtime/references)
-  int num_agents_per_team = state.range(0);
-  int total_agents = num_agents_per_team * 2;
-
-  auto cfg = CreateBenchmarkConfig(total_agents);
-  auto map = CreateDefaultMap(num_agents_per_team);
-  auto env = std::make_unique<MettaGrid>(cfg, map);
-  env->reset();
-
-  if (env->num_agents() != total_agents) {
-    state.SkipWithError("Agent count mismatch in scaling test");
-    return;
-  }
-
-  std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(total_agents), 2};
-  py::array_t<int> actions(shape);
-  auto actions_ptr = static_cast<int*>(actions.request().ptr);
-
-  std::mt19937 gen(42);
-  std::uniform_int_distribution<> action_dist(0, py::len(env->action_names()) - 1);
-  std::uniform_int_distribution<> arg_dist(0, 3);
-
-  for (int i = 0; i < total_agents; ++i) {
-    actions_ptr[i * 2] = action_dist(gen);
-    actions_ptr[i * 2 + 1] = arg_dist(gen);
-  }
-
-  for (auto _ : state) {
-    auto result = env->step(actions);
-    benchmark::DoNotOptimize(result);
-  }
-
-  state.counters["env_steps_per_second"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
-  state.counters["agent_steps_per_second"] =
-      benchmark::Counter(state.iterations() * total_agents, benchmark::Counter::kIsRate);
-}
-
 // Register benchmarks to match Python tests
 BENCHMARK(BM_MettaGridStep)->Unit(benchmark::kMillisecond);
-BENCHMARK(BM_MettaGridReset)->Unit(benchmark::kMillisecond);
-
-// Agent scaling benchmark
-BENCHMARK(BM_MettaGridStepAgentScaling)
-    ->Arg(1)  // 2 total agents
-    ->Arg(2)  // 4 total agents
-    ->Arg(4)  // 8 total agents
-    ->Arg(8)  // 16 total agents
-    ->Unit(benchmark::kMicrosecond);
 
 // Custom main that properly initializes Python
 int main(int argc, char** argv) {
