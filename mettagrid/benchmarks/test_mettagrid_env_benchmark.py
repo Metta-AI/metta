@@ -71,7 +71,7 @@ def test_step_performance(benchmark, environment, action_generator):
         actions = action_sequence[iteration_counter % len(action_sequence)]
         iteration_counter += 1
 
-        obs, rewards, terminated, truncated, infos = env.step(actions)
+        _obs, _rewards, _terminated, _truncated, _infos = env.step(actions)
         # Intentionally ignore termination states to measure pure step performance
 
     # Run the benchmark
