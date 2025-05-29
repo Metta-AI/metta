@@ -176,7 +176,9 @@ TEST_F(MettaGridCppTest, AttackAction) {
 
   // Give target some items
   target->update_inventory(InventoryItem::heart, 2);
-  target->update_inventory(InventoryItem::battery, 3);
+  target->update_inventory(InventoryItem::battery_red, 3);
+  EXPECT_EQ(target->inventory[InventoryItem::heart], 2);
+  EXPECT_EQ(target->inventory[InventoryItem::battery_red], 3);
 
   // Verify attacker orientation
   EXPECT_EQ(attacker->orientation, Orientation::Up);
@@ -198,9 +200,9 @@ TEST_F(MettaGridCppTest, AttackAction) {
 
   // Verify target's inventory was stolen
   EXPECT_EQ(target->inventory[InventoryItem::heart], 0);
-  EXPECT_EQ(target->inventory[InventoryItem::battery], 0);
+  EXPECT_EQ(target->inventory[InventoryItem::battery_red], 0);
   EXPECT_EQ(attacker->inventory[InventoryItem::heart], 2);
-  EXPECT_EQ(attacker->inventory[InventoryItem::battery], 3);
+  EXPECT_EQ(attacker->inventory[InventoryItem::battery_red], 3);
 }
 
 TEST_F(MettaGridCppTest, PutRecipeItems) {
@@ -224,7 +226,8 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
   ObjectConfig generator_cfg;
   generator_cfg["hp"] = 30;
   generator_cfg["input_ore.red"] = 1;
-  generator_cfg["output_battery"] = 1;
+  generator_cfg["output_battery.red"] = 1;
+  // Set the max_output to 0 so it won't consume things we put in it.
   generator_cfg["max_output"] = 0;
   generator_cfg["conversion_ticks"] = 1;
   generator_cfg["cooldown"] = 10;
@@ -279,7 +282,8 @@ TEST_F(MettaGridCppTest, GetOutput) {
   ObjectConfig generator_cfg;
   generator_cfg["hp"] = 30;
   generator_cfg["input_ore.red"] = 1;
-  generator_cfg["output_battery"] = 1;
+  generator_cfg["output_battery.red"] = 1;
+  // Set the max_output to 0 so it won't consume things we put in it.
   generator_cfg["max_output"] = 1;
   generator_cfg["conversion_ticks"] = 1;
   generator_cfg["cooldown"] = 10;
@@ -301,9 +305,9 @@ TEST_F(MettaGridCppTest, GetOutput) {
   // Test getting output
   bool success = get.handle_action(agent->id, 0, 0);
   EXPECT_TRUE(success);
-  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);      // Still have red ore
-  EXPECT_EQ(agent->inventory[InventoryItem::battery], 1);      // Now have a battery
-  EXPECT_EQ(generator->inventory[InventoryItem::battery], 0);  // Generator gave away its battery
+  EXPECT_EQ(agent->inventory[InventoryItem::ore_red], 1);          // Still have red ore
+  EXPECT_EQ(agent->inventory[InventoryItem::battery_red], 1);      // Also have a battery
+  EXPECT_EQ(generator->inventory[InventoryItem::battery_red], 0);  // Generator gave away its battery
 }
 
 // ==================== Event System Tests ====================
@@ -338,9 +342,9 @@ TEST_F(MettaGridCppTest, ObjectTypes) {
 
 TEST_F(MettaGridCppTest, InventoryItems) {
   // Test that inventory item constants are properly defined
-  EXPECT_NE(InventoryItem::heart, InventoryItem::battery);
+  EXPECT_NE(InventoryItem::heart, InventoryItem::battery_red);
   EXPECT_NE(InventoryItem::heart, InventoryItem::ore_red);
-  EXPECT_NE(InventoryItem::battery, InventoryItem::ore_red);
+  EXPECT_NE(InventoryItem::battery_red, InventoryItem::ore_red);
 
   // Test that inventory item names exist
   EXPECT_FALSE(InventoryItemNames.empty());
