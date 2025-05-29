@@ -10,6 +10,9 @@ defaults:
 
 sampling: 1
 
+labels:
+  - sequence
+
 game:
   num_agents: 16
   agent:
@@ -26,8 +29,6 @@ game:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
     border_width: 6
-    labels:
-      - sequence
     room:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
       width: ${sampling:50,100,60}
