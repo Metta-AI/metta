@@ -81,7 +81,8 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
     # Returns (policy_uri, eval_name, suite, group_id, num_agents, replay_url)
     eval_info_rows = db.con.execute(
         """
-        SELECT e.policy_uri, e.eval_name, e.suite, ag.group_id, COUNT(*) as num_agents, ANY_VALUE(e.replay_url) as replay_url
+        SELECT e.policy_uri, e.eval_name, e.suite, ag.group_id, COUNT(*) as num_agents, 
+          ANY_VALUE(e.replay_url) as replay_url
         FROM episode_info e
         JOIN agent_groups ag ON e.episode_id = ag.episode_id
         GROUP BY e.policy_uri, e.eval_name, e.suite, ag.group_id
@@ -112,7 +113,8 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
         key = (policy_uri, eval_name)
         if key not in policy_evals:
             policy_evals[key] = PolicyEval(
-                policy_uri=policy_uri, eval_name=eval_name, suite=suite, replay_url=replay_url, group_num_agents={}, policy_eval_metrics=[]
+                policy_uri=policy_uri, eval_name=eval_name, suite=suite, replay_url=replay_url, group_num_agents={}, 
+                policy_eval_metrics=[]
             )
         policy_evals[key].group_num_agents[str(group_id)] = num_agents
 
