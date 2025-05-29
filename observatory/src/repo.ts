@@ -24,9 +24,9 @@ export type HeatmapData = {
 export interface Repo {  
   getSuites(): Promise<string[]>;
   getMetrics(suite: string): Promise<string[]>;
-  getGroupIds(suite: string): Promise<number[]>;
+  getGroupIds(suite: string): Promise<string[]>;
 
-  getHeatmapData(metric: string, suite: string, groupId: number | null): Promise<HeatmapData>;
+  getHeatmapData(metric: string, suite: string, groupId: string): Promise<HeatmapData>;
 }
 
 export class DataRepo implements Repo {
@@ -41,18 +41,18 @@ export class DataRepo implements Repo {
     return [...new Set(this.dashboardData.policy_evals.map(row => row.suite))].sort();
   }
 
-  async getGroupIds(suite: string): Promise<number[]> {
+  async getGroupIds(suite: string): Promise<string[]> {
     return [...new Set(this.dashboardData.policy_evals.filter(row => row.suite === suite).flatMap(row => row.policy_eval_metrics.map(metric => metric.group_id)))].sort();
   }
 
-  async getHeatmapData(metric: string, suite: string, groupId: number | null): Promise<HeatmapData> {
+  async getHeatmapData(metric: string, suite: string, groupId: string): Promise<HeatmapData> {
     const evalNames = new Set<string>();
     const cells = new Map<string, Map<string, HeatmapCell>>();
     
     this.dashboardData.policy_evals.forEach((policyEval: PolicyEval) => {
       if (policyEval.suite === suite) {
         evalNames.add(policyEval.eval_name);
-        const relevantMetrics = policyEval.policy_eval_metrics.filter((m: PolicyEvalMetric) => m.metric === metric && (groupId === null || m.group_id === groupId));
+        const relevantMetrics = policyEval.policy_eval_metrics.filter((m: PolicyEvalMetric) => m.metric === metric && (groupId === "" || m.group_id === groupId));
         if (relevantMetrics.length > 0) {
           let policyData = cells.get(policyEval.policy_uri);
           if (!policyData) {

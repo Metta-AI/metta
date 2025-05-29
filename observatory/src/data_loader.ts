@@ -1,6 +1,6 @@
 export type PolicyEvalMetric = {
   metric: string;
-  group_id: number;
+  group_id: string;
   sum_value: number;
   num_agents: number;
 }

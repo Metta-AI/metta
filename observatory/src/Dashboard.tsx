@@ -65,7 +65,7 @@ export function Dashboard({ repo }: DashboardProps) {
   const [isViewLocked, setIsViewLocked] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{policyUri: string, evalName: string} | null>(null);
   const [availableGroupIds, setAvailableGroupIds] = useState<string[]>([]);
-  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
 
   useEffect(() => {
     const loadData = async () => {
@@ -84,7 +84,7 @@ export function Dashboard({ repo }: DashboardProps) {
         repo.getGroupIds(selectedSuite),
       ]);
       setMetrics(metricsData);
-      setAvailableGroupIds(["", ...groupIdsData.map(groupId => groupId.toString())]);
+      setAvailableGroupIds(["", ...groupIdsData]);
     };
 
     loadData();
@@ -237,8 +237,8 @@ export function Dashboard({ repo }: DashboardProps) {
         >
           <div style={{ color: "#666", fontSize: "14px" }}>Group ID</div>
           <select
-            value={selectedGroupId?.toString() ?? ""}
-            onChange={(e) => setSelectedGroupId(e.target.value ? parseInt(e.target.value) : null)}
+            value={selectedGroupId}
+            onChange={(e) => setSelectedGroupId(e.target.value)}
             style={{
               padding: "8px 12px",
               borderRadius: "4px",

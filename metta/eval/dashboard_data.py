@@ -20,7 +20,7 @@ class DashboardConfig(Config):
 
 class PolicyEvalMetric(BaseModel):
     metric: str
-    group_id: int
+    group_id: str
     sum_value: float
     num_agents: int
 
@@ -120,7 +120,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
         key = (policy_uri, eval_name)
         assert key in policy_evals, f"Policy eval {key} not found"
         policy_evals[key].policy_eval_metrics.append(
-            PolicyEvalMetric(metric=metric, group_id=group_id, sum_value=value, num_agents=num_agents)
+            PolicyEvalMetric(metric=metric, group_id=str(group_id), sum_value=value, num_agents=num_agents)
         )
 
     return list(policy_evals.values())
