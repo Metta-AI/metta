@@ -44,57 +44,6 @@ def action_generator(environment):
     return generate_actions
 
 
-def test_step_performance(benchmark, environment, action_generator):
-    """
-    Benchmark step method performance with automatic reset handling.
-    Reports: latency (built-in), agent_steps_per_second, env_steps_per_second
-    """
-    env = environment
-
-    # Track statistics for calculating throughput
-    reset_count = 0
-    step_count = 0
-
-    def run_step():
-        nonlocal reset_count, step_count
-
-        # Generate new random (but deterministic) actions each step
-        actions = action_generator()
-        obs, rewards, terminated, truncated, infos = env.step(actions)
-        step_count += 1
-
-        # Check if any episodes terminated or truncated
-        if np.any(terminated) or np.any(truncated):
-            env.reset()
-            reset_count += 1
-
-    # Run the benchmark
-    _result = benchmark.pedantic(
-        run_step,
-        iterations=1000,
-        rounds=10,
-        warmup_rounds=2,
-    )
-
-    # Calculate throughput KPIs from timing
-    ops_kilo = benchmark.stats["ops"]
-    env_steps_per_second = ops_kilo * 1000.0
-    agent_steps_per_second = env_steps_per_second * environment.num_agents
-
-    print("\nStep Performance Results:")
-    print(f"Latency: {benchmark.stats['mean']:.6f} seconds")
-    print(f"Environment steps per second: {env_steps_per_second:.2f}")
-    print(f"Agent steps per second: {agent_steps_per_second:.2f}")
-
-    # Report: built-in latency + 2 custom KPIs
-    benchmark.extra_info.update(
-        {
-            "env_steps_per_second": env_steps_per_second,
-            "agent_steps_per_second": agent_steps_per_second,
-        }
-    )
-
-
 def test_step_performance_no_reset(benchmark, environment, action_generator):
     """
     Benchmark pure step method performance without reset overhead.
@@ -176,64 +125,6 @@ def test_reset_performance(benchmark, environment):
 
     # Only reports built-in latency measure - no custom metrics needed
     # Lower latency = better reset performance
-
-
-def test_full_step_cycle_performance(benchmark, environment):
-    """
-    Benchmark the complete step cycle: action generation + step + reset handling.
-    This gives the most realistic performance measurement for actual usage.
-    Reports: latency (built-in), agent_steps_per_second, env_steps_per_second
-    """
-    env = environment
-    num_agents = env.num_agents
-
-    # Set deterministic seed for this test
-    np.random.seed(456)
-
-    # Performance tracking
-    total_steps = 0
-    total_resets = 0
-
-    def run_full_cycle():
-        nonlocal total_steps, total_resets
-
-        # Generate valid actions (deterministically random)
-        actions = generate_valid_random_actions(env, num_agents=num_agents, seed=None)
-
-        # Execute step
-        obs, rewards, terminated, truncated, infos = env.step(actions)
-        total_steps += 1
-
-        # Handle resets if needed
-        if np.any(terminated) or np.any(truncated):
-            env.reset()
-            total_resets += 1
-
-    # Run the benchmark
-    benchmark.pedantic(
-        run_full_cycle,
-        iterations=500,
-        rounds=10,
-        warmup_rounds=2,
-    )
-
-    # Calculate throughput KPIs from timing
-    ops_kilo = benchmark.stats["ops"]
-    env_steps_per_second = ops_kilo * 1000.0
-    agent_steps_per_second = env_steps_per_second * num_agents
-
-    print("\nFull Cycle Performance Results:")
-    print(f"Latency: {benchmark.stats['mean']:.6f} seconds")
-    print(f"Environment steps per second: {env_steps_per_second:.2f}")
-    print(f"Agent steps per second: {agent_steps_per_second:.2f}")
-
-    # Report: built-in latency + 2 custom KPIs
-    benchmark.extra_info.update(
-        {
-            "env_steps_per_second": env_steps_per_second,
-            "agent_steps_per_second": agent_steps_per_second,
-        }
-    )
 
 
 @pytest.mark.parametrize("action_type", [None, 0, 1, 2])

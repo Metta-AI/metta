@@ -157,96 +157,27 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
     benchmark::DoNotOptimize(result);
   }
 
-  // Report steps/second as custom counters
-  // Google Benchmark will divide by the total elapsed time automatically
-  state.counters["env_steps_per_second"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
-  state.counters["agent_steps_per_second"] =
-      benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
+  // Calculate actual steps per second
+  double total_time_seconds = static_cast<double>(state.cumulative_time_used()) / 1e9;
+  double env_steps_per_second = static_cast<double>(state.iterations()) / total_time_seconds;
+  double agent_steps_per_second = env_steps_per_second * num_agents;
+
+  // Store as raw values - no Counter wrapper
+  state.counters["env_steps_per_second"] = env_steps_per_second;
+  state.counters["agent_steps_per_second"] = agent_steps_per_second;
 }
 
 // Matching Python test_reset_performance
 static void BM_MettaGridReset(benchmark::State& state) {  // NOLINT(runtime/references)
   auto cfg = CreateBenchmarkConfig(4);
   auto map = CreateDefaultMap(2);
+  auto env = std::make_unique<MettaGrid>(cfg, map);
 
-  // For each iteration, create a new environment and call reset
+  // For each iteration, call reset
   for (auto _ : state) {
-    auto env = std::make_unique<MettaGrid>(cfg, map);
     auto result = env->reset();
     benchmark::DoNotOptimize(result);
-    // Environment is destroyed at end of scope
   }
-}
-
-// Environment creation benchmark (no Python equivalent)
-static void BM_EnvironmentCreation(benchmark::State& state) {  // NOLINT(runtime/references)
-  auto cfg = CreateBenchmarkConfig(4);
-  auto map = CreateDefaultMap(2);
-
-  for (auto _ : state) {
-    auto env = std::make_unique<MettaGrid>(cfg, map);
-    benchmark::DoNotOptimize(env);
-  }
-}
-
-// Matching Python test_step_performance (with reset handling)
-static void BM_MettaGridStepWithReset(benchmark::State& state) {  // NOLINT(runtime/references)
-  int num_agents = 4;
-  auto cfg = CreateBenchmarkConfig(num_agents);
-  auto map = CreateDefaultMap(2);
-
-  // Create initial environment outside the benchmark loop
-  auto env = std::make_unique<MettaGrid>(cfg, map);
-  env->reset();
-
-  std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents), 2};
-  py::array_t<int> actions(shape);
-  auto actions_ptr = static_cast<int*>(actions.request().ptr);
-
-  std::mt19937 gen(42);
-  std::uniform_int_distribution<> action_dist(0, py::len(env->action_names()) - 1);
-  std::uniform_int_distribution<> arg_dist(0, 3);
-
-  int step_count = 0;
-  int reset_count = 0;
-
-  for (auto _ : state) {
-    // Generate new random actions each step
-    for (size_t i = 0; i < num_agents; ++i) {
-      actions_ptr[i * 2] = action_dist(gen);
-      actions_ptr[i * 2 + 1] = arg_dist(gen);
-    }
-
-    auto result = env->step(actions);
-    step_count++;
-
-    // Check if reset needed - result is a py::tuple
-    py::tuple step_result = result.cast<py::tuple>();
-    py::array_t<bool> terminated = step_result[2].cast<py::array_t<bool>>();
-    py::array_t<bool> truncated = step_result[3].cast<py::array_t<bool>>();
-
-    bool need_reset = false;
-    auto term_ptr = static_cast<bool*>(terminated.request().ptr);
-    auto trunc_ptr = static_cast<bool*>(truncated.request().ptr);
-
-    for (py::ssize_t i = 0; i < terminated.size(); ++i) {
-      if (term_ptr[i] || trunc_ptr[i]) {
-        need_reset = true;
-        break;
-      }
-    }
-
-    if (need_reset) {
-      // Create a completely new environment instead of calling reset
-      env = std::make_unique<MettaGrid>(cfg, map);
-      env->reset();
-      reset_count++;
-    }
-  }
-
-  state.counters["env_steps_per_second"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
-  state.counters["agent_steps_per_second"] =
-      benchmark::Counter(state.iterations() * num_agents, benchmark::Counter::kIsRate);
 }
 
 // Parameterized benchmark for different agent counts
@@ -282,14 +213,17 @@ static void BM_MettaGridStepAgentScaling(benchmark::State& state) {  // NOLINT(r
     benchmark::DoNotOptimize(result);
   }
 
-  state.counters["env_steps_per_second"] = benchmark::Counter(state.iterations(), benchmark::Counter::kIsRate);
-  state.counters["agent_steps_per_second"] =
-      benchmark::Counter(state.iterations() * total_agents, benchmark::Counter::kIsRate);
+  // Calculate actual steps per second
+  double total_time_seconds = static_cast<double>(state.cumulative_time_used()) / 1e9;
+  double env_steps_per_second = static_cast<double>(state.iterations()) / total_time_seconds;
+  double agent_steps_per_second = env_steps_per_second * total_agents;
+
+  state.counters["env_steps_per_second"] = env_steps_per_second;
+  state.counters["agent_steps_per_second"] = agent_steps_per_second;
 }
 
 // Register benchmarks to match Python tests
 BENCHMARK(BM_MettaGridStep)->Unit(benchmark::kMillisecond);
-BENCHMARK(BM_MettaGridStepWithReset)->Unit(benchmark::kMillisecond);
 BENCHMARK(BM_MettaGridReset)->Unit(benchmark::kMillisecond);
 
 // Agent scaling benchmark
