@@ -4,6 +4,16 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
+    "b.george.navsequence_mem2"
+    "b.george.navsequence_all2"
+    "b.george.navsequence_sequence2"
+    "b.george.navsequence_mem_pretrained2"
+    "b.george.navsequence_all_pretrained2"
+    "b.george.navsequence_sequence_pretrained2"
+
+    "george_navsequence_seq"
+    "george_navsequence_memory"
+
     "b.daphne.objectuse"
     "b.daphne.navigation_objectuse_sp"
     "b.daphne.multiagent_8"
