@@ -16,4 +16,4 @@ trainer:
 #   # wandb.enabled: false
 #   wandb.track: false
 
-run: mrazo_navigation_ensemble_v01
+run: mrazo_navigation_ensemble_v02
