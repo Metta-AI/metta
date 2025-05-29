@@ -72,10 +72,31 @@ function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/te
         ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES}"
         LABELS "test")
     elseif(TEST_TYPE STREQUAL "benchmark")
-      add_test(NAME ${output_name} COMMAND ${output_name})
+      # Create a wrapper script for pretty benchmark output
+      set(wrapper_script "${CMAKE_BINARY_DIR}/run_${output_name}.cmake")
+      file(WRITE ${wrapper_script} "
+message(\"\\n=================================================================================\")
+message(\"BENCHMARK: ${output_name}\")
+message(\"=================================================================================\")
+execute_process(
+  COMMAND \"${output_dir}/${output_name}\"
+  RESULT_VARIABLE result
+  OUTPUT_VARIABLE output
+  ERROR_VARIABLE error
+  ECHO_OUTPUT_VARIABLE
+  ECHO_ERROR_VARIABLE
+)
+if(result)
+  message(FATAL_ERROR \"Benchmark failed with result: \${result}\")
+endif()
+message(\"================================================================================\\n\")
+")
+      
+      add_test(NAME ${output_name} COMMAND ${CMAKE_COMMAND} -P ${wrapper_script})
       set_tests_properties(${output_name} PROPERTIES 
         ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES}"
-        LABELS "benchmark")
+        LABELS "benchmark"
+        TIMEOUT 300)
     else()
       message(FATAL_ERROR "Invalid test type: ${TEST_TYPE}")
     endif()

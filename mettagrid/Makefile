@@ -24,7 +24,7 @@ lint:
 # Build and run all tests
 test: build lint
 	@echo "Running C++ tests..."
-	ctest --test-dir build-debug --rerun-failed --output-on-failure
+	ctest --test-dir build-debug -L benchmark -V --rerun-failed --output-on-failure
 
 # Clean all build artifacts
 clean:
