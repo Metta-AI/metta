@@ -52,6 +52,23 @@ runs:
         echo "Measures: latency (built-in), agent_steps_per_second, env_steps_per_second"
         
         if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
+          echo "🏷️  Creating measures with proper units..."
+          
+          # Create measures with proper units (idempotent)
+          bencher measure create \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --name "agent_steps_per_second" \
+            --slug "agent_steps_per_second" \
+            --units "steps/sec" 2>/dev/null || echo "Measure agent_steps_per_second already exists"
+
+          bencher measure create \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --name "env_steps_per_second" \
+            --slug "env_steps_per_second" \
+            --units "steps/sec" 2>/dev/null || echo "Measure env_steps_per_second already exists"
+          
           echo "🎯 Setting up ultra-simple thresholds..."
           
           # Built-in latency measure (lower is better - alert on increases)
@@ -92,7 +109,7 @@ runs:
               --file "${{ inputs.benchmark_file }}" || echo "⚠️  Could not set threshold for $metric"
           done
           
-          echo "✅ Ultra-simple 3-measure thresholds configured"
+          echo "✅ Ultra-simple 3-measure thresholds configured with proper units"
         else
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
         fi
