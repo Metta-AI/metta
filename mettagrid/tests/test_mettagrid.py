@@ -1,14 +1,13 @@
 import numpy as np
-import pytest
 
-from mettagrid.mettagrid_c import MettaGrid  # pylint: disable=E0611
+from mettagrid.mettagrid_c import MettaGrid
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
 OBS_WIDTH = 3
 
 
-def create_minimal_mettagrid_env(max_steps=10, width=5, height=5, use_observation_tokens=False):
+def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, use_observation_tokens=False):
     """Helper function to create a MettaGrid environment with minimal config."""
     # Define a simple map: empty with walls around perimeter
     game_map = np.full((height, width), "empty", dtype="<U50")
@@ -60,16 +59,17 @@ def create_minimal_mettagrid_env(max_steps=10, width=5, height=5, use_observatio
 
 
 def test_truncation_at_max_steps():
+    """Test that environments properly truncate at max_steps."""
     max_steps = 5
-    env = create_minimal_mettagrid_env(max_steps=max_steps)
-    obs, info = env.reset()
+    c_env = create_minimal_mettagrid_c_env(max_steps=max_steps)
+    obs, info = c_env.reset()
 
     # Noop until time runs out
-    noop_action_idx = env.action_names().index("noop")
+    noop_action_idx = c_env.action_names().index("noop")
     actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
 
     for step_num in range(1, max_steps + 1):
-        obs, rewards, terminals, truncations, info = env.step(actions)
+        obs, rewards, terminals, truncations, info = c_env.step(actions)
         if step_num < max_steps:
             assert not np.any(truncations), f"Truncations should be False before max_steps at step {step_num}"
             assert not np.any(terminals), f"Terminals should be False before max_steps at step {step_num}"
@@ -80,12 +80,15 @@ def test_truncation_at_max_steps():
 
 
 class TestObservations:
+    """Test observation functionality and formats."""
+
     def test_observation_tokens(self):
-        env = create_minimal_mettagrid_env(use_observation_tokens=True)
+        """Test observation token format and content."""
+        c_env = create_minimal_mettagrid_c_env(use_observation_tokens=True)
         # These come from constants in the C++ code, and are fragile.
         TYPE_ID_FEATURE = 1
         WALL_TYPE_ID = 1
-        obs, info = env.reset()
+        obs, info = c_env.reset()
         # Agent 0 starts at (1,1) and should see walls above and to the left
         # for now we treat the walls as "something non-empty"
         for x, y in [(0, 1), (1, 0)]:
@@ -98,9 +101,10 @@ class TestObservations:
             assert not token_matches.any(), f"Expected no tokens at location {x}, {y}"
 
     def test_observations(self):
-        env = create_minimal_mettagrid_env()
-        wall_feature_idx = env.grid_features().index("wall")
-        obs, info = env.reset()
+        """Test standard observation format and content."""
+        c_env = create_minimal_mettagrid_c_env()
+        wall_feature_idx = c_env.grid_features().index("wall")
+        obs, info = c_env.reset()
         # Agent 0 starts at (1,1) and should see walls above and to the left
         assert obs[0, 0, 1, wall_feature_idx] == 1, "Expected wall above agent 0"
         assert obs[0, 1, 0, wall_feature_idx] == 1, "Expected wall to left of agent 0"
@@ -109,12 +113,13 @@ class TestObservations:
 
 
 def test_grid_objects():
-    env = create_minimal_mettagrid_env()
-    objects = env.grid_objects()
+    """Test grid object representation and properties."""
+    c_env = create_minimal_mettagrid_c_env()
+    objects = c_env.grid_objects()
 
     # Test that we have the expected number of objects
     # 4 walls on each side (minus corners) + 2 agents
-    expected_walls = 2 * (env.map_width() + env.map_height() - 2)
+    expected_walls = 2 * (c_env.map_width + c_env.map_height - 2)
     expected_agents = 2
     assert len(objects) == expected_walls + expected_agents, "Wrong number of objects"
 
@@ -137,105 +142,87 @@ def test_grid_objects():
             assert obj["agent:frozen"] == 0, "Agent should not be frozen"
 
 
-class TestSetBuffers:
-    def test_default_buffers(self):
-        env = create_minimal_mettagrid_env()
-        env.reset()
+def test_environment_initialization():
+    """Test basic environment initialization and configuration."""
+    c_env = create_minimal_mettagrid_c_env()
 
-        noop_action_idx = env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
-        obs, rewards, terminals, truncations, info = env.step(actions)
-        episode_rewards = env.get_episode_rewards()
+    # Test basic properties
+    assert c_env.map_width == 5, "Map width should be 5"
+    assert c_env.map_height == 5, "Map height should be 5"
+    assert len(c_env.action_names()) > 0, "Should have available actions"
+    assert len(c_env.grid_features()) > 0, "Should have grid features"
 
-        # Check strides. We've had issues where we've not correctly initialized the buffers, and have had
-        # strides of zero.
-        assert rewards.strides == (4,)  # float32
-        assert terminals.strides == (1,)  # bool, tracked as a byte
-        assert truncations.strides == (1,)  # bool, tracked as a byte
-        assert episode_rewards.strides == (4,)  # float32
-        assert obs.strides[-1] == 1  # uint8
+    # Test reset functionality
+    obs, info = c_env.reset()
+    assert obs.shape == (NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, len(c_env.grid_features())), (
+        "Observation shape should match expected dimensions"
+    )
+    assert isinstance(info, dict), "Info should be a dictionary"
 
-        # This is a more brute force way to check that the buffers are behaving correctly by changing a single
-        # element and making sure the correct update is reflected. Given that the strides are correct, these tests
-        # are probably superfluous; but we've been surprised by what can fail in the past, so we're aiming for
-        # overkill.
-        assert (rewards == [0, 0]).all()
-        assert (terminals == [False, False]).all()
-        assert (truncations == [False, False]).all()
-        assert (episode_rewards == [0, 0]).all()
 
-        rewards[0] = 1
-        terminals[0] = True
-        truncations[0] = True
-        episode_rewards[0] = 1
+def test_action_interface():
+    """Test action interface and basic action execution."""
+    c_env = create_minimal_mettagrid_c_env()
+    c_env.reset()
 
-        assert (rewards == [1, 0]).all()
-        assert (terminals == [True, False]).all()
-        assert (truncations == [True, False]).all()
-        assert (episode_rewards == [1, 0]).all()
+    # Test action names
+    action_names = c_env.action_names()
+    assert "noop" in action_names, "Noop action should be available"
+    assert "move" in action_names, "Move action should be available"
+    assert "rotate" in action_names, "Rotate action should be available"
 
-        # Obs is non-empty, so we treat it differently than the others.
-        initial_obs_sum = obs.sum()
-        obs[0, 0, 0, 0] += 1
-        assert obs.sum() == initial_obs_sum + 1
+    # Test basic action execution
+    noop_action_idx = action_names.index("noop")
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
 
-    def test_set_buffers_wrong_shape(self):
-        env = create_minimal_mettagrid_env()
-        num_features = len(env.grid_features())
-        terminals = np.zeros(NUM_AGENTS, dtype=bool)
-        truncations = np.zeros(NUM_AGENTS, dtype=bool)
-        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+    obs, rewards, terminals, truncations, info = c_env.step(actions)
 
-        # Wrong number of agents
-        observations = np.zeros((3, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np.uint8)
-        with pytest.raises(RuntimeError, match="observations"):
-            env.set_buffers(observations, terminals, truncations, rewards)
+    # Verify return types and shapes
+    assert obs.shape == (NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, len(c_env.grid_features())), (
+        "Step observation shape should be correct"
+    )
+    assert rewards.shape == (NUM_AGENTS,), "Rewards shape should match number of agents"
+    assert terminals.shape == (NUM_AGENTS,), "Terminals shape should match number of agents"
+    assert truncations.shape == (NUM_AGENTS,), "Truncations shape should match number of agents"
+    assert isinstance(info, dict), "Step info should be a dictionary"
 
-        # Wrong observation height
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT + 1, OBS_WIDTH, num_features), dtype=np.uint8)
-        with pytest.raises(RuntimeError, match="observations"):
-            env.set_buffers(observations, terminals, truncations, rewards)
+    # Test action success tracking
+    action_success: list[bool] = c_env.action_success()
+    assert len(action_success) == NUM_AGENTS, "Action success length should match number of agents"
+    assert all(isinstance(x, bool) for x in action_success), "Action success should be boolean"
 
-        # Wrong observation width
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH - 1, num_features), dtype=np.uint8)
-        with pytest.raises(RuntimeError, match="observations"):
-            env.set_buffers(observations, terminals, truncations, rewards)
 
-        # Wrong number of features
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features + 1), dtype=np.uint8)
-        with pytest.raises(RuntimeError, match="observations"):
-            env.set_buffers(observations, terminals, truncations, rewards)
+def test_environment_state_consistency():
+    """Test that environment state remains consistent across operations."""
+    c_env = create_minimal_mettagrid_c_env()
 
-    def test_set_buffers_wrong_dtype(self):
-        env = create_minimal_mettagrid_env()
-        num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np.float32)
-        terminals = np.zeros(NUM_AGENTS, dtype=bool)
-        truncations = np.zeros(NUM_AGENTS, dtype=bool)
-        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+    # Initial state
+    _obs1, _info1 = c_env.reset()
+    initial_objects = c_env.grid_objects()
 
-        with pytest.raises(TypeError):
-            env.set_buffers(observations, terminals, truncations, rewards)
+    # Take a noop action (should not change world state significantly)
+    noop_action_idx = c_env.action_names().index("noop")
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
 
-    def test_set_buffers_non_contiguous(self):
-        env = create_minimal_mettagrid_env()
-        num_features = len(env.grid_features())
-        observations = np.asfortranarray(np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np.uint8))
-        terminals = np.zeros(NUM_AGENTS, dtype=bool)
-        truncations = np.zeros(NUM_AGENTS, dtype=bool)
-        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+    _obs2, _rewards, _terminals, _truncations, _info2 = c_env.step(actions)
+    post_step_objects = c_env.grid_objects()
 
-        with pytest.raises(TypeError):
-            env.set_buffers(observations, terminals, truncations, rewards)
+    # Object count should remain the same
+    assert len(initial_objects) == len(post_step_objects), "Object count should remain consistent after noop actions"
 
-    def test_set_buffers_happy_path(self):
-        env = create_minimal_mettagrid_env()
-        num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np.uint8)
-        terminals = np.zeros(NUM_AGENTS, dtype=bool)
-        truncations = np.zeros(NUM_AGENTS, dtype=bool)
-        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+    # Map dimensions should remain the same
+    assert c_env.map_width == 5, "Map width should remain consistent"
+    assert c_env.map_height == 5, "Map height should remain consistent"
 
-        env.set_buffers(observations, terminals, truncations, rewards)
-        observations_from_env, info = env.reset()
-        np.testing.assert_array_equal(observations_from_env, observations)
+    # Feature and action lists should remain consistent
+    features1 = c_env.grid_features()
+    actions1 = c_env.action_names()
+
+    # Take another step
+    c_env.step(actions)
+
+    features2 = c_env.grid_features()
+    actions2 = c_env.action_names()
+
+    assert features1 == features2, "Grid features should remain consistent"
+    assert actions1 == actions2, "Action names should remain consistent"

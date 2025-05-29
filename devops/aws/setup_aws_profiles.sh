@@ -20,14 +20,14 @@ done
 # Function to completely clear AWS configuration and cache
 clear_aws_completely() {
   echo "Completely clearing AWS configuration and cache..."
-  
+
   # Remove entire AWS directory
   echo "Removing entire ~/.aws directory..."
   rm -rf ~/.aws/
-  
+
   # Recreate the directory
   mkdir -p ~/.aws
-  
+
   echo "AWS configuration completely cleared and reset."
 }
 
@@ -70,7 +70,7 @@ initialize_aws_config() {
   echo "Initializing AWS configuration..."
 
   # Check if the SSO session already exists
-  if ! grep -q "\[sso-session softmax-sso\]" ~/.aws/config 2>/dev/null; then
+  if ! grep -q "\[sso-session softmax-sso\]" ~/.aws/config 2> /dev/null; then
     echo "Adding SSO session configuration..."
     mkdir -p ~/.aws
     # Create a temporary file with the new config
@@ -114,7 +114,7 @@ EOF
   aws configure set profile.softmax-admin.region us-east-1
 
   echo "AWS profiles have been configured successfully."
-  grep -q '^export AWS_PROFILE=' ~/.zshrc 2>/dev/null || echo -e '\nexport AWS_PROFILE=softmax' >> ~/.zshrc
+  grep -q '^export AWS_PROFILE=' ~/.zshrc 2> /dev/null || echo -e '\nexport AWS_PROFILE=softmax' >> ~/.zshrc
 }
 
 # Check if we're in CI or Docker
@@ -126,7 +126,7 @@ fi
 
 # Main execution logic
 if [ -z "$CI" ] && [ "$IS_DOCKER" = "false" ]; then
-  
+
   # Handle reset if requested
   if [ "$RESET_CONFIG" = true ]; then
     clear_aws_completely
