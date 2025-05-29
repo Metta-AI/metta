@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HeatmapData, Repo } from "./repo";
+import { GroupHeatmapMetric, HeatmapData, Repo } from "./repo";
 import { MapViewer } from "./MapViewer";
 import { Heatmap } from "./Heatmap";
 
@@ -64,14 +64,21 @@ export function Dashboard({ repo }: DashboardProps) {
   const [selectedSuite, setSelectedSuite] = useState<string>("navigation");
   const [isViewLocked, setIsViewLocked] = useState(false);
   const [selectedCell, setSelectedCell] = useState<{policyUri: string, evalName: string} | null>(null);
+  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>([]);
+  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>("");
+  
+  const parseGroupMetric = (label: string): GroupHeatmapMetric => {
+    if (label.includes(" - ")) {
+      const [group1, group2] = label.split(" - ");
+      return { group_1: group1, group_2: group2 };
+    } else {
+      return label;
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
-      const [metricsData, suitesData] = await Promise.all([
-        repo.getMetrics(),
-        repo.getSuites(),
-      ]);
-      setMetrics(metricsData);
+      const suitesData = await repo.getSuites();
       setSuites(suitesData);
       setSelectedSuite(suitesData[0]);
     };
@@ -81,15 +88,40 @@ export function Dashboard({ repo }: DashboardProps) {
 
   useEffect(() => {
     const loadData = async () => {
+      const [metricsData, groupIdsData] = await Promise.all([
+        repo.getMetrics(selectedSuite),
+        repo.getGroupIds(selectedSuite),
+      ]);
+      setMetrics(metricsData);
+
+      const groupDiffs: string[] = [];
+      for (const groupId1 of groupIdsData) {
+        for (const groupId2 of groupIdsData) {
+          if (groupId1 !== groupId2) {
+            groupDiffs.push(`${groupId1} - ${groupId2}`);
+          }
+        }
+      }
+
+      const groupMetrics: string[] = ["",  ...groupIdsData, ...groupDiffs];
+      setAvailableGroupMetrics(groupMetrics);
+    };
+
+    loadData();
+  }, [selectedSuite]);
+
+  useEffect(() => {
+    const loadData = async () => {
       const heatmapData = await repo.getHeatmapData(
         selectedMetric,
-        selectedSuite
+        selectedSuite,
+        parseGroupMetric(selectedGroupMetric)
       );
       setHeatmapData(heatmapData);
     };
 
     loadData();
-  }, [selectedSuite, selectedMetric]);
+  }, [selectedSuite, selectedMetric, selectedGroupMetric]);
 
   if (!heatmapData) {
     return <div>Loading...</div>;
@@ -208,6 +240,38 @@ export function Dashboard({ repo }: DashboardProps) {
             {metrics.map((metric) => (
               <option key={metric} value={metric}>
                 {metric}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            marginTop: "20px",
+            marginBottom: "30px",
+            gap: "12px",
+          }}
+        >
+          <div style={{ color: "#666", fontSize: "14px" }}>Group Metric</div>
+          <select
+            value={selectedGroupMetric}
+            onChange={(e) => setSelectedGroupMetric(e.target.value)}
+            style={{
+              padding: "8px 12px",
+              borderRadius: "4px",
+              border: "1px solid #ddd",
+              fontSize: "14px",
+              minWidth: "200px",
+              backgroundColor: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            {availableGroupMetrics.map((groupMetric) => (
+              <option key={groupMetric} value={groupMetric}>
+                {groupMetric === "" ? "Total" : groupMetric}
               </option>
             ))}
           </select>
