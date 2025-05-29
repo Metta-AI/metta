@@ -77,16 +77,18 @@ enum InventoryItem {
   ore_red = 0,
   ore_blue = 1,
   ore_green = 2,
-  battery = 3,
-  heart = 4,
-  armor = 5,
-  laser = 6,
-  blueprint = 7,
+  battery_red = 3,
+  battery_blue = 4,
+  battery_green = 5,
+  heart = 6,
+  armor = 7,
+  laser = 8,
+  blueprint = 9,
   InventoryItemCount
 };
 
 constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {
-    {"ore.red", "ore.blue", "ore.green", "battery", "heart", "armor", "laser", "blueprint"}};
+    {"ore.red", "ore.blue", "ore.green", "battery.red", "battery.blue", "battery.green", "heart", "armor", "laser", "blueprint"}};
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
