@@ -22,6 +22,7 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
+#include "third_party/nlohmann/json.hpp"
 
 namespace py = pybind11;
 
@@ -557,35 +558,48 @@ py::array_t<float> MettaGrid::get_episode_rewards() {
   return _episode_rewards;
 }
 
-py::dict MettaGrid::get_episode_stats() {
-  py::dict stats;
-  stats["game"] = py::cast(_stats->to_dict());
+std::string MettaGrid::get_episode_stats_json() const {
+  nlohmann::json stats_json;
 
-  py::list agent_stats;
+  // Game stats
+  stats_json["game"] = _stats->to_dict();
+
+  // Agent stats - pre-allocate array
+  nlohmann::json agent_stats_array = nlohmann::json::array();
+
   for (const auto& agent : _agents) {
-    agent_stats.append(py::cast(agent->stats.to_dict()));
+    agent_stats_array.push_back(agent->stats.to_dict());
   }
-  stats["agent"] = agent_stats;
+  stats_json["agent"] = agent_stats_array;
 
-  // Collect converter stats
-  py::list converter_stats;
+  // First pass: collect converter pointers
+  std::vector<Converter*> converters;
+  converters.reserve(_grid->objects.size() / 4);  // Reasonable initial guess
+
   for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
     auto obj = _grid->object(obj_id);
     if (!obj) continue;
 
-    // Check if this is a converter
     Converter* converter = dynamic_cast<Converter*>(obj);
     if (converter) {
-      py::dict converter_stat = py::cast(converter->stats.to_dict());
-      // Add metadata about the converter
-      converter_stat["type"] = ObjectTypeNames[converter->_type_id];
-      converter_stat["location"] = py::make_tuple(converter->location.r, converter->location.c);
-      converter_stats.append(converter_stat);
+      converters.push_back(converter);
     }
   }
-  stats["converter"] = converter_stats;
 
-  return stats;
+  // Second pass: build converter stats
+  nlohmann::json converter_stats_array = nlohmann::json::array();
+
+  for (const auto& converter : converters) {
+    nlohmann::json converter_stat = converter->stats.to_dict();
+    // Add metadata about the converter
+    converter_stat["type"] = ObjectTypeNames[converter->_type_id];
+    converter_stat["location.r"] = converter->location.r;
+    converter_stat["location.c"] = converter->location.c;
+    converter_stats_array.push_back(std::move(converter_stat));
+  }
+
+  stats_json["converter"] = std::move(converter_stats_array);
+  return stats_json.dump();
 }
 
 py::object MettaGrid::action_space() {
@@ -710,7 +724,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("grid_features", &MettaGrid::grid_features)
       .def_property_readonly("num_agents", &MettaGrid::num_agents)
       .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
-      .def("get_episode_stats", &MettaGrid::get_episode_stats)
+      .def("get_episode_stats_json", &MettaGrid::get_episode_stats_json)
       .def_property_readonly("action_space", &MettaGrid::action_space)
       .def_property_readonly("observation_space", &MettaGrid::observation_space)
       .def("action_success", &MettaGrid::action_success)

@@ -54,7 +54,7 @@ public:
   py::list grid_features();
   unsigned int num_agents();
   py::array_t<float> get_episode_rewards();
-  py::dict get_episode_stats();
+  std::string get_episode_stats_json() const;
   py::object action_space();
   py::object observation_space();
   py::list action_success();

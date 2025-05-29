@@ -30,7 +30,7 @@ add_library(mettagrid_obj OBJECT ${METTAGRID_SOURCES})
 
 target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11 Python3::Python)
 
-target_include_directories(mettagrid_obj PUBLIC ${NUMPY_INCLUDE_DIR} "mettagrid")
+target_include_directories(mettagrid_obj PUBLIC ${NUMPY_INCLUDE_DIR} "mettagrid" "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_compile_definitions(mettagrid_obj PUBLIC "NPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION")
 

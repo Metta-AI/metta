@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import datetime
+import json
 import uuid
 from typing import Any, Dict, Optional, cast
 
@@ -172,8 +173,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                         f"rewards/env:{label}": episode_rewards_mean,
                     }
                 )
-
-        stats = self._c_env.get_episode_stats()
+        stats = json.loads(self._c_env.get_episode_stats_json())
 
         infos["episode_rewards"] = episode_rewards
         infos["agent_raw"] = stats["agent"]
