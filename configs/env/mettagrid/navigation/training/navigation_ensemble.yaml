@@ -1,5 +1,9 @@
 _target_: metta.env.mettagrid_env_set.ProgressiveEnvSet
 
+# Specify the expected number of agents for all environments in this ensemble
+game:
+  num_agents: 4
+
 # Define ensembles with their activation episodes
 ensembles:
   - name: "basic_navigation"

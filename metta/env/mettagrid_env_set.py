@@ -368,17 +368,8 @@ class ProgressiveEnvSet(MettaGridEnv):
         # List to store parsed ensemble configurations
         self._parsed_ensembles = []
 
-        # Get num_agents from the first environment if not specified in env_cfg
-        if hasattr(env_cfg, "num_agents"):
-            self._num_agents_global = env_cfg.num_agents
-        else:
-            # Read from the first environment in the first ensemble
-            if not env_cfg.ensembles or not env_cfg.ensembles[0].envs:
-                raise ValueError("No ensembles or environments defined in the configuration.")
-
-            first_env_path = env_cfg.ensembles[0].envs[0]
-            first_env_cfg = config_from_path(first_env_path)
-            self._num_agents_global = first_env_cfg.game.num_agents
+        # Get num_agents from env_cfg (required)
+        self._num_agents_global = env_cfg.game.num_agents
 
         # Set minimum samples required for normalization statistics
         # Use provided value or fall back to default class constant
