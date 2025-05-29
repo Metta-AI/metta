@@ -1,0 +1,33 @@
+name: Generate PR Summary
+
+on:
+  schedule:
+    - cron: "0 19 * * 5" # Run every Friday at 7 PM UTC (noon PST)
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  generate_summary:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests google-generativeai
+
+      - name: Run PR Summary Script
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Provided by GitHub Actions
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GITHUB_REPO: "Metta-AI/metta"
+          DAYS_TO_SCAN: "7"
+          DIFF_CHARACTER_LIMIT: "20000"
+        run: python generate_pr_summary_script.py
