@@ -74,12 +74,29 @@ class SingleTaskCurriculum(Curriculum):
         return Task(self._task_id, self, self._task_cfg)
 
 
-class RandomCurriculum(Curriculum):
-    """Curriculum that samples from multiple environment types with fixed weights."""
+class MultiTaskCurriculum(Curriculum):
+    """Base class for curricula with multiple tasks."""
 
     def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig):
         self._curriculums = {t: Curriculum.from_config_path(t, env_overrides) for t in tasks.keys()}
         self._task_weights = tasks
+
+        num_agents = None
+        for task_id, curriculum in self._curriculums.items():
+            cfg_num_agents = curriculum.get_task().env_cfg().game.num_agents
+            if num_agents is None:
+                num_agents = cfg_num_agents
+            else:
+                assert cfg_num_agents == num_agents, (
+                    f"Task {task_id} has num_agents {cfg_num_agents}, expected {num_agents}"
+                )
+
+
+class RandomCurriculum(MultiTaskCurriculum):
+    """Curriculum that samples from multiple environment types with fixed weights."""
+
+    def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig):
+        super().__init__(tasks, env_overrides)
 
     def get_task(self) -> Task:
         task_id = random.choices(list(self._curriculums.keys()), weights=list(self._task_weights.values()))[0]
