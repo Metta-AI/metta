@@ -93,7 +93,7 @@ export class DataRepo implements Repo {
 
     const policyAverageScores = new Map<string, number>();
     cells.forEach((policyCells, policyUri) => {
-      const policyAverageScore = Array.from(policyCells.values()).reduce((sum, cell) => sum + cell.value, 0) / policyCells.size;
+      const policyAverageScore = Array.from(policyCells.values()).reduce((sum, cell) => sum + cell.value, 0) / evalNames.size;
       policyAverageScores.set(policyUri, policyAverageScore);
     });
 
