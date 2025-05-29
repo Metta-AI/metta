@@ -1,10 +1,10 @@
-import { Vec2f } from './vector_math.js';
-import * as Common from './common.js';
-import { ui, state, ctx, setFollowSelection } from './common.js';
-import { getAttr } from './replay.js';
-import { PanelInfo } from './panels.js';
-import { updateStep } from './main.js';
-import { parseHtmlColor } from './htmlutils.js';
+import * as Common from "./common.js";
+import { ctx, setFollowSelection, state, ui } from "./common.js";
+import { parseHtmlColor } from "./htmlutils.js";
+import { updateStep } from "./main.js";
+import type { PanelInfo } from "./panels.js";
+import { getAttr } from "./replay.js";
+import { Vec2f } from "./vector_math.js";
 
 export function drawTrace(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
@@ -12,7 +12,7 @@ export function drawTrace(panel: PanelInfo) {
   }
 
   // Handle mouse events for the trace panel.
-  if (ui.mouseTarget == "trace-panel") {
+  if (ui.mouseTarget === "trace-panel") {
     if (ui.mouseDoubleClick) {
       // Toggle followSelection on double-click
       console.log("Trace double click - following selection");
@@ -23,9 +23,7 @@ export function drawTrace(panel: PanelInfo) {
       // Trace click - likely a drag/pan
       console.log("Trace click - clearing trace follow selection");
       setFollowSelection(false);
-    } else if (ui.mouseUp &&
-      ui.mouseDownPos.sub(ui.mousePos).length() < 10
-    ) {
+    } else if (ui.mouseUp && ui.mouseDownPos.sub(ui.mousePos).length() < 10) {
       // Check if we are clicking on an action/step.
       console.log("Trace up without dragging - selecting trace object");
       const localMousePos = panel.transformPoint(ui.mousePos);
@@ -33,17 +31,25 @@ export function drawTrace(panel: PanelInfo) {
         const mapX = localMousePos.x();
         const selectedStep = Math.floor(mapX / Common.TRACE_WIDTH);
         const agentId = Math.floor(localMousePos.y() / Common.TRACE_HEIGHT);
-        if (mapX > 0 && mapX < state.replay.max_steps * Common.TRACE_WIDTH &&
-          localMousePos.y() > 0 && localMousePos.y() < state.replay.num_agents * Common.TRACE_HEIGHT &&
-          selectedStep >= 0 && selectedStep < state.replay.max_steps &&
-          agentId >= 0 && agentId < state.replay.num_agents
+        if (
+          mapX > 0 &&
+          mapX < state.replay.max_steps * Common.TRACE_WIDTH &&
+          localMousePos.y() > 0 &&
+          localMousePos.y() < state.replay.num_agents * Common.TRACE_HEIGHT &&
+          selectedStep >= 0 &&
+          selectedStep < state.replay.max_steps &&
+          agentId >= 0 &&
+          agentId < state.replay.num_agents
         ) {
           state.selectedGridObject = state.replay.agents[agentId];
-          console.log("Selected an agent on a trace:", state.selectedGridObject);
+          console.log(
+            "Selected an agent on a trace:",
+            state.selectedGridObject,
+          );
           ui.mapPanel.focusPos(
             getAttr(state.selectedGridObject, "c") * Common.TILE_SIZE,
             getAttr(state.selectedGridObject, "r") * Common.TILE_SIZE,
-            Common.DEFAULT_ZOOM_LEVEL
+            Common.DEFAULT_ZOOM_LEVEL,
           );
           // Update the step to the clicked step.
           updateStep(selectedStep);
@@ -55,7 +61,9 @@ export function drawTrace(panel: PanelInfo) {
   // If we're following a selection, center the trace panel on it
   if (state.followSelection && state.selectedGridObject !== null) {
     const x = state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2;
-    const y = getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2;
+    const y =
+      getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT +
+      Common.TRACE_HEIGHT / 2;
     panel.panPos = new Vec2f(-x, -y);
   }
 
@@ -64,14 +72,17 @@ export function drawTrace(panel: PanelInfo) {
 
   const fullSize = new Vec2f(
     state.replay.max_steps * Common.TRACE_WIDTH,
-    state.replay.num_agents * Common.TRACE_HEIGHT
+    state.replay.num_agents * Common.TRACE_HEIGHT,
   );
 
   // Draw background
   ctx.drawSolidRect(
-    panel.x, panel.y, panel.width, panel.height,
+    panel.x,
+    panel.y,
+    panel.width,
+    panel.height,
     //[0.08, 0.08, 0.08, 1.0] // Dark background
-    parseHtmlColor("#141B23")
+    parseHtmlColor("#141B23"),
   );
 
   ctx.translate(panel.x + panel.width / 2, panel.y + panel.height / 2);
@@ -79,21 +90,29 @@ export function drawTrace(panel: PanelInfo) {
   ctx.translate(panel.panPos.x(), panel.panPos.y());
 
   // Draw rectangle around the selected agent
-  if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
+  if (
+    state.selectedGridObject !== null &&
+    state.selectedGridObject.agent_id !== undefined
+  ) {
     const agentId = state.selectedGridObject.agent_id;
 
     // Draw selection rectangle
     ctx.drawSolidRect(
-      0, agentId * Common.TRACE_HEIGHT, fullSize.x(), Common.TRACE_HEIGHT,
-      [.3, .3, .3, 1]
+      0,
+      agentId * Common.TRACE_HEIGHT,
+      fullSize.x(),
+      Common.TRACE_HEIGHT,
+      [0.3, 0.3, 0.3, 1],
     );
   }
 
   // Draw current step line that goes through all of the traces
   ctx.drawSolidRect(
-    state.step * Common.TRACE_WIDTH, 0,
-    Common.TRACE_WIDTH, fullSize.y(),
-    [0.5, 0.5, 0.5, 0.5] // White with 50% opacity
+    state.step * Common.TRACE_WIDTH,
+    0,
+    Common.TRACE_WIDTH,
+    fullSize.y(),
+    [0.5, 0.5, 0.5, 0.5], // White with 50% opacity
   );
 
   // Draw agent traces
@@ -110,7 +129,8 @@ export function drawTrace(panel: PanelInfo) {
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
         );
-      } else if (action_success &&
+      } else if (
+        action_success &&
         action != null &&
         action[0] >= 0 &&
         action[0] < state.replay.action_images.length
@@ -142,21 +162,23 @@ export function drawTrace(panel: PanelInfo) {
           j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
           i * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT - 32,
           [1.0, 1.0, 1.0, 1.0],
-          1 / 4
+          1 / 4,
         );
       }
 
       // Draw resource gain/loss.
       if (state.showResources && j > 0) {
         // Figure out how many resources to draw.
-        var number = 0;
+        let number = 0;
         for (const [key, [image, color]] of state.replay.resource_inventory) {
-          number += Math.abs(getAttr(agent, key, j + 1) - getAttr(agent, key, j));
+          number += Math.abs(
+            getAttr(agent, key, j + 1) - getAttr(agent, key, j),
+          );
         }
         // Draw the resources.
-        var y = 32;
+        let y = 32;
         // Compress the resources if there are too many, so that they fit.
-        var step = Math.min(32, (Common.TRACE_HEIGHT - 64) / number);
+        const step = Math.min(32, (Common.TRACE_HEIGHT - 64) / number);
         for (const [key, [image, color]] of state.replay.resource_inventory) {
           const prevResources = getAttr(agent, key, j - 1);
           const nextResources = getAttr(agent, key, j);
@@ -167,7 +189,7 @@ export function drawTrace(panel: PanelInfo) {
               j * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
               i * Common.TRACE_HEIGHT + y,
               color,
-              1 / 4
+              1 / 4,
             );
             y += step;
           }

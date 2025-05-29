@@ -1,6 +1,6 @@
 /// <reference types="@webgpu/types" />
 
-import { Vec2f, Mat3f } from './vector_math.js';
+import { Mat3f, Vec2f } from "./vector_math.js";
 
 // Type definition for atlas data
 interface AtlasData {
@@ -27,11 +27,11 @@ class Mesh {
   private indexCapacity: number;
   private vertexData: Float32Array;
   private indexData: Uint32Array;
-  private currentQuad: number = 0;
-  private currentVertex: number = 0;
+  private currentQuad = 0;
+  private currentVertex = 0;
 
   // Scissor properties
-  public scissorEnabled: boolean = false;
+  public scissorEnabled = false;
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0]; // x, y, width, height
 
   constructor(name: string, device: GPUDevice, maxQuads: number = 1024 * 8) {
@@ -74,7 +74,7 @@ class Mesh {
 
     // Create vertex buffer
     this.vertexBuffer = this.device.createBuffer({
-      label: 'vertex buffer',
+      label: "vertex buffer",
       size: this.vertexCapacity * 8 * Float32Array.BYTES_PER_ELEMENT,
       // x, y, u, v, r, g, b, a
       usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
@@ -82,7 +82,7 @@ class Mesh {
 
     // Create index buffer
     this.indexBuffer = this.device.createBuffer({
-      label: 'index buffer',
+      label: "index buffer",
       size: this.indexCapacity * Uint32Array.BYTES_PER_ELEMENT,
       // Using 32-bit indices
       usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
@@ -94,13 +94,20 @@ class Mesh {
       0,
       this.indexData,
       0,
-      this.indexData.length
+      this.indexData.length,
     );
   }
 
   // Resize the maximum number of quads the mesh can hold.
   resizeMaxQuads(newMaxQuads: number): void {
-    console.info("Resizing max ", this.name, " quads from", this.maxQuads, "to", newMaxQuads);
+    console.info(
+      "Resizing max ",
+      this.name,
+      " quads from",
+      this.maxQuads,
+      "to",
+      newMaxQuads,
+    );
 
     if (newMaxQuads <= this.maxQuads) {
       console.warn("New max quads must be larger than current max quads");
@@ -142,7 +149,7 @@ class Mesh {
           0,
           this.vertexData,
           0,
-          currentVertexCount * 8 // 8 floats per vertex
+          currentVertexCount * 8, // 8 floats per vertex
         );
       }
     }
@@ -169,7 +176,7 @@ class Mesh {
     v0: number,
     u1: number,
     v1: number,
-    color: number[] = [1, 1, 1, 1]
+    color: number[] = [1, 1, 1, 1],
   ): void {
     // Check if we need to flush before adding more vertices
     if (this.currentQuad >= this.maxQuads) {
@@ -182,10 +189,10 @@ class Mesh {
 
     // Define the vertex attributes for each corner
     const corners = [
-      { pos: topLeft, uv: [u0, v0] },      // Top-left
-      { pos: bottomLeft, uv: [u0, v1] },   // Bottom-left
-      { pos: topRight, uv: [u1, v0] },     // Top-right
-      { pos: bottomRight, uv: [u1, v1] }   // Bottom-right
+      { pos: topLeft, uv: [u0, v0] }, // Top-left
+      { pos: bottomLeft, uv: [u0, v1] }, // Bottom-left
+      { pos: topRight, uv: [u1, v0] }, // Top-right
+      { pos: bottomRight, uv: [u1, v1] }, // Bottom-right
     ];
 
     // Loop through each corner and set its vertex data
@@ -258,7 +265,7 @@ class Context3d {
   // Mesh management
   private meshes: Map<string, Mesh> = new Map();
   private currentMesh: Mesh | null = null;
-  private currentMeshName: string = "";
+  private currentMeshName = "";
 
   // Transformation state
   private currentTransform: Mat3f;
@@ -332,11 +339,19 @@ class Context3d {
 
   save(): void {
     // Push a copy of the current transform onto the stack
-    this.transformStack.push(new Mat3f(
-      this.currentTransform.get(0, 0), this.currentTransform.get(0, 1), this.currentTransform.get(0, 2),
-      this.currentTransform.get(1, 0), this.currentTransform.get(1, 1), this.currentTransform.get(1, 2),
-      this.currentTransform.get(2, 0), this.currentTransform.get(2, 1), this.currentTransform.get(2, 2)
-    ));
+    this.transformStack.push(
+      new Mat3f(
+        this.currentTransform.get(0, 0),
+        this.currentTransform.get(0, 1),
+        this.currentTransform.get(0, 2),
+        this.currentTransform.get(1, 0),
+        this.currentTransform.get(1, 1),
+        this.currentTransform.get(1, 2),
+        this.currentTransform.get(2, 0),
+        this.currentTransform.get(2, 1),
+        this.currentTransform.get(2, 2),
+      ),
+    );
   }
 
   restore(): void {
@@ -370,29 +385,29 @@ class Context3d {
   async init(atlasJsonUrl: string, atlasImageUrl: string): Promise<boolean> {
     // Initialize WebGPU device.
     const adapter = await navigator.gpu?.requestAdapter();
-    this.device = await adapter?.requestDevice() || null;
+    this.device = (await adapter?.requestDevice()) || null;
     if (!this.device) {
-      this.fail('Need a browser that supports WebGPU');
+      this.fail("Need a browser that supports WebGPU");
       return false;
     }
 
     // Load Atlas and Texture.
     const [atlasData, source] = await Promise.all([
       this.loadAtlasJson(atlasJsonUrl),
-      this.loadAtlasImage(atlasImageUrl)
+      this.loadAtlasImage(atlasImageUrl),
     ]);
 
     if (!atlasData || !source) {
-      this.fail('Failed to load atlas or texture');
+      this.fail("Failed to load atlas or texture");
       return false;
     }
     this.atlasData = atlasData;
     this.textureSize = new Vec2f(source.width, source.height);
 
     // Configure Canvas.
-    this.context = this.canvas.getContext('webgpu');
+    this.context = this.canvas.getContext("webgpu");
     if (!this.context) {
-      this.fail('Failed to get WebGPU context');
+      this.fail("Failed to get WebGPU context");
       return false;
     }
 
@@ -403,13 +418,17 @@ class Context3d {
     });
 
     // Calculate number of mip levels.
-    const mipLevels = Math.floor(Math.log2(Math.max(this.textureSize.x(), this.textureSize.y()))) + 1;
+    const mipLevels =
+      Math.floor(
+        Math.log2(Math.max(this.textureSize.x(), this.textureSize.y())),
+      ) + 1;
     // Create Texture and Sampler.
     this.atlasTexture = this.device.createTexture({
       label: atlasImageUrl,
-      format: 'rgba8unorm',
+      format: "rgba8unorm",
       size: [this.textureSize.x(), this.textureSize.y()],
-      usage: GPUTextureUsage.TEXTURE_BINDING |
+      usage:
+        GPUTextureUsage.TEXTURE_BINDING |
         GPUTextureUsage.COPY_DST |
         GPUTextureUsage.RENDER_ATTACHMENT,
       mipLevelCount: mipLevels,
@@ -421,25 +440,29 @@ class Context3d {
     );
 
     // Generate mipmaps for the texture.
-    this.generateMipmaps(this.atlasTexture, this.textureSize.x(), this.textureSize.y());
+    this.generateMipmaps(
+      this.atlasTexture,
+      this.textureSize.x(),
+      this.textureSize.y(),
+    );
 
     this.sampler = this.device.createSampler({
-      addressModeU: 'repeat',
-      addressModeV: 'repeat',
-      magFilter: 'linear', // Normal smooth style (was 'nearest').
-      minFilter: 'linear', // Normal smooth style (was 'nearest').
-      mipmapFilter: 'linear', // Linear filtering between mipmap levels.
+      addressModeU: "repeat",
+      addressModeV: "repeat",
+      magFilter: "linear", // Normal smooth style (was 'nearest').
+      minFilter: "linear", // Normal smooth style (was 'nearest').
+      mipmapFilter: "linear", // Linear filtering between mipmap levels.
     });
 
     this.canvasSizeUniformBuffer = this.device.createBuffer({
-      label: 'canvas size uniform buffer',
+      label: "canvas size uniform buffer",
       size: 2 * Float32Array.BYTES_PER_ELEMENT, // vec2f (width, height).
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
     // Shader Module.
     const shaderModule = this.device.createShaderModule({
-      label: 'Sprite Shader Module',
+      label: "Sprite Shader Module",
       code: `
         struct VertexInput {
           @location(0) position: vec2f,
@@ -483,50 +506,60 @@ class Context3d {
 
     // Render Pipeline.
     this.pipeline = this.device.createRenderPipeline({
-      label: 'Sprite Render Pipeline',
-      layout: 'auto',
+      label: "Sprite Render Pipeline",
+      layout: "auto",
       vertex: {
         module: shaderModule,
-        entryPoint: 'vs',
+        entryPoint: "vs",
         buffers: [
           {
             // Vertex buffer layout.
             arrayStride: 8 * Float32Array.BYTES_PER_ELEMENT, // 2 pos, 2 uv, 4 color.
             attributes: [
-              { shaderLocation: 0, offset: 0, format: 'float32x2' }, // Position.
-              { shaderLocation: 1, offset: 2 * Float32Array.BYTES_PER_ELEMENT, format: 'float32x2' }, // Texcoord.
-              { shaderLocation: 2, offset: 4 * Float32Array.BYTES_PER_ELEMENT, format: 'float32x4' }, // Color.
+              { shaderLocation: 0, offset: 0, format: "float32x2" }, // Position.
+              {
+                shaderLocation: 1,
+                offset: 2 * Float32Array.BYTES_PER_ELEMENT,
+                format: "float32x2",
+              }, // Texcoord.
+              {
+                shaderLocation: 2,
+                offset: 4 * Float32Array.BYTES_PER_ELEMENT,
+                format: "float32x4",
+              }, // Color.
             ],
           },
         ],
       },
       fragment: {
         module: shaderModule,
-        entryPoint: 'fs',
-        targets: [{
-          format: presentationFormat,
-          blend: {
-            color: {
-              srcFactor: 'one',
-              dstFactor: 'one-minus-src-alpha',
-              operation: 'add'
+        entryPoint: "fs",
+        targets: [
+          {
+            format: presentationFormat,
+            blend: {
+              color: {
+                srcFactor: "one",
+                dstFactor: "one-minus-src-alpha",
+                operation: "add",
+              },
+              alpha: {
+                srcFactor: "one",
+                dstFactor: "one-minus-src-alpha",
+                operation: "add",
+              },
             },
-            alpha: {
-              srcFactor: 'one',
-              dstFactor: 'one-minus-src-alpha',
-              operation: 'add'
-            }
-          }
-        }],
+          },
+        ],
       },
       primitive: {
-        topology: 'triangle-list', // Each sprite is 2 triangles.
+        topology: "triangle-list", // Each sprite is 2 triangles.
       },
     });
 
     // Bind Group for the pipeline.
     this.bindGroup = this.device.createBindGroup({
-      label: 'Sprite Bind Group',
+      label: "Sprite Bind Group",
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: this.sampler },
@@ -537,13 +570,13 @@ class Context3d {
 
     // Render Pass Descriptor for the pipeline.
     this.renderPassDescriptor = {
-      label: 'Canvas Render Pass',
+      label: "Canvas Render Pass",
       colorAttachments: [
         {
           // View is acquired later.
           clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1.0 }, // Dark grey clear.
-          loadOp: 'clear',
-          storeOp: 'store',
+          loadOp: "clear",
+          storeOp: "store",
           view: undefined!, // This is set just before render in flush()
         },
       ] as GPURenderPassColorAttachment[],
@@ -555,10 +588,9 @@ class Context3d {
 
   fail(msg: string): void {
     console.error(msg);
-    const failDiv = document.createElement('div');
-    failDiv.id = 'fail';
-    failDiv.textContent =
-      `Initialization Error: ${msg}. See console for details.`;
+    const failDiv = document.createElement("div");
+    failDiv.id = "fail";
+    failDiv.textContent = `Initialization Error: ${msg}. See console for details.`;
     document.body.appendChild(failDiv);
   }
 
@@ -571,8 +603,8 @@ class Context3d {
       const blob = await res.blob();
       // Use premultiplied alpha to fix border issues
       return await createImageBitmap(blob, {
-        colorSpaceConversion: 'none',
-        premultiplyAlpha: 'premultiply'
+        colorSpaceConversion: "none",
+        premultiplyAlpha: "premultiply",
       });
     } catch (err) {
       console.error(`Error loading image ${url}:`, err);
@@ -617,7 +649,7 @@ class Context3d {
     v0: number,
     u1: number,
     v1: number,
-    color: number[] = [1, 1, 1, 1]
+    color: number[] = [1, 1, 1, 1],
   ): void {
     if (!this.ready) {
       throw new Error("Drawer not initialized");
@@ -632,18 +664,30 @@ class Context3d {
     const untransformedTopLeft = pos;
     const untransformedBottomLeft = new Vec2f(pos.x(), pos.y() + height);
     const untransformedTopRight = new Vec2f(pos.x() + width, pos.y());
-    const untransformedBottomRight = new Vec2f(pos.x() + width, pos.y() + height);
+    const untransformedBottomRight = new Vec2f(
+      pos.x() + width,
+      pos.y() + height,
+    );
 
     // Apply current transformation to each vertex
     const topLeft = this.currentTransform.transform(untransformedTopLeft);
     const bottomLeft = this.currentTransform.transform(untransformedBottomLeft);
     const topRight = this.currentTransform.transform(untransformedTopRight);
-    const bottomRight = this.currentTransform.transform(untransformedBottomRight);
+    const bottomRight = this.currentTransform.transform(
+      untransformedBottomRight,
+    );
 
     // Send pre-transformed vertices to the mesh
-    this.currentMesh!.drawRectWithTransform(
-      topLeft, bottomLeft, topRight, bottomRight,
-      u0, v0, u1, v1, color
+    this.currentMesh?.drawRectWithTransform(
+      topLeft,
+      bottomLeft,
+      topRight,
+      bottomRight,
+      u0,
+      v0,
+      u1,
+      v1,
+      color,
     );
   }
 
@@ -652,7 +696,12 @@ class Context3d {
   }
 
   // Draws an image from the atlas with its top-right corner at (x, y).
-  drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]): void {
+  drawImage(
+    imageName: string,
+    x: number,
+    y: number,
+    color: number[] = [1, 1, 1, 1],
+  ): void {
     if (!this.ready) {
       throw new Error("Drawer not initialized");
     }
@@ -678,15 +727,26 @@ class Context3d {
     // Adjust both UVs and vertex positions by the margin.
     this.drawRect(
       x - m, // Adjust x position by adding margin (from the right).
-      y - m,      // Adjust y position by adding margin.
-      sw + 2 * m,   // Reduce width by twice the margin (left and right).
-      sh + 2 * m,   // Reduce height by twice the margin (top and bottom).
-      u0, v0, u1, v1, color
+      y - m, // Adjust y position by adding margin.
+      sw + 2 * m, // Reduce width by twice the margin (left and right).
+      sh + 2 * m, // Reduce height by twice the margin (top and bottom).
+      u0,
+      v0,
+      u1,
+      v1,
+      color,
     );
   }
 
   // Draws an image from the atlas centered at (x, y).
-  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0): void {
+  drawSprite(
+    imageName: string,
+    x: number,
+    y: number,
+    color: number[] = [1, 1, 1, 1],
+    scale = 1,
+    rotation = 0,
+  ): void {
     if (!this.ready) {
       throw new Error("Drawer not initialized");
     }
@@ -708,17 +768,21 @@ class Context3d {
     const u1 = (sx + sw + m) / this.textureSize.x();
     const v1 = (sy + sh + m) / this.textureSize.y();
 
-    if (scale != 1 || rotation != 0) {
+    if (scale !== 1 || rotation !== 0) {
       this.save();
       this.translate(x, y);
       this.rotate(rotation);
       this.scale(scale, scale);
       this.drawRect(
-        - sw / 2 - m, // Center horizontally with margin adjustment.
-        - sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m,         // Reduce width by twice the margin.
-        sh + 2 * m,         // Reduce height by twice the margin.
-        u0, v0, u1, v1, color
+        -sw / 2 - m, // Center horizontally with margin adjustment.
+        -sh / 2 - m, // Center vertically with margin adjustment.
+        sw + 2 * m, // Reduce width by twice the margin.
+        sh + 2 * m, // Reduce height by twice the margin.
+        u0,
+        v0,
+        u1,
+        v1,
+        color,
       );
       this.restore();
     } else {
@@ -727,9 +791,13 @@ class Context3d {
       this.drawRect(
         x - sw / 2 - m, // Center horizontally with margin adjustment.
         y - sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m,         // Reduce width by twice the margin.
-        sh + 2 * m,         // Reduce height by twice the margin.
-        u0, v0, u1, v1, color
+        sw + 2 * m, // Reduce width by twice the margin.
+        sh + 2 * m, // Reduce height by twice the margin.
+        u0,
+        v0,
+        u1,
+        v1,
+        color,
       );
     }
   }
@@ -740,7 +808,7 @@ class Context3d {
     y: number,
     width: number,
     height: number,
-    color: number[]
+    color: number[],
   ) {
     if (!this.ready) {
       throw new Error("Drawer not initialized");
@@ -757,17 +825,7 @@ class Context3d {
     const [sx, sy, sw, sh] = this.atlasData[imageName];
     const uvx = (sx + sw / 2) / this.textureSize.x();
     const uvy = (sy + sh / 2) / this.textureSize.y();
-    this.drawRect(
-      x,
-      y,
-      width,
-      height,
-      uvx,
-      uvy,
-      uvx,
-      uvy,
-      color
-    )
+    this.drawRect(x, y, width, height, uvx, uvy, uvx, uvy, color);
   }
 
   // Draws a stroked rectangle with set stroke width.
@@ -777,7 +835,7 @@ class Context3d {
     width: number,
     height: number,
     strokeWidth: number,
-    color: number[]
+    color: number[],
   ) {
     // Draw 4 rectangles as borders for the stroke rectangle.
     // Top border.
@@ -785,9 +843,21 @@ class Context3d {
     // Bottom border.
     this.drawSolidRect(x, y + height - strokeWidth, width, strokeWidth, color);
     // Left border.
-    this.drawSolidRect(x, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color);
+    this.drawSolidRect(
+      x,
+      y + strokeWidth,
+      strokeWidth,
+      height - 2 * strokeWidth,
+      color,
+    );
     // Right border.
-    this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color);
+    this.drawSolidRect(
+      x + width - strokeWidth,
+      y + strokeWidth,
+      strokeWidth,
+      height - 2 * strokeWidth,
+      color,
+    );
   }
 
   // Flushes all non-empty meshes to the screen
@@ -807,11 +877,13 @@ class Context3d {
     device.queue.writeBuffer(
       this.canvasSizeUniformBuffer!,
       0, // Buffer offset.
-      this.canvasSize.data // Use Vec2f data directly.
+      this.canvasSize.data, // Use Vec2f data directly.
     );
 
     // Prepare command encoder
-    const commandEncoder = device.createCommandEncoder({ label: 'Frame Command Encoder' });
+    const commandEncoder = device.createCommandEncoder({
+      label: "Frame Command Encoder",
+    });
 
     // Acquire the canvas texture view for the render pass
     if (this.renderPassDescriptor && this.context) {
@@ -819,9 +891,13 @@ class Context3d {
         colorAttachments: GPURenderPassColorAttachment[];
       };
 
-      descriptor.colorAttachments[0].view = this.context.getCurrentTexture().createView();
+      descriptor.colorAttachments[0].view = this.context
+        .getCurrentTexture()
+        .createView();
 
-      const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
+      const passEncoder = commandEncoder.beginRenderPass(
+        this.renderPassDescriptor,
+      );
       passEncoder.setPipeline(this.pipeline!);
       passEncoder.setBindGroup(0, this.bindGroup!);
 
@@ -845,12 +921,12 @@ class Context3d {
           0,
           mesh.getVertexData(),
           0,
-          vertexDataCount
+          vertexDataCount,
         );
 
         // Set buffers
         passEncoder.setVertexBuffer(0, vertexBuffer);
-        passEncoder.setIndexBuffer(indexBuffer, 'uint32');
+        passEncoder.setIndexBuffer(indexBuffer, "uint32");
 
         // Apply scissor if enabled for this mesh
         if (mesh.scissorEnabled) {
@@ -861,11 +937,16 @@ class Context3d {
             clamp(Math.floor(x), 0, w),
             clamp(Math.floor(y), 0, h),
             clamp(Math.floor(width), 0, w - x),
-            clamp(Math.floor(height), 0, h - y)
+            clamp(Math.floor(height), 0, h - y),
           );
         } else {
           // Reset scissor to full canvas if previously set
-          passEncoder.setScissorRect(0, 0, this.canvas.width, this.canvas.height);
+          passEncoder.setScissorRect(
+            0,
+            0,
+            this.canvas.width,
+            this.canvas.height,
+          );
         }
 
         // Draw the mesh
@@ -891,7 +972,7 @@ class Context3d {
 
     // Create a render pipeline for mipmap generation.
     const mipmapShaderModule = this.device.createShaderModule({
-      label: 'Mipmap Shader',
+      label: "Mipmap Shader",
       code: `
         struct VertexOutput {
           @builtin(position) position: vec4f,
@@ -927,31 +1008,31 @@ class Context3d {
         fn fragmentMain(@location(0) texCoord: vec2f) -> @location(0) vec4f {
           return textureSample(imgTexture, imgSampler, texCoord);
         }
-      `
+      `,
     });
 
     const mipmapPipeline = this.device.createRenderPipeline({
-      label: 'Mipmap Pipeline',
-      layout: 'auto',
+      label: "Mipmap Pipeline",
+      layout: "auto",
       vertex: {
         module: mipmapShaderModule,
-        entryPoint: 'vertexMain',
+        entryPoint: "vertexMain",
       },
       fragment: {
         module: mipmapShaderModule,
-        entryPoint: 'fragmentMain',
-        targets: [{ format: 'rgba8unorm' }],
+        entryPoint: "fragmentMain",
+        targets: [{ format: "rgba8unorm" }],
       },
       primitive: {
-        topology: 'triangle-strip',
-        stripIndexFormat: 'uint32',
+        topology: "triangle-strip",
+        stripIndexFormat: "uint32",
       },
     });
 
     // Create a temporary sampler for mipmap generation.
     const mipmapSampler = this.device.createSampler({
-      minFilter: 'linear',
-      magFilter: 'linear',
+      minFilter: "linear",
+      magFilter: "linear",
     });
 
     // Calculate number of mip levels.
@@ -959,7 +1040,7 @@ class Context3d {
 
     // Generate each mip level.
     const commandEncoder = this.device.createCommandEncoder({
-      label: 'Mipmap Command Encoder',
+      label: "Mipmap Command Encoder",
     });
 
     // Create bind groups and render passes for each mip level.
@@ -988,8 +1069,8 @@ class Context3d {
         colorAttachments: [
           {
             view: dstView,
-            loadOp: 'clear',
-            storeOp: 'store',
+            loadOp: "clear",
+            storeOp: "store",
             clearValue: [0, 0, 0, 0],
           },
         ],

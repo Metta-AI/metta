@@ -1,11 +1,22 @@
-import { Vec2f, Mat3f } from './vector_math.js';
-import * as Common from './common.js';
-import { ui, state, html, ctx, setFollowSelection } from './common.js';
-import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js';
-import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
-import { drawTrace } from './traces.js';
-import { drawMiniMap } from './minimap.js';
-import { processActions, initActionButtons } from './actions.js';
+import { initActionButtons, processActions } from "./actions.js";
+import * as Common from "./common.js";
+import { ctx, html, setFollowSelection, state, ui } from "./common.js";
+import { drawMiniMap } from "./minimap.js";
+import {
+  fetchReplay,
+  getAttr,
+  initWebSocket,
+  readFile,
+  sendAction,
+} from "./replay.js";
+import { drawTrace } from "./traces.js";
+import { Mat3f, Vec2f } from "./vector_math.js";
+import {
+  drawMap,
+  focusFullMap,
+  requestFrame,
+  updateReadout,
+} from "./worldmap.js";
 
 // Handle resize events.
 export function onResize() {
@@ -22,8 +33,12 @@ export function onResize() {
   ui.mapPanel.x = 0;
   ui.mapPanel.y = Common.HEADER_HEIGHT;
   ui.mapPanel.width = screenWidth;
-  let maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.SCRUBBER_HEIGHT;
-  ui.mapPanel.height = Math.min(screenHeight * ui.traceSplit - Common.HEADER_HEIGHT, maxMapHeight);
+  const maxMapHeight =
+    screenHeight - Common.HEADER_HEIGHT - Common.SCRUBBER_HEIGHT;
+  ui.mapPanel.height = Math.min(
+    screenHeight * ui.traceSplit - Common.HEADER_HEIGHT,
+    maxMapHeight,
+  );
 
   // Minimap goes in the bottom left corner of the mapPanel.
   if (state.replay != null) {
@@ -44,9 +59,10 @@ export function onResize() {
   ui.tracePanel.x = 0;
   ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height;
   ui.tracePanel.width = screenWidth;
-  ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
+  ui.tracePanel.height =
+    screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
 
-  html.actionButtons.style.top = (ui.tracePanel.y - 148) + 'px';
+  html.actionButtons.style.top = `${ui.tracePanel.y - 148}px`;
 
   ui.mapPanel.updateDiv();
   ui.miniMapPanel.updateDiv();
@@ -63,8 +79,10 @@ function onMouseDown() {
   ui.mouseDownPos = ui.mousePos;
   ui.mouseClick = true;
 
-  if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
-    ui.traceDragging = true
+  if (
+    Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD
+  ) {
+    ui.traceDragging = true;
   } else {
     ui.mouseDown = true;
   }
@@ -90,7 +108,7 @@ function onMouseUp() {
 // Handle mouse move events.
 function onMouseMove(event: MouseEvent) {
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
-  var target = event.target as HTMLElement;
+  let target = event.target as HTMLElement;
   while (target.id === "") {
     target = target.parentElement as HTMLElement;
   }
@@ -98,13 +116,15 @@ function onMouseMove(event: MouseEvent) {
 
   // If mouse is close to a panels edge change cursor to edge changer.
   document.body.style.cursor = "default";
-  if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
+  if (
+    Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD
+  ) {
     document.body.style.cursor = "ns-resize";
   }
 
   // Drag the trace panel up or down.
   if (ui.traceDragging) {
-    ui.traceSplit = ui.mousePos.y() / window.innerHeight
+    ui.traceSplit = ui.mousePos.y() / window.innerHeight;
     onResize();
   }
   requestFrame();
@@ -123,45 +143,47 @@ function updateUrlParams() {
 
   // Update step when its not zero:
   if (state.step !== 0) {
-    urlParams.set('step', state.step.toString());
+    urlParams.set("step", state.step.toString());
   } else {
-    urlParams.delete('step');
+    urlParams.delete("step");
   }
 
   // Handle selected object
   if (state.selectedGridObject !== null) {
     // Find the index of the selected object
-    const selectedObjectIndex = state.replay.grid_objects.indexOf(state.selectedGridObject);
+    const selectedObjectIndex = state.replay.grid_objects.indexOf(
+      state.selectedGridObject,
+    );
     if (selectedObjectIndex !== -1) {
-      urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString());
+      urlParams.set("selectedObjectId", (selectedObjectIndex + 1).toString());
       // Remove map position parameters when an object is selected
-      urlParams.delete('mapPanX');
-      urlParams.delete('mapPanY');
+      urlParams.delete("mapPanX");
+      urlParams.delete("mapPanY");
     }
   } else {
     // Include map position
-    urlParams.set('mapPanX', Math.round(ui.mapPanel.panPos.x()).toString());
-    urlParams.set('mapPanY', Math.round(ui.mapPanel.panPos.y()).toString());
+    urlParams.set("mapPanX", Math.round(ui.mapPanel.panPos.x()).toString());
+    urlParams.set("mapPanY", Math.round(ui.mapPanel.panPos.y()).toString());
     // Remove selected object when there is no selection
-    urlParams.delete('selectedObjectId');
+    urlParams.delete("selectedObjectId");
   }
 
   // Include map zoom level
-  if (ui.mapPanel.zoomLevel != 1) {
+  if (ui.mapPanel.zoomLevel !== 1) {
     // Only include zoom to 3 decimal places.
-    urlParams.set('mapZoom', ui.mapPanel.zoomLevel.toFixed(3));
+    urlParams.set("mapZoom", ui.mapPanel.zoomLevel.toFixed(3));
   }
 
   // Handle play state - only include when true
   if (state.isPlaying) {
-    urlParams.set('play', 'true');
+    urlParams.set("play", "true");
   } else {
-    urlParams.delete('play');
+    urlParams.delete("play");
   }
 
   // Replace current state without creating history entry
-  const newUrl = window.location.pathname + '?' + urlParams.toString();
-  history.replaceState(null, '', newUrl);
+  const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
+  history.replaceState(null, "", newUrl);
 }
 
 // Centralized function to update the step and handle all related updates
@@ -183,35 +205,35 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 
 // Handle scrubber change events.
 function onScrubberChange() {
-  updateStep(parseInt(html.scrubber.value), true);
+  updateStep(Number.parseInt(html.scrubber.value), true);
 }
 
 // Handle key down events.
 function onKeyDown(event: KeyboardEvent) {
-  if (event.key == "Escape") {
+  if (event.key === "Escape") {
     state.selectedGridObject = null;
     setFollowSelection(false);
   }
   // '[' and ']' to scrub forward and backward.
-  if (event.key == "[") {
+  if (event.key === "[") {
     setIsPlaying(false);
     updateStep(Math.max(state.step - 1, 0));
   }
-  if (event.key == "]") {
+  if (event.key === "]") {
     setIsPlaying(false);
     updateStep(Math.min(state.step + 1, state.replay.max_steps - 1));
   }
   // '<' and '>' control the playback speed.
-  if (event.key == ",") {
+  if (event.key === ",") {
     state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01);
     console.log("playbackSpeed: ", state.playbackSpeed);
   }
-  if (event.key == ".") {
+  if (event.key === ".") {
     state.playbackSpeed = Math.min(state.playbackSpeed * 1.1, 1000);
     console.log("playbackSpeed: ", state.playbackSpeed);
   }
   // If space make it press the play button.
-  if (event.key == " ") {
+  if (event.key === " ") {
     setIsPlaying(!state.isPlaying);
   }
 
@@ -232,7 +254,7 @@ export function onFrame() {
 
   ctx.clear();
 
-  var fullUpdate = true;
+  let fullUpdate = true;
   if (ui.mapPanel.inside(ui.mousePos)) {
     if (ui.mapPanel.updatePanAndZoom()) {
       fullUpdate = false;
@@ -280,7 +302,8 @@ export function onFrame() {
   if (state.isPlaying) {
     state.partialStep += state.playbackSpeed;
     if (state.partialStep >= 1) {
-      const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.max_steps;
+      const nextStep =
+        (state.step + Math.floor(state.partialStep)) % state.replay.max_steps;
       state.partialStep -= Math.floor(state.partialStep);
       updateStep(nextStep);
     }
@@ -301,7 +324,7 @@ function handleDrop(event: DragEvent) {
   event.preventDefault();
   event.stopPropagation();
   const dt = event.dataTransfer;
-  if (dt && dt.files.length) {
+  if (dt?.files.length) {
     const file = dt.files[0];
     readFile(file);
   }
@@ -309,12 +332,11 @@ function handleDrop(event: DragEvent) {
 
 // Parse URL parameters, and modify the map and trace panels accordingly.
 async function parseUrlParams() {
-
   const urlParams = new URLSearchParams(window.location.search);
 
   // Load the replay.
-  const replayUrl = urlParams.get('replayUrl');
-  const wsUrl = urlParams.get('wsUrl');
+  const replayUrl = urlParams.get("replayUrl");
+  const wsUrl = urlParams.get("wsUrl");
   if (replayUrl) {
     console.log("Loading replay from URL: ", replayUrl);
     await fetchReplay(replayUrl);
@@ -323,40 +345,47 @@ async function parseUrlParams() {
     Common.showModal(
       "info",
       "Connecting to a websocket",
-      "Please wait a few seconds for the environment to load."
+      "Please wait a few seconds for the environment to load.",
     );
     initWebSocket(wsUrl);
   } else {
     Common.showModal(
       "info",
       "Welcome to MettaScope",
-      "Please drop a replay file here to see the replay."
+      "Please drop a replay file here to see the replay.",
     );
   }
 
   if (state.replay !== null) {
     // Set the current step.
-    if (urlParams.get('step') !== null) {
-      const initialStep = parseInt(urlParams.get('step') || "0");
+    if (urlParams.get("step") !== null) {
+      const initialStep = Number.parseInt(urlParams.get("step") || "0");
       console.info("Step via query parameter:", initialStep);
       updateStep(initialStep, false);
     }
 
     // Set the playing state.
-    if (urlParams.get('play') !== null) {
-      setIsPlaying(urlParams.get('play') === "true");
+    if (urlParams.get("play") !== null) {
+      setIsPlaying(urlParams.get("play") === "true");
       console.info("Playing state via query parameter:", state.isPlaying);
     }
 
     // Set selected object.
-    if (urlParams.get('selectedObjectId') !== null) {
-      const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
-      if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
+    if (urlParams.get("selectedObjectId") !== null) {
+      const selectedObjectId =
+        Number.parseInt(urlParams.get("selectedObjectId") || "-1") - 1;
+      if (
+        selectedObjectId >= 0 &&
+        selectedObjectId < state.replay.grid_objects.length
+      ) {
         state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
         setFollowSelection(true);
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
         ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
-        console.info("Selected object via query parameter:", state.selectedGridObject);
+        console.info(
+          "Selected object via query parameter:",
+          state.selectedGridObject,
+        );
       } else {
         console.warn("Invalid selectedObjectId:", selectedObjectId);
       }
@@ -364,15 +393,14 @@ async function parseUrlParams() {
   }
 
   // Set the map pan and zoom.
-  if (urlParams.get('mapPanX') !== null && urlParams.get('mapPanY') !== null) {
-    const mapPanX = parseInt(urlParams.get('mapPanX') || "0");
-    const mapPanY = parseInt(urlParams.get('mapPanY') || "0");
+  if (urlParams.get("mapPanX") !== null && urlParams.get("mapPanY") !== null) {
+    const mapPanX = Number.parseInt(urlParams.get("mapPanX") || "0");
+    const mapPanY = Number.parseInt(urlParams.get("mapPanY") || "0");
     ui.mapPanel.panPos = new Vec2f(mapPanX, mapPanY);
   }
-  if (urlParams.get('mapZoom') !== null) {
-    ui.mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || "1");
+  if (urlParams.get("mapZoom") !== null) {
+    ui.mapPanel.zoomLevel = Number.parseFloat(urlParams.get("mapZoom") || "1");
   }
-
 
   requestFrame();
 }
@@ -427,56 +455,57 @@ ui.tracePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 ui.miniMapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 
 // Add event listener to resize the canvas when the window is resized.
-window.addEventListener('resize', onResize);
-window.addEventListener('keydown', onKeyDown);
-window.addEventListener('mousedown', onMouseDown);
-window.addEventListener('mouseup', onMouseUp);
-window.addEventListener('mousemove', onMouseMove);
-window.addEventListener('wheel', onScroll);
-window.addEventListener('dragenter', preventDefaults, false);
-window.addEventListener('dragleave', preventDefaults, false);
-window.addEventListener('dragover', preventDefaults, false);
-window.addEventListener('drop', handleDrop, false);
+window.addEventListener("resize", onResize);
+window.addEventListener("keydown", onKeyDown);
+window.addEventListener("mousedown", onMouseDown);
+window.addEventListener("mouseup", onMouseUp);
+window.addEventListener("mousemove", onMouseMove);
+window.addEventListener("wheel", onScroll);
+window.addEventListener("dragenter", preventDefaults, false);
+window.addEventListener("dragleave", preventDefaults, false);
+window.addEventListener("dragover", preventDefaults, false);
+window.addEventListener("drop", handleDrop, false);
 
 // Header area
-html.shareButton.addEventListener('click', onShareButtonClick);
-html.helpButton.addEventListener('click', () => {
-  window.open("https://github.com/treeform/metta/blob/main/mettascope/README.md", "_blank");
+html.shareButton.addEventListener("click", onShareButtonClick);
+html.helpButton.addEventListener("click", () => {
+  window.open(
+    "https://github.com/treeform/metta/blob/main/mettascope/README.md",
+    "_blank",
+  );
 });
 
 // Bottom area
-html.scrubber.addEventListener('input', onScrubberChange);
+html.scrubber.addEventListener("input", onScrubberChange);
 html.scrubber.setAttribute("type", "range");
 html.scrubber.setAttribute("value", "0");
 
-html.rewindToStartButton.addEventListener('click', () => {
+html.rewindToStartButton.addEventListener("click", () => {
   setIsPlaying(false);
-  updateStep(0)
+  updateStep(0);
 });
-html.stepBackButton.addEventListener('click', () => {
+html.stepBackButton.addEventListener("click", () => {
   setIsPlaying(false);
-  updateStep(Math.max(state.step - 1, 0))
+  updateStep(Math.max(state.step - 1, 0));
 });
-html.playButton.addEventListener('click', () =>
-  setIsPlaying(!state.isPlaying)
-);
-html.stepForwardButton.addEventListener('click', () => {
+html.playButton.addEventListener("click", () => setIsPlaying(!state.isPlaying));
+html.stepForwardButton.addEventListener("click", () => {
   setIsPlaying(false);
-  updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+  updateStep(Math.min(state.step + 1, state.replay.max_steps - 1));
 });
-html.rewindToEndButton.addEventListener('click', () => {
+html.rewindToEndButton.addEventListener("click", () => {
   setIsPlaying(false);
-  updateStep(state.replay.max_steps - 1)
+  updateStep(state.replay.max_steps - 1);
 });
 
 // Speed buttons
 for (let i = 0; i < html.speedButtons.length; i++) {
-  html.speedButtons[i].addEventListener('click',
-    () => setPlaybackSpeed(Common.SPEEDS[i])
+  html.speedButtons[i].addEventListener("click", () =>
+    setPlaybackSpeed(Common.SPEEDS[i]),
   );
 }
 
-html.resourcesToggle.addEventListener('click', () => {
+html.resourcesToggle.addEventListener("click", () => {
   state.showResources = !state.showResources;
   localStorage.setItem("showResources", state.showResources.toString());
   toggleOpacity(html.resourcesToggle, state.showResources);
@@ -488,12 +517,12 @@ if (localStorage.hasOwnProperty("showResources")) {
 toggleOpacity(html.resourcesToggle, state.showResources);
 
 // Toggle follow selection state.
-html.focusToggle.addEventListener('click', () => {
+html.focusToggle.addEventListener("click", () => {
   setFollowSelection(!state.followSelection);
 });
 toggleOpacity(html.focusToggle, state.followSelection);
 
-html.gridToggle.addEventListener('click', () => {
+html.gridToggle.addEventListener("click", () => {
   state.showGrid = !state.showGrid;
   localStorage.setItem("showGrid", state.showGrid.toString());
   toggleOpacity(html.gridToggle, state.showGrid);
@@ -504,7 +533,7 @@ if (localStorage.hasOwnProperty("showGrid")) {
 }
 toggleOpacity(html.gridToggle, state.showGrid);
 
-html.visualRangeToggle.addEventListener('click', () => {
+html.visualRangeToggle.addEventListener("click", () => {
   state.showVisualRanges = !state.showVisualRanges;
   localStorage.setItem("showVisualRanges", state.showVisualRanges.toString());
   toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
@@ -515,7 +544,7 @@ if (localStorage.hasOwnProperty("showVisualRanges")) {
 }
 toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
 
-html.fogOfWarToggle.addEventListener('click', () => {
+html.fogOfWarToggle.addEventListener("click", () => {
   state.showFogOfWar = !state.showFogOfWar;
   localStorage.setItem("showFogOfWar", state.showFogOfWar.toString());
   toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
@@ -526,7 +555,7 @@ if (localStorage.hasOwnProperty("showFogOfWar")) {
 }
 toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
 
-html.minimapToggle.addEventListener('click', () => {
+html.minimapToggle.addEventListener("click", () => {
   state.showMiniMap = !state.showMiniMap;
   localStorage.setItem("showMiniMap", state.showMiniMap.toString());
   toggleOpacity(html.minimapToggle, state.showMiniMap);
@@ -537,7 +566,7 @@ if (localStorage.hasOwnProperty("showMiniMap")) {
 }
 toggleOpacity(html.minimapToggle, state.showMiniMap);
 
-html.controlsToggle.addEventListener('click', () => {
+html.controlsToggle.addEventListener("click", () => {
   state.showControls = !state.showControls;
   localStorage.setItem("showControls", state.showControls.toString());
   toggleOpacity(html.controlsToggle, state.showControls);
@@ -548,7 +577,7 @@ if (localStorage.hasOwnProperty("showControls")) {
 }
 toggleOpacity(html.controlsToggle, state.showControls);
 
-html.infoToggle.addEventListener('click', () => {
+html.infoToggle.addEventListener("click", () => {
   state.showInfo = !state.showInfo;
   localStorage.setItem("showInfo", state.showInfo.toString());
   toggleOpacity(html.infoToggle, state.showInfo);
@@ -561,22 +590,21 @@ toggleOpacity(html.infoToggle, state.showInfo);
 
 initActionButtons();
 
-window.addEventListener('load', async () => {
+window.addEventListener("load", async () => {
   // Use local atlas texture.
-  const atlasImageUrl = 'dist/atlas.png';
-  const atlasJsonUrl = 'dist/atlas.json';
+  const atlasImageUrl = "dist/atlas.png";
+  const atlasJsonUrl = "dist/atlas.json";
 
   const success = await ctx.init(atlasJsonUrl, atlasImageUrl);
   if (!success) {
     Common.showModal(
       "error",
       "Initialization failed",
-      "Please check the console for more information."
+      "Please check the console for more information.",
     );
     return;
-  } else {
-    console.log("Context3d initialized successfully.");
   }
+  console.log("Context3d initialized successfully.");
 
   await parseUrlParams();
   setPlaybackSpeed(0.1);
