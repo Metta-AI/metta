@@ -38,4 +38,4 @@ install:
 
 pytest: install
 	@echo "Running Python tests..."
-	pytest# Run cpplint on all C++ source files
+	pytest
