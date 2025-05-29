@@ -1,5 +1,5 @@
 name: 'Run Unified Bencher Analysis'
-description: 'Run Bencher analysis with clean core KPI metrics only'
+description: 'Run Bencher analysis with 3 core measures: latency + 2 KPIs'
 inputs:
   bencher_token:
     description: 'Bencher API token'
@@ -40,25 +40,39 @@ runs:
           echo "main_exists=false" >> $GITHUB_OUTPUT
         fi
 
-    # Main branch: Upload baseline and configure clean KPI thresholds
-    - name: Upload baseline with clean KPI thresholds (main branch)
+    # Main branch: Upload baseline with ultra-simple thresholds
+    - name: Upload baseline with 3-measure thresholds (main branch)
       if: github.ref == 'refs/heads/main'
       shell: bash
       env:
         BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        echo "📊 Uploading baseline data with clean KPI thresholds..."
+        echo "📊 Uploading baseline data with 3-measure thresholds..."
+        echo "Measures: latency (built-in), agent_steps_per_second, env_steps_per_second"
         
         if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
-          echo "🎯 Setting up core KPI thresholds..."
+          echo "🎯 Setting up ultra-simple thresholds..."
           
-          # Core throughput KPIs - alert on ANY 20% change (bidirectional)
+          # Built-in latency measure (lower is better - alert on increases)
+          echo "Setting upper threshold for latency (built-in timing measure)"
+          bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch main \
+            --threshold-measure latency \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-upper-boundary 0.20 \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.benchmark_file }}" || echo "⚠️  Could not set latency threshold"
+          
+          # Core throughput KPIs (higher is better - alert on ANY 20% change)
           declare -A THROUGHPUT_METRICS=(
-            ["agent_steps_per_second"]="Agent throughput KPI"
-            ["env_steps_per_second"]="Environment throughput KPI"  
-            ["resets_per_second"]="Reset efficiency KPI"
-            ["actions_per_second"]="Action processing KPI"
+            ["agent_steps_per_second"]="Main agent performance KPI"
+            ["env_steps_per_second"]="Main environment performance KPI"
           )
           
           for metric in "${!THROUGHPUT_METRICS[@]}"; do
@@ -75,38 +89,16 @@ runs:
               --testbed ubuntu-latest \
               --adapter json \
               --github-actions "$GITHUB_TOKEN" \
-              --file "${{ inputs.benchmark_file }}" 2>/dev/null || echo "No $metric data found"
+              --file "${{ inputs.benchmark_file }}" || echo "⚠️  Could not set threshold for $metric"
           done
           
-          # Latency KPIs - alert only on increases (regressions)
-          declare -A LATENCY_METRICS=(
-            ["cpu_time"]="CPU efficiency"
-            ["latency"]="General latency"
-          )
-          
-          for metric in "${!LATENCY_METRICS[@]}"; do
-            echo "Setting upper threshold for ${LATENCY_METRICS[$metric]}: $metric"
-            bencher run \
-              --project ${{ inputs.project_id }} \
-              --token "$BENCHER_API_TOKEN" \
-              --branch main \
-              --threshold-measure "$metric" \
-              --threshold-test percentage \
-              --threshold-max-sample-size 2 \
-              --threshold-upper-boundary 0.20 \
-              --testbed ubuntu-latest \
-              --adapter json \
-              --github-actions "$GITHUB_TOKEN" \
-              --file "${{ inputs.benchmark_file }}" 2>/dev/null || echo "No $metric data found"
-          done
-          
-          echo "✅ Clean KPI thresholds configured"
+          echo "✅ Ultra-simple 3-measure thresholds configured"
         else
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
         fi
 
-    # PR: Check for ANY significant changes in core KPIs
-    - name: Check for significant KPI changes
+    # PR: Check for significant changes in the 3 core measures
+    - name: Check for significant changes in core measures
       if: |
         github.event_name == 'pull_request' &&
         !github.event.pull_request.head.repo.fork &&
@@ -116,13 +108,15 @@ runs:
         BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        echo "🚨 Checking for significant changes in core KPIs (±20% = alert + test failure)..."
+        echo "🚨 Checking for significant changes in 3 core measures..."
+        echo "- latency: ±20% timing changes"
+        echo "- agent_steps_per_second: ±20% throughput changes" 
+        echo "- env_steps_per_second: ±20% throughput changes"
         
         if [ -f "${{ inputs.benchmark_file }}" ]; then
-          echo "Running KPI performance check with pre-configured thresholds..."
+          echo "Running performance check with ultra-simple thresholds..."
           
-          # Single run that checks all core KPIs using their pre-configured thresholds
-          # This will fail if ANY core KPI changes by 20% in either direction
+          # Single run that checks all 3 measures using pre-configured thresholds
           bencher run \
             --project ${{ inputs.project_id }} \
             --token "$BENCHER_API_TOKEN" \
@@ -136,7 +130,7 @@ runs:
             --github-actions "$GITHUB_TOKEN" \
             --file "${{ inputs.benchmark_file }}"
             
-          echo "✅ No significant KPI changes detected"
+          echo "✅ No significant changes detected in core measures"
         else
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
           exit 1

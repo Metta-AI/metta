@@ -35,58 +35,48 @@ runs:
                 return {}
 
         def convert_pytest_to_bmf_format(pytest_data):
-            """Convert pytest-benchmark format to Bencher Metric Format (BMF)"""
+            """Convert pytest-benchmark to BMF using built-in measures + 2 KPIs"""
             bmf_results = {}
             
             for bench in pytest_data.get("benchmarks", []):
-                # Extract basic info
                 name = bench.get("fullname", bench.get("name", "unknown"))
                 stats = bench.get("stats", {})
                 extra_info = bench.get("extra_info", {})
                 
-                # Create BMF entry for this benchmark
                 bench_metrics = {}
                 
-                # Add latency metrics from stats if available
+                # Use built-in latency measure for timing
                 if stats.get("mean") is not None:
-                    latency_metric = {"value": stats["mean"]}
-                    if stats.get("min") is not None:
-                        latency_metric["lower_value"] = stats["min"]
-                    if stats.get("max") is not None:
-                        latency_metric["upper_value"] = stats["max"]
-                    bench_metrics["latency"] = latency_metric
+                    bench_metrics["latency"] = {
+                        "value": stats["mean"],
+                        "lower_value": stats.get("min"),
+                        "upper_value": stats.get("max")
+                    }
                 
-                # Add all extra_info metrics (agent_steps_per_second, env_steps_per_second, etc.)
-                for metric_name, metric_value in extra_info.items():
-                    if isinstance(metric_value, (int, float)):
-                        bench_metrics[metric_name] = {"value": metric_value}
+                # Only add your 2 most important custom KPIs
+                key_kpis = ["agent_steps_per_second", "env_steps_per_second"]
                 
-                # Only add benchmark if we have metrics
+                for kpi_name in key_kpis:
+                    if kpi_name in extra_info and isinstance(extra_info[kpi_name], (int, float)):
+                        bench_metrics[kpi_name] = {"value": extra_info[kpi_name]}
+                
                 if bench_metrics:
                     bmf_results[name] = bench_metrics
             
             return bmf_results
 
         def convert_cpp_to_bmf_format(cpp_data):
-            """Convert Google Benchmark format to Bencher Metric Format (BMF)"""
+            """Convert Google Benchmark to BMF using built-in measures only"""
             bmf_results = {}
             
             for bench in cpp_data.get("benchmarks", []):
                 name = bench.get("name", "unknown")
                 bench_metrics = {}
                 
-                # Only include meaningful performance metrics from C++ benchmarks
-                # Filter out metadata and configuration values
-                meaningful_metrics = {
-                    "real_time": "latency",  # Map real_time to standard latency measure
-                    "cpu_time": "cpu_time",  # Keep cpu_time as performance metric
-                }
+                # Use built-in latency measure (from real_time)
+                if "real_time" in bench:
+                    bench_metrics["latency"] = {"value": bench["real_time"]}
                 
-                for cpp_key, bmf_key in meaningful_metrics.items():
-                    if cpp_key in bench and isinstance(bench[cpp_key], (int, float)):
-                        bench_metrics[bmf_key] = {"value": bench[cpp_key]}
-                
-                # Only add benchmark if we have meaningful metrics
                 if bench_metrics:
                     bmf_results[name] = bench_metrics
             
@@ -150,6 +140,7 @@ runs:
                 json.dump(unified_results, f, indent=2)
 
         print(f"✅ Combined {len(unified_results)} benchmarks in BMF format")
+        print("📊 Using 3 core measures: latency, agent_steps_per_second, env_steps_per_second")
 
         # Debug: Print sample of what we generated
         if unified_results:
