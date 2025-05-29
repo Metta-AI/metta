@@ -178,7 +178,7 @@ runs:
         echo "⚠️ Uploading PR benchmark data without comparison"
         echo "Main branch has no benchmark data yet - this is normal for the first PR."
         echo "Once this PR merges, future PRs will have baseline data for comparison."
-        
+
         if [ -f "${{ inputs.benchmark_file }}" ]; then
           # Just upload the data without threshold checks
           bencher run \
