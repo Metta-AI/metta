@@ -448,6 +448,14 @@ class ProgressiveEnvSet(MettaGridEnv):
 
         # Initialize the base environment with a dummy configuration
         dummy_initial_cfg_for_super = OmegaConf.create({"game": {"num_agents": self._num_agents_global}})
+
+        # Ensure the env_cfg has the expected game structure for the trainer
+        if not OmegaConf.select(env_cfg, "game"):
+            # Add the game structure to env_cfg so the trainer can access it
+            OmegaConf.set_struct(env_cfg, False)  # Allow modification
+            env_cfg.game = OmegaConf.create({"num_agents": self._num_agents_global})
+            OmegaConf.set_struct(env_cfg, True)  # Re-enable struct mode
+
         super().__init__(dummy_initial_cfg_for_super, render_mode, buf=buf, env_map=None, **kwargs)
         self._cfg_template = None
 
