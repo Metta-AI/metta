@@ -469,7 +469,10 @@ window.addEventListener("drop", handleDrop, false);
 // Header area
 html.shareButton.addEventListener("click", onShareButtonClick);
 html.helpButton.addEventListener("click", () => {
-  window.open("mettascope_info.html", "_blank");
+  window.open(
+    "https://github.com/treeform/metta/blob/main/mettascope/README.md",
+    "_blank",
+  );
 });
 
 // Bottom area

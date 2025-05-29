@@ -88,10 +88,10 @@ function drawWalls() {
     const x = getAttr(gridObject, "c");
     const y = getAttr(gridObject, "r");
     let suffix = "0";
-    let n = false;
-    let w = false;
-    let e = false;
-    let s = false;
+    let n = false,
+      w = false,
+      e = false,
+      s = false;
     if (wallMap.get(x, y - 1)) {
       n = true;
     }
@@ -125,9 +125,9 @@ function drawWalls() {
     const x = getAttr(gridObject, "c");
     const y = getAttr(gridObject, "r");
     // If walls to E, S and SE is filled, draw a wall fill.
-    let s = false;
-    let e = false;
-    let se = false;
+    let s = false,
+      e = false,
+      se = false;
     if (wallMap.get(x + 1, y)) {
       e = true;
     }
@@ -483,8 +483,8 @@ function drawThoughtBubbles() {
     // We need to find a key action in the future.
     // A key action is a successful action that is not a noop, rotate or move.
     // Must not be more then 20 steps in the future.
-    let keyAction: any = null;
-    let keyActionStep: number | null = null;
+    let keyAction = null;
+    let keyActionStep = null;
     for (
       let actionStep = state.step;
       actionStep < state.replay.max_steps && actionStep < state.step + 20;
@@ -707,8 +707,7 @@ function attackGrid(orientation: number, idx: number) {
     return Math.floor(a / b);
   }
   const i = idx - 1;
-  let dx;
-  let dy;
+  let dx, dy;
   if (orientation === 0) {
     dx = mod(i, 3) - 1;
     dy = -div(i, 3) - 1;
