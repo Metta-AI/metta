@@ -192,7 +192,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             grid_objects: Dict[int, Any] = self._c_env.grid_objects()
             # iterate over grid_object values
             agent_groups: Dict[int, int] = {
-              v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+                v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
             }
 
             self._stats_writer.record_episode(

@@ -17,11 +17,13 @@ class DashboardConfig(Config):
     eval_db_uri: str
     output_path: str = "/tmp/dashboard_data.json"
 
+
 class PolicyEvalMetric(BaseModel):
     metric: str
     group_id: int
     sum_value: float
     num_agents: int
+
 
 class PolicyEval(BaseModel):
     policy_uri: str
@@ -85,7 +87,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
         GROUP BY policy_uri, eval_name, suite
         """
     ).fetchall()
-    
+
     # Returns (policy_uri, eval_name, group_id, metric, value, num_agents)
     metric_rows = db.con.execute(
         """
@@ -110,11 +112,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
         policy_uri, eval_name, suite, replay_url = eval_info_row
         key = (policy_uri, eval_name)
         policy_evals[key] = PolicyEval(
-            policy_uri=policy_uri,
-            eval_name=eval_name,
-            suite=suite,
-            replay_url=replay_url,
-            policy_eval_metrics=[]
+            policy_uri=policy_uri, eval_name=eval_name, suite=suite, replay_url=replay_url, policy_eval_metrics=[]
         )
 
     for metric_row in metric_rows:
@@ -122,12 +120,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
         key = (policy_uri, eval_name)
         assert key in policy_evals, f"Policy eval {key} not found"
         policy_evals[key].policy_eval_metrics.append(
-            PolicyEvalMetric(
-                metric=metric,
-                group_id=group_id,
-                sum_value=value,
-                num_agents=num_agents
-            )
+            PolicyEvalMetric(metric=metric, group_id=group_id, sum_value=value, num_agents=num_agents)
         )
 
     return list(policy_evals.values())

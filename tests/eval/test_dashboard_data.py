@@ -25,7 +25,7 @@ def _create_test_db_with_metrics(db_path: Path) -> Tuple[SimulationStatsDB, List
         INSERT INTO simulations (id, name, suite, env, policy_key, policy_version)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (sim_id, "test_sim", "test_suite", "test_env", policy_key, policy_version)
+        (sim_id, "test_sim", "test_suite", "test_env", policy_key, policy_version),
     )
 
     episodes: List[str] = []
@@ -39,7 +39,7 @@ def _create_test_db_with_metrics(db_path: Path) -> Tuple[SimulationStatsDB, List
             INSERT INTO episodes (id, simulation_id, created_at, replay_url)
             VALUES (?, ?, ?, ?)
             """,
-            (ep_id, sim_id, datetime.datetime.now(), f"http://replay/{ep_id}")
+            (ep_id, sim_id, datetime.datetime.now(), f"http://replay/{ep_id}"),
         )
 
         # Create agent groups
@@ -48,7 +48,7 @@ def _create_test_db_with_metrics(db_path: Path) -> Tuple[SimulationStatsDB, List
             INSERT INTO agent_groups (episode_id, agent_id, group_id)
             VALUES (?, ?, ?), (?, ?, ?)
             """,
-            (ep_id, 0, 1, ep_id, 1, 2)  # Two agents in different groups
+            (ep_id, 0, 1, ep_id, 1, 2),  # Two agents in different groups
         )
 
         # Create agent metrics
@@ -63,7 +63,7 @@ def _create_test_db_with_metrics(db_path: Path) -> Tuple[SimulationStatsDB, List
             INSERT INTO agent_metrics (episode_id, agent_id, metric, value)
             VALUES (?, ?, ?, ?)
             """,
-            metrics
+            metrics,
         )
 
     db.con.commit()
