@@ -18,6 +18,15 @@ from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.hydra import simple_instantiate
 
+# These data types must match PufferLib -- see pufferlib/vector.py
+np_observations_type = np.dtype(np.uint8)
+np_terminals_type = np.dtype(bool)
+np_truncations_type = np.dtype(bool)
+np_rewards_type = np.dtype(np.float32)
+np_actions_type = np.dtype(np.int32)  # forced to int32 when actions are Discrete or MultiDiscrete
+np_masks_type = np.dtype(bool)
+np_success_type = np.dtype(bool)
+
 
 def required(func):
     """Marks methods that PufferEnv requires but does not implement for override."""
