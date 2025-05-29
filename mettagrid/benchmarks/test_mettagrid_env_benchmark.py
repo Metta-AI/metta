@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
+from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.util.actions import generate_valid_random_actions
 from mettagrid.util.hydra import get_cfg
@@ -22,11 +23,13 @@ def environment(cfg, num_agents):
     cfg.game.map_builder.num_rooms = num_rooms
     agents_per_room = num_agents // num_rooms
     cfg.game.map_builder.room.agents = agents_per_room
+    cfg.game.max_steps = 0  # env lasts forever
 
     print(f"\nConfiguring environment with {num_agents} agents")
     print(OmegaConf.to_yaml(cfg))
 
-    env = MettaGridEnv(cfg, render_mode="human", recursive=False)
+    curriculum = SingleTaskCurriculum("test", task_cfg=cfg)
+    env = MettaGridEnv(curriculum, render_mode="human", recursive=False)
     env.reset()
     yield env
     # Cleanup after test
@@ -125,7 +128,8 @@ def test_create_env_performance(benchmark, cfg):
 
     def create_and_reset():
         """Create a new environment and reset it."""
-        env = MettaGridEnv(cfg, render_mode="human", recursive=False)
+        curriculum = SingleTaskCurriculum("test", task_cfg=cfg)
+        env = MettaGridEnv(curriculum, render_mode="human", recursive=False)
         obs = env.reset()
         # Cleanup
         del env
