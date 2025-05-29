@@ -11,6 +11,7 @@ game:
     _target_: mettagrid.room.ascii.Ascii
     border_width: 1
   agent:
+    heart_max: 1
     rewards:
       heart: 1.0
       ore.red: 0
