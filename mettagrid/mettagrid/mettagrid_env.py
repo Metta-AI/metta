@@ -211,10 +211,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 for k, v in agent_stats.items():
                     agent_metrics[agent_idx][k] = float(v)
 
+            grid_objects: Dict[int, Any] = self._c_env.grid_objects()
+            # iterate over grid_object values
+            agent_groups: Dict[int, int] = {
+                v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+            }
+
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,
                 agent_metrics,
+                agent_groups,
                 self.max_steps,
                 replay_url,
                 self._reset_at,

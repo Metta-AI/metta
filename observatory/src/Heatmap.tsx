@@ -91,7 +91,11 @@ export function Heatmap({ data, selectedMetric, setSelectedCell, openReplayUrl }
   const z = y_labels.map(policy => 
     [data.policyAverageScores.get(policy)!, ...sortedShortNames.map(shortName => {
       const evalName = shortNameToEvalName.get(shortName)!
-      return data.cells.get(policy)?.get(evalName)?.value || 0
+      const cell = data.cells.get(policy)?.get(evalName)
+      if (!cell) {
+        return 0
+      }
+      return cell.value
     })]
   )
 

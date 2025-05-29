@@ -41,13 +41,14 @@ class StatsWriter:
         episode_id: str,
         attributes: Dict[str, str],
         agent_metrics: Dict[int, Dict[str, float]],
+        agent_groups: Dict[int, int],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
     ) -> None:
         self._ensure_db()
         assert self.db is not None, "Database must be initialized before recording episodes"
-        self.db.record_episode(episode_id, attributes, agent_metrics, step_count, replay_url, created_at)
+        self.db.record_episode(episode_id, attributes, agent_metrics, agent_groups, step_count, replay_url, created_at)
 
     def close(self) -> None:
         if self.db is not None:
