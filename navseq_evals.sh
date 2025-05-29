@@ -1,0 +1,69 @@
+#!/bin/bash
+
+set -e
+
+# Define the list of policy URIs to evaluate on a normal run.
+POLICIES=(
+    "b.george.navsequence_mem2"
+    "b.george.navsequence_all2"
+    "b.george.navsequence_sequence2"
+    "b.george.navsequence_mem_pretrained2"
+    "b.george.navsequence_all_pretrained2"
+    "b.george.navsequence_sequence_pretrained2"
+
+    "george_navsequence_seq"
+    "george_navsequence_memory"
+
+    "b.daphne.objectuse"
+    "b.daphne.navigation_objectuse_sp"
+    "b.daphne.multiagent_8"
+    "b.daphne.npc_simple"
+    "objectuse"
+    "navigation"
+    "b.daphne.objectuse_sp"
+    "b.daphne.navigation_sp"
+    "b.daphne.multiagent_8_smaller_rooms"
+    "b.daphne.objectuse_less_initial_items"
+    "b.daphne.objectuse_smaller_rooms"
+    "b.daphne.multiagent_8_less_initial_items"
+    "b.daphne.multiagent_8_smaller_rooms2"
+    "b.georgedeane.navseq_training"
+    "b.georgedeane.navseq_training_sp"
+    # "b.georgedeane.navseq_training_sp_heartmax15"
+    "b.george.multiagent"
+    "b.george.multiagent_rewardsharing"
+    "b.george.multiagent_mixed"
+    "b.george.multiagent_rewardsharing_pretrained"
+    "b.george.multiagent_mixed_pretrained"
+    "b.george.multiagent_pretrained"
+    "b.george.navsequence_mem_pretrained"
+    "b.george.navsequence_all"
+    "b.george.navsequence_sequence_pretrained"
+    "b.george.navsequence_mem"
+    "b.george_navsequence_all"
+    "b.george_multienv_sequence"
+    "mrazo_cooperation_two-room-coord_v06"
+    "mrazo_cooperation_two-room-coord_v05"
+    "mrazo_memory_varied-terrain_v05"
+
+
+)
+
+
+for i in "${!POLICIES[@]}"; do
+  POLICY_URI=${POLICIES[$i]}
+
+    echo "Running full sequence eval for policy $POLICY_URI"
+    RANDOM_NUM=$((RANDOM % 1000))
+    IDX="${IDX}_${RANDOM_NUM}"
+
+    python3 -m tools.sim \
+        sim=nav_sequence \
+        run=nav_sequence$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        sim_job.stats_db_uri=wandb://stats/nav_sequence_db \
+        # device=cpu \
+
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/nav_sequence_db run=nav_sequence_db2 ++dashboard.output_path=s3://softmax-public/policydash/nav_sequence.html
+
+done
