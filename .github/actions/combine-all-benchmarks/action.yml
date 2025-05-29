@@ -10,9 +10,6 @@ inputs:
   output_file:
     description: 'Unified output file (BMF format)'
     required: true
-  bmf_output:
-    description: 'BMF file for special metrics'
-    required: false
 
 runs:
   using: 'composite'
@@ -155,35 +152,6 @@ runs:
                 json.dump(unified_results, f, indent=2)
 
         print(f"✅ Combined {len(unified_results)} benchmarks in BMF format")
-
-        # Create BMF file for special metrics if requested
-        if "${{ inputs.bmf_output }}":
-            # Extract only performance-specific metrics for separate processing
-            special_metrics = {}
-            
-            for bench_name, bench_metrics in unified_results.items():
-                if bench_name.startswith("python/"):
-                    # Look for the special performance metrics
-                    special_bench_metrics = {}
-                    
-                    # These are your key performance metrics
-                    performance_metrics = [
-                        "agent_steps_per_second", 
-                        "env_steps_per_second", 
-                        "resets_per_second"
-                    ]
-                    
-                    for metric_name in performance_metrics:
-                        if metric_name in bench_metrics:
-                            special_bench_metrics[metric_name] = bench_metrics[metric_name]
-                    
-                    if special_bench_metrics:
-                        special_metrics[bench_name] = special_bench_metrics
-
-            with open('${{ inputs.bmf_output }}', 'w') as f:
-                json.dump(special_metrics, f, indent=2)
-                
-            print(f"✅ Extracted {len(special_metrics)} benchmarks with special performance metrics")
 
         # Debug: Print sample of what we generated
         if unified_results:

@@ -370,7 +370,7 @@ jobs:
           name: cpp-benchmark-results
           path: mettagrid/benchmark_output/*.json
           retention-days: 1
-            
+
   upload-benchmarks:
     name: "Process All Benchmarks"
     needs: [python-benchmark, cpp-benchmark, setup-checks]
@@ -420,7 +420,6 @@ jobs:
           python_files: './benchmarks/main_benchmark_results.json,./benchmarks/mettagrid_benchmark_results.json'
           cpp_files: './benchmarks/*.json'
           output_file: 'unified_benchmark_results.json'
-          bmf_output: 'special_metrics.bmf.json'
 
       - name: Validate generated BMF files
         shell: bash

@@ -1,5 +1,5 @@
 name: 'Run Unified Bencher Analysis'
-description: 'Run Bencher analysis with measure-specific thresholds for bidirectional alerts'
+description: 'Run Bencher analysis with clean core KPI metrics only'
 inputs:
   bencher_token:
     description: 'Bencher API token'
@@ -40,118 +40,73 @@ runs:
           echo "main_exists=false" >> $GITHUB_OUTPUT
         fi
 
-    # Main branch: Upload baseline and configure bidirectional thresholds
-    - name: Upload baseline with bidirectional thresholds (main branch)
+    # Main branch: Upload baseline and configure clean KPI thresholds
+    - name: Upload baseline with clean KPI thresholds (main branch)
       if: github.ref == 'refs/heads/main'
       shell: bash
       env:
         BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        echo "📊 Uploading baseline data with bidirectional thresholds..."
+        echo "📊 Uploading baseline data with clean KPI thresholds..."
         
         if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
-          # Define your metrics and their threshold types
-          # Format: "metric_name:threshold_type" where threshold_type is "upper", "lower", or "both"
-          declare -A METRIC_CONFIGS=(
-            ["latency"]="upper"                    # Lower is better - only alert on increases
-            ["cpu_time"]="upper"                   # Lower is better - only alert on increases
-            ["agent_steps_per_second"]="both"      # Higher is better KPI - alert on any 20% change
-            ["env_steps_per_second"]="both"        # Higher is better KPI - alert on any 20% change
-            ["resets_per_second"]="both"           # Higher is better KPI - alert on any 20% change
-            ["iterations"]="upper"                 # Lower is better - only alert on increases
+          echo "🎯 Setting up core KPI thresholds..."
+          
+          # Core throughput KPIs - alert on ANY 20% change (bidirectional)
+          declare -A THROUGHPUT_METRICS=(
+            ["agent_steps_per_second"]="Agent throughput KPI"
+            ["env_steps_per_second"]="Environment throughput KPI"  
+            ["resets_per_second"]="Reset efficiency KPI"
+            ["actions_per_second"]="Action processing KPI"
           )
           
-          echo "🎯 Setting up measure-specific thresholds..."
-          
-          # Upload data and set thresholds for each known metric
-          for metric in "${!METRIC_CONFIGS[@]}"; do
-            config="${METRIC_CONFIGS[$metric]}"
-            echo "Configuring $metric with $config boundaries..."
-            
-            case $config in
-              "upper")
-                # Only upper boundary - alerts on increases (regressions for latency-type metrics)
-                bencher run \
-                  --project ${{ inputs.project_id }} \
-                  --token "$BENCHER_API_TOKEN" \
-                  --branch main \
-                  --threshold-measure "$metric" \
-                  --threshold-test percentage \
-                  --threshold-max-sample-size 2 \
-                  --threshold-upper-boundary 0.20 \
-                  --testbed ubuntu-latest \
-                  --adapter json \
-                  --github-actions "$GITHUB_TOKEN" \
-                  --file "${{ inputs.benchmark_file }}" 2>/dev/null || echo "No $metric data found"
-                ;;
-              
-              "lower")
-                # Only lower boundary - alerts on decreases (regressions for throughput-type metrics)
-                bencher run \
-                  --project ${{ inputs.project_id }} \
-                  --token "$BENCHER_API_TOKEN" \
-                  --branch main \
-                  --threshold-measure "$metric" \
-                  --threshold-test percentage \
-                  --threshold-max-sample-size 2 \
-                  --threshold-lower-boundary 0.20 \
-                  --threshold-upper-boundary _ \
-                  --testbed ubuntu-latest \
-                  --adapter json \
-                  --github-actions "$GITHUB_TOKEN" \
-                  --file "${{ inputs.benchmark_file }}" 2>/dev/null || echo "No $metric data found"
-                ;;
-              
-              "both")
-                # Both boundaries - alerts on ANY significant change (bidirectional KPI monitoring)
-                bencher run \
-                  --project ${{ inputs.project_id }} \
-                  --token "$BENCHER_API_TOKEN" \
-                  --branch main \
-                  --threshold-measure "$metric" \
-                  --threshold-test percentage \
-                  --threshold-max-sample-size 2 \
-                  --threshold-lower-boundary 0.20 \
-                  --threshold-upper-boundary 0.20 \
-                  --testbed ubuntu-latest \
-                  --adapter json \
-                  --github-actions "$GITHUB_TOKEN" \
-                  --file "${{ inputs.benchmark_file }}" 2>/dev/null || echo "No $metric data found"
-                ;;
-            esac
+          for metric in "${!THROUGHPUT_METRICS[@]}"; do
+            echo "Setting bidirectional threshold for ${THROUGHPUT_METRICS[$metric]}: $metric"
+            bencher run \
+              --project ${{ inputs.project_id }} \
+              --token "$BENCHER_API_TOKEN" \
+              --branch main \
+              --threshold-measure "$metric" \
+              --threshold-test percentage \
+              --threshold-max-sample-size 2 \
+              --threshold-lower-boundary 0.20 \
+              --threshold-upper-boundary 0.20 \
+              --testbed ubuntu-latest \
+              --adapter json \
+              --github-actions "$GITHUB_TOKEN" \
+              --file "${{ inputs.benchmark_file }}" 2>/dev/null || echo "No $metric data found"
           done
           
-          # Handle any unknown metrics with default upper threshold
-          echo "Setting default thresholds for any unknown metrics..."
-          measures=$(jq -r 'to_entries[] | .value | keys[]' "${{ inputs.benchmark_file }}" | sort -u)
+          # Latency KPIs - alert only on increases (regressions)
+          declare -A LATENCY_METRICS=(
+            ["cpu_time"]="CPU efficiency"
+            ["latency"]="General latency"
+          )
           
-          for measure in $measures; do
-            # Skip if we already configured this metric
-            if [[ ! " ${!METRIC_CONFIGS[@]} " =~ " ${measure} " ]]; then
-              echo "Setting default upper threshold for unknown metric: $measure"
-              bencher run \
-                --project ${{ inputs.project_id }} \
-                --token "$BENCHER_API_TOKEN" \
-                --branch main \
-                --threshold-measure "$measure" \
-                --threshold-test percentage \
-                --threshold-max-sample-size 2 \
-                --threshold-upper-boundary 0.20 \
-                --testbed ubuntu-latest \
-                --adapter json \
-                --github-actions "$GITHUB_TOKEN" \
-                --file "${{ inputs.benchmark_file }}" 2>/dev/null || echo "No $measure data found"
-            fi
+          for metric in "${!LATENCY_METRICS[@]}"; do
+            echo "Setting upper threshold for ${LATENCY_METRICS[$metric]}: $metric"
+            bencher run \
+              --project ${{ inputs.project_id }} \
+              --token "$BENCHER_API_TOKEN" \
+              --branch main \
+              --threshold-measure "$metric" \
+              --threshold-test percentage \
+              --threshold-max-sample-size 2 \
+              --threshold-upper-boundary 0.20 \
+              --testbed ubuntu-latest \
+              --adapter json \
+              --github-actions "$GITHUB_TOKEN" \
+              --file "${{ inputs.benchmark_file }}" 2>/dev/null || echo "No $metric data found"
           done
           
-          echo "✅ All thresholds configured"
+          echo "✅ Clean KPI thresholds configured"
         else
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
         fi
 
-    # PR: Check for ANY significant changes (improvements OR regressions)
-    - name: Check for significant performance changes
+    # PR: Check for ANY significant changes in core KPIs
+    - name: Check for significant KPI changes
       if: |
         github.event_name == 'pull_request' &&
         !github.event.pull_request.head.repo.fork &&
@@ -161,13 +116,13 @@ runs:
         BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        echo "🚨 Checking for significant performance changes (±20% = alert + test failure)..."
+        echo "🚨 Checking for significant changes in core KPIs (±20% = alert + test failure)..."
         
         if [ -f "${{ inputs.benchmark_file }}" ]; then
-          echo "Running unified performance check with pre-configured thresholds..."
+          echo "Running KPI performance check with pre-configured thresholds..."
           
-          # Single run that checks all metrics using their pre-configured bidirectional thresholds
-          # This will fail if ANY metric changes by 20% in either direction
+          # Single run that checks all core KPIs using their pre-configured thresholds
+          # This will fail if ANY core KPI changes by 20% in either direction
           bencher run \
             --project ${{ inputs.project_id }} \
             --token "$BENCHER_API_TOKEN" \
@@ -181,7 +136,7 @@ runs:
             --github-actions "$GITHUB_TOKEN" \
             --file "${{ inputs.benchmark_file }}"
             
-          echo "✅ No significant performance changes detected"
+          echo "✅ No significant KPI changes detected"
         else
           echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
           exit 1
