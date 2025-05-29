@@ -1,15 +1,17 @@
 import numpy as np
 
 from mettagrid.mettagrid_c import MettaGrid
-from tests.actions import (
-    Orientation,
-    get_agent_position,
-    move,
+from mettagrid.mettagrid_env import (
     np_actions_type,
     np_observations_type,
     np_rewards_type,
     np_terminals_type,
     np_truncations_type,
+)
+from mettagrid.util.actions import (
+    Orientation,
+    get_agent_position,
+    move,
     rotate,
 )
 

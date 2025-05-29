@@ -95,9 +95,6 @@ class MultiTaskCurriculum(Curriculum):
 class RandomCurriculum(MultiTaskCurriculum):
     """Curriculum that samples from multiple environment types with fixed weights."""
 
-    def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig):
-        super().__init__(tasks, env_overrides)
-
     def get_task(self) -> Task:
         task_id = random.choices(list(self._curriculums.keys()), weights=list(self._task_weights.values()))[0]
         task = self._curriculums[task_id].get_task()
