@@ -70,7 +70,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
 
         self._reset_env()
+
         super().__init__(buf)
+        if self._render_mode is not None:
+            from .renderer.renderer import AsciiRenderer
+
+            self._renderer = AsciiRenderer(self.object_type_names)
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
