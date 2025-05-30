@@ -357,3 +357,24 @@ class Identity(LayerBase):
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.Identity()
+
+
+class NextObservationHead(ParamLayer):
+    """Predicts the next observation mean and variance from the core state."""
+
+    def __init__(self, obs_shape, **cfg):
+        self.obs_shape = list(obs_shape)
+        super().__init__(**cfg)
+
+    def _make_net(self):
+        self._out_tensor_shape = [2] + self.obs_shape
+        out_features = 2 * prod(self.obs_shape)
+        return nn.Linear(self._in_tensor_shapes[0][0], out_features)
+
+    def _forward(self, td: TensorDict):
+        hidden = td[self._sources[0]["name"]]
+        output = self._net(hidden)
+        output = output.view(hidden.shape[0], 2, *self.obs_shape)
+        mean, log_var = output[:, 0], output[:, 1]
+        td[self._name] = (mean, log_var.exp())
+        return td
