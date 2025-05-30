@@ -27,14 +27,14 @@ public:
   }
 
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = 1;
+    obs[offsets[0]] = _type_id;
     obs[offsets[1]] = this->hp;
     obs[offsets[2]] = this->_swappable;
   }
 
   static std::vector<std::string> feature_names() {
     std::vector<std::string> names;
-    names.push_back("wall");
+    names.push_back("type_id");
     names.push_back("hp");
     names.push_back("swappable");
     return names;
