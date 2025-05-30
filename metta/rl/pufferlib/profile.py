@@ -4,6 +4,12 @@ import functools
 from pufferlib.pufferl import Profile as PufferProfile
 
 
+def _fmt_perf(elapsed, total):
+    """Format performance metric as percentage of total time."""
+    pct = 100 * elapsed / total if total > 0 else 0
+    return f"{pct:.1f}%"
+
+
 class ProfileTimer:
     """Simple context manager that wraps PufferLib's profiling calls."""
 
@@ -52,8 +58,21 @@ class Profile:
         # Create context managers for profile sections
         if name in ["env", "eval_forward", "eval_misc", "train_forward", "learn", "train_misc"]:
             return ProfileTimer(self._profile, name, self.epoch)
-        # Direct access to timing data
+        
+        # Direct access to timing data for individual metrics
+        if name in ["eval_time", "train_time", "env_time", "eval_forward_time", 
+                    "eval_misc_time", "train_forward_time", "learn_time", "train_misc_time"]:
+            # Remove '_time' suffix to get the profile key
+            profile_key = name.replace('_time', '')
+            return self._profile.profiles.get(profile_key, {}).get("elapsed", 0)
+        
+        # Default behavior
         return self._profile.profiles.get(name, {}).get("elapsed", 0)
+
+    @property
+    def epoch_time(self):
+        """Total time for the epoch (train + eval)."""
+        return self.train_time + self.eval_time
 
     def start_epoch(self, epoch, section="eval"):
         """Start profiling for a new epoch."""
@@ -100,7 +119,13 @@ class Profile:
         yield "SPS", self.SPS
         yield "uptime", self.uptime
         yield "remaining", self.remaining
-
-        # Add performance percentages
-        for k, v in self.get_performance_stats().items():
-            yield k, v
+        
+        # Yield formatted performance metrics
+        yield "eval_time", _fmt_perf(self.eval_time, self.uptime)
+        yield "env_time", _fmt_perf(self.env_time, self.uptime)
+        yield "eval_forward_time", _fmt_perf(self.eval_forward_time, self.uptime)
+        yield "eval_misc_time", _fmt_perf(self.eval_misc_time, self.uptime)
+        yield "train_time", _fmt_perf(self.train_time, self.uptime)
+        yield "train_forward_time", _fmt_perf(self.train_forward_time, self.uptime)
+        yield "learn_time", _fmt_perf(self.learn_time, self.uptime)
+        yield "train_misc_time", _fmt_perf(self.train_misc_time, self.uptime)
