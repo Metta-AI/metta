@@ -20,12 +20,12 @@ class AutoParamsLayout(Config):
 
 
 class AutoParamsGrid(Config):
-    rows: int
-    columns: int
+    rows: IntDistribution
+    columns: IntDistribution
 
 
 class AutoParamsBSP(Config):
-    area_count: int
+    area_count: IntDistribution
 
 
 class AutoParamsRoomSymmetry(Config):

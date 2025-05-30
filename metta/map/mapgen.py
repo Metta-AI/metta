@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+from omegaconf import DictConfig, OmegaConf
 
 from metta.map.node import make_node
 from metta.map.types import MapGrid
@@ -27,6 +28,9 @@ class MapGen(LevelBuilder):
         self.grid[-self.border_width :, :] = "wall"
         self.grid[:, : self.border_width] = "wall"
         self.grid[:, -self.border_width :] = "wall"
+
+        if isinstance(self.root, DictConfig):
+            self.root = OmegaConf.to_container(self.root)  # type: ignore
 
         self.root_node = make_node(self.root, self.inner_grid())
 

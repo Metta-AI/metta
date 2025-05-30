@@ -188,7 +188,7 @@ def make_node(cfg: SceneCfg, grid: MapGrid) -> Node:
         cfg = OmegaConf.to_container(OmegaConf.load(f"{scenes_root}/{cfg}"))  # type: ignore
 
     if not isinstance(cfg, dict):
-        raise ValueError(f"Invalid scene config: {cfg}")
+        raise ValueError(f"Invalid scene config: {cfg}, type: {type(cfg)}")
 
     cls = load_class(cfg["type"])
     return cls(grid=grid, params=cfg.get("params", {}), children=cfg.get("children", []))

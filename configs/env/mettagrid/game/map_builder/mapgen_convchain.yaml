@@ -4,10 +4,11 @@ width: 100
 height: 80
 
 root:
-  _target_: metta.map.scenes.room_grid.RoomGrid
+  type: metta.map.scenes.room_grid.RoomGrid
 
-  rows: 2
-  columns: 2
+  params:
+    rows: 2
+    columns: 2
 
   children:
     - limit: 1
@@ -32,4 +33,4 @@ root:
 
     - where: full
       scene:
-        _target_: metta.map.scenes.make_connected.MakeConnected
+        type: metta.map.scenes.make_connected.MakeConnected

@@ -5,14 +5,15 @@ dir: ???
 # Optional scene to render on top of the loaded map.
 # The following example shows how to patch the map if its agent count doesn't match `game.num_agents`.
 extra_root:
-  _target_: metta.map.scenes.nop.Nop
+  type: metta.map.scenes.nop.Nop
 
   children:
     - where: full
       scene:
-        _target_: metta.map.scenes.remove_agents.RemoveAgents
+        type: metta.map.scenes.remove_agents.RemoveAgents
 
     - where: full
       scene:
-        _target_: metta.map.scenes.random.Random
-        agents: 40
+        type: metta.map.scenes.random.Random
+        params:
+          agents: 40

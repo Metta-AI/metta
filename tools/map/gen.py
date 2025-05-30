@@ -60,7 +60,7 @@ def make_map(cfg_path: str, overrides: DictConfig | None = None):
 
     cfg = cast(DictConfig, cfg)
 
-    recursive = False
+    recursive = True
 
     if cfg.get("game") and cfg.game.get("map_builder"):
         # safe default for old room maps
