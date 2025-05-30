@@ -50,12 +50,9 @@ class MazeKruskal(Scene[MazeKruskalParams]):
     └─────────┘
     """
 
-    params_type = MazeKruskalParams
+    Params = MazeKruskalParams
 
     EMPTY, WALL = "empty", "wall"
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
 
     def render(self):
         grid = self.grid

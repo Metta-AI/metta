@@ -23,7 +23,7 @@ ParamsT = TypeVar("ParamsT", bound=Config)
 
 # Base class for all map scenes.
 class Scene(Generic[ParamsT]):
-    params_type: type[ParamsT]
+    Params: type[ParamsT]
 
     _areas: list[Area]
 
@@ -40,10 +40,10 @@ class Scene(Generic[ParamsT]):
         if params is None:
             params = {}
         if isinstance(params, DictConfig):
-            self.params = self.params_type(params)
+            self.params = self.Params(params)
         elif isinstance(params, dict):
-            self.params = self.params_type(**params)
-        elif isinstance(params, self.params_type):
+            self.params = self.Params(**params)
+        elif isinstance(params, self.Params):
             self.params = params
         else:
             raise ValueError(f"Invalid params: {params}")

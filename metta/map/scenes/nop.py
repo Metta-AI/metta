@@ -11,7 +11,7 @@ class Nop(Scene[NopParams]):
     This scene doesn't do anything.
     """
 
-    params_type = NopParams
+    Params = NopParams
 
     def render(self):
         pass

@@ -50,7 +50,7 @@ class ConvChain(Scene[ConvChainParams]):
     and then generates new patterns with similar local characteristics.
     """
 
-    params_type = ConvChainParams
+    Params = ConvChainParams
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -135,7 +135,7 @@ class ConvChainSlow(Scene[ConvChainParams]):
     Committed to the repo for the sake of comparison, usually shouldn't be used and can be removed later.
     """
 
-    params_type = ConvChainParams
+    Params = ConvChainParams
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

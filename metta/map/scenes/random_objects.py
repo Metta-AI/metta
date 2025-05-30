@@ -9,7 +9,7 @@ class RandomObjectsParams(Config):
     object_ranges: dict[str, FloatDistribution] = {}
 
 
-class RandomObjects(Scene):
+class RandomObjects(Scene[RandomObjectsParams]):
     """
     Fill the grid with random objects. Unlike Random, this scene takes the percentage ranges of objects,
     not the absolute count.
@@ -17,7 +17,7 @@ class RandomObjects(Scene):
     It's rarely useful to pick the random number of agents, so this scene doesn't have that parameter.
     """
 
-    params_type = RandomObjectsParams
+    Params = RandomObjectsParams
 
     def get_children(self) -> list[ChildrenAction]:
         size = self.height * self.width
