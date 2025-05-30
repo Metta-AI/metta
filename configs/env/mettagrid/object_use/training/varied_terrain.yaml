@@ -5,7 +5,7 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: ${..num_agents}
+  num_agents: 4
   agent:
     default_item_max: 100
     rewards:
