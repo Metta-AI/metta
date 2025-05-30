@@ -1,5 +1,5 @@
 from metta.map.scenes.auto import Auto
-from tests.map.scenes.utils import assert_connected, render_node
+from tests.map.scenes.utils import assert_connected, render_scene
 
 
 def test_basic():
@@ -24,6 +24,6 @@ def test_basic():
             },
         ],
     }
-    node = render_node(Auto, params, (10, 10))
+    scene = render_scene(Auto, params, (10, 10))
 
-    assert_connected(node.grid)
+    assert_connected(scene.grid)

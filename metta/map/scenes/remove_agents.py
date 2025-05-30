@@ -1,4 +1,4 @@
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.util.config import Config
 
 
@@ -6,7 +6,7 @@ class RemoveAgentsParams(Config):
     pass
 
 
-class RemoveAgents(Node[RemoveAgentsParams]):
+class RemoveAgents(Scene[RemoveAgentsParams]):
     """
     This class solves a frequent problem: `game.num_agents` must match the
     number of agents in the map.

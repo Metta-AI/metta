@@ -1,4 +1,4 @@
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.types import ChildrenAction
 from metta.util.config import Config
@@ -8,7 +8,7 @@ class AsciiParams(Config):
     uri: str
 
 
-class Ascii(Node):
+class Ascii(Scene):
     params_type = AsciiParams
 
     def __init__(self, **kwargs):

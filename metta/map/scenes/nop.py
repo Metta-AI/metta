@@ -1,4 +1,4 @@
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.util.config import Config
 
 
@@ -6,9 +6,9 @@ class NopParams(Config):
     pass
 
 
-class Nop(Node[NopParams]):
+class Nop(Scene[NopParams]):
     """
-    This node doesn't do anything.
+    This scene doesn't do anything.
     """
 
     params_type = NopParams

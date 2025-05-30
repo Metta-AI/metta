@@ -1,6 +1,6 @@
 from typing import List, Literal, Tuple, Union
 
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.map.utils.random import IntDistribution, sample_int_distribution
 from metta.util.config import Config
 
@@ -30,7 +30,7 @@ class MazeKruskalParams(Config):
     wall_size: IntDistribution = 1
 
 
-class MazeKruskal(Node[MazeKruskalParams]):
+class MazeKruskal(Scene[MazeKruskalParams]):
     """
     Maze generation using Randomized Kruskal's algorithm.
 

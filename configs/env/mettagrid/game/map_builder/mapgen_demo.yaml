@@ -10,9 +10,9 @@ height: 40
 # This border will be added outside of width and height.
 border_width: 2
 
-# MapGen is a tree of nodes, instantiated from scenes.
-# You can think of scenes as blueprints for nodes: parameters and the behavior that instantiate nodes.
-# The terminology is inspired by Godot.
+# MapGen level is a tree of scenes, instantiated from scene classes.
+# You can think of scenes as modules that are responsible for drawing or updating some part of the map.
+# The term "scene" is borrowed from Godot.
 
 # This is the root scene.
 root:
@@ -26,11 +26,11 @@ root:
     columns: 3
     border_width: 1
 
-  # Most scenes can have children nodes.
+  # Most scenes can have children definitions.
   # Each child is created in the areas (slots) defined by the parent scene, so the specific areas are determined by the parent scene.
   #
   # You can think of the children config listed below as a list of SQL-like queries.
-  # Each child on the list can match several areas and so produce multiple nodes.
+  # Each child on the list can match several areas and so it produce multiple scene instances.
   #
   # Children are applied in order, so you can also think of them as "paint" commands or layers.
   # Children that come later in the list will be rendered on top of the map that was rendered previously, and can erase or modify the map.

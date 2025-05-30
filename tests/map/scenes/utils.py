@@ -1,21 +1,21 @@
 import numpy as np
 import pytest
 
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.map.types import ChildrenAction, MapGrid
 from metta.map.utils.ascii_grid import add_pretty_border, bordered_text_to_lines
 from metta.map.utils.storable_map import grid_to_ascii
 
 
-def render_node(cls: type[Node], params: dict, shape: tuple[int, int], children: list[ChildrenAction] = []):
+def render_scene(cls: type[Scene], params: dict, shape: tuple[int, int], children: list[ChildrenAction] = []):
     grid = np.full(shape, "empty", dtype="<U50")
-    node = cls(grid=grid, params=params, children=children)
-    node.render_with_children()
-    return node
+    scene = cls(grid=grid, params=params, children=children)
+    scene.render_with_children()
+    return scene
 
 
-def assert_grid(node: Node, ascii_grid: str):
-    grid_lines = grid_to_ascii(node.grid)
+def assert_grid(scene: Scene, ascii_grid: str):
+    grid_lines = grid_to_ascii(scene.grid)
     expected_lines, _, _ = bordered_text_to_lines(ascii_grid)
 
     if grid_lines != expected_lines:

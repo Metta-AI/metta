@@ -1,8 +1,8 @@
 from metta.map.scenes.nop import Nop
-from tests.map.scenes.utils import render_node
+from tests.map.scenes.utils import render_scene
 
 
 def test_basic():
-    node = render_node(Nop, {}, (3, 3))
+    scene = render_scene(Nop, {}, (3, 3))
 
-    assert (node.grid == "empty").sum() == 9
+    assert (scene.grid == "empty").sum() == 9

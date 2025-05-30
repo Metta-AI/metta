@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.map.scenes.bsp import BSPLayout
 from metta.map.scenes.make_connected import MakeConnected
 from metta.map.scenes.mirror import Mirror
@@ -45,7 +45,7 @@ class AutoParams(Config):
     room_objects: dict[str, FloatDistribution]
 
 
-class Auto(Node[AutoParams]):
+class Auto(Scene[AutoParams]):
     params_type = AutoParams
 
     def get_children(self) -> list[ChildrenAction]:
@@ -72,7 +72,7 @@ class Auto(Node[AutoParams]):
         pass
 
 
-class AutoLayout(Node[AutoParams]):
+class AutoLayout(Scene[AutoParams]):
     params_type = AutoParams
 
     def get_children(self) -> list[ChildrenAction]:
@@ -133,7 +133,7 @@ class AutoLayout(Node[AutoParams]):
         pass
 
 
-class AutoSymmetry(Node[AutoParams]):
+class AutoSymmetry(Scene[AutoParams]):
     params_type = AutoParams
 
     def get_children(self) -> list[ChildrenAction]:
@@ -149,16 +149,16 @@ class AutoSymmetry(Node[AutoParams]):
         weights /= weights.sum()
         symmetry = self.rng.choice(["none", "horizontal", "vertical", "x4"], p=weights)
 
-        def get_random_scene(grid: MapGrid) -> Node:
+        def get_random_scene(grid: MapGrid) -> Scene:
             return RandomScene(grid=grid, params={"candidates": self.params.content}, seed=self.rng)
 
-        def get_node(grid: MapGrid) -> Node:
+        def get_scene(grid: MapGrid) -> Scene:
             if symmetry == "none":
                 return get_random_scene(grid)
             else:
                 return Mirror(grid=grid, params={"scene": get_random_scene, "symmetry": symmetry}, seed=self.rng)
 
-        return [ChildrenAction(scene=get_node, where="full")]
+        return [ChildrenAction(scene=get_scene, where="full")]
 
     def render(self):
         pass

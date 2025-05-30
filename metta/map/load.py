@@ -2,7 +2,7 @@ from typing import cast
 
 from omegaconf import DictConfig, OmegaConf
 
-from metta.map.node import make_node
+from metta.map.scene import make_scene
 from metta.map.utils.storable_map import StorableMap
 from mettagrid.level_builder import Level
 from mettagrid.room.room import Room
@@ -35,7 +35,7 @@ class Load(Room):
         grid = self._storable_map.grid
 
         if self._extra_root is not None:
-            root_node = make_node(self._extra_root, grid)
-            root_node.render_with_children()
+            root_scene = make_scene(self._extra_root, grid)
+            root_scene.render_with_children()
 
         return Level(grid=grid, labels=[])

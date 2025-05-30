@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.util.config import Config
 
 DIRECTIONS = [(-1, 0), (0, 1), (1, 0), (0, -1)]
@@ -17,7 +17,7 @@ class MakeConnectedParams(Config):
     pass
 
 
-class MakeConnected(Node[MakeConnectedParams]):
+class MakeConnected(Scene[MakeConnectedParams]):
     """
     This scene makes the map connected by digging tunnels.
 
