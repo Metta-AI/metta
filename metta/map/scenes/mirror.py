@@ -1,7 +1,7 @@
 from typing import Literal
 
 from metta.map.node import Node, make_node
-from metta.map.scene import SceneCfg
+from metta.map.types import SceneCfg
 from metta.util.config import Config
 
 Symmetry = Literal["horizontal", "vertical", "x4"]

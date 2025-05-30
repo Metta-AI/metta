@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from metta.map.node import Node
-from metta.map.scene import AreaQuery, AreaWhere
+from metta.map.types import AreaQuery, AreaWhere
 from metta.util.config import Config
 
 # Set a global seed for reproducibility

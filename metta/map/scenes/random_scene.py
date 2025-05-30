@@ -1,7 +1,7 @@
 import numpy as np
 
 from metta.map.node import Node
-from metta.map.scene import ChildrenAction, SceneCfg
+from metta.map.types import ChildrenAction, SceneCfg
 from metta.util.config import Config
 
 

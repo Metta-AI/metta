@@ -7,7 +7,7 @@ from metta.map.node import make_node
 from metta.map.types import MapGrid
 from mettagrid.level_builder import Level, LevelBuilder
 
-from .scene import SceneCfg
+from .types import SceneCfg
 
 
 # Root map generator, based on nodes.

@@ -3,8 +3,8 @@ from typing import cast
 
 from metta.map.config import scenes_root
 from metta.map.node import Node
-from metta.map.scene import ChildrenAction
 from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
+from metta.map.types import ChildrenAction
 from metta.util.config import Config
 
 

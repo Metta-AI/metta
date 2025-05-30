@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from metta.map.scene import AreaQuery
 from metta.map.scenes.room_grid import RoomGrid
+from metta.map.types import AreaQuery
 from tests.map.scenes.utils import assert_grid, render_node
 
 

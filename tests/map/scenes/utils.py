@@ -2,8 +2,7 @@ import numpy as np
 import pytest
 
 from metta.map.node import Node
-from metta.map.scene import ChildrenAction
-from metta.map.types import MapGrid
+from metta.map.types import ChildrenAction, MapGrid
 from metta.map.utils.ascii_grid import add_pretty_border, bordered_text_to_lines
 from metta.map.utils.storable_map import grid_to_ascii
 

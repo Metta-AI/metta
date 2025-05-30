@@ -1,6 +1,6 @@
 from metta.map.node import Node
-from metta.map.scene import ChildrenAction
 from metta.map.scenes.inline_ascii import InlineAscii
+from metta.map.types import ChildrenAction
 from metta.util.config import Config
 
 
