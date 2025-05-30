@@ -19,6 +19,7 @@ file_mounts:
     mode: MOUNT_CACHED
 
 setup: |
+  set -e
   cd /workspace/metta
   git fetch
   git checkout $METTA_GIT_REF
