@@ -48,7 +48,12 @@ def make_map(cfg_path: str, overrides: DictConfig | None = None):
 
     with hydra.initialize(config_path="../../configs", version_base=None):
         hydra_cfg_path = os.path.relpath(cfg_path, "./configs")
-        cfg = config_from_path(hydra_cfg_path, overrides)
+        if "../" in hydra_cfg_path:
+            logger.info("Config is not in the configs directory, loading with OmegaConf")
+            cfg = OmegaConf.load(cfg_path)
+        else:
+            logger.info(f"Loading hydra config from {hydra_cfg_path}")
+            cfg = config_from_path(hydra_cfg_path, overrides)
 
     if not OmegaConf.is_dict(cfg):
         raise ValueError(f"Invalid config type: {type(cfg)}")
