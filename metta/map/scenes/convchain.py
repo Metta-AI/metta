@@ -50,9 +50,7 @@ class ConvChain(Scene[ConvChainParams]):
     and then generates new patterns with similar local characteristics.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
+    def post_init(self):
         self._weights = ascii_to_weights_of_all_patterns(
             self.params.pattern,
             self.params.pattern_size,
@@ -133,9 +131,7 @@ class ConvChainSlow(Scene[ConvChainParams]):
     Committed to the repo for the sake of comparison, usually shouldn't be used and can be removed later.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
+    def post_init(self):
         self._weights = ascii_to_weights_of_all_patterns(
             self.params.pattern,
             self.params.pattern_size,

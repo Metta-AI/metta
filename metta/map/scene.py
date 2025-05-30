@@ -21,8 +21,15 @@ class Area:
 ParamsT = TypeVar("ParamsT", bound=Config)
 
 
-# Base class for all map scenes.
 class Scene(Generic[ParamsT]):
+    """
+    Base class for all map scenes.
+
+    Subclasses must:
+    1. Inherit from Scene[ParamsT], where ParamsT is a subclass of Config.
+    2. Define a `render()` method.
+    """
+
     Params: type[ParamsT]
     params: ParamsT
 
@@ -81,9 +88,19 @@ class Scene(Generic[ParamsT]):
 
         self.rng = np.random.default_rng(seed)
 
-    # Render does two things:
-    # - updates `self.grid` as it sees fit
-    # - creates areas of interest in a scene through `self.make_area()`
+        self.post_init()
+
+    def post_init(self):
+        """
+        Override this method in subclasses to perform additional initialization.
+
+        This is preferred over `__init__` because it's harder to make `__init__` type-safe in scene subclasses.
+        """
+        pass
+
+    # Render implementations can do two things:
+    # - update `self.grid` as it sees fit
+    # - create areas of interest in a scene through `self.make_area()`
     def render(self):
         raise NotImplementedError("Subclass must implement render method")
 
@@ -167,10 +184,13 @@ class Scene(Generic[ParamsT]):
         return selected_areas
 
 
-def load_class(cls: str):
-    module_name, class_name = cls.rsplit(".", 1)
+def load_class(full_class_name: str) -> type[Scene]:
+    module_name, class_name = full_class_name.rsplit(".", 1)
     module = importlib.import_module(module_name)
-    return getattr(module, class_name)
+    cls = getattr(module, class_name)
+    if not issubclass(cls, Scene):
+        raise ValueError(f"Class {cls} does not inherit from Scene")
+    return cls
 
 
 def make_scene(cfg: SceneCfg, grid: MapGrid) -> Scene:

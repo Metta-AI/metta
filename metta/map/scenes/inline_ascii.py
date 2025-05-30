@@ -35,9 +35,7 @@ class InlineAsciiParams(Config):
 
 
 class InlineAscii(Scene[InlineAsciiParams]):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
+    def post_init(self):
         params = self.params
 
         lines = params.data.strip().splitlines()
