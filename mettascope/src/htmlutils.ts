@@ -1,4 +1,3 @@
-
 // Parse a hex color string into a float array.
 export function parseHtmlColor(color: string): [number, number, number, number] {
   return [
@@ -42,4 +41,107 @@ export function walkUpAttribute(element: HTMLElement, attribute: string): string
     e = e.parentElement as HTMLElement;
   }
   return "";
+}
+
+
+// I don't like the way that DOM handles events. I think they should be done
+// via CSS selectors rather then handlers one attaches and detaches all the time.
+// Here we have an onEvent function that attaches to a CSS selector and
+// is called when that event happens.
+
+type Handler = {
+  selector: string;
+  event: string;
+  callback: (target: HTMLElement, event: Event) => void;
+}
+
+var globalHandlers: Map<string, Handler[]> = new Map();
+
+export function onEvent(event: string, selector: string, callback: (target: HTMLElement, event: Event) => void) {
+  let handler: Handler = {
+    selector: selector,
+    event: event,
+    callback: callback
+  };
+  if (!globalHandlers.has(event)) {
+    // First time we've seen this event.
+    window.addEventListener(event, (e: Event) => {
+      let handlers = globalHandlers.get(event);
+      if (handlers) {
+        var target = e.target as HTMLElement;
+        while (target != null) {
+          for (let handler of handlers) {
+            if (target.matches(handler.selector)) {
+              handler.callback(target, e);
+              return;
+            }
+          }
+          target = target.parentElement as HTMLElement;
+        }
+      }
+    })
+    globalHandlers.set(event, []);
+  }
+  globalHandlers.get(event)?.push(handler);
+}
+
+// var scrim = find('#scrim') as HTMLDivElement;
+// var scrimTarget: HTMLElement | null = null;
+// scrim.classList.add("hidden");
+// onEvent("click", "#scrim", (target: HTMLElement, e: Event) => {
+//   scrim.classList.add("hidden");
+//   if (scrimTarget != null) {
+//     scrimTarget.classList.add("hidden");
+//   }
+// });
+
+// // Shows a menu and sets the scrim target to the menu.
+// export function showMenu(target: HTMLElement, menu: HTMLElement) {
+//   // Get location of the target.
+//   let rect = target.getBoundingClientRect();
+//   menu.style.left = rect.left + "px";
+//   menu.style.top = (rect.bottom + 2) + "px";
+//   menu.classList.remove("hidden");
+//   scrim.classList.remove("hidden");
+//   scrimTarget = menu;
+// }
+
+// // Hides the menu and the scrim.
+// export function hideMenu() {
+//   scrim.classList.add("hidden");
+//   if (scrimTarget != null) {
+//     scrimTarget.classList.add("hidden");
+//   }
+// }
+
+
+var scrim = find('#scrim') as HTMLDivElement;
+var scrimTarget: HTMLElement | null = null;
+scrim.classList.add("hidden");
+
+var openMenuTarget: HTMLElement | null = null;
+var openMenu: HTMLElement | null = null;
+
+// Shows a menu and sets the scrim target to the menu.
+export function showMenu(target: HTMLElement, menu: HTMLElement) {
+  // Get location of the target.
+  openMenuTarget = target;
+  openMenu = menu;
+  openMenuTarget.classList.add("selected");
+  let rect = openMenuTarget.getBoundingClientRect();
+  openMenu.style.left = rect.left + "px";
+  openMenu.style.top = (rect.bottom + 2) + "px";
+  openMenu.classList.remove("hidden");
+}
+
+// Hides the menu and the scrim.
+export function hideMenu() {
+  if (openMenuTarget != null) {
+    openMenuTarget.classList.remove("selected");
+    openMenuTarget = null;
+  }
+  if (openMenu != null) {
+    openMenu.classList.add("hidden");
+    openMenu = null;
+  }
 }

@@ -54,51 +54,46 @@ canvas#global-canvas {
 }
 
 .left #rewind-to-start.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 0px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .left #step-back.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 37px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .left #play.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 74px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .left #step-forward.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 111px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .left #rewind-to-end.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 148px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
@@ -119,61 +114,55 @@ canvas#global-canvas {
 }
 
 .center #speed1.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 0px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .center #speed2.hover-icon {
+    position: relative;
     display: block;
     width: 17px;
     height: 32px;
-    left: 37px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .center #speed3.hover-icon {
+    position: relative;
     display: block;
     width: 17px;
     height: 32px;
-    left: 59px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .center #speed4.hover-icon {
+    position: relative;
     display: block;
     width: 17px;
     height: 32px;
-    left: 81px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .center #speed5.hover-icon {
+    position: relative;
     display: block;
     width: 17px;
     height: 32px;
-    left: 103px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .center #speed6.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 125px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
@@ -195,109 +184,98 @@ canvas#global-canvas {
 }
 
 .right #focus-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 0px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right .sep1 {
+    position: relative;
     display: block;
     width: 1px;
     height: 16px;
-    left: 37px;
-    top: 8px;
     background-color: rgba(255, 255, 255, 0.10);
 }
 
 .right #minimap-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 43px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #controls-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 80px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #info-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 117px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #agent-panel-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 154px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right .sep2 {
+    position: relative;
     display: block;
     width: 1px;
     height: 16px;
-    left: 191px;
-    top: 8px;
     background-color: rgba(255, 255, 255, 0.10);
 }
 
 .right #resources-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 197px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #grid-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 234px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #visual-range-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 271px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .right #fog-of-war-toggle.hover-icon {
+    position: relative;
     display: block;
     width: 32px;
     height: 32px;
-    left: 308px;
-    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
@@ -318,11 +296,10 @@ canvas#global-canvas {
 }
 
 #time-panel input#main-scrubber {
+    position: relative;
     display: block;
     width: 100%;
     height: 32px;
-    left: 32px;
-    top: 16px;
     align-self: stretch;
     background-color: rgba(217, 217, 217, 1.00);
 }
@@ -466,11 +443,10 @@ button#help-button.hover-icon .icon {
 }
 
 #modal .header {
+    position: relative;
     display: inline-block;
     width: 100%;
     height: fit-content;
-    left: 64px;
-    top: 64px;
     align-self: stretch;
     color: rgba(255, 255, 255, 1.00);
     font-family: IBM Plex Sans;
@@ -484,11 +460,10 @@ button#help-button.hover-icon .icon {
 }
 
 #modal .message {
+    position: relative;
     display: inline-block;
     width: 100%;
     height: fit-content;
-    left: 64px;
-    top: 148px;
     align-self: stretch;
     color: rgba(255, 255, 255, 1.00);
     font-family: IBM Plex Sans;
@@ -522,11 +497,10 @@ button#help-button.hover-icon .icon {
 }
 
 #toast .message {
+    position: relative;
     display: inline-block;
     width: fit-content;
     height: fit-content;
-    left: 20px;
-    top: 10px;
     color: rgba(255, 255, 255, 1.00);
     font-family: IBM Plex Sans;
     font-style: normal;
@@ -553,12 +527,11 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-#info-panel .info {
+#info-panel ..info {
+    position: relative;
     display: inline-block;
     width: fit-content;
     height: fit-content;
-    left: 16px;
-    top: 16px;
     color: rgba(255, 255, 255, 1.00);
     font-family: IBM Plex Mono;
     font-style: normal;
@@ -1093,11 +1066,10 @@ button#help-button.hover-icon .icon {
 }
 
 #agent-panel .table {
+    position: relative;
     display: flex;
     width: fit-content;
     height: fit-content;
-    left: 10px;
-    top: 10px;
     flex-direction: row;
     flex-wrap: nowrap;
     gap: 1px;
@@ -1106,11 +1078,10 @@ button#help-button.hover-icon .icon {
 }
 
 .table .column {
+    position: relative;
     display: flex;
     width: fit-content;
     height: fit-content;
-    left: 1px;
-    top: 1px;
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 1px;
@@ -1118,11 +1089,10 @@ button#help-button.hover-icon .icon {
 }
 
 .column .header-cell {
+    position: relative;
     display: flex;
     width: fit-content;
     height: 38px;
-    left: 0px;
-    top: 0px;
     flex-direction: row;
     flex-wrap: nowrap;
     gap: 4px;
@@ -1132,19 +1102,17 @@ button#help-button.hover-icon .icon {
 }
 
 .header-cell .icon {
+    position: relative;
     display: block;
     width: 17px;
     height: 20px;
-    left: 4px;
-    top: 9px;
 }
 
 .header-cell .name {
+    position: relative;
     display: inline-block;
     width: fit-content;
     height: fit-content;
-    left: 25px;
-    top: 10px;
     color: rgba(130, 130, 130, 1.00);
     font-family: IBM Plex Sans;
     font-style: normal;
@@ -1156,12 +1124,11 @@ button#help-button.hover-icon .icon {
     line-height: 18.20px;
 }
 
-.header-cell .show-on-hover {
+.header-cell .dropdown.show-on-hover {
+    position: relative;
     display: flex;
     width: fit-content;
     height: fit-content;
-    left: 83px;
-    top: 5px;
     flex-direction: row;
     flex-wrap: nowrap;
     gap: 10px;
@@ -1173,22 +1140,20 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.show-on-hover .drop-down-icon {
+.dropdown.show-on-hover .drop-down-icon {
+    position: relative;
     display: block;
     width: 20px;
     height: 20px;
-    left: 4px;
-    top: 4px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
 .column .data-cell {
+    position: relative;
     display: flex;
     width: 100%;
     height: 38px;
-    left: 0px;
-    top: 39px;
     flex-direction: row;
     flex-wrap: nowrap;
     gap: 4px;
@@ -1199,11 +1164,10 @@ button#help-button.hover-icon .icon {
 }
 
 .data-cell .name {
+    position: relative;
     display: inline-block;
     width: 100%;
     height: fit-content;
-    left: 4px;
-    top: 10px;
     flex-grow: 1.0;
     flex-shrink: 1;
     flex-basis: auto;
@@ -1218,362 +1182,11 @@ button#help-button.hover-icon .icon {
     line-height: 18.20px;
 }
 
-.column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 78px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
-}
-
-.data-cell .name {
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    left: 4px;
-    top: 10px;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
-}
-
-.column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 117px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
-}
-
-.data-cell .name {
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    left: 4px;
-    top: 10px;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
-}
-
-.column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 156px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
-}
-
-.data-cell .name {
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    left: 4px;
-    top: 10px;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
-}
-
-.column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 195px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
-}
-
-.data-cell .name {
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    left: 4px;
-    top: 10px;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
-}
-
-.column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 234px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
-}
-
-.data-cell .name {
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    left: 4px;
-    top: 10px;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
-}
-
-.column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 273px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
-}
-
-.data-cell .name {
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    left: 4px;
-    top: 10px;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
-}
-
-.column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 312px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
-}
-
-.data-cell .name {
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    left: 4px;
-    top: 10px;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
-}
-
-.column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 351px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
-}
-
-.data-cell .name {
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    left: 4px;
-    top: 10px;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
-}
-
-.column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 390px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
-}
-
-.data-cell .name {
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    left: 4px;
-    top: 10px;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
-}
-
-.column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 429px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
-}
-
-.data-cell .name {
-    display: inline-block;
-    width: 100%;
-    height: fit-content;
-    left: 4px;
-    top: 10px;
-    flex-grow: 1.0;
-    flex-shrink: 1;
-    flex-basis: auto;
-    color: rgba(130, 130, 130, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 14px;
-    text-align: right;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 18.20px;
-}
-
 .table .new-column {
+    position: relative;
     display: flex;
     width: fit-content;
     height: fit-content;
-    left: 117px;
-    top: 1px;
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 1px;
@@ -1581,11 +1194,10 @@ button#help-button.hover-icon .icon {
 }
 
 .new-column .header-cell {
+    position: relative;
     display: flex;
     width: fit-content;
     height: 38px;
-    left: 0px;
-    top: 0px;
     flex-direction: row;
     flex-wrap: nowrap;
     gap: 4px;
@@ -1607,11 +1219,10 @@ button#help-button.hover-icon .icon {
 }
 
 .header-cell input#new-column-input {
+    position: relative;
     display: flex;
     width: 141px;
     height: fit-content;
-    left: 4px;
-    top: 4px;
     flex-direction: row;
     flex-wrap: nowrap;
     gap: 10px;
@@ -1636,11 +1247,10 @@ button#help-button.hover-icon .icon {
 }
 
 .new-column .data-cell {
+    position: relative;
     display: flex;
     width: 100%;
     height: 38px;
-    left: 0px;
-    top: 39px;
     flex-direction: row;
     flex-wrap: nowrap;
     gap: 4px;
@@ -1650,152 +1260,439 @@ button#help-button.hover-icon .icon {
     background-color: rgba(28, 29, 30, 1.00);
 }
 
-.new-column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
+#scrim {
+    position: absolute;
+    display: block;
+    width: 1747px;
+    height: 1219px;
     left: 0px;
-    top: 78px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
+    top: 0px;
+    background-color: rgba(255, 255, 255, 0.01);
 }
 
-.new-column .data-cell {
+#new-column-dropdown {
+    position: absolute;
     display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 117px;
-    flex-direction: row;
+    width: 313px;
+    height: 124px;
+    left: 1377px;
+    top: 109px;
+    flex-direction: column;
     flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
+    padding: 0px 0px 10px 0px;
     background-color: rgba(28, 29, 30, 1.00);
+    border-radius: 10px;
+    overflow: hidden;
+    border-color: rgba(79, 79, 79, 1.00);
+    border-width: 1px;
+    border-style: solid;
 }
 
-.new-column .data-cell {
+#new-column-dropdown .title-area {
+    position: relative;
     display: flex;
     width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 156px;
+    height: fit-content;
     flex-direction: row;
     flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
+    gap: 10px;
+    padding: 6px 10px 6px 10px;
     align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
+    background-color: rgba(0, 0, 0, 0.00);
 }
 
-.new-column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 195px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
+.title-area .title {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(189, 189, 189, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 16px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 20.80px;
 }
 
-.new-column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 234px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
+#new-column-dropdown .explain {
+    position: relative;
+    display: block;
+    width: 312px;
+    height: 40px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
 }
 
-.new-column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 273px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
+.explain .at_the_current_time_stamp {
+    position: absolute;
+    display: inline-block;
+    width: 116px;
+    height: 13px;
+    left: 33px;
+    top: 0px;
+    color: rgba(79, 79, 79, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 10px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 13px;
 }
 
-.new-column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 312px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
+.explain .final_result_at_the_end_of_the_run {
+    position: absolute;
+    display: inline-block;
+    width: 144px;
+    height: 13px;
+    left: 55px;
+    top: 15px;
+    color: rgba(79, 79, 79, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 10px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 13px;
 }
 
-.new-column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 351px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
+.explain .rectangle_346 {
+    position: absolute;
+    display: block;
+    width: 11px;
+    height: 2px;
+    left: 19px;
+    top: 6px;
+    background-color: rgba(79, 79, 79, 1.00);
 }
 
-.new-column .data-cell {
-    display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 390px;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 4px;
-    padding: 4px 4px 4px 4px;
-    align-items: center;
-    align-self: stretch;
-    background-color: rgba(28, 29, 30, 1.00);
+.explain .rectangle_348 {
+    position: absolute;
+    display: block;
+    width: 11px;
+    height: 2px;
+    left: 42px;
+    top: 21px;
+    background-color: rgba(79, 79, 79, 1.00);
 }
 
-.new-column .data-cell {
+.explain .rectangle_347 {
+    position: absolute;
+    display: block;
+    width: 2px;
+    height: 33px;
+    left: 19px;
+    top: 7px;
+    background-color: rgba(79, 79, 79, 1.00);
+}
+
+.explain .rectangle_349 {
+    position: absolute;
+    display: block;
+    width: 2px;
+    height: 19px;
+    left: 42px;
+    top: 21px;
+    background-color: rgba(79, 79, 79, 1.00);
+}
+
+#new-column-dropdown .new-field-options {
+    position: relative;
     display: flex;
-    width: 100%;
-    height: 38px;
-    left: 0px;
-    top: 429px;
+    width: 312px;
+    height: fit-content;
     flex-direction: row;
     flex-wrap: nowrap;
     gap: 4px;
-    padding: 4px 4px 4px 4px;
+    padding: 10px 10px 10px 10px;
     align-items: center;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.new-field-options .ui/check-on {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.new-field-options .ui/check-off {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.new-field-options .icon {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+}
+
+.new-field-options .name {
+    position: relative;
+    display: inline-block;
+    width: 234px;
+    height: 20px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 16px;
+    text-align: left;
+    vertical-align: center;
+    letter-spacing: 0px;
+    line-height: 20.80px;
+}
+
+#new-column-dropdown .sep {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 1px;
     align-self: stretch;
+    background-color: rgba(42, 43, 43, 1.00);
+}
+
+#column-menu {
+    position: absolute;
+    display: flex;
+    width: 162px;
+    height: 216px;
+    left: 752px;
+    top: 184px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 5px 0px 5px 0px;
     background-color: rgba(28, 29, 30, 1.00);
+    border-radius: 4px;
+    overflow: hidden;
+    border-color: rgba(79, 79, 79, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+#column-menu .sort-up.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.sort-up.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.sort-up.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#column-menu .sort-down.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.sort-down.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.sort-down.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#column-menu .sep {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 1px;
+    align-self: stretch;
+    background-color: rgba(53, 54, 55, 1.00);
+}
+
+#column-menu .move-left.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.move-left.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.move-left.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#column-menu .move-right.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.move-right.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.move-right.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#column-menu .sep {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 1px;
+    align-self: stretch;
+    background-color: rgba(53, 54, 55, 1.00);
+}
+
+#column-menu .hide-column.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.hide-column.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.hide-column.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
 }

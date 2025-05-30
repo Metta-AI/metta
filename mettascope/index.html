@@ -42,7 +42,7 @@
       </div>
     </div>
     <div id="time-panel">
-      <input name="" id="main-scrubber">
+      <input id="main-scrubber">
     </div>
     <div id="trace-panel"></div>
     <div id="worldmap-panel"></div>
@@ -65,7 +65,7 @@
       <span class="message">Toast message goes here.</span>
     </div>
     <div id="info-panel">
-      <span class="info">Starting MettaScope ...</span>
+      <span class=" info">Starting MettaScope ...</span>
     </div>
     <div id="minimap-panel"></div>
     <div id="action-buttons">
@@ -128,60 +128,65 @@
           <div class="header-cell">
             <img src="data/icon.png" alt="icon" class="icon">
             <span class="name">Agent Id</span>
-            <div class="show-on-hover">
+            <div class="dropdown show-on-hover">
               <img src="data/ui/drop-down.png" alt="drop-down-icon" class="drop-down-icon">
             </div>
           </div>
           <div class="data-cell">
             <span class="name">20</span>
           </div>
-          <div class="data-cell">
-            <span class="name">19</span>
-          </div>
-          <div class="data-cell">
-            <span class="name">18</span>
-          </div>
-          <div class="data-cell">
-            <span class="name">17</span>
-          </div>
-          <div class="data-cell">
-            <span class="name">16</span>
-          </div>
-          <div class="data-cell">
-            <span class="name">15</span>
-          </div>
-          <div class="data-cell">
-            <span class="name">14</span>
-          </div>
-          <div class="data-cell">
-            <span class="name">13</span>
-          </div>
-          <div class="data-cell">
-            <span class="name">12</span>
-          </div>
-          <div class="data-cell">
-            <span class="name">11</span>
-          </div>
-          <div class="data-cell">
-            <span class="name">10</span>
-          </div>
         </div>
         <div class="new-column">
           <div class="header-cell">
-            <input name="" placeholder="New Column" id="new-column-input">
+            <input placeholder="New Column" id="new-column-input">
           </div>
           <div class="data-cell"></div>
-          <div class="data-cell"></div>
-          <div class="data-cell"></div>
-          <div class="data-cell"></div>
-          <div class="data-cell"></div>
-          <div class="data-cell"></div>
-          <div class="data-cell"></div>
-          <div class="data-cell"></div>
-          <div class="data-cell"></div>
-          <div class="data-cell"></div>
-          <div class="data-cell"></div>
         </div>
+      </div>
+    </div>
+    <div id="scrim"></div>
+    <div id="new-column-dropdown">
+      <div class="title-area">
+        <span class="title">Available Columns</span>
+      </div>
+      <div class="explain">
+        <span class="at_the_current_time_stamp">At the current time stamp</span>
+        <span class="final_result_at_the_end_of_the_run">Final result at the end of the run</span>
+        <div class="rectangle_346"></div>
+        <div class="rectangle_348"></div>
+        <div class="rectangle_347"></div>
+        <div class="rectangle_349"></div>
+      </div>
+      <div class="new-field-options">
+        <img src="data/ui/check-on.png" alt="ui/check-on" class="ui/check-on">
+        <img src="data/ui/check-off.png" alt="ui/check-off" class="ui/check-off">
+        <img src="data/icon.png" alt="icon" class="icon">
+        <span class="name">Total Reward</span>
+      </div>
+      <div class="sep"></div>
+    </div>
+    <div id="column-menu">
+      <div class="sort-up hover">
+        <span class="text">Sort ascending</span>
+        <img src="data/ui/sort-up.png" alt="icon" class="icon">
+      </div>
+      <div class="sort-down hover">
+        <span class="text">Sort descending</span>
+        <img src="data/ui/sort-down.png" alt="icon" class="icon">
+      </div>
+      <div class="sep"></div>
+      <div class="move-left hover">
+        <span class="text">Move left</span>
+        <img src="data/ui/left-arrow.png" alt="icon" class="icon">
+      </div>
+      <div class="move-right hover">
+        <span class="text">Move right</span>
+        <img src="data/ui/right-arrow.png" alt="icon" class="icon">
+      </div>
+      <div class="sep"></div>
+      <div class="hide-column hover">
+        <span class="text">Hide column</span>
+        <img src="data/ui/hide.png" alt="icon" class="icon">
       </div>
     </div>
   </body>

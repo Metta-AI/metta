@@ -1,5 +1,5 @@
-import { find, finds, removeChildren, walkUpAttribute } from "./htmlutils.js";
-import { state, setFollowSelection } from "./common.js";
+import { find, finds, removeChildren, walkUpAttribute, onEvent, showMenu, hideMenu } from "./htmlutils.js";
+import { state, setFollowSelection, html } from "./common.js";
 import { getAttr } from "./replay.js";
 import { updateSelection } from "./main.js";
 
@@ -39,12 +39,6 @@ function capitalize(str: string) {
 }
 
 const agentTable = find("#agent-panel .table");
-// const header = find("#agent-table .header");
-// const fieldHeaderTemplate = finds("#agent-table .field-header")[0];
-// const newFieldTemplate = find("#agent-table #new-field");
-// const rowTemplate = finds("#agent-table .row")[0];
-// const cellTemplate = finds("#agent-table .cell")[0];
-
 const table = find("#agent-panel .table");
 const columnTemplate = finds("#agent-panel .table .column")[0];
 const headerCellTemplate = finds("#agent-panel .table .header-cell")[0];
@@ -52,13 +46,84 @@ const dataCellTemplate = finds("#agent-panel .table .data-cell")[0];
 const newColumnTemplate = finds("#agent-panel .table .new-column")[0];
 const newColumnHeaderCell = finds("#agent-panel .table .new-column .header-cell")[0];
 const newColumnDataCell = finds("#agent-panel .table .new-column .data-cell")[0];
+const columnMenu = find("#column-menu");
+const newColumnDropdown = find("#new-column-dropdown");
 
 export function initAgentTable() {
   // removeChildren(rowTemplate);
 
-  agentTable.addEventListener("click", (event) => {
-    // Get the element that was actually clicked
-    let target = event.target as HTMLElement;
+  columnMenu.classList.add("hidden");
+  newColumnDropdown.classList.add("hidden");
+
+  // agentTable.addEventListener("click", (event) => {
+  //   // Get the element that was actually clicked
+  //   let target = event.target as HTMLElement;
+  //   let agentId = walkUpAttribute(target, "data-agent-id");
+  //   if (agentId != "") {
+  //     for (let i = 0; i < state.replay.grid_objects.length; i++) {
+  //       let gridObject = state.replay.grid_objects[i];
+  //       if (getAttr(gridObject, "agent_id") == agentId) {
+  //         updateSelection(gridObject, true)
+  //         break;
+  //       }
+  //     }
+  //   }
+
+  //   // let dataField = walkUpAttribute(target, "data-field");
+  //   // if (dataField != "") {
+  //   //   if (dataField == mainSort.field) {
+  //   //     sortDirection = -sortDirection;
+  //   //   } else {
+  //   //     for (let header of headers) {
+  //   //       if (header.field == dataField) {
+  //   //         mainSort = header;
+  //   //         break;
+  //   //       }
+  //   //     }
+  //   //     sortDirection = -1;
+  //   //   }
+  //   //   updateAgentTable();
+  //   // }
+  // });
+
+
+
+  onEvent("click", "#agent-panel .header-cell .dropdown", (target: HTMLElement, e: Event) => {
+    // let event = e as MouseEvent;
+    // console.log("Header cell clicked", event);
+    // let columnMenu = find("#column-menu");
+    // columnMenu.classList.remove("hidden");
+    // // Get location of the target.
+    // let rect = target.getBoundingClientRect();
+    // columnMenu.style.left = rect.left + "px";
+    // columnMenu.style.top = (rect.bottom + 2) + "px";
+    // html.scrim.classList.remove("hidden");
+    // html.scrimTarget = columnMenu;
+    let columnMenu = find("#column-menu");
+    showMenu(target, columnMenu);
+  });
+
+  onEvent("click", "#column-menu .sort-up", (target: HTMLElement, e: Event) => {
+    console.log("Sort up clicked");
+  });
+
+  onEvent("click", "#column-menu .sort-down", (target: HTMLElement, e: Event) => {
+    console.log("Sort up clicked");
+  });
+
+  onEvent("click", "#column-menu .move-left", (target: HTMLElement, e: Event) => {
+    console.log("Move left clicked");
+  });
+
+  onEvent("click", "#column-menu .move-right", (target: HTMLElement, e: Event) => {
+    console.log("Move right clicked");
+  });
+
+  onEvent("click", "#column-menu .hide-column", (target: HTMLElement, e: Event) => {
+    console.log("Hide column clicked");
+  });
+
+  onEvent("click", "#agent-panel .data-cell", (target: HTMLElement, e: Event) => {
     let agentId = walkUpAttribute(target, "data-agent-id");
     if (agentId != "") {
       for (let i = 0; i < state.replay.grid_objects.length; i++) {
@@ -69,22 +134,21 @@ export function initAgentTable() {
         }
       }
     }
+  });
 
-    // let dataField = walkUpAttribute(target, "data-field");
-    // if (dataField != "") {
-    //   if (dataField == mainSort.field) {
-    //     sortDirection = -sortDirection;
-    //   } else {
-    //     for (let header of headers) {
-    //       if (header.field == dataField) {
-    //         mainSort = header;
-    //         break;
-    //       }
-    //     }
-    //     sortDirection = -1;
-    //   }
-    //   updateAgentTable();
-    // }
+  onEvent("click", "#new-column-input", (target: HTMLElement, e: Event) => {
+    // let event = e as MouseEvent;
+    // console.log("New column input clicked", event);
+    // let newColumnDropdown = find("#new-column-dropdown");
+    // newColumnDropdown.classList.remove("hidden");
+    // // Get location of the target.
+    // let rect = target.getBoundingClientRect();
+    // newColumnDropdown.style.left = rect.left + "px";
+    // newColumnDropdown.style.top = (rect.bottom + 2) + "px";
+    // html.scrim.classList.remove("hidden");
+    // html.scrimTarget = newColumnDropdown;
+    let newColumnDropdown = find("#new-column-dropdown");
+    showMenu(target, newColumnDropdown);
   });
 
   removeChildren(table);
