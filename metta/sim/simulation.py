@@ -146,7 +146,7 @@ class Simulation:
             npc_agent.activate_actions(action_names, max_args, self._device)
 
         # ---------------- agent-index bookkeeping ---------------------- #
-        idx_matrix = torch.arange(metta_grid_env.num_agents, device=self._device).reshape(
+        idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
             self._num_envs, self._agents_per_env
         )
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
