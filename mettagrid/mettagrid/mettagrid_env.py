@@ -18,6 +18,7 @@ from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from mettagrid.util.diversity import calculate_diversity_bonus
 from mettagrid.util.hydra import simple_instantiate
 
 # These data types must match PufferLib -- see pufferlib/vector.py
@@ -72,7 +73,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
 
         self._reset_env()
+
         super().__init__(buf)
+        if self._render_mode is not None:
+            from .renderer.renderer import AsciiRenderer
+
+            self._renderer = AsciiRenderer(self.object_type_names)
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -145,6 +151,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
+            if self._task.env_cfg().game.diversity_bonus.enabled:
+                self.rewards *= calculate_diversity_bonus(
+                    self._c_env.get_episode_rewards(),
+                    self._c_env.get_agent_groups(),
+                    self._task.env_cfg().game.diversity_bonus.similarity_coef,
+                    self._task.env_cfg().game.diversity_bonus.diversity_coef,
+                )
+
             self.process_episode_stats(infos)
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
