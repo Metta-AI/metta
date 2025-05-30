@@ -28,6 +28,8 @@ class Scene(Generic[ParamsT]):
     Subclasses must:
     1. Inherit from Scene[ParamsT], where ParamsT is a subclass of Config.
     2. Define a `render()` method.
+
+    If you need to perform additional initialization, override `post_init()` instead of `__init__`.
     """
 
     Params: type[ParamsT]
