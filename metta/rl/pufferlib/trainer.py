@@ -755,9 +755,15 @@ class PufferTrainer:
             f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
         )
 
+        print(f"DFF: Setting the length of the experience buffer to {self.trainer_cfg.batch_size // self._world_size}")
+        print(f"DFF: World size is {self._world_size}")
+        print(f"DFF: Batch size is {self.trainer_cfg.batch_size}")
+        print(f"DFF: Batch size divided by world size is {self.trainer_cfg.batch_size // self._world_size}")
+
         # Create the Experience buffer with appropriate parameters
         self.experience = Experience(
-            batch_size=self.trainer_cfg.batch_size,  # Total number of environment steps to collect before updating
+            batch_size=self.trainer_cfg.batch_size
+            // self._world_size,  # Total number of environment steps to collect before updating
             bptt_horizon=self.trainer_cfg.bptt_horizon,  # Sequence length for BPTT (backpropagation through time)
             minibatch_size=self.trainer_cfg.minibatch_size,  # Size of minibatches for training
             hidden_size=hidden_size,  # Dimension of the policy's hidden state
