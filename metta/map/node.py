@@ -93,7 +93,7 @@ class Node:
             if order_by == "random":
                 assert offset is None, "offset is not supported for random order"
                 rng = np.random.default_rng(query.get("order_by_seed"))
-                selected_areas = rng.choice(selected_areas, size=int(limit), replace=False)  # type: ignore
+                selected_areas = list(rng.choice(selected_areas, size=int(limit), replace=False))  # type: ignore
             elif order_by == "first":
                 offset = offset or 0
                 selected_areas = selected_areas[offset : offset + limit]
