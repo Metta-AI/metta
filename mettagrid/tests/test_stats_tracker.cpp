@@ -97,11 +97,12 @@ TEST_F(StatsTrackerTest, IncrementFloatThrows) {
   EXPECT_THROW(stats.incr("float_stat"), std::runtime_error);
 }
 
-// Test timing tracking with environment
-TEST_F(StatsTrackerTest, TimingWithEnvironment) {
+// Test time tracking without environment =
+TEST_F(StatsTrackerTest, TimingWithoutEnvironment) {
   // We can't easily test timing with a mock environment since
   // get_current_step() expects a real MettaGrid pointer.
-  // This test will verify behavior without environment.
+  // This test will verify expected behavior when no environment
+  // timing is available.
 
   stats.incr("action.move");
   stats.incr("action.move");
