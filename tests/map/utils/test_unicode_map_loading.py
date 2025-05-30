@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.map.utils.storable_map import ascii_to_grid
+from metta.map.utils.ascii_grid import ascii_to_grid
 
 
 def test_load_unicode_map():

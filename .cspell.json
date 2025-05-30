@@ -136,6 +136,7 @@
     "relu",
     "repr",
     "richcmp",
+    "Roguelike",
     "scanline",
     "scikit",
     "scipy",
@@ -176,7 +177,8 @@
     "vloss",
     "wandb",
     "Werror",
-    "xlarge"
+    "xlarge",
+    "yrange"
   ],
   "ignoreWords": [],
   "ignorePaths": [
