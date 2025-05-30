@@ -17,4 +17,4 @@ replay_job:
 #   # wandb.enabled: false
 #   wandb.track: false
 
-run: mrazo_action-obs_v01
+run: mrazo_action-obs_all_v02
