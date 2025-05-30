@@ -148,9 +148,9 @@ def recent_merged_pr_digests(
     return digests
 
 
-def create_summary_prompt_from_digests(prs: List[PullRequestDigest]) -> str:
+def create_summary_prompt_from_digests(prs: List[PullRequestDigest], days_scanned: int) -> str:
     """Creates a prompt for the LLM based on PullRequestDigest objects."""
-    prompt_text = "Here are the PRs merged in the last week:\n\n"
+    prompt_text = f"Here are the PRs merged in the last {days_scanned} days:\n\n"
 
     for pr in prs:
         prompt_text += f"## PR #{pr.number}: {pr.title}\\n"
@@ -169,6 +169,7 @@ def get_llm_summary(
     prompt: str,
     start_date_str: str,
     end_date_str: str,
+    days_scanned: int,
     model_name: str = "gemini-2.5-flash-preview-04-17",
 ) -> str:
     """Gets a summary from the specified Gemini model."""
@@ -197,7 +198,7 @@ Focus exclusively on technical accuracy, clarity, and readability.
 
     prompt_prefix = f"""{first_line_instruction}
 You will receive a list of all pull requests (PRs) merged into the repository
-[Metta-AI/metta](https://github.com/Metta-AI/metta) in the past week. Each PR entry
+[Metta-AI/metta](https://github.com/Metta-AI/metta) in the past {days_scanned} days. Each PR entry
 contains the title, description, and diff of changes.
 
 Create a structured summary using Markdown, clearly highlighting the important
@@ -279,11 +280,11 @@ def main():
 
     # 2. Create prompt
     print("Creating prompt for LLM...")
-    summary_prompt = create_summary_prompt_from_digests(pr_digests)
-    # print(f"DEBUG: Prompt generated:\\n{summary_prompt[:500]}...") # For debugging
+    summary_prompt = create_summary_prompt_from_digests(pr_digests, days_to_scan)
+    # print(f"DEBUG: Prompt generated:\n{summary_prompt[:500]}...") # For debugging
 
     # 3. Get LLM summary
-    summary = get_llm_summary(summary_prompt, start_date_str, end_date_str)
+    summary = get_llm_summary(summary_prompt, start_date_str, end_date_str, days_to_scan)
 
     # 4. Print summary
     print("\n--- Generated PR Summary ---")

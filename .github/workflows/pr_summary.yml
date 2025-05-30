@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "0 19 * * 5" # Run every Friday at 7 PM UTC (noon PST)
   workflow_dispatch: # Allows manual triggering
+    inputs:
+      DAYS_TO_SCAN:
+        description: "Number of days to scan for PRs"
+        required: true
+        default: "7"
+        type: string
 
 jobs:
   generate_summary:
@@ -28,6 +34,6 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           GITHUB_REPO: "Metta-AI/metta"
-          DAYS_TO_SCAN: "7"
+          DAYS_TO_SCAN: ${{ github.event.inputs.DAYS_TO_SCAN || '7' }}
           DIFF_CHARACTER_LIMIT: "20000"
         run: python .github/scripts/pr_summaries.py
