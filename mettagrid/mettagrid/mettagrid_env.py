@@ -235,11 +235,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 attributes,
                 agent_metrics,
                 agent_groups,
-                self._c_env.max_steps,
+                self.max_steps,
                 replay_url,
                 self._reset_at,
             )
         self._episode_id = ""
+
+    @property
+    def max_steps(self) -> int:
+        return self._c_env.max_steps
 
     @property
     @required

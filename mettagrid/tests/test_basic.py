@@ -106,7 +106,7 @@ class TestEnvironmentFunctionality:
 
     def test_environment_properties(self, environment):
         """Test environment properties."""
-        assert environment._c_env.max_steps > 0
+        assert environment.max_steps > 0
 
         # Check observation space (Box)
         observation_space = environment.single_observation_space
