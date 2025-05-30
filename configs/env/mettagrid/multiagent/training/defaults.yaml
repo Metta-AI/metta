@@ -5,7 +5,7 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 30
+  num_agents: 32
   agent:
     max_inventory: 10
     rewards:
@@ -21,7 +21,7 @@ game:
     width: ${sampling:50,100,90}
     height: ${sampling:50,100,90}
     border_width: 2
-    agents: 30
+    agents: 32
     objects: ???
   objects:
       altar:
