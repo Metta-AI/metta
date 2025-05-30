@@ -683,6 +683,15 @@ Agent* MettaGrid::create_agent(int r,
   return new Agent(r, c, group_name, group_id, agent_cfg, rewards);
 }
 
+py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
+  py::array_t<unsigned int> groups(_agents.size());
+  auto groups_view = groups.mutable_unchecked<1>();
+  for (size_t i = 0; i < _agents.size(); i++) {
+    groups_view(i) = _agents[i]->group;
+  }
+  return groups;
+}
+
 // StatsTracker implementation that needs complete MettaGrid definition
 unsigned int StatsTracker::get_current_step() const {
   if (!_env) return 0;
@@ -716,9 +725,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_success", &MettaGrid::action_success)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names)
-      .def("inventory_item_names", &MettaGrid::inventory_item_names)
       .def_readonly("obs_width", &MettaGrid::obs_width)
       .def_readonly("obs_height", &MettaGrid::obs_height)
       .def_readonly("max_steps", &MettaGrid::max_steps)
-      .def_readonly("current_step", &MettaGrid::current_step);
+      .def_readonly("current_step", &MettaGrid::current_step)
+      .def("inventory_item_names", &MettaGrid::inventory_item_names)
+      .def("get_agent_groups", &MettaGrid::get_agent_groups);
 }
