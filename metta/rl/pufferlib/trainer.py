@@ -344,7 +344,7 @@ class PufferTrainer:
 
     def _rollout(self):
         experience, profile = self.experience, self.profile
-        profile.start_epoch(self.epoch, 'eval')
+        profile.start_epoch(self.epoch, "eval")
 
         with profile.eval_misc:
             policy = self.policy
@@ -429,7 +429,7 @@ class PufferTrainer:
                             self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         profile.end_epoch()
-        
+
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
         experience.step = 0
@@ -437,7 +437,7 @@ class PufferTrainer:
 
     def _train(self):
         experience, profile = self.experience, self.profile
-        profile.start_epoch(self.epoch, 'train')
+        profile.start_epoch(self.epoch, "train")
         self.losses = self._make_losses()
 
         with profile.train_misc:
@@ -598,7 +598,7 @@ class PufferTrainer:
             explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
             self.losses.explained_variance = explained_var
             self.epoch += 1
-            
+
         profile.end_epoch()
         profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
 
