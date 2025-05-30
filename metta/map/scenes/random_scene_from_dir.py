@@ -13,8 +13,7 @@ class RandomSceneFromDirParams(Config):
 
 
 class RandomSceneFromDir(Scene[RandomSceneFromDirParams]):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def post_init(self):
         self._dir = Path(self.params.dir).resolve()
 
         if not self._dir.exists():

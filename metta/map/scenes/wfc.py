@@ -55,9 +55,7 @@ class WFCParams(Config):
 
 
 class WFC(Scene[WFCParams]):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
+    def post_init(self):
         patterns_with_counts = ascii_to_patterns_with_counts(
             self.params.pattern,
             self.params.pattern_size,

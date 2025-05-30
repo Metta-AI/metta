@@ -36,9 +36,7 @@ class RoomGrid(Scene[RoomGridParams]):
     be inferred from the layout.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
+    def post_init(self):
         params = self.params
 
         if params.layout is None:
