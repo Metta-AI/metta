@@ -23,4 +23,5 @@ jobs:
       - name: Build Mettascope
         run: |
           cd mettascope
-          tsc
+          npm ci
+          npx tsc
