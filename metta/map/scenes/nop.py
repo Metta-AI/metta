@@ -1,14 +1,17 @@
 from metta.map.node import Node
-from metta.map.scene import Scene, TypedChild
+from metta.util.config import Config
 
 
-class Nop(Scene):
+class NopParams(Config):
+    pass
+
+
+class Nop(Node[NopParams]):
     """
-    This scene doesn't do anything.
+    This node doesn't do anything.
     """
 
-    def __init__(self, children: list[TypedChild] | None = None):
-        super().__init__(children=children)
+    params_type = NopParams
 
-    def _render(self, node: Node):
+    def render(self):
         pass

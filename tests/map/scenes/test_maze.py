@@ -1,10 +1,9 @@
 from metta.map.scenes.maze import MazeKruskal
-from tests.map.scenes.utils import assert_connected, scene_to_node
+from tests.map.scenes.utils import assert_connected, render_node
 
 
 def test_basic():
-    scene = MazeKruskal()
-    node = scene_to_node(scene, (9, 9))
+    node = render_node(MazeKruskal, {}, (9, 9))
 
     assert_connected(node.grid)
 
