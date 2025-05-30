@@ -1,4 +1,5 @@
 import numpy as np
+
 from mettagrid.util.diversity import calculate_diversity_bonus
 
 
