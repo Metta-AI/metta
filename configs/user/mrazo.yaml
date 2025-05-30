@@ -1,0 +1,20 @@
+# @package __global__
+
+defaults:
+  - _self_
+
+trainer:
+  curriculum: /env/mettagrid/curriculum/navigation
+  wandb.enabled: false
+  wandb.track: false
+  # initial_policy:
+  #   uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
+  # evaluate_interval: 100
+  # checkpoint_interval: 100
+
+replay_job:
+  policy_uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
+#   # wandb.enabled: false
+#   wandb.track: false
+
+run: mrazo_action-obs_v01
