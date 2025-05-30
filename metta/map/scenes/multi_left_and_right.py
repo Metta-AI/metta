@@ -23,7 +23,6 @@ class MultiLeftAndRight(Scene):
         # Pregenerate seeds so that we could make rooms deterministic.
         agent_seed = random.randint(0, int(1e9))
         altar_seed = random.randint(0, int(1e9))
-        altar_side_seed = random.randint(0, int(1e9))
         altar_distribution_seed = random.randint(0, int(1e9))
 
         # Calculate altar counts based on ratio
