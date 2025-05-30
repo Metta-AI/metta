@@ -34,9 +34,7 @@ class InlineAsciiParams(Config):
     column: int = 0
 
 
-class InlineAscii(Scene):
-    Params = InlineAsciiParams
-
+class InlineAscii(Scene[InlineAsciiParams]):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 

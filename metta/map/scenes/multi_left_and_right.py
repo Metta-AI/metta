@@ -22,8 +22,6 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
     is randomly determined at the start of each episode.
     """
 
-    Params = MultiLeftAndRightParams
-
     def get_children(self):
         # Pregenerate seeds so that we could make rooms deterministic.
         agent_seed = random.randint(0, int(1e9))

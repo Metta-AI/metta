@@ -13,8 +13,6 @@ class MirrorParams(Config):
 
 
 class Mirror(Scene[MirrorParams]):
-    Params = MirrorParams
-
     def render(self):
         symmetry = self.params.symmetry
         scene = self.params.scene

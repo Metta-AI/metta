@@ -1,6 +1,6 @@
 import importlib
 from dataclasses import dataclass
-from typing import Generic, List, Optional, TypeVar
+from typing import Generic, List, Optional, TypeVar, get_args, get_origin
 
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
@@ -24,10 +24,20 @@ ParamsT = TypeVar("ParamsT", bound=Config)
 # Base class for all map scenes.
 class Scene(Generic[ParamsT]):
     Params: type[ParamsT]
+    params: ParamsT
 
     _areas: list[Area]
 
-    params: ParamsT
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # walk the subclass’s __orig_bases__ looking for Scene[…]
+        for base in getattr(cls, "__orig_bases__", ()):
+            if get_origin(base) is Scene:
+                # pull out the single type argument
+                cls.Params = get_args(base)[0]
+                return
+
+        raise TypeError(f"{cls.__name__} must inherit from Scene[…], with a concrete Params class parameter")
 
     def __init__(
         self,

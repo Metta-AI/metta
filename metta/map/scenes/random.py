@@ -17,8 +17,6 @@ class Random(Scene[RandomParams]):
     This scene takes into account the existing grid content, and places objects in empty spaces only.
     """
 
-    Params = RandomParams
-
     def render(self):
         height, width, params = self.height, self.width, self.params
 

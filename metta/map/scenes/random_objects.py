@@ -17,8 +17,6 @@ class RandomObjects(Scene[RandomObjectsParams]):
     It's rarely useful to pick the random number of agents, so this scene doesn't have that parameter.
     """
 
-    Params = RandomObjectsParams
-
     def get_children(self) -> list[ChildrenAction]:
         size = self.height * self.width
         objects = {}

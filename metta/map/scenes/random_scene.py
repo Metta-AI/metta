@@ -15,8 +15,6 @@ class RandomSceneParams(Config):
 
 
 class RandomScene(Scene[RandomSceneParams]):
-    Params = RandomSceneParams
-
     def get_children(self) -> list[ChildrenAction]:
         candidates = self.params.candidates
         weights = np.array([c.weight for c in candidates], dtype=np.float32)

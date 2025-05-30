@@ -9,10 +9,11 @@ from metta.util.config import Config
 SEED = 42
 
 
-class MockScene(Scene):
-    class Params(Config):
-        pass
+class MockParams(Config):
+    pass
 
+
+class MockScene(Scene[MockParams]):
     def render(self):
         pass
 
