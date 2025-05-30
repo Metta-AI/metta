@@ -1,0 +1,27 @@
+name: "Compile Mettascope"
+on:
+  push:
+    paths:
+      - "mettascope/**"
+      - ".github/workflows/**"
+  workflow_dispatch: {}
+
+jobs:
+  compile-mettascope:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Get all history to ensure we don't hit caching issues
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Build Mettascope
+        run: |
+          cd mettascope
+          tsc
