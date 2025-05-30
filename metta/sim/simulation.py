@@ -112,7 +112,7 @@ class Simulation:
         npc_policy_expected_channels = self._npc_pr.expected_observation_channels() if self._npc_pr else None
         env_expected_channels = self._vecenv.observation_space.shape[-1]
 
-        if policy_expected_channels != env_expected_channels:
+        if policy_expected_channels is not None and policy_expected_channels != env_expected_channels:
             error_msg = (
                 f"Main policy expects {policy_expected_channels} observation channels, "
                 f"but current environment provides {env_expected_channels}."
@@ -121,7 +121,7 @@ class Simulation:
             raise SimulationCompatibilityError(error_msg)
 
         # Check NPC policy compatibility (if it exists)
-        if npc_policy_expected_channels and npc_policy_expected_channels != env_expected_channels:
+        if npc_policy_expected_channels is not None and npc_policy_expected_channels != env_expected_channels:
             error_msg = (
                 f"NPC policy expects {npc_policy_expected_channels} observation channels, "
                 f"but current environment provides {env_expected_channels}."
