@@ -8,6 +8,11 @@ game:
   # default for the old map builder; new metta.map.mapgen requires false
   recursive_map_builder: true
 
+  diversity_bonus:
+    enabled: false
+    similarity_coef: 0.5  # Coefficient for within-group similarity
+    diversity_coef: 0.5   # Coefficient for between-group diversity
+
   agent:
     default_item_max: ${sampling:0, 100, 50}
     # the agent should be able to pick up as many hearts as they want, even if
