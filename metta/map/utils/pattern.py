@@ -3,6 +3,8 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 
+from metta.map.utils.ascii_grid import bordered_text_to_lines
+
 Symmetry = Literal["all", "horizontal", "none"]
 
 
@@ -19,20 +21,10 @@ def parse_ascii_into_grid(ascii_source: str) -> npt.NDArray[np.bool_]:
     |# #|
     |# #|
     """
-    lines = []
-    for line in ascii_source.strip().split("\n"):
-        line = line.strip()
-        if line[0] != "|" or line[-1] != "|":
-            raise ValueError("Pattern must be enclosed in | characters")
-        line = line[1:-1]
+    lines, width, height = bordered_text_to_lines(ascii_source)
+    for line in lines:
         if not all(c == "#" or c == " " for c in line):
             raise ValueError("Pattern must be composed of # and space characters")
-        lines.append(line)
-
-    height = len(lines)
-    width = max(len(line) for line in lines)
-    if not all(len(line) == width for line in lines):
-        raise ValueError("All lines must be the same width")
 
     grid: npt.NDArray[np.bool_] = np.zeros((height, width), dtype=bool)
     for y, line in enumerate(lines):
