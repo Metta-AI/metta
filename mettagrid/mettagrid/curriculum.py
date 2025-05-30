@@ -43,7 +43,6 @@ class Task:
         for curriculum, id in self._curriculums:
             curriculum.complete_task(id, score)
         self._is_complete = True
-        logger.info(f"Task completed: {self.name()} -> {score:.5f}")
 
     def is_complete(self):
         return self._is_complete
