@@ -1,5 +1,5 @@
-import time
 import functools
+import time
 
 from pufferlib.pufferl import Profile as PufferProfile
 
@@ -28,6 +28,7 @@ class ProfileTimer:
 
 def profile_section(section_name):
     """Decorator to profile a section of code using the Profile context manager."""
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(self, *args, **kwargs):
@@ -37,7 +38,9 @@ def profile_section(section_name):
             finally:
                 self.profile.end_epoch()
             return result
+
         return wrapper
+
     return decorator
 
 
@@ -58,14 +61,22 @@ class Profile:
         # Create context managers for profile sections
         if name in ["env", "eval_forward", "eval_misc", "train_forward", "learn", "train_misc"]:
             return ProfileTimer(self._profile, name, self.epoch)
-        
+
         # Direct access to timing data for individual metrics
-        if name in ["eval_time", "train_time", "env_time", "eval_forward_time", 
-                    "eval_misc_time", "train_forward_time", "learn_time", "train_misc_time"]:
+        if name in [
+            "eval_time",
+            "train_time",
+            "env_time",
+            "eval_forward_time",
+            "eval_misc_time",
+            "train_forward_time",
+            "learn_time",
+            "train_misc_time",
+        ]:
             # Remove '_time' suffix to get the profile key
-            profile_key = name.replace('_time', '')
+            profile_key = name.replace("_time", "")
             return self._profile.profiles.get(profile_key, {}).get("elapsed", 0)
-        
+
         # Default behavior
         return self._profile.profiles.get(name, {}).get("elapsed", 0)
 
@@ -119,7 +130,7 @@ class Profile:
         yield "SPS", self.SPS
         yield "uptime", self.uptime
         yield "remaining", self.remaining
-        
+
         # Yield formatted performance metrics
         yield "eval_time", _fmt_perf(self.eval_time, self.uptime)
         yield "env_time", _fmt_perf(self.env_time, self.uptime)

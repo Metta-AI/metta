@@ -369,7 +369,9 @@ class PufferTrainer:
                 d = torch.as_tensor(d)
 
             with profile.eval_forward, torch.no_grad():
-                assert training_env_id is not None and training_env_id.numel() > 0, "training_env_id must exist and have elements"
+                assert training_env_id is not None and training_env_id.numel() > 0, (
+                    "training_env_id must exist and have elements"
+                )
                 assert training_env_id.device == lstm_h.device, "training_env_id must be on the same device as lstm_h"
                 assert training_env_id.dim() == 1, "training_env_id should be 1D (list of env indices)"
                 assert training_env_id.max() < lstm_h.shape[1], "Index out of bounds for lstm_h"
