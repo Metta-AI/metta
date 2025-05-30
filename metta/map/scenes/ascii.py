@@ -1,4 +1,5 @@
 from metta.map.node import Node
+from metta.map.scene import ChildrenAction
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.util.config import Config
 
@@ -17,10 +18,10 @@ class Ascii(Node):
 
     def get_children(self):
         return [
-            {
-                "scene": lambda grid: InlineAscii(grid=grid, params={"data": self.ascii_data}),
-                "where": "full",
-            },
+            ChildrenAction(
+                scene=lambda grid: InlineAscii(grid=grid, params={"data": self.ascii_data}),
+                where="full",
+            ),
             *self.children,
         ]
 

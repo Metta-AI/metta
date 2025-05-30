@@ -2,13 +2,18 @@ import numpy as np
 import pytest
 
 from metta.map.node import Node
+from metta.map.scene import AreaQuery, AreaWhere
+from metta.util.config import Config
 
 # Set a global seed for reproducibility
 SEED = 42
 
 
-class MockScene:
-    def render(self, node):
+class MockNode(Node):
+    class params_type(Config):
+        pass
+
+    def render(self):
         pass
 
 
@@ -27,7 +32,7 @@ def node():
             ["U", "V", "W", "X", "Y"],
         ]
     )
-    node = Node(MockScene(), grid)
+    node = MockNode(grid)
     # Create some test areas with different tags
     node.make_area(0, 0, 3, 2, tags=["tag1", "tag2"])  # ABC / FGH
     node.make_area(1, 2, 2, 2, tags=["tag2", "tag3"])  # LM / QR
@@ -51,12 +56,12 @@ def test_areas_are_correctly_created(node):
 def test_select_areas_with_where_tags(node):
     assert np.random.get_state()[1][0] == SEED  # Verify seed is still effective
     # Test selecting areas with specific tags
-    query = {"where": {"tags": ["tag1", "tag2"]}}
+    query = AreaQuery(where=AreaWhere(tags=["tag1", "tag2"]))
     selected_areas = node.select_areas(query)
     assert len(selected_areas) == 1
     assert selected_areas[0].id == 0  # First area has both tags
     # Test selecting areas with single tag
-    query = {"where": {"tags": ["tag2"]}}
+    query = AreaQuery(where=AreaWhere(tags=["tag2"]))
     selected_areas = node.select_areas(query)
     assert len(selected_areas) == 2  # Two areas have tag2
     assert all("tag2" in area.tags for area in selected_areas)
@@ -64,7 +69,7 @@ def test_select_areas_with_where_tags(node):
 
 def test_select_areas_with_where_full(node):
     # Test selecting the full area
-    query = {"where": "full"}
+    query = AreaQuery(where="full")
     selected_areas = node.select_areas(query)
     assert len(selected_areas) == 1
     assert selected_areas[0].id == -1  # Full area has id -1
@@ -72,17 +77,17 @@ def test_select_areas_with_where_full(node):
 
 def test_select_areas_with_limit(node):
     # Test limiting number of results
-    query = {"limit": 2}
+    query = AreaQuery(limit=2)
     selected_areas = node.select_areas(query)
     assert len(selected_areas) == 2
     # Test with order_by="first"
-    query = {"limit": 2, "order_by": "first"}
+    query = AreaQuery(limit=2, order_by="first")
     selected_areas = node.select_areas(query)
     assert len(selected_areas) == 2
     assert selected_areas[0].id == 0
     assert selected_areas[1].id == 1
     # Test with order_by="last"
-    query = {"limit": 2, "order_by": "last"}
+    query = AreaQuery(limit=2, order_by="last")
     selected_areas = node.select_areas(query)
     assert len(selected_areas) == 2
     assert selected_areas[0].id == 1
@@ -91,7 +96,7 @@ def test_select_areas_with_limit(node):
 
 def test_select_areas_with_lock(node):
     # Test locking mechanism
-    query = {"lock": "test_lock", "order_by": "first", "limit": 1}
+    query = AreaQuery(lock="test_lock", order_by="first", limit=1)
     selected_areas = node.select_areas(query)
     assert len(selected_areas) == 1
     assert selected_areas[0].id == 0
@@ -103,13 +108,13 @@ def test_select_areas_with_lock(node):
 
 def test_select_areas_with_offset(node):
     # Test offset with first ordering
-    query = {"limit": 2, "order_by": "first", "offset": 1}
+    query = AreaQuery(limit=2, order_by="first", offset=1)
     selected_areas = node.select_areas(query)
     assert len(selected_areas) == 2
     assert selected_areas[0].id == 1
     assert selected_areas[1].id == 2
     # Test offset with last ordering
-    query = {"limit": 2, "order_by": "last", "offset": 1}
+    query = AreaQuery(limit=2, order_by="last", offset=1)
     selected_areas = node.select_areas(query)
     assert len(selected_areas) == 2
     assert selected_areas[0].id == 0

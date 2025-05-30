@@ -1,5 +1,5 @@
 from metta.map.node import Node
-from metta.map.scene import TypedChild
+from metta.map.scene import ChildrenAction
 from metta.map.scenes.random import Random
 from metta.map.utils.random import FloatDistribution, sample_float_distribution
 from metta.util.config import Config
@@ -19,7 +19,7 @@ class RandomObjects(Node):
 
     params_type = RandomObjectsParams
 
-    def get_children(self) -> list[TypedChild]:
+    def get_children(self) -> list[ChildrenAction]:
         size = self.height * self.width
         objects = {}
         for obj_name, distribution in self.params.object_ranges.items():
@@ -27,10 +27,10 @@ class RandomObjects(Node):
             objects[obj_name] = int(size * percentage)
 
         return [
-            {
-                "scene": lambda grid: Random(grid=grid, params={"objects": objects}, seed=self.rng),
-                "where": "full",
-            },
+            ChildrenAction(
+                scene=lambda grid: Random(grid=grid, params={"objects": objects}, seed=self.rng),
+                where="full",
+            ),
             *self.children,
         ]
 

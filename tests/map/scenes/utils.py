@@ -2,13 +2,13 @@ import numpy as np
 import pytest
 
 from metta.map.node import Node
-from metta.map.scene import TypedChild
+from metta.map.scene import ChildrenAction
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import add_pretty_border, bordered_text_to_lines
 from metta.map.utils.storable_map import grid_to_ascii
 
 
-def render_node(cls: type[Node], params: dict, shape: tuple[int, int], children: list[TypedChild] = []):
+def render_node(cls: type[Node], params: dict, shape: tuple[int, int], children: list[ChildrenAction] = []):
     grid = np.full(shape, "empty", dtype="<U50")
     node = cls(grid=grid, params=params, children=children)
     node.render_with_children()

@@ -1,6 +1,7 @@
 from numpy import random
 
 from metta.map.node import Node
+from metta.map.scene import AreaWhere, ChildrenAction
 from metta.map.scenes.random import Random
 from metta.map.scenes.room_grid import RoomGrid
 from metta.util.config import Config
@@ -47,9 +48,9 @@ class MultiLeftAndRight(Node[MultiLeftAndRightParams]):
         columns = self.params.columns
 
         return [
-            {
-                "where": "full",
-                "scene": lambda grid: RoomGrid(
+            ChildrenAction(
+                where="full",
+                scene=lambda grid: RoomGrid(
                     grid=grid,
                     params=dict(
                         rows=rows,
@@ -57,10 +58,10 @@ class MultiLeftAndRight(Node[MultiLeftAndRightParams]):
                         border_width=6,
                     ),
                     children=[
-                        {
+                        ChildrenAction(
                             # This scene is mostly identical to `left_or_right.yaml`.
                             # It adds seeds and place agents into groups.
-                            "scene": lambda grid: RoomGrid(
+                            scene=lambda grid: RoomGrid(
                                 grid=grid,
                                 params=dict(
                                     border_width=0,
@@ -77,8 +78,8 @@ class MultiLeftAndRight(Node[MultiLeftAndRightParams]):
                                     ],
                                 ),
                                 children=[
-                                    {
-                                        "scene": lambda grid, agent_group=agent_group: Random(
+                                    ChildrenAction(
+                                        scene=lambda grid, agent_group=agent_group: Random(
                                             grid=grid,
                                             params={
                                                 "agents": {
@@ -87,37 +88,37 @@ class MultiLeftAndRight(Node[MultiLeftAndRightParams]):
                                             },
                                             seed=agent_seed,
                                         ),
-                                        "where": {"tags": ["agents"]},
-                                    },
-                                    {
-                                        "scene": lambda grid: Random(
+                                        where=AreaWhere(tags=["agents"]),
+                                    ),
+                                    ChildrenAction(
+                                        scene=lambda grid: Random(
                                             grid=grid,
                                             params={
                                                 "objects": {"altar": left_altars},
                                             },
                                             seed=altar_seed,
                                         ),
-                                        "where": {"tags": ["maybe_altars_left"]},
-                                    },
-                                    {
-                                        "scene": lambda grid: Random(
+                                        where=AreaWhere(tags=["maybe_altars_left"]),
+                                    ),
+                                    ChildrenAction(
+                                        scene=lambda grid: Random(
                                             grid=grid,
                                             params={
                                                 "objects": {"altar": right_altars},
                                             },
                                             seed=altar_seed + 1,
                                         ),
-                                        "where": {"tags": ["maybe_altars_right"]},
-                                    },
+                                        where=AreaWhere(tags=["maybe_altars_right"]),
+                                    ),
                                 ],
                             ),
-                            "lock": "rooms",
-                            "limit": rows * columns // len(agent_groups),
-                        }
+                            lock="rooms",
+                            limit=rows * columns // len(agent_groups),
+                        )
                         for agent_group in agent_groups
                     ],
                 ),
-            },
+            ),
             *self.children,
         ]
 
