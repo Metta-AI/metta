@@ -1,7 +1,7 @@
 trainer:
-  gamma: ${ss:logit, 0.0, 1.0}
-  gae_lambda: ${ss:logit, 0.0, 1.0}
-  update_epochs: ${ss:int, 1, 3}
+  gamma: ${ss:logit, 0.0, 1.0} #how much to discount future rewards
+  gae_lambda: ${ss:logit, 0.0, 1.0} #how much to weight future rewards
+  update_epochs: ${ss:int, 1, 3} #how many times to update the policy
   # clip_coef: ${ss:logit, 0.0, 1.0}
   vf_coef: ${ss:logit, 0.0, 1.0}
   # vf_clip_coef: ${ss:logit, 0.0, 1.0}
