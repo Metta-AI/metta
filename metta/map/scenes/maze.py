@@ -50,8 +50,6 @@ class MazeKruskal(Scene[MazeKruskalParams]):
     └─────────┘
     """
 
-    Params = MazeKruskalParams
-
     EMPTY, WALL = "empty", "wall"
 
     def render(self):

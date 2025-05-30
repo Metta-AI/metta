@@ -46,8 +46,6 @@ class AutoParams(Config):
 
 
 class Auto(Scene[AutoParams]):
-    Params = AutoParams
-
     def get_children(self) -> list[ChildrenAction]:
         return [
             ChildrenAction(
@@ -73,8 +71,6 @@ class Auto(Scene[AutoParams]):
 
 
 class AutoLayout(Scene[AutoParams]):
-    Params = AutoParams
-
     def get_children(self) -> list[ChildrenAction]:
         weights = np.array([self.params.layout.grid, self.params.layout.bsp], dtype=np.float32)
         weights /= weights.sum()
@@ -134,8 +130,6 @@ class AutoLayout(Scene[AutoParams]):
 
 
 class AutoSymmetry(Scene[AutoParams]):
-    Params = AutoParams
-
     def get_children(self) -> list[ChildrenAction]:
         weights = np.array(
             [

@@ -9,8 +9,6 @@ class AsciiParams(Config):
 
 
 class Ascii(Scene[AsciiParams]):
-    Params = AsciiParams
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         with open(self.params.uri, "r", encoding="utf-8") as f:
