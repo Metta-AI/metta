@@ -80,9 +80,9 @@ public:
     this->inventory[item] = new_amount;
 
     if (delta > 0) {
-      this->stats.add(InventoryItemNames[item], "gained", delta);
+      this->stats.add(InventoryItemNames[item] + ".gained", delta);
     } else if (delta < 0) {
-      this->stats.add(InventoryItemNames[item], "lost", -delta);
+      this->stats.add(InventoryItemNames[item] + ".lost", -delta);
     }
 
     this->compute_resource_reward(item);
