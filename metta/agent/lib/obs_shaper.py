@@ -16,11 +16,10 @@ class ObsShaper(LayerBase):
     and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, obs_shape, num_objects, **cfg):
+    def __init__(self, obs_shape, **cfg):
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self._out_tensor_shape = [self._obs_shape[2], self._obs_shape[0], self._obs_shape[1]]
-        self._output_size = num_objects
 
     def _forward(self, td: TensorDict):
         x = td["x"]

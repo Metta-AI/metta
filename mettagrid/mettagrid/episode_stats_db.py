@@ -34,7 +34,7 @@ EPISODE_DB_TABLES = {
         PRIMARY KEY (episode_id, attribute)
     );
     """,
-    "groups": """
+    "agent_groups": """
     CREATE TABLE IF NOT EXISTS agent_groups (
         episode_id TEXT,
         group_id INTEGER,
@@ -87,6 +87,7 @@ class EpisodeStatsDB:
         episode_id: str,
         attributes: Dict[str, str],
         agent_metrics: Dict[int, Dict[str, float]],
+        agent_groups: Dict[int, int],
         step_count: int,
         replay_url: str | None,
         created_at: datetime.datetime,
@@ -100,6 +101,17 @@ class EpisodeStatsDB:
             """,
             (episode_id, step_count, replay_url, created_at),
         )
+
+        group_rows = [(episode_id, group_id, agent_id) for agent_id, group_id in agent_groups.items()]
+        if len(group_rows) > 0:
+            self.con.executemany(
+                """
+                INSERT INTO agent_groups
+                (episode_id, group_id, agent_id)
+                VALUES (?, ?, ?)
+                """,
+                group_rows,
+            )
 
         attribute_rows = [(episode_id, attr, value) for attr, value in attributes.items()]
         if len(attribute_rows) > 0:
