@@ -21,9 +21,8 @@ public:
     _type_feature_names[ObjectType::AgentT] = Agent::feature_names();
     _type_feature_names[ObjectType::WallT] = Wall::feature_names();
 
-    // These are different types of Converters. The only difference in the feature names
-    // is the 1-hot that they use for their type. We're working to simplify this, so we can
-    // remove these types from code.
+    // These are different types of Converters. They all have the same feature names,
+    // so this is somewhat redundant.
     for (auto type_id : {ObjectType::AltarT,
                          ObjectType::ArmoryT,
                          ObjectType::FactoryT,
@@ -32,7 +31,7 @@ public:
                          ObjectType::LaseryT,
                          ObjectType::MineT,
                          ObjectType::TempleT}) {
-      _type_feature_names[type_id] = Converter::feature_names(type_id);
+      _type_feature_names[type_id] = Converter::feature_names();
     }
 
     // Generate an offset for each unique feature name.

@@ -24,7 +24,7 @@ def create_metta_agent():
     )
 
     action_space = gym.spaces.MultiDiscrete([3, 2])
-    grid_features = ["agent", "hp", "wall"]
+    grid_features = ["agent", "hp", "type_id"]
 
     config_dict = {
         "clip_range": 0.1,
