@@ -34,7 +34,7 @@ def calculate_diversity_bonus(
 
     # Calculate mean and standard deviation for each group
     group_means = {g: np.mean(episode_rewards[group_ids == g]) for g in unique_groups}
-    group_stds = {g: np.std(episode_rewards[group_ids == g]) + 1e-6 for g in unique_groups}  
+    group_stds = {g: np.std(episode_rewards[group_ids == g]) + 1e-6 for g in unique_groups}
     # Add 1e-6 to prevent division by zero if group rewards are identical e.g. single agent in group
 
     # Initialize scaling factors array

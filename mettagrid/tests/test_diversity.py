@@ -10,9 +10,7 @@ def test_calculate_diversity_bonus_simple_case():
     similarity_coef = 0.1
     diversity_coef = 0.2
 
-    actual_factors = calculate_diversity_bonus(
-        episode_rewards, agent_groups, similarity_coef, diversity_coef
-    )
+    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
 
     # Group 0: rewards [10, 12], mean = 11, std = 1
     # Group 1: rewards [20, 22], mean = 21, std = 1
@@ -36,21 +34,21 @@ def test_calculate_diversity_bonus_single_group():
     diversity_coef = 0.2
 
     # Group 0: rewards [10, 12, 11], mean = 11, std = sqrt(2/3)
-    std_g0 = np.sqrt(2/3)
+    std_g0 = np.sqrt(2 / 3)
 
-    sim_score_agent0 = np.exp(-1/std_g0)
-    sim_score_agent1 = np.exp(-1/std_g0)
+    sim_score_agent0 = np.exp(-1 / std_g0)
+    sim_score_agent1 = np.exp(-1 / std_g0)
     sim_score_agent2 = 1.0
 
-    expected_factors = np.array([
-        1 + similarity_coef * sim_score_agent0, # Agent 0, diversity score is 0
-        1 + similarity_coef * sim_score_agent1, # Agent 1, diversity score is 0
-        1 + similarity_coef * sim_score_agent2  # Agent 2, diversity score is 0
-    ])
-
-    actual_factors = calculate_diversity_bonus(
-        episode_rewards, agent_groups, similarity_coef, diversity_coef
+    expected_factors = np.array(
+        [
+            1 + similarity_coef * sim_score_agent0,  # Agent 0, diversity score is 0
+            1 + similarity_coef * sim_score_agent1,  # Agent 1, diversity score is 0
+            1 + similarity_coef * sim_score_agent2,  # Agent 2, diversity score is 0
+        ]
     )
+
+    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
     np.testing.assert_allclose(actual_factors, expected_factors, rtol=1e-6)
 
 
@@ -63,9 +61,7 @@ def test_calculate_diversity_bonus_zero_coefficients():
     # If both coeffs are 0, the factor should be 1 for all agents
     expected_factors = np.array([1.0, 1.0, 1.0, 1.0])
 
-    actual_factors = calculate_diversity_bonus(
-        episode_rewards, agent_groups, similarity_coef, diversity_coef
-    )
+    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
     np.testing.assert_allclose(actual_factors, expected_factors, rtol=1e-6)
 
 
@@ -81,28 +77,34 @@ def test_calculate_diversity_bonus_identical_rewards_in_group():
     # Diversity value for group 0 agents (to group 1) is 1 - exp(-10/1e-6) -> approx 1.
     # Diversity value for group 1 agents (to group 0) is 1 - exp(-10/1e-6) -> approx 1.
     sim_score = 1.0
-    div_val = 1 - np.exp(-10 / 1e-6) # Effectively 1.0
+    div_val = 1 - np.exp(-10 / 1e-6)  # Effectively 1.0
 
     expected_factor_val = 1 + similarity_coef * sim_score + diversity_coef * div_val
     expected_factors = np.full_like(episode_rewards, expected_factor_val)
 
-    actual_factors = calculate_diversity_bonus(
-        episode_rewards, agent_groups, similarity_coef, diversity_coef
-    )
+    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
     np.testing.assert_allclose(actual_factors, expected_factors, rtol=1e-6)
 
+
 def test_calculate_diversity_bonus_three_groups():
-    episode_rewards = np.array([10.0, 15.0, # Group 0
-                                20.0, 25.0, # Group 1
-                                30.0, 35.0]) # Group 2
+    episode_rewards = np.array(
+        [
+            10.0,
+            15.0,  # Group 0
+            20.0,
+            25.0,  # Group 1
+            30.0,
+            35.0,
+        ]
+    )  # Group 2
     agent_groups = np.array([0, 0, 1, 1, 2, 2])
     similarity_coef = 0.1
     diversity_coef = 0.2
 
     # Group means and stds
-    m_g0, s_g0 = np.mean(episode_rewards[agent_groups==0]), np.std(episode_rewards[agent_groups==0]) + 1e-6
-    m_g1, s_g1 = np.mean(episode_rewards[agent_groups==1]), np.std(episode_rewards[agent_groups==1]) + 1e-6
-    m_g2, s_g2 = np.mean(episode_rewards[agent_groups==2]), np.std(episode_rewards[agent_groups==2]) + 1e-6
+    m_g0, s_g0 = np.mean(episode_rewards[agent_groups == 0]), np.std(episode_rewards[agent_groups == 0]) + 1e-6
+    m_g1, s_g1 = np.mean(episode_rewards[agent_groups == 1]), np.std(episode_rewards[agent_groups == 1]) + 1e-6
+    m_g2, s_g2 = np.mean(episode_rewards[agent_groups == 2]), np.std(episode_rewards[agent_groups == 2]) + 1e-6
 
     factors = []
 
@@ -149,26 +151,27 @@ def test_calculate_diversity_bonus_three_groups():
     factors.append(1 + similarity_coef * sim_5 + diversity_coef * np.mean([div_5_g0, div_5_g1]))
 
     expected_factors = np.array(factors)
-    actual_factors = calculate_diversity_bonus(
-        episode_rewards, agent_groups, similarity_coef, diversity_coef
-    )
+    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
     np.testing.assert_allclose(actual_factors, expected_factors, rtol=1e-6)
 
 
 def test_zero_total_diversity_score_when_agent_reward_equals_all_other_group_means():
     """Agent's diversity score is 0 if its reward matches all other group means."""
-    episode_rewards = np.array([
-        25.0, 15.0,  # Group 0: Agent 0 (reward 25), Agent 1 (reward 15). Mean G0 = 20. Std G0 = 5.
-        20.0, 30.0,  # Group 1: Agents 2,3. Mean G1 = 25. Std G1 = 5.
-        22.0, 28.0   # Group 2: Agents 4,5. Mean G2 = 25. Std G2 = 3.
-    ])
+    episode_rewards = np.array(
+        [
+            25.0,
+            15.0,  # Group 0: Agent 0 (reward 25), Agent 1 (reward 15). Mean G0 = 20. Std G0 = 5.
+            20.0,
+            30.0,  # Group 1: Agents 2,3. Mean G1 = 25. Std G1 = 5.
+            22.0,
+            28.0,  # Group 2: Agents 4,5. Mean G2 = 25. Std G2 = 3.
+        ]
+    )
     agent_groups = np.array([0, 0, 1, 1, 2, 2])
     similarity_coef = 0.1
     diversity_coef = 0.2
 
-    actual_factors = calculate_diversity_bonus(
-        episode_rewards, agent_groups, similarity_coef, diversity_coef
-    )
+    actual_factors = calculate_diversity_bonus(episode_rewards, agent_groups, similarity_coef, diversity_coef)
 
     agent0_reward = episode_rewards[0]
     group0_rewards = episode_rewards[agent_groups == 0]
@@ -179,5 +182,5 @@ def test_zero_total_diversity_score_when_agent_reward_equals_all_other_group_mea
     similarity_score_agent0 = np.exp(-norm_own_distance_agent0)
 
     # Diversity score for Agent 0 is 0 because its reward (25) equals means of G1 (25) and G2 (25).
-    expected_factor_agent0 = 1 + similarity_coef * similarity_score_agent0 # + diversity_coef * 0
-    np.testing.assert_allclose(actual_factors[0], expected_factor_agent0, rtol=1e-6) 
+    expected_factor_agent0 = 1 + similarity_coef * similarity_score_agent0  # + diversity_coef * 0
+    np.testing.assert_allclose(actual_factors[0], expected_factor_agent0, rtol=1e-6)
