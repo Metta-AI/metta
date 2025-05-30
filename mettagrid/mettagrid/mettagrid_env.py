@@ -215,7 +215,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
 
             for k, v in unroll_nested_dict(OmegaConf.to_container(self._task.env_cfg(), resolve=False)):
-                attributes[f"config.{k.replace('/', '.')}"] = str(v)
+                attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
 
             agent_metrics = {}
             for agent_idx, agent_stats in enumerate(stats["agent"]):
