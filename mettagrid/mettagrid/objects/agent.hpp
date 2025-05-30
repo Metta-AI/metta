@@ -27,6 +27,12 @@ public:
   float current_resource_reward;
   float* reward;
 
+  // New tracking fields
+  unsigned char last_action;
+  unsigned char last_action_success;
+  float last_reward;
+  float total_reward;
+
   Agent(GridCoord r,
         GridCoord c,
         std::string group_name,
@@ -65,6 +71,12 @@ public:
     this->color = 0;
     this->current_resource_reward = 0;
     this->reward = nullptr;
+
+    // Initialize new tracking fields
+    this->last_action = 0;
+    this->last_action_success = 0;
+    this->last_reward = 0.0f;
+    this->total_reward = 0.0f;
   }
 
   void init(float* reward) {
@@ -154,6 +166,7 @@ public:
     for (const auto& name : InventoryItemNames) {
       names.push_back("inv:" + name);
     }
+
     return names;
   }
 
