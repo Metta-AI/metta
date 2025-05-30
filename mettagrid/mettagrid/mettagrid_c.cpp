@@ -635,7 +635,7 @@ py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
   return spaces.attr("MultiDiscrete")(py::make_tuple(py::len(action_names()), _max_action_arg + 1),
-                                      py::arg("dtype") = np_actions_dtype());
+                                      py::arg("dtype") = dtype_actions());
 }
 
 py::object MettaGrid::observation_space() {
@@ -645,12 +645,10 @@ py::object MettaGrid::observation_space() {
     // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
     // that matters to us.
     return spaces.attr("Box")(
-        0, 255, py::make_tuple(_agents.size(), _num_observation_tokens, 3), py::arg("dtype") = np_observations_dtype());
+        0, 255, py::make_tuple(_agents.size(), _num_observation_tokens, 3), py::arg("dtype") = dtype_observations());
   } else {
-    return spaces.attr("Box")(0,
-                              255,
-                              py::make_tuple(obs_height, obs_width, _grid_features.size()),
-                              py::arg("dtype") = np_observations_dtype());
+    return spaces.attr("Box")(
+        0, 255, py::make_tuple(obs_height, obs_width, _grid_features.size()), py::arg("dtype") = dtype_observations());
   }
 }
 

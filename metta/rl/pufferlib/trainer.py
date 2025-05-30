@@ -31,7 +31,7 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 from mettagrid.curriculum import SamplingCurriculum
-from mettagrid.mettagrid_env import MettaGridEnv, np_actions_type
+from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 
 torch.set_float32_matmul_precision("high")
 
@@ -191,7 +191,9 @@ class PufferTrainer:
                         )
                     # delete below after evaluate is tested with tokenized obs
                     if len(environment_shape) == 2:
-                        assert self.trainer_cfg.evaluate_interval == 0, "Tokenized obs agents aren't set up for evaluate yet (5-30-25)."
+                        assert self.trainer_cfg.evaluate_interval == 0, (
+                            "Tokenized obs agents aren't set up for evaluate yet (5-30-25)."
+                        )
 
             if not found_match:
                 raise ValueError(
@@ -408,7 +410,7 @@ class PufferTrainer:
                         infos[k].append(v)
 
             with profile.env:
-                actions_np = actions.cpu().numpy().astype(np_actions_type)
+                actions_np = actions.cpu().numpy().astype(dtype_actions)
                 self.vecenv.send(actions_np)
 
         with profile.eval_misc:

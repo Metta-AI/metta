@@ -7,47 +7,47 @@ namespace py = pybind11;
 
 // PufferLib expects particular datatypes
 
-inline py::object np_observations_dtype() {
+inline py::object dtype_observations() {
   auto np = py::module_::import("numpy");
   return np.attr("dtype")(np.attr("uint8"));
 }
 
-inline py::object np_terminals_dtype() {
+inline py::object dtype_terminals() {
   auto np = py::module_::import("numpy");
   return np.attr("dtype")(np.attr("bool_"));
 }
 
-inline py::object np_truncations_dtype() {
+inline py::object dtype_truncations() {
   auto np = py::module_::import("numpy");
   return np.attr("dtype")(np.attr("bool_"));
 }
 
-inline py::object np_rewards_dtype() {
+inline py::object dtype_rewards() {
   auto np = py::module_::import("numpy");
   return np.attr("dtype")(np.attr("float32"));
 }
 
-inline py::object np_actions_dtype() {
+inline py::object dtype_actions() {
   auto np = py::module_::import("numpy");
   return np.attr("dtype")(np.attr("int32"));
 }
 
-inline py::object np_masks_dtype() {
+inline py::object dtype_masks() {
   auto np = py::module_::import("numpy");
   return np.attr("dtype")(np.attr("bool_"));
 }
 
-inline py::object np_success_dtype() {
+inline py::object dtype_success() {
   auto np = py::module_::import("numpy");
   return np.attr("dtype")(np.attr("bool_"));
 }
 
-typedef uint8_t c_observations_type;
-typedef bool c_terminals_type;
-typedef bool c_truncations_type;
-typedef float c_rewards_type;
-typedef int32_t c_actions_type;
-typedef bool c_masks_type;
-typedef bool c_success_type;
+typedef uint8_t ObservationType;
+typedef bool TerminalType;
+typedef bool TruncationType;
+typedef float RewardType;
+typedef int32_t ActionType;
+typedef bool MaskType;
+typedef bool SuccessType;
 
 #endif  // METTAGRID_METTAGRID_TYPES_HPP_

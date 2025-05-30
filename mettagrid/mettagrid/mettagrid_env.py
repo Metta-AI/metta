@@ -22,13 +22,13 @@ from mettagrid.util.diversity import calculate_diversity_bonus
 from mettagrid.util.hydra import simple_instantiate
 
 # These data types must match PufferLib -- see pufferlib/vector.py
-np_observations_type = np.dtype(np.uint8)
-np_terminals_type = np.dtype(bool)
-np_truncations_type = np.dtype(bool)
-np_rewards_type = np.dtype(np.float32)
-np_actions_type = np.dtype(np.int32)  # forced to int32 when actions are Discrete or MultiDiscrete
-np_masks_type = np.dtype(bool)
-np_success_type = np.dtype(bool)
+dtype_observations = np.dtype(np.uint8)
+dtype_terminals = np.dtype(bool)
+dtype_truncations = np.dtype(bool)
+dtype_rewards = np.dtype(np.float32)
+dtype_actions = np.dtype(np.int32)  # forced to int32 when actions are Discrete or MultiDiscrete
+dtype_masks = np.dtype(bool)
+dtype_success = np.dtype(bool)
 
 logger = logging.getLogger("MettaGridEnv")
 
@@ -116,10 +116,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
         self._reset_env()
 
-        self.observations = self.observations.astype(np_observations_type, copy=False)
-        self.terminals = self.terminals.astype(np_terminals_type, copy=False)
-        self.truncations = self.truncations.astype(np_truncations_type, copy=False)
-        self.rewards = self.rewards.astype(np_rewards_type, copy=False)
+        self.observations = self.observations.astype(dtype_observations, copy=False)
+        self.terminals = self.terminals.astype(dtype_terminals, copy=False)
+        self.truncations = self.truncations.astype(dtype_truncations, copy=False)
+        self.rewards = self.rewards.astype(dtype_rewards, copy=False)
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
