@@ -8,16 +8,16 @@ import gymnasium as gym
 import numpy as np
 import pufferlib
 from omegaconf import DictConfig, OmegaConf
+from pydantic import validate_call
 from typing_extensions import override
 
-from metta.util import validate_arg_types
 from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
-from mettagrid.util.datastruct import flatten_config, unroll_nested_dict
 from mettagrid.util.hydra import simple_instantiate
+from pufferlib import unroll_nested_dict
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 np_observations_type = np.dtype(np.uint8)
@@ -42,7 +42,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     rewards: np.ndarray
     actions: np.ndarray
 
-    @validate_arg_types
+    @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
         self,
         curriculum: Curriculum,
@@ -182,8 +182,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         
         # Flatten game stats
         if "game" in stats:
-            game_flat = flatten_config(stats["game"], parent_key="game", sep="/")
-            infos.update(game_flat)
+            for k, v in unroll_nested_dict(stats["game"]):
+                infos[f"game/{k}"] = v
         
         # Keep the aggregated agent stats as before
         agent_totals = {}
