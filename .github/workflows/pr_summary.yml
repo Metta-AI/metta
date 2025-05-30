@@ -30,4 +30,4 @@ jobs:
           GITHUB_REPO: "Metta-AI/metta"
           DAYS_TO_SCAN: "7"
           DIFF_CHARACTER_LIMIT: "20000"
-        run: python generate_pr_summary_script.py
+        run: python .github/scripts/pr_summaries.py
