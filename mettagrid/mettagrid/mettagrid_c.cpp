@@ -39,7 +39,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
 
   _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
 
-  unsigned int _num_observation_tokens =
+  _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
   current_step = 0;

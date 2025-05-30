@@ -1,5 +1,5 @@
-#ifndef METTAGRID_METTAGRID_TYPES_HPP
-#define METTAGRID_METTAGRID_TYPES_HPP
+#ifndef METTAGRID_METTAGRID_TYPES_HPP_
+#define METTAGRID_METTAGRID_TYPES_HPP_
 
 #include <pybind11/pybind11.h>
 
@@ -50,4 +50,4 @@ typedef int32_t c_actions_type;
 typedef bool c_masks_type;
 typedef bool c_success_type;
 
-#endif  // METTAGRID_METTAGRID_TYPES_HPP
+#endif  // METTAGRID_METTAGRID_TYPES_HPP_

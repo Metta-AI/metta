@@ -131,6 +131,42 @@ py::list CreateDefaultMap(int num_agents_per_team = 2) {
   return map;
 }
 
+// Utility function to generate valid random actions
+py::array_t<int> GenerateValidRandomActions(MettaGrid* env, int num_agents, std::mt19937* gen) {
+  // Get the maximum argument values for each action type
+  py::list max_args = env->max_action_args();
+  int num_actions = py::len(env->action_names());
+
+  // Create actions array
+  std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents), 2};
+  py::array_t<int> actions(shape);
+  auto actions_ptr = static_cast<int*>(actions.request().ptr);
+
+  // Initialize distributions
+  std::uniform_int_distribution<> action_dist(0, num_actions - 1);
+
+  for (int i = 0; i < num_agents; ++i) {
+    // Choose random action type
+    int action_type = action_dist(*gen);
+
+    // Get max allowed argument for this action type
+    int max_arg = py::cast<int>(max_args[action_type]);
+
+    // Choose random valid argument (0 to max_arg inclusive)
+    int action_arg = 0;
+    if (max_arg > 0) {
+      std::uniform_int_distribution<> arg_dist(0, max_arg);
+      action_arg = arg_dist(*gen);
+    }
+
+    // Set the action values
+    actions_ptr[i * 2] = action_type;
+    actions_ptr[i * 2 + 1] = action_arg;
+  }
+
+  return actions;
+}
+
 // Matching Python test_step_performance_no_reset
 static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/references)
   // Setup with default 4 agents (matching Python benchmark config)
@@ -147,25 +183,20 @@ static void BM_MettaGridStep(benchmark::State& state) {  // NOLINT(runtime/refer
     return;
   }
 
-  // Create actions array
-  std::vector<py::ssize_t> shape = {static_cast<py::ssize_t>(num_agents), 2};
-  py::array_t<int> actions(shape);
-  auto actions_ptr = static_cast<int*>(actions.request().ptr);
-
-  // Initialize with random actions (seed 42 for determinism like Python)
+  // Initialize random generator with seed 42 for determinism
   std::mt19937 gen(42);
-  std::uniform_int_distribution<> action_dist(0, py::len(env->action_names()) - 1);
-  std::uniform_int_distribution<> arg_dist(0, 3);
 
-  for (size_t i = 0; i < num_agents; ++i) {
-    actions_ptr[i * 2] = action_dist(gen);
-    actions_ptr[i * 2 + 1] = arg_dist(gen);
-  }
+  // Generate initial valid actions
+  py::array_t<int> actions = GenerateValidRandomActions(env.get(), num_agents, &gen);
 
   // Benchmark loop
   for (auto _ : state) {
     auto result = env->step(actions);
     benchmark::DoNotOptimize(result);
+
+    // Optionally regenerate actions periodically to vary the workload
+    // (commented out for now to match Python benchmark behavior)
+    // actions = GenerateValidRandomActions(env.get(), num_agents, gen);
   }
 
   // Report steps/second as custom counters
