@@ -154,7 +154,7 @@ public:
     obs[offsets[2]] = this->color;
     obs[offsets[3]] = this->converting || this->cooling_down;
     for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      obs[offsets[4] + i] = this->inventory[i];
+      obs[offsets[4 + i]] = this->inventory[i];
     }
   }
 
