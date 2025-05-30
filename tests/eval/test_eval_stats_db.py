@@ -53,6 +53,7 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, Li
         attributes = {"seed": str(i)}
         created_at = datetime.datetime.now()
 
+        agent_groups = {0: 0, 1: 1}
         agent_metrics = {
             0: {"reward": 1.0 + i},
             1: {"reward": 1.5 + i},
@@ -65,6 +66,7 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, Li
             ep_id,
             attributes,
             agent_metrics,
+            agent_groups,
             step_count=100,
             replay_url=None,
             created_at=created_at,

@@ -46,12 +46,12 @@ def make_map(cfg_path: str, overrides: DictConfig | None = None):
     # Generate and measure time taken
     start = time.time()
     map_builder = hydra.utils.instantiate(cfg, _recursive_=recursive)
-    grid = map_builder.build()
+    level = map_builder.build()
     gen_time = time.time() - start
     logger.info(f"Time taken to build map: {gen_time}s")
 
     storable_map = StorableMap(
-        grid=grid,
+        grid=level.grid,
         metadata={
             "gen_time": gen_time,
             "timestamp": datetime.now().isoformat(),

@@ -1,12 +1,13 @@
-name: "Deploy Mettascope to GitHub Pages"
+name: "Deploy to GitHub Pages"
 on:
   push:
     branches:
       - main
     paths:
-      - "mettascope/**" # Run when any file in player directory changes
-      - ".github/workflows/**" # Run when workflow files change
-  workflow_dispatch: {} # Allow manual triggers
+      - "mettascope/**"
+      - "observatory/**"
+      - ".github/workflows/**"
+  workflow_dispatch: {}
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -20,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-mettascope:
+  deploy-pages:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -36,13 +37,21 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-          cache-dependency-path: "mettascope/package-lock.json"
+          cache-dependency-path: |
+            mettascope/package-lock.json
+            observatory/package-lock.json
 
-      - name: Install and build TypeScript
+      - name: Build Mettascope
         run: |
           cd mettascope
           npm ci
           npx tsc
+
+      - name: Build Observatory
+        run: |
+          cd observatory
+          npm ci
+          npm run build
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -80,10 +89,16 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
+      - name: Create deployment directory
+        run: |
+          mkdir -p deploy/observatory
+          cp -r mettascope/* deploy/
+          cp -r observatory/dist/* deploy/observatory/
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "./mettascope"
+          path: "./deploy"
 
       - name: Deploy to GitHub Pages
         id: deployment

@@ -137,7 +137,7 @@ echo -e "\nSanity check: verifying all local deps are importable..."
 for dep in \
   "pufferlib" \
   "carbs" \
-  "metta.rl.fast_gae.fast_gae" \
+  "metta.rl.fast_gae" \
   "mettagrid.mettagrid_env" \
   "mettagrid.mettagrid_c" \
   "wandb_carbs"; do

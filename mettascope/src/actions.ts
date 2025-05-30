@@ -41,7 +41,7 @@ export function initActionButtons() {
   })
 
   find("#action-buttons .attack").addEventListener('click', () => {
-    state.showAttackMode = true;
+    state.showAttackMode = !state.showAttackMode;
   })
 
   find("#action-buttons .attack-nearest").addEventListener('click', () => {
@@ -123,6 +123,10 @@ export function processActions(event: KeyboardEvent) {
     if (event.key >= "1" && event.key <= "9") {
       // Keys 1-9 is the attack matrix.
       sendAction("attack", parseInt(event.key))
+    }
+    if (event.key == "Z") {
+      // Attack nearest.
+      state.showAttackMode = !state.showAttackMode;
     }
     if (event.key == "z") {
       // Attack nearest.

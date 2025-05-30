@@ -32,6 +32,12 @@ public:
   MettaGrid(py::dict env_cfg, py::list map);
   ~MettaGrid();
 
+  unsigned short obs_width;
+  unsigned short obs_height;
+
+  unsigned int current_step;
+  unsigned int max_steps;
+
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
@@ -42,7 +48,7 @@ public:
   void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
-  unsigned int current_timestep();
+
   unsigned int map_width();
   unsigned int map_height();
   py::list grid_features();
@@ -69,8 +75,6 @@ private:
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
-  unsigned int _current_timestep;
-  unsigned int _max_timestep;
 
   std::vector<std::unique_ptr<ActionHandler>> _action_handlers;
   int _num_action_handlers;
@@ -82,8 +86,6 @@ private:
   std::unique_ptr<StatsTracker> _stats;
 
   bool _use_observation_tokens;
-  unsigned short _obs_width;
-  unsigned short _obs_height;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.

@@ -12,7 +12,7 @@ game:
       cooldown: 255
   agent:
     rewards:
-      battery: 1
+      battery.red: 1
       ore.red: 0
       ore.blue: 0
       ore.green: 0

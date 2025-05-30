@@ -36,7 +36,7 @@ protected:
     // Actions is only successful if we take at least one item.
     bool items_taken = false;
 
-    for (size_t i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (size_t i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (converter->recipe_output[i] == 0) {
         // We only want to take things the converter can produce. Otherwise it's a pain to
         // collect resources from a converter that's in the middle of processing a queue.

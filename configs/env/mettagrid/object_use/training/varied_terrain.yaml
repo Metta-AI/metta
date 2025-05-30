@@ -13,8 +13,12 @@ game:
       ore.red: ${sampling:0.005,0.1, 0.01}
       ore.blue: ${sampling:0.005,0.1, 0.01}
       ore.green: ${sampling:0.005,0.1, 0.01}
-      battery: ${sampling:0.01,1, 0.1}
-      battery_max: 5
+      battery.red: ${sampling:0.01,1, 0.1}
+      battery.red_max: 5
+      battery.blue: ${sampling:0.01,1, 0.1}
+      battery.blue_max: 5
+      battery.green: ${sampling:0.01,1, 0.1}
+      battery.green_max: 5
       heart: 1
       heart_max: 1000
   map_builder:
@@ -27,7 +31,7 @@ game:
       height: ${sampling:20,120,80}
       border_width: ${sampling:1,6,3}
       agents: 1
-      style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      style: ??? # ${choose:"all-sparse","balanced","dense","maze"}
       objects:
         mine.red: ${sampling:1,20,10}
         mine.blue: ${sampling:1,20,10}

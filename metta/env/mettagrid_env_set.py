@@ -44,7 +44,7 @@ class MettaGridEnvSet(MettaGridEnv):
         # Get initial environment config
         self._env_cfg = self._get_new_env_cfg()
 
-        super().__init__(env_cfg, render_mode, buf=buf, env_map=None, **kwargs)
+        super().__init__(env_cfg, render_mode, buf=buf, level=None, **kwargs)
         self._cfg_template = None  # we don't use this with multiple envs, so we clear it to emphasize that fact
 
     def _update_priorities(self, env_idx: int, performance: float):

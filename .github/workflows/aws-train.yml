@@ -1,4 +1,4 @@
-name: Launch AWS Training Job
+name: "Launch AWS Training Job"
 
 on:
   workflow_dispatch:

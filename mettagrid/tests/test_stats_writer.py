@@ -53,6 +53,7 @@ def test_episode_lifecycle(temp_dir):
 
     # Metrics
     agent_metrics = {0: {"reward": 10.5, "steps": 50.0}, 1: {"reward": 8.2, "steps": 45.0}}
+    agent_groups = {0: 0, 1: 1}
 
     # Step count and timestamps
     step_count = 100
@@ -60,7 +61,7 @@ def test_episode_lifecycle(temp_dir):
     replay_url = "https://example.com/replay.json"
 
     # Record the complete episode
-    writer.record_episode(episode_id, attributes, agent_metrics, step_count, replay_url, created_at)
+    writer.record_episode(episode_id, attributes, agent_metrics, agent_groups, step_count, replay_url, created_at)
 
     # Verify data in database
     assert writer.db is not None
