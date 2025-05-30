@@ -26,7 +26,7 @@ import math
 
 import numpy as np
 
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.map.utils.pattern import Pattern, Symmetry, ascii_to_weights_of_all_patterns
 from metta.util.config import Config
 
@@ -40,7 +40,7 @@ class ConvChainParams(Config):
     symmetry: Symmetry = "all"
 
 
-class ConvChain(Node[ConvChainParams]):
+class ConvChain(Scene[ConvChainParams]):
     """
     ConvChain scene generator, based on https://github.com/mxgmn/ConvChain
     (ConvChainFast.cs version).
@@ -122,13 +122,13 @@ class ConvChain(Node[ConvChainParams]):
             if q > rnd:
                 field[y0][x0] = not field[y0][x0]
 
-        # Apply the generated field to the node grid
+        # Apply the generated field to the scene grid
         for y in range(self.height):
             for x in range(self.width):
                 self.grid[y, x] = "wall" if field[y][x] else "empty"
 
 
-class ConvChainSlow(Node[ConvChainParams]):
+class ConvChainSlow(Scene[ConvChainParams]):
     """
     ConvChain scene generator, naive & slow implementation.
 
@@ -182,7 +182,7 @@ class ConvChainSlow(Node[ConvChainParams]):
             y = self.rng.integers(0, self.height, dtype=int)
             metropolis(x, y)
 
-        # Apply the generated field to the node grid
+        # Apply the generated field to the scene grid
         for y in range(self.height):
             for x in range(self.width):
                 self.grid[y, x] = "wall" if field[y, x] else "empty"

@@ -1,4 +1,4 @@
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.map.scenes.random import Random
 from metta.map.types import ChildrenAction
 from metta.map.utils.random import FloatDistribution, sample_float_distribution
@@ -9,7 +9,7 @@ class RandomObjectsParams(Config):
     object_ranges: dict[str, FloatDistribution] = {}
 
 
-class RandomObjects(Node):
+class RandomObjects(Scene):
     """
     Fill the grid with random objects. Unlike Random, this scene takes the percentage ranges of objects,
     not the absolute count.

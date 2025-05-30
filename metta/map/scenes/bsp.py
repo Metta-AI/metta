@@ -3,7 +3,7 @@ from typing import Literal, Tuple
 
 import numpy as np
 
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.map.types import MapGrid
 from metta.util.config import Config
 
@@ -16,9 +16,9 @@ class BSPLayoutParams(Config):
     area_count: int
 
 
-class BSPLayout(Node[BSPLayoutParams]):
+class BSPLayout(Scene[BSPLayoutParams]):
     """
-    This node doesn't render anything, it just creates areas that can be used by other nodes.
+    This scene doesn't render anything, it just creates areas that can be used by other scenes.
     """
 
     params_type = BSPLayoutParams
@@ -44,7 +44,7 @@ class BSPParams(Config):
     skip_corridors: bool = False
 
 
-class BSP(Node[BSPParams]):
+class BSP(Scene[BSPParams]):
     """
     Binary Space Partitioning. (Roguelike dungeon generator)
 

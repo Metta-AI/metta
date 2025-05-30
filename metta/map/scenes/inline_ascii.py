@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.util.config import Config
 
 SYMBOLS = {
@@ -34,7 +34,7 @@ class InlineAsciiParams(Config):
     column: int = 0
 
 
-class InlineAscii(Node):
+class InlineAscii(Scene):
     params_type = InlineAsciiParams
 
     def __init__(self, **kwargs):
@@ -50,7 +50,7 @@ class InlineAscii(Node):
         params = self.params
         if self.width < self.ascii_grid.shape[1] + params.column or self.height < self.ascii_grid.shape[0] + params.row:
             raise ValueError(
-                f"Grid size {self.ascii_grid.shape} is too large for node size {self.width}x{self.height} at "
+                f"Grid size {self.ascii_grid.shape} is too large for scene size {self.width}x{self.height} at "
                 f"{params.column},{params.row}"
             )
 

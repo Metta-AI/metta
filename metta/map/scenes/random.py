@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.util.config import Config
 
 
@@ -10,7 +10,7 @@ class RandomParams(Config):
     too_many_is_ok: bool = True
 
 
-class Random(Node[RandomParams]):
+class Random(Scene[RandomParams]):
     """
     Fill the grid with random symbols, based on configuration.
 

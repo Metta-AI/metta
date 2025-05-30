@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import cast
 
 from metta.map.config import scenes_root
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
 from metta.map.types import ChildrenAction
 from metta.util.config import Config
@@ -12,7 +12,7 @@ class RandomSceneFromDirParams(Config):
     dir: str
 
 
-class RandomSceneFromDir(Node[RandomSceneFromDirParams]):
+class RandomSceneFromDir(Scene[RandomSceneFromDirParams]):
     params_type = RandomSceneFromDirParams
 
     def __init__(self, **kwargs):

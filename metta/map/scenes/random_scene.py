@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.map.types import ChildrenAction, SceneCfg
 from metta.util.config import Config
 
@@ -14,7 +14,7 @@ class RandomSceneParams(Config):
     candidates: list[RandomSceneCandidate]
 
 
-class RandomScene(Node[RandomSceneParams]):
+class RandomScene(Scene[RandomSceneParams]):
     params_type = RandomSceneParams
 
     def get_children(self) -> list[ChildrenAction]:

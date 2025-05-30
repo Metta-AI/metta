@@ -13,7 +13,7 @@ from metta.util.config import Config
 
 @dataclass
 class Area:
-    id: int  # unique for areas in a node; not unique across nodes.
+    id: int  # unique for areas in a scene; not unique across scenes.
     grid: MapGrid
     tags: list[str]
 
@@ -21,8 +21,8 @@ class Area:
 ParamsT = TypeVar("ParamsT", bound=Config)
 
 
-# Base class for all map nodes.
-class Node(Generic[ParamsT]):
+# Base class for all map scenes.
+class Scene(Generic[ParamsT]):
     params_type: type[ParamsT]
 
     _areas: list[Area]
@@ -73,7 +73,7 @@ class Node(Generic[ParamsT]):
 
     # Render does two things:
     # - updates `self.grid` as it sees fit
-    # - creates areas of interest in a node through `self.make_area()`
+    # - creates areas of interest in a scene through `self.make_area()`
     def render(self):
         raise NotImplementedError("Subclass must implement render method")
 
@@ -88,8 +88,8 @@ class Node(Generic[ParamsT]):
         for query in self.get_children():
             areas = self.select_areas(query)
             for area in areas:
-                child_node = make_node(query.scene, area.grid)
-                child_node.render_with_children()
+                child_scene = make_scene(query.scene, area.grid)
+                child_scene.render_with_children()
 
     def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[List[str]] = None) -> Area:
         area = Area(
@@ -163,13 +163,13 @@ def load_class(cls: str):
     return getattr(module, class_name)
 
 
-def make_node(cfg: SceneCfg, grid: MapGrid) -> Node:
+def make_scene(cfg: SceneCfg, grid: MapGrid) -> Scene:
     if callable(cfg):
-        # useful for dynamically produced nodes in `get_children()`
-        node = cfg(grid)
-        if not isinstance(node, Node):
-            raise ValueError(f"Node returned by {cfg} is not a valid node: {node}")
-        return node
+        # useful for dynamically produced scenes in `get_children()`
+        scene = cfg(grid)
+        if not isinstance(scene, Scene):
+            raise ValueError(f"Scene callback didn't return a valid scene: {scene}")
+        return scene
 
     if isinstance(cfg, str):
         if cfg.startswith("/"):

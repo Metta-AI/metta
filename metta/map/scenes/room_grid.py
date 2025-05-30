@@ -1,6 +1,6 @@
 from typing import Optional
 
-from metta.map.node import Node
+from metta.map.scene import Scene
 from metta.util.config import Config
 
 
@@ -12,7 +12,7 @@ class RoomGridParams(Config):
     border_object: str = "wall"
 
 
-class RoomGrid(Node[RoomGridParams]):
+class RoomGrid(Scene[RoomGridParams]):
     """
     Tile the scene with a grid of equally sized isolated rooms.
 
@@ -27,7 +27,7 @@ class RoomGrid(Node[RoomGridParams]):
     │   #   #   #│
     └────────────┘
 
-    Outer walls are drawn for the sake of the example readability. (They'll usually be provided by the container node.)
+    Outer walls are drawn for the sake of the example readability. (They'll usually be provided by the container scene.)
 
     The right wall is there because rooms are equally sized, and there's some extra space on the right.
 

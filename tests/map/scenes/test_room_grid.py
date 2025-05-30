@@ -3,15 +3,15 @@ import pytest
 
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaQuery
-from tests.map.scenes.utils import assert_grid, render_node
+from tests.map.scenes.utils import assert_grid, render_scene
 
 
 def test_exact():
     # Test creating a 2x3 grid of rooms
-    node = render_node(RoomGrid, {"rows": 2, "columns": 3, "border_width": 1, "border_object": "wall"}, (10, 10))
+    scene = render_scene(RoomGrid, {"rows": 2, "columns": 3, "border_width": 1, "border_object": "wall"}, (10, 10))
 
     assert_grid(
-        node,
+        scene,
         """
 |  #  #  ##|
 |  #  #  ##|
@@ -29,13 +29,13 @@ def test_exact():
 
 def test_with_rows_columns():
     # Test creating a 2x3 grid of rooms
-    node = render_node(RoomGrid, {"rows": 2, "columns": 3, "border_width": 1, "border_object": "wall"}, (10, 10))
+    scene = render_scene(RoomGrid, {"rows": 2, "columns": 3, "border_width": 1, "border_object": "wall"}, (10, 10))
 
     # Verify the grid structure
     # Should have walls at inner borders
-    assert np.array_equal(node.grid[4, :], ["wall"] * 10)  # Horizontal border
-    assert np.array_equal(node.grid[:, 2], ["wall"] * 10)  # Vertical border
-    areas = node.select_areas(AreaQuery())
+    assert np.array_equal(scene.grid[4, :], ["wall"] * 10)  # Horizontal border
+    assert np.array_equal(scene.grid[:, 2], ["wall"] * 10)  # Vertical border
+    areas = scene.select_areas(AreaQuery())
     # Verify room areas are created. The 4x2 shape is due to the border width.
     assert len(areas) == 6
     assert all(area.grid.shape == (4, 2) for area in areas)
@@ -48,9 +48,9 @@ def test_with_layout():
     # Test creating rooms with a specific layout and tags
     layout = [["room1", "room2"], ["room3", "room4"]]
 
-    node = render_node(RoomGrid, {"layout": layout, "border_width": 1, "border_object": "wall"}, (10, 10))
+    scene = render_scene(RoomGrid, {"layout": layout, "border_width": 1, "border_object": "wall"}, (10, 10))
 
-    areas = node.select_areas(AreaQuery())
+    areas = scene.select_areas(AreaQuery())
     # Verify room areas are created with correct tags
     assert len(areas) == 4
     assert all(area.grid.shape == (4, 4) for area in areas)
@@ -72,13 +72,13 @@ def test_benchmark_room_grid(benchmark, benchmark_size):
     """Benchmark creating a room grid."""
 
     def create_grid():
-        node = render_node(
+        scene = render_scene(
             RoomGrid,
             {"rows": benchmark_size[0], "columns": benchmark_size[1], "border_width": 1, "border_object": "wall"},
             (100, 100),
         )
 
-        return node.select_areas(AreaQuery())
+        return scene.select_areas(AreaQuery())
 
     areas = benchmark(create_grid)
     assert len(areas) == benchmark_size[0] * benchmark_size[1]

@@ -1,6 +1,6 @@
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.scenes.random_scene import RandomScene
-from tests.map.scenes.utils import render_node
+from tests.map.scenes.utils import render_scene
 
 
 def test_objects():
@@ -9,7 +9,7 @@ def test_objects():
 
     # 1 / 2^30 chance of failure
     for _ in range(30):
-        node = render_node(
+        scene = render_scene(
             RandomScene,
             dict(
                 candidates=[
@@ -19,8 +19,8 @@ def test_objects():
             ),
             (1, 1),
         )
-        w_count += (node.grid == "wall").sum()
-        a_count += (node.grid == "altar").sum()
+        w_count += (scene.grid == "wall").sum()
+        a_count += (scene.grid == "altar").sum()
 
     assert w_count > 0
     assert a_count > 0
