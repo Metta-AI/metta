@@ -210,6 +210,13 @@ class PufferTrainer:
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
+        # Optimizing the policy and value network
+        # We make our minibatches smaller by dividing by the world size
+        # Since gradient averaging is going to make each minibatch world size times larger
+        print(f"DFF: Minibatch size is {self.trainer_cfg.minibatch_size} before division")
+        self.trainer_cfg.minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
+        print(f"DFF: Minibatch size is {self.trainer_cfg.minibatch_size} after division")
+
     def train(self):
         self.train_start = time.time()
         self.steps_start = self.agent_step
@@ -459,12 +466,7 @@ class PufferTrainer:
 
             experience.flatten_batch(advantages_np)
 
-        # Optimizing the policy and value network
-        # We make our minibatches smaller by dividing by the world size
-        # Since gradient averaging is going to make each minibatch world size times larger
-        print(f"DFF: Minibatch size is {self.trainer_cfg.minibatch_size} before division")
-        self.trainer_cfg.minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
-        print(f"DFF: Minibatch size is {self.trainer_cfg.minibatch_size} after division")
+        print(f"DFF: Minibatch size is {self.trainer_cfg.minibatch_size}")
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = PolicyState()
