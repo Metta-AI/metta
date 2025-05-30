@@ -7,8 +7,7 @@ from typing import Any, Dict, Optional, cast
 import gymnasium as gym
 import numpy as np
 import pufferlib
-from omegaconf import OmegaConf
-from pufferlib.utils import unroll_nested_dict
+from omegaconf import DictConfig, OmegaConf
 from typing_extensions import override
 
 from metta.util import validate_arg_types
@@ -17,6 +16,7 @@ from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from mettagrid.util.datastruct import flatten_config, unroll_nested_dict
 from mettagrid.util.hydra import simple_instantiate
 
 # These data types must match PufferLib -- see pufferlib/vector.py
@@ -173,15 +173,25 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         stats = self._c_env.get_episode_stats()
 
         infos["episode_rewards"] = episode_rewards
-        infos["agent_raw"] = stats["agent"]
-        infos["game"] = stats["game"]
-        infos["agent"] = {}
-
+        
+        # Flatten agent_raw stats - one entry per agent per stat
+        if "agent" in stats:
+            for agent_idx, agent_stats in enumerate(stats["agent"]):
+                for stat_name, stat_value in agent_stats.items():
+                    infos[f"agent_raw/{agent_idx}/{stat_name}"] = stat_value
+        
+        # Flatten game stats
+        if "game" in stats:
+            game_flat = flatten_config(stats["game"], parent_key="game", sep="/")
+            infos.update(game_flat)
+        
+        # Keep the aggregated agent stats as before
+        agent_totals = {}
         for agent_stats in stats["agent"]:
             for n, v in agent_stats.items():
-                infos["agent"][n] = infos["agent"].get(n, 0) + v
-        for n, v in infos["agent"].items():
-            infos["agent"][n] = v / self._c_env.num_agents
+                agent_totals[n] = agent_totals.get(n, 0) + v
+        for n, v in agent_totals.items():
+            infos[f"agent/{n}"] = v / self._c_env.num_agents
 
         replay_url = None
         if self._replay_writer:

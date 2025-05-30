@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from types import SimpleNamespace
 
 import hydra
 import numpy as np
@@ -10,7 +11,6 @@ import torch
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from pufferlib.utils import profile, unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -22,9 +22,10 @@ from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.policy import PufferAgent
-from metta.rl.pufferlib.profile import Profile
+from metta.rl.pufferlib.profile import Profile, Profiler, profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.pufferlib.utils import unroll_nested_dict
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
@@ -780,7 +781,7 @@ class PufferTrainer:
         )
 
     def _make_losses(self):
-        return pufferlib.namespace(
+        return SimpleNamespace(
             policy_loss=0,
             value_loss=0,
             entropy=0,
