@@ -170,7 +170,6 @@ class Node(Generic[ParamsT]):
 
 def load_class(cls: str):
     module_name, class_name = cls.rsplit(".", 1)
-    print(module_name, class_name)
     module = importlib.import_module(module_name)
     return getattr(module, class_name)
 
