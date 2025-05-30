@@ -92,7 +92,7 @@ function onMouseUp() {
 function onMouseMove(event: MouseEvent) {
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
   var target = event.target as HTMLElement;
-  while (target.id === "") {
+  while (target.id === "" && target.parentElement != null) {
     target = target.parentElement as HTMLElement;
   }
   ui.mouseTarget = target.id;
