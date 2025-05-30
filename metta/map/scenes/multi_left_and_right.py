@@ -22,7 +22,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
     is randomly determined at the start of each episode.
     """
 
-    params_type = MultiLeftAndRightParams
+    Params = MultiLeftAndRightParams
 
     def get_children(self):
         # Pregenerate seeds so that we could make rooms deterministic.

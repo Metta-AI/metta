@@ -18,7 +18,7 @@ class RemoveAgents(Scene[RemoveAgentsParams]):
     entirely, and just use the number of agents in the map.)
     """
 
-    params_type = RemoveAgentsParams
+    Params = RemoveAgentsParams
 
     def render(self):
         for i in range(self.height):

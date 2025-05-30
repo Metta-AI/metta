@@ -10,7 +10,7 @@ SEED = 42
 
 
 class MockScene(Scene):
-    class params_type(Config):
+    class Params(Config):
         pass
 
     def render(self):

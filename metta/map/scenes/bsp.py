@@ -21,7 +21,7 @@ class BSPLayout(Scene[BSPLayoutParams]):
     This scene doesn't render anything, it just creates areas that can be used by other scenes.
     """
 
-    params_type = BSPLayoutParams
+    Params = BSPLayoutParams
 
     def render(self):
         grid = self.grid
@@ -51,7 +51,7 @@ class BSP(Scene[BSPParams]):
     This scene creates a grid of rooms, and then connects them with corridors.
     """
 
-    params_type = BSPParams
+    Params = BSPParams
 
     def render(self):
         grid = self.grid

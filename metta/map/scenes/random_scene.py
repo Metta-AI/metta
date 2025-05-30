@@ -15,7 +15,7 @@ class RandomSceneParams(Config):
 
 
 class RandomScene(Scene[RandomSceneParams]):
-    params_type = RandomSceneParams
+    Params = RandomSceneParams
 
     def get_children(self) -> list[ChildrenAction]:
         candidates = self.params.candidates

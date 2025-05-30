@@ -8,8 +8,8 @@ class AsciiParams(Config):
     uri: str
 
 
-class Ascii(Scene):
-    params_type = AsciiParams
+class Ascii(Scene[AsciiParams]):
+    Params = AsciiParams
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

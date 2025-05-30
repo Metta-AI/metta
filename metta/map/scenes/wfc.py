@@ -55,7 +55,7 @@ class WFCParams(Config):
 
 
 class WFC(Scene[WFCParams]):
-    params_type = WFCParams
+    Params = WFCParams
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

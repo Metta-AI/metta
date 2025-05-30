@@ -28,7 +28,7 @@ class MakeConnected(Scene[MakeConnectedParams]):
     TODO: This can result in some extra tunnels being dug.
     """
 
-    params_type = MakeConnectedParams
+    Params = MakeConnectedParams
 
     def _is_empty(self, symbol: str) -> bool:
         # TODO - treat agents as empty cells?
