@@ -217,6 +217,11 @@ class PufferTrainer:
         self.trainer_cfg.minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
         print(f"DFF: Minibatch size is {self.trainer_cfg.minibatch_size} after division")
 
+        # Now we also need to scale the batch size by the world size
+        print(f"DFF: Batch size is {self.trainer_cfg.batch_size} before division")
+        self.trainer_cfg.batch_size = self.trainer_cfg.batch_size // self._world_size
+        print(f"DFF: Batch size is {self.trainer_cfg.batch_size} after division")
+
     def train(self):
         self.train_start = time.time()
         self.steps_start = self.agent_step
