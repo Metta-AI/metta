@@ -1,5 +1,5 @@
 import pytest
-from pydantic import validate_call, ValidationError
+from pydantic import ValidationError, validate_call
 
 
 @validate_call

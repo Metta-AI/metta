@@ -5,7 +5,6 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pufferlib.pytorch import sample_logits
 from torch import nn
-from torch.nn import functional as F
 
 
 def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):

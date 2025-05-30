@@ -14,11 +14,7 @@ def test_env_map():
 
     # Create a level with one agent
     level_builder = mettagrid.room.random.Random(
-        width=3, 
-        height=4, 
-        objects=OmegaConf.create({}), 
-        agents=1,
-        border_width=1
+        width=3, height=4, objects=OmegaConf.create({}), agents=1, border_width=1
     )
     level = level_builder.build()
 

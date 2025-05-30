@@ -7,7 +7,8 @@ from typing import Any, Dict, Optional, cast
 import gymnasium as gym
 import numpy as np
 import pufferlib
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
+from pufferlib import unroll_nested_dict
 from pydantic import validate_call
 from typing_extensions import override
 
@@ -18,7 +19,6 @@ from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.diversity import calculate_diversity_bonus
 from mettagrid.util.hydra import simple_instantiate
-from pufferlib import unroll_nested_dict
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 np_observations_type = np.dtype(np.uint8)

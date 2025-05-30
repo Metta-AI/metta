@@ -6,11 +6,11 @@ from types import SimpleNamespace
 
 import hydra
 import numpy as np
-import pufferlib
 import torch
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
+from pufferlib import unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -32,9 +32,6 @@ from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
 from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
-
-# Import unroll_nested_dict from PufferLib
-from pufferlib import unroll_nested_dict
 
 torch.set_float32_matmul_precision("high")
 

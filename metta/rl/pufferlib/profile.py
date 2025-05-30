@@ -3,7 +3,7 @@ Thin wrapper around PufferLib's Profile for cleaner integration.
 """
 
 import time
-import torch
+
 from pufferlib.pufferl import Profile as PufferProfile
 
 
