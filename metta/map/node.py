@@ -1,10 +1,15 @@
+import importlib
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Generic, List, Optional, TypeVar
 
 import numpy as np
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from metta.map.config import scenes_root
+from metta.map.scene import SceneCfg, TypedChild
 from metta.map.types import MapGrid
+from metta.map.utils.random import MaybeSeed
+from metta.util.config import Config
 
 
 @dataclass
@@ -14,14 +19,35 @@ class Area:
     tags: list[str]
 
 
-# Container for a map slice, with a scene to render.
-class Node:
+ParamsT = TypeVar("ParamsT", bound=Config)
+
+
+# Base class for all map nodes.
+class Node(Generic[ParamsT]):
+    params_type: type[ParamsT]
+
     _areas: list[Area]
 
-    def __init__(self, scene, grid: MapGrid):
-        self.scene = scene
+    params: ParamsT
 
-        # Not prefixed with `_`; scene renderers access these directly.
+    def __init__(
+        self,
+        grid: MapGrid,
+        params: ParamsT | DictConfig | dict | None = None,
+        children: Optional[List[TypedChild]] = None,
+        seed: MaybeSeed = None,
+    ):
+        if params is None:
+            params = {}
+        if isinstance(params, DictConfig):
+            self.params = self.params_type(params)
+        elif isinstance(params, dict):
+            self.params = self.params_type(**params)
+        elif isinstance(params, self.params_type):
+            self.params = params
+        else:
+            raise ValueError(f"Invalid params: {params}")
+
         self.grid = grid
         self.height = grid.shape[0]
         self.width = grid.shape[1]
@@ -36,8 +62,38 @@ class Node:
             tags=[],
         )
 
+        self.children = children or []
+
+        self.rng = np.random.default_rng(seed)
+
+    # Render does two things:
+    # - updates `self.grid` as it sees fit
+    # - creates areas of interest in a node through `self.make_area()`
     def render(self):
-        self.scene.render(self)
+        raise NotImplementedError("Subclass must implement render method")
+
+    # Subclasses can override this to provide a list of children.
+    # By default, children are static, which makes them configurable in the config file, but then can't depend
+    # on the specific generated content.
+    def get_children(self) -> List[TypedChild]:
+        return self.children
+
+    def render_with_children(self):
+        self.render()
+        for query in self.get_children():
+            sweep = query.get("sweep")
+            subqueries: list[TypedChild] = [query]
+            if sweep:
+                subqueries = [
+                    OmegaConf.merge(entry, query)  # type: ignore
+                    for entry in sweep
+                ]
+
+            for query in subqueries:
+                areas = self.select_areas(query)
+                for area in areas:
+                    child_node = make_node(query["scene"], area.grid)
+                    child_node.render_with_children()
 
     def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[List[str]] = None) -> Area:
         area = Area(
@@ -110,3 +166,30 @@ class Node:
             self._locks[lock].update([area.id for area in selected_areas])
 
         return selected_areas
+
+
+def load_class(cls: str):
+    module_name, class_name = cls.rsplit(".", 1)
+    print(module_name, class_name)
+    module = importlib.import_module(module_name)
+    return getattr(module, class_name)
+
+
+def make_node(cfg: SceneCfg, grid: MapGrid) -> Node:
+    if callable(cfg):
+        # useful for dynamically produced nodes in `get_children()`
+        node = cfg(grid)
+        if not isinstance(node, Node):
+            raise ValueError(f"Node returned by {cfg} is not a valid node: {node}")
+        return node
+
+    if isinstance(cfg, str):
+        if cfg.startswith("/"):
+            cfg = cfg[1:]
+        cfg = OmegaConf.to_container(OmegaConf.load(f"{scenes_root}/{cfg}"))  # type: ignore
+
+    if not isinstance(cfg, dict):
+        raise ValueError(f"Invalid scene config: {cfg}")
+
+    cls = load_class(cfg["type"])
+    return cls(grid=grid, params=cfg.get("params", {}), children=cfg.get("children", []))

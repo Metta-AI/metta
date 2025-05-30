@@ -2,21 +2,16 @@ import numpy as np
 import pytest
 
 from metta.map.node import Node
-from metta.map.scene import Scene
+from metta.map.scene import TypedChild
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import add_pretty_border, bordered_text_to_lines
 from metta.map.utils.storable_map import grid_to_ascii
 
 
-class MockScene(Scene):
-    def _render(self, node: Node):
-        pass
-
-
-def scene_to_node(scene: Scene, shape: tuple[int, int]):
+def render_node(cls: type[Node], params: dict, shape: tuple[int, int], children: list[TypedChild] = []):
     grid = np.full(shape, "empty", dtype="<U50")
-    node = Node(MockScene(), grid)
-    scene.render(node)
+    node = cls(grid=grid, params=params, children=children)
+    node.render_with_children()
     return node
 
 

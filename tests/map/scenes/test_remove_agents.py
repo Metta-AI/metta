@@ -1,23 +1,25 @@
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.scenes.nop import Nop
 from metta.map.scenes.remove_agents import RemoveAgents
-from tests.map.scenes.utils import assert_grid, scene_to_node
+from tests.map.scenes.utils import assert_grid, render_node
 
 
 def test_basic():
-    scene = Nop(
+    node = render_node(
+        Nop,
+        {},
+        (3, 3),
         children=[
             {
-                "scene": InlineAscii("WWW\n" + "AA \n" + "WWW\n"),
+                "scene": lambda grid: InlineAscii(grid=grid, params={"data": "WWW\n" + "AA \n" + "WWW\n"}),
                 "where": "full",
             },
             {
-                "scene": RemoveAgents(),
+                "scene": lambda grid: RemoveAgents(grid=grid),
                 "where": "full",
             },
-        ]
+        ],
     )
-    node = scene_to_node(scene, (3, 3))
 
     assert_grid(
         node,

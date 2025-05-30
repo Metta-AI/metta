@@ -1,11 +1,14 @@
 from metta.map.scenes.maze import MazeKruskal
 from metta.map.scenes.mirror import Mirror
-from tests.map.scenes.utils import assert_grid, scene_to_node
+from tests.map.scenes.utils import assert_grid, render_node
 
 
 def test_horizontal():
-    scene = Mirror(scene=MazeKruskal(seed=123), symmetry="horizontal")
-    node = scene_to_node(scene, (9, 9))
+    node = render_node(
+        Mirror,
+        {"scene": lambda grid: MazeKruskal(grid=grid, params={}, seed=123), "symmetry": "horizontal"},
+        shape=(9, 9),
+    )
 
     assert_grid(
         node,
@@ -24,8 +27,11 @@ def test_horizontal():
 
 
 def test_vertical():
-    scene = Mirror(scene=MazeKruskal(seed=123), symmetry="vertical")
-    node = scene_to_node(scene, (9, 9))
+    node = render_node(
+        Mirror,
+        {"scene": lambda grid: MazeKruskal(grid=grid, params={}, seed=123), "symmetry": "vertical"},
+        shape=(9, 9),
+    )
 
     assert_grid(
         node,
@@ -44,8 +50,11 @@ def test_vertical():
 
 
 def test_x4():
-    scene = Mirror(scene=MazeKruskal(seed=123), symmetry="x4")
-    node = scene_to_node(scene, (9, 9))
+    node = render_node(
+        Mirror,
+        {"scene": lambda grid: MazeKruskal(grid=grid, params={}, seed=123), "symmetry": "x4"},
+        shape=(9, 9),
+    )
 
     assert_grid(
         node,

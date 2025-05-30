@@ -1,19 +1,22 @@
 from metta.map.scenes.convchain import ConvChain
-from tests.map.scenes.utils import scene_to_node
+from tests.map.scenes.utils import render_node
 
 
 def test_basic():
-    scene = ConvChain(
-        pattern="""
+    node = render_node(
+        ConvChain,
+        dict(
+            pattern="""
 |##  #|
 |#    |
 |#####|
 """,
-        pattern_size=3,
-        iterations=10,
-        temperature=1,
+            pattern_size=3,
+            iterations=10,
+            temperature=1,
+        ),
+        (20, 20),
     )
-    node = scene_to_node(scene, (20, 20))
 
     assert (node.grid == "wall").sum() > 0
     assert (node.grid == "empty").sum() > 0
