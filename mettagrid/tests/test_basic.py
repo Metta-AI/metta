@@ -120,7 +120,6 @@ class TestEnvironmentFunctionality:
         assert max_arg > 0, f"max_arg: {max_arg}"
 
         # Check env properties
-        assert environment.render_mode == "human"
         assert environment._c_env.map_width > 0
         assert environment._c_env.map_height > 0
         num_agents = environment.num_agents

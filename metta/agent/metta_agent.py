@@ -32,7 +32,6 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
         obs_space=obs_space,
         action_space=env.single_action_space,
         grid_features=env.grid_features,
-        global_features=env.global_features,
         device=cfg.device,
         _recursive_=False,
     )
@@ -90,9 +89,6 @@ class MettaAgent(nn.Module):
         }
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
-
-        # self.observation_space = obs_space # for use with FeatureSetEncoder
-        # self.global_features = global_features # for use with FeatureSetEncoder
 
         self.components = nn.ModuleDict()
         component_cfgs = convert_to_dict(cfg.components)
