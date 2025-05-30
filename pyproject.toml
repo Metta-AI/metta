@@ -1,22 +1,24 @@
+[build-system]
+requires = ["scikit-build-core", "pybind11==2.10.4"]
+build-backend = "scikit_build_core.build"
+
 [project]
 name = "metta"
 version = "0.1"
 description = "Metta AI framework"
 readme = "README.md"
 requires-python = "==3.11.7"
+license = "MIT"
 
-[tool.setuptools]
-packages = ["metta", "mettagrid"]
-
-[tool.setuptools.package-dir]
-metta = "metta"
-mettagrid = "mettagrid"
-
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt", "requirements_pinned.txt"] }
+[project.scripts]
+skypilot = "devops.skypilot.launch:main"
+skypilot-sandbox = "devops.skypilot.sandbox:main"
 
 [tool.coverage.run]
 source = ["mettagrid", "metta"]
+
+[tool.scikit-build.cmake.define]
+CMAKE_BUILD_TYPE = "Release"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

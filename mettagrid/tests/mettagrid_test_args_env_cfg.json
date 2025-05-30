@@ -1,34 +1,28 @@
 {
   "name": "GDY-MettaGrid",
   "report_stats_interval": 100,
-  "normalize_rewards": false,
   "sampling": 0,
-  "hidden_features": {
-    "grid_obs": [
-      "agent:energy",
-      "agent:hp"
-    ]
-  },
   "game": {
     "num_agents": 24,
     "obs_width": 11,
     "obs_height": 11,
-    "tile_size": 16,
     "max_steps": 1000,
-    "no_energy_steps": 500,
     "recursive_map_builder": true,
     "agent": {
-      "max_inventory": 50,
+      "default_item_max": 50,
       "freeze_duration": 10,
       "hp": 10,
-      "mortal": false,
       "rewards": {
         "action_failure_penalty": 0,
         "ore.red": 0.005,
-        "ore.blue": 0,
+        "ore.blue": 0.005,
         "ore.green": 0.005,
-        "battery": 0.01,
-        "battery_max": 5,
+        "battery.red": 0.01,
+        "battery.blue": 0.01,
+        "battery.green": 0.01,
+        "battery.red_max": 5,
+        "battery.blue_max": 5,
+        "battery.green_max": 5,
         "heart": 1,
         "heart_max": 1000
       }
@@ -77,7 +71,7 @@
     "objects": {
       "altar": {
         "hp": 30,
-        "input_battery": 3,
+        "input_battery.red": 3,
         "output_heart": 1,
         "max_output": 5,
         "conversion_ticks": 1,
@@ -114,7 +108,7 @@
       "generator.red": {
         "hp": 30,
         "input_ore.red": 1,
-        "output_battery": 1,
+        "output_battery.red": 1,
         "color": 0,
         "max_output": 5,
         "conversion_ticks": 1,
@@ -124,7 +118,7 @@
       "generator.blue": {
         "hp": 30,
         "input_ore.blue": 1,
-        "output_battery": 1,
+        "output_battery.blue": 1,
         "color": 1,
         "max_output": 5,
         "conversion_ticks": 1,
@@ -134,7 +128,7 @@
       "generator.green": {
         "hp": 30,
         "input_ore.green": 1,
-        "output_battery": 1,
+        "output_battery.green": 1,
         "color": 2,
         "max_output": 5,
         "conversion_ticks": 1,
@@ -153,7 +147,7 @@
       "lasery": {
         "hp": 30,
         "input_ore.red": 1,
-        "input_battery": 2,
+        "input_battery.red": 2,
         "output_laser": 1,
         "max_output": 5,
         "conversion_ticks": 1,
@@ -163,7 +157,7 @@
       "lab": {
         "hp": 30,
         "input_ore.red": 3,
-        "input_battery": 3,
+        "input_battery.red": 3,
         "output_blueprint": 1,
         "max_output": 5,
         "conversion_ticks": 1,
@@ -174,7 +168,7 @@
         "hp": 30,
         "input_blueprint": 1,
         "input_ore.red": 5,
-        "input_battery": 5,
+        "input_battery.red": 5,
         "output_armor": 5,
         "output_laser": 5,
         "max_output": 5,

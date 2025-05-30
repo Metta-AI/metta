@@ -1,3 +1,4 @@
+from einops import rearrange
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
@@ -54,7 +55,6 @@ class ObsShaper(LayerBase):
         x = x.reshape(B * TT, *space_shape)
         x = x.float()
 
-        # conv expects [batch, channel, w, h]. Below is hardcoded for [batch, w, h, channel]
         x = self._permute(x)
 
         td["_TT_"] = TT
@@ -67,7 +67,7 @@ class ObsShaper(LayerBase):
         if x.device.type == "mps":
             x = self._mps_permute(x)
         else:
-            x = x.permute(0, 3, 1, 2)
+            x = rearrange(x, "b h w c -> b c h w")
         return x
 
     def _mps_permute(self, x):

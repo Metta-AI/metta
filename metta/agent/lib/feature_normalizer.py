@@ -35,7 +35,7 @@ class FeatureListNormalizer(LayerBase):
         self.input_source = self.cfg.input_source
         self.output_size = None
         self._feature_names = self.metta_agent.grid_features
-        self.input_shape = self.metta_agent.obs_input_shape
+        self.input_shape = self.metta_agent.obs_shape
         self._norms_dict = nn.ModuleDict(
             {
                 **{k: RunningMeanStdInPlace(self.input_shape) for k in self._feature_names},

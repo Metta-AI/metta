@@ -220,8 +220,10 @@ function fixReplay() {
   }
   if (oldMapSize[0] != state.replay.map_size[0] || oldMapSize[1] != state.replay.map_size[1]) {
     // Map size changed, update the map.
-    console.info("Map size changed");
+    console.info("Map size changed to: ", state.replay.map_size[0], "x", state.replay.map_size[1]);
     focusFullMap(ui.mapPanel);
+    // Force a resize to update the minimap panel.
+    onResize();
   }
 
   console.info("replay: ", state.replay);
@@ -275,7 +277,7 @@ export function loadReplayStep(replayStep: any) {
   // Update the grid objects.
   const step = replayStep.step;
 
-  state.replay.max_steps = Math.max(state.replay.max_steps, step);
+  state.replay.max_steps = Math.max(state.replay.max_steps, step + 1);
   state.step = step; // Rewind to the current step.
 
   for (const gridObject of replayStep.grid_objects) {
@@ -315,11 +317,12 @@ export function loadReplayStep(replayStep: any) {
 export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl);
   state.ws.onmessage = (event) => {
-
     const data = JSON.parse(event.data);
     console.log("Received message: ", data.type);
     if (data.type === "replay") {
       loadReplayJson(wsUrl, data.replay);
+      Common.closeModal();
+      html.actionButtons.classList.remove("hidden");
     } else if (data.type === "replay_step") {
       loadReplayStep(data.replay_step);
     } else if (data.type === "message") {
@@ -327,13 +330,22 @@ export function initWebSocket(wsUrl: string) {
     }
   };
   state.ws.onopen = () => {
-    console.log("WebSocket opened");
+    Common.showModal("info",
+      "Starting environment",
+      "Please wait while live environment is starting..."
+    );
   };
   state.ws.onclose = () => {
-    console.log("WebSocket closed");
+    Common.showModal("error",
+      "WebSocket closed",
+      "Please check your connection and refresh this page."
+    );
   };
   state.ws.onerror = (event) => {
-    console.log("WebSocket error: ", event);
+    Common.showModal("error",
+      "WebSocket error",
+      "Websocket error: " + event
+    );
   };
 }
 

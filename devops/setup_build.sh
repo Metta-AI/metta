@@ -1,46 +1,47 @@
 #!/bin/bash
 # Setup script for Metta development environment
 # This script installs all required dependencies and configures the environment
+
 # Exit immediately if a command exits with a non-zero status
 set -e
+set -o pipefail
 
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")" # (root)/devops
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"        # (root)
+cd "$PROJECT_DIR"
 
-if [ -z "$CI" ]; then
-  # ========== CLEAN BUILD ARTIFACTS ==========
-  echo -e "\n\nCleaning build artifacts...\n\n"
+# Parse command line arguments
+CLEAN=0
+for arg in "$@"; do
+  case $arg in
+    --clean)
+      CLEAN=1
+      shift
+      ;;
+  esac
+done
 
-  # Remove virtual environments
-  if [ -d "$PROJECT_DIR/.venv" ]; then
-    echo "Removing .venv virtual environment..."
-    rm -rf "$PROJECT_DIR/.venv"
-    echo "✅ Removed .venv virtual environment"
-  fi
-  if [ -d "$PROJECT_DIR/venv" ]; then
-    echo "Removing venv virtual environment..."
-    rm -rf "$PROJECT_DIR/venv"
-    echo "✅ Removed venv virtual environment"
-  fi
-
-  # Clean root directory artifacts
-  find "$PROJECT_DIR" -type f -name '*.so' -delete
-  find "$PROJECT_DIR" -type d -name 'build' -exec rm -rf {} +
-  echo "✅ Cleaned root directory build artifacts"
-
-  # Clean mettagrid artifacts if directory exists
-  if [ -d "$PROJECT_DIR/mettagrid" ]; then
-    echo "Cleaning mettagrid build artifacts..."
-    find "$PROJECT_DIR/mettagrid" -name "*.so" -type f -delete
-    echo "✅ Removed .so files from mettagrid directory"
-  fi
-fi
-
+# check if we're in docker
 if [ -f /.dockerenv ]; then
-  export IS_DOCKER=true
-else
-  export IS_DOCKER=false
+  export IS_DOCKER=1
 fi
+
+# Define a function to check if we're in a UV virtual environment
+is_uv_venv() {
+  # Check if we're in a virtual environment
+  if [ -z "$VIRTUAL_ENV" ]; then
+    return 1 # Not in any virtual environment
+  fi
+
+  # Check if it's a UV virtual environment by looking for UV marker files
+  if [ -f "$VIRTUAL_ENV/pyvenv.cfg" ] && grep -q "uv" "$VIRTUAL_ENV/pyvenv.cfg"; then
+    return 0 # It's a UV venv
+  elif [ -d "$VIRTUAL_ENV/.uv" ]; then
+    return 0 # It has a .uv directory
+  else
+    return 1 # Not a UV venv
+  fi
+}
 
 # Verify uv is available
 if ! command -v uv &> /dev/null; then
@@ -70,129 +71,94 @@ if ! command -v uv &> /dev/null; then
   fi
 fi
 
-# ========== Main Project ==========
-cd "$SCRIPT_DIR/.."
+VENV_PATH=".venv"
 
-# Deactivate any active virtual environment first
-if [ -n "$VIRTUAL_ENV" ]; then
-  echo "Deactivating current virtual environment: $VIRTUAL_ENV"
+# ========== CLEAN BUILD ==========
+if [ "$CLEAN" -eq 1 ]; then
+
+  make clean
+
+  # deactivate the venv
+  echo -e "\nDeactivating current virtual environment: $VIRTUAL_ENV"
   # This is a bit of a hack since 'deactivate' is a function in the activated environment
   # Using 'command' to temporarily disable the function behavior
   if [[ "$(type -t deactivate)" == "function" ]]; then
     deactivate
     echo "✅ Virtual environment deactivated"
   fi
+
+  # Remove the virtual environment
+  if [ -d .venv ]; then
+    echo "Removing .venv virtual environment..."
+    rm -rf .venv
+    echo "✅ Removed .venv virtual environment"
+  fi
 fi
 
-if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
-  # We'll set up the virtual environment later
-  echo -e "\n\nPreparing to set up environment...\n\n"
-fi
+# ========== CREATE VENV ==========
+# Check if we're already in a UV venv
+if ! is_uv_venv; then
+  # Check if a virtual environment exists but is not activated
+  if [ -d "$VENV_PATH" ]; then
+    echo "⚠️ Existing environment is not a UV environment, recreating it"
 
-# ========== INSTALL PACKAGES BEFORE BUILD ==========
-echo -e "\n\nInstalling main project requirements...\n\n"
+    # Remove the existing environment
+    rm -rf "$VENV_PATH"
+  fi
 
-# Always create a fresh virtual environment
-echo "Creating a virtual environment with uv..."
-
-# Check and remove existing venv directories if needed
-if [ -d ".venv" ]; then
-  echo "Removing existing .venv directory..."
-  rm -rf .venv
-fi
-if [ -d "venv" ]; then
-  echo "Removing existing venv directory..."
-  rm -rf venv
-fi
-
-echo "Creating new virtual environment..."
-uv venv .venv --python 3.11.7 || {
-  echo "Error: Failed to create virtual environment with uv command."
-  exit 1
-}
-
-# Activate the virtual environment
-if [[ -d ".venv" ]]; then
-  # Activate the venv
-  source .venv/bin/activate
-  echo "✅ Virtual environment '.venv' created and activated"
-
-  echo "Installing project requirements..."
-  uv pip install -r requirements.txt || {
-    if [ -n "$UV_BIN" ]; then
-      echo "Retrying with direct path to uv: $UV_BIN"
-      "$UV_BIN" pip install -r requirements.txt || {
-        echo "❌ Failed to install packages. Please check the error message above."
-        exit 1
-      }
-    else
-      echo "❌ Failed to install packages. Please check the error message above."
-      exit 1
-    fi
+  # Create a new environment
+  echo "Creating new virtual environment..."
+  uv venv "$VENV_PATH" || {
+    echo "Error: Failed to create virtual environment with uv command."
+    exit 1
   }
-else
-  echo "❌ Failed to create virtual environment with uv"
-  exit 1
+  echo "✅ Virtual environment '$VENV_PATH' created and activated"
+
+  # Activate the environment
+  source "$VENV_PATH/bin/activate"
 fi
 
-echo -e "\n\nBuilding mettagrid...\n\n"
-uv run --active --directory mettagrid python setup.py build_ext --inplace
-uv pip install -e mettagrid
+# ========== BUILD AND INSTALL ==========
 
-# ========== BUILD FAST_GAE ==========
-echo -e "\n\nBuilding from setup.py (metta cython components)\n\n"
-echo "Current working directory: $(pwd)"
-uv run python setup.py build_ext --inplace
+echo -e "\nInstalling project requirements..."
+uv pip install -r requirements.txt
 
-# ========== INSTALL SKYPILOT ==========
-echo -e "\n\nInstalling Skypilot...\n\n"
-uv tool install skypilot  --from 'skypilot[aws,vast,lambda]'
+echo -e "\nInstalling Metta..."
+uv pip install -e .
+
+# The following will build mettagrid, cmake and all, but in isolated environment.
+# This is according to scikit-build-core and PEP-517 conventions.
+echo -e "\nInstalling MettaGrid..."
+uv pip --directory mettagrid install -e .
 
 # ========== SANITY CHECK ==========
-echo -e "\n\nSanity check: verifying all local deps are importable\n\n"
-
-python -c "import sys; print('Python path:', sys.path);"
+echo -e "\nSanity check: verifying all local deps are importable..."
 
 for dep in \
   "pufferlib" \
   "carbs" \
+  "metta.rl.fast_gae" \
+  "mettagrid.mettagrid_env" \
+  "mettagrid.mettagrid_c" \
   "wandb_carbs"; do
-  echo "Checking import for $dep..."
-  python -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
+  uv run python -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
     echo "❌ Failed to import $dep"
     exit 1
   }
 done
 
-# Check for metta.rl.fast_gae.compute_gae
-echo "Checking import for metta.rl.fast_gae.compute_gae..."
-python -c "from metta.rl.fast_gae import compute_gae; print('✅ Found metta.rl.fast_gae.compute_gae')" || {
-  echo "❌ Failed to import metta.rl.fast_gae.compute_gae"
-  exit 1
-}
-
-# Check for mettagrid.mettagrid_env.MettaGridEnv
-echo "Checking import for mettagrid.mettagrid_env.MettaGridEnv..."
-python -c "from mettagrid.mettagrid_env import MettaGridEnv; print('✅ Found mettagrid.mettagrid_env.MettaGridEnv')" || {
-  echo "❌ Failed to import mettagrid.mettagrid_env.MettaGridEnv"
-  exit 1
-}
-
-# Check for mettagrid.mettagrid_c.MettaGrid
-echo "Checking import for mettagrid.mettagrid_c.MettaGrid..."
-python -c "from mettagrid.mettagrid_c import MettaGrid; print('✅ Found mettagrid.mettagrid_c.MettaGrid')" || {
-  echo "❌ Failed to import mettagrid.mettagrid_c.MettaGrid"
-  exit 1
-}
-
-if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
-  # ========== VS CODE INTEGRATION ==========
-  echo "Setting up VSCode integration..."
-  source "$SCRIPT_DIR/sandbox/setup_vscode_workspace.sh"
-  echo "✅ setup_build.sh completed successfully!"
-fi
-
 if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   # ========== INSTALL METTASCOPE ==========
+  echo -e "\nSetting up MettaScope..."
   bash "mettascope/install.sh"
+
+  # ========== CHECK AWS TOKEN SETUP ==========
+  echo -e "\nSetting up AWS access..."
+  bash "devops/aws/setup_aws_profiles.sh"
+
+  echo -e "\nInstalling Skypilot..."
+  bash "devops/skypilot/install.sh"
+
+  echo "✅ setup_build.sh completed successfully!"
+  echo -e "Activate virtual environment with: \033[32;1msource $VENV_PATH/bin/activate\033[0m"
 fi

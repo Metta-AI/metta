@@ -46,7 +46,7 @@ class VariedTerrain(Room):
             "blocks": {"count": [3, 7]},
             "clumpiness": [1, 3],
         },
-        "sparse-altars-dense-objects": {
+        "dense": {
             "large_obstacles": {"size_range": [10, 25], "count": [8, 15]},
             "small_obstacles": {"size_range": [3, 6], "count": [8, 15]},
             "crosses": {"count": [7, 15]},

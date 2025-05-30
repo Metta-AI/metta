@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import webbrowser
 
 import hydra
 import numpy as np
@@ -11,80 +12,65 @@ from omegaconf import DictConfig
 
 import mettascope.replays as replays
 
-
-class App(FastAPI):
-    cfg: DictConfig
-
-
-app = App()
-
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-@app.get("/", response_class=HTMLResponse)
-async def get_client():
-    try:
-        with open("mettascope/index.html", "r") as file:
-            html_content = file.read()
-        return HTMLResponse(content=html_content)
-    except FileNotFoundError as err:
-        raise HTTPException(status_code=404, detail="Client HTML file not found") from err
+def make_app(cfg: DictConfig):
+    app = FastAPI()
 
+    @app.get("/", response_class=HTMLResponse)
+    async def get_client():
+        try:
+            with open("mettascope/index.html", "r") as file:
+                html_content = file.read()
+            return HTMLResponse(content=html_content)
+        except FileNotFoundError as err:
+            raise HTTPException(status_code=404, detail="Client HTML file not found") from err
 
-@app.get("/style.css")
-async def get_style_css():
-    try:
-        with open("mettascope/style.css", "r") as file:
-            css_content = file.read()
-        return HTMLResponse(content=css_content, media_type="text/css")
-    except FileNotFoundError as err:
-        raise HTTPException(status_code=404, detail="Client HTML file not found") from err
+    @app.get("/{path}.css")
+    async def get_style_css(path: str):
+        if "/" in path or "." in path:
+            raise HTTPException(status_code=400, detail="Path must not contain '/' or '.'")
+        try:
+            with open(f"mettascope/{path}.css", "r") as file:
+                css_content = file.read()
+            return HTMLResponse(content=css_content, media_type="text/css")
+        except FileNotFoundError as err:
+            raise HTTPException(status_code=404, detail="Client HTML file not found") from err
 
+    # Mount a directory for static files
+    app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
+    app.mount("/dist", StaticFiles(directory="mettascope/dist"), name="dist")
+    app.mount("/local", StaticFiles(directory="mettascope/local"), name="local")
 
-# Mount a directory for static files
-app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
-app.mount("/dist", StaticFiles(directory="mettascope/dist"), name="dist")
+    @app.websocket("/ws")
+    async def websocket_endpoint(
+        websocket: WebSocket,
+    ):
+        await websocket.accept()
 
+        async def send_message(**kwargs):
+            await websocket.send_json(kwargs)
 
-@app.websocket("/ws")
-async def websocket_endpoint(
-    websocket: WebSocket,
-):
-    await websocket.accept()
+        logger.info("Received websocket connection!")
+        await send_message(type="message", message="Connecting!")
 
-    async def send_message(**kwargs):
-        await websocket.send_json(kwargs)
+        # Create a simulation that we are going to play.
+        sim = replays.create_simulation(cfg)
+        sim.start_simulation()
+        env = sim.get_env()
+        replay = sim.get_replay()
 
-    logger.info("Received websocket connection!")
-    await send_message(type="message", message="Connecting!")
+        await send_message(type="replay", replay=replay)
 
-    # Create a simulation that we are going to play.
-    sim = replays.create_simulation(app.cfg)
-    sim.start_simulation()
-    env = sim.get_env()
-    replay = sim.get_replay()
+        current_step = 0
+        action_message = None
+        actions = np.zeros((env.num_agents, 2))
+        total_rewards = np.zeros(env.num_agents)
 
-    await send_message(type="replay", replay=replay)
-
-    current_step = 0
-    action_message = None
-    total_rewards = np.zeros(env.num_agents)
-
-    while True:
-        # While the client we are sending messages to it.
-
-        if current_step < 1000:
-            await send_message(type="message", message="Step!")
-
-            actions = sim.generate_actions()
-            if action_message is not None:
-                agent_id = action_message["agent_id"]
-                actions[agent_id][0] = action_message["action"][0]
-                actions[agent_id][1] = action_message["action"][1]
-            sim.step_simulation(actions)
-
+        async def send_replay_step():
             grid_objects = []
             for i, grid_object in enumerate(env.grid_objects.values()):
                 if len(grid_objects) <= i:
@@ -101,23 +87,53 @@ async def websocket_endpoint(
 
             await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
 
-            current_step += 1
+        # Send the first replay step.
+        await send_replay_step()
 
-        if current_step > 1:
+        while True:
+            # Main message loop.
+
             message = await websocket.receive_json()
             if message["type"] == "action":
                 action_message = message
+
+            if current_step < 1000:
+                await send_message(type="message", message="Step!")
+
+                actions = sim.generate_actions()
+                if action_message is not None:
+                    agent_id = action_message["agent_id"]
+                    actions[agent_id][0] = action_message["action"][0]
+                    actions[agent_id][1] = action_message["action"][1]
+                sim.step_simulation(actions)
+
+                await send_replay_step()
+                current_step += 1
+
             # yield control to other coroutines
             await asyncio.sleep(0)
 
-    sim.end_simulation()
+        sim.end_simulation()
+
+    return app
+
+
+def run(cfg: DictConfig, open_url: str | None = None):
+    app = make_app(cfg)
+
+    if open_url:
+        server_url = "http://localhost:8000"
+
+        @app.on_event("startup")
+        async def _open_browser():
+            webbrowser.open(f"{server_url}{open_url}")
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
 @hydra.main(version_base=None, config_path="../configs", config_name="replay_job")
 def main(cfg):
-    app.cfg = cfg
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    run(cfg)
 
 
 if __name__ == "__main__":

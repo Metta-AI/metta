@@ -26,5 +26,5 @@ def get_cfg(config_name: str):
     mettagrid_configs_root = package_root / "configs"
 
     cfg = OmegaConf.load(f"{mettagrid_configs_root}/{config_name}.yaml")
-    assert isinstance(cfg, DictConfig)
+    assert isinstance(cfg, DictConfig), f"Config {config_name} did not load into a DictConfig"
     return cfg

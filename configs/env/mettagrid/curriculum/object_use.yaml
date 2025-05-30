@@ -1,0 +1,9 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/object_use/training/terrain_from_numpy: 1
+  /env/mettagrid/object_use/training/varied_terrain_sparse: 1
+  /env/mettagrid/object_use/training/varied_terrain_balanced: 1
+  /env/mettagrid/object_use/training/varied_terrain_maze: 1
+  /env/mettagrid/object_use/training/varied_terrain_dense: 1
+  /env/mettagrid/object_use/training/easy_all_objects: 1

@@ -5,7 +5,8 @@ import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './rep
 import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
-import { processActions } from './actions.js';
+import { processActions, initActionButtons } from './actions.js';
+
 // Handle resize events.
 export function onResize() {
   // Adjust for high DPI displays.
@@ -32,32 +33,25 @@ export function onResize() {
     ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight;
     ui.miniMapPanel.width = miniMapWidth;
     ui.miniMapPanel.height = miniMapHeight;
-    console.log("miniMap:", ui.miniMapPanel.x, ui.miniMapPanel.y, ui.miniMapPanel.width, ui.miniMapPanel.height);
   }
 
   ui.infoPanel.x = screenWidth - 400;
   ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 200;
   ui.infoPanel.width = 400;
   ui.infoPanel.height = 200;
-  if (ui.infoPanel.div === null) {
-    ui.infoPanel.div = document.createElement("div");
-    ui.infoPanel.div.id = ui.infoPanel.name + "-div";
-    document.body.appendChild(ui.infoPanel.div);
-  }
-  if (ui.infoPanel.div !== null) {
-    const div = ui.infoPanel.div;
-    div.style.position = 'absolute';
-    div.style.top = ui.infoPanel.y + 'px';
-    div.style.left = ui.infoPanel.x + 'px';
-    div.style.width = ui.infoPanel.width + 'px';
-    div.style.height = ui.infoPanel.height + 'px';
-  }
 
   // Trace panel is always on the bottom of the screen.
   ui.tracePanel.x = 0;
   ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height;
   ui.tracePanel.width = screenWidth;
   ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
+
+  html.actionButtons.style.top = (ui.tracePanel.y - 148) + 'px';
+
+  ui.mapPanel.updateDiv();
+  ui.miniMapPanel.updateDiv();
+  ui.infoPanel.updateDiv();
+  ui.tracePanel.updateDiv();
 
   // Redraw the square after resizing.
   requestFrame();
@@ -96,6 +90,11 @@ function onMouseUp() {
 // Handle mouse move events.
 function onMouseMove(event: MouseEvent) {
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
+  var target = event.target as HTMLElement;
+  while (target.id === "") {
+    target = target.parentElement as HTMLElement;
+  }
+  ui.mouseTarget = target.id;
 
   // If mouse is close to a panels edge change cursor to edge changer.
   document.body.style.cursor = "default";
@@ -246,16 +245,34 @@ export function onFrame() {
     }
   }
 
-  updateReadout();
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
-  ctx.useMesh("mini-map");
-  drawMiniMap(ui.miniMapPanel);
+
+  if (state.showMiniMap) {
+    ui.miniMapPanel.div.style.display = "block";
+    ctx.useMesh("mini-map");
+    drawMiniMap(ui.miniMapPanel);
+  } else {
+    ui.miniMapPanel.div.style.display = "none";
+  }
+
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
 
+  if (state.showInfo) {
+    ui.infoPanel.div.style.display = "block";
+    updateReadout();
+  } else {
+    ui.infoPanel.div.style.display = "none";
+  }
+
+  if (state.showControls) {
+    html.actionButtons.style.display = "block";
+  } else {
+    html.actionButtons.style.display = "none";
+  }
+
   ctx.flush();
-  console.log("Flushed ctx.");
 
   // Update URL parameters with current state once per frame
   updateUrlParams();
@@ -303,7 +320,11 @@ async function parseUrlParams() {
     await fetchReplay(replayUrl);
     focusFullMap(ui.mapPanel);
   } else if (wsUrl) {
-    console.log("Connecting to a websocket: ", wsUrl);
+    Common.showModal(
+      "info",
+      "Connecting to a websocket",
+      "Please wait a few seconds for the environment to load."
+    );
     initWebSocket(wsUrl);
   } else {
     Common.showModal(
@@ -394,6 +415,17 @@ function setPlaybackSpeed(speed: number) {
 // Initial resize.
 onResize();
 
+html.modal.classList.add("hidden");
+html.toast.classList.add("hiding");
+html.actionButtons.classList.add("hidden");
+
+// Each panel has a div we use for event handling.
+// But rendering happens bellow on global canvas.
+// We make divs transparent to see through them.
+ui.mapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
+ui.tracePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
+ui.miniMapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
+
 // Add event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize);
 window.addEventListener('keydown', onKeyDown);
@@ -408,10 +440,14 @@ window.addEventListener('drop', handleDrop, false);
 
 // Header area
 html.shareButton.addEventListener('click', onShareButtonClick);
-html.mainFilter.style.display = "none"; // Hide the main filter for now.
+html.helpButton.addEventListener('click', () => {
+  window.open("mettascope_info.html", "_blank");
+});
 
 // Bottom area
 html.scrubber.addEventListener('input', onScrubberChange);
+html.scrubber.setAttribute("type", "range");
+html.scrubber.setAttribute("value", "0");
 
 html.rewindToStartButton.addEventListener('click', () => {
   setIsPlaying(false);
@@ -440,47 +476,90 @@ for (let i = 0; i < html.speedButtons.length; i++) {
   );
 }
 
-// Toggle follow selection state.
-html.sortButton.addEventListener('click', () => {
-  state.sortTraces = !state.sortTraces;
-  toggleOpacity(html.sortButton, state.sortTraces);
-  requestFrame();
-});
-toggleOpacity(html.sortButton, state.sortTraces);
-html.sortButton.style.display = "none";
-
-html.resourcesButton.addEventListener('click', () => {
+html.resourcesToggle.addEventListener('click', () => {
   state.showResources = !state.showResources;
-  toggleOpacity(html.resourcesButton, state.showResources);
+  localStorage.setItem("showResources", state.showResources.toString());
+  toggleOpacity(html.resourcesToggle, state.showResources);
   requestFrame();
 });
-toggleOpacity(html.resourcesButton, state.showResources);
+if (localStorage.hasOwnProperty("showResources")) {
+  state.showResources = localStorage.getItem("showResources") === "true";
+}
+toggleOpacity(html.resourcesToggle, state.showResources);
 
-html.focusButton.addEventListener('click', () => {
+// Toggle follow selection state.
+html.focusToggle.addEventListener('click', () => {
   setFollowSelection(!state.followSelection);
 });
-toggleOpacity(html.focusButton, state.followSelection);
+toggleOpacity(html.focusToggle, state.followSelection);
 
-html.gridButton.addEventListener('click', () => {
+html.gridToggle.addEventListener('click', () => {
   state.showGrid = !state.showGrid;
-  toggleOpacity(html.gridButton, state.showGrid);
+  localStorage.setItem("showGrid", state.showGrid.toString());
+  toggleOpacity(html.gridToggle, state.showGrid);
   requestFrame();
 });
-toggleOpacity(html.gridButton, state.showGrid);
+if (localStorage.hasOwnProperty("showGrid")) {
+  state.showGrid = localStorage.getItem("showGrid") === "true";
+}
+toggleOpacity(html.gridToggle, state.showGrid);
 
-html.showViewButton.addEventListener('click', () => {
-  state.showViewRanges = !state.showViewRanges;
-  toggleOpacity(html.showViewButton, state.showViewRanges);
+html.visualRangeToggle.addEventListener('click', () => {
+  state.showVisualRanges = !state.showVisualRanges;
+  localStorage.setItem("showVisualRanges", state.showVisualRanges.toString());
+  toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
   requestFrame();
 });
-toggleOpacity(html.showViewButton, state.showViewRanges);
+if (localStorage.hasOwnProperty("showVisualRanges")) {
+  state.showVisualRanges = localStorage.getItem("showVisualRanges") === "true";
+}
+toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
 
-html.showFogOfWarButton.addEventListener('click', () => {
+html.fogOfWarToggle.addEventListener('click', () => {
   state.showFogOfWar = !state.showFogOfWar;
-  toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+  localStorage.setItem("showFogOfWar", state.showFogOfWar.toString());
+  toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
   requestFrame();
 });
-toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+if (localStorage.hasOwnProperty("showFogOfWar")) {
+  state.showFogOfWar = localStorage.getItem("showFogOfWar") === "true";
+}
+toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
+
+html.minimapToggle.addEventListener('click', () => {
+  state.showMiniMap = !state.showMiniMap;
+  localStorage.setItem("showMiniMap", state.showMiniMap.toString());
+  toggleOpacity(html.minimapToggle, state.showMiniMap);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showMiniMap")) {
+  state.showMiniMap = localStorage.getItem("showMiniMap") === "true";
+}
+toggleOpacity(html.minimapToggle, state.showMiniMap);
+
+html.controlsToggle.addEventListener('click', () => {
+  state.showControls = !state.showControls;
+  localStorage.setItem("showControls", state.showControls.toString());
+  toggleOpacity(html.controlsToggle, state.showControls);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showControls")) {
+  state.showControls = localStorage.getItem("showControls") === "true";
+}
+toggleOpacity(html.controlsToggle, state.showControls);
+
+html.infoToggle.addEventListener('click', () => {
+  state.showInfo = !state.showInfo;
+  localStorage.setItem("showInfo", state.showInfo.toString());
+  toggleOpacity(html.infoToggle, state.showInfo);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showInfo")) {
+  state.showInfo = localStorage.getItem("showInfo") === "true";
+}
+toggleOpacity(html.infoToggle, state.showInfo);
+
+initActionButtons();
 
 window.addEventListener('load', async () => {
   // Use local atlas texture.

@@ -1,15 +1,13 @@
 *.egg-info
 *.pyc
 *.so
-__pycache__
-.DS_Store
+**/__pycache__
+**/.DS_Store
 .coverage
 .env
 .task
 .vscode/PythonImportHelper-v2-Completion.json
 /checkpoints/
-/mettagrid/build
-/mettagrid/build_debug/
 /mettagrid/dist
 /mettascope/dist
 /mettascope/node_modules
@@ -24,7 +22,7 @@ gpu_names_cache.json
 stderr.log
 sweep_id
 personal/
-wandb/
+/wandb
 /deps/*
 terrain_maps_nohearts*
 .idea
@@ -36,3 +34,9 @@ build_debug/
 **/requirements_to_remove.txt
 test_data
 **/mettagrid_debug.log
+cpplint_output*
+
+observatory/node_modules/
+observatory/.vite/
+
+wandb

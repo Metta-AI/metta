@@ -69,9 +69,9 @@ class MettaActorBig(LayerBase):
 
         # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
         # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
-        hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_actions)  # shape: [B*TT, num_actions, hidden]
-        hidden_reshaped = rearrange(hidden_reshaped, "b a h -> (b a) h")  # shape: [N, H]
-        action_embeds_reshaped = rearrange(action_embeds, "b a e -> (b a) e")  # shape: [N, E]
+        hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_actions)
+        hidden_reshaped = rearrange(hidden_reshaped, "b a h -> (b a) h")
+        action_embeds_reshaped = rearrange(action_embeds, "b a e -> (b a) e")
 
         # Perform bilinear operation  h W e -> k for each B * num_actions = N
         query = torch.einsum("n h, k h e -> n k e", hidden_reshaped, self.W)  # Shape: [N, K, E]
@@ -113,9 +113,6 @@ class MettaActorSingleHead(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, **cfg):
-        super().__init__(**cfg)
-
     def _make_net(self):
         self.hidden = self._in_tensor_shapes[0][0]  # input_1 dim
         self.embed_dim = self._in_tensor_shapes[1][1]  # input_2 dim (_action_embeds_)
@@ -143,9 +140,9 @@ class MettaActorSingleHead(LayerBase):
         # Reshape inputs similar to Rev2 for bilinear calculation
         # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
         # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
-        hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_actions)  # shape: [B*TT, num_actions, hidden]
-        hidden_reshaped = rearrange(hidden_reshaped, "b a h -> (b a) h")  # shape: [N, H]
-        action_embeds_reshaped = rearrange(action_embeds, "b a e -> (b a) e")  # shape: [N, E]
+        hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_actions)
+        hidden_reshaped = rearrange(hidden_reshaped, "b a h -> (b a) h")
+        action_embeds_reshaped = rearrange(action_embeds, "b a e -> (b a) e")
 
         # Perform bilinear operation using einsum
         # Perform bilinear operation  h W e -> k for each B * num_actions = N

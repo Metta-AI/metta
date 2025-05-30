@@ -1,21 +1,18 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/object_use/evals/defaults@
   - _self_
 
 game:
-  num_agents: 1
   max_steps: 200
-
   agent:
     rewards:
       laser: 1
       ore.red: 0
-      battery: 0
-
+      battery.red: 0
   objects:
     generator.red:
       initial_items: 2
-      output_battery: 2
+      output_battery.red: 2
       cooldown: 255
     mine:
       cooldown: 255
@@ -23,20 +20,7 @@ game:
       initial_items: 0
 
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 1
-    border_width: 3
-
-    room:
-      _target_: mettagrid.room.mean_distance.MeanDistance
-      width: 15
-      height: 15
-      mean_distance: 6
-      border_width: 3
-
-      agents: 1
-
-      objects:
-        lasery: 1
-        generator: 1
-        mine: 1
+    objects:
+      lasery: 1
+      generator: 1
+      mine: 1

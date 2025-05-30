@@ -19,9 +19,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Run setup script (creates virtual environment automatically)
 ./devops/setup_build.sh
-
-# Rebuild only mettagrid component
-./devops/build_mettagrid.sh
 ```
 
 ## Common Commands
@@ -130,3 +127,90 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - Tests should be focused on testing one thing
 - Tests should cover edge cases and boundary conditions
 - Tests are organized in the `tests/` directory, mirroring the project structure
+
+## Code Style Guidelines
+
+- Use modern Python typing syntax (PEP 585: `list[str]` instead of `List[str]`)
+- All public methods must have explicit return type annotations
+- Use descriptive variable names that clearly indicate purpose
+- Remove unnecessary comments that just restate what the code does
+- Prefer properties over methods for computed attributes using `@property` decorator
+- Use Union types for parameters that accept multiple valid types
+- Implement proper error handling with clear, actionable error messages
+
+## Code Review Criteria
+
+When reviewing code, focus on:
+- **Type Safety**: Check for missing type annotations, especially return types
+- **API Consistency**: Ensure similar functionality follows the same patterns
+- **Performance**: Identify potential bottlenecks or inefficient patterns
+- **Maintainability**: Look for code that will be difficult to modify or extend
+- **Documentation**: Ensure complex logic is properly documented
+- **Testing**: Verify that new functionality has appropriate test coverage
+
+## Project-Specific Patterns
+
+### Environment Properties
+- Convert methods to properties where appropriate for better API consistency
+- Use `@property` decorator for computed attributes
+- Ensure all environment properties follow consistent naming patterns
+- Example: `action_names()` → `action_names` (property)
+
+### Policy and Agent Management
+- Validate policy types with runtime checking using `policy_as_metta_agent()`
+- Use Union types for policies: `Union[MettaAgent, DistributedMettaAgent]`
+- Ensure proper type safety for policy handling throughout the system
+
+### Device Management
+- Add explicit `torch.device` type hints in trainer and simulation modules
+- Be consistent about device placement and movement of tensors
+
+## PR Creation Guidelines
+
+When creating PRs (triggered by @claude open-pr):
+
+### Intelligent Branch Targeting
+The workflow automatically determines the appropriate base branch:
+- **From PR Comments**: New branches are created from the current PR's branch
+- **From Issue Comments**: New branches are created from the main branch
+- **Example**: If you comment `@claude open-pr` in PR #657 (branch: `robb/0525-agent-type-changes`), Claude will create a new branch based on `robb/0525-agent-type-changes`, not main
+
+### Branch Naming Convention
+- Use descriptive branch names with prefixes:
+  - `feature/add-type-safety` - New functionality
+  - `fix/missing-annotations` - Bug fixes
+  - `refactor/method-to-property` - Code improvements
+  - `docs/update-readme` - Documentation updates
+- Include issue number when applicable: `fix/657-type-safety-improvements`
+
+### Commit Message Format
+- Follow conventional commit format: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`
+- Be specific about what was changed: `fix: add missing return type annotations to PolicyStore methods`
+- Reference issues when applicable: `fix: resolve type safety issues (#657)`
+
+### PR Structure Requirements
+- **Title**: Clear, concise description of the change
+- **Description**: Must include:
+  - **What**: Summary of changes made
+  - **Why**: Rationale for the change
+  - **Testing**: How the changes were verified
+  - **Breaking Changes**: Any API changes that affect existing code
+- **Linking**: Reference related issues with "Closes #123", "Fixes #123", or "Addresses #123"
+
+### Implementation Strategy
+1. **Analyze**: Understand the request and examine current codebase patterns
+2. **Plan**: Create focused, incremental changes rather than large rewrites
+3. **Implement**: Make changes following established project patterns
+4. **Test**: Ensure all existing tests pass and add new tests if needed
+5. **Document**: Update docstrings and comments where necessary
+6. **Review**: Self-review the changes for consistency with project standards
+
+### Quality Checklist
+Before creating a PR, ensure:
+- [ ] All new public methods have return type annotations
+- [ ] Code follows the established naming conventions
+- [ ] No unnecessary comments that restate obvious code
+- [ ] Properties are used instead of simple getter methods
+- [ ] Proper error handling is implemented
+- [ ] Tests pass locally
+- [ ] Code is formatted according to project standards

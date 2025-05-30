@@ -1,53 +1,66 @@
 #!/bin/bash
 
-# Define the list of policy URIs
+set -e
+
+# Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-  "b.daphne.terrain_prioritized_styles_pretrained_r"
-  "b.daphne.terrain_prioritized_styles2"
-  "terrain_prioritized_styles_pretrained_mpmc"
-  "terrain_prioritized_styles_pretrained"
-  "b.terrain_prioritized_styles_nb"
-  "b.terrain_prioritized_styles_pretrained_nb"
-  "b.terrain_prioritized_styles"
-  "b.terrain_prioritized_styles_pretrained"
-  "b.georgedeane.terrain_multienv"
-  "b.daphne.terrain_multienv_3_no_blocks3"
-  "terrain_multienv_3_single_agent"
-  "b.daphne.terrain_multienv_prioritized_multienv_cylinders2"
-  "b.daphne.terrain_multienv_prioritized_multienv_cylinders"
-  "b.georgedeane.terrain_massive_empty_world_pretrained"
-  "b.georgedeane.terrain_extra_hard:v1"
-  "b.daphne.terrain_varied_cyl_lab_pretrained"
-  "b.daphne.terrain_prioritized_styles"
-  "b.daphne.terrain_prioritized_styles_pretrained"
-  "george_memory_pretrained"
-  "b.daphne.terrain_multiagent_48_norewardsharing"
-  "b.daphne.terrain_multiagent_24_norewardsharing"
-  "b.daphne.terrain_multiagent_24_rewardsharing"
-  "b.daphne.terrain_multiagent_48_rewardsharing"
+  "sasmith.flattened_layers.baseline.2"
 )
+MESSAGE="Running full sequence eval"
+MAYBE_SMOKE_TEST=""
+
+if [ "$1" = "smoke_test" ]; then
+  # If you're updating this smoke test:
+  #   ... because you changed code in a way that invalidates old policies, please train a new policy
+  #       that scores well enough on existing evals, and add it here.
+  #   ... because you're adding a new eval family on which we can score well, please add a new policy
+  #       that scores well on that eval family, and add it here.
+  #   ... because you're adding a new eval family on which we can't score well, please add the new eval
+  #       family after the smoke test terminates.
+  POLICIES=("sasmith.new_battery_colors")
+  # We try to be as deterministic as possible, but this turns out to be less deterministic than we'd like.
+  # Use device=cpu since we're probably on github. We should probably address this via
+  # hardware=..., but for the most part this shouldn't matter for eval.
+  MAYBE_SMOKE_TEST="+sim_job.smoke_test=True seed=31415 torch_deterministic=True device=cpu"
+  MESSAGE="Running smoke test eval"
+elif [ -n "$1" ]; then
+  echo "Invalid argument: $1"
+  exit 1
+fi
 
 for i in "${!POLICIES[@]}"; do
   POLICY_URI=${POLICIES[$i]}
 
-  echo "Running full sequence eval for policy $POLICY_URI"
+  echo "$MESSAGE for policy $POLICY_URI"
   RANDOM_NUM=$((RANDOM % 1000))
   IDX="${IDX}_${RANDOM_NUM}"
   python3 -m tools.sim \
     sim=navigation \
     run=navigation$IDX \
     policy_uri=wandb://run/$POLICY_URI \
-    +eval_db_uri=wandb://artifacts/navigation_db
+    +eval_db_uri=wandb://artifacts/navigation_db \
+    $MAYBE_SMOKE_TEST
 
-  python3 -m tools.sim \
-    sim=multiagent \
-    run=multiagent$IDX \
-    policy_uri=wandb://run/$POLICY_URI \
-    +eval_db_uri=wandb://artifacts/multiagent_db
+  if [ -n "$MAYBE_SMOKE_TEST" ]; then
+    continue
+  fi
+  # Tests below this line aren't part of smoke tests, since we either
+  # aren't scoring well enough to include them, or have some other reason.
+
+  # We also don't want to upload to dashboards for these.
 
   python3 -m tools.sim \
     sim=memory \
     run=memory$IDX \
     policy_uri=wandb://run/$POLICY_URI \
-    +eval_db_uri=wandb://artifacts/memory_db
+    sim_job.stats_db_uri=wandb://stats/memory_db \
+    $MAYBE_SMOKE_TEST
+
+  python3 -m tools.sim \
+    sim=object_use \
+    run=objectuse$IDX \
+    policy_uri=wandb://run/$POLICY_URI \
+    sim_job.stats_db_uri=wandb://stats/objectuse_db \
+    $MAYBE_SMOKE_TEST
+
 done

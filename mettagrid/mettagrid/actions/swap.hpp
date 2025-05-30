@@ -1,5 +1,5 @@
-#ifndef SWAP_HPP
-#define SWAP_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_SWAP_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_SWAP_HPP_
 
 #include <string>
 
@@ -10,14 +10,14 @@
 
 class Swap : public ActionHandler {
 public:
-  Swap(const ActionConfig& cfg) : ActionHandler(cfg, "swap") {}
+  explicit Swap(const ActionConfig& cfg) : ActionHandler(cfg, "swap") {}
 
   unsigned char max_arg() const override {
     return 0;
   }
 
 protected:
-  bool _handle_action(unsigned int actor_id, Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     MettaObject* target = static_cast<MettaObject*>(_grid->object_at(target_loc));
     if (target == nullptr) {
@@ -39,4 +39,4 @@ protected:
   }
 };
 
-#endif  // SWAP_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_SWAP_HPP_

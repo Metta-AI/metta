@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Tuple
 
 import torch
 import torch.jit
@@ -7,60 +7,73 @@ from torch import Tensor
 
 
 @torch.jit.script
-def sample_logits(logits: Tensor, action: Optional[Tensor] = None) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
+def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """
-    Sample actions from logits and compute log probabilities and entropy.
-
-    Supports input of shape [B, T, A] or [B*T, A].
+    Sample actions from logits during inference.
 
     Args:
-        logits: Unnormalized log probabilities, either [B, T, A] or [B*T, A].
-        action: Optional tensor of shape [B, T] or [B*T] specifying actions to evaluate.
-                If provided, it must contain valid indices in the range [0, A).
+        action_logits: Raw logits from policy network of shape [batch_size, num_actions].
+                       These are unnormalized log-probabilities over the action space.
 
     Returns:
-        A tuple of:
-            action: Tensor of shape [B, T] or [B*T]
-            log_prob: Log-probabilities of selected actions (same shape as `action`)
-            entropy: Entropy of the action distribution (same shape as `action`)
-            normalized_logits: Log-probabilities (same shape as `logits`)
+        actions: Sampled action indices of shape [batch_size]. Each element is an
+                 integer in [0, num_actions) representing the sampled action.
+
+        log_probs: Log-probabilities of the sampled actions, shape [batch_size].
+
+        entropy: Policy entropy at each state, shape [batch_size].
+
+        action_log_probs: Full log-probability distribution over all actions,
+                          shape [batch_size, num_actions]. Same as log-softmax of logits.
     """
 
-    is_batched = logits.dim() == 3  # Shape: [B, T, A]
-    if is_batched:
-        B, T, A = logits.shape
-        logits_flat = logits.reshape(B * T, A)  # Shape: [B*T, A]
-    else:
-        B, T = -1, -1
-        A = logits.shape[1]
-        logits_flat = logits  # Shape: [B*T, A]
+    action_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
+    action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
 
-    # Log-softmax for numerical stability
-    log_probs = F.log_softmax(logits_flat, dim=-1)  # Shape: [B*T, A]
-    probs = torch.exp(log_probs)  # Shape: [B*T, A]
+    # Sample actions from categorical distribution (replacement=True is implicit when num_samples=1)
+    actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
 
-    # Sample actions or use provided ones
-    if action is None:
-        action_flat = torch.multinomial(probs, num_samples=1, replacement=True).select(1, 0)  # Shape: [B*T]
-    else:
-        action_flat = action.reshape(-1)  # Shape: [B*T]
+    # Extract log-probabilities for sampled actions using advanced indexing
+    batch_indices = torch.arange(actions.shape[0], device=actions.device)
+    log_probs = action_log_probs[batch_indices, actions]  # [batch_size]
 
-    # Gather log-probs of selected actions
-    log_prob_flat = log_probs.gather(1, action_flat.view(-1, 1)).view(-1)  # Shape: [B*T]
+    # Compute policy entropy: H(π) = -∑π(a|s)log π(a|s)
+    entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
 
-    # Entropy: -∑p * log(p)
-    entropy_flat = -torch.sum(probs * log_probs, dim=-1)  # Shape: [B*T]
+    return actions, log_probs, entropy, action_log_probs
 
-    # Restore shapes if batched
-    if is_batched:
-        action_out = action_flat.view(B, T)
-        log_prob_out = log_prob_flat.view(B, T)
-        entropy_out = entropy_flat.view(B, T)
-        log_probs_out = log_probs.view(B, T, A)
-    else:
-        action_out = action_flat
-        log_prob_out = log_prob_flat
-        entropy_out = entropy_flat
-        log_probs_out = log_probs
 
-    return action_out, log_prob_out, entropy_out, log_probs_out
+@torch.jit.script
+def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
+    """
+    Evaluate provided actions against logits during training.
+
+    Args:
+        action_logits: Current policy logits of shape [batch_size, num_actions].
+                       These may differ from the logits that originally generated
+                       the actions due to policy updates.
+
+        actions: Previously taken action indices of shape [batch_size].
+                 Each element must be a valid action index in [0, num_actions).
+
+    Returns:
+        log_probs: Log-probabilities of the given actions under current policy,
+                   shape [batch_size]. Used for importance sampling: π_new(a|s)/π_old(a|s).
+
+        entropy: Current policy entropy at each state, shape [batch_size].
+
+        action_log_probs: Full log-probability distribution over all actions,
+                          shape [batch_size, num_actions]. Same as log-softmax of logits.
+    """
+
+    action_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
+    action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
+
+    # Extract log-probabilities for the provided actions using advanced indexing
+    batch_indices = torch.arange(actions.shape[0], device=actions.device)
+    log_probs = action_log_probs[batch_indices, actions]  # [batch_size]
+
+    # Compute policy entropy: H(π) = -∑π(a|s)log π(a|s)
+    entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
+
+    return log_probs, entropy, action_log_probs

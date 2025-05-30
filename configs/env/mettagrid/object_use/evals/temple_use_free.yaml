@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/object_use/evals/defaults@
   - _self_
 
 game:
@@ -8,20 +8,6 @@ game:
   agent:
     rewards:
       heart: 1
-
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 1
-    border_width: 3
-
-    room:
-      _target_: mettagrid.room.mean_distance.MeanDistance
-      width: 15
-      height: 15
-      mean_distance: 6
-      border_width: 3
-
-      agents: 1
-
-      objects:
-        temple: 1
+    objects:
+      temple: 1
