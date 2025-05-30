@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/multi_agent/training/rs_defaults@
+  - /env/mettagrid/multiagent/training/rs_defaults@
   - _self_
 
 game:

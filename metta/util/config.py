@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from typing import Any, Dict, Optional, TypeVar, cast
 
 import boto3
@@ -76,68 +75,22 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConf
     if config_path is None:
         raise ValueError("Config path cannot be None")
 
-    # Check if config path starts with a slash and adjust
-    adjusted_path = config_path[1:] if config_path.startswith("/") else config_path
+    cfg = hydra.compose(config_name=config_path)
 
-    try:
-        env_cfg = hydra.compose(config_name=config_path)
-    except Exception as e:
-        # Build a useful error message
-        configs_dir = Path(os.path.join(os.getcwd(), "configs"))
-        search_paths = [f"{config_path}", f"{adjusted_path}", f"configs/{config_path}", f"configs/{adjusted_path}"]
-
-        # Check if any of the paths exist
-        existing_paths = []
-        for path in search_paths:
-            full_path = Path(os.path.join(os.getcwd(), path))
-            if full_path.exists():
-                existing_paths.append(str(full_path))
-
-        # Check for YAML files in configs directory
-        yaml_files = []
-        if configs_dir.exists():
-            yaml_files = list(configs_dir.glob("**/*.yaml"))
-
-        error_msg = f"Could not load configuration from path '{config_path}'. "
-
-        if existing_paths:
-            error_msg += f"These related paths exist: {existing_paths}. "
-        else:
-            error_msg += "None of the expected paths exist. "
-
-        if yaml_files:
-            error_msg += (
-                "Available YAML files in configs directory: "
-                f"{[str(f.relative_to(os.getcwd())) for f in yaml_files[:10]]}"
-            )
-
-            if len(yaml_files) > 10:
-                error_msg += f" and {len(yaml_files) - 10} more."
-
-        error_msg += f"\nOriginal error: {str(e)}"
-
-        raise ValueError(error_msg) from e
-
-    # When hydra loads a config, it "prefixes" the keys with the path of the config file.
+    # when hydra loads a config, it "prefixes" the keys with the path of the config file.
     # We don't want that prefix, so we remove it.
     if config_path.startswith("/"):
         config_path = config_path[1:]
 
     for p in config_path.split("/")[:-1]:
-        try:
-            env_cfg = env_cfg[p]
-        except (KeyError, AttributeError) as error:
-            raise ValueError(
-                f"Could not access key '{p}' in configuration. "
-                f"Available keys: {list(env_cfg.keys() if hasattr(env_cfg, 'keys') else [])}"
-            ) from error
+        cfg = cfg[p]
 
     if overrides not in [None, {}]:
-        if env_cfg._target_.endswith(".MettaGridEnvSet"):
-            raise NotImplementedError("Cannot parse overrides when using multienv_mettagrid")
-        env_cfg = OmegaConf.merge(env_cfg, overrides)
-
-    return env_cfg
+        # Allow overrides that are not in the config.
+        OmegaConf.set_struct(cfg, False)
+        cfg = OmegaConf.merge(cfg, overrides)
+        OmegaConf.set_struct(cfg, True)
+    return cast(DictConfig, cfg)
 
 
 def check_aws_credentials() -> bool:

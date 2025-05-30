@@ -1,9 +1,6 @@
 defaults:
-  - /env/mettagrid/multi_agent/training/defaults@
+  - /env/mettagrid/multiagent/training/defaults@
   - _self_
-
-# Randomly choose density if not overridden
-# density: ${choose:sparse,medium,dense}
 
 game:
   map_builder:
