@@ -1,9 +1,9 @@
 from numpy import random
 
 from metta.map.node import Node
-from metta.map.scene import AreaWhere, ChildrenAction
 from metta.map.scenes.random import Random
 from metta.map.scenes.room_grid import RoomGrid
+from metta.map.types import AreaWhere, ChildrenAction
 from metta.util.config import Config
 
 

@@ -26,6 +26,8 @@ class Random(Node[RandomParams]):
             agents = ["agent.agent"] * params.agents
         elif isinstance(params.agents, dict):
             agents = ["agent." + str(agent) for agent, na in params.agents.items() for _ in range(na)]
+        else:
+            raise ValueError(f"Invalid agents: {params.agents}")
 
         # Find empty cells in the grid
         empty_mask = self.grid == "empty"

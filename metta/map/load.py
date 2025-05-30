@@ -7,7 +7,7 @@ from metta.map.utils.storable_map import StorableMap
 from mettagrid.level_builder import Level
 from mettagrid.room.room import Room
 
-from .scene import SceneCfg
+from .types import SceneCfg
 
 
 # Note that this class can't be a scene, because the width and height come from the stored data.

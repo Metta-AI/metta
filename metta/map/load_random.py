@@ -5,7 +5,7 @@ from pathlib import Path
 from metta.map.load import Load
 from metta.map.utils import s3utils
 
-from .scene import SceneCfg
+from .types import SceneCfg
 
 
 def parse_file_uri(uri: str) -> str:

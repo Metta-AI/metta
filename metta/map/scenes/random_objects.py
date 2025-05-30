@@ -1,6 +1,6 @@
 from metta.map.node import Node
-from metta.map.scene import ChildrenAction
 from metta.map.scenes.random import Random
+from metta.map.types import ChildrenAction
 from metta.map.utils.random import FloatDistribution, sample_float_distribution
 from metta.util.config import Config
 

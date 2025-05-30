@@ -6,8 +6,7 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.config import scenes_root
-from metta.map.scene import AreaQuery, ChildrenAction, SceneCfg
-from metta.map.types import MapGrid
+from metta.map.types import AreaQuery, ChildrenAction, MapGrid, SceneCfg
 from metta.map.utils.random import MaybeSeed
 from metta.util.config import Config
 
