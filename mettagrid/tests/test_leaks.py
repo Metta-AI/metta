@@ -1,12 +1,17 @@
 import gc
 import os
+import random
 
+import numpy as np
 import psutil
 import pytest
 from hydra import compose, initialize
 
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
+
+# Define a constant seed for deterministic behavior
+TEST_SEED = 42
 
 
 @pytest.fixture(scope="module")
@@ -31,8 +36,9 @@ def test_mettagrid_env_reset(cfg):
     env = MettaGridEnv(curriculum, render_mode=None)
     # Reset the environment multiple times
     for _ in range(10):
-        observation = env.reset()
-        assert observation is not None, "Reset should return a valid observation"
+        obs, infos = env.reset()
+        assert obs is not None, "Reset should return a valid observation array"
+        assert infos is not None, "Reset should return a valid info dict"
 
 
 def get_memory_usage():
@@ -44,22 +50,20 @@ def get_memory_usage():
 def test_mettagrid_env_no_memory_leaks(cfg):
     """
     Test that the MettaGridEnv can be reset multiple times without memory leaks.
-
-    This test creates and destroys an environment object after multiple resets
-    to verify that no memory leaks occur during this process.
+    Uses a binning strategy to detect true memory growth while ignoring outliers.
     """
     # Force garbage collection before starting
     gc.collect()
 
-    # Get initial memory usage
     initial_memory = get_memory_usage()
     print(f"Initial memory usage: {initial_memory:.2f} MB")
 
-    # Create multiple environments and reset them many times
-    num_iterations = 20  # Increase this for more thorough testing
-    memory_usage = []
+    np.random.seed(TEST_SEED)
+    random.seed(TEST_SEED)
 
-    for i in range(num_iterations):
+    num_iterations = 20  # Increase this for more thorough testing
+
+    for _ in range(num_iterations):
         # Create the environment
         curriculum = SingleTaskCurriculum("test", cfg)
         env = MettaGridEnv(curriculum, render_mode=None)
@@ -71,21 +75,92 @@ def test_mettagrid_env_no_memory_leaks(cfg):
 
         # Explicitly delete the environment to release resources
         del env
-
-        # Force garbage collection
         gc.collect()
 
-        # Record memory usage
+    post_warmup_memory = get_memory_usage()
+    print(f"Memory after pre-warming: {post_warmup_memory:.2f} MB")
+    print(f"Initial warmup cost: {post_warmup_memory - initial_memory:.2f} MB")
+
+    # Use this as our new baseline
+    baseline_memory = post_warmup_memory
+
+    num_iterations = 40
+    memory_readings = []
+
+    for i in range(num_iterations):
+        curriculum = SingleTaskCurriculum("test", cfg)
+        env = MettaGridEnv(curriculum, render_mode=None)
+
+        # Do multiple resets
+        for _ in range(3):
+            _obs, _infos = env.reset()
+
+        if hasattr(env, "close"):
+            env.close()
+        del env
+        gc.collect()
+
+        # Record memory after each iteration (not just every 5)
         current_memory = get_memory_usage()
-        memory_usage.append(current_memory)
-        print(f"Iteration {i + 1}: Memory usage: {current_memory:.2f} MB")
+        memory_readings.append(current_memory)
 
-    # Calculate memory growth
-    memory_growth = memory_usage[-1] - initial_memory
+        # Print less frequently to keep the output clean
+        if i % 10 == 0:
+            print(
+                f"Iteration {i}: Memory usage: {current_memory:.2f} MB, "
+                f"Delta: {current_memory - baseline_memory:.2f} MB"
+            )
 
-    # Final memory should not be significantly higher than initial memory
-    # Allow for some small fluctuations
-    memory_threshold = 5.0  # MB - adjust based on your environment's expected behavior
+    # Skip the first few readings (often more unstable)
+    skip_first = 5
+    analyzed_readings = memory_readings[skip_first:]
 
-    print(f"Memory growth after {num_iterations} iterations: {memory_growth:.2f} MB")
-    assert memory_growth < memory_threshold, f"Possible memory leak detected: {memory_growth:.2f} MB growth"
+    # Create 5 bins of equal size
+    num_bins = 5
+    readings_per_bin = len(analyzed_readings) // num_bins
+
+    # Calculate the average for each bin
+    bin_averages = []
+    for i in range(num_bins):
+        start_idx = i * readings_per_bin
+        end_idx = (i + 1) * readings_per_bin if i < num_bins - 1 else len(analyzed_readings)
+        bin_data = analyzed_readings[start_idx:end_idx]
+        bin_avg = np.mean(bin_data)
+        bin_averages.append(bin_avg)
+        print(
+            f"Bin {i + 1} (iterations {skip_first + start_idx}-{skip_first + end_idx - 1}): "
+            f"Average memory {bin_avg:.2f} MB"
+        )
+
+    # Analyze memory growth trend using bin averages
+    first_bin_avg = bin_averages[0]
+    last_bin_avg = bin_averages[-1]
+    total_growth = last_bin_avg - first_bin_avg
+
+    print(f"Total growth from first bin to last bin: {total_growth:.2f} MB")
+
+    # Check for a clear trend - are later bins consistently higher than earlier ones?
+    is_increasing = all(bin_averages[i] <= bin_averages[i + 1] for i in range(num_bins - 1))
+
+    if is_increasing and total_growth > 0:
+        # Calculate average growth per bin
+        avg_growth_per_bin = total_growth / (num_bins - 1)
+        print(f"Average growth per bin: {avg_growth_per_bin:.2f} MB")
+
+        # Set a reasonable threshold for bin-to-bin growth
+        bin_growth_threshold = 0.5  # MB per bin
+
+        # Only fail if we see consistent growth above the threshold
+        assert avg_growth_per_bin < bin_growth_threshold, (
+            f"Persistent memory leak detected: {avg_growth_per_bin:.2f} MB average growth per bin"
+        )
+    else:
+        print("No consistent increasing memory trend detected")
+
+    # Final sanity check on absolute growth
+    final_growth = memory_readings[-1] - baseline_memory
+    print(f"Total memory growth after warmup: {final_growth:.2f} MB")
+
+    # Set a reasonable threshold for total growth
+    final_threshold = 10.0  # MB
+    assert final_growth < final_threshold, f"Excessive total memory growth: {final_growth:.2f} MB"

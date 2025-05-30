@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+#include "types.hpp"
+
 // Forward declarations of existing C++ classes
 class Grid;
 class EventManager;
@@ -41,19 +43,20 @@ public:
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
-  void set_buffers(const py::array_t<unsigned char, py::array::c_style>& observations,
-                   const py::array_t<bool, py::array::c_style>& terminals,
-                   const py::array_t<bool, py::array::c_style>& truncations,
-                   const py::array_t<float, py::array::c_style>& rewards);
+  void set_buffers(py::array_t<c_observations_type, py::array::c_style>& observations,
+                   py::array_t<c_terminals_type, py::array::c_style>& terminals,
+                   py::array_t<c_truncations_type, py::array::c_style>& truncations,
+                   py::array_t<c_rewards_type, py::array::c_style>& rewards);
+
   void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
 
-  unsigned int map_width();
-  unsigned int map_height();
+  unsigned int map_width() const;
+  unsigned int map_height() const;
   py::list grid_features();
-  unsigned int num_agents();
-  py::array_t<float> get_episode_rewards();
+  unsigned int num_agents() const;
+  py::array_t<c_rewards_type> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();
   py::object observation_space();
@@ -68,6 +71,10 @@ public:
                              unsigned int group_id,
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
+
+  bool is_gym_mode() const {
+    return _gym_mode;
+  }
 
 private:
   // Member variables
@@ -87,18 +94,36 @@ private:
   std::unique_ptr<StatsTracker> _stats;
 
   bool _use_observation_tokens;
+  unsigned int _num_observation_tokens;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
   std::vector<Agent*> _agents;
 
-  // We'd prefer to store these as more raw c-style arrays, but we need to both
-  // operate on the memory directly and return them to python.
-  py::array_t<uint8_t> _observations;
-  py::array_t<bool> _terminals;
-  py::array_t<bool> _truncations;
-  py::array_t<float> _rewards;
-  py::array_t<float> _episode_rewards;
+  // Mode flags
+  bool _gym_mode;
+  bool _set_buffers_called;
+
+  // Internal buffers for gym mode
+  std::unique_ptr<c_observations_type[]> _internal_observations;
+  std::unique_ptr<c_terminals_type[]> _internal_terminals;
+  std::unique_ptr<c_truncations_type[]> _internal_truncations;
+  std::unique_ptr<c_rewards_type[]> _internal_rewards;
+
+  // Pointers to external buffers - these are required and must be set
+  c_observations_type* _observations;
+  c_terminals_type* _terminals;
+  c_truncations_type* _truncations;
+  c_rewards_type* _rewards;
+
+  // Buffer sizes
+  size_t _observations_size;
+  size_t _terminals_size;
+  size_t _truncations_size;
+  size_t _rewards_size;
+
+  // Internal buffers
+  std::vector<float> _episode_rewards;
 
   std::vector<std::string> _grid_features;
 
@@ -113,6 +138,10 @@ private:
                             size_t agent_idx);
   void _compute_observations(py::array_t<int> actions);
   void _step(py::array_t<int> actions);
+
+  void _allocate_internal_buffers();
+  void _free_internal_buffers();
+  void _setup_gym_mode();
 };
 
 #endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_
