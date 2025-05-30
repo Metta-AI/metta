@@ -3,7 +3,7 @@ from typing import cast
 
 from metta.map.config import scenes_root
 from metta.map.node import Node
-from metta.map.scene import TypedChild
+from metta.map.scene import ChildrenAction
 from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
 from metta.util.config import Config
 
@@ -29,13 +29,13 @@ class RandomSceneFromDir(Node[RandomSceneFromDirParams]):
         if not self._scenes:
             raise ValueError(f"No files found in {self._dir}")
 
-    def get_children(self) -> list[TypedChild]:
+    def get_children(self) -> list[ChildrenAction]:
         candidates = [cast(RandomSceneCandidate, {"scene": scene, "weight": 1.0}) for scene in self._scenes]
         return [
-            {
-                "scene": lambda grid: RandomScene(grid=grid, params={"candidates": candidates}, seed=self.rng),
-                "where": "full",
-            },
+            ChildrenAction(
+                scene=lambda grid: RandomScene(grid=grid, params={"candidates": candidates}, seed=self.rng),
+                where="full",
+            ),
             *self.children,
         ]
 

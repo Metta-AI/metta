@@ -1,7 +1,7 @@
 import numpy as np
 
 from metta.map.node import Node
-from metta.map.scene import SceneCfg, TypedChild
+from metta.map.scene import ChildrenAction, SceneCfg
 from metta.util.config import Config
 
 
@@ -17,7 +17,7 @@ class RandomSceneParams(Config):
 class RandomScene(Node[RandomSceneParams]):
     params_type = RandomSceneParams
 
-    def get_children(self) -> list[TypedChild]:
+    def get_children(self) -> list[ChildrenAction]:
         candidates = self.params.candidates
         weights = np.array([c.weight for c in candidates], dtype=np.float32)
         weights /= weights.sum()
@@ -26,7 +26,7 @@ class RandomScene(Node[RandomSceneParams]):
         scene = candidates[idx].scene
 
         return [
-            {"scene": scene, "where": "full"},
+            ChildrenAction(scene=scene, where="full"),
             *self.children,
         ]
 

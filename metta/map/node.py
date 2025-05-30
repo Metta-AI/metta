@@ -3,10 +3,10 @@ from dataclasses import dataclass
 from typing import Generic, List, Optional, TypeVar
 
 import numpy as np
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from metta.map.config import scenes_root
-from metta.map.scene import SceneCfg, TypedChild
+from metta.map.scene import AreaQuery, ChildrenAction, SceneCfg
 from metta.map.types import MapGrid
 from metta.map.utils.random import MaybeSeed
 from metta.util.config import Config
@@ -34,9 +34,10 @@ class Node(Generic[ParamsT]):
         self,
         grid: MapGrid,
         params: ParamsT | DictConfig | dict | None = None,
-        children: Optional[List[TypedChild]] = None,
+        children: Optional[List[ChildrenAction]] = None,
         seed: MaybeSeed = None,
     ):
+        # Validate params - they can come from untyped yaml or from weakly typed dicts in python code.
         if params is None:
             params = {}
         if isinstance(params, DictConfig):
@@ -47,6 +48,13 @@ class Node(Generic[ParamsT]):
             self.params = params
         else:
             raise ValueError(f"Invalid params: {params}")
+
+        children = children or []
+        self.children: list[ChildrenAction] = []
+        for action in children:
+            if not isinstance(action, ChildrenAction):
+                action = ChildrenAction(**action)
+            self.children.append(action)
 
         self.grid = grid
         self.height = grid.shape[0]
@@ -62,8 +70,6 @@ class Node(Generic[ParamsT]):
             tags=[],
         )
 
-        self.children = children or []
-
         self.rng = np.random.default_rng(seed)
 
     # Render does two things:
@@ -75,25 +81,16 @@ class Node(Generic[ParamsT]):
     # Subclasses can override this to provide a list of children.
     # By default, children are static, which makes them configurable in the config file, but then can't depend
     # on the specific generated content.
-    def get_children(self) -> List[TypedChild]:
+    def get_children(self) -> List[ChildrenAction]:
         return self.children
 
     def render_with_children(self):
         self.render()
         for query in self.get_children():
-            sweep = query.get("sweep")
-            subqueries: list[TypedChild] = [query]
-            if sweep:
-                subqueries = [
-                    OmegaConf.merge(entry, query)  # type: ignore
-                    for entry in sweep
-                ]
-
-            for query in subqueries:
-                areas = self.select_areas(query)
-                for area in areas:
-                    child_node = make_node(query["scene"], area.grid)
-                    child_node.render_with_children()
+            areas = self.select_areas(query)
+            for area in areas:
+                child_node = make_node(query.scene, area.grid)
+                child_node.render_with_children()
 
     def make_area(self, x: int, y: int, width: int, height: int, tags: Optional[List[str]] = None) -> Area:
         area = Area(
@@ -104,37 +101,30 @@ class Node(Generic[ParamsT]):
         self._areas.append(area)
         return area
 
-    def select_areas(self, query) -> list[Area]:
+    def select_areas(self, query: AreaQuery) -> list[Area]:
         areas = self._areas
 
         selected_areas: list[Area] = []
 
-        where = query.get("where")
+        where = query.where
         if where:
-            if isinstance(where, str) and where == "full":
+            if where == "full":
                 selected_areas = [self._full_area]
             else:
-                # Type check and handling
-                if isinstance(where, (DictConfig, dict)) and "tags" in where:
-                    tags = where.get("tags", [])
-                    if isinstance(tags, list) or isinstance(tags, ListConfig):
-                        for area in areas:
-                            match = True
-                            for tag in tags:
-                                if tag not in area.tags:
-                                    match = False
-                                    break
-                            if match:
-                                selected_areas.append(area)
-                    else:
-                        raise ValueError(f"Invalid 'tags' format in 'where' clause: expected list, got {type(tags)}")
-                else:
-                    raise ValueError(f"Invalid 'where' structure: {where}")
+                tags = where.tags
+                for area in areas:
+                    match = True
+                    for tag in tags:
+                        if tag not in area.tags:
+                            match = False
+                            break
+                    if match:
+                        selected_areas.append(area)
         else:
             selected_areas = areas
 
         # Filter out locked areas.
-        lock = query.get("lock")
+        lock = query.lock
         if lock:
             if lock not in self._locks:
                 self._locks[lock] = set()
@@ -142,13 +132,13 @@ class Node(Generic[ParamsT]):
             # Remove areas that are locked.
             selected_areas = [area for area in selected_areas if area.id not in self._locks[lock]]
 
-        limit = query.get("limit")
+        limit = query.limit
         if limit is not None and limit < len(selected_areas):
-            order_by = query.get("order_by", "random")
-            offset = query.get("offset")
+            order_by = query.order_by
+            offset = query.offset
             if order_by == "random":
                 assert offset is None, "offset is not supported for random order"
-                rng = np.random.default_rng(query.get("order_by_seed"))
+                rng = np.random.default_rng(query.order_by_seed)
                 selected_areas = list(rng.choice(selected_areas, size=int(limit), replace=False))  # type: ignore
             elif order_by == "first":
                 offset = offset or 0

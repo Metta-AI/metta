@@ -1,7 +1,7 @@
 import numpy as np
 
 from metta.map.node import Node
-from metta.map.scene import TypedChild
+from metta.map.scene import AreaWhere, ChildrenAction
 from metta.map.scenes.bsp import BSPLayout
 from metta.map.scenes.make_connected import MakeConnected
 from metta.map.scenes.mirror import Mirror
@@ -49,18 +49,24 @@ class AutoParams(Config):
 class Auto(Node[AutoParams]):
     params_type = AutoParams
 
-    def get_children(self) -> list[TypedChild]:
+    def get_children(self) -> list[ChildrenAction]:
         return [
-            {"scene": lambda grid: AutoLayout(grid=grid, params=self.params, seed=self.rng), "where": "full"},
-            {
-                "scene": lambda grid: Random(grid=grid, params={"objects": self.params.objects}, seed=self.rng),
-                "where": "full",
-            },
-            {"scene": lambda grid: MakeConnected(grid=grid, params={}, seed=self.rng), "where": "full"},
-            {
-                "scene": lambda grid: Random(grid=grid, params={"agents": self.params.num_agents}, seed=self.rng),
-                "where": "full",
-            },
+            ChildrenAction(
+                scene=lambda grid: AutoLayout(grid=grid, params=self.params, seed=self.rng),
+                where="full",
+            ),
+            ChildrenAction(
+                scene=lambda grid: Random(grid=grid, params={"objects": self.params.objects}, seed=self.rng),
+                where="full",
+            ),
+            ChildrenAction(
+                scene=lambda grid: MakeConnected(grid=grid, seed=self.rng),
+                where="full",
+            ),
+            ChildrenAction(
+                scene=lambda grid: Random(grid=grid, params={"agents": self.params.num_agents}, seed=self.rng),
+                where="full",
+            ),
         ]
 
     def render(self):
@@ -70,23 +76,23 @@ class Auto(Node[AutoParams]):
 class AutoLayout(Node[AutoParams]):
     params_type = AutoParams
 
-    def get_children(self) -> list[TypedChild]:
+    def get_children(self) -> list[ChildrenAction]:
         weights = np.array([self.params.layout.grid, self.params.layout.bsp], dtype=np.float32)
         weights /= weights.sum()
         layout = self.rng.choice(["grid", "bsp"], p=weights)
 
-        def children_for_tag(tag: str) -> list[TypedChild]:
+        def children_for_tag(tag: str) -> list[ChildrenAction]:
             return [
-                {
-                    "scene": lambda grid: AutoSymmetry(grid=grid, params=self.params, seed=self.rng),
-                    "where": {"tags": [tag]},
-                },
-                {
-                    "scene": lambda grid: RandomObjects(
+                ChildrenAction(
+                    scene=lambda grid: AutoSymmetry(grid=grid, params=self.params, seed=self.rng),
+                    where=AreaWhere(tags=[tag]),
+                ),
+                ChildrenAction(
+                    scene=lambda grid: RandomObjects(
                         grid=grid, params={"object_ranges": self.params.room_objects}, seed=self.rng
                     ),
-                    "where": {"tags": [tag]},
-                },
+                    where=AreaWhere(tags=[tag]),
+                ),
             ]
 
         if layout == "grid":
@@ -94,8 +100,8 @@ class AutoLayout(Node[AutoParams]):
             columns = sample_int_distribution(self.params.grid.columns, self.rng)
 
             return [
-                {
-                    "scene": lambda grid: RoomGrid(
+                ChildrenAction(
+                    scene=lambda grid: RoomGrid(
                         grid=grid,
                         params={
                             "rows": rows,
@@ -104,22 +110,22 @@ class AutoLayout(Node[AutoParams]):
                         },
                         children=children_for_tag("room"),
                     ),
-                    "where": "full",
-                },
+                    where="full",
+                ),
             ]
         elif layout == "bsp":
             area_count = sample_int_distribution(self.params.bsp.area_count, self.rng)
 
             return [
-                {
-                    "scene": lambda grid: BSPLayout(
+                ChildrenAction(
+                    scene=lambda grid: BSPLayout(
                         grid=grid,
                         params={"area_count": area_count},
                         children=children_for_tag("zone"),
                         seed=self.rng,
                     ),
-                    "where": "full",
-                }
+                    where="full",
+                ),
             ]
         else:
             raise ValueError(f"Invalid layout: {layout}")
@@ -131,7 +137,7 @@ class AutoLayout(Node[AutoParams]):
 class AutoSymmetry(Node[AutoParams]):
     params_type = AutoParams
 
-    def get_children(self) -> list[TypedChild]:
+    def get_children(self) -> list[ChildrenAction]:
         weights = np.array(
             [
                 self.params.room_symmetry.none,
@@ -153,7 +159,7 @@ class AutoSymmetry(Node[AutoParams]):
             else:
                 return Mirror(grid=grid, params={"scene": get_random_scene, "symmetry": symmetry}, seed=self.rng)
 
-        return [{"scene": get_node, "where": "full"}]
+        return [ChildrenAction(scene=get_node, where="full")]
 
     def render(self):
         pass

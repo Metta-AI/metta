@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from metta.map.scene import AreaQuery
 from metta.map.scenes.room_grid import RoomGrid
 from tests.map.scenes.utils import assert_grid, render_node
 
@@ -34,7 +35,7 @@ def test_with_rows_columns():
     # Should have walls at inner borders
     assert np.array_equal(node.grid[4, :], ["wall"] * 10)  # Horizontal border
     assert np.array_equal(node.grid[:, 2], ["wall"] * 10)  # Vertical border
-    areas = node.select_areas({})
+    areas = node.select_areas(AreaQuery())
     # Verify room areas are created. The 4x2 shape is due to the border width.
     assert len(areas) == 6
     assert all(area.grid.shape == (4, 2) for area in areas)
@@ -49,7 +50,7 @@ def test_with_layout():
 
     node = render_node(RoomGrid, {"layout": layout, "border_width": 1, "border_object": "wall"}, (10, 10))
 
-    areas = node.select_areas({})
+    areas = node.select_areas(AreaQuery())
     # Verify room areas are created with correct tags
     assert len(areas) == 4
     assert all(area.grid.shape == (4, 4) for area in areas)
@@ -77,7 +78,7 @@ def test_benchmark_room_grid(benchmark, benchmark_size):
             (100, 100),
         )
 
-        return node.select_areas({})
+        return node.select_areas(AreaQuery())
 
     areas = benchmark(create_grid)
     assert len(areas) == benchmark_size[0] * benchmark_size[1]
