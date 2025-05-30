@@ -14,7 +14,7 @@ labels:
   - sequence
 
 game:
-  num_agents: 16
+  num_agents: 4
   agent:
     ore.red_max: ${sampling:3,8,6}
     battery_max: ${sampling:3,8,6}
@@ -34,7 +34,7 @@ game:
       width: ${sampling:50,100,60}
       height: ${sampling:50,100,60}
       border_width: 6
-      agents: 4
+      agents: 1
       style: ???
       objects:
         mine.red: ${sampling:5,20,15}

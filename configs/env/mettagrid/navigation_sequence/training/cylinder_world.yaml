@@ -5,7 +5,7 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 16
+  num_agents: 4
   agent:
     ore.red_max: ${sampling:4,10,6}
     battery_max: ${sampling:6,10,6}
@@ -25,7 +25,7 @@ game:
       width: ${sampling:40,80,50}
       height: ${sampling:40,80,50}
       border_width: ${sampling:1,6,3}
-      agents: 4
+      agents: 1
       objects:
         altar: ${sampling:1,5,3}
         mine.red: ${sampling:1,12,6}

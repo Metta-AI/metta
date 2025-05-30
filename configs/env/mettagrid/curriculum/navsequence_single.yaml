@@ -11,6 +11,3 @@ tasks:
   /env/mettagrid/navigation_sequence/training/sequence_balanced: 1
   /env/mettagrid/navigation_sequence/training/sequence_maze: 1
   /env/mettagrid/navigation_sequence/training/sequence_dense: 1
-  /env/mettagrid/memory/training/easy: 0.25
-  /env/mettagrid/memory/training/medium: 0.25
-  /env/mettagrid/memory/training/hard: 0.25
