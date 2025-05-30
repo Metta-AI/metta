@@ -129,20 +129,22 @@ public:
 
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
-    obs[offsets[1]] = group;
-    obs[offsets[2]] = hp;
-    obs[offsets[3]] = frozen;
-    obs[offsets[4]] = orientation;
-    obs[offsets[5]] = color;
+    obs[offsets[1]] = _type_id;
+    obs[offsets[2]] = group;
+    obs[offsets[3]] = hp;
+    obs[offsets[4]] = frozen;
+    obs[offsets[5]] = orientation;
+    obs[offsets[6]] = color;
 
     for (int i = 0; i < InventoryItemCount; i++) {
-      obs[offsets[6 + i]] = inventory[i];
+      obs[offsets[7 + i]] = inventory[i];
     }
   }
 
   static std::vector<std::string> feature_names() {
     std::vector<std::string> names;
     names.push_back("agent");
+    names.push_back("type_id");
     names.push_back("agent:group");
     names.push_back("hp");
     names.push_back("agent:frozen");
