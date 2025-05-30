@@ -1,14 +1,13 @@
 import numpy as np
-from typing_extensions import TypedDict
 
 from metta.map.node import Node
 from metta.map.scene import SceneCfg, TypedChild
 from metta.util.config import Config
 
 
-class RandomSceneCandidate(TypedDict):
+class RandomSceneCandidate(Config):
     scene: SceneCfg
-    weight: float | None
+    weight: float = 1
 
 
 class RandomSceneParams(Config):
@@ -20,11 +19,11 @@ class RandomScene(Node[RandomSceneParams]):
 
     def get_children(self) -> list[TypedChild]:
         candidates = self.params.candidates
-        weights = np.array([c.get("weight", 1) for c in candidates], dtype=np.float32)
+        weights = np.array([c.weight for c in candidates], dtype=np.float32)
         weights /= weights.sum()
 
         idx = self.rng.choice(len(candidates), p=weights)
-        scene = candidates[idx]["scene"]
+        scene = candidates[idx].scene
 
         return [
             {"scene": scene, "where": "full"},

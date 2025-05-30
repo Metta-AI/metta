@@ -1,12 +1,12 @@
 from metta.map.node import Node
 from metta.map.scene import TypedChild
 from metta.map.scenes.random import Random
-from metta.map.utils.random import sample_float_distribution
+from metta.map.utils.random import FloatDistribution, sample_float_distribution
 from metta.util.config import Config
 
 
 class RandomObjectsParams(Config):
-    object_ranges: dict = {}
+    object_ranges: dict[str, FloatDistribution] = {}
 
 
 class RandomObjects(Node):
