@@ -103,11 +103,20 @@ class TestObservations:
     def test_observations(self):
         """Test standard observation format and content."""
         c_env = create_minimal_mettagrid_c_env()
-        wall_feature_idx = c_env.grid_features().index("wall")
+        type_id_feature_idx = c_env.grid_features().index("type_id")
+        agent_feature_idx = c_env.grid_features().index("agent")
+        converter_feature_idx = c_env.grid_features().index("converter")
         obs, info = c_env.reset()
-        # Agent 0 starts at (1,1) and should see walls above and to the left
-        assert obs[0, 0, 1, wall_feature_idx] == 1, "Expected wall above agent 0"
-        assert obs[0, 1, 0, wall_feature_idx] == 1, "Expected wall to left of agent 0"
+        # Agent 0 starts at (1,1) and should see walls above and to the left. Walls have a type_id and aren't
+        # agents or converters.
+        assert obs[0, 0, 1, type_id_feature_idx] > 0, "Expected wall above agent 0"
+        assert not obs[0, 0, 1, agent_feature_idx].any(), "Expected no agent above agent 0"
+        assert not obs[0, 0, 1, converter_feature_idx].any(), "Expected no converter above agent 0"
+
+        assert obs[0, 1, 0, type_id_feature_idx] > 0, "Expected wall to left of agent 0"
+        assert not obs[0, 1, 0, agent_feature_idx].any(), "Expected no agent to left of agent 0"
+        assert not obs[0, 1, 0, converter_feature_idx].any(), "Expected no converter to left of agent 0"
+
         assert not obs[0, 2, 1, :].any(), "Expected empty space below agent 0"
         assert not obs[0, 1, 2, :].any(), "Expected empty space to right of agent 0"
 
@@ -126,9 +135,9 @@ def test_grid_objects():
     common_properties = {"r", "c", "layer", "type", "id"}
 
     for obj in objects.values():
-        if obj.get("wall"):
-            assert set(obj) == {"wall", "hp", "swappable"} | common_properties
-            assert obj["wall"] == 1, "Wall should have type 1"
+        if obj.get("type_id"):
+            assert set(obj) == {"type_id", "hp", "swappable"} | common_properties
+            assert obj["type_id"] == 1, "Wall should have type 1"
             assert obj["hp"] == 100, "Wall should have 100 hp"
         if obj.get("agent"):
             # agents will also have various inventory, which we don't list here

@@ -1,7 +1,5 @@
 _target_: mettagrid.mettagrid_env.MettaGridEnv
 
-normalize_rewards: false
-
 sampling: 0
 
 game:
