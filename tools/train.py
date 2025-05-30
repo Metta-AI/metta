@@ -82,61 +82,65 @@ def main(cfg: ListConfig | DictConfig) -> int:
         cfg.device = f"{cfg.device}:{local_rank}"
         dist.init_process_group(backend="nccl")
 
-    if dist.is_initialized():
-        world_size: int = dist.get_world_size()
-        if world_size > 1:
-            lr_config_path: str = "trainer.optimizer.lr"
-            logger.info(f"Attempting to scale learning rate by world_size: {world_size}")
-            try:
-                optimizer_cfg_node = OmegaConf.select(cfg, "trainer.optimizer", default=None)
-                
-                if optimizer_cfg_node is not None and isinstance(optimizer_cfg_node, OmegaConf) and hasattr(optimizer_cfg_node, "lr"):
-                    original_lr = optimizer_cfg_node.lr
-                    if isinstance(original_lr, (float, int)):
-                        scaled_lr: float = float(original_lr) * world_size
-                        
-                        is_struct_optimizer: bool = OmegaConf.is_struct(optimizer_cfg_node)
-                        if is_struct_optimizer:
-                            OmegaConf.set_struct(optimizer_cfg_node, False)
-                        
-                        optimizer_cfg_node.lr = scaled_lr
-                        
-                        if is_struct_optimizer:
-                            OmegaConf.set_struct(optimizer_cfg_node, True)
-                        
-                        logger.info(
-                            f"Linearly scaled learning rate by world_size ({world_size}). "
-                            f"Path: cfg.{lr_config_path}. Original LR: {original_lr}, New LR: {scaled_lr}"
-                        )
-                    else:
-                        logger.warning(
-                            f"Learning rate at cfg.{lr_config_path} is not a number (type: {type(original_lr)}). "
-                            "Cannot scale."
-                        )
-                else:
-                    logger.warning(
-                        f"Config path cfg.{lr_config_path} not found or 'lr' attribute missing/invalid. "
-                        "Cannot scale learning rate. Please ensure 'cfg.trainer.optimizer.lr' is defined correctly."
-                    )
-            except OmegaConf.errors.OmegaConfBaseException as e_oc:
-                logger.warning(
-                    f"OmegaConf error while scaling learning rate at cfg.{lr_config_path}: {e_oc}. "
-                    "Ensure the config structure is as expected."
-                )
-            except Exception as e_gen:
-                logger.warning(
-                    f"Unexpected error while scaling learning rate at cfg.{lr_config_path}: {e_gen}"
-                )
-    elif int(os.environ.get("WORLD_SIZE", 1)) > 1:
-        logger.warning(
-            f"Distributed process group not initialized, but WORLD_SIZE is {os.environ.get('WORLD_SIZE')}. "
-            "Learning rate not scaled by dist.get_world_size()."
-        )
-    else:
-        logger.info(
-            "Not a multi-GPU/multi-node run (world_size=1 according to dist or process group not initialized). "
-            "Learning rate not scaled."
-        )
+    # if dist.is_initialized():
+    #     world_size: int = dist.get_world_size()
+    #     if world_size > 1:
+    #         lr_config_path: str = "trainer.optimizer.lr"
+    #         logger.info(f"Attempting to scale learning rate by world_size: {world_size}")
+    #         try:
+    #             optimizer_cfg_node = OmegaConf.select(cfg, "trainer.optimizer", default=None)
+
+    #             if (
+    #                 optimizer_cfg_node is not None
+    #                 and isinstance(optimizer_cfg_node, OmegaConf)
+    #                 and hasattr(optimizer_cfg_node, "lr")
+    #             ):
+    #                 original_lr = optimizer_cfg_node.lr
+    #                 if isinstance(original_lr, (float, int)):
+    #                     scaled_lr: float = float(original_lr) * world_size
+    #                     print(f"DFF: Scaled learning rate calculated as: {original_lr} * {world_size} = {scaled_lr}")
+
+    #                     # Check if the optimizer config is a struct
+    #                     is_struct_optimizer: bool = OmegaConf.is_struct(optimizer_cfg_node)
+    #                     if is_struct_optimizer:
+    #                         OmegaConf.set_struct(optimizer_cfg_node, False)
+
+    #                     optimizer_cfg_node.lr = scaled_lr
+
+    #                     if is_struct_optimizer:
+    #                         OmegaConf.set_struct(optimizer_cfg_node, True)
+
+    #                     logger.info(
+    #                         f"Linearly scaled learning rate by world_size ({world_size}). "
+    #                         f"Path: cfg.{lr_config_path}. Original LR: {original_lr}, New LR: {scaled_lr}"
+    #                     )
+    #                 else:
+    #                     logger.warning(
+    #                         f"Learning rate at cfg.{lr_config_path} is not a number (type: {type(original_lr)}). "
+    #                         "Cannot scale."
+    #                     )
+    #             else:
+    #                 logger.warning(
+    #                     f"Config path cfg.{lr_config_path} not found or 'lr' attribute missing/invalid. "
+    #                     "Cannot scale learning rate. Please ensure 'cfg.trainer.optimizer.lr' is defined correctly."
+    #                 )
+    #         except OmegaConf.errors.OmegaConfBaseException as e_oc:
+    #             logger.warning(
+    #                 f"OmegaConf error while scaling learning rate at cfg.{lr_config_path}: {e_oc}. "
+    #                 "Ensure the config structure is as expected."
+    #             )
+    #         except Exception as e_gen:
+    #             logger.warning(f"Unexpected error while scaling learning rate at cfg.{lr_config_path}: {e_gen}")
+    # elif int(os.environ.get("WORLD_SIZE", 1)) > 1:
+    #     logger.warning(
+    #         f"Distributed process group not initialized, but WORLD_SIZE is {os.environ.get('WORLD_SIZE')}. "
+    #         "Learning rate not scaled by dist.get_world_size()."
+    #     )
+    # else:
+    #     logger.info(
+    #         "Not a multi-GPU/multi-node run (world_size=1 according to dist or process group not initialized). "
+    #         "Learning rate not scaled."
+    #     )
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if os.environ.get("RANK", "0") == "0":

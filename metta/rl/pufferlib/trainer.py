@@ -153,11 +153,20 @@ class PufferTrainer:
             "muon",
         ), f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
         opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
+        print(f"DFF: Using optimizer: {self.trainer_cfg.optimizer.type}")
         self.optimizer = opt_cls(
             self.policy.parameters(),
-            lr=self.trainer_cfg.optimizer.learning_rate,
+            lr=self.trainer_cfg.optimizer.learning_rate * self._world_size,
             betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
             eps=self.trainer_cfg.optimizer.eps,
+        )
+        print(f"DFF: Learning rate had a config value of {self.trainer_cfg.optimizer.learning_rate}")
+        print(f"DFF: World size is {self._world_size}")
+        print(f"Therefore setting learning rate to {self.trainer_cfg.optimizer.learning_rate * self._world_size}")
+
+        assert self.optimizer.param_groups[0]["lr"] == self.trainer_cfg.optimizer.learning_rate * self._world_size, (
+            f"DFF: Learning rate is {self.optimizer.param_groups[0]['lr']} but should be "
+            f"{self.trainer_cfg.optimizer.learning_rate * self._world_size}"
         )
 
         # validate that policy matches environment
