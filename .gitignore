@@ -39,4 +39,4 @@ cpplint_output*
 observatory/node_modules/
 observatory/.vite/
 
-wandb
+wandb.vscode/
