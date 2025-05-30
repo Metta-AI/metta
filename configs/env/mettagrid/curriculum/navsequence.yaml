@@ -1,5 +1,6 @@
 _target_: mettagrid.curriculum.LowRewardCurriculum
 
+sampling: 1
 tasks:
   /env/mettagrid/navigation_sequence/training/cylinder_world: 1
   /env/mettagrid/navigation_sequence/training/mem_balanced: 1
