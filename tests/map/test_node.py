@@ -121,22 +121,22 @@ def test_select_areas_returns_list_type(node):
     # Test with no query
     selected_areas = node.select_areas({})
     assert isinstance(selected_areas, list), "select_areas should return a list"
-    
+
     # Test with random ordering (which uses numpy internally)
     query = {"limit": 2, "order_by": "random", "order_by_seed": 42}
     selected_areas = node.select_areas(query)
     assert isinstance(selected_areas, list), "select_areas with random ordering should return a list"
-    
+
     # Test with first ordering
     query = {"limit": 2, "order_by": "first"}
     selected_areas = node.select_areas(query)
     assert isinstance(selected_areas, list), "select_areas with first ordering should return a list"
-    
+
     # Test with last ordering
     query = {"limit": 2, "order_by": "last"}
     selected_areas = node.select_areas(query)
     assert isinstance(selected_areas, list), "select_areas with last ordering should return a list"
-    
+
     # Verify list operations work
     query = {"limit": 1, "order_by": "random", "order_by_seed": 42}
     selected_areas = node.select_areas(query)
