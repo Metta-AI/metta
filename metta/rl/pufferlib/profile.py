@@ -1,7 +1,3 @@
-"""
-Thin wrapper around PufferLib's Profile for cleaner integration.
-"""
-
 import time
 
 from pufferlib.pufferl import Profile as PufferProfile
