@@ -1,4 +1,5 @@
 import time
+import functools
 
 from pufferlib.pufferl import Profile as PufferProfile
 
@@ -17,6 +18,21 @@ class ProfileTimer:
 
     def __exit__(self, *args):
         pass  # PufferLib automatically ends when next section starts
+
+
+def profile_section(section_name):
+    """Decorator to profile a section of code using the Profile context manager."""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            self.profile.start_epoch(self.epoch, section_name)
+            try:
+                result = func(self, *args, **kwargs)
+            finally:
+                self.profile.end_epoch()
+            return result
+        return wrapper
+    return decorator
 
 
 class Profile:

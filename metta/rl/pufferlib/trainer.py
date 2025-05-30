@@ -22,7 +22,7 @@ from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.policy import PufferAgent
-from metta.rl.pufferlib.profile import Profile
+from metta.rl.pufferlib.profile import Profile, profile_section
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
@@ -339,9 +339,9 @@ class PufferTrainer:
     def _on_train_step(self):
         pass
 
+    @profile_section("eval")
     def _rollout(self):
         experience, profile = self.experience, self.profile
-        profile.start_epoch(self.epoch, "eval")
 
         with profile.eval_misc:
             policy = self.policy
@@ -369,7 +369,7 @@ class PufferTrainer:
                 d = torch.as_tensor(d)
 
             with profile.eval_forward, torch.no_grad():
-                assert training_env_id.dtype in [torch.int32, torch.int64], "training_env_id must be integer type"
+                assert training_env_id is not None and training_env_id.numel() > 0, "training_env_id must exist and have elements"
                 assert training_env_id.device == lstm_h.device, "training_env_id must be on the same device as lstm_h"
                 assert training_env_id.dim() == 1, "training_env_id should be 1D (list of env indices)"
                 assert training_env_id.max() < lstm_h.shape[1], "Index out of bounds for lstm_h"
@@ -425,16 +425,14 @@ class PufferTrainer:
                         except TypeError:
                             self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
-        profile.end_epoch()
-
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
         experience.step = 0
         return self.stats, infos
 
+    @profile_section("train")
     def _train(self):
         experience, profile = self.experience, self.profile
-        profile.start_epoch(self.epoch, "train")
         self.losses = self._make_losses()
 
         with profile.train_misc:
@@ -596,7 +594,6 @@ class PufferTrainer:
             self.losses.explained_variance = explained_var
             self.epoch += 1
 
-        profile.end_epoch()
         profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
 
     def _checkpoint_trainer(self):
