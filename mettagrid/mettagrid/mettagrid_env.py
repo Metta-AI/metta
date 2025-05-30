@@ -85,10 +85,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._task = self._curriculum.get_task()
         level = self._level
         if level is None:
-            map_builder = simple_instantiate(
-                self._task.env_cfg().game.map_builder,
-                recursive=self._task.env_cfg().game.get("recursive_map_builder", True),
-            )
+            map_builder = simple_instantiate(self._task.env_cfg().game.map_builder, recursive=True)
             level = map_builder.build()
 
         # Validate the level
