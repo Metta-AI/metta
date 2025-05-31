@@ -1,6 +1,7 @@
 import logging
 import time
-from typing import Any, Dict, Optional, Tuple
+from contextlib import contextmanager
+from typing import Any, ContextManager, Dict, Optional, Tuple
 
 
 class Stopwatch:
@@ -18,6 +19,7 @@ class Stopwatch:
             "name": name,
             "start_time": None,
             "total_elapsed": 0.0,
+            "last_elapsed": 0.0,
             "is_running": False,
             "checkpoints": {},  # name -> (time, steps)
         }
@@ -67,7 +69,44 @@ class Stopwatch:
         elapsed = time.time() - timer["start_time"]
         timer["total_elapsed"] += elapsed
         timer["is_running"] = False
+        timer["last_elapsed"] = elapsed  # Store last elapsed time
         return elapsed
+
+    @contextmanager
+    def time(self, name: Optional[str] = None, log: Optional[int] = None):
+        """Context manager for timing a code block.
+
+        Args:
+            name: Name of the timer
+            log: Optional logging level (e.g., logging.INFO) to automatically log elapsed time on exit
+
+        Usage:
+            with stopwatch.time("my_operation", log=logging.INFO):
+                # code to time
+                pass
+        """
+        self.start(name)
+        try:
+            yield self
+        finally:
+            elapsed = self.stop(name)
+            if log is not None:
+                display_name = name or "global"
+                self.logger.log(log, f"{display_name} took {elapsed:.3f}s")
+
+    def __call__(self, name: Optional[str] = None, log: Optional[int] = None) -> ContextManager["Stopwatch"]:
+        """Make Stopwatch callable to return context manager.
+
+        Args:
+            name: Name of the timer
+            log: Optional logging level (e.g., logging.INFO) to automatically log elapsed time on exit
+
+        Usage:
+            with stopwatch("my_operation", log=logging.INFO):
+                # code to time
+                pass
+        """
+        return self.time(name, log)
 
     def checkpoint(self, checkpoint_name: str, steps: int, timer_name: Optional[str] = None):
         """Record a named checkpoint with step count."""
@@ -87,6 +126,13 @@ class Stopwatch:
         if timer["is_running"]:
             return timer["total_elapsed"] + (time.time() - timer["start_time"])
         return timer["total_elapsed"]
+
+    def get_last_elapsed(self, name: Optional[str] = None) -> float:
+        """Get the elapsed time from the most recent run."""
+        timer = self._get_timer(name)
+        if timer["is_running"]:
+            return time.time() - timer["start_time"]
+        return timer["last_elapsed"]
 
     def get_rate(self, steps: int, name: Optional[str] = None, since_start: bool = True) -> float:
         """Calculate rate (steps per second)."""
@@ -129,7 +175,7 @@ class Stopwatch:
         """Log progress with rate and time remaining."""
         rate = self.get_rate(current_steps, name)
         percent = 100.0 * current_steps / total_steps if total_steps > 0 else 0.0
-        remaining_time, time_str = self.estimate_remaining(current_steps, total_steps, name)
+        _remaining_time, time_str = self.estimate_remaining(current_steps, total_steps, name)
 
         timer_label = f" [{name}]" if name else ""
         self.logger.info(

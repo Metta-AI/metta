@@ -239,56 +239,45 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            self.timer.start("epoch")
-            epoch_start_steps = self.agent_step
-
             with self.torch_profiler:
-                self.timer.start("_rollout")
-                self._rollout()
-                rollout_time = self.timer.stop("_rollout")
+                with self.timer("_rollout"):
+                    self._rollout()
 
-                self.timer.start("_train")
-                self._train()
-                train_time = self.timer.stop("_train")
+                with self.timer("_train"):
+                    self._train()
 
             # Processing stats
-            self.timer.start("_process_stats")
-            self._process_stats()
-            stats_time = self.timer.stop("_process_stats")
+            with self.timer("_process_stats"):
+                self._process_stats()
 
-            epoch_time = self.timer.stop("epoch")
-            epoch_steps = self.agent_step - epoch_start_steps
+            rollout_time = self.timer.get_last_elapsed("_rollout")
+            train_time = self.timer.get_last_elapsed("_train")
+            stats_time = self.timer.get_last_elapsed("_process_stats")
+            steps_per_sec = self.agent_step / (train_time + rollout_time)
 
-            epoch_rate = epoch_steps / epoch_time if epoch_time > 0 else 0
             logger.info(
                 f"Epoch {self.epoch} - "
                 f"rollout: {rollout_time:.3f}s, "
                 f"train: {train_time:.3f}s, "
                 f"stats: {stats_time:.3f}s, "
-                f"total: {epoch_time:.3f}s "
-                f"[{epoch_rate:.0f} steps/sec]"
+                f"[{steps_per_sec:.0f} steps/sec]"
             )
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                self.timer.start("_checkpoint_trainer")
-                self._checkpoint_trainer()
-                checkpoint_time = self.timer.stop("_checkpoint_trainer")
-                logger.info(f"Checkpointing took {checkpoint_time:.3f}s")
+                with self.timer("_checkpoint_trainer", log=logging.INFO):
+                    self._checkpoint_trainer()
 
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                self.timer.start("_evaluate_policy")
-                self._evaluate_policy()
-                eval_time = self.timer.stop("_evaluate_policy")
-                logger.info(f"Policy evaluation took {eval_time:.3f}s")
+                with self.timer("_evaluate_policy", log=logging.INFO):
+                    self._evaluate_policy()
 
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
             self.torch_profiler.on_epoch_end(self.epoch)
 
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
-                self.timer.start("_save_policy_to_wandb")
-                self._save_policy_to_wandb()
-                self.timer.stop("_save_policy_to_wandb")
+                with self.timer("_save_policy_to_wandb"):
+                    self._save_policy_to_wandb()
 
             if (
                 self.cfg.agent.l2_init_weight_update_interval != 0
@@ -297,10 +286,8 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
 
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
-                self.timer.start("_generate_and_upload_replay")
-                self._generate_and_upload_replay()
-                replay_time = self.timer.stop("_generate_and_upload_replay")
-                logger.info(f"Replay generation took {replay_time:.2f}s")
+                with self.timer("_generate_and_upload_replay", log=logging.INFO):
+                    self._generate_and_upload_replay()
 
             self._on_train_step()
 
