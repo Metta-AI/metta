@@ -3,6 +3,7 @@ import {
   createParser,
   parseAsArrayOf,
   parseAsInteger,
+  parseAsString,
 } from "nuqs/server";
 
 export type FilterItem = {
@@ -25,6 +26,7 @@ export const parseFilterParam = parseAsArrayOf(parseAsFilter);
 export const parseLimitParam = parseAsInteger.withDefault(20);
 
 export const paramsLoader = createLoader({
+  dir: parseAsString,
   filter: parseFilterParam,
   limit: parseLimitParam,
 });

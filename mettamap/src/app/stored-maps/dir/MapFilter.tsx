@@ -1,12 +1,13 @@
 "use client";
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 
 import { useQueryState } from "nuqs";
 import Select from "react-select";
 
-import { MapIndex } from "@/server/loadMapIndex";
+import { loadStoredMapIndex } from "@/server/api";
+import { MapIndex } from "@/server/types";
 
-import { FilterItem, parseFilterParam } from "../params";
+import { FilterItem, parseFilterParam } from "./params";
 
 const FilterPair: FC<{
   filter: FilterItem;
@@ -100,16 +101,24 @@ const NewFilter: FC<{
   );
 };
 
-/**
- * A component that allows filtering the map list.
- * This is a placeholder implementation that will be expanded later.
- */
-export const InnerMapFilter: FC<{ mapIndex: MapIndex }> = ({ mapIndex }) => {
+export const MapFilter: FC = () => {
   const [filters, setFilters] = useQueryState(
     "filter",
     parseFilterParam.withOptions({ shallow: false })
   );
+  const [dir] = useQueryState("dir");
+
   const [newFilter, setNewFilter] = useState(false);
+
+  const [mapIndex, setMapIndex] = useState<MapIndex | null>(null);
+  useEffect(() => {
+    if (dir) {
+      loadStoredMapIndex(dir).then(setMapIndex);
+    }
+    return () => {
+      setMapIndex(null);
+    };
+  }, [dir]);
 
   return (
     <div>
@@ -127,7 +136,7 @@ export const InnerMapFilter: FC<{ mapIndex: MapIndex }> = ({ mapIndex }) => {
           </div>
         );
       })}
-      {newFilter ? (
+      {newFilter && mapIndex ? (
         <NewFilter
           key={filters?.length ?? 0}
           mapIndex={mapIndex}
@@ -141,7 +150,8 @@ export const InnerMapFilter: FC<{ mapIndex: MapIndex }> = ({ mapIndex }) => {
         />
       ) : (
         <button
-          className="cursor-pointer rounded-md bg-blue-500 px-2 py-1 text-xs text-white"
+          className="cursor-pointer rounded-md bg-blue-500 px-2 py-1 text-xs text-white disabled:bg-gray-300"
+          disabled={!mapIndex}
           onClick={() => {
             setNewFilter(true);
           }}

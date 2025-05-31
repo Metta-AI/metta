@@ -1,5 +1,5 @@
 import { ExtendedMapViewer } from "@/components/MapFileViewer";
-import { getMap } from "@/server/getMaps";
+import { getStoredMap } from "@/server/api";
 
 export default async function MapPage({
   params,
@@ -7,7 +7,7 @@ export default async function MapPage({
   params: Promise<{ name: string }>;
 }) {
   const name = (await params).name;
-  const map = await getMap(name);
+  const map = await getStoredMap(name);
 
-  return <ExtendedMapViewer mapFile={map} />;
+  return <ExtendedMapViewer mapData={map} />;
 }

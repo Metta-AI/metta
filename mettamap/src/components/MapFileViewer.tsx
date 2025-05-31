@@ -11,9 +11,9 @@ import { useQueryState } from "nuqs";
 import {
   FilterItem,
   parseFilterParam,
-} from "@/app/params";
+} from "@/app/stored-maps/dir/params";
 import { MettaGrid } from "@/lib/MettaGrid";
-import { MapFile } from "@/server/types";
+import { MapData } from "@/server/types";
 
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
 import { MapViewer } from "./MapViewer";
@@ -107,20 +107,20 @@ const FrontmatterViewer: FC<{ frontmatter: Record<string, unknown> }> = ({
   );
 };
 
-export const ExtendedMapViewer: FC<{ mapFile: MapFile }> = ({ mapFile }) => {
+export const ExtendedMapViewer: FC<{ mapData: MapData }> = ({ mapData }) => {
   // Parse the frontmatter YAML
   const frontmatterData = useMemo(() => {
     try {
-      return yaml.load(mapFile.content.frontmatter) as Record<string, unknown>;
+      return yaml.load(mapData.content.frontmatter) as Record<string, unknown>;
     } catch (error) {
       console.error("Error parsing frontmatter:", error);
       return {};
     }
-  }, [mapFile.content.frontmatter]);
+  }, [mapData.content.frontmatter]);
 
   const grid = useMemo(
-    () => MettaGrid.fromAscii(mapFile.content.data),
-    [mapFile.content.data]
+    () => MettaGrid.fromAscii(mapData.content.data),
+    [mapData.content.data]
   );
 
   return (
@@ -133,7 +133,7 @@ export const ExtendedMapViewer: FC<{ mapFile: MapFile }> = ({ mapFile }) => {
           <MapViewer grid={grid} />
         </div>
       </div>
-      <CopyToClipboardButton text={mapFile.content.data}>
+      <CopyToClipboardButton text={mapData.content.data}>
         Copy Map Data to Clipboard
       </CopyToClipboardButton>
     </div>
