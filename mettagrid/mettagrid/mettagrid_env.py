@@ -187,7 +187,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             }
         )
 
-        # Add reward labels
         for label in self._map_labels:
             infos[f"rewards/map:{label}"] = episode_rewards_mean
 
@@ -196,29 +195,30 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 infos[f"rewards/env:{label}"] = episode_rewards_mean
 
         # Get episode stats
-        stats = self._c_env.get_episode_stats()
+        episode_stats = self._c_env.get_episode_stats()
+        stat_aggregates = {"converter": {}, "agent": {}}
 
-        # Process raw stats - flatten converter, agent, and game stats
         for stat_type in ["converter", "agent"]:
-            if stat_type in stats:
-                for idx, item_stats in enumerate(stats[stat_type]):
+            if stat_type in episode_stats:
+                for idx, item_stats in enumerate(episode_stats[stat_type]):
                     for stat_name, stat_value in item_stats.items():
+                        # Write raw stats
                         infos[f"{stat_type}_raw/{idx}/{stat_name}"] = stat_value
 
+                        # Collect for aggregation
+                        if stat_name not in stat_aggregates[stat_type]:
+                            stat_aggregates[stat_type][stat_name] = []
+                        stat_aggregates[stat_type][stat_name].append(stat_value)
+
+        for stat_type, stat_lists in stat_aggregates.items():
+            for name, values in stat_lists.items():
+                if values:  # Only if we have values
+                    infos[f"{stat_type}/{name}"] = sum(values) / len(values)
+
         # Flatten game stats
-        if "game" in stats:
-            for k, v in unroll_nested_dict(stats["game"]):
+        if "game" in episode_stats:
+            for k, v in unroll_nested_dict(episode_stats["game"]):
                 infos[f"game/{k}"] = v
-
-        # Calculate aggregated agent stats
-        if "agent" in stats:
-            agent_totals = {}
-            for agent_stats in stats["agent"]:
-                for name, value in agent_stats.items():
-                    agent_totals[name] = agent_totals.get(name, 0) + value
-
-            for name, total in agent_totals.items():
-                infos[f"agent/{name}"] = total / self._c_env.num_agents
 
         # Handle replay writer
         replay_url = None
@@ -245,8 +245,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
             # Build agent metrics
             agent_metrics = {}
-            if "agent" in stats:
-                for agent_idx, agent_stats in enumerate(stats["agent"]):
+            if "agent" in episode_stats:
+                for agent_idx, agent_stats in enumerate(episode_stats["agent"]):
                     agent_metrics[agent_idx] = {"reward": float(episode_rewards[agent_idx])}
                     for k, v in agent_stats.items():
                         agent_metrics[agent_idx][k] = float(v)
