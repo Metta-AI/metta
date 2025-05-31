@@ -603,6 +603,14 @@ py::array_t<float> MettaGrid::get_episode_rewards() {
 }
 
 py::dict MettaGrid::get_episode_stats() {
+  // Returns a dictionary with the following structure:
+  // {
+  //   "game": dict[str, float],  // Global game statistics
+  //   "agent": list[dict[str, float]],  // Per-agent statistics
+  //   "converter": list[dict[str, float]]  // Per-converter statistics
+  // }
+  // All stat values are guaranteed to be floats from StatsTracker::to_dict()
+
   py::dict stats;
   stats["game"] = py::cast(_stats->to_dict());
 
@@ -621,15 +629,17 @@ py::dict MettaGrid::get_episode_stats() {
     // Check if this is a converter
     Converter* converter = dynamic_cast<Converter*>(obj);
     if (converter) {
+      // Add metadata to the converter's stats tracker BEFORE converting to dict
+      converter->stats.set("type_id", static_cast<int>(converter->_type_id));
+      converter->stats.set("location.r", static_cast<int>(converter->location.r));
+      converter->stats.set("location.c", static_cast<int>(converter->location.c));
+
+      // Now convert to dict - all values will be floats
       py::dict converter_stat = py::cast(converter->stats.to_dict());
-      // Add metadata about the converter
-      converter_stat["type"] = ObjectTypeNames[converter->_type_id];
-      converter_stat["location"] = py::make_tuple(converter->location.r, converter->location.c);
       converter_stats.append(converter_stat);
     }
   }
   stats["converter"] = converter_stats;
-
   return stats;
 }
 

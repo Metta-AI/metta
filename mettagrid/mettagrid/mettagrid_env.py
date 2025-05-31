@@ -213,7 +213,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         for stat_type, stat_lists in stat_aggregates.items():
             for name, values in stat_lists.items():
                 if values:  # Only if we have values
+                    # All values are guaranteed to be floats from to_dict()
                     infos[f"{stat_type}/{name}"] = sum(values) / len(values)
+                    infos[f"{stat_type}/{name}.min"] = min(values)
+                    infos[f"{stat_type}/{name}.max"] = max(values)
 
         # Flatten game stats
         if "game" in episode_stats:
