@@ -196,32 +196,31 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Get episode stats
         episode_stats = self._c_env.get_episode_stats()
-        stat_aggregates = {"converter": {}, "agent": {}}
 
-        for stat_type in ["converter", "agent"]:
-            if stat_type in episode_stats:
-                for idx, item_stats in enumerate(episode_stats[stat_type]):
-                    for stat_name, stat_value in item_stats.items():
-                        # Write raw stats
-                        infos[f"{stat_type}_raw/{idx}/{stat_name}"] = stat_value
+        if False:
+            stat_aggregates = {"converter": {}, "agent": {}}
 
-                        # Collect for aggregation
-                        if stat_name not in stat_aggregates[stat_type]:
-                            stat_aggregates[stat_type][stat_name] = []
-                        stat_aggregates[stat_type][stat_name].append(stat_value)
+            for stat_type in ["converter", "agent"]:
+                if stat_type in episode_stats:
+                    for idx, item_stats in enumerate(episode_stats[stat_type]):
+                        for stat_name, stat_value in item_stats.items():
+                            # Write raw stats
+                            infos[f"{stat_type}_raw/{idx}/{stat_name}"] = stat_value
 
-        for stat_type, stat_lists in stat_aggregates.items():
-            for name, values in stat_lists.items():
-                if values:  # Only if we have values
-                    # All values are guaranteed to be floats from to_dict()
-                    infos[f"{stat_type}/{name}"] = sum(values) / len(values)
-                    infos[f"{stat_type}/{name}.min"] = min(values)
-                    infos[f"{stat_type}/{name}.max"] = max(values)
+                            # Collect for aggregation
+                            if stat_name not in stat_aggregates[stat_type]:
+                                stat_aggregates[stat_type][stat_name] = []
+                            stat_aggregates[stat_type][stat_name].append(stat_value)
 
-        # Flatten game stats
-        if "game" in episode_stats:
-            for k, v in unroll_nested_dict(episode_stats["game"]):
-                infos[f"game/{k}"] = v
+            for stat_type, stat_lists in stat_aggregates.items():
+                for name, values in stat_lists.items():
+                    if values:  # Only if we have values
+                        infos[f"{stat_type}/{name}"] = sum(values) / len(values)
+
+            # Flatten game stats
+            if "game" in episode_stats:
+                for k, v in unroll_nested_dict(episode_stats["game"]):
+                    infos[f"game/{k}"] = v
 
         # Handle replay writer
         replay_url = None
