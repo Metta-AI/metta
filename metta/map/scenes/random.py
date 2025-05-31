@@ -1,55 +1,44 @@
-from typing import Optional
-
 import numpy as np
-from omegaconf import DictConfig
 
-from metta.map.node import Node
 from metta.map.scene import Scene
-from metta.map.utils.random import MaybeSeed
+from metta.util.config import Config
 
 
-class Random(Scene):
+class RandomParams(Config):
+    objects: dict = {}
+    agents: int | dict = 0
+    too_many_is_ok: bool = True
+
+
+class Random(Scene[RandomParams]):
     """
     Fill the grid with random symbols, based on configuration.
 
     This scene takes into account the existing grid content, and places objects in empty spaces only.
     """
 
-    def __init__(
-        self,
-        objects: Optional[DictConfig | dict] = None,
-        agents: int | DictConfig | dict = 0,
-        too_many_is_ok: bool = True,
-        seed: MaybeSeed = None,
-    ):
-        super().__init__()
-        self._rng = np.random.default_rng(seed)
-        self._objects = objects or {}
-        self._agents = agents
-        self._too_many_is_ok = too_many_is_ok
+    def render(self):
+        height, width, params = self.height, self.width, self.params
 
-    def _render(self, node: Node):
-        height, width = node.height, node.width
-
-        if isinstance(self._agents, int):
-            agents = ["agent.agent"] * self._agents
-        elif isinstance(self._agents, (DictConfig, dict)):
-            agents = ["agent." + str(agent) for agent, na in self._agents.items() for _ in range(na)]
+        if isinstance(params.agents, int):
+            agents = ["agent.agent"] * params.agents
+        elif isinstance(params.agents, dict):
+            agents = ["agent." + str(agent) for agent, na in params.agents.items() for _ in range(na)]
         else:
-            raise ValueError(f"Invalid agents: {self._agents}")
+            raise ValueError(f"Invalid agents: {params.agents}")
 
         # Find empty cells in the grid
-        empty_mask = node.grid == "empty"
+        empty_mask = self.grid == "empty"
         empty_count = np.sum(empty_mask)
         empty_indices = np.where(empty_mask.flatten())[0]
 
         # Add all objects in the proper amounts to a single large array
         symbols = []
-        for obj_name, count in self._objects.items():
+        for obj_name, count in params.objects.items():
             symbols.extend([obj_name] * count)
         symbols.extend(agents)
 
-        if not self._too_many_is_ok and len(symbols) > empty_count:
+        if not params.too_many_is_ok and len(symbols) > empty_count:
             raise ValueError(f"Too many objects for available empty cells: {len(symbols)} > {empty_count}")
         else:
             # everything will be filled with symbols, oh well
@@ -60,17 +49,17 @@ class Random(Scene):
 
         # Shuffle the symbols
         symbols = np.array(symbols).astype(str)
-        self._rng.shuffle(symbols)
+        self.rng.shuffle(symbols)
 
         # Shuffle the indices of empty cells
-        self._rng.shuffle(empty_indices)
+        self.rng.shuffle(empty_indices)
 
         # Take only as many indices as we have symbols
         selected_indices = empty_indices[: len(symbols)]
 
         # Create a flat copy of the grid
-        flat_grid = node.grid.flatten()
+        flat_grid = self.grid.flatten()
         # Place symbols at the selected empty positions
         flat_grid[selected_indices] = symbols
         # Reshape back to original dimensions
-        node.grid[:] = flat_grid.reshape(height, width)
+        self.grid[:] = flat_grid.reshape(height, width)

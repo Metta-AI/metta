@@ -3,9 +3,18 @@ from numpy import random
 from metta.map.scene import Scene
 from metta.map.scenes.random import Random
 from metta.map.scenes.room_grid import RoomGrid
+from metta.map.types import AreaWhere, ChildrenAction
+from metta.util.config import Config
 
 
-class MultiLeftAndRight(Scene):
+class MultiLeftAndRightParams(Config):
+    rows: int
+    columns: int
+    altar_ratio: float
+    total_altars: int
+
+
+class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
     """
     Produce multiple left-or-right maps in a grid, with agents assigned randomly
     to teams, and rooms all identical otherwise. Altars are placed asymmetrically
@@ -13,43 +22,44 @@ class MultiLeftAndRight(Scene):
     is randomly determined at the start of each episode.
     """
 
-    def __init__(
-        self,
-        rows: int,
-        columns: int,
-        altar_ratio: float,
-        total_altars: int,
-    ):
+    def get_children(self):
         # Pregenerate seeds so that we could make rooms deterministic.
         agent_seed = random.randint(0, int(1e9))
         altar_seed = random.randint(0, int(1e9))
         altar_distribution_seed = random.randint(0, int(1e9))
 
         # Calculate altar counts based on ratio
-        more_altars = int(total_altars * altar_ratio)
-        less_altars = total_altars - more_altars
+        more_altars = int(self.params.total_altars * self.params.altar_ratio)
+        less_altars = self.params.total_altars - more_altars
 
         # Randomly determine which side gets more altars
         random.seed(altar_distribution_seed)
         left_altars = more_altars if random.random() < 0.5 else less_altars
-        right_altars = total_altars - left_altars
+        right_altars = self.params.total_altars - left_altars
 
         agent_groups = [
             "team_1",
             "team_2",
         ]
 
-        super().__init__(
-            children=[
-                {
-                    "where": "full",
-                    "scene": RoomGrid(
+        rows = self.params.rows
+        columns = self.params.columns
+
+        return [
+            ChildrenAction(
+                where="full",
+                scene=lambda grid: RoomGrid(
+                    grid=grid,
+                    params=dict(
                         rows=rows,
                         columns=columns,
                         border_width=6,
-                        children=[
-                            {
-                                "scene": RoomGrid(
+                    ),
+                    children=[
+                        ChildrenAction(
+                            scene=lambda grid, agent_group=agent_group: RoomGrid(
+                                grid=grid,
+                                params=dict(
                                     border_width=0,
                                     layout=[
                                         [
@@ -62,41 +72,51 @@ class MultiLeftAndRight(Scene):
                                             "maybe_altars_right",
                                         ],
                                     ],
-                                    children=[
-                                        {
-                                            "scene": lambda agent_group=agent_group: Random(
-                                                agents={
-                                                    agent_group: 1,
-                                                },
-                                                seed=agent_seed,
-                                            ),
-                                            "where": {"tags": ["agents"]},
-                                        },
-                                        {
-                                            "scene": lambda: Random(
-                                                objects={"altar": left_altars},
-                                                seed=altar_seed,
-                                            ),
-                                            "where": {"tags": ["maybe_altars_left"]},
-                                        },
-                                        {
-                                            "scene": lambda: Random(
-                                                objects={"altar": right_altars},
-                                                seed=altar_seed + 1,
-                                            ),
-                                            "where": {"tags": ["maybe_altars_right"]},
-                                        },
-                                    ],
                                 ),
-                                "lock": "rooms",
-                                "limit": rows * columns // len(agent_groups),
-                            }
-                            for agent_group in agent_groups
-                        ],
-                    ),
-                }
-            ]
-        )
+                                children=[
+                                    ChildrenAction(
+                                        scene=lambda grid: Random(
+                                            grid=grid,
+                                            params={
+                                                "agents": {
+                                                    agent_group: 1,
+                                                }
+                                            },
+                                            seed=agent_seed,
+                                        ),
+                                        where=AreaWhere(tags=["agents"]),
+                                    ),
+                                    ChildrenAction(
+                                        scene=lambda grid: Random(
+                                            grid=grid,
+                                            params={
+                                                "objects": {"altar": left_altars},
+                                            },
+                                            seed=altar_seed,
+                                        ),
+                                        where=AreaWhere(tags=["maybe_altars_left"]),
+                                    ),
+                                    ChildrenAction(
+                                        scene=lambda grid: Random(
+                                            grid=grid,
+                                            params={
+                                                "objects": {"altar": right_altars},
+                                            },
+                                            seed=altar_seed + 1,
+                                        ),
+                                        where=AreaWhere(tags=["maybe_altars_right"]),
+                                    ),
+                                ],
+                            ),
+                            lock="rooms",
+                            limit=rows * columns // len(agent_groups),
+                        )
+                        for agent_group in agent_groups
+                    ],
+                ),
+            ),
+            *self.children,
+        ]
 
-    def _render(self, node):
+    def render(self):
         pass

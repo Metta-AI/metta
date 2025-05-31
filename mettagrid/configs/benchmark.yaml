@@ -32,8 +32,6 @@ game:
         block: 20
         wall: 20
 
-  recursive_map_builder: true
-
   obs_width: 11
   obs_height: 11
   max_steps: 1000

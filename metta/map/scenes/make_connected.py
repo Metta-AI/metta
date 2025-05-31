@@ -1,11 +1,9 @@
 import logging
-from typing import List, Optional
 
 import numpy as np
 
-from metta.map.node import Node
-from metta.map.scene import Scene, TypedChild
-from metta.map.utils.random import MaybeSeed
+from metta.map.scene import Scene
+from metta.util.config import Config
 
 DIRECTIONS = [(-1, 0), (0, 1), (1, 0), (0, -1)]
 
@@ -15,7 +13,11 @@ logger = logging.getLogger(__name__)
 Cell = tuple[int, int]
 
 
-class MakeConnected(Scene):
+class MakeConnectedParams(Config):
+    pass
+
+
+class MakeConnected(Scene[MakeConnectedParams]):
     """
     This scene makes the map connected by digging tunnels.
 
@@ -26,17 +28,14 @@ class MakeConnected(Scene):
     TODO: This can result in some extra tunnels being dug.
     """
 
-    def __init__(self, seed: MaybeSeed = None, children: Optional[List[TypedChild]] = None):
-        super().__init__(children=children)
-        self._rng = np.random.default_rng(seed)
-
     def _is_empty(self, symbol: str) -> bool:
+        # TODO - treat agents as empty cells?
         return symbol == "empty"
 
-    def _render(self, node: Node):
-        height, width = node.grid.shape
+    def render(self):
+        height, width = self.grid.shape
 
-        component_cells = self._make_components(node)
+        component_cells = self._make_components()
         component_sizes = [len(cells) for cells in component_cells]
 
         if len(component_sizes) == 1:
@@ -49,7 +48,6 @@ class MakeConnected(Scene):
 
         logger.debug("Populating distance to largest component")
         distances_to_largest_component = self._distance_to_component(
-            node,
             component_cells[largest_component_id],
         )
 
@@ -86,16 +84,16 @@ class MakeConnected(Scene):
                     # This shouldn't happen if distances are calculated correctly
                     raise ValueError("No next cell found")
 
-                next_cell = self._rng.choice(candidates)
+                next_cell = self.rng.choice(candidates)
                 current_cell = next_cell
                 current_distance -= 1
-                node.grid[*current_cell] = "empty"
+                self.grid[*current_cell] = "empty"
 
-        assert len(self._make_components(node)) == 1, "Map must end up with a single connected component"
+        assert len(self._make_components()) == 1, "Map must end up with a single connected component"
 
-    def _make_components(self, node: Node):
+    def _make_components(self):
         # run BFS from each empty cell, find connected components
-        height, width = node.grid.shape
+        height, width = self.grid.shape
 
         visited = np.full((height, width), False)
         component_id = 0
@@ -104,7 +102,7 @@ class MakeConnected(Scene):
         logger.debug("Finding components")
         for y in range(height):
             for x in range(width):
-                if not self._is_empty(node.grid[y, x]):
+                if not self._is_empty(self.grid[y, x]):
                     continue
 
                 # already visited
@@ -128,7 +126,7 @@ class MakeConnected(Scene):
                         if (
                             0 <= y1 < height
                             and 0 <= x1 < width
-                            and self._is_empty(node.grid[y1, x1])
+                            and self._is_empty(self.grid[y1, x1])
                             and not visited[y1, x1]
                         ):
                             queue.append((y1, x1))
@@ -140,10 +138,9 @@ class MakeConnected(Scene):
 
     def _distance_to_component(
         self,
-        node: Node,
         component_cells: list[Cell],
     ):
-        height, width = node.grid.shape
+        height, width = self.grid.shape
         # find the distance from the component to all other cells (ignoring the occupied cells - used for finding
         # the optimal tunnels)
         distances = np.full((height, width), np.inf)

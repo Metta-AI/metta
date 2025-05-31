@@ -1,15 +1,15 @@
-from typing import Optional
-
-import numpy as np
-from omegaconf import DictConfig
-
-from metta.map.node import Node
-from metta.map.scene import Scene, TypedChild
+from metta.map.scene import Scene
 from metta.map.scenes.random import Random
-from metta.map.utils.random import MaybeSeed, sample_float_distribution
+from metta.map.types import ChildrenAction
+from metta.map.utils.random import FloatDistribution, sample_float_distribution
+from metta.util.config import Config
 
 
-class RandomObjects(Scene):
+class RandomObjectsParams(Config):
+    object_ranges: dict[str, FloatDistribution] = {}
+
+
+class RandomObjects(Scene[RandomObjectsParams]):
     """
     Fill the grid with random objects. Unlike Random, this scene takes the percentage ranges of objects,
     not the absolute count.
@@ -17,28 +17,20 @@ class RandomObjects(Scene):
     It's rarely useful to pick the random number of agents, so this scene doesn't have that parameter.
     """
 
-    def __init__(
-        self,
-        object_ranges: Optional[DictConfig | dict] = None,
-        seed: MaybeSeed = None,
-    ):
-        super().__init__()
-        self._rng = np.random.default_rng(seed)
-        self._object_ranges = object_ranges or {}
-
-    def get_children(self, node: Node) -> list[TypedChild]:
-        size = node.height * node.width
+    def get_children(self) -> list[ChildrenAction]:
+        size = self.height * self.width
         objects = {}
-        for obj_name, distribution in self._object_ranges.items():
-            percentage = sample_float_distribution(distribution, self._rng)
+        for obj_name, distribution in self.params.object_ranges.items():
+            percentage = sample_float_distribution(distribution, self.rng)
             objects[obj_name] = int(size * percentage)
 
         return [
-            {
-                "scene": Random(objects=objects, seed=self._rng),
-                "where": "full",
-            }
+            ChildrenAction(
+                scene=lambda grid: Random(grid=grid, params={"objects": objects}, seed=self.rng),
+                where="full",
+            ),
+            *self.children,
         ]
 
-    def _render(self, node):
+    def render(self):
         pass

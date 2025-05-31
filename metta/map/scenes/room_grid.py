@@ -1,10 +1,18 @@
-from typing import Any, Optional
+from typing import Optional
 
-from metta.map.node import Node
 from metta.map.scene import Scene
+from metta.util.config import Config
 
 
-class RoomGrid(Scene):
+class RoomGridParams(Config):
+    rows: Optional[int] = None
+    columns: Optional[int] = None
+    layout: Optional[list[list[str]]] = None
+    border_width: int = 1
+    border_object: str = "wall"
+
+
+class RoomGrid(Scene[RoomGridParams]):
     """
     Tile the scene with a grid of equally sized isolated rooms.
 
@@ -19,7 +27,7 @@ class RoomGrid(Scene):
     │   #   #   #│
     └────────────┘
 
-    Outer walls are drawn for the sake of the example readability. (They'll usually be provided by the container node.)
+    Outer walls are drawn for the sake of the example readability. (They'll usually be provided by the container scene.)
 
     The right wall is there because rooms are equally sized, and there's some extra space on the right.
 
@@ -28,46 +36,38 @@ class RoomGrid(Scene):
     be inferred from the layout.
     """
 
-    def __init__(
-        self,
-        rows: Optional[int] = None,
-        columns: Optional[int] = None,
-        layout: Optional[list[list[str]]] = None,
-        border_width: int = 1,
-        border_object: str = "wall",
-        children: Optional[list[Any]] = None,
-    ):
-        super().__init__(children=children)
-        self._layout = layout
-        if layout is None:
-            assert rows is not None and columns is not None, "Either layout or rows and columns must be provided"
-            self._rows = rows
-            self._columns = columns
-        else:
-            for row in layout:
-                assert len(row) == len(layout[0]), "All rows must have the same number of columns"
-            self._rows = len(layout)
-            self._columns = len(layout[0])
+    def post_init(self):
+        params = self.params
 
-        self._border_width = border_width
-        self._border_object = border_object
+        if params.layout is None:
+            assert params.rows is not None and params.columns is not None, (
+                "Either layout or rows and columns must be provided"
+            )
+            self._rows = params.rows
+            self._columns = params.columns
+        else:
+            for row in params.layout:
+                assert len(row) == len(params.layout[0]), "All rows must have the same number of columns"
+            self._rows = len(params.layout)
+            self._columns = len(params.layout[0])
 
     def _tags(self, row: int, col: int) -> list[str]:
-        if self._layout is not None:
-            return [self._layout[row][col]]
+        if self.params.layout is not None:
+            return [self.params.layout[row][col]]
         else:
             return ["room", f"room_{row}_{col}"]
 
-    def _render(self, node: Node):
-        room_width = (node.width - self._border_width * (self._columns - 1)) // self._columns
-        room_height = (node.height - self._border_width * (self._rows - 1)) // self._rows
+    def render(self):
+        params = self.params
+        room_width = (self.width - params.border_width * (self._columns - 1)) // self._columns
+        room_height = (self.height - params.border_width * (self._rows - 1)) // self._rows
 
-        # fill entire node.grid with walls
-        node.grid[:] = self._border_object
+        # fill entire grid with walls
+        self.grid[:] = params.border_object
 
         for row in range(self._rows):
             for col in range(self._columns):
-                x = col * (room_width + self._border_width)
-                y = row * (room_height + self._border_width)
-                node.grid[y : y + room_height, x : x + room_width] = "empty"
-                node.make_area(x, y, room_width, room_height, tags=self._tags(row, col))
+                x = col * (room_width + params.border_width)
+                y = row * (room_height + params.border_width)
+                self.grid[y : y + room_height, x : x + room_width] = "empty"
+                self.make_area(x, y, room_width, room_height, tags=self._tags(row, col))

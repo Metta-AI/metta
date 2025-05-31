@@ -1,8 +1,6 @@
-type: metta.map.scenes.convchain.ConvChain
+type: metta.map.scenes.wfc.WFC
 params:
   pattern_size: 3
-  iterations: 10
-  temperature: 1
   pattern: '|############  |
 
     |#             |
