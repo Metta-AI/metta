@@ -1,14 +1,47 @@
 import copy
 import logging
 import random
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 
 import hydra
-from omegaconf import DictConfig, OmegaConf
-
-from metta.util.config import config_from_path
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 logger = logging.getLogger(__name__)
+
+
+def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConfig] = None) -> DictConfig | ListConfig:
+    """
+    Load configuration from a path, with better error handling
+
+    Args:
+        config_path: Path to the configuration
+        overrides: Optional overrides to apply to the configuration
+
+    Returns:
+        The loaded configuration
+
+    Raises:
+        ValueError: If the config_path is None or if the configuration could not be loaded
+    """
+    if config_path is None:
+        raise ValueError("Config path cannot be None")
+
+    cfg = hydra.compose(config_name=config_path)
+
+    # when hydra loads a config, it "prefixes" the keys with the path of the config file.
+    # We don't want that prefix, so we remove it.
+    if config_path.startswith("/"):
+        config_path = config_path[1:]
+
+    for p in config_path.split("/")[:-1]:
+        cfg = cfg[p]
+
+    if overrides not in [None, {}]:
+        # Allow overrides that are not in the config.
+        OmegaConf.set_struct(cfg, False)
+        cfg = OmegaConf.merge(cfg, overrides)
+        OmegaConf.set_struct(cfg, True)
+    return cast(DictConfig, cfg)
 
 
 class Curriculum:
@@ -43,7 +76,6 @@ class Task:
         for curriculum, id in self._curriculums:
             curriculum.complete_task(id, score)
         self._is_complete = True
-        logger.info(f"Task completed: {self.name()} -> {score:.5f}")
 
     def is_complete(self):
         return self._is_complete

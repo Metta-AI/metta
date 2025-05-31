@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
-from pufferlib.cleanrl import sample_logits
+from pufferlib.pytorch import sample_logits
 from torch import nn
 
 

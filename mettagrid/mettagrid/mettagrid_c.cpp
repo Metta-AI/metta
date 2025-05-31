@@ -3,6 +3,8 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <limits>
+
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
@@ -22,6 +24,7 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
+#include "types.hpp"
 
 namespace py = pybind11;
 
@@ -35,8 +38,10 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   max_steps = cfg["max_steps"].cast<unsigned int>();
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
+
   _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
-  unsigned int num_observation_tokens =
+
+  _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
   current_step = 0;
@@ -165,7 +170,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
   if (_use_observation_tokens) {
-    shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(num_observation_tokens), static_cast<ssize_t>(3)};
+    shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
   } else {
     shape = {static_cast<ssize_t>(num_agents),
              static_cast<ssize_t>(obs_height),
@@ -303,28 +308,68 @@ void MettaGrid::_step(py::array_t<int> actions) {
   current_step++;
   _event_manager->process_events(current_step);
 
-  // Process actions by priority
-  for (unsigned char p = 0; p <= _max_action_priority; p++) {
-    for (size_t idx = 0; idx < _agents.size(); idx++) {
-      int action = actions_view(idx, 0);
-      if (action < 0 || action >= _num_action_handlers) {
-        printf("Invalid action: %d\n", action);
+  // Collect unique priority levels from action handlers
+  std::set<unsigned char> priority_levels;
+  for (const auto& handler : _action_handlers) {
+    priority_levels.insert(handler->priority);
+  }
+
+  // Process actions by priority levels (highest to lowest)
+  for (auto it = priority_levels.rbegin(); it != priority_levels.rend(); ++it) {
+    unsigned char current_priority = *it;
+
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+      // Skip agents who already successfully performed an action this step
+      if (_action_success[agent_idx]) {
         continue;
       }
 
-      ActionArg arg = actions_view(idx, 1);
-      auto& agent = _agents[idx];
-      auto& handler = _action_handlers[action];
+      // Extract action data
+      int action_id = actions_view(agent_idx, 0);
+      ActionArg action_arg = static_cast<ActionArg>(actions_view(agent_idx, 1));
+      Agent* agent = _agents[agent_idx];
 
-      if (handler->priority != _max_action_priority - p) {
+      // Validate action ID
+      if (action_id < 0 || action_id >= _num_action_handlers) {
+        throw std::runtime_error("Invalid action ID " + std::to_string(action_id) + " for agent " +
+                                 std::to_string(agent_idx) + ". Valid range: 0 to " +
+                                 std::to_string(_num_action_handlers - 1));
+      }
+
+      auto& handler = _action_handlers[action_id];
+
+      // Skip if this handler doesn't match current priority level
+      if (handler->priority != current_priority) {
         continue;
       }
 
-      if (arg > _max_action_args[action]) {
-        continue;
+      // Validate action argument
+      if (action_arg > _max_action_args[action_id]) {
+        throw std::runtime_error("Action argument " + std::to_string(action_arg) + " exceeds maximum " +
+                                 std::to_string(_max_action_args[action_id]) + " for action " +
+                                 std::to_string(action_id) + " (" + handler->action_name() + ")" + " on agent " +
+                                 std::to_string(agent_idx));
       }
 
-      _action_success[idx] = handler->handle_action(agent->id, arg);
+      // Validate agent
+      if (agent == nullptr) {
+        throw std::runtime_error("Agent is null at index " + std::to_string(agent_idx));
+      }
+
+      // Validate agent ID
+      if (agent->id <= 0) {
+        throw std::runtime_error("Agent ID must be positive. Agent " + std::to_string(agent_idx) + " has ID " +
+                                 std::to_string(agent->id));
+      }
+
+      if (agent->id >= _grid->objects.size()) {
+        throw std::runtime_error("Agent ID " + std::to_string(agent->id) + " exceeds grid object count " +
+                                 std::to_string(_grid->objects.size()) + " for agent " + std::to_string(agent_idx));
+      }
+
+      // Execute the action
+      bool success = handler->handle_action(agent->id, action_arg);
+      _action_success[agent_idx] = success;
     }
   }
 
@@ -558,6 +603,14 @@ py::array_t<float> MettaGrid::get_episode_rewards() {
 }
 
 py::dict MettaGrid::get_episode_stats() {
+  // Returns a dictionary with the following structure:
+  // {
+  //   "game": dict[str, float],  // Global game statistics
+  //   "agent": list[dict[str, float]],  // Per-agent statistics
+  //   "converter": list[dict[str, float]]  // Per-converter statistics
+  // }
+  // All stat values are guaranteed to be floats from StatsTracker::to_dict()
+
   py::dict stats;
   stats["game"] = py::cast(_stats->to_dict());
 
@@ -576,42 +629,48 @@ py::dict MettaGrid::get_episode_stats() {
     // Check if this is a converter
     Converter* converter = dynamic_cast<Converter*>(obj);
     if (converter) {
+      // Add metadata to the converter's stats tracker BEFORE converting to dict
+      converter->stats.set("type_id", static_cast<int>(converter->_type_id));
+      converter->stats.set("location.r", static_cast<int>(converter->location.r));
+      converter->stats.set("location.c", static_cast<int>(converter->location.c));
+
+      // Now convert to dict - all values will be floats
       py::dict converter_stat = py::cast(converter->stats.to_dict());
-      // Add metadata about the converter
-      converter_stat["type"] = ObjectTypeNames[converter->_type_id];
-      converter_stat["location"] = py::make_tuple(converter->location.r, converter->location.c);
       converter_stats.append(converter_stat);
     }
   }
   stats["converter"] = converter_stats;
-
   return stats;
 }
 
 py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
-
-  return spaces.attr("MultiDiscrete")(py::make_tuple(py::len(action_names()), _max_action_arg + 1),
-                                      py::arg("dtype") = py::module_::import("numpy").attr("int64"));
+  size_t number_of_actions = py::len(action_names());
+  size_t number_of_action_args = _max_action_arg + 1;
+  return spaces.attr("MultiDiscrete")(py::make_tuple(number_of_actions, number_of_action_args),
+                                      py::arg("dtype") = dtype_actions());
 }
 
 py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
+  ObservationType min_value = std::numeric_limits<ObservationType>::min();  // 0
+  ObservationType max_value = std::numeric_limits<ObservationType>::max();  // 255
+
   if (_use_observation_tokens) {
     // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
     // that matters to us.
-    return spaces.attr("Box")(0,
-                              255,
-                              py::make_tuple(_observations.shape(1), _observations.shape(2)),
-                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+    return spaces.attr("Box")(min_value,
+                              max_value,
+                              py::make_tuple(_agents.size(), _num_observation_tokens, 3),
+                              py::arg("dtype") = dtype_observations());
   } else {
-    return spaces.attr("Box")(0,
-                              255,
+    return spaces.attr("Box")(min_value,
+                              max_value,
                               py::make_tuple(obs_height, obs_width, _grid_features.size()),
-                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+                              py::arg("dtype") = dtype_observations());
   }
 }
 

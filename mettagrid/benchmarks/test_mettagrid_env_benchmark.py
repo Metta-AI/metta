@@ -74,7 +74,9 @@ def test_step_performance(benchmark, environment, action_generator, num_agents):
     env.reset()
 
     # Pre-generate a sequence of deterministic actions for consistent timing
-    total_iterations = 1000 * 20  # iterations * rounds
+    iterations = 1000
+    rounds = 20
+    total_iterations = iterations * rounds  # iterations * rounds
     action_sequence = []
     for _ in range(total_iterations):
         action_sequence.append(action_generator())
@@ -93,9 +95,9 @@ def test_step_performance(benchmark, environment, action_generator, num_agents):
     # Run the benchmark
     benchmark.pedantic(
         run_step,
-        iterations=1000,
-        rounds=20,
-        warmup_rounds=5,
+        iterations=iterations,
+        rounds=rounds,
+        warmup_rounds=0,
     )
 
     # Calculate throughput KPIs from timing
