@@ -8,7 +8,16 @@ from torch import nn
 
 
 def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
-    weights = torch.load(path, map_location=device, weights_only=True)
+    # Handle device mapping for cross-platform compatibility
+    if device != "cpu" and not torch.cuda.is_available():
+        # Map to CPU when requested device is not available
+        map_location = "cpu"
+        actual_device = "cpu"
+    else:
+        map_location = device
+        actual_device = device
+
+    weights = torch.load(path, map_location=map_location, weights_only=True)
 
     try:
         num_actions, hidden_size = weights["policy.actor.0.weight"].shape
@@ -28,7 +37,7 @@ def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
 
     policy = instantiate(puffer, env=env, policy=None)
     policy.load_state_dict(weights)
-    policy = PufferAgent(policy).to(device)
+    policy = PufferAgent(policy).to(actual_device)
     return policy
 
 
