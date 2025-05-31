@@ -247,9 +247,9 @@ class PufferTrainer:
                 self._rollout()
                 rollout_time = self.timer.stop("rollout")
 
-                self.timer.start("train")
+                self.timer.start("train_step")
                 self._train()
-                train_time = self.timer.stop("train")
+                train_time = self.timer.stop("train_step")
 
             # Processing stats
             self.timer.start("stats")
