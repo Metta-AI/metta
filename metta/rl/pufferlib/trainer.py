@@ -243,18 +243,18 @@ class PufferTrainer:
             epoch_start_steps = self.agent_step
 
             with self.torch_profiler:
-                self.timer.start("rollout")
+                self.timer.start("_rollout")
                 self._rollout()
-                rollout_time = self.timer.stop("rollout")
+                rollout_time = self.timer.stop("_rollout")
 
-                self.timer.start("train_step")
+                self.timer.start("_train")
                 self._train()
-                train_time = self.timer.stop("train_step")
+                train_time = self.timer.stop("_train")
 
             # Processing stats
-            self.timer.start("stats")
+            self.timer.start("_process_stats")
             self._process_stats()
-            stats_time = self.timer.stop("stats")
+            stats_time = self.timer.stop("_process_stats")
 
             epoch_time = self.timer.stop("epoch")
             epoch_steps = self.agent_step - epoch_start_steps
@@ -271,24 +271,24 @@ class PufferTrainer:
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                self.timer.start("checkpoint")
+                self.timer.start("_checkpoint_trainer")
                 self._checkpoint_trainer()
-                checkpoint_time = self.timer.stop("checkpoint")
+                checkpoint_time = self.timer.stop("_checkpoint_trainer")
                 logger.info(f"Checkpointing took {checkpoint_time:.3f}s")
 
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                self.timer.start("evaluate")
+                self.timer.start("_evaluate_policy")
                 self._evaluate_policy()
-                eval_time = self.timer.stop("evaluate")
+                eval_time = self.timer.stop("_evaluate_policy")
                 logger.info(f"Policy evaluation took {eval_time:.3f}s")
 
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
             self.torch_profiler.on_epoch_end(self.epoch)
 
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
-                self.timer.start("wandb_save")
+                self.timer.start("_save_policy_to_wandb")
                 self._save_policy_to_wandb()
-                self.timer.stop("wandb_save")
+                self.timer.stop("_save_policy_to_wandb")
 
             if (
                 self.cfg.agent.l2_init_weight_update_interval != 0
@@ -297,9 +297,9 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
 
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
-                self.timer.start("replay")
+                self.timer.start("_generate_and_upload_replay")
                 self._generate_and_upload_replay()
-                replay_time = self.timer.stop("replay")
+                replay_time = self.timer.stop("_generate_and_upload_replay")
                 logger.info(f"Replay generation took {replay_time:.2f}s")
 
             self._on_train_step()
@@ -650,7 +650,7 @@ class PufferTrainer:
         if self._initial_pr:
             generation = self._initial_pr.metadata.get("generation", 0) + 1
 
-        train_time = self.timer.get_elapsed("rollout") + self.timer.get_elapsed("train_step")
+        training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
         self.last_pr = self.policy_store.save(
             name,
@@ -663,7 +663,7 @@ class PufferTrainer:
                 "action_names": metta_grid_env.action_names,
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
-                "train_time": train_time,
+                "train_time": training_time,
                 "score": self._current_eval_score,
                 "eval_scores": self._eval_suite_avgs,
             },
@@ -739,17 +739,17 @@ class PufferTrainer:
 
         # Add timing metrics to wandb
         if self.wandb_run and self._master:
-            rollout_time = self.timer.get_elapsed("rollout")
-            train_step_time = self.timer.get_elapsed("train_step")
-            stats_time = self.timer.get_elapsed("stats")
-            checkpoint_time = self.timer.get_elapsed("checkpoint")
-            evaluate_time = self.timer.get_elapsed("evaluate")
-            wandb_save_time = self.timer.get_elapsed("wandb_save")
-            replay_time = self.timer.get_elapsed("replay")
+            rollout_time = self.timer.get_elapsed("_rollout")
+            train_time = self.timer.get_elapsed("_train")
+            stats_time = self.timer.get_elapsed("_process_stats")
+            checkpoint_time = self.timer.get_elapsed("_checkpoint_trainer")
+            evaluate_time = self.timer.get_elapsed("_evaluate_policy")
+            wandb_save_time = self.timer.get_elapsed("_save_policy_to_wandb")
+            replay_time = self.timer.get_elapsed("_generate_and_upload_replay")
 
-            training_time = rollout_time + train_step_time
+            training_time = rollout_time + train_time
             wall_time = self.timer.get_elapsed()
-            overall_rate = self.agent_step / training_time
+            steps_per_sec = self.agent_step / training_time
 
             self.wandb_run.log(
                 {
@@ -764,10 +764,10 @@ class PufferTrainer:
                     "train/learning_rate": learning_rate,
                     "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
                     # Timing metrics
-                    "timing/steps_per_sec": overall_rate,
+                    "timing/steps_per_sec": steps_per_sec,
                     "timing/training_pct": 100 * training_time / wall_time,
                     "timing/rollout_pct": 100 * rollout_time / wall_time,
-                    "timing/train_pct": 100 * train_step_time / wall_time,
+                    "timing/train_pct": 100 * train_time / wall_time,
                     "timing/stats_pct": 100 * stats_time / wall_time,
                     "timing/checkpoint_pct": 100 * checkpoint_time / wall_time,
                     "timing/evaluate_pct": 100 * evaluate_time / wall_time,
