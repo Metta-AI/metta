@@ -1,3 +1,4 @@
+import gc
 import logging
 import os
 import time
@@ -273,6 +274,8 @@ class PufferTrainer:
                 self._checkpoint_trainer()
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
+                self._clear_jit_cache()
+
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
             self.torch_profiler.on_epoch_end(self.epoch)
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
@@ -291,6 +294,36 @@ class PufferTrainer:
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
         logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
+
+    def _clear_jit_cache(self):
+        """Clear JIT caches after evaluation."""
+        # Toggle fusion to clear caches
+        if hasattr(torch._C, "_jit_override_can_fuse_on_cpu"):
+            torch._C._jit_override_can_fuse_on_cpu(False)
+            torch._C._jit_override_can_fuse_on_cpu(True)
+
+        if hasattr(torch._C, "_jit_override_can_fuse_on_gpu"):
+            torch._C._jit_override_can_fuse_on_gpu(False)
+            torch._C._jit_override_can_fuse_on_gpu(True)
+
+        # Toggle profiling executor
+        if hasattr(torch._C, "_jit_set_profiling_executor"):
+            torch._C._jit_set_profiling_executor(False)
+            torch._C._jit_set_profiling_executor(True)
+
+        # Clear profiling mode
+        if hasattr(torch._C, "_jit_set_profiling_mode"):
+            torch._C._jit_set_profiling_mode(False)
+            torch._C._jit_set_profiling_mode(True)
+
+        # Force garbage collection
+        gc.collect()
+
+        # Clear CUDA cache if using GPU
+        if torch.cuda.is_available() and self.device.type == "cuda":
+            torch.cuda.empty_cache()
+
+        logger.info("Cleared JIT caches")
 
     def _evaluate_policy(self):
         if not self._master:
