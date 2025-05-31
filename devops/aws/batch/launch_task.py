@@ -120,7 +120,8 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
     if args.cmd == "train":
         critical_files.append("tools/train.py")
     elif args.cmd == "sweep":
-        critical_files.append("tools/sweep.py")
+        critical_files.append("tools/sweep_eval.py")
+        critical_files.append("tools/sweep_init.py")
     elif args.cmd == "evolve":
         critical_files.append("tools/evolve.py")
 
@@ -292,7 +293,7 @@ def submit_batch_job(args, task_args):
         "jobQueue": job_queue,
         "jobDefinition": job_definition,
         "containerOverrides": container_config(args, task_args, job_name),
-        "retryStrategy": {"attempts": 1},
+        "retryStrategy": {"attempts": 10},
     }
 
     if args.num_nodes > 1:
