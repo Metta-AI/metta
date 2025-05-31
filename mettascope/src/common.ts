@@ -60,6 +60,7 @@ export const ui = {
   miniMapPanel: new PanelInfo("#minimap-panel"),
   tracePanel: new PanelInfo("#trace-panel"),
   infoPanel: new PanelInfo("#info-panel"),
+  agentPanel: new PanelInfo("#agent-panel"),
 };
 
 export const state = {
@@ -82,6 +83,7 @@ export const state = {
   showMiniMap: true,
   showInfo: true,
   showControls: true,
+  showAgentPanel: true,
 
   showAttackMode: false,
 
@@ -118,14 +120,18 @@ export const html = {
     find('#speed6') as HTMLImageElement,
   ],
 
-  resourcesToggle: find('#resources-toggle') as HTMLImageElement,
   focusToggle: find('#focus-toggle') as HTMLImageElement,
-  gridToggle: find('#grid-toggle') as HTMLImageElement,
-  visualRangeToggle: find('#visual-range-toggle') as HTMLImageElement,
-  fogOfWarToggle: find('#fog-of-war-toggle') as HTMLImageElement,
+
   minimapToggle: find('#minimap-toggle') as HTMLImageElement,
   controlsToggle: find('#controls-toggle') as HTMLImageElement,
   infoToggle: find('#info-toggle') as HTMLImageElement,
+  agentPanelToggle: find('#agent-panel-toggle') as HTMLImageElement,
+
+  resourcesToggle: find('#resources-toggle') as HTMLImageElement,
+  gridToggle: find('#grid-toggle') as HTMLImageElement,
+  visualRangeToggle: find('#visual-range-toggle') as HTMLImageElement,
+  fogOfWarToggle: find('#fog-of-war-toggle') as HTMLImageElement,
+
 
   // Utility
   modal: find('#modal') as HTMLDivElement,

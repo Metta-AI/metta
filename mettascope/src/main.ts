@@ -6,6 +6,7 @@ import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.j
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
+import { initAgentTable, updateAgentTable } from './agentpanel.js';
 
 // Handle resize events.
 export function onResize() {
@@ -91,7 +92,7 @@ function onMouseUp() {
 function onMouseMove(event: MouseEvent) {
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
   var target = event.target as HTMLElement;
-  while (target.id === "") {
+  while (target.id === "" && target.parentElement != null) {
     target = target.parentElement as HTMLElement;
   }
   ui.mouseTarget = target.id;
@@ -173,11 +174,18 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
   if (!skipScrubberUpdate) {
     html.scrubber.value = state.step.toString();
   }
+  updateAgentTable();
+  requestFrame();
+}
 
-  // Update trace panel position
-  // ui.tracePanel.panPos.setX(-state.step * 32);
-
-  // Request a new frame
+// Centralized function to select an object.
+export function updateSelection(object: any, setFollow = false) {
+  state.selectedGridObject = object;
+  if (setFollow) {
+    setFollowSelection(true);
+  }
+  console.info("Selected object:", state.selectedGridObject);
+  updateAgentTable();
   requestFrame();
 }
 
@@ -188,8 +196,9 @@ function onScrubberChange() {
 
 // Handle key down events.
 function onKeyDown(event: KeyboardEvent) {
+
   if (event.key == "Escape") {
-    state.selectedGridObject = null;
+    updateSelection(null);
     setFollowSelection(false);
   }
   // '[' and ']' to scrub forward and backward.
@@ -232,44 +241,40 @@ export function onFrame() {
 
   ctx.clear();
 
-  var fullUpdate = true;
-  if (ui.mapPanel.inside(ui.mousePos)) {
-    if (ui.mapPanel.updatePanAndZoom()) {
-      fullUpdate = false;
-    }
-  }
-
-  if (ui.tracePanel.inside(ui.mousePos)) {
-    if (ui.tracePanel.updatePanAndZoom()) {
-      fullUpdate = false;
-    }
-  }
+  ui.mapPanel.updatePanAndZoom();
+  ui.tracePanel.updatePanAndZoom();
 
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
 
   if (state.showMiniMap) {
-    ui.miniMapPanel.div.style.display = "block";
+    ui.miniMapPanel.div.classList.remove("hidden");
     ctx.useMesh("mini-map");
     drawMiniMap(ui.miniMapPanel);
   } else {
-    ui.miniMapPanel.div.style.display = "none";
+    ui.miniMapPanel.div.classList.add("hidden");
   }
 
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
 
   if (state.showInfo) {
-    ui.infoPanel.div.style.display = "block";
+    ui.infoPanel.div.classList.remove("hidden");
     updateReadout();
   } else {
-    ui.infoPanel.div.style.display = "none";
+    ui.infoPanel.div.classList.add("hidden");
   }
 
   if (state.showControls) {
-    html.actionButtons.style.display = "block";
+    html.actionButtons.classList.remove("hidden");
   } else {
-    html.actionButtons.style.display = "none";
+    html.actionButtons.classList.add("hidden");
+  }
+
+  if (state.showAgentPanel) {
+    ui.agentPanel.div.classList.remove("hidden");
+  } else {
+    ui.agentPanel.div.classList.add("hidden");
   }
 
   ctx.flush();
@@ -352,8 +357,7 @@ async function parseUrlParams() {
     if (urlParams.get('selectedObjectId') !== null) {
       const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
       if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
-        state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
-        setFollowSelection(true);
+        updateSelection(state.replay.grid_objects[selectedObjectId], true);
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
         ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
         console.info("Selected object via query parameter:", state.selectedGridObject);
@@ -418,6 +422,8 @@ onResize();
 html.modal.classList.add("hidden");
 html.toast.classList.add("hiding");
 html.actionButtons.classList.add("hidden");
+ui.infoPanel.div.classList.add("hidden");
+ui.agentPanel.div.classList.add("hidden");
 
 // Each panel has a div we use for event handling.
 // But rendering happens bellow on global canvas.
@@ -559,7 +565,19 @@ if (localStorage.hasOwnProperty("showInfo")) {
 }
 toggleOpacity(html.infoToggle, state.showInfo);
 
+html.agentPanelToggle.addEventListener('click', () => {
+  state.showAgentPanel = !state.showAgentPanel;
+  localStorage.setItem("showAgentPanel", state.showAgentPanel.toString());
+  toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showAgentPanel")) {
+  state.showAgentPanel = localStorage.getItem("showAgentPanel") === "true";
+}
+toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
+
 initActionButtons();
+initAgentTable();
 
 window.addEventListener('load', async () => {
   // Use local atlas texture.

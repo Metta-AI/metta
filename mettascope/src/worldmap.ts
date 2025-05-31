@@ -4,7 +4,7 @@ import * as Common from './common.js';
 import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr, sendAction } from './replay.js';
 import { PanelInfo } from './panels.js';
-import { onFrame } from './main.js';
+import { onFrame, updateSelection } from './main.js';
 import { parseHtmlColor, find } from './htmlutils.js';
 
 
@@ -757,7 +757,7 @@ export function drawMap(panel: PanelInfo) {
           return x === gridMousePos.x() && y === gridMousePos.y();
         });
         if (gridObject !== undefined) {
-          state.selectedGridObject = gridObject;
+          updateSelection(gridObject)
           console.log("Selected object on the map:", state.selectedGridObject);
           if (state.selectedGridObject.agent_id !== undefined) {
             // If selecting an agent, focus the trace panel on the agent.
