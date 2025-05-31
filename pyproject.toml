@@ -13,6 +13,8 @@ license = "MIT"
 [project.scripts]
 skypilot = "devops.skypilot.launch:main"
 skypilot-sandbox = "devops.skypilot.sandbox:main"
+mapgen = "tools.map.gen:main"
+mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.coverage.run]
 source = ["mettagrid", "metta"]
