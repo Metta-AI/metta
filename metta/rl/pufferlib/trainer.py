@@ -30,6 +30,7 @@ from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulati
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from metta.util.timing import Stopwatch
 from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 
@@ -221,11 +222,12 @@ class PufferTrainer:
             env_overrides=self._curriculum.get_task().env_cfg(),
         )
 
+        self.timer = Stopwatch(logger)
+
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
     def train(self):
-        self.train_start = time.time()
-        self.steps_start = self.agent_step
+        self.timer.start("training")
 
         logger.info("Starting training")
 
@@ -238,66 +240,86 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            with self.torch_profiler:
-                self._rollout()
+            self.timer.start("epoch")
+            epoch_start_steps = self.agent_step
 
-                # Training on collected experience
+            with self.torch_profiler:
+                self.timer.start("rollout")
+                self._rollout()
+                rollout_time = self.timer.stop("rollout")
+
+                self.timer.start("train_step")
                 self._train()
+                train_time = self.timer.stop("train_step")
 
             # Processing stats
+            self.timer.start("stats")
             self._process_stats()
+            stats_time = self.timer.stop("stats")
 
-            # log progress
-            steps_per_second = (self.agent_step - self.steps_start) / (time.time() - self.train_start)
-            remaining_steps = self.trainer_cfg.total_timesteps - self.agent_step
-            remaining_time_sec = remaining_steps / steps_per_second
+            epoch_time = self.timer.stop("epoch")
+            epoch_steps = self.agent_step - epoch_start_steps
 
-            # Format remaining time in appropriate units
-            if remaining_time_sec < 60:
-                time_str = f"{remaining_time_sec:.0f} sec"
-            elif remaining_time_sec < 3600:
-                time_str = f"{remaining_time_sec / 60:.1f} min"
-            elif remaining_time_sec < 86400:  # Less than a day
-                time_str = f"{remaining_time_sec / 3600:.1f} hours"
-            else:
-                time_str = f"{remaining_time_sec / 86400:.1f} days"
-
+            epoch_rate = epoch_steps / epoch_time if epoch_time > 0 else 0
             logger.info(
-                f"Epoch {self.epoch} - {self.agent_step} [{steps_per_second:.0f}/sec]"
-                f" ({100.00 * self.agent_step / self.trainer_cfg.total_timesteps:.2f}%)"
-                f" - {time_str} remaining"
+                f"Epoch {self.epoch} timing - "
+                f"rollout: {rollout_time:.2f}s, "
+                f"train: {train_time:.2f}s, "
+                f"stats: {stats_time:.2f}s, "
+                f"total: {epoch_time:.2f}s "
+                f"[{epoch_rate:.0f} steps/sec]"
             )
+
+            self.timer.stop("training")
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
+                self.timer.start("checkpoint")
                 self._checkpoint_trainer()
+                checkpoint_time = self.timer.stop("checkpoint")
+                logger.info(f"Checkpointing took {checkpoint_time:.2f}s")
 
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                # Disable JIT optimizations during evaluation to prevent eval-specific optimizations
-                # from polluting the training JIT cache (which causes ~10% performance degradation).
-                # Note: type: ignore is needed because torch.jit.optimized_execution is technically
-                # private but is the official PyTorch API for controlling JIT optimization behavior.
-                with torch.jit.optimized_execution(False):  # type: ignore
-                    self._evaluate_policy()
+                self.timer.start("evaluate")
+                self._evaluate_policy()
+                eval_time = self.timer.stop("evaluate")
+                logger.info(f"Policy evaluation took {eval_time:.2f}s")
 
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
             self.torch_profiler.on_epoch_end(self.epoch)
+
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
+                self.timer.start("wandb_save")
                 self._save_policy_to_wandb()
+                self.timer.stop("wandb_save")
+
             if (
                 self.cfg.agent.l2_init_weight_update_interval != 0
                 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0
             ):
                 self._update_l2_init_weight_copy()
+
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
+                self.timer.start("replay")
                 self._generate_and_upload_replay()
+                replay_time = self.timer.stop("replay")
+                logger.info(f"Replay generation took {replay_time:.2f}s")
+
+            self.timer.start("training")
 
             self._on_train_step()
 
-        self.train_time = time.time() - self.train_start
+        total_time = self.timer.stop("training")
+        logger.info(f"Training complete. Total time: {self.timer.format_time(total_time)}")
+
+        timing_summary = self.timer.get_all_summaries()
+        logger.info("Timing summary:")
+        for name, summary in timing_summary.items():
+            if name != "global":
+                logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
+
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
-        logger.info(f"Training complete. Total time: {self.train_time:.2f} seconds")
 
     def _evaluate_policy(self):
         if not self._master:
@@ -637,6 +659,8 @@ class PufferTrainer:
         if self._initial_pr:
             generation = self._initial_pr.metadata.get("generation", 0) + 1
 
+        train_time = self.timer.get_elapsed("training")
+
         self.last_pr = self.policy_store.save(
             name,
             os.path.join(self.cfg.trainer.checkpoint_dir, name),
@@ -648,7 +672,7 @@ class PufferTrainer:
                 "action_names": metta_grid_env.action_names,
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
-                "train_time": time.time() - self.train_start,
+                "train_time": train_time,
                 "score": self._current_eval_score,
                 "eval_scores": self._eval_suite_avgs,
             },
@@ -722,7 +746,28 @@ class PufferTrainer:
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
+        # Add timing metrics to wandb
         if self.wandb_run and self._master:
+            overall_rate = self.timer.get_rate(self.agent_step, "training")
+            training_time = self.timer.get_elapsed("training")
+
+            if training_time > 0:
+                rollout_pct = 100 * self.timer.get_elapsed("rollout") / training_time
+                train_pct = 100 * self.timer.get_elapsed("train_step") / training_time
+                stats_pct = 100 * self.timer.get_elapsed("stats") / training_time
+            else:
+                rollout_pct = train_pct = stats_pct = 0.0
+
+            # Also track overhead
+            total_time = (
+                self.timer.get_elapsed("training")
+                + self.timer.get_elapsed("checkpoint")
+                + self.timer.get_elapsed("evaluate")
+                + self.timer.get_elapsed("wandb_save")
+                + self.timer.get_elapsed("replay")
+            )
+            overhead_pct = 100 * (1 - training_time / total_time) if total_time > 0 else 0.0
+
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
@@ -735,6 +780,14 @@ class PufferTrainer:
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
                     "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+                    # Timing metrics
+                    "timing/steps_per_sec": overall_rate,
+                    "timing/training_rollout_pct": rollout_pct,
+                    "timing/training_train_pct": train_pct,
+                    "timing/training_stats_pct": stats_pct,
+                    "timing/overhead_pct": overhead_pct,
+                    "timing/training_time_total": training_time,
+                    "timing/wall_time_total": total_time,
                 }
             )
 
