@@ -9,10 +9,10 @@ import gymnasium as gym
 import numpy as np
 import pufferlib
 from omegaconf import OmegaConf
-from pufferlib.utils import unroll_nested_dict
+from pufferlib import unroll_nested_dict
+from pydantic import validate_call
 from typing_extensions import override
 
-from metta.util import validate_arg_types
 from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
@@ -46,7 +46,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     rewards: np.ndarray
     actions: np.ndarray
 
-    @validate_arg_types
+    @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
         self,
         curriculum: Curriculum,
@@ -96,10 +96,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert self._task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {self._task.env_cfg().game.num_agents} "
-            f"does not match number of agents in map {level_agents}"
-        )
+        # Only validate agent count if expecting agents
+        if self._task.env_cfg().game.num_agents > 0:
+            assert self._task.env_cfg().game.num_agents == level_agents, (
+                f"Number of agents {self._task.env_cfg().game.num_agents} "
+                f"does not match number of agents in map {level_agents}"
+            )
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))
@@ -169,91 +171,102 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def close(self):
         pass
 
-    def process_episode_stats(self, infos: Dict[str, Any]):
-        episode_rewards = self._c_env.get_episode_rewards()
-        episode_rewards_sum = episode_rewards.sum()
-        episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 
-        infos.update(
-            {
-                "episode/reward.sum": episode_rewards_sum,
-                "episode/reward.mean": episode_rewards_mean,
-                "episode/reward.min": episode_rewards.min(),
-                "episode/reward.max": episode_rewards.max(),
-                "episode_length": self._c_env.current_step,
-                f"task/{self._task.name()}/reward": episode_rewards_mean,
-            }
-        )
+def process_episode_stats(self, infos: Dict[str, Any]):
+    episode_rewards = self._c_env.get_episode_rewards()
+    episode_rewards_sum = episode_rewards.sum()
+    episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 
-        for label in self._map_labels:
-            infos.update(
-                {
-                    f"rewards/map:{label}": episode_rewards_mean,
-                }
-            )
+    infos.update(
+        {
+            "episode/reward.sum": episode_rewards_sum,
+            "episode/reward.mean": episode_rewards_mean,
+            "episode/reward.min": episode_rewards.min(),
+            "episode/reward.max": episode_rewards.max(),
+            "episode_length": self._c_env.current_step,
+            f"task/{self._task.name()}/reward": episode_rewards_mean,
+        }
+    )
 
-        if self.labels is not None:
-            for label in self.labels:
-                infos.update(
-                    {
-                        f"rewards/env:{label}": episode_rewards_mean,
-                    }
-                )
+    # Add reward labels
+    for label in self._map_labels:
+        infos[f"rewards/map:{label}"] = episode_rewards_mean
 
-        stats = self._c_env.get_episode_stats()
+    if self.labels is not None:
+        for label in self.labels:
+            infos[f"rewards/env:{label}"] = episode_rewards_mean
 
-        infos["episode_rewards"] = episode_rewards
-        infos["agent_raw"] = stats["agent"]
-        infos["game"] = stats["game"]
-        infos["converter"] = stats["converter"]
-        infos["agent"] = {}
+    # Get episode stats
+    stats = self._c_env.get_episode_stats()
 
+    # Process raw stats - flatten converter, agent, and game stats
+    for stat_type in ["converter", "agent"]:
+        if stat_type in stats:
+            for idx, item_stats in enumerate(stats[stat_type]):
+                for stat_name, stat_value in item_stats.items():
+                    infos[f"{stat_type}_raw/{idx}/{stat_name}"] = stat_value
+
+    # Flatten game stats
+    if "game" in stats:
+        for k, v in unroll_nested_dict(stats["game"]):
+            infos[f"game/{k}"] = v
+
+    # Calculate aggregated agent stats
+    if "agent" in stats:
+        agent_totals = {}
         for agent_stats in stats["agent"]:
-            for n, v in agent_stats.items():
-                infos["agent"][n] = infos["agent"].get(n, 0) + v
-        for n, v in infos["agent"].items():
-            infos["agent"][n] = v / self._c_env.num_agents
+            for name, value in agent_stats.items():
+                agent_totals[name] = agent_totals.get(name, 0) + value
 
-        replay_url = None
-        if self._replay_writer:
-            assert self._episode_id is not None, "Episode ID must be set before writing a replay"
-            replay_url = self._replay_writer.write_replay(self._episode_id)
+        for name, total in agent_totals.items():
+            infos[f"agent/{name}"] = total / self._c_env.num_agents
+
+    # Handle replay writing
+    replay_url = None
+    if self._replay_writer:
+        assert self._episode_id is not None, "Episode ID must be set before writing a replay"
+        replay_url = self._replay_writer.write_replay(self._episode_id)
         infos["replay_url"] = replay_url
 
-        if self._stats_writer:
-            assert self._episode_id is not None, "Episode ID must be set before writing stats"
+    # Handle stats writing
+    if self._stats_writer:
+        assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-            attributes: dict[str, str] = {
-                "seed": str(self._current_seed),
-                "map_w": str(self.map_width),
-                "map_h": str(self.map_height),
-            }
+        # Build attributes
+        attributes = {
+            "seed": str(self._current_seed),
+            "map_w": str(self.map_width),
+            "map_h": str(self.map_height),
+        }
 
-            for k, v in unroll_nested_dict(OmegaConf.to_container(self._task.env_cfg(), resolve=False)):
-                attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
+        # Add configuration attributes
+        config_container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
+        for k, v in unroll_nested_dict(config_container):
+            attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
 
-            agent_metrics = {}
+        # Build agent metrics
+        agent_metrics = {}
+        if "agent" in stats:
             for agent_idx, agent_stats in enumerate(stats["agent"]):
-                agent_metrics[agent_idx] = {}
-                agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
+                agent_metrics[agent_idx] = {"reward": float(episode_rewards[agent_idx])}
                 for k, v in agent_stats.items():
                     agent_metrics[agent_idx][k] = float(v)
 
-            grid_objects: Dict[int, Any] = self._c_env.grid_objects()
-            # iterate over grid_object values
-            agent_groups: Dict[int, int] = {
-                v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
-            }
+        # Get agent groups from grid objects
+        grid_objects = self._c_env.grid_objects()
+        agent_groups = {v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0}
 
-            self._stats_writer.record_episode(
-                self._episode_id,
-                attributes,
-                agent_metrics,
-                agent_groups,
-                self.max_steps,
-                replay_url,
-                self._reset_at,
-            )
+        # Record the episode
+        self._stats_writer.record_episode(
+            self._episode_id,
+            attributes,
+            agent_metrics,
+            agent_groups,
+            self.max_steps,
+            replay_url,
+            self._reset_at,
+        )
+
         self._episode_id = ""
 
     @property
