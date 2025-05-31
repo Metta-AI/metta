@@ -65,6 +65,10 @@ class PufferTrainer:
             self.device = f"cuda:{os.environ['LOCAL_RANK']}"
             logger.info(f"Setting up distributed training on device {self.device}")
 
+            # scale batch size by world size
+            self.trainer_cfg.batch_size = self.trainer_cfg.batch_size // self._world_size
+            logger.info(f"Scaled batch size to {self.trainer_cfg.batch_size} per GPU")
+
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
