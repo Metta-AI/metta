@@ -18,6 +18,7 @@ resources:
   image_id: docker:metta:latest
 
 setup: |
+  set -e
   cd /workspace/metta
   git fetch
   git checkout $METTA_GIT_REF

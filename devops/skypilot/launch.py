@@ -11,6 +11,34 @@ sys.path.insert(0, ".")
 from devops.skypilot.utils import launch_task
 
 
+def is_ref_pushed(ref: str) -> bool:
+    """Return True if ``ref`` exists on the origin remote."""
+
+    try:
+        subprocess.check_call(
+            [
+                "git",
+                "fetch",
+                "origin",
+                "--quiet",
+            ]
+        )
+    except subprocess.CalledProcessError:
+        return False
+
+    ref_hash = subprocess.check_output(["git", "rev-parse", ref]).decode("utf-8").strip()
+
+    try:
+        out = subprocess.check_output(
+            ["git", "branch", "-r", "--contains", ref_hash],
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        return False
+
+    return bool(out.strip())
+
+
 def patch_task(task: sky.Task, cpus: int | None, gpus: int | None, nodes: int | None) -> sky.Task:
     overrides = {}
     if cpus:
@@ -51,6 +79,10 @@ def main():
     git_ref = args.git_ref
     if not git_ref:
         git_ref = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
+
+    if not is_ref_pushed(git_ref):
+        print(f"git ref {git_ref} is not pushed to origin", file=sys.stderr)
+        raise SystemExit(1)
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
     task = task.update_envs(
