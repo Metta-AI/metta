@@ -6,7 +6,7 @@ from einops import rearrange
 
 
 class Recurrent(pufferlib.models.LSTMWrapper):
-    def __init__(self, env, policy=None, cnn_channels=128, input_size=512, hidden_size=512):
+    def __init__(self, env, policy, cnn_channels=128, input_size=512, hidden_size=512):
         if policy is None:
             policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size)
         super().__init__(env, policy, input_size, hidden_size)
@@ -52,7 +52,7 @@ class Policy(nn.Module):
         self.is_continuous = False
 
         self.network = nn.Sequential(
-            pufferlib.pytorch.layer_init(nn.Conv2d(34, cnn_channels, 5, stride=3)),
+            pufferlib.pytorch.layer_init(nn.Conv2d(21, cnn_channels, 5, stride=3)),
             nn.ReLU(),
             pufferlib.pytorch.layer_init(nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1)),
             nn.ReLU(),
@@ -62,21 +62,35 @@ class Policy(nn.Module):
         )
 
         self.self_encoder = nn.Sequential(
-            pufferlib.pytorch.layer_init(nn.Linear(34, hidden_size // 2)),
+            pufferlib.pytorch.layer_init(nn.Linear(21, hidden_size // 2)),
             nn.ReLU(),
         )
 
-        # TODO - fix magic numbers!
-        # fmt: off
-        max_vec = torch.tensor([
-            1, 10, 30, 1, 1, 255,
-            100, 100, 100, 100, 100, 100, 100, 100,
-            1, 1, 1, 10, 1,
-            100, 100, 100, 100, 100, 100, 100, 100,
-            1, 1, 1, 1, 1, 1, 1
-        ], dtype=torch.float).reshape(1, 34, 1, 1)
-        # fmt: on
-
+        max_vec = torch.tensor(
+            [
+                1.0,
+                9.0,
+                1.0,
+                30.0,
+                1.0,
+                3.0,
+                255.0,
+                26.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                47.0,
+                3.0,
+                3.0,
+                2.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+            ]
+        )[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
         action_nvec = env.single_action_space.nvec
@@ -94,7 +108,10 @@ class Policy(nn.Module):
         return (actions, value), hidden
 
     def encode_observations(self, observations, state=None):
-        features = observations.float()
+        # observations are already in [batch, channels, height, width] format
+        features = observations.float() / self.max_vec
+        # mmax = features.max(0)[0].max(1)[0].max(1)[0]
+        # self.max_vec = torch.maximum(self.max_vec, mmax[None, :, None, None])
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
         return torch.cat([self_features, cnn_features], dim=1)

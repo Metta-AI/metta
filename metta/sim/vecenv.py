@@ -3,8 +3,8 @@ from typing import Optional
 
 import pufferlib
 import pufferlib.vector
+from pydantic import validate_call
 
-from metta.util import validate_arg_types
 from metta.util.resolvers import register_resolvers
 from mettagrid.curriculum import Curriculum
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -14,7 +14,7 @@ from mettagrid.stats_writer import StatsWriter
 logger = logging.getLogger("vecenv")
 
 
-@validate_arg_types
+@validate_call(config={"arbitrary_types_allowed": True})
 def make_env_func(
     curriculum: Curriculum,
     buf=None,
@@ -41,7 +41,7 @@ def make_env_func(
     return env
 
 
-@validate_arg_types
+@validate_call(config={"arbitrary_types_allowed": True})
 def make_vecenv(
     curriculum: Curriculum,
     vectorization: str,
