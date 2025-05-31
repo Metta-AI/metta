@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 
 class Stopwatch:
@@ -9,7 +9,8 @@ class Stopwatch:
     def __init__(self, logger: Optional[logging.Logger] = None):
         self.logger = logger or logging.getLogger("Stopwatch")
         self._timers: Dict[str, Dict] = {}
-        self._global_timer = self._create_timer("__global__")
+        # Create global timer but don't start it automatically
+        self._timers["__global__"] = self._create_timer("__global__")
 
     def _create_timer(self, name: str) -> Dict:
         """Create a new timer instance."""
@@ -22,9 +23,9 @@ class Stopwatch:
         }
 
     def _get_timer(self, name: Optional[str] = None) -> Dict:
-        """Get or create a timer."""
+        """Get or create a timer. None defaults to global timer."""
         if name is None:
-            return self._global_timer
+            name = "__global__"
         if name not in self._timers:
             self._timers[name] = self._create_timer(name)
         return self._timers[name]
@@ -32,16 +33,23 @@ class Stopwatch:
     def reset(self, name: Optional[str] = None):
         """Reset timing data for a specific timer or all timers."""
         if name is None:
-            self._global_timer = self._create_timer("__global__")
-            self._timers.clear()
+            # Reset just the global timer
+            self._timers["__global__"] = self._create_timer("__global__")
         else:
             self._timers[name] = self._create_timer(name)
+
+    def reset_all(self):
+        """Reset all timers including global."""
+        self._timers.clear()
+        self._timers["__global__"] = self._create_timer("__global__")
 
     def start(self, name: Optional[str] = None):
         """Start a timer."""
         timer = self._get_timer(name)
+        timer_name = name or "global"
+
         if timer["is_running"]:
-            self.logger.warning(f"Timer '{name or 'global'}' already running")
+            self.logger.warning(f"Timer '{timer_name}' already running")
             return
 
         timer["start_time"] = time.time()
@@ -50,8 +58,10 @@ class Stopwatch:
     def stop(self, name: Optional[str] = None) -> float:
         """Stop a timer and return elapsed time."""
         timer = self._get_timer(name)
+        timer_name = name or "global"
+
         if not timer["is_running"]:
-            self.logger.warning(f"Timer '{name or 'global'}' not running")
+            self.logger.warning(f"Timer '{timer_name}' not running")
             return 0.0
 
         elapsed = time.time() - timer["start_time"]
@@ -62,8 +72,10 @@ class Stopwatch:
     def checkpoint(self, checkpoint_name: str, steps: int, timer_name: Optional[str] = None):
         """Record a named checkpoint with step count."""
         timer = self._get_timer(timer_name)
+        display_name = timer_name or "global"
+
         if not timer["is_running"]:
-            self.logger.warning(f"Timer '{timer_name or 'global'}' not running")
+            self.logger.warning(f"Timer '{display_name}' not running")
             return
 
         elapsed = time.time() - timer["start_time"]
@@ -125,7 +137,7 @@ class Stopwatch:
             f"({percent:.2f}%) - {time_str} remaining"
         )
 
-    def get_summary(self, name: Optional[str] = None) -> Dict[str, any]:
+    def get_summary(self, name: Optional[str] = None) -> Dict[str, Any]:
         """Get summary statistics for a timer."""
         timer = self._get_timer(name)
         return {
@@ -135,11 +147,11 @@ class Stopwatch:
             "checkpoints": dict(timer["checkpoints"]),
         }
 
-    def get_all_summaries(self) -> Dict[str, Dict[str, any]]:
+    def get_all_summaries(self) -> Dict[str, Dict[str, Any]]:
         """Get summaries for all timers."""
         summaries = {}
-        if self._global_timer["is_running"] or self._global_timer["total_elapsed"] > 0:
-            summaries["global"] = self.get_summary()
-        for name in self._timers:
-            summaries[name] = self.get_summary(name)
+        for timer_name in self._timers:
+            if self._timers[timer_name]["is_running"] or self._timers[timer_name]["total_elapsed"] > 0:
+                display_name = "global" if timer_name == "__global__" else timer_name
+                summaries[display_name] = self.get_summary(timer_name if timer_name != "__global__" else None)
         return summaries

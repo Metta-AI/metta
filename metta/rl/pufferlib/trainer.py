@@ -223,6 +223,7 @@ class PufferTrainer:
         )
 
         self.timer = Stopwatch(logger)
+        self.timer.start()
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -262,11 +263,11 @@ class PufferTrainer:
 
             epoch_rate = epoch_steps / epoch_time if epoch_time > 0 else 0
             logger.info(
-                f"Epoch {self.epoch} timing - "
-                f"rollout: {rollout_time:.2f}s, "
-                f"train: {train_time:.2f}s, "
-                f"stats: {stats_time:.2f}s, "
-                f"total: {epoch_time:.2f}s "
+                f"Epoch {self.epoch} - "
+                f"rollout: {rollout_time:.3f}s, "
+                f"train: {train_time:.3f}s, "
+                f"stats: {stats_time:.3f}s, "
+                f"total: {epoch_time:.3f}s "
                 f"[{epoch_rate:.0f} steps/sec]"
             )
 
@@ -277,13 +278,13 @@ class PufferTrainer:
                 self.timer.start("checkpoint")
                 self._checkpoint_trainer()
                 checkpoint_time = self.timer.stop("checkpoint")
-                logger.info(f"Checkpointing took {checkpoint_time:.2f}s")
+                logger.info(f"Checkpointing took {checkpoint_time:.3f}s")
 
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 self.timer.start("evaluate")
                 self._evaluate_policy()
                 eval_time = self.timer.stop("evaluate")
-                logger.info(f"Policy evaluation took {eval_time:.2f}s")
+                logger.info(f"Policy evaluation took {eval_time:.3f}s")
 
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
             self.torch_profiler.on_epoch_end(self.epoch)
@@ -750,23 +751,21 @@ class PufferTrainer:
         if self.wandb_run and self._master:
             overall_rate = self.timer.get_rate(self.agent_step, "training")
             training_time = self.timer.get_elapsed("training")
+            wall_time = self.timer.get_elapsed()  # Total wall time
 
-            if training_time > 0:
-                rollout_pct = 100 * self.timer.get_elapsed("rollout") / training_time
-                train_pct = 100 * self.timer.get_elapsed("train_step") / training_time
-                stats_pct = 100 * self.timer.get_elapsed("stats") / training_time
+            # Calculate percentages relative to wall time (more meaningful)
+            if wall_time > 0:
+                training_pct = 100 * training_time / wall_time
+                rollout_pct = 100 * self.timer.get_elapsed("rollout") / wall_time
+                train_pct = 100 * self.timer.get_elapsed("train_step") / wall_time
+                stats_pct = 100 * self.timer.get_elapsed("stats") / wall_time
+                checkpoint_pct = 100 * self.timer.get_elapsed("checkpoint") / wall_time
+                evaluate_pct = 100 * self.timer.get_elapsed("evaluate") / wall_time
+                wandb_save_pct = 100 * self.timer.get_elapsed("wandb_save") / wall_time
+                replay_pct = 100 * self.timer.get_elapsed("replay") / wall_time
             else:
-                rollout_pct = train_pct = stats_pct = 0.0
-
-            # Also track overhead
-            total_time = (
-                self.timer.get_elapsed("training")
-                + self.timer.get_elapsed("checkpoint")
-                + self.timer.get_elapsed("evaluate")
-                + self.timer.get_elapsed("wandb_save")
-                + self.timer.get_elapsed("replay")
-            )
-            overhead_pct = 100 * (1 - training_time / total_time) if total_time > 0 else 0.0
+                training_pct = rollout_pct = train_pct = stats_pct = 0.0
+                checkpoint_pct = evaluate_pct = wandb_save_pct = replay_pct = 0.0
 
             self.wandb_run.log(
                 {
@@ -782,12 +781,15 @@ class PufferTrainer:
                     "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
                     # Timing metrics
                     "timing/steps_per_sec": overall_rate,
-                    "timing/training_rollout_pct": rollout_pct,
-                    "timing/training_train_pct": train_pct,
-                    "timing/training_stats_pct": stats_pct,
-                    "timing/overhead_pct": overhead_pct,
-                    "timing/training_time_total": training_time,
-                    "timing/wall_time_total": total_time,
+                    "timing/training_pct": training_pct,  # % of wall time spent training
+                    "timing/rollout_pct": rollout_pct,
+                    "timing/train_pct": train_pct,
+                    "timing/stats_pct": stats_pct,
+                    "timing/checkpoint_pct": checkpoint_pct,
+                    "timing/evaluate_pct": evaluate_pct,
+                    "timing/wandb_save_pct": wandb_save_pct,
+                    "timing/replay_pct": replay_pct,
+                    "timing/wall_time_total": wall_time,
                 }
             )
 
