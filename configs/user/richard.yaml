@@ -7,7 +7,7 @@ defaults:
   # - override /agent: non_robust_puffer
   - _self_
 
-policy_uri: puffer://checkpoints/metta-example/model_019074.pt
+policy_uri: puffer://checkpoints/metta-new/metta.pt
 npc_policy_uri: null
 
 puffer:
@@ -20,7 +20,7 @@ trainer:
   evaluate_interval: 10
     #env: /env/mettagrid/navigation/training/multienv
   initial_policy:
-     uri: puffer://checkpoints/metta-example/model_019074.pt
+     uri: puffer://checkpoints/metta-new/metta.pt
      #uri: puffer://checkpoints/metta-example/model_019074.pt
 
 eval:
@@ -29,4 +29,4 @@ eval:
   #eval_db_uri: train_dir/richard.dummy.1/
 
 run: ${oc.env:USER}.local.${run_id}
-trained_policy_uri: puffer://checkpoints/metta-example/model_019074.pt
+trained_policy_uri: puffer://checkpoints/metta-new/metta.pt
