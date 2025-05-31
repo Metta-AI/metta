@@ -659,7 +659,7 @@ py::object MettaGrid::observation_space() {
   } else {
     return spaces.attr("Box")(min_value,
                               max_value,
-                              py::make_tuple(_obs_height, _obs_width, _grid_features.size()),
+                              py::make_tuple(obs_height, obs_width, _grid_features.size()),
                               py::arg("dtype") = dtype_observations());
   }
 }
