@@ -73,8 +73,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
 
         self._reset_env()
-
         super().__init__(buf)
+
         if self._render_mode is not None:
             from .renderer.renderer import AsciiRenderer
 
@@ -144,7 +144,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)
 
-        self._c_env.step(self.actions)
+        self._c_env.step(np.array(actions).astype(np.uint32))  # checking smoke test
 
         if self._replay_writer:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)

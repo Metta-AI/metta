@@ -3,6 +3,8 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <limits>
+
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
@@ -634,21 +636,31 @@ py::dict MettaGrid::get_episode_stats() {
 py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
-  return spaces.attr("MultiDiscrete")(py::make_tuple(py::len(action_names()), _max_action_arg + 1),
+  size_t number_of_actions = py::len(action_names());
+  size_t number_of_action_args = _max_action_arg + 1;
+  return spaces.attr("MultiDiscrete")(py::make_tuple(number_of_actions, number_of_action_args),
                                       py::arg("dtype") = dtype_actions());
 }
 
 py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
+
+  ObservationType min_value = std::numeric_limits<ObservationType>::min();  // 0
+  ObservationType max_value = std::numeric_limits<ObservationType>::max();  // 255
+
   if (_use_observation_tokens) {
     // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
     // that matters to us.
-    return spaces.attr("Box")(
-        0, 255, py::make_tuple(_agents.size(), _num_observation_tokens, 3), py::arg("dtype") = dtype_observations());
+    return spaces.attr("Box")(min_value,
+                              max_value,
+                              py::make_tuple(_agents.size(), _num_observation_tokens, 3),
+                              py::arg("dtype") = dtype_observations());
   } else {
-    return spaces.attr("Box")(
-        0, 255, py::make_tuple(obs_height, obs_width, _grid_features.size()), py::arg("dtype") = dtype_observations());
+    return spaces.attr("Box")(min_value,
+                              max_value,
+                              py::make_tuple(_obs_height, _obs_width, _grid_features.size()),
+                              py::arg("dtype") = dtype_observations());
   }
 }
 
