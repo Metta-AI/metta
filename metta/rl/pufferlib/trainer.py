@@ -228,8 +228,6 @@ class PufferTrainer:
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
     def train(self):
-        self.timer.start("training")
-
         logger.info("Starting training")
 
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
@@ -249,9 +247,9 @@ class PufferTrainer:
                 self._rollout()
                 rollout_time = self.timer.stop("rollout")
 
-                self.timer.start("train_step")
+                self.timer.start("train")
                 self._train()
-                train_time = self.timer.stop("train_step")
+                train_time = self.timer.stop("train")
 
             # Processing stats
             self.timer.start("stats")
@@ -270,8 +268,6 @@ class PufferTrainer:
                 f"total: {epoch_time:.3f}s "
                 f"[{epoch_rate:.0f} steps/sec]"
             )
-
-            self.timer.stop("training")
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
@@ -306,18 +302,12 @@ class PufferTrainer:
                 replay_time = self.timer.stop("replay")
                 logger.info(f"Replay generation took {replay_time:.2f}s")
 
-            self.timer.start("training")
-
             self._on_train_step()
 
-        total_time = self.timer.stop("training")
-        logger.info(f"Training complete. Total time: {self.timer.format_time(total_time)}")
-
         timing_summary = self.timer.get_all_summaries()
-        logger.info("Timing summary:")
+        logger.info("Training complete!")
         for name, summary in timing_summary.items():
-            if name != "global":
-                logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
+            logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
 
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
@@ -660,7 +650,7 @@ class PufferTrainer:
         if self._initial_pr:
             generation = self._initial_pr.metadata.get("generation", 0) + 1
 
-        train_time = self.timer.get_elapsed("training")
+        train_time = self.timer.get_elapsed("rollout") + self.timer.get_elapsed("train_step")
 
         self.last_pr = self.policy_store.save(
             name,
@@ -749,23 +739,17 @@ class PufferTrainer:
 
         # Add timing metrics to wandb
         if self.wandb_run and self._master:
-            overall_rate = self.timer.get_rate(self.agent_step, "training")
-            training_time = self.timer.get_elapsed("training")
-            wall_time = self.timer.get_elapsed()  # Total wall time
+            rollout_time = self.timer.get_elapsed("rollout")
+            train_step_time = self.timer.get_elapsed("train_step")
+            stats_time = self.timer.get_elapsed("stats")
+            checkpoint_time = self.timer.get_elapsed("checkpoint")
+            evaluate_time = self.timer.get_elapsed("evaluate")
+            wandb_save_time = self.timer.get_elapsed("wandb_save")
+            replay_time = self.timer.get_elapsed("replay")
 
-            # Calculate percentages relative to wall time (more meaningful)
-            if wall_time > 0:
-                training_pct = 100 * training_time / wall_time
-                rollout_pct = 100 * self.timer.get_elapsed("rollout") / wall_time
-                train_pct = 100 * self.timer.get_elapsed("train_step") / wall_time
-                stats_pct = 100 * self.timer.get_elapsed("stats") / wall_time
-                checkpoint_pct = 100 * self.timer.get_elapsed("checkpoint") / wall_time
-                evaluate_pct = 100 * self.timer.get_elapsed("evaluate") / wall_time
-                wandb_save_pct = 100 * self.timer.get_elapsed("wandb_save") / wall_time
-                replay_pct = 100 * self.timer.get_elapsed("replay") / wall_time
-            else:
-                training_pct = rollout_pct = train_pct = stats_pct = 0.0
-                checkpoint_pct = evaluate_pct = wandb_save_pct = replay_pct = 0.0
+            training_time = rollout_time + train_step_time
+            wall_time = self.timer.get_elapsed()
+            overall_rate = self.agent_step / training_time
 
             self.wandb_run.log(
                 {
@@ -781,15 +765,15 @@ class PufferTrainer:
                     "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
                     # Timing metrics
                     "timing/steps_per_sec": overall_rate,
-                    "timing/training_pct": training_pct,  # % of wall time spent training
-                    "timing/rollout_pct": rollout_pct,
-                    "timing/train_pct": train_pct,
-                    "timing/stats_pct": stats_pct,
-                    "timing/checkpoint_pct": checkpoint_pct,
-                    "timing/evaluate_pct": evaluate_pct,
-                    "timing/wandb_save_pct": wandb_save_pct,
-                    "timing/replay_pct": replay_pct,
-                    "timing/wall_time_total": wall_time,
+                    "timing/training_pct": 100 * training_time / wall_time,
+                    "timing/rollout_pct": 100 * rollout_time / wall_time,
+                    "timing/train_pct": 100 * train_step_time / wall_time,
+                    "timing/stats_pct": 100 * stats_time / wall_time,
+                    "timing/checkpoint_pct": 100 * checkpoint_time / wall_time,
+                    "timing/evaluate_pct": 100 * evaluate_time / wall_time,
+                    "timing/wandb_save_pct": 100 * wandb_save_time / wall_time,
+                    "timing/replay_pct": 100 * replay_time / wall_time,
+                    "timing/wall_time": wall_time,
                 }
             )
 
