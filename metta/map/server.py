@@ -1,7 +1,8 @@
 import json
+import os
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from omegaconf import DictConfig, OmegaConf
 from pufferlib.utils import unroll_nested_dict
@@ -110,6 +111,28 @@ def make_app():
     @app.get("/stored-maps/get-index")
     async def get_index(dir: str):
         return json.loads(mettagrid.util.file.read(f"{dir}/index.json").decode("utf-8"))
+
+    @app.get("/envs")
+    async def list_envs():
+        envs = []
+        for root, _, files in os.walk("configs/env/mettagrid"):
+            for f in files:
+                if f.endswith((".yaml", ".yml")):
+                    rel_path = os.path.relpath(os.path.join(root, f), "configs/env/mettagrid")
+                    envs.append(rel_path)
+        return {"envs": envs}
+
+    @app.get("/envs/get")
+    async def get_env(name: str):
+        # Try with .yaml extension first, then .yml
+        for ext in [".yaml", ".yml"]:
+            env_path = os.path.join("configs/env/mettagrid", f"{name}{ext}")
+            if os.path.isfile(env_path):
+                with open(env_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                return {"content": content}
+
+        raise HTTPException(status_code=404, detail=f"Environment '{name}' not found")
 
     return app
 

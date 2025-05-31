@@ -63,3 +63,17 @@ export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
   );
   return mapIndexSchema.parse(data);
 }
+
+export async function listEnvs(): Promise<string[]> {
+  const response = await fetch(`${API_URL}/envs`);
+  const data = await response.json();
+  const parsed = z.array(z.string()).parse(data.envs);
+  return parsed;
+}
+
+export async function getEnv(name: string): Promise<string> {
+  const response = await fetch(`${API_URL}/envs/get?name=${encodeURIComponent(name)}`);
+  const data = await response.json();
+  const parsed = z.object({ content: z.string() }).parse(data);
+  return parsed.content;
+}
