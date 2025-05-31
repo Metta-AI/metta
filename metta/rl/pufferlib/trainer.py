@@ -66,6 +66,9 @@ class PufferTrainer:
             self.device = f"cuda:{os.environ['LOCAL_RANK']}"
             logger.info(f"Setting up distributed training on device {self.device}")
 
+            # Scale the number of update epochs by the world size
+            self.trainer_cfg.update_epochs = self.trainer_cfg.update_epochs * self._world_size
+
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
@@ -191,7 +194,9 @@ class PufferTrainer:
                         )
                     # delete below after evaluate is tested with tokenized obs
                     if len(environment_shape) == 2:
-                        assert self.trainer_cfg.evaluate_interval == 0, "Tokenized obs agents aren't set up for evaluate yet (5-30-25)."
+                        assert self.trainer_cfg.evaluate_interval == 0, (
+                            "Tokenized obs agents aren't set up for evaluate yet (5-30-25)."
+                        )
 
             if not found_match:
                 raise ValueError(
