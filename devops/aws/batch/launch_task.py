@@ -293,7 +293,7 @@ def submit_batch_job(args, task_args):
         "jobQueue": job_queue,
         "jobDefinition": job_definition,
         "containerOverrides": container_config(args, task_args, job_name),
-        "retryStrategy": {"attempts": 1},
+        "retryStrategy": {"attempts": 10},
     }
 
     if args.num_nodes > 1:
