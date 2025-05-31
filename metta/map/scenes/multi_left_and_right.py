@@ -57,9 +57,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                     ),
                     children=[
                         ChildrenAction(
-                            # This scene is mostly identical to `left_or_right.yaml`.
-                            # It adds seeds and place agents into groups.
-                            scene=lambda grid: RoomGrid(
+                            scene=lambda grid, agent_group=agent_group: RoomGrid(
                                 grid=grid,
                                 params=dict(
                                     border_width=0,
@@ -77,7 +75,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                                 ),
                                 children=[
                                     ChildrenAction(
-                                        scene=lambda grid, agent_group=agent_group: Random(
+                                        scene=lambda grid: Random(
                                             grid=grid,
                                             params={
                                                 "agents": {
