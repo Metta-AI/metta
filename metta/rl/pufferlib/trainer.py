@@ -69,6 +69,14 @@ class PufferTrainer:
             self.trainer_cfg.batch_size = self.trainer_cfg.batch_size // self._world_size
             logger.info(f"Scaled batch size to {self.trainer_cfg.batch_size} per GPU")
 
+            # this might cause the batch size to be smaller than the minibatch size
+            if self.trainer_cfg.batch_size < self.trainer_cfg.minibatch_size:
+                print(
+                    f"DFF: Batch size {self.trainer_cfg.batch_size} is smaller than minibatch size {self.trainer_cfg.minibatch_size}"
+                )
+                print(f"DFF: Setting minibatch size to {self.trainer_cfg.batch_size}")
+                self.trainer_cfg.minibatch_size = self.trainer_cfg.batch_size
+
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
