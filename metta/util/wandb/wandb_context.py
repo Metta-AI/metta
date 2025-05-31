@@ -54,7 +54,7 @@ class WandbContext:
         cfg: object,
         # Global Hydra config, needed because we store it to WanDB.
         global_cfg: object,
-        timeout: int = 30,
+        timeout: int = 600,
     ):
         if isinstance(cfg, (WandbConfigOn, WandbConfigOff)):
             self.cfg = cfg
@@ -88,39 +88,50 @@ class WandbContext:
         global_cfg = copy.deepcopy(self.global_cfg)
         logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
-        try:
-            self.run = wandb.init(
-                id=self.cfg.run_id,
-                job_type=self.cfg.job_type,
-                project=self.cfg.project,
-                entity=self.cfg.entity,
-                config=cast(dict, OmegaConf.to_container(global_cfg, resolve=False)),
-                group=self.cfg.group,
-                allow_val_change=True,
-                name=self.cfg.name,
-                monitor_gym=True,
-                save_code=True,
-                resume=True,
-                tags=["user:" + os.environ.get("METTA_USER", "unknown")],
-                settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
-            )
+        max_retries: int = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                self.run = wandb.init(
+                    id=self.cfg.run_id,
+                    job_type=self.cfg.job_type,
+                    project=self.cfg.project,
+                    entity=self.cfg.entity,
+                    config=cast(dict, OmegaConf.to_container(global_cfg, resolve=False)),
+                    group=self.cfg.group,
+                    allow_val_change=True,
+                    name=self.cfg.name,
+                    monitor_gym=True,
+                    save_code=True,
+                    resume=True,
+                    tags=["user:" + os.environ.get("METTA_USER", "unknown")],
+                    settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
+                )
 
-            # Save config and set up file syncing only if wandb init succeeded
-            OmegaConf.save(global_cfg, os.path.join(self.cfg.data_dir, "config.yaml"))
-            wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
-            wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
-            logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
+                # Save config and set up file syncing only if wandb init succeeded
+                OmegaConf.save(global_cfg, os.path.join(self.cfg.data_dir, "config.yaml"))
+                wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
+                wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
+                logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
+                break  # Success, exit retry loop
 
-        except (TimeoutError, wandb.errors.CommError) as e:
-            error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
-            logger.warning(f"W&B initialization failed due to {error_type} error: {str(e)}")
-            logger.info("Continuing without W&B logging")
-            self.run = None
+            except (TimeoutError, wandb.errors.CommError) as e:
+                error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
+                logger.warning(
+                    f"W&B initialization failed due to {error_type} error (attempt {attempt}/{max_retries}): {str(e)}"
+                )
+                if attempt == max_retries:
+                    logger.info("Continuing without W&B logging after repeated failures")
+                    self.run = None
+                else:
+                    time.sleep(2 * attempt)  # Exponential backoff
 
-        except Exception as e:
-            logger.error(f"Unexpected error during W&B initialization: {str(e)}")
-            logger.info("Continuing without W&B logging")
-            self.run = None
+            except Exception as e:
+                logger.error(f"Unexpected error during W&B initialization (attempt {attempt}/{max_retries}): {str(e)}")
+                if attempt == max_retries:
+                    logger.info("Continuing without W&B logging after repeated failures")
+                    self.run = None
+                else:
+                    time.sleep(2 * attempt)  # Exponential backoff
 
         return self.run
 
