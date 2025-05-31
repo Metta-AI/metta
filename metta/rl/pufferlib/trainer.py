@@ -203,7 +203,8 @@ class PufferTrainer:
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+                self.optimizer,
+                T_max=self.trainer_cfg.total_timesteps // (self.trainer_cfg.batch_size // self._world_size),
             )
 
         if checkpoint.agent_step > 0:
