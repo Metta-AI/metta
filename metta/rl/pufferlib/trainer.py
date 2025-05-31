@@ -189,9 +189,6 @@ class PufferTrainer:
                             f"component_shape: {component_shape}\n"
                             f"environment_shape: {environment_shape}\n"
                         )
-                    # delete below after evaluate is tested with tokenized obs
-                    if len(environment_shape) == 2:
-                        assert self.trainer_cfg.evaluate_interval == 0, "Tokenized obs agents aren't set up for evaluate yet (5-30-25)."
 
             if not found_match:
                 raise ValueError(
