@@ -69,13 +69,17 @@ class PufferTrainer:
             self.trainer_cfg.batch_size = self.trainer_cfg.batch_size // self._world_size
             logger.info(f"Scaled batch size to {self.trainer_cfg.batch_size} per GPU")
 
-            # this might cause the batch size to be smaller than the minibatch size
-            if self.trainer_cfg.batch_size < self.trainer_cfg.minibatch_size:
-                print(
-                    f"DFF: Batch size {self.trainer_cfg.batch_size} is smaller than minibatch size {self.trainer_cfg.minibatch_size}"
-                )
-                print(f"DFF: Setting minibatch size to {self.trainer_cfg.batch_size}")
-                self.trainer_cfg.minibatch_size = self.trainer_cfg.batch_size
+            # scale minibatch size by world size
+            self.trainer_cfg.minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
+            logger.info(f"Scaled minibatch size to {self.trainer_cfg.minibatch_size} per GPU")
+
+            # # this might cause the batch size to be smaller than the minibatch size
+            # if self.trainer_cfg.batch_size < self.trainer_cfg.minibatch_size:
+            #     print(
+            #         f"DFF: Batch size {self.trainer_cfg.batch_size} is smaller than minibatch size {self.trainer_cfg.minibatch_size}"
+            #     )
+            #     print(f"DFF: Setting minibatch size to {self.trainer_cfg.batch_size}")
+            #     self.trainer_cfg.minibatch_size = self.trainer_cfg.batch_size
 
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
@@ -267,6 +271,9 @@ class PufferTrainer:
                 f" ({100.00 * self.agent_step / self.trainer_cfg.total_timesteps:.2f}%)"
                 f" - {time_str} remaining"
             )
+
+            # also log the current episode reward
+            logger.info(f"Current episode reward: {self.average_reward}")
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
@@ -559,7 +566,7 @@ class PufferTrainer:
 
                 with profile.learn:
                     self.optimizer.zero_grad()
-                    loss.backward()
+                    loss.backward()  # syncs all gradients across all GPUs
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
 
