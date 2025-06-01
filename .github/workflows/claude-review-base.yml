@@ -1,0 +1,187 @@
+name: Claude Review Base
+on:
+  workflow_call:
+    inputs:
+      review_name:
+        required: true
+        type: string
+      file_pattern:
+        required: false
+        type: string
+        default: ".*"
+      setup_python:
+        required: false
+        type: boolean
+        default: false
+      install_packages:
+        required: false
+        type: string
+        default: ""
+      tools:
+        required: true
+        type: string
+      prompt:
+        required: true
+        type: string
+      pr_number:
+        required: false
+        type: string
+        default: ""
+    secrets:
+      anthropic_api_key:
+        required: true
+
+env:
+  CLAUDE_MODEL: "claude-3-7-sonnet-20250219"
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Initialize Review Summary
+        run: |
+          echo "# 🤖 Claude Review: ${{ inputs.review_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Model:** ${{ env.CLAUDE_MODEL }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: Setup PR Context
+        id: pr-context
+        run: |
+          # Determine PR number and checkout if needed
+          if [ -n "${{ inputs.pr_number }}" ]; then
+            PR_NUMBER="${{ inputs.pr_number }}"
+            gh pr checkout $PR_NUMBER
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          else
+            echo "No PR context available"
+            exit 1
+          fi
+
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
+          # Get base ref for diff
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BASE_REF="${{ github.base_ref }}"
+          else
+            PR_INFO=$(gh pr view $PR_NUMBER --json baseRefName,title,author)
+            BASE_REF=$(echo "$PR_INFO" | jq -r '.baseRefName')
+            PR_TITLE=$(echo "$PR_INFO" | jq -r '.title')
+            PR_AUTHOR=$(echo "$PR_INFO" | jq -r '.author.login')
+
+            echo "## PR Information" >> $GITHUB_STEP_SUMMARY
+            echo "- **PR #$PR_NUMBER:** $PR_TITLE" >> $GITHUB_STEP_SUMMARY
+            echo "- **Author:** @$PR_AUTHOR" >> $GITHUB_STEP_SUMMARY
+            echo "- **Base branch:** $BASE_REF" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "base_ref=$BASE_REF" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check File Changes
+        id: check-files
+        run: {
+          BASE_REF="${{ steps.pr-context.outputs.base_ref }}"
+          PATTERN="${{ inputs.file_pattern }}"
+
+          # Get all changed files
+          ALL_FILES=$(git diff --name-only origin/$BASE_REF HEAD || echo "")
+          TOTAL_CHANGED=$(echo "$ALL_FILES" | grep -v '^$' | wc -l || echo 0)
+
+          # Filter by pattern if provided
+          if [ "$PATTERN" != ".*" ]; then
+            MATCHED_FILES=$(echo "$ALL_FILES" | grep -E "$PATTERN" || echo "")
+          else
+            MATCHED_FILES="$ALL_FILES"
+          fi
+
+          MATCHED_COUNT=$(echo "$MATCHED_FILES" | grep -v '^$' | wc -l || echo 0)
+
+          echo "## File Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total files changed:** $TOTAL_CHANGED" >> $GITHUB_STEP_SUMMARY
+          echo "- **Pattern:** \`$PATTERN\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Files matching pattern:** $MATCHED_COUNT" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "$MATCHED_FILES" ] && [ "$MATCHED_COUNT" -le 20 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details>" >> $GITHUB_STEP_SUMMARY
+            echo "<summary>Files to review</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "$MATCHED_FILES" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "$MATCHED_FILES" ]; then
+            echo "has_relevant_changes=true" >> $GITHUB_OUTPUT
+            echo "matched_count=$MATCHED_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "has_relevant_changes=false" >> $GITHUB_OUTPUT
+            echo "matched_count=0" >> $GITHUB_OUTPUT
+            echo "**Result:** ⏭️ No relevant files to review" >> $GITHUB_STEP_SUMMARY
+          fi
+        }
+
+      - name: Setup Python
+        if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.setup_python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+
+      - name: Install Dependencies
+        if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.install_packages != ''
+        run: |
+          echo "## Setup" >> $GITHUB_STEP_SUMMARY
+          echo "- **Python:** $(python --version)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Installing:** ${{ inputs.install_packages }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          pip install ${{ inputs.install_packages }}
+
+      - name: Run Claude Review - ${{ inputs.review_name }}
+        id: claude-review
+        if: steps.check-files.outputs.has_relevant_changes == 'true'
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.anthropic_api_key }}
+          anthropic_model: ${{ env.CLAUDE_MODEL }}
+          allowed_tools: ${{ inputs.tools }}
+          direct_prompt: ${{ inputs.prompt }}
+
+      - name: Capture Review Results
+        if: always()
+        run: |
+          echo "## Review Results" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.check-files.outputs.has_relevant_changes }}" != "true" ]; then
+            echo "- **Status:** ⏭️ Skipped (no matching files)" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.claude-review.outcome }}" == "success" ]; then
+            echo "- **Status:** ✅ Completed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "- **Files reviewed:** ${{ steps.check-files.outputs.matched_count }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Comment posted:** Check PR for suggestions" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.claude-review.outcome }}" == "failure" ]; then
+            echo "- **Status:** ❌ Review failed" >> $GITHUB_STEP_SUMMARY
+            echo "- **Error:** Check logs for details" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Status:** ⚠️ Unknown outcome" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*[View full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*" >> $GITHUB_STEP_SUMMARY

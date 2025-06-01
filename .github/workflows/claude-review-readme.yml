@@ -1,0 +1,48 @@
+name: "Claude Review: README"
+on:
+  pull_request:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request number to review"
+        required: true
+        type: string
+
+jobs:
+  review:
+    uses: ./.github/workflows/claude-review-base.yml
+    with:
+      review_name: "README Accuracy"
+      tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(find . -name README.md)"
+      pr_number: ${{ inputs.pr_number || '' }}
+      prompt: |
+        Review the diff for this pull request and compare it to all README.md files in the repository.
+
+        **IMPORTANT**: Only create a PR comment if you find README content that needs to be updated based on the code changes. If all READMEs are already accurate and up-to-date with the changes in this PR, do not comment at all.
+
+        Look for discrepancies such as:
+        - Commands or CLI usage that have changed
+        - Installation or setup instructions that are now outdated
+        - Dependencies that have been added, removed, or version-changed
+        - Configuration options or environment variables that have changed
+        - API endpoints, function signatures, or usage examples that are outdated
+        - Features that have been added or removed but not documented
+        - File paths or directory structures that have changed
+        - Import statements or module names that have been refactored
+        - Default values or behavior that have changed
+
+        If code or configuration changes require updates to any README:
+        1. Create GitHub suggested edits showing the necessary changes
+        2. Explain briefly why each change is needed (e.g., "Command flag --old was renamed to --new in commit X")
+        3. Focus only on changes that directly relate to the code modifications in this PR
+
+        Be thorough but selective:
+        - Check the main README.md at the repository root
+        - Check any README files in subdirectories that might be affected
+        - Consider if example code in READMEs still works with the changes
+        - Verify that any referenced file paths still exist
+
+        Summarize your recommendations in a short **TLDR** section at the end, listing each suggested change with the file path and a brief description.
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
