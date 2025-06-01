@@ -515,7 +515,7 @@ class PufferTrainer:
                             var = (global_sq_sum / global_count) - (mu * mu)
                             std = torch.sqrt(var.clamp(min=1e-8))
 
-                            adv = (adv - mu) / std + 1e8
+                            adv = (adv - mu) / std + 1e-8
                         else:
                             adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
