@@ -851,7 +851,12 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
 
-        self.vecenv.async_reset(self.cfg.seed)
+        if torch.distributed.is_initialized():
+            self.vecenv.async_reset(
+                self.cfg.seed * (int(os.environ["RANK"]) + 1)
+            )  # make sure that the envs are not perfectly correlated
+        else:
+            self.vecenv.async_reset(self.cfg.seed)
 
 
 class AbortingTrainer(PufferTrainer):
