@@ -6,7 +6,7 @@ resources:
       accelerators: "L4:1"
     - cloud: aws
       region: us-east-1
-      use_spot: true
+      use_spot: false
       accelerators: "A10G:1"
     - cloud: aws
       region: us-east-1
