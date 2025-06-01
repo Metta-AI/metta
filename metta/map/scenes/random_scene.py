@@ -5,7 +5,10 @@ import numpy as np
 from metta.map.scene import Scene, TypedChild
 from metta.map.utils.random import MaybeSeed
 
-RandomSceneCandidate = TypedDict("RandomSceneCandidate", {"scene": Scene, "weight": float})
+
+class RandomSceneCandidate(TypedDict):
+    scene: Scene
+    weight: float | None
 
 
 class RandomScene(Scene):

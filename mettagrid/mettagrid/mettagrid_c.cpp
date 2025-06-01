@@ -54,8 +54,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
+  _stats->set_environment(this);
 
-  _event_manager->init(_grid.get(), _stats.get());
+  _event_manager->init(_grid.get());
   _event_manager->event_handlers.insert(
       {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
   _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
@@ -146,6 +147,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
         Agent* agent = MettaGrid::create_agent(r, c, group_name, group_id, group_cfg_py, agent_cfg_py);
         _grid->add_object(agent);
         agent->agent_id = _agents.size();
+        agent->stats.set_environment(this);
         add_agent(agent);
         _group_sizes[group_id] += 1;
       }
@@ -153,6 +155,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
         _stats->incr("objects." + cell);
         _grid->add_object(converter);
         converter->set_event_manager(_event_manager.get());
+        converter->stats.set_environment(this);
         converter = nullptr;
       }
     }
@@ -321,7 +324,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
         continue;
       }
 
-      _action_success[idx] = handler->handle_action(agent->id, arg, current_step);
+      _action_success[idx] = handler->handle_action(agent->id, arg);
     }
   }
 
@@ -556,13 +559,31 @@ py::array_t<float> MettaGrid::get_episode_rewards() {
 
 py::dict MettaGrid::get_episode_stats() {
   py::dict stats;
-  stats["game"] = _stats->stats();
+  stats["game"] = py::cast(_stats->to_dict());
 
   py::list agent_stats;
   for (const auto& agent : _agents) {
-    agent_stats.append(agent->stats.stats());
+    agent_stats.append(py::cast(agent->stats.to_dict()));
   }
   stats["agent"] = agent_stats;
+
+  // Collect converter stats
+  py::list converter_stats;
+  for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
+    auto obj = _grid->object(obj_id);
+    if (!obj) continue;
+
+    // Check if this is a converter
+    Converter* converter = dynamic_cast<Converter*>(obj);
+    if (converter) {
+      py::dict converter_stat = py::cast(converter->stats.to_dict());
+      // Add metadata about the converter
+      converter_stat["type"] = ObjectTypeNames[converter->_type_id];
+      converter_stat["location"] = py::make_tuple(converter->location.r, converter->location.c);
+      converter_stats.append(converter_stat);
+    }
+  }
+  stats["converter"] = converter_stats;
 
   return stats;
 }
@@ -669,6 +690,12 @@ py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
     groups_view(i) = _agents[i]->group;
   }
   return groups;
+}
+
+// StatsTracker implementation that needs complete MettaGrid definition
+unsigned int StatsTracker::get_current_step() const {
+  if (!_env) return 0;
+  return static_cast<MettaGrid*>(_env)->current_step;
 }
 
 // Pybind11 module definition

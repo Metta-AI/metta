@@ -189,6 +189,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         infos["episode_rewards"] = episode_rewards
         infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
+        infos["converter"] = stats["converter"]
         infos["agent"] = {}
 
         for agent_stats in stats["agent"]:

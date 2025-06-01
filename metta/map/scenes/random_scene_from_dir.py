@@ -1,14 +1,12 @@
 from pathlib import Path
-from typing import Optional, TypedDict, cast
+from typing import Optional, cast
 
 import numpy as np
 
 from metta.map.config import scenes_root
 from metta.map.scene import Scene, TypedChild
-from metta.map.scenes.random_scene import RandomScene
+from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
 from metta.map.utils.random import MaybeSeed
-
-RandomSceneCandidate = TypedDict("RandomSceneCandidate", {"scene": Scene, "weight": float})
 
 
 class RandomSceneFromDir(Scene):
