@@ -7,9 +7,9 @@ from metta.map.utils.ascii_grid import add_pretty_border, bordered_text_to_lines
 from metta.map.utils.storable_map import grid_to_ascii
 
 
-def render_scene(cls: type[Scene], params: dict, shape: tuple[int, int], children: list[ChildrenAction] = []):
+def render_scene(cls: type[Scene], params: dict, shape: tuple[int, int], children: list[ChildrenAction] | None = None):
     grid = np.full(shape, "empty", dtype="<U50")
-    scene = cls(grid=grid, params=params, children=children)
+    scene = cls(grid=grid, params=params, children=children or [])
     scene.render_with_children()
     return scene
 
