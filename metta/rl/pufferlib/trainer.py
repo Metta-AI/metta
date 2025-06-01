@@ -69,17 +69,28 @@ class PufferTrainer:
             self.trainer_cfg.batch_size = self.trainer_cfg.batch_size // self._world_size
             logger.info(f"Scaled batch size to {self.trainer_cfg.batch_size} per GPU")
 
-            # scale minibatch size by world size
-            self.trainer_cfg.minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
-            logger.info(f"Scaled minibatch size to {self.trainer_cfg.minibatch_size} per GPU")
-
             # # this might cause the batch size to be smaller than the minibatch size
-            # if self.trainer_cfg.batch_size < self.trainer_cfg.minibatch_size:
-            #     print(
-            #         f"DFF: Batch size {self.trainer_cfg.batch_size} is smaller than minibatch size {self.trainer_cfg.minibatch_size}"
-            #     )
-            #     print(f"DFF: Setting minibatch size to {self.trainer_cfg.batch_size}")
-            #     self.trainer_cfg.minibatch_size = self.trainer_cfg.batch_size
+            minibatch_size_adjusted = False
+            if self.trainer_cfg.batch_size < self.trainer_cfg.minibatch_size:
+                print(
+                    f"DFF: Batch size {self.trainer_cfg.batch_size} is smaller than minibatch size {self.trainer_cfg.minibatch_size}"
+                )
+                print(f"DFF: Setting minibatch size to {self.trainer_cfg.batch_size}")
+                self.old_minibatch_size = self.trainer_cfg.minibatch_size
+                self.trainer_cfg.minibatch_size = self.trainer_cfg.batch_size
+                minibatch_size_adjusted = True
+
+        # we have to adjust the learning rate to account that our gradients are now informed by
+        # world size times more data
+        self.trainer_cfg.optimizer.learning_rate = self.trainer_cfg.optimizer.learning_rate * self._world_size
+
+        # we have to take into account that the minibatch size might have been scaled down
+        if minibatch_size_adjusted:
+            self.trainer_cfg.optimizer.learning_rate = self.trainer_cfg.optimizer.learning_rate // (
+                self.old_minibatch_size / self.trainer_cfg.minibatch_size
+            )
+
+        logger.info(f"Scaled learning rate to {self.trainer_cfg.optimizer.learning_rate} per GPU")
 
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
