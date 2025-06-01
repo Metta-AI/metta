@@ -1,9 +1,5 @@
 import json
-import os
-from dataclasses import dataclass
-from typing import Literal
 
-import hydra
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +9,10 @@ from pufferlib.utils import unroll_nested_dict
 import mettagrid.util.file
 from metta.map.utils.s3utils import get_s3_client, list_objects, parse_s3_uri
 from metta.map.utils.storable_map import StorableMap, map_builder_cfg_to_storable_map
-from metta.util.config import config_from_path
+from metta.util.mettagrid_cfgs import (
+    MettagridCfgFile,
+    MettagridCfgFileMetadata,
+)
 from metta.util.resolvers import register_resolvers
 
 
@@ -49,53 +48,6 @@ def index_storable_maps(dir: str):
     indexer.index_dir(dir)
     index_uri = f"{dir}/index.json"
     mettagrid.util.file.write_data(index_uri, json.dumps(indexer.index), content_type="text/plain")
-
-
-@dataclass
-class MettagridCfgData:
-    path: str
-    cfg: DictConfig
-    kind: Literal["env", "curriculum", "map", "unknown"]
-
-    def to_dict(self) -> dict:
-        return {
-            "path": self.path,
-            "kind": self.kind,
-            "cfg": OmegaConf.to_container(self.cfg, resolve=False),
-        }
-
-
-mettagrid_cfg_root = "env/mettagrid"
-
-
-def get_mettagrid_cfg_data(path: str) -> MettagridCfgData:
-    with hydra.initialize(config_path="../../configs", version_base=None):
-        cfg = config_from_path(mettagrid_cfg_root + "/" + path)
-        if not isinstance(cfg, DictConfig):
-            raise ValueError(f"Invalid config type: {type(cfg)}")
-
-    cfg_kind = "unknown"
-    if cfg.get("game") and cfg.game.get("map_builder"):
-        cfg_kind = "env"
-    elif "curriculum" in cfg.get("_target_", ""):
-        cfg_kind = "curriculum"  # TODO - check if this is correct
-    elif "metta.map" in cfg.get("_target_", "") or "mettagrid.room" in cfg.get("_target_", ""):
-        cfg_kind = "map"
-
-    return MettagridCfgData(path=path, cfg=cfg, kind=cfg_kind)
-
-
-def get_mettagrid_cfgs():
-    cfgs: list[MettagridCfgData] = []
-
-    for root, _, files in os.walk("configs/" + mettagrid_cfg_root):
-        for f in files:
-            if not f.endswith(".yaml"):
-                continue
-            path = os.path.relpath(os.path.join(root, f), "configs/" + mettagrid_cfg_root)
-            cfgs.append(get_mettagrid_cfg_data(path))
-
-    return cfgs
 
 
 def make_app():
@@ -167,32 +119,32 @@ def make_app():
 
     @app.get("/mettagrid-cfgs")
     async def route_mettagrid_cfgs():
-        cfgs = get_mettagrid_cfgs()
-        # group by kind
-        cfgs_by_kind: dict[Literal["env", "curriculum", "map", "unknown"], list[MettagridCfgData]] = {}
-        for cfg in cfgs:
-            if cfg.kind not in cfgs_by_kind:
-                cfgs_by_kind[cfg.kind] = []
-            cfgs_by_kind[cfg.kind].append(cfg)
-
-        result = {kind: [e.to_dict() for e in cfgs] for kind, cfgs in cfgs_by_kind.items()}
-        print(result)
+        metadata_by_kind = MettagridCfgFileMetadata.get_all()
+        result = {kind: [e.to_dict() for e in cfgs] for kind, cfgs in metadata_by_kind.items()}
         return result
 
     @app.get("/mettagrid-cfgs/get")
     async def route_mettagrid_cfgs_get(path: str):
-        cfg = get_mettagrid_cfg_data(path)
+        cfg = MettagridCfgFile.from_path(path)
         return cfg.to_dict()
 
     @app.get("/mettagrid-cfgs/get-map")
     async def route_mettagrid_cfgs_get_map(path: str):
-        cfg = get_mettagrid_cfg_data(path)
-        if cfg.kind == "map":
-            storable_map = map_builder_cfg_to_storable_map(cfg.cfg)
-        elif cfg.kind == "env":
-            storable_map = map_builder_cfg_to_storable_map(cfg.cfg.game.map_builder)
+        cfg = MettagridCfgFile.from_path(path)
+        map_cfg = None
+        if cfg.metadata.kind == "map":
+            map_cfg = cfg.cfg
+        elif cfg.metadata.kind == "env":
+            map_cfg = cfg.cfg.game.map_builder
         else:
             raise ValueError(f"Config {path} is not a map or env")
+
+        try:
+            storable_map = map_builder_cfg_to_storable_map(map_cfg)
+        except Exception as e:
+            return {
+                "error": str(e),
+            }
 
         return {
             "content": str(storable_map),

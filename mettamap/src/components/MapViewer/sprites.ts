@@ -1,7 +1,4 @@
-import {
-  ItemObjectName,
-  MettaObject,
-} from "@/lib/MettaGrid";
+import { ItemObjectName, MettaObject } from "@/lib/MettaGrid";
 
 const objectNameToItemTile = {
   converter: [0, 0],

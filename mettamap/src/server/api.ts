@@ -1,8 +1,8 @@
 import yaml from "js-yaml";
 import { z } from "zod";
 
-import { MapData, MapIndex, MapMetadata } from "./types";
 import { API_URL } from "./constants";
+import { MapData, MapIndex, MapMetadata } from "./types";
 
 function parseMapFile(map: string): MapData["content"] {
   const [frontmatter, ...rest] = map.split("---");
@@ -64,41 +64,46 @@ export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
   return mapIndexSchema.parse(data);
 }
 
-const mettagridCfgSchema = z.object({
+const mettagridCfgFileMetadataSchema = z.object({
   path: z.string(),
   kind: z.string(),
+});
+
+const mettagridCfgFileSchema = z.object({
+  metadata: mettagridCfgFileMetadataSchema,
   cfg: z.unknown(),
 });
 
-export type MettagridCfg = z.infer<typeof mettagridCfgSchema>;
+export type MettagridCfgFile = z.infer<typeof mettagridCfgFileSchema>;
 
-const mettagridCfgsSchema = z.object({
-  env: z.array(mettagridCfgSchema).optional(),
-  curriculum: z.array(mettagridCfgSchema).optional(),
-  map: z.array(mettagridCfgSchema).optional(),
-  unknown: z.array(mettagridCfgSchema).optional(),
+const mettagridCfgsMetadataSchema = z.object({
+  env: z.array(mettagridCfgFileMetadataSchema).optional(),
+  curriculum: z.array(mettagridCfgFileMetadataSchema).optional(),
+  map: z.array(mettagridCfgFileMetadataSchema).optional(),
+  unknown: z.array(mettagridCfgFileMetadataSchema).optional(),
 });
 
-type MettagridCfgs = z.infer<typeof mettagridCfgsSchema>;
+type MettagridCfgsMetadata = z.infer<typeof mettagridCfgsMetadataSchema>;
 
-export async function listMettagridCfgs(): Promise<MettagridCfgs> {
+export async function listMettagridCfgsMetadata(): Promise<MettagridCfgsMetadata> {
   const response = await fetch(`${API_URL}/mettagrid-cfgs`);
   const data = await response.json();
-  const parsed = mettagridCfgsSchema.parse(data);
+  const parsed = mettagridCfgsMetadataSchema.parse(data);
   console.log(parsed);
   return parsed;
 }
 
-export async function getMettagridCfg(path: string): Promise<MettagridCfg> {
+export async function getMettagridCfgFile(path: string): Promise<MettagridCfgFile> {
   const response = await fetch(`${API_URL}/mettagrid-cfgs/get?path=${encodeURIComponent(path)}`);
   const data = await response.json();
-  return mettagridCfgSchema.parse(data);
+  return mettagridCfgFileSchema.parse(data);
 }
 
-export async function getMettagridCfgMap(path: string): Promise<MapData> {
+export async function getMettagridCfgMap(path: string): Promise<{ type: 'map', data: MapData } | { type: 'error', error: string }> {
   const response = await fetch(`${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`);
   const data = await response.json();
-  return {
-    content: parseMapFile(data.content),
-  };
+  if ("error" in data) {
+    return { type: "error", error: String(data.error) };
+  }
+  return { type: "map", data: { content: parseMapFile(data.content) } };
 }

@@ -1,12 +1,12 @@
 import { type SearchParams } from "nuqs/server";
+import { FC, ReactNode, Suspense } from "react";
 
+import { MapLoader } from "@/components/MapLoader";
 import { findStoredMaps } from "@/server/api";
 
-import { paramsLoader } from "./params";
 import { LoadMoreButton } from "./LoadMoreButton";
-import { FC, ReactNode, Suspense } from "react";
-import { MapLoader } from "@/components/MapLoader";
 import { MapFilter } from "./MapFilter";
+import { paramsLoader } from "./params";
 
 const MapListShell: FC<{
   total: string | number;
@@ -57,7 +57,7 @@ export default async function MapsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  let filterKey = await searchParams.then(params => params.filter);
+  let filterKey = await searchParams.then((params) => params.filter);
   if (Array.isArray(filterKey)) {
     filterKey = filterKey.join(",");
   }
@@ -69,7 +69,10 @@ export default async function MapsPage({
           <MapFilter />
         </div>
       </div>
-      <Suspense key={filterKey} fallback={<MapListShell total="..." hasMore={false} />}>
+      <Suspense
+        key={filterKey}
+        fallback={<MapListShell total="..." hasMore={false} />}
+      >
         <LoadMapsList searchParams={searchParams} />
       </Suspense>
     </div>

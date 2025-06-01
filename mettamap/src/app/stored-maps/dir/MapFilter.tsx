@@ -1,7 +1,6 @@
 "use client";
-import { FC, useEffect, useState } from "react";
-
 import { useQueryState } from "nuqs";
+import { FC, useEffect, useState } from "react";
 import Select from "react-select";
 
 import { loadStoredMapIndex } from "@/server/api";

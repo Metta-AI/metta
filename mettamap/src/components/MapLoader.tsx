@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import { FC, useEffect } from "react";
-import { ExtendedMapViewer } from "./MapFileViewer";
+import { FC, useEffect, useState } from "react";
+
 import { getStoredMap } from "@/server/api";
-import { useState } from "react";
 import { MapData } from "@/server/types";
+
+import { ExtendedMapViewer } from "./MapFileViewer";
 
 export const MapLoader: FC<{ mapUrl: string }> = ({ mapUrl }) => {
   const [map, setMap] = useState<MapData | null>(null);
@@ -19,4 +20,4 @@ export const MapLoader: FC<{ mapUrl: string }> = ({ mapUrl }) => {
   }
 
   return <ExtendedMapViewer mapData={map} />;
-}
+};

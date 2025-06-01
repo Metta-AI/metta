@@ -1,0 +1,78 @@
+import os
+from dataclasses import dataclass
+from typing import Literal
+
+import hydra
+from omegaconf import DictConfig, OmegaConf
+
+from metta.util.config import config_from_path
+
+METTAGRID_CFG_ROOT = "env/mettagrid"
+
+
+@dataclass
+class MettagridCfgFileMetadata:
+    path: str
+    kind: Literal["env", "curriculum", "map", "unknown"]
+
+    @staticmethod
+    def from_path(path: str) -> "MettagridCfgFileMetadata":
+        kind = "unknown"
+
+        # Detect config kind with heuristics.
+        # We could load the cfg and parse it, but Hydra takes too long for 150+ configs.
+        if path.startswith("game/map_builder/"):
+            kind = "map"
+        elif path.startswith("curriculum/"):
+            kind = "curriculum"
+        else:
+            kind = "env"
+
+        return MettagridCfgFileMetadata(path=path, kind=kind)
+
+    @staticmethod
+    def get_all():
+        metadata_by_kind: dict[Literal["env", "curriculum", "map", "unknown"], list[MettagridCfgFileMetadata]] = {}
+
+        for root, _, files in os.walk("configs/" + METTAGRID_CFG_ROOT):
+            for f in files:
+                # there are .map files in config dir
+                if not f.endswith(".yaml"):
+                    continue
+                path = os.path.relpath(os.path.join(root, f), "configs/" + METTAGRID_CFG_ROOT)
+                metadata = MettagridCfgFileMetadata.from_path(path)
+                if metadata.kind not in metadata_by_kind:
+                    metadata_by_kind[metadata.kind] = []
+                metadata_by_kind[metadata.kind].append(metadata)
+
+        return metadata_by_kind
+
+    def get_cfg(self) -> "MettagridCfgFile":
+        with hydra.initialize(config_path="../../configs", version_base=None):
+            cfg = config_from_path(METTAGRID_CFG_ROOT + "/" + self.path)
+            if not isinstance(cfg, DictConfig):
+                raise ValueError(f"Invalid config type: {type(cfg)}")
+
+        return MettagridCfgFile(metadata=self, cfg=cfg)
+
+    def to_dict(self):
+        return {
+            "path": self.path,
+            "kind": self.kind,
+        }
+
+
+@dataclass
+class MettagridCfgFile:
+    metadata: MettagridCfgFileMetadata
+    cfg: DictConfig
+
+    def to_dict(self):
+        return {
+            "metadata": self.metadata.to_dict(),
+            "cfg": OmegaConf.to_container(self.cfg, resolve=False),
+        }
+
+    @staticmethod
+    def from_path(path: str) -> "MettagridCfgFile":
+        return MettagridCfgFileMetadata.from_path(path).get_cfg()

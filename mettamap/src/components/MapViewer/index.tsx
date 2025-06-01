@@ -1,20 +1,11 @@
 "use client";
-import {
-  FC,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { FC, useCallback, useEffect, useRef, useState } from "react";
 
 import { usePanZoom } from "@/hooks/use-pan-and-zoom";
 import { MettaGrid } from "@/lib/MettaGrid";
 
 import { drawGrid } from "./drawMap";
-import {
-  loadSprites,
-  Sprites,
-} from "./sprites";
+import { loadSprites, Sprites } from "./sprites";
 
 export type Cell = { x: number; y: number };
 type CellHandler = (cell: Cell | undefined) => void;

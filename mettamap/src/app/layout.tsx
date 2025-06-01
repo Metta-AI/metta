@@ -1,14 +1,9 @@
 import "./globals.css";
 
-import {
-  FC,
-  PropsWithChildren,
-  Suspense,
-} from "react";
-
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { FC, PropsWithChildren, Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "MettaMap viewer",
@@ -32,7 +27,7 @@ const TopMenu: FC = () => {
         href="/mettagrid-cfgs"
         className="text-sm font-medium text-gray-600 hover:text-gray-900"
       >
-        MettaGrid Cfgs
+        MettaGrid Configs
       </Link>
       <Link
         href="/stored-maps"

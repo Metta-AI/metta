@@ -1,21 +1,13 @@
 import Link from "next/link";
-import {
-  getMettagridCfg,
-  getMettagridCfgMap,
-  MettagridCfg,
-} from "../../../server/api";
-import { FC } from "react";
-import { z } from "zod";
-import { ExtendedMapViewer } from "@/components/MapFileViewer";
+
+import { JsonAsYaml } from "@/components/JsonAsYaml";
+
+import { getMettagridCfgFile } from "../../../server/api";
+import { MapFromCfg } from "./MapFromCfg";
 
 interface EnvViewPageProps {
   searchParams: { path?: string };
 }
-
-const MapView: FC<{ cfg: MettagridCfg }> = async ({ cfg }) => {
-  const map = await getMettagridCfgMap(cfg.path);
-  return <ExtendedMapViewer mapData={map} />;
-};
 
 export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
   const cfgName = searchParams.path;
@@ -24,7 +16,7 @@ export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
     throw new Error("No config name provided");
   }
 
-  const cfg = await getMettagridCfg(cfgName);
+  const cfg = await getMettagridCfgFile(cfgName);
 
   return (
     <div className="p-4">
@@ -37,19 +29,19 @@ export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
         </Link>
       </div>
       <h1 className="mb-4 text-2xl font-bold">
-        Config: {cfg.path}, kind: {cfg.kind}
+        <span>{cfg.metadata.path}</span>
+        <span className="text-xl text-gray-400"> {cfg.metadata.kind}</span>
       </h1>
-      <div className="rounded border bg-gray-50 p-4">
-        <pre className="text-xs whitespace-pre-wrap">
-          {JSON.stringify(cfg.cfg, null, 2)}
-        </pre>
-      </div>
-      {(cfg.kind === "map" || cfg.kind === "env") && (
-        <>
-          <h1 className="mb-4 text-2xl font-bold">Generated Map</h1>
-          <MapView cfg={cfg} />
-        </>
+      {(cfg.metadata.kind === "map" || cfg.metadata.kind === "env") && (
+        <section className="mb-8">
+          <h2 className="mb-4 text-xl font-bold">Generated Map</h2>
+          <MapFromCfg cfg={cfg} />
+        </section>
       )}
+      <section className="mb-8">
+        <h2 className="mb-4 text-xl font-bold">Config</h2>
+        <JsonAsYaml json={cfg.cfg as Record<string, unknown>} />
+      </section>
     </div>
   );
 }
