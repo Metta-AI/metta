@@ -1,6 +1,9 @@
 import logging
+import time
 from dataclasses import dataclass
+from datetime import datetime
 
+import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.types import MapGrid
@@ -58,3 +61,22 @@ class StorableMap:
     def save(self, uri: str):
         file_utils.write_data(uri, str(self), content_type="text/plain")
         logger.info(f"Saved map to {uri}")
+
+
+def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
+    # Generate and measure time taken
+    start = time.time()
+    map_builder = hydra.utils.instantiate(cfg, _recursive_=True)
+    level = map_builder.build()
+    gen_time = time.time() - start
+    logger.info(f"Time taken to build map: {gen_time}s")
+
+    storable_map = StorableMap(
+        grid=level.grid,
+        metadata={
+            "gen_time": gen_time,
+            "timestamp": datetime.now().isoformat(),
+        },
+        config=cfg,
+    )
+    return storable_map

@@ -29,6 +29,12 @@ const TopMenu: FC = () => {
         MettaMap Viewer
       </Link>
       <Link
+        href="/mettagrid-cfgs"
+        className="text-sm font-medium text-gray-600 hover:text-gray-900"
+      >
+        MettaGrid Cfgs
+      </Link>
+      <Link
         href="/stored-maps"
         className="text-sm font-medium text-gray-600 hover:text-gray-900"
       >

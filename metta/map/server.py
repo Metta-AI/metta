@@ -1,15 +1,20 @@
 import json
 import os
+from dataclasses import dataclass
+from typing import Literal
 
+import hydra
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from omegaconf import DictConfig, OmegaConf
 from pufferlib.utils import unroll_nested_dict
 
 import mettagrid.util.file
 from metta.map.utils.s3utils import get_s3_client, list_objects, parse_s3_uri
-from metta.map.utils.storable_map import StorableMap
+from metta.map.utils.storable_map import StorableMap, map_builder_cfg_to_storable_map
+from metta.util.config import config_from_path
+from metta.util.resolvers import register_resolvers
 
 
 def omegaconf_to_key_values(cfg: DictConfig, prefix: str) -> dict[str, str]:
@@ -46,7 +51,55 @@ def index_storable_maps(dir: str):
     mettagrid.util.file.write_data(index_uri, json.dumps(indexer.index), content_type="text/plain")
 
 
+@dataclass
+class MettagridCfgData:
+    path: str
+    cfg: DictConfig
+    kind: Literal["env", "curriculum", "map", "unknown"]
+
+    def to_dict(self) -> dict:
+        return {
+            "path": self.path,
+            "kind": self.kind,
+            "cfg": OmegaConf.to_container(self.cfg, resolve=False),
+        }
+
+
+mettagrid_cfg_root = "env/mettagrid"
+
+
+def get_mettagrid_cfg_data(path: str) -> MettagridCfgData:
+    with hydra.initialize(config_path="../../configs", version_base=None):
+        cfg = config_from_path(mettagrid_cfg_root + "/" + path)
+        if not isinstance(cfg, DictConfig):
+            raise ValueError(f"Invalid config type: {type(cfg)}")
+
+    cfg_kind = "unknown"
+    if cfg.get("game") and cfg.game.get("map_builder"):
+        cfg_kind = "env"
+    elif "curriculum" in cfg.get("_target_", ""):
+        cfg_kind = "curriculum"  # TODO - check if this is correct
+    elif "metta.map" in cfg.get("_target_", "") or "mettagrid.room" in cfg.get("_target_", ""):
+        cfg_kind = "map"
+
+    return MettagridCfgData(path=path, cfg=cfg, kind=cfg_kind)
+
+
+def get_mettagrid_cfgs():
+    cfgs: list[MettagridCfgData] = []
+
+    for root, _, files in os.walk("configs/" + mettagrid_cfg_root):
+        for f in files:
+            if not f.endswith(".yaml"):
+                continue
+            path = os.path.relpath(os.path.join(root, f), "configs/" + mettagrid_cfg_root)
+            cfgs.append(get_mettagrid_cfg_data(path))
+
+    return cfgs
+
+
 def make_app():
+    register_resolvers()
     app = FastAPI()
 
     app.add_middleware(
@@ -58,7 +111,7 @@ def make_app():
     )
 
     @app.get("/stored-maps/dirs")
-    async def get_stored_maps_dirs():
+    async def route_stored_maps_dirs():
         return {
             "dirs": [
                 # TODO
@@ -67,7 +120,7 @@ def make_app():
         }
 
     @app.get("/stored-maps/find-maps")
-    async def find_stored_maps(dir: str, filter: str):
+    async def route_stored_maps_find_maps(dir: str, filter: str):
         filter_items: list[tuple[str, str]] = []
         for item in filter.split(","):
             if not item:
@@ -97,7 +150,7 @@ def make_app():
         }
 
     @app.get("/stored-maps/get-map")
-    async def get_stored_map(url: str):
+    async def route_stored_maps_get_map(url: str):
         bucket, key = parse_s3_uri(url)
         obj = get_s3_client().get_object(Bucket=bucket, Key=key)
         return {
@@ -105,34 +158,45 @@ def make_app():
         }
 
     @app.post("/stored-maps/index-dir")
-    async def index_dir(dir: str):
+    async def route_stored_maps_index_dir(dir: str):
         return index_storable_maps(dir)
 
     @app.get("/stored-maps/get-index")
-    async def get_index(dir: str):
+    async def route_stored_maps_get_index(dir: str):
         return json.loads(mettagrid.util.file.read(f"{dir}/index.json").decode("utf-8"))
 
-    @app.get("/envs")
-    async def list_envs():
-        envs = []
-        for root, _, files in os.walk("configs/env/mettagrid"):
-            for f in files:
-                if f.endswith((".yaml", ".yml")):
-                    rel_path = os.path.relpath(os.path.join(root, f), "configs/env/mettagrid")
-                    envs.append(rel_path)
-        return {"envs": envs}
+    @app.get("/mettagrid-cfgs")
+    async def route_mettagrid_cfgs():
+        cfgs = get_mettagrid_cfgs()
+        # group by kind
+        cfgs_by_kind: dict[Literal["env", "curriculum", "map", "unknown"], list[MettagridCfgData]] = {}
+        for cfg in cfgs:
+            if cfg.kind not in cfgs_by_kind:
+                cfgs_by_kind[cfg.kind] = []
+            cfgs_by_kind[cfg.kind].append(cfg)
 
-    @app.get("/envs/get")
-    async def get_env(name: str):
-        # Try with .yaml extension first, then .yml
-        for ext in [".yaml", ".yml"]:
-            env_path = os.path.join("configs/env/mettagrid", f"{name}{ext}")
-            if os.path.isfile(env_path):
-                with open(env_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                return {"content": content}
+        result = {kind: [e.to_dict() for e in cfgs] for kind, cfgs in cfgs_by_kind.items()}
+        print(result)
+        return result
 
-        raise HTTPException(status_code=404, detail=f"Environment '{name}' not found")
+    @app.get("/mettagrid-cfgs/get")
+    async def route_mettagrid_cfgs_get(path: str):
+        cfg = get_mettagrid_cfg_data(path)
+        return cfg.to_dict()
+
+    @app.get("/mettagrid-cfgs/get-map")
+    async def route_mettagrid_cfgs_get_map(path: str):
+        cfg = get_mettagrid_cfg_data(path)
+        if cfg.kind == "map":
+            storable_map = map_builder_cfg_to_storable_map(cfg.cfg)
+        elif cfg.kind == "env":
+            storable_map = map_builder_cfg_to_storable_map(cfg.cfg.game.map_builder)
+        else:
+            raise ValueError(f"Config {path} is not a map or env")
+
+        return {
+            "content": str(storable_map),
+        }
 
     return app
 

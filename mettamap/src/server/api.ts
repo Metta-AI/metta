@@ -64,16 +64,41 @@ export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
   return mapIndexSchema.parse(data);
 }
 
-export async function listEnvs(): Promise<string[]> {
-  const response = await fetch(`${API_URL}/envs`);
+const mettagridCfgSchema = z.object({
+  path: z.string(),
+  kind: z.string(),
+  cfg: z.unknown(),
+});
+
+export type MettagridCfg = z.infer<typeof mettagridCfgSchema>;
+
+const mettagridCfgsSchema = z.object({
+  env: z.array(mettagridCfgSchema).optional(),
+  curriculum: z.array(mettagridCfgSchema).optional(),
+  map: z.array(mettagridCfgSchema).optional(),
+  unknown: z.array(mettagridCfgSchema).optional(),
+});
+
+type MettagridCfgs = z.infer<typeof mettagridCfgsSchema>;
+
+export async function listMettagridCfgs(): Promise<MettagridCfgs> {
+  const response = await fetch(`${API_URL}/mettagrid-cfgs`);
   const data = await response.json();
-  const parsed = z.array(z.string()).parse(data.envs);
+  const parsed = mettagridCfgsSchema.parse(data);
+  console.log(parsed);
   return parsed;
 }
 
-export async function getEnv(name: string): Promise<string> {
-  const response = await fetch(`${API_URL}/envs/get?name=${encodeURIComponent(name)}`);
+export async function getMettagridCfg(path: string): Promise<MettagridCfg> {
+  const response = await fetch(`${API_URL}/mettagrid-cfgs/get?path=${encodeURIComponent(path)}`);
   const data = await response.json();
-  const parsed = z.object({ content: z.string() }).parse(data);
-  return parsed.content;
+  return mettagridCfgSchema.parse(data);
+}
+
+export async function getMettagridCfgMap(path: string): Promise<MapData> {
+  const response = await fetch(`${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`);
+  const data = await response.json();
+  return {
+    content: parseMapFile(data.content),
+  };
 }
