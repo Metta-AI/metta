@@ -437,7 +437,25 @@ class PufferTrainer:
             if self.trainer_cfg.average_reward:
                 # Update average reward estimate using EMA with configured alpha
                 alpha = self.trainer_cfg.average_reward_alpha
-                self.average_reward = (1 - alpha) * self.average_reward + alpha * np.mean(rewards_np)
+
+                if torch.distributed.is_initialized():
+                    # synchronize average reward among all ranks
+                    local_mean_reward = torch.tensor(rewards_np.mean(), dtype=torch.float32, device=self.device)
+                    torch.distributed.all_reduce(local_mean_reward, op=torch.distributed.ReduceOp.SUM)
+                    global_mean_reward = local_mean_reward / self._world_size
+
+                    # global EMA update
+                    rho = torch.tensor(self.average_reward, dtype=torch.float32, device=self.device)
+                    rho = (1.0 - alpha) * rho + alpha * global_mean_reward
+
+                    # synchronize rho
+                    # (should not be needed and should be deleted!, is already the same on all ranks)
+                    # (maybe we add an assertion to make sure it is really the same on all ranks)
+                    torch.distributed.broadcast(rho, src=0)
+                    self.average_reward = rho.item()
+                else:
+                    self.average_reward = (1 - alpha) * self.average_reward + alpha * np.mean(rewards_np)
+
                 # Adjust rewards by subtracting average reward for advantage computation
                 rewards_np_adjusted = rewards_np - self.average_reward
                 # Set gamma to 1.0 for average reward case
