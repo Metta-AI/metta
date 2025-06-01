@@ -519,8 +519,8 @@ class PufferTrainer:
                         if torch.distributed.is_initialized():
                             # in the case of distributed training we have to synchronize the advantage mean
                             # and standard deviation to get the same normalized advantage on all ranks
-                            local_sum = adv.sum()
-                            local_sq_sum = (adv * adv).sum()
+                            local_sum = adv.sum().unsqueeze(0)
+                            local_sq_sum = (adv * adv).sum().unsqueeze(0)
                             local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
 
                             stats = torch.stack(
@@ -528,7 +528,7 @@ class PufferTrainer:
                             )  # putting them into one tensor so we only have to do a single all-reduce
                             torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
 
-                            global_sum, global_sq_sum, global_count = stats
+                            global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
                             mu = global_sum / global_count
                             var = (global_sq_sum / global_count) - (mu * mu)
                             std = torch.sqrt(var.clamp(min=1e-8))
