@@ -131,11 +131,24 @@ The project uses OmegaConf for configuration, with config files organized in `co
 ## Code Style Guidelines
 
 - Use modern Python typing syntax (PEP 585: `list[str]` instead of `List[str]`)
-- All public methods must have explicit return type annotations
+- Use Union type syntax for Python 3.10+ (`type | None` instead of `Optional[type]`)
+- Follow selective type annotation guidelines:
+  - **Always annotate**: All function parameters
+  - **Selectively annotate returns for**: 
+    - Public API functions/methods (not prefixed with _)
+    - Functions with complex logic or multiple branches
+    - Functions where the return type isn't obvious from the name
+    - Functions that might return None in some cases
+  - **Skip return annotations for**:
+    - Private methods internal to a class
+    - Functions enclosed within other functions
+    - Simple getters/setters with obvious returns
+    - Very short functions (1-3 lines) with obvious returns
+  - **Variable annotations**: Only when type inference fails or for empty collections
+- Prefer dataclasses over TypedDict for complex data structures
 - Use descriptive variable names that clearly indicate purpose
 - Remove unnecessary comments that just restate what the code does
 - Prefer properties over methods for computed attributes using `@property` decorator
-- Use Union types for parameters that accept multiple valid types
 - Implement proper error handling with clear, actionable error messages
 
 ## Code Review Criteria
