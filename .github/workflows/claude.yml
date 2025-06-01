@@ -154,7 +154,7 @@ jobs:
           echo "✅ Created branch: $(git branch --show-current)"
           echo "✅ Ready for Claude to make changes"
 
-      # Claude PR creation with simplified instructions
+      # Claude PR creation with MCP tools instead of bash
       - name: Claude PR Creation
         if: steps.check_action.outputs.action == 'create_pr'
         uses: anthropics/claude-code-action@beta
@@ -165,88 +165,62 @@ jobs:
           model: "claude-4-sonnet-20250514"
           timeout_minutes: 45
           direct_prompt: |
-            You are already on the correct branch to make changes.
+            You are working in the metta repository on a new branch that has already been created.
 
             CONTEXT:
-            - Current branch: ${{ steps.branches.outputs.new_branch }}
-            - This will create a PR into: ${{ steps.branches.outputs.target_branch }}
+            - Working directory: /home/runner/work/metta/metta
+            - Target branch: ${{ steps.branches.outputs.target_branch }}
             - Request from: ${{ steps.branches.outputs.context_info }}
 
             YOUR TASK: "${{ github.event.comment.body }}"
 
-            SIMPLE WORKFLOW:
-            1. Verify you're on the right branch:
-               ```bash
-               git branch --show-current
-               ```
+            WORKFLOW INSTRUCTIONS:
+            1. Make all the requested code changes using Edit/Replace tools
 
-            2. Make all the requested code changes
+            2. When all changes are complete, commit them using:
+               mcp__github_file_ops__commit_files
 
-            3. (Optional) Run linting if you modified Python files:
-               ```bash
-               ruff check . --fix
-               ```
-
-            4. Stage and commit your changes:
-               ```bash
-               git add -A
-               git commit -m "feat: implement requested changes from ${{ steps.branches.outputs.context_info }}"
-               ```
-
-            5. Push the branch:
-               ```bash
-               git push -u origin ${{ steps.branches.outputs.new_branch }}
-               ```
+               Use a descriptive commit message like:
+               "feat: implement requested changes from ${{ steps.branches.outputs.context_info }}"
 
             IMPORTANT:
-            - You are ALREADY on the new branch (no need to create or checkout)
-            - Just make changes, commit, and push
-            - Do NOT create the PR yourself - the workflow will do it
-            - If linting fails, fix the issues and include them in your commit
+            - You are already on the correct branch - no git commands needed
+            - Use Edit/Replace/Read tools to make changes
+            - Use mcp__github_file_ops__commit_files to commit (this handles everything)
+            - Do NOT try to use git commands or create a PR
+            - The workflow will handle branch pushing and PR creation
 
-          allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,Read,Write,Bash(git status),Bash(git branch --show-current),Bash(git add -A),Bash(git add *),Bash(git commit -m *),Bash(git push -u origin *),Bash(git push origin *),Bash(git diff),Bash(git diff --cached),Bash(git log --oneline -5),Bash(ruff check *),Bash(ruff check . --fix),Bash(python -m *),Bash(find . -name '*.py' -type f),Bash(ls -la),Bash(cat *),Bash(pwd)"
+          allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,Read,Write,mcp__github_file_ops__commit_files,mcp__github__update_issue_comment"
 
-      # Verify Claude completed the git workflow
-      - name: Verify git state after Claude
-        if: steps.check_action.outputs.action == 'create_pr'
-        id: verify_git
+      # Push the branch after Claude makes changes
+      - name: Push branch if needed
+        if: steps.check_action.outputs.action == 'create_pr' && steps.claude_pr.outcome == 'success'
+        id: push_branch
         run: |
-          echo "=== VERIFYING GIT STATE ==="
-          echo "Current branch:"
-          CURRENT_BRANCH=$(git branch --show-current)
-          echo "$CURRENT_BRANCH"
+          echo "=== PUSHING BRANCH ==="
 
-          echo "Git status:"
-          git status
+          # Check if there are any new commits
+          COMMIT_COUNT=$(git rev-list --count origin/${{ steps.branches.outputs.target_branch }}..HEAD 2>/dev/null || echo "0")
 
-          echo "Recent commits:"
-          git log --oneline -5
+          if [ "$COMMIT_COUNT" -gt "0" ]; then
+            echo "✅ Found $COMMIT_COUNT new commits to push"
 
-          # Check if branch was pushed to remote
-          if git ls-remote --heads origin | grep -q "${{ steps.branches.outputs.new_branch }}"; then
-            echo "✅ Branch exists on remote"
+            # Push the branch
+            git push -u origin ${{ steps.branches.outputs.new_branch }}
+
+            echo "✅ Branch pushed successfully"
             echo "branch_pushed=true" >> $GITHUB_OUTPUT
-
-            # Check for new commits
-            COMMIT_COUNT=$(git rev-list --count origin/${{ steps.branches.outputs.target_branch }}..HEAD)
-            if [ "$COMMIT_COUNT" -gt 0 ]; then
-              echo "✅ Found $COMMIT_COUNT new commits"
-              echo "has_commits=true" >> $GITHUB_OUTPUT
-              echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
-            else
-              echo "❌ No new commits found"
-              echo "has_commits=false" >> $GITHUB_OUTPUT
-            fi
+            echo "has_commits=true" >> $GITHUB_OUTPUT
+            echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
           else
-            echo "❌ Branch not pushed to remote"
+            echo "❌ No new commits found"
             echo "branch_pushed=false" >> $GITHUB_OUTPUT
             echo "has_commits=false" >> $GITHUB_OUTPUT
           fi
-          echo "=========================="
 
-      # Create PR only if git workflow was completed correctly
+      # Create PR only if branch was pushed successfully
       - name: Create Pull Request
-        if: steps.check_action.outputs.action == 'create_pr' && steps.verify_git.outputs.branch_pushed == 'true' && steps.verify_git.outputs.has_commits == 'true'
+        if: steps.check_action.outputs.action == 'create_pr' && steps.push_branch.outputs.branch_pushed == 'true' && steps.push_branch.outputs.has_commits == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -343,19 +317,19 @@ jobs:
               });
             }
 
-      # Handle case where Claude didn't follow git workflow
-      - name: Handle git workflow failure
-        if: steps.check_action.outputs.action == 'create_pr' && (steps.verify_git.outputs.branch_pushed != 'true' || steps.verify_git.outputs.has_commits != 'true')
+      # Handle case where Claude didn't complete the workflow
+      - name: Handle workflow failure
+        if: steps.check_action.outputs.action == 'create_pr' && (steps.push_branch.outputs.branch_pushed != 'true' || steps.push_branch.outputs.has_commits != 'true')
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             let reason = "Unknown issue";
 
-            if ("${{ steps.verify_git.outputs.branch_pushed }}" !== 'true') {
-              reason = "Claude didn't push the branch to remote";
-            } else if ("${{ steps.verify_git.outputs.has_commits }}" !== 'true') {
-              reason = "Claude didn't commit any changes";
+            if ("${{ steps.push_branch.outputs.has_commits }}" !== 'true') {
+              reason = "No changes were committed";
+            } else if ("${{ steps.push_branch.outputs.branch_pushed }}" !== 'true') {
+              reason = "Failed to push the branch";
             }
 
             await github.rest.issues.createComment({
@@ -370,14 +344,14 @@ jobs:
                 "**Debug info:**",
                 `- Expected branch: \`${{ steps.branches.outputs.new_branch }}\``,
                 `- Target branch: \`${{ steps.branches.outputs.target_branch }}\``,
-                `- Branch pushed: ${{ steps.verify_git.outputs.branch_pushed }}`,
-                `- Has commits: ${{ steps.verify_git.outputs.has_commits }}`,
+                `- Has commits: ${{ steps.push_branch.outputs.has_commits }}`,
+                `- Branch pushed: ${{ steps.push_branch.outputs.branch_pushed }}`,
                 `- Claude execution: ${{ steps.claude_pr.outcome }}`,
                 "",
                 "**Possible solutions:**",
                 "- Try a simpler, more specific request",
                 "- Check if the changes conflict with existing code",
-                "- Implement the changes manually if they're complex",
+                "- Ensure Claude used mcp__github_file_ops__commit_files to commit",
                 "",
                 "You can view the full execution logs in the Actions tab for more details."
               ].join('\n')
@@ -392,9 +366,9 @@ jobs:
           echo "New branch: ${{ steps.branches.outputs.new_branch }}"
           echo "Target branch: ${{ steps.branches.outputs.target_branch }}"
           echo "Context: ${{ steps.branches.outputs.context_info }}"
-          echo "Branch pushed: ${{ steps.verify_git.outputs.branch_pushed }}"
-          echo "Has commits: ${{ steps.verify_git.outputs.has_commits }}"
-          echo "Commit count: ${{ steps.verify_git.outputs.commit_count }}"
+          echo "Branch pushed: ${{ steps.push_branch.outputs.branch_pushed }}"
+          echo "Has commits: ${{ steps.push_branch.outputs.has_commits }}"
+          echo "Commit count: ${{ steps.push_branch.outputs.commit_count }}"
           echo "Claude outcome: ${{ steps.claude_pr.outcome }}"
           echo "Workflow status: ${{ job.status }}"
           echo "=============================="
