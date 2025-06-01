@@ -93,7 +93,7 @@ jobs:
 
       - name: Check File Changes
         id: check-files
-        run: {
+        run: |
           BASE_REF="${{ steps.pr-context.outputs.base_ref }}"
           PATTERN="${{ inputs.file_pattern }}"
 
@@ -135,14 +135,13 @@ jobs:
             echo "matched_count=0" >> $GITHUB_OUTPUT
             echo "**Result:** ⏭️ No relevant files to review" >> $GITHUB_STEP_SUMMARY
           fi
-        }
 
       - name: Setup Python
         if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.setup_python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: 'pip'
+          cache: "pip"
 
       - name: Install Dependencies
         if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.install_packages != ''
