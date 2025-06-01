@@ -508,7 +508,7 @@ class PufferTrainer:
                             stats = torch.stack(
                                 [local_sum, local_sq_sum, local_count]
                             )  # putting them into one tensor so we only have to do a single all-reduce
-                            torch.dist.all_reduce(stats, op=torch.dist.ReduceOp.SUM)
+                            torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
 
                             global_sum, global_sq_sum, global_count = stats
                             mu = global_sum / global_count
