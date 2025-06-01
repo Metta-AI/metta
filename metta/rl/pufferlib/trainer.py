@@ -498,7 +498,26 @@ class PufferTrainer:
 
                     adv = adv.reshape(-1)
                     if self.trainer_cfg.norm_adv:
-                        adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+                        if torch.distributed.is_initialized():
+                            # in the case of distributed training we have to synchronize the advantage mean
+                            # and standard deviation to get the same normalized advantage on all ranks
+                            local_sum = adv.sum()
+                            local_sq_sum = (adv * adv).sum()
+                            local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
+
+                            stats = torch.stack(
+                                [local_sum, local_sq_sum, local_count]
+                            )  # putting them into one tensor so we only have to do a single all-reduce
+                            torch.dist.all_reduce(stats, op=torch.dist.ReduceOp.SUM)
+
+                            global_sum, global_sq_sum, global_count = stats
+                            mu = global_sum / global_count
+                            var = (global_sq_sum / global_count) - (mu * mu)
+                            std = torch.sqrt(var.clamp(min=1e-8))
+
+                            adv = (adv - mu) / std + 1e8
+                        else:
+                            adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
                     # Policy loss
                     pg_loss1 = -adv * ratio
