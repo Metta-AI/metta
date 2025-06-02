@@ -1,0 +1,11 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: overcooked
+
+simulations:
+  overcooked/cooperate-or-defect_test:
+    env: /env/mettagrid/cooperation/evals/cooperate-or-defect_test
+  # overcooked/solo-vs-paired_gathering:
+  #   env: /env/mettagrid/cooperation/evals/solo-vs-paired_gathering
