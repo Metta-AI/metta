@@ -79,6 +79,8 @@ class PufferTrainer:
         self._eval_suite_avgs = {}
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
+        self._smoke_test_mode = getattr(cfg, "smoke_test", False)
+        self._smoke_test_metrics_verified = False
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
 
         if "curriculum" in self.trainer_cfg:
@@ -609,7 +611,7 @@ class PufferTrainer:
             self.losses.explained_variance = explained_var
             self.epoch += 1
 
-        profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
+            profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -763,6 +765,39 @@ class PufferTrainer:
                     "timing/wall_time": wall_time,
                 }
             )
+
+            # Smoke test verification: ensure no agent_raw metrics in wandb
+            if self._smoke_test_mode and not self._smoke_test_metrics_verified:
+                logged_metrics = {
+                    **{f"overview/{k}": v for k, v in overview.items()},
+                    **{f"losses/{k}": v for k, v in losses.items()},
+                    **{f"performance/{k}": v for k, v in performance.items()},
+                    **environment,
+                }
+
+                # Check for any agent_raw metrics
+                agent_raw_metrics = [k for k in logged_metrics.keys() if "agent_raw" in k]
+                assert not agent_raw_metrics, (
+                    f"Smoke test failed: Found agent_raw metrics in wandb logs: {agent_raw_metrics}. "
+                    "These should be filtered out."
+                )
+
+                # Verify we have some expected aggregated metrics
+                expected_patterns = ["env_agent/", "env_game/", "overview/"]
+                found_patterns = {pattern: False for pattern in expected_patterns}
+                for key in logged_metrics.keys():
+                    for pattern in expected_patterns:
+                        if key.startswith(pattern):
+                            found_patterns[pattern] = True
+
+                missing_patterns = [p for p, found in found_patterns.items() if not found]
+                assert not missing_patterns, (
+                    f"Smoke test failed: Missing expected metric patterns: {missing_patterns}. "
+                    f"Found metrics: {list(logged_metrics.keys())[:10]}..."
+                )
+
+                logger.info("Smoke test passed: WandB metrics structure is correct")
+                self._smoke_test_metrics_verified = True
 
         self._eval_grouped_scores = {}
         self._weights_helper.reset()

@@ -37,7 +37,7 @@ class PufferAgent(nn.Module):
         super().__init__()
         self.policy = policy
         self.hidden_size = policy.hidden_size
-        self.lstm = policy
+        self.lstm = policy.lstm  # Point to the actual LSTM module, not the entire policy
 
     def forward(self, obs: torch.Tensor, state, action=None):
         """Uses variable names from LSTMWrapper. Translating for Metta:

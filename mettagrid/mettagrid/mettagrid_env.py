@@ -96,12 +96,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        # Only validate agent count if expecting agents
-        if self._task.env_cfg().game.num_agents > 0:
-            assert self._task.env_cfg().game.num_agents == level_agents, (
-                f"Number of agents {self._task.env_cfg().game.num_agents} "
-                f"does not match number of agents in map {level_agents}"
-            )
+        assert self._task.env_cfg().game.num_agents == level_agents, (
+            f"Number of agents {self._task.env_cfg().game.num_agents} "
+            f"does not match number of agents in map {level_agents}"
+        )
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))

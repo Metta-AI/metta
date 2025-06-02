@@ -161,7 +161,7 @@ class MettaAgent(nn.Module):
             for j in range(max_param + 1):
                 action_index.append([action_type_idx, j])
 
-        self.action_index_tensor = torch.tensor(action_index, device=self.device)
+        self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
         logger.info(f"Agent actions activated with: {self.active_actions}")
 
     @property
