@@ -1,8 +1,6 @@
-#This config is the defaults for training environments focused on
-#learning the sequence and remembering where objects are located.
-#So, rooms are small, and there are a very few number of each object.
-#Currently objects are only altars, mines, and generators, of single color.
-
+# 'sequence' environments are large environments with the varied_terrain generator,
+# but where long cooldowns mean agents need to constantly explore/look for different objects to use
+# they have the full sequence mine-generator-altar
 defaults:
   - /env/mettagrid/mettagrid@
   - _self_

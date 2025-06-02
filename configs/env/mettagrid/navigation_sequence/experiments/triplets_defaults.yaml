@@ -1,3 +1,5 @@
+# triplets environments are like 'sequence' environments, but where all three objects are placed together —mine generator altar are next to each other and with long cooldown THis is to make it easier, while still encouraging exploration
+
 defaults:
   - /env/mettagrid/mettagrid@
   - _self_
