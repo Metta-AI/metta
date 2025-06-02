@@ -10,16 +10,6 @@
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 
-struct StatNames {
-  std::string success;
-  std::string first_use;
-  std::string failure;
-
-  std::map<TypeId, std::string> target;
-  std::map<TypeId, std::string> target_first_use;
-  std::vector<std::string> group;
-};
-
 typedef unsigned char ActionArg;
 typedef std::map<std::string, int> ActionConfig;
 
@@ -28,16 +18,7 @@ public:
   unsigned char priority;
   Grid* _grid;
 
-  ActionHandler(const ActionConfig& cfg, const std::string& action_name) : priority(0), _action_name(action_name) {
-    _stats.success = "action." + action_name;
-    _stats.failure = "action." + action_name + ".failed";
-    _stats.first_use = "action." + action_name + ".first_use";
-
-    for (TypeId t = 0; t < ObjectType::ObjectTypeCount; t++) {
-      _stats.target[t] = _stats.success + "." + ObjectTypeNames[t];
-      _stats.target_first_use[t] = _stats.first_use + "." + ObjectTypeNames[t];
-    }
-  }
+  ActionHandler(const ActionConfig& cfg, const std::string& action_name) : priority(0), _action_name(action_name) {}
 
   virtual ~ActionHandler() {}
 
@@ -45,25 +26,27 @@ public:
     this->_grid = grid;
   }
 
-  bool handle_action(GridObjectId actor_object_id, ActionArg arg, unsigned int current_timestep) {
+  bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
+    // Handle frozen status
     if (actor->frozen > 0) {
       actor->stats.incr("status.frozen.ticks");
-      actor->stats.incr("status.frozen.ticks", actor->group_name);
+      actor->stats.incr("status.frozen.ticks." + actor->group_name);
       actor->frozen -= 1;
       return false;
     }
 
+    // Execute the action
     bool result = _handle_action(actor, arg);
 
+    // Track success/failure
     if (result) {
-      actor->stats.incr(_stats.success);
+      actor->stats.incr("action." + _action_name + ".success");
     } else {
-      actor->stats.incr(_stats.failure);
+      actor->stats.incr("action." + _action_name + ".failed");
       actor->stats.incr("action.failure_penalty");
       *actor->reward -= actor->action_failure_penalty;
-      actor->stats.set_once(_stats.first_use, current_timestep);
     }
 
     return result;
@@ -80,7 +63,6 @@ public:
 protected:
   virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
 
-  StatNames _stats;
   std::string _action_name;
 };
 
