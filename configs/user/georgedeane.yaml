@@ -16,10 +16,22 @@ trainer:
   env: /env/mettagrid/navigation_sequence/training/multienv_seq
   evaluate_interval: 10
 
+# Infinite_cooldown models:
+# navigation_infinite_cooldown_sweep_2g_.r.0 - ok
+# navigation_infinite_cooldown_sweep_2g.r.1 - 9 reward after 400 timesteps
+# navigation_infinite_cooldown_high_ent_no_initial_heart - ~9, current best
+# navigation_poisson_train_sampling5 breaks in infinite_cooldown, works great in poisson with short distance
+# navigation_poisson_train_sampling5
+# npc_policy_uri: ${trained_policy_uri}
 
-policy_uri: wandb://run/32_daphne_multiagent_training
+sim:
+  num_episodes: 2
+  max_time_s: 600
 
+  # policy_uri: ${..policy_uri}
+  # npc_policy_uri: ${..npc_policy_uri}
+  env: /env/mettagrid/navigation/training/empty_world
 
-run_id: 2
+run_id: 103
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

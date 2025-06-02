@@ -46,6 +46,7 @@ def main():
     parser.add_argument("--nodes", type=int, default=None)
     parser.add_argument("--cpus", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--copies", type=int, default=1, help="Number of identical job copies to launch")
     (args, cmd_args) = parser.parse_known_args()
 
     git_ref = args.git_ref
@@ -66,7 +67,16 @@ def main():
 
     task = patch_task(task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes)
 
-    launch_task(task, dry_run=args.dry_run)
+    if args.copies == 1:
+        launch_task(task, dry_run=args.dry_run)
+    else:
+        for i in range(1, args.copies + 1):
+            copy_task = copy.deepcopy(task)
+            run_id = args.run
+            copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
+            copy_task.name = run_id
+            copy_task.validate_name()
+            launch_task(copy_task, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":
