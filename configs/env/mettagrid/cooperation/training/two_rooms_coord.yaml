@@ -67,7 +67,7 @@ game:
     generator.red:
       cooldown: 1
       max_output: 10
-      conversion_ticks: 4
+      conversion_ticks: 8
       initial_items: 0
     mine.red:
       cooldown: 1
