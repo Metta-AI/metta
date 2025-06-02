@@ -24,8 +24,14 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
+      issues: write  # For label creation
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
 
       - name: Process specific PR if provided
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.specific-pr != ''
@@ -47,6 +53,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           POSSIBLE_ASSIGNEES: ${{ vars.DEPENDABOT_ASSIGNEES || '' }}
           POSSIBLE_REVIEWERS: ${{ vars.DEPENDABOT_REVIEWERS || '' }}
           FORCED_ASSIGNEES: ${{ vars.DEPENDABOT_FORCED_ASSIGNEES || '' }}
@@ -78,7 +85,22 @@ jobs:
             fi
 
             echo "Processing Dependabot PR #$PR_NUMBER"
-            ./.github/actions/pr-assignment/run.sh "$PR_NUMBER" "$POSSIBLE_ASSIGNEES" "$POSSIBLE_REVIEWERS" "$FORCED_ASSIGNEES" "$FORCED_REVIEWERS" "$FORCED_LABELS" "$CLEAR_ASSIGNEES" "$CLEAR_REVIEWERS" "$CLEAR_LABELS"
+
+            # Make the script executable if it isn't already
+            chmod +x ./.github/actions/pr-assignment/run.py
+
+            # Run the Python script
+            python3 ./.github/actions/pr-assignment/run.py \
+              "$PR_NUMBER" \
+              "$POSSIBLE_ASSIGNEES" \
+              "$POSSIBLE_REVIEWERS" \
+              "$FORCED_ASSIGNEES" \
+              "$FORCED_REVIEWERS" \
+              "$FORCED_LABELS" \
+              "$CLEAR_ASSIGNEES" \
+              "$CLEAR_REVIEWERS" \
+              "$CLEAR_LABELS"
+
             sleep 2
           done
 
