@@ -9,9 +9,16 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
 jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     with:
       review_name: "README Accuracy"
       tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(find . -name README.md)"
@@ -19,7 +26,9 @@ jobs:
       prompt: |
         Review the diff for this pull request and compare it to all README.md files in the repository.
 
-        **IMPORTANT**: Only create a PR comment if you find README content that needs to be updated based on the code changes. If all READMEs are already accurate and up-to-date with the changes in this PR, do not comment at all.
+        **IMPORTANT**: Only create a PR comment if you find README content that needs to be updated
+        based on the code changes. If all READMEs are already accurate and up-to-date with the changes
+        in this PR, do not comment at all.
 
         Look for discrepancies such as:
         - Commands or CLI usage that have changed
@@ -33,7 +42,7 @@ jobs:
         - Default values or behavior that have changed
 
         If code or configuration changes require updates to any README:
-        1. Create GitHub suggested edits showing the necessary changes
+        1. Create suggestions showing the necessary changes
         2. Explain briefly why each change is needed (e.g., "Command flag --old was renamed to --new in commit X")
         3. Focus only on changes that directly relate to the code modifications in this PR
 
@@ -42,7 +51,3 @@ jobs:
         - Check any README files in subdirectories that might be affected
         - Consider if example code in READMEs still works with the changes
         - Verify that any referenced file paths still exist
-
-        Summarize your recommendations in a short **TLDR** section at the end, listing each suggested change with the file path and a brief description.
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
