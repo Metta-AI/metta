@@ -45,6 +45,7 @@ export const ui = {
   mouseDoubleClick: false,
   mousePos: new Vec2f(0, 0),
   mouseTarget: "",
+  dragging: "",
   lastMousePos: new Vec2f(0, 0),
   mouseDownPos: new Vec2f(0, 0),
   scrollDelta: 0,
@@ -52,9 +53,7 @@ export const ui = {
 
   // Split between trace and info panels.
   traceSplit: localStorageGetNumber("traceSplit", 0.8),
-  traceDragging: false,
   agentPanelSplit: localStorageGetNumber("agentPanelSplit", 0.5),
-  agentPanelDragging: false,
 
   // Panels
   mapPanel: new PanelInfo("#worldmap-panel"),

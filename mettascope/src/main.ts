@@ -74,13 +74,13 @@ function onMouseDown() {
   ui.mouseClick = true;
 
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
-    ui.traceDragging = true
+    ui.dragging = "trace-panel";
   } else {
     ui.mouseDown = true;
   }
 
   if (Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD) {
-    ui.agentPanelDragging = true
+    ui.dragging = "agent-panel";
   } else {
     ui.mouseDown = true;
   }
@@ -92,8 +92,7 @@ function onMouseDown() {
 function onMouseUp() {
   ui.mouseUp = true;
   ui.mouseDown = false;
-  ui.traceDragging = false;
-  ui.agentPanelDragging = false;
+  ui.dragging = "";
 
   // Due to how we select objects on mouse-up (mouse-down is drag/pan),
   // we need to check for double-click on mouse-up as well.
@@ -123,13 +122,13 @@ function onMouseMove(event: MouseEvent) {
   }
 
   // Drag the trace panel up or down.
-  if (ui.traceDragging) {
+  if (ui.dragging == "trace-panel") {
     ui.traceSplit = ui.mousePos.y() / window.innerHeight
     localStorageSetNumber("traceSplit", ui.traceSplit);
     onResize();
   }
 
-  if (ui.agentPanelDragging) {
+  if (ui.dragging == "agent-panel") {
     ui.agentPanelSplit = (ui.mousePos.y() - ui.agentPanel.y) / window.innerHeight
     localStorageSetNumber("agentPanelSplit", ui.agentPanelSplit);
     onResize();

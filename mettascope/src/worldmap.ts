@@ -729,7 +729,7 @@ export function drawMap(panel: PanelInfo) {
   }
 
   // Handle mouse events for the map panel.
-  if (ui.mouseTarget == "worldmap-panel" && !state.showAttackMode) {
+  if (ui.mouseTarget == "worldmap-panel" && ui.dragging == "" && !state.showAttackMode) {
     if (ui.mouseDoubleClick) {
       // Toggle followSelection on double-click
       console.log("Map double click - following selection");
