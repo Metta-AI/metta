@@ -129,7 +129,7 @@ class MettaModule(nn.Module, ABC):
 # 2 - Subclasses (specific modules)
 
 
-class LinearModule(MettaModule):
+class MettaLinear(MettaModule):
     def __init__(
         self,
         in_keys: List[str],
@@ -146,6 +146,9 @@ class LinearModule(MettaModule):
 
         self.linear = nn.Linear(self.input_features_shape[0], self.output_features_shape[0])
 
+    # Components with a single input and output key can
+    # implement these if you want the code to be more readable.
+    # Otherwise, you can just use the in_keys and out_keys attributes.
     @property
     def in_key(self) -> str:
         return self.in_keys[0]
@@ -158,7 +161,7 @@ class LinearModule(MettaModule):
         return {self.out_key: self.linear(td[self.in_key])}
 
 
-class ReLUModule(MettaModule):
+class MettaReLU(MettaModule):
     def __init__(
         self,
         in_keys: List[str],
@@ -167,5 +170,13 @@ class ReLUModule(MettaModule):
         super().__init__(in_keys, out_keys)
         self.relu = nn.ReLU()
 
+    @property
+    def in_key(self) -> str:
+        return self.in_keys[0]
+
+    @property
+    def out_key(self) -> str:
+        return self.out_keys[0]
+
     def _compute(self, td: TensorDict) -> Dict[str, torch.Tensor]:
-        return {"output": self.relu(td["input"])}
+        return {self.out_key: self.relu(td[self.in_key])}
