@@ -12,7 +12,7 @@ game:
 
   objects:
     altar:
-      input_battery: 9
+      input_battery.red: 9
       output_heart: 1
       initial_items: 0
     generator.red:

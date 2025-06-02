@@ -17,6 +17,7 @@ game:
 
   objects:
     altar:
+      input_battery.red: 1
       cooldown: 255
       max_output: 1
       initial_items: 1
