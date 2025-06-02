@@ -220,7 +220,7 @@ def main():
     pr_title = pr_info.get("title", "")
     current_assignees = [a["login"] for a in pr_info.get("assignees", [])]
     current_reviewers = [r["login"] for r in pr_info.get("reviewRequests", [])]
-    current_labels = [l["name"] for l in pr_info.get("labels", [])]
+    current_labels = [label["name"] for label in pr_info.get("labels", [])]
 
     print(f"Processing PR #{pr_number} by @{pr_author}")
 
@@ -258,7 +258,7 @@ def main():
         # For Dependabot PRs, preserve version labels
         if pr_author == "dependabot[bot]":
             labels_to_preserve = ["major", "minor", "patch"]
-            labels_to_clear = [l for l in current_labels if l not in labels_to_preserve]
+            labels_to_clear = [label for label in current_labels if label not in labels_to_preserve]
         else:
             labels_to_clear = current_labels
 
@@ -308,7 +308,7 @@ def main():
         actions.append(f"Review requested from: {' '.join(f'@{r}' for r in sorted(reviewed))}")
 
     if labeled:
-        actions.append(f"Labels set: {' '.join(f'`{l}`' for l in sorted(labeled))}")
+        actions.append(f"Labels set: {' '.join(f'`{label}`' for label in sorted(labeled))}")
 
     if actions:
         comment = "PR automatically processed:\n" + "\n".join(f"- {action}" for action in actions)
