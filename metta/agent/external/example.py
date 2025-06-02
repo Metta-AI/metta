@@ -13,35 +13,52 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
     def forward(self, observations, state):
         """Forward function for inference. 3x faster than using LSTM directly"""
-        # Either B, T, H, W, C or B, H, W, C
         if len(observations.shape) == 5:
+            # Training path: B, T, H, W, C -> use forward_train
             x = rearrange(observations, "b t h w c -> b t c h w").float()
-            return self.forward_train(x, state)
-        else:
-            x = rearrange(observations, "b h w c -> b c h w").float() / self.policy.max_vec
+            return self._forward_train_with_state_conversion(x, state)
+        
+        # Inference path: B, H, W, C
+        x = rearrange(observations, "b h w c -> b c h w").float() / self.policy.max_vec
         hidden = self.policy.encode_observations(x, state=state)
-        h = state.lstm_h
-        c = state.lstm_c
-
-        # TODO: Don't break compile
+        
+        # Handle LSTM state
+        h, c = state.lstm_h, state.lstm_c
         if h is not None:
             if len(h.shape) == 3:
-                h = h.squeeze()
-            if len(c.shape) == 3:
-                c = c.squeeze()
+                h, c = h.squeeze(), c.squeeze()
             assert h.shape[0] == c.shape[0] == observations.shape[0], "LSTM state must be (h, c)"
             lstm_state = (h, c)
         else:
             lstm_state = None
 
-        # hidden = self.pre_layernorm(hidden)
+        # LSTM forward pass
         hidden, c = self.cell(hidden, lstm_state)
-        # hidden = self.post_layernorm(hidden)
+        
+        # Update state
         state.hidden = hidden
         state.lstm_h = hidden
         state.lstm_c = c
-        logits, values = self.policy.decode_actions(hidden)
-        return logits, values
+        
+        return self.policy.decode_actions(hidden)
+
+    def _forward_train_with_state_conversion(self, x, state):
+        """Helper to handle state conversion for training"""
+        if hasattr(state, 'lstm_h'):
+            # Convert PolicyState to dict for forward_train compatibility
+            state_dict = {
+                'lstm_h': state.lstm_h,
+                'lstm_c': state.lstm_c,
+                'hidden': getattr(state, 'hidden', None)
+            }
+            result = self.forward_train(x, state_dict)
+            # Update original state
+            state.lstm_h = state_dict.get('lstm_h')
+            state.lstm_c = state_dict.get('lstm_c') 
+            state.hidden = state_dict.get('hidden')
+            return result
+        else:
+            return self.forward_train(x, state)
 
 
 class Policy(nn.Module):
