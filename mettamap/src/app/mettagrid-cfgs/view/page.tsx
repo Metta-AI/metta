@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { JsonAsYaml } from "@/components/JsonAsYaml";
 
-import { getMettagridCfgFile } from "../../../server/api";
+import { getMettagridCfgFile } from "../../../lib/api";
 import { MapFromCfg } from "./MapFromCfg";
 
 interface EnvViewPageProps {

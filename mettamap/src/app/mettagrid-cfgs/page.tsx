@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { listMettagridCfgsMetadata } from "../../server/api";
+import { listMettagridCfgsMetadata } from "../../lib/api";
 
 export default async function EnvsPage() {
   const cfgs = await listMettagridCfgsMetadata();

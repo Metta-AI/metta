@@ -2,13 +2,15 @@
 
 import { FC, useEffect, useState } from "react";
 
-import { getStoredMap } from "@/server/api";
-import { MapData } from "@/server/types";
+import { getStoredMap, StorableMap } from "@/lib/api";
 
-import { ExtendedMapViewer } from "./MapFileViewer";
+import { StorableMapViewer } from "./StorableMapViewer";
 
-export const MapLoader: FC<{ mapUrl: string }> = ({ mapUrl }) => {
-  const [map, setMap] = useState<MapData | null>(null);
+export const MapLoader: FC<{ mapUrl: string; filterable?: boolean }> = ({
+  mapUrl,
+  filterable = true,
+}) => {
+  const [map, setMap] = useState<StorableMap | null>(null);
   useEffect(() => {
     getStoredMap(mapUrl).then((map) => {
       setMap(map);
@@ -19,5 +21,5 @@ export const MapLoader: FC<{ mapUrl: string }> = ({ mapUrl }) => {
     return <div>Loading...</div>;
   }
 
-  return <ExtendedMapViewer mapData={map} />;
+  return <StorableMapViewer map={map} filterable={filterable} />;
 };

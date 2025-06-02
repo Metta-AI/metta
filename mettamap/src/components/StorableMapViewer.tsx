@@ -1,20 +1,19 @@
 "use client";
-import yaml from "js-yaml";
 import { useQueryState } from "nuqs";
 import { FC, useMemo } from "react";
 
 import { FilterItem, parseFilterParam } from "@/app/stored-maps/dir/params";
+import { StorableMap } from "@/lib/api";
 import { MettaGrid } from "@/lib/MettaGrid";
-import { MapData } from "@/server/types";
 
 import { CopyToClipboardButton } from "./CopyToClipboardButton";
 import { JsonAsYaml } from "./JsonAsYaml";
 import { MapViewer } from "./MapViewer";
 
 // YAML viewer with the ability to click lines to filter the map list
-const FrontmatterViewer: FC<{ frontmatter: Record<string, unknown> }> = ({
-  frontmatter,
-}) => {
+const FilterableFrontmatterViewer: FC<{
+  frontmatter: Record<string, unknown>;
+}> = ({ frontmatter }) => {
   const [filters, setFilters] = useQueryState(
     "filter",
     parseFilterParam.withOptions({ shallow: false })
@@ -59,33 +58,29 @@ const FrontmatterViewer: FC<{ frontmatter: Record<string, unknown> }> = ({
   );
 };
 
-export const ExtendedMapViewer: FC<{ mapData: MapData }> = ({ mapData }) => {
+export const StorableMapViewer: FC<{
+  map: StorableMap;
+  // in /stored-maps list interface, we allow filtering by frontmatter props (which works by updating the URL)
+  filterable?: boolean;
+}> = ({ map, filterable = false }) => {
   // Parse the frontmatter YAML
-  const frontmatterJson = useMemo(() => {
-    try {
-      return yaml.load(mapData.content.frontmatter) as Record<string, unknown>;
-    } catch (error) {
-      console.error("Error parsing frontmatter:", error);
-      return {};
-    }
-  }, [mapData.content.frontmatter]);
-
-  const grid = useMemo(
-    () => MettaGrid.fromAscii(mapData.content.data),
-    [mapData.content.data]
-  );
+  const grid = useMemo(() => MettaGrid.fromAscii(map.data), [map.data]);
 
   return (
     <div className="grid grid-cols-[400px_1fr_250px] gap-8">
       <div className="max-h-[80vh] overflow-auto">
-        <FrontmatterViewer frontmatter={frontmatterJson} />
+        {filterable ? (
+          <FilterableFrontmatterViewer frontmatter={map.frontmatter.config} />
+        ) : (
+          <JsonAsYaml json={map.frontmatter.config} />
+        )}
       </div>
       <div className="flex flex-col items-center justify-start overflow-auto">
         <div className="max-w-full">
           <MapViewer grid={grid} />
         </div>
       </div>
-      <CopyToClipboardButton text={mapData.content.data}>
+      <CopyToClipboardButton text={map.data}>
         Copy Map Data to Clipboard
       </CopyToClipboardButton>
     </div>

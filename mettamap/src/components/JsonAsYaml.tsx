@@ -13,8 +13,8 @@ export const JsonAsYaml: FC<{
 
     if (typeof value === "object" && value !== null) {
       return (
-        <div key={fullKey} className="ml-4">
-          <div className="font-bold">{key}:</div>
+        <div key={fullKey} className="ml-2">
+          <div className="font-mono font-bold">{key}:</div>
           {Object.entries(value).map(([k, v]) => renderYamlLine(k, v, fullKey))}
         </div>
       );
@@ -28,7 +28,8 @@ export const JsonAsYaml: FC<{
       <div
         key={fullKey}
         className={clsx(
-          "cursor-pointer rounded px-1 py-0.5 font-mono hover:bg-blue-100",
+          // ml-1 + px-1 add up to same offset as ml-2 for object lines
+          "ml-1 cursor-pointer rounded px-1 py-0.5 font-mono hover:bg-blue-100",
           isActive && "bg-blue-200"
         )}
         onClick={() => onSelectLine?.(fullKey, String(value))}
@@ -44,7 +45,7 @@ export const JsonAsYaml: FC<{
   };
 
   return (
-    <div className="rounded border border-gray-200 bg-gray-50 p-4 text-xs">
+    <div className="overflow-auto rounded border border-gray-200 bg-gray-50 p-4 text-xs">
       {Object.entries(json).map(([key, value]) => renderYamlLine(key, value))}
     </div>
   );

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { getStoredMapDirs } from "@/server/api";
+import { getStoredMapDirs } from "@/lib/api";
 
 export default async function MapDirsPage() {
   const dirs = await getStoredMapDirs();

@@ -1,5 +1,5 @@
-import { ExtendedMapViewer } from "@/components/MapFileViewer";
-import { getStoredMap } from "@/server/api";
+import { StorableMapViewer } from "@/components/StorableMapViewer";
+import { getStoredMap } from "@/lib/api";
 
 export default async function MapPage({
   params,
@@ -9,5 +9,5 @@ export default async function MapPage({
   const name = (await params).name;
   const map = await getStoredMap(name);
 
-  return <ExtendedMapViewer mapData={map} />;
+  return <StorableMapViewer map={map} />;
 }

@@ -1,26 +1,32 @@
-import yaml from "js-yaml";
 import { z } from "zod";
 
-import { API_URL } from "./constants";
-import { MapData, MapIndex, MapMetadata } from "./types";
+import { API_URL } from "../server/constants";
+import { MapIndex, MapMetadata } from "../server/types";
 
-function parseMapFile(map: string): MapData["content"] {
-  const [frontmatter, ...rest] = map.split("---");
-  const mapData = rest.join("---").trim();
-
-  // OmegaConf output format is a bit messy, so we need to clean it up
-  const updatedFrontmatter = yaml.dump(yaml.load(frontmatter));
-
-  return {
-    frontmatter: updatedFrontmatter,
-    data: mapData,
+export type StorableMap = {
+  frontmatter: {
+    metadata: Record<string, unknown>;
+    config: Record<string, unknown>;
   };
+  data: string;
+};
+
+function parseStorableMap(map: unknown): StorableMap {
+  const parsed = z
+    .object({
+      frontmatter: z.object({
+        metadata: z.record(z.string(), z.unknown()),
+        config: z.record(z.string(), z.unknown()),
+      }),
+      data: z.string(),
+    })
+    .parse(map);
+
+  return parsed;
 }
 
 export async function getStoredMapDirs(): Promise<string[]> {
-  const response = await fetch(
-    `${API_URL}/stored-maps/dirs`
-  );
+  const response = await fetch(`${API_URL}/stored-maps/dirs`);
   const data = await response.json();
   const parsed = z.array(z.string()).parse(data.dirs);
   return parsed;
@@ -32,7 +38,7 @@ export async function findStoredMaps(
 ): Promise<MapMetadata[]> {
   const searchParams = new URLSearchParams({
     dir,
-    filter: filters.map(f => `${f.key}=${f.value}`).join(","),
+    filter: filters.map((f) => `${f.key}=${f.value}`).join(","),
   });
   const response = await fetch(
     `${API_URL}/stored-maps/find-maps?${searchParams}`
@@ -40,21 +46,18 @@ export async function findStoredMaps(
   const data = await response.json();
   const parsed = z.array(z.string()).parse(data.maps);
   return parsed.map((url) => ({ url }));
-
 }
 
-export async function getStoredMap(url: string): Promise<MapData> {
-  const response = await fetch(
-    `${API_URL}/stored-maps/get-map?url=${url}`
-  );
+export async function getStoredMap(url: string): Promise<StorableMap> {
+  const response = await fetch(`${API_URL}/stored-maps/get-map?url=${url}`);
   const data = await response.json();
-  return {
-    content: parseMapFile(data.content),
-  };
+  return parseStorableMap(data);
 }
 
 export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
-  const response = await fetch(`${API_URL}/stored-maps/get-index?dir=${encodeURIComponent(dir)}`)
+  const response = await fetch(
+    `${API_URL}/stored-maps/get-index?dir=${encodeURIComponent(dir)}`
+  );
   const data = await response.json();
 
   const mapIndexSchema = z.record(
@@ -93,17 +96,27 @@ export async function listMettagridCfgsMetadata(): Promise<MettagridCfgsMetadata
   return parsed;
 }
 
-export async function getMettagridCfgFile(path: string): Promise<MettagridCfgFile> {
-  const response = await fetch(`${API_URL}/mettagrid-cfgs/get?path=${encodeURIComponent(path)}`);
+export async function getMettagridCfgFile(
+  path: string
+): Promise<MettagridCfgFile> {
+  const response = await fetch(
+    `${API_URL}/mettagrid-cfgs/get?path=${encodeURIComponent(path)}`
+  );
   const data = await response.json();
   return mettagridCfgFileSchema.parse(data);
 }
 
-export async function getMettagridCfgMap(path: string): Promise<{ type: 'map', data: MapData } | { type: 'error', error: string }> {
-  const response = await fetch(`${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`);
+export async function getMettagridCfgMap(
+  path: string
+): Promise<
+  { type: "map"; data: StorableMap } | { type: "error"; error: string }
+> {
+  const response = await fetch(
+    `${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`
+  );
   const data = await response.json();
   if ("error" in data) {
     return { type: "error", error: String(data.error) };
   }
-  return { type: "map", data: { content: parseMapFile(data.content) } };
+  return { type: "map", data: parseStorableMap(data) };
 }

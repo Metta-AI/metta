@@ -3,7 +3,7 @@ import { useQueryState } from "nuqs";
 import { FC, useEffect, useState } from "react";
 import Select from "react-select";
 
-import { loadStoredMapIndex } from "@/server/api";
+import { loadStoredMapIndex } from "@/lib/api";
 import { MapIndex } from "@/server/types";
 
 import { FilterItem, parseFilterParam } from "./params";

@@ -62,6 +62,16 @@ class StorableMap:
         file_utils.write_data(uri, str(self), content_type="text/plain")
         logger.info(f"Saved map to {uri}")
 
+    # Useful in API responses
+    def to_dict(self) -> dict:
+        return {
+            "frontmatter": {
+                "metadata": self.metadata,
+                "config": OmegaConf.to_container(self.config, resolve=False),
+            },
+            "data": "\n".join(grid_to_ascii(self.grid)),
+        }
+
 
 def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
     # Generate and measure time taken

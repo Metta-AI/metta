@@ -2,7 +2,7 @@ import { type SearchParams } from "nuqs/server";
 import { FC, ReactNode, Suspense } from "react";
 
 import { MapLoader } from "@/components/MapLoader";
-import { findStoredMaps } from "@/server/api";
+import { findStoredMaps } from "@/lib/api";
 
 import { LoadMoreButton } from "./LoadMoreButton";
 import { MapFilter } from "./MapFilter";

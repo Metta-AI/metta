@@ -7,7 +7,7 @@ from omegaconf import DictConfig, OmegaConf
 from pufferlib.utils import unroll_nested_dict
 
 import mettagrid.util.file
-from metta.map.utils.s3utils import get_s3_client, list_objects, parse_s3_uri
+from metta.map.utils.s3utils import list_objects
 from metta.map.utils.storable_map import StorableMap, map_builder_cfg_to_storable_map
 from metta.util.mettagrid_cfgs import (
     MettagridCfgFile,
@@ -103,11 +103,7 @@ def make_app():
 
     @app.get("/stored-maps/get-map")
     async def route_stored_maps_get_map(url: str):
-        bucket, key = parse_s3_uri(url)
-        obj = get_s3_client().get_object(Bucket=bucket, Key=key)
-        return {
-            "content": obj["Body"].read().decode("utf-8"),
-        }
+        return StorableMap.from_uri(url).to_dict()
 
     @app.post("/stored-maps/index-dir")
     async def route_stored_maps_index_dir(dir: str):
@@ -146,9 +142,7 @@ def make_app():
                 "error": str(e),
             }
 
-        return {
-            "content": str(storable_map),
-        }
+        return storable_map.to_dict()
 
     return app
 
