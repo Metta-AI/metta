@@ -49,9 +49,9 @@ export function onResize() {
   ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
 
   ui.agentPanel.x = 0;
-  ui.agentPanel.y = ui.tracePanel.y + ui.tracePanel.height;
+  ui.agentPanel.y = Common.HEADER_HEIGHT;
   ui.agentPanel.width = screenWidth;
-  ui.agentPanel.height = screenHeight - ui.agentPanel.y - Common.SCRUBBER_HEIGHT;
+  ui.agentPanel.height = ui.agentPanelSplit * screenHeight;
 
   html.actionButtons.style.top = (ui.tracePanel.y - 148) + 'px';
 
@@ -59,6 +59,7 @@ export function onResize() {
   ui.miniMapPanel.updateDiv();
   ui.infoPanel.updateDiv();
   ui.tracePanel.updateDiv();
+  ui.agentPanel.updateDiv();
 
   // Redraw the square after resizing.
   requestFrame();
@@ -76,7 +77,7 @@ function onMouseDown() {
     ui.mouseDown = true;
   }
 
-  if (Math.abs(ui.mousePos.y() - ui.agentPanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
+  if (Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD) {
     ui.agentPanelDragging = true
   } else {
     ui.mouseDown = true;
@@ -115,7 +116,7 @@ function onMouseMove(event: MouseEvent) {
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ns-resize";
   }
-  if (Math.abs(ui.mousePos.y() - ui.agentPanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
+  if (Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ns-resize";
   }
 
@@ -126,7 +127,7 @@ function onMouseMove(event: MouseEvent) {
   }
 
   if (ui.agentPanelDragging) {
-    ui.agentPanelSplit = ui.mousePos.y() / window.innerHeight
+    ui.agentPanelSplit = (ui.mousePos.y() - ui.agentPanel.y) / window.innerHeight
     onResize();
   }
 
