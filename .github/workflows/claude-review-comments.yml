@@ -17,14 +17,17 @@ permissions:
 jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     with:
       review_name: "Code Comments"
       tools: "Edit,Replace,Bash(git diff HEAD~1)"
       pr_number: ${{ inputs.pr_number || '' }}
       prompt: |
-        Please review the PR diff and specifically look for unnecessary comments in the code.
+        Review the PR diff and specifically look for unnecessary comments in the code.
 
-        **IMPORTANT**: Only create a PR comment if you find significant improvements to suggest. If there are no unnecessary comments, do not comment on the PR at all.
+        **IMPORTANT**: Only create a PR comment if you find significant improvements to suggest.
+        If there are no unnecessary comments, do not comment on the PR at all.
 
         Focus on identifying comments that:
         1. Merely restate what the code is doing (e.g., "# increment counter" for "counter += 1")
@@ -36,7 +39,7 @@ jobs:
         For each unnecessary comment you find:
         - Specify its location (file and line number)
         - Explain why it's unnecessary
-        - Create a suggested change (using GitHub's suggested change format) showing the code with the comment removed
+        - Create a suggestion showing the code with the comment removed
 
         A good comment should explain WHY something is done, not WHAT is done, when the WHAT is clear from the code itself.
         For example, "# set git detachedHead config to false" is unnecessary for "git config advice.detachedHead false"
@@ -45,16 +48,8 @@ jobs:
         Follow these steps:
         1. First, examine the diff to identify files with changes
         2. For each file, identify any unnecessary comments in the changed code
-        3. For each unnecessary comment, create a suggested change showing the code without the comment
+        3. For each unnecessary comment, create a suggestion showing the code without the comment
         4. Summarize all your findings in a clear, organized PR comment
 
-        When creating suggested changes:
-        - Use GitHub's suggestion format so users can directly commit them
-        - Only remove the comment, leaving the actual code unchanged
-        - If a multi-line comment should be removed, show the complete removal
-
-        Be polite and constructive in your feedback. Explain that these are suggestions that the developer can choose to accept or ignore.
-
-        At the end of your PR comment, include a short **TLDR** section. This section should be easy to copy and paste into another LLM and concisely list each recommended change. Use one bullet per suggestion and mention the file and line number when possible.
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+        Be polite and constructive in your feedback. Explain that these are suggestions that the developer
+        can choose to accept or ignore.
