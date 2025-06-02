@@ -1,3 +1,4 @@
-_target_: mettagrid.curriculum.SingleTaskCurriculum
+_target_: mettagrid.curriculum.LowRewardCurriculum
 
-task_id: /env/mettagrid/cooperation/training/two_rooms_coord
+tasks:
+  /env/mettagrid/cooperation/training/two_rooms_coord: 1
