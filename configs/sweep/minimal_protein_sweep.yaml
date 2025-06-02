@@ -1,0 +1,14 @@
+sweep:
+  learning_rate:
+    min: 1e-5
+    max: 1e-2
+    scale: 1
+    mean: 1e-3
+    distribution: log_normal
+
+  batch_size:
+    min: 16
+    max: 128
+    scale: 1
+    mean: 64
+    distribution: int_uniform
