@@ -1,7 +1,6 @@
 import pytest
 from omegaconf import OmegaConf
 from omegaconf.errors import ConfigAttributeError
-from pydantic import ValidationError
 
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -15,5 +14,5 @@ def test_invalid_env_map_type_raises():
 
 
 def test_invalid_env_cfg_type_raises():
-    with pytest.raises(ValidationError):
+    with pytest.raises(AssertionError):
         MettaGridEnv({}, render_mode=None)
