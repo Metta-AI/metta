@@ -66,6 +66,9 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
   if (!globalHandlers.has(event)) {
     // First time we've seen this event.
     window.addEventListener(event, (e: Event) => {
+      if (event == "click") {
+        hideMenu();
+      }
       let handlers = globalHandlers.get(event);
       if (handlers) {
         var target = e.target as HTMLElement;
@@ -85,45 +88,20 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
   globalHandlers.get(event)?.push(handler);
 }
 
-// var scrim = find('#scrim') as HTMLDivElement;
-// var scrimTarget: HTMLElement | null = null;
-// scrim.classList.add("hidden");
-// onEvent("click", "#scrim", (target: HTMLElement, e: Event) => {
-//   scrim.classList.add("hidden");
-//   if (scrimTarget != null) {
-//     scrimTarget.classList.add("hidden");
-//   }
-// });
 
-// // Shows a menu and sets the scrim target to the menu.
-// export function showMenu(target: HTMLElement, menu: HTMLElement) {
-//   // Get location of the target.
-//   let rect = target.getBoundingClientRect();
-//   menu.style.left = rect.left + "px";
-//   menu.style.top = (rect.bottom + 2) + "px";
-//   menu.classList.remove("hidden");
-//   scrim.classList.remove("hidden");
-//   scrimTarget = menu;
-// }
-
-// // Hides the menu and the scrim.
-// export function hideMenu() {
-//   scrim.classList.add("hidden");
-//   if (scrimTarget != null) {
-//     scrimTarget.classList.add("hidden");
-//   }
-// }
-
-
-var scrim = find('#scrim') as HTMLDivElement;
-var scrimTarget: HTMLElement | null = null;
-scrim.classList.add("hidden");
+// Menus are hidden on any click outside the menu, and are clicked through.
+// Dropdowns are hidden on any click outside the dropdown, and are not clicked
+// through, as they have a scrim.
 
 var openMenuTarget: HTMLElement | null = null;
 var openMenu: HTMLElement | null = null;
 
 // Shows a menu and sets the scrim target to the menu.
 export function showMenu(target: HTMLElement, menu: HTMLElement) {
+
+  // Hide any other open menu.
+  hideMenu();
+
   // Get location of the target.
   openMenuTarget = target;
   openMenu = menu;
@@ -144,4 +122,40 @@ export function hideMenu() {
     openMenu.classList.add("hidden");
     openMenu = null;
   }
+}
+
+var openDropdownTarget: HTMLElement | null = null;
+var openDropdown: HTMLElement | null = null;
+var scrim = find('#scrim') as HTMLDivElement;
+var scrimTarget: HTMLElement | null = null;
+scrim.classList.add("hidden");
+
+onEvent("click", "#scrim", (target: HTMLElement, event: Event) => {
+  hideMenu();
+  hideDropdown();
+});
+
+// Shows a dropdown and sets the scrim target to the dropdown.
+export function showDropdown(target: HTMLElement, dropdown: HTMLElement) {
+  hideDropdown();
+  openDropdown = dropdown;
+  openDropdownTarget = target;
+  let rect = openDropdownTarget.getBoundingClientRect();
+  openDropdown.style.left = rect.left + "px";
+  openDropdown.style.top = (rect.bottom + 2) + "px";
+  openDropdown.classList.remove("hidden");
+  scrim.classList.remove("hidden");
+}
+
+// Hides the dropdown and the scrim.
+export function hideDropdown() {
+  if (openDropdownTarget != null) {
+    openDropdownTarget.classList.remove("selected");
+    openDropdownTarget = null;
+  }
+  if (openDropdown != null) {
+    openDropdown.classList.add("hidden");
+    openDropdown = null;
+  }
+  scrim.classList.add("hidden");
 }

@@ -536,28 +536,28 @@ html, body {
                 css["flex-shrink"] = "1"
                 css["flex-basis"] = "auto"
 
-            layout_sizing_horizontal = element.get("layoutSizingHorizontal")
-            layout_sizing_vertical = element.get("layoutSizingVertical")
+        layout_sizing_horizontal = element.get("layoutSizingHorizontal")
+        layout_sizing_vertical = element.get("layoutSizingVertical")
 
-            if layout_sizing_horizontal == "FIXED":
-                # Fixed size is handled by the width/height already set
-                pass
-            elif layout_sizing_horizontal == "FILL":
-                css["width"] = "100%"
-            elif layout_sizing_horizontal == "HUG":
-                css["width"] = "fit-content"
-            else:
-                print("Unknown layout sizing horizontal:", layout_sizing_horizontal)
+        if layout_sizing_horizontal == "FIXED" or layout_sizing_horizontal is None:
+            # Fixed size is handled by the width/height already set
+            pass
+        elif layout_sizing_horizontal == "FILL":
+            css["width"] = "100%"
+        elif layout_sizing_horizontal == "HUG":
+            css["width"] = "fit-content"
+        else:
+            print("Unknown layout sizing horizontal:", layout_sizing_horizontal)
 
-            if layout_sizing_vertical == "FIXED":
-                # Fixed size is handled by the width/height already set
-                pass
-            elif layout_sizing_vertical == "FILL":
-                css["height"] = "100%"
-            elif layout_sizing_vertical == "HUG":
-                css["height"] = "fit-content"
-            else:
-                print("Unknown layout sizing vertical:", layout_sizing_vertical)
+        if layout_sizing_vertical == "FIXED" or layout_sizing_vertical is None:
+            # Fixed size is handled by the width/height already set
+            pass
+        elif layout_sizing_vertical == "FILL":
+            css["height"] = "100%"
+        elif layout_sizing_vertical == "HUG":
+            css["height"] = "fit-content"
+        else:
+            print("Unknown layout sizing vertical:", layout_sizing_vertical)
 
     def compute_text_properties(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
         """Computes the text properties"""

@@ -41,8 +41,8 @@ canvas#global-canvas {
 #footer .left {
     position: absolute;
     display: flex;
-    width: 180px;
-    height: 32px;
+    width: fit-content;
+    height: fit-content;
     left: 20px;
     top: 50%;
     transform: translate(0, -16px);
@@ -101,8 +101,8 @@ canvas#global-canvas {
 #footer .center {
     position: absolute;
     display: flex;
-    width: 157px;
-    height: 32px;
+    width: fit-content;
+    height: fit-content;
     left: 50%;
     top: 50%;
     transform: translate(-78.50px, -16px);
@@ -170,8 +170,8 @@ canvas#global-canvas {
 #footer .right {
     position: absolute;
     display: flex;
-    width: 340px;
-    height: 32px;
+    width: fit-content;
+    height: fit-content;
     right: 20px;
     top: 50%;
     transform: translate(0, -16px);
@@ -283,7 +283,7 @@ canvas#global-canvas {
 #time-panel {
     position: absolute;
     display: flex;
-    height: 64px;
+    height: fit-content;
     left: 0px;
     right: 0px;
     bottom: 64px;
@@ -425,7 +425,7 @@ button#help-button.hover-icon .icon {
     position: absolute;
     display: flex;
     width: 616px;
-    height: 274px;
+    height: fit-content;
     left: 50%;
     top: 50%;
     transform: translate(-307.50px, -137px);
@@ -479,8 +479,8 @@ button#help-button.hover-icon .icon {
 #toast {
     position: absolute;
     display: flex;
-    width: 317px;
-    height: 51px;
+    width: fit-content;
+    height: fit-content;
     left: 50%;
     bottom: 23px;
     transform: translate(-158.50px, 0);
@@ -515,7 +515,7 @@ button#help-button.hover-icon .icon {
 #info-panel {
     position: absolute;
     display: flex;
-    width: 170px;
+    width: fit-content;
     height: 257px;
     right: 0px;
     bottom: 192px;
@@ -1124,6 +1124,15 @@ button#help-button.hover-icon .icon {
     line-height: 18.20px;
 }
 
+.header-cell .sort-icon {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
 .header-cell .dropdown.show-on-hover {
     position: relative;
     display: flex;
@@ -1274,15 +1283,14 @@ button#help-button.hover-icon .icon {
     position: absolute;
     display: flex;
     width: 313px;
-    height: 124px;
-    left: 1377px;
-    top: 109px;
+    height: fit-content;
+    left: 492px;
+    top: 80px;
     flex-direction: column;
     flex-wrap: nowrap;
     padding: 0px 0px 10px 0px;
     background-color: rgba(28, 29, 30, 1.00);
     border-radius: 10px;
-    overflow: hidden;
     border-color: rgba(79, 79, 79, 1.00);
     border-width: 1px;
     border-style: solid;
@@ -1402,49 +1410,64 @@ button#help-button.hover-icon .icon {
     background-color: rgba(79, 79, 79, 1.00);
 }
 
-#new-column-dropdown .new-field-options {
+#new-column-dropdown .column-options {
     position: relative;
     display: flex;
     width: 312px;
     height: fit-content;
-    flex-direction: row;
+    flex-direction: column;
     flex-wrap: nowrap;
     gap: 4px;
     padding: 10px 10px 10px 10px;
-    align-items: center;
     background-color: rgba(0, 0, 0, 0.00);
 }
 
-.new-field-options .ui/check-on {
+.column-options .column-option {
     position: relative;
+    display: block;
+    width: 306px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+}
+
+.column-option .step-check {
+    position: absolute;
     display: block;
     width: 20px;
     height: 20px;
+    left: 0px;
+    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
-.new-field-options .ui/check-off {
-    position: relative;
+.column-option .final-check {
+    position: absolute;
     display: block;
     width: 20px;
     height: 20px;
+    left: 24px;
+    top: 0px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }
 
-.new-field-options .icon {
-    position: relative;
+.column-option .icon {
+    position: absolute;
     display: block;
     width: 20px;
     height: 20px;
+    left: 48px;
+    top: 0px;
 }
 
-.new-field-options .name {
-    position: relative;
+.column-option .name {
+    position: absolute;
     display: inline-block;
     width: 234px;
     height: 20px;
+    left: 72px;
+    top: 0px;
     color: rgba(224, 224, 224, 1.00);
     font-family: IBM Plex Sans;
     font-style: normal;
@@ -1469,9 +1492,9 @@ button#help-button.hover-icon .icon {
     position: absolute;
     display: flex;
     width: 162px;
-    height: 216px;
-    left: 752px;
-    top: 184px;
+    height: fit-content;
+    left: 305px;
+    top: 79px;
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 4px;
