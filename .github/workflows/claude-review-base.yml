@@ -229,7 +229,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
           anthropic_model: ${{ env.CLAUDE_MODEL }}
-          allowed_tools: "${{ inputs.tools }},Write"  # Add Write tool to save JSON
+          allowed_tools: "${{ inputs.tools }},Write" # Add Write tool to save JSON
           direct_prompt: |
             ${{ env.UNIVERSAL_PROMPT_PREFIX }}
 
