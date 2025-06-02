@@ -54,7 +54,7 @@ class PolicyRecord:
             self._local_path = pr.local_path()
         return self._policy
 
-    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
+    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent, PufferAgent]:
         """Get the policy as a MettaAgent or DistributedMettaAgent."""
         policy = self.policy()
         if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PufferAgent)):

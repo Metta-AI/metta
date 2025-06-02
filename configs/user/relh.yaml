@@ -12,7 +12,7 @@ npc_policy_uri: null
 
 puffer:
  _target_: metta.agent.external.example.Recurrent
- hidden_size: 512 
+ hidden_size: 512
  cnn_channels: 128
 
 #run: andre_local_2025_05_26_a
