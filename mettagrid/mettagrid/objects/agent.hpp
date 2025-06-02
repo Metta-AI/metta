@@ -133,8 +133,10 @@ public:
     features.push_back({ObservationFeature::Color, color});
     features.push_back({ObservationFeature::LastAction, last_action});
     features.push_back({ObservationFeature::LastActionSuccess, last_action_success});
-    features.push_back({ObservationFeature::LastReward, last_reward});
-    features.push_back({ObservationFeature::TotalReward, total_reward});
+    features.push_back(
+        {ObservationFeature::LastReward, static_cast<uint8_t>(std::clamp(last_reward + 128, 0.0f, 255.0f))});
+    features.push_back(
+        {ObservationFeature::TotalReward, static_cast<uint8_t>(std::clamp(total_reward / 10.0f + 128, 0.0f, 255.0f))});
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (inventory[i] > 0) {
         features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
@@ -153,10 +155,10 @@ public:
     obs[offsets[6]] = color;
     obs[offsets[7]] = last_action;
     obs[offsets[8]] = last_action_success;
-    obs[offsets[9]] = last_reward;
-    obs[offsets[10]] = total_reward;
+    obs[offsets[9]] = static_cast<uint8_t>(std::clamp(last_reward + 128, 0.0f, 255.0f));
+    obs[offsets[10]] = static_cast<uint8_t>(std::clamp(total_reward / 10.0f + 128, 0.0f, 255.0f));
 
-    for (int i = 0; i < InventoryItemCount; i++) {
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       obs[offsets[11 + i]] = inventory[i];
     }
   }

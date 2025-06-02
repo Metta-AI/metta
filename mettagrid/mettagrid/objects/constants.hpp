@@ -38,6 +38,10 @@ enum ObservationFeatureEnum : uint8_t {
   Color = 6,
   ConvertingOrCoolingDown = 7,
   Swappable = 8,
+  LastAction = 9,
+  LastActionSuccess = 10,
+  LastReward = 11,
+  TotalReward = 12,
   ObservationFeatureCount
 };
 }  // namespace ObservationFeature
@@ -87,8 +91,16 @@ enum InventoryItem {
   InventoryItemCount
 };
 
-constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {
-    {"ore.red", "ore.blue", "ore.green", "battery.red", "battery.blue", "battery.green", "heart", "armor", "laser", "blueprint"}};
+constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {{"ore.red",
+                                                                                  "ore.blue",
+                                                                                  "ore.green",
+                                                                                  "battery.red",
+                                                                                  "battery.blue",
+                                                                                  "battery.green",
+                                                                                  "heart",
+                                                                                  "armor",
+                                                                                  "laser",
+                                                                                  "blueprint"}};
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 

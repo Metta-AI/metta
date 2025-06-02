@@ -51,10 +51,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
   _obs_encoder = std::make_unique<ObservationEncoder>();
   _grid_features = _obs_encoder->feature_names();
-  _grid_features.push_back("agent:last_action");
-  _grid_features.push_back("agent:last_action_success");
-  _grid_features.push_back("agent:last_reward");
-  _grid_features.push_back("agent:total_reward");
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
@@ -278,20 +274,6 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
         }
       }
     }
-
-    // Add agent-specific features in the center cell
-    int center_r = obs_height >> 1;
-    int center_c = obs_width >> 1;
-
-    auto& agent = _agents[agent_idx];
-    size_t last_action_feature_idx = _grid_features.size() - 4;
-
-    observation_view(agent_idx, center_r, center_c, last_action_feature_idx) = agent->last_action;
-    observation_view(agent_idx, center_r, center_c, last_action_feature_idx + 1) = agent->last_action_success;
-    observation_view(agent_idx, center_r, center_c, last_action_feature_idx + 2) =
-        static_cast<uint8_t>(std::clamp(agent->last_reward + 128, 0.0f, 255.0f));
-    observation_view(agent_idx, center_r, center_c, last_action_feature_idx + 3) =
-        static_cast<uint8_t>(std::clamp(agent->total_reward / 10.0f + 128, 0.0f, 255.0f));
   }
 }
 
