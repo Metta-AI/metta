@@ -595,6 +595,13 @@ class PufferTrainer:
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
+
+                    # check if there are parameters that have not received a gradient
+                    # we have to check that on every rank to see if the all reduce really worked
+                    unused = [n for n, p in self.policy.named_parameters() if p.requires_grad and p.grad is None]
+                    if unused:
+                        print(f"Parameters without gradients on rank {torch.distributed.get_rank()}: {unused}")
+
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
 
