@@ -34,19 +34,26 @@ on:
 env:
   CLAUDE_MODEL: "claude-opus-4-20250514"
 
-  # Collect suggestions in structured JSON format for inline reviews
+  # Updated prompt that tells Claude to only create JSON if there are issues
   UNIVERSAL_PROMPT_PREFIX: |
-    ## GitHub PR Review Instructions - JSON Output Mode
+    ## GitHub PR Review Instructions - Conditional JSON Output
 
-    You are reviewing a GitHub Pull Request. You must output your analysis as a JSON file.
+    You are reviewing a GitHub Pull Request. Your primary goal is to find issues that need to be addressed.
 
-    CRITICAL: You must use the Write tool to save your analysis to a file named
-    'claude-review-analysis.json' in the current directory.
+    **CRITICAL INSTRUCTIONS:**
+    1. First, analyze the code according to the specific review focus
+    2. If you find NO issues, suggestions, or required changes:
+       - Simply respond with "No issues found."
+       - DO NOT create any JSON file
+       - DO NOT use the Write tool
+    3. ONLY if you find issues that need to be addressed:
+       - Use the Write tool to save your analysis to 'claude-review-analysis.json'
+       - Include suggestions for improvements
 
-    The JSON structure must be:
+    When creating JSON (only if issues are found), use this structure:
     {
       "review_summary": "Brief overall assessment of the PR",
-      "review_status": "APPROVE|COMMENT|CHANGES_REQUESTED",
+      "review_status": "COMMENT|CHANGES_REQUESTED",  // Never use APPROVE
       "suggestions": [
         {
           "file": "path/to/file.py",
@@ -72,13 +79,10 @@ env:
       ]
     }
 
-    Review Process:
-    1. Analyze the code according to the specific review focus
-    2. Build the JSON structure with all findings
-    3. Use the Write tool to save to 'claude-review-analysis.json'
-    4. Confirm the file was written successfully
-
-    Important: The review_status should reflect the severity of issues found.
+    Remember:
+    - Only create the JSON file if you have actual suggestions
+    - Never use review_status: "APPROVE" - if there are no issues, don't create a file
+    - Focus on finding genuine improvements, not nitpicks
 
     ---
     Now, here are your specific review instructions:
@@ -202,25 +206,6 @@ jobs:
 
           pip install ${{ inputs.install_packages }}
 
-      # Debug: Log current directory and files before Claude runs
-      - name: Debug - Pre-Claude State
-        if: steps.check-files.outputs.has_relevant_changes == 'true'
-        run: |
-          echo "=== PRE-CLAUDE DEBUG ==="
-          echo "Current directory: $(pwd)"
-          echo "Files in current directory:"
-          ls -la
-          echo ""
-          echo "Git status:"
-          git status --short
-          echo ""
-          echo "PR Context:"
-          echo "- PR Number: ${{ steps.pr-context.outputs.pr_number }}"
-          echo "- Base Ref: ${{ steps.pr-context.outputs.base_ref }}"
-          echo "- Review Name: ${{ inputs.review_name }}"
-          echo "- Tools: ${{ inputs.tools }}"
-          echo "========================"
-
       # Stage 1: Run Claude Analysis
       - name: "Stage 1: Claude Analysis"
         id: claude-analysis
@@ -229,52 +214,24 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
           anthropic_model: ${{ env.CLAUDE_MODEL }}
-          allowed_tools: "${{ inputs.tools }},Write" # Add Write tool to save JSON
+          allowed_tools: "${{ inputs.tools }},Write"
           direct_prompt: |
             ${{ env.UNIVERSAL_PROMPT_PREFIX }}
 
             ${{ inputs.prompt }}
 
-            Remember: You must use the Write tool to save your analysis to 'claude-review-analysis.json'
+            Remember: Only create the JSON file if you find actual issues to report.
 
-      # Debug: Check what Claude created
-      - name: Debug - Post-Claude State
-        if: always() && steps.claude-analysis.outcome != 'skipped'
-        run: |
-          echo "=== POST-CLAUDE DEBUG ==="
-          echo "Claude execution outcome: ${{ steps.claude-analysis.outcome }}"
-          echo ""
-          echo "Files in current directory:"
-          ls -la
-          echo ""
-          echo "Looking for JSON files:"
-          find . -name "*.json" -type f -exec echo "Found: {}" \; -exec head -20 {} \; 2>/dev/null || echo "No JSON files found"
-          echo ""
-          if [ -f "claude-review-analysis.json" ]; then
-            echo "✅ claude-review-analysis.json exists"
-            echo "File size: $(stat -c%s claude-review-analysis.json 2>/dev/null || stat -f%z claude-review-analysis.json) bytes"
-            echo "First 500 characters:"
-            head -c 500 claude-review-analysis.json
-            echo ""
-          else
-            echo "❌ claude-review-analysis.json NOT found"
-          fi
-          echo "========================"
-
-      # Parse the JSON output
+      # Parse the JSON output (if it exists)
       - name: Parse Analysis Results
         id: parse-analysis
         if: steps.claude-analysis.outcome == 'success'
         run: |
           echo "=== PARSING ANALYSIS ==="
 
+          # Check if Claude created the JSON file
           if [ -f "claude-review-analysis.json" ]; then
-            echo "✅ Found claude-review-analysis.json"
-
-            # Show raw content for debugging
-            echo "Raw JSON content:"
-            cat claude-review-analysis.json
-            echo ""
+            echo "✅ Found claude-review-analysis.json - Claude found issues to report"
 
             # Validate JSON
             if jq empty claude-review-analysis.json 2>/dev/null; then
@@ -285,57 +242,41 @@ jobs:
               SUGGESTION_COUNT=$(jq '.suggestions | length' claude-review-analysis.json)
               HAS_SUGGESTIONS=$([ "$SUGGESTION_COUNT" -gt 0 ] && echo "true" || echo "false")
 
-              # Additional debug info
-              COMPLIMENT_COUNT=$(jq '.compliments | length' claude-review-analysis.json 2>/dev/null || echo "0")
-              TLDR_COUNT=$(jq '.tldr | length' claude-review-analysis.json 2>/dev/null || echo "0")
-
               echo "review_status=$REVIEW_STATUS" >> $GITHUB_OUTPUT
               echo "suggestion_count=$SUGGESTION_COUNT" >> $GITHUB_OUTPUT
               echo "has_suggestions=$HAS_SUGGESTIONS" >> $GITHUB_OUTPUT
+              echo "found_issues=true" >> $GITHUB_OUTPUT
 
               echo "📊 Review Status: $REVIEW_STATUS"
               echo "💡 Suggestions: $SUGGESTION_COUNT"
-              echo "✨ Compliments: $COMPLIMENT_COUNT"
-              echo "📝 TLDR items: $TLDR_COUNT"
-
-              # Show first suggestion for debugging
-              if [ "$SUGGESTION_COUNT" -gt 0 ]; then
-                echo ""
-                echo "First suggestion preview:"
-                jq '.suggestions[0]' claude-review-analysis.json
-              fi
             else
               echo "❌ Invalid JSON in claude-review-analysis.json"
-              echo "jq error output:"
-              jq empty claude-review-analysis.json 2>&1
-              echo ""
-              echo "Attempting to show parse errors:"
-              python3 -m json.tool claude-review-analysis.json 2>&1 || true
               exit 1
             fi
           else
-            echo "❌ claude-review-analysis.json not found"
-            echo "Claude may not have created the file or there were no suggestions"
+            echo "✅ No claude-review-analysis.json found - Claude found no issues"
+            echo "This is the expected behavior when there are no problems to report"
             echo "has_suggestions=false" >> $GITHUB_OUTPUT
             echo "suggestion_count=0" >> $GITHUB_OUTPUT
-            echo "review_status=COMMENT" >> $GITHUB_OUTPUT
+            echo "review_status=NONE" >> $GITHUB_OUTPUT
+            echo "found_issues=false" >> $GITHUB_OUTPUT
           fi
 
           echo "========================"
 
-      # Upload the JSON as an artifact for debugging
+      # Upload the JSON as an artifact for debugging (only if it exists)
       - name: Upload Analysis Artifact
-        if: steps.parse-analysis.outcome == 'success' && steps.parse-analysis.outputs.has_suggestions == 'true'
+        if: steps.parse-analysis.outcome == 'success' && steps.parse-analysis.outputs.found_issues == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: claude-review-${{ inputs.review_name }}-analysis
           path: claude-review-analysis.json
           retention-days: 7
 
-      # Stage 2: Create GitHub Review
+      # Stage 2: Create GitHub Review (ONLY if issues were found)
       - name: "Stage 2: Create GitHub Review"
         id: create-review
-        if: steps.parse-analysis.outputs.has_suggestions == 'true' || steps.parse-analysis.outputs.review_status == 'APPROVE'
+        if: steps.parse-analysis.outputs.found_issues == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -345,20 +286,9 @@ jobs:
             console.log('=== CREATING GITHUB REVIEW ===');
 
             // Read the analysis
-            let analysis;
-            try {
-              const content = fs.readFileSync('claude-review-analysis.json', 'utf8');
-              analysis = JSON.parse(content);
-              console.log(`📋 Loaded analysis with ${analysis.suggestions?.length || 0} suggestions`);
-            } catch (error) {
-              console.log('Could not read analysis file, creating approval review');
-              analysis = {
-                review_status: 'APPROVE',
-                review_summary: 'No issues found in this review.',
-                suggestions: [],
-                tldr: []
-              };
-            }
+            const content = fs.readFileSync('claude-review-analysis.json', 'utf8');
+            const analysis = JSON.parse(content);
+            console.log(`📋 Loaded analysis with ${analysis.suggestions?.length || 0} suggestions`);
 
             // Get PR files
             console.log('Fetching PR files...');
@@ -423,9 +353,6 @@ jobs:
             }
 
             console.log(`💬 Prepared ${comments.length} review comments`);
-            if (skippedSuggestions.length > 0) {
-              console.log(`⚠️  Skipped ${skippedSuggestions.length} suggestions:`, skippedSuggestions);
-            }
 
             // Create review body
             const reviewName = '${{ inputs.review_name }}' || 'Code';
@@ -440,7 +367,7 @@ jobs:
               `- **Files reviewed**: ${files.length}`,
               '',
               ...(analysis.tldr?.length > 0 ? [
-                '### TLDR',
+                '### Quick Summary',
                 ...analysis.tldr.map(item => `- ${item}`),
                 ''
               ] : []),
@@ -472,21 +399,9 @@ jobs:
               });
 
               console.log(`✅ Created review #${review.data.id} with ${comments.length} inline comments`);
-              console.log(`📝 Review URL: ${review.data.html_url}`);
 
             } catch (error) {
               console.error('❌ Failed to create review:', error.message);
-
-              if (error.status === 422 && error.response?.data) {
-                console.log('Validation error details:', JSON.stringify(error.response.data, null, 2));
-
-                // Log specific validation errors
-                if (error.response.data.errors) {
-                  error.response.data.errors.forEach((err, idx) => {
-                    console.log(`Error ${idx + 1}:`, err);
-                  });
-                }
-              }
 
               // Fallback: Create a simple comment
               console.log('Falling back to regular PR comment...');
@@ -494,27 +409,10 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: ${{ steps.pr-context.outputs.pr_number }},
-                body: [
-                  reviewBody,
-                  '',
-                  '### ⚠️ Note',
-                  'Could not create inline suggestions due to technical limitations. Here are the suggestions:',
-                  '',
-                  ...(analysis.suggestions || []).map(s => [
-                    `**${s.file}:${s.start_line}${s.end_line ? '-' + s.end_line : ''}**`,
-                    `${s.severity}: ${s.reason}`,
-                    '```diff',
-                    ...s.original_code.split('\n').map(line => `- ${line}`),
-                    ...s.suggested_code.split('\n').map(line => `+ ${line}`),
-                    '```',
-                    ''
-                  ].flat())
-                ].join('\n')
+                body: reviewBody
               });
               console.log('✅ Created fallback comment');
             }
-
-            console.log('=== REVIEW CREATION COMPLETE ===');
 
       - name: Capture Review Results
         if: always()
@@ -524,11 +422,17 @@ jobs:
           if [ "${{ steps.check-files.outputs.has_relevant_changes }}" != "true" ]; then
             echo "- **Status:** ⏭️ Skipped (no matching files)" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ steps.claude-analysis.outcome }}" == "success" ]; then
-            echo "- **Status:** ✅ Review completed" >> $GITHUB_STEP_SUMMARY
-            echo "- **Review decision:** ${{ steps.parse-analysis.outputs.review_status }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Files reviewed:** ${{ steps.check-files.outputs.matched_count }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Suggestions:** ${{ steps.parse-analysis.outputs.suggestion_count }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Review posted:** Check PR for inline suggestions" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.parse-analysis.outputs.found_issues }}" == "true" ]; then
+              echo "- **Status:** ✅ Review completed with suggestions" >> $GITHUB_STEP_SUMMARY
+              echo "- **Review decision:** ${{ steps.parse-analysis.outputs.review_status }}" >> $GITHUB_STEP_SUMMARY
+              echo "- **Files reviewed:** ${{ steps.check-files.outputs.matched_count }}" >> $GITHUB_STEP_SUMMARY
+              echo "- **Suggestions:** ${{ steps.parse-analysis.outputs.suggestion_count }}" >> $GITHUB_STEP_SUMMARY
+              echo "- **Review posted:** Check PR for inline suggestions" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Status:** ✅ Review completed - no issues found" >> $GITHUB_STEP_SUMMARY
+              echo "- **Files reviewed:** ${{ steps.check-files.outputs.matched_count }}" >> $GITHUB_STEP_SUMMARY
+              echo "- **Result:** No changes needed" >> $GITHUB_STEP_SUMMARY
+            fi
           else
             echo "- **Status:** ❌ Review failed" >> $GITHUB_STEP_SUMMARY
             echo "- **Error:** Check logs for details" >> $GITHUB_STEP_SUMMARY
@@ -537,36 +441,3 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "*[View full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*" >> $GITHUB_STEP_SUMMARY
-
-      # Final debug summary
-      - name: Debug - Final Summary
-        if: always()
-        run: |
-          echo "=== FINAL DEBUG SUMMARY ==="
-          echo "Workflow: ${{ inputs.review_name }}"
-          echo "PR: #${{ steps.pr-context.outputs.pr_number }}"
-          echo ""
-          echo "Step Outcomes:"
-          echo "- Check files: ${{ steps.check-files.outcome }}"
-          echo "- Claude analysis: ${{ steps.claude-analysis.outcome }}"
-          echo "- Parse analysis: ${{ steps.parse-analysis.outcome }}"
-          echo "- Create review: ${{ steps.create-review.outcome || 'N/A' }}"
-          echo ""
-          echo "Analysis Results:"
-          echo "- Has relevant changes: ${{ steps.check-files.outputs.has_relevant_changes }}"
-          echo "- Review status: ${{ steps.parse-analysis.outputs.review_status || 'N/A' }}"
-          echo "- Suggestions count: ${{ steps.parse-analysis.outputs.suggestion_count || '0' }}"
-          echo "- Has suggestions: ${{ steps.parse-analysis.outputs.has_suggestions || 'false' }}"
-          echo ""
-          echo "Artifacts:"
-          if [ -f "claude-review-analysis.json" ]; then
-            echo "- ✅ claude-review-analysis.json exists ($(wc -c < claude-review-analysis.json) bytes)"
-          else
-            echo "- ❌ claude-review-analysis.json NOT found"
-          fi
-          echo ""
-          echo "Environment:"
-          echo "- Model: ${{ env.CLAUDE_MODEL }}"
-          echo "- Runner: ${{ runner.os }}"
-          echo "- Triggered by: ${{ github.event_name }}"
-          echo "==========================="
