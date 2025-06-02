@@ -12,9 +12,9 @@ trainer:
   # evaluate_interval: 100
   # checkpoint_interval: 100
 
-replay_job:
-  policy_uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
+# replay_job:
+#   policy_uri: wandb://run/daphne_objectuse_allobjs_multienv:v94
 #   # wandb.enabled: false
 #   wandb.track: false
 
-run: mrazo_action-obs_navigation_v01
+run: mrazo_action-obs_navigation_v02
