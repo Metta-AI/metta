@@ -2,7 +2,7 @@
 
 import json
 
-from metta.rl.pufferlib.profile import Profile, _fmt_perf
+from metta.rl.pufferlib.profile import Profile
 
 
 class TestProfile:
