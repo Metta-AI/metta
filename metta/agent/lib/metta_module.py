@@ -53,9 +53,11 @@ class MettaModule(nn.Module, ABC):
         Returns:
             Updated TensorDict with new output tensors
         """
-        self._validate_input_keys(td)
-        if self.input_features_shape is not None:
-            self._check_shapes(td)
+        if __debug__:
+            self._validate_input_keys(td)
+            if self.input_features_shape is not None:
+                self._check_shapes(td)
+
         outputs = self._compute(td)
         for key, tensor in outputs.items():
             td[key] = tensor

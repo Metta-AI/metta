@@ -64,6 +64,9 @@ class ModularNetwork(MettaModule):
 
         self._update_network_keys()
 
+        if __debug__:
+            self._validate_network()
+
     def compute_component(self, node_id: str, td: TensorDict) -> TensorDict:
         """Compute the output of a component.
         Caution: This function does not clear the computation cache.
@@ -85,7 +88,7 @@ class ModularNetwork(MettaModule):
         module = self.nodes[node_id]  # type: ignore[index]
 
         # Recursively compute inputs
-        for in_key in module.in_keys:
+        for in_key in module.in_keys:  # type: ignore[attr-defined]
             if in_key in self.out_key_to_node:
                 higher_level_component = self.out_key_to_node[in_key]
                 self.compute_component(higher_level_component, td)
@@ -135,3 +138,17 @@ class ModularNetwork(MettaModule):
 
         # Return only the requested output keys
         return {key: td[key] for key in self.out_keys}
+
+    def _validate_network(self) -> None:
+        """Validate the network."""
+        # Check for cycles in the network
+        for node_id, module in self.nodes.items():
+            for in_key in module.in_keys:
+                if in_key in self.out_key_to_node:
+                    higher_level_component = self.out_key_to_node[in_key]
+                    if higher_level_component == node_id:
+                        raise ValueError(f"Cycle detected in network: {node_id} -> {higher_level_component}")
+
+        # Check that all out_keys are unique
+        if len(self.out_keys) != len(set(self.out_keys)):
+            raise ValueError("Out-keys are not unique")
