@@ -122,7 +122,7 @@ class MettaLinear(MettaModule):
     ):
         super().__init__(in_keys, out_keys, input_features_shape, output_features_shape)
         if len(in_keys) != 1 or len(out_keys) != 1:
-            raise ValueError("LinearModule requires exactly one input and one output key")
+            raise ValueError("MettaLinear requires exactly one input and one output key")
 
         if self.input_features_shape is None or self.output_features_shape is None:
             raise ValueError("LinearModule requires both input_features_shape and output_features_shape")
@@ -151,6 +151,8 @@ class MettaReLU(MettaModule):
         out_keys: List[str],
     ):
         super().__init__(in_keys, out_keys)
+        if len(in_keys) != 1 or len(out_keys) != 1:
+            raise ValueError("MettaReLU requires exactly one input and one output key")
         self.relu = nn.ReLU()
 
     @property

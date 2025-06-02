@@ -67,7 +67,7 @@ class ModularNetwork(MettaModule):
     def compute_component(self, node_id: str, td: TensorDict) -> TensorDict:
         """Compute the output of a component.
         Caution: This function does not clear the computation cache.
-        If you want to clear the cache, you need to call _computed_components.clear()
+        If you want to clear the cache, you need to call _computed_components.clear() first.
 
         Args:
             node_id: Identifier of the component to compute
