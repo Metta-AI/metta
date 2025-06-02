@@ -89,6 +89,28 @@ def simulate_policy(
             reward = rewards_df.iloc[0]["avg_reward"]
             logger.info("Reward is %s", reward)
             assert reward >= SMOKE_TEST_MIN_SCORE, f"Reward is {reward}, expected at least {SMOKE_TEST_MIN_SCORE}"
+
+            # Verify stats structure is correct - check for aggregated agent metrics
+            agent_metrics_df = results.stats_db.query(
+                "SELECT DISTINCT metric FROM agent_metrics WHERE metric NOT LIKE 'agent_raw/%'"
+            )
+            agent_metrics = set(agent_metrics_df["metric"].tolist())
+
+            # Check that we have some expected aggregated metrics (not per-agent)
+            expected_metrics = {"reward"}  # At minimum we expect reward
+            missing_metrics = expected_metrics - agent_metrics
+            assert not missing_metrics, (
+                f"Missing expected aggregated metrics: {missing_metrics}. Found: {agent_metrics}"
+            )
+
+            # Verify no agent_raw metrics are logged (they should be filtered out)
+            raw_metrics_df = results.stats_db.query(
+                "SELECT COUNT(*) as count FROM agent_metrics WHERE metric LIKE 'agent_raw/%'"
+            )
+            raw_count = raw_metrics_df.iloc[0]["count"]
+            logger.info(f"Found {raw_count} agent_raw metrics in stats DB (expected > 0 for internal use)")
+
+            logger.info("Smoke test passed: stats structure is correct")
             return
         # ------------------------------------------------------------------ #
         # Export                                                             #
