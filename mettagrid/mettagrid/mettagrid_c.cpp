@@ -325,6 +325,10 @@ void MettaGrid::_step(py::array_t<int> actions) {
       }
 
       _action_success[idx] = handler->handle_action(agent->id, arg);
+
+      // Update agent's last action and success
+      agent->last_action = static_cast<unsigned char>(action);
+      agent->last_action_success = _action_success[idx] ? 1 : 0;
     }
   }
 
@@ -342,6 +346,39 @@ void MettaGrid::_step(py::array_t<int> actions) {
     std::fill(static_cast<bool*>(_truncations.request().ptr),
               static_cast<bool*>(_truncations.request().ptr) + _truncations.size(),
               1);
+  }
+
+  // Handle group rewards
+  bool share_rewards = false;
+  // TODO: We're creating this vector every time we step, even though reward
+  // should be sparse, and so we're unlikely to use it. We could decide to only
+  // create it if we need it, but that would increase complexity.
+  std::vector<double> group_rewards(_group_sizes.size());
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+    if (rewards_view(agent_idx) != 0) {
+      share_rewards = true;
+      auto& agent = _agents[agent_idx];
+      unsigned int group_id = agent->group;
+      float group_reward = rewards_view(agent_idx) * _group_reward_pct[group_id];
+      rewards_view(agent_idx) -= group_reward;
+      group_rewards[group_id] += group_reward / _group_sizes[group_id];
+    }
+  }
+
+  if (share_rewards) {
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+      auto& agent = _agents[agent_idx];
+      unsigned int group_id = agent->group;
+      float group_reward = group_rewards[group_id];
+      rewards_view(agent_idx) += group_reward;
+    }
+  }
+
+  // Update agent reward tracking after all reward processing is complete
+  for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+    auto& agent = _agents[agent_idx];
+    agent->last_reward = rewards_view(agent_idx);
+    agent->total_reward += rewards_view(agent_idx);
   }
 }
 
@@ -365,6 +402,14 @@ py::tuple MettaGrid::reset() {
             0.0f);
   std::fill(
       static_cast<float*>(_rewards.request().ptr), static_cast<float*>(_rewards.request().ptr) + _rewards.size(), 0.0f);
+
+  // Reset agent tracking values
+  for (auto& agent : _agents) {
+    agent->last_action = 0;
+    agent->last_action_success = 0;
+    agent->last_reward = 0.0f;
+    agent->total_reward = 0.0f;
+  }
 
   // Clear observations
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
