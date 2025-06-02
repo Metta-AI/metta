@@ -25,7 +25,7 @@ pytest==8.3.3
 python-dotenv==1.1.0
 PyYAML==6.0.2
 rich==13.9.4
-ruff==0.11.9
+ruff==0.11.12
 scipy==1.15.3
 setuptools==80.8.0
 shimmy==2.0.0
