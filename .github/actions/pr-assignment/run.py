@@ -2,11 +2,13 @@
 """
 PR Assignment Script
 Assigns users, reviewers, and labels to pull requests based on configuration.
+Includes special handling for Dependabot PRs to add version labels.
 """
 
 import json
 import os
 import random
+import re
 import subprocess
 import sys
 from typing import List, Optional, Set, Tuple
@@ -26,7 +28,7 @@ def run_gh_command(args: List[str]) -> Tuple[bool, str]:
 def get_pr_info(pr_number: str, repo: str) -> dict:
     """Get PR information including author, assignees, reviewers, and labels."""
     success, output = run_gh_command(
-        ["pr", "view", pr_number, "--repo", repo, "--json", "author,assignees,reviewRequests,labels"]
+        ["pr", "view", pr_number, "--repo", repo, "--json", "author,assignees,reviewRequests,labels,title"]
     )
 
     if not success:
@@ -155,6 +157,46 @@ def post_comment(pr_number: str, repo: str, comment: str) -> None:
     run_gh_command(["pr", "comment", pr_number, "--body", comment, "--repo", repo])
 
 
+def detect_version_change(pr_title: str) -> Optional[str]:
+    """
+    Detect version change type from Dependabot PR title.
+    Returns 'major', 'minor', 'patch', or None.
+    """
+    # Common patterns in Dependabot PR titles:
+    # "Bump webpack from 5.1.0 to 5.2.0"
+    # "Update rails requirement from ~> 6.1.0 to ~> 7.0.0"
+    # "Bump @types/node from 14.14.37 to 16.0.0"
+
+    # Look for version patterns
+    version_pattern = r"from .*?([0-9]+)\.([0-9]+)\.([0-9]+).*? to .*?([0-9]+)\.([0-9]+)\.([0-9]+)"
+    match = re.search(version_pattern, pr_title)
+
+    if match:
+        from_major, from_minor, from_patch = match.groups()[:3]
+        to_major, to_minor, to_patch = match.groups()[3:]
+
+        if from_major != to_major:
+            return "major"
+        elif from_minor != to_minor:
+            return "minor"
+        elif from_patch != to_patch:
+            return "patch"
+
+    return None
+
+
+def ensure_version_labels_exist(repo: str) -> None:
+    """Create version labels if they don't exist."""
+    labels = [
+        ("major", "FF0000", "Major version update"),
+        ("minor", "FFFF00", "Minor version update"),
+        ("patch", "00FF00", "Patch version update"),
+    ]
+
+    for name, color, description in labels:
+        run_gh_command(["label", "create", name, "--color", color, "--description", description, "--force"])
+
+
 def main():
     """Main function to process PR assignments."""
     # Get arguments
@@ -177,11 +219,27 @@ def main():
     # Get PR information
     pr_info = get_pr_info(pr_number, repo)
     pr_author = pr_info.get("author", {}).get("login", "")
+    pr_title = pr_info.get("title", "")
     current_assignees = [a["login"] for a in pr_info.get("assignees", [])]
     current_reviewers = [r["login"] for r in pr_info.get("reviewRequests", [])]
     current_labels = [l["name"] for l in pr_info.get("labels", [])]
 
     print(f"Processing PR #{pr_number} by @{pr_author}")
+
+    # Check if this is a Dependabot PR and add version label
+    if pr_author == "dependabot[bot]":
+        print("Detected Dependabot PR, checking for version changes...")
+        ensure_version_labels_exist(repo)
+
+        version_type = detect_version_change(pr_title)
+        if version_type:
+            print(f"Detected {version_type} version update")
+            # Check if the label already exists
+            if version_type not in current_labels:
+                success, _ = run_gh_command(["pr", "edit", pr_number, "--add-label", version_type, "--repo", repo])
+                if success:
+                    print(f"Added '{version_type}' label to PR")
+                    current_labels.append(version_type)
 
     # Track actions taken
     actions = []
@@ -204,7 +262,14 @@ def main():
     # Clear existing labels if requested
     if is_true(clear_existing_labels):
         print("Clearing existing labels...")
-        if clear_labels(pr_number, repo, current_labels):
+        # For Dependabot PRs, preserve version labels
+        if pr_author == "dependabot[bot]":
+            labels_to_preserve = ["major", "minor", "patch"]
+            labels_to_clear = [l for l in current_labels if l not in labels_to_preserve]
+        else:
+            labels_to_clear = current_labels
+
+        if clear_labels(pr_number, repo, labels_to_clear):
             actions.append("Cleared all existing labels")
 
     # Process forced assignees

@@ -24,6 +24,7 @@ jobs:
     permissions:
       pull-requests: write
       contents: read
+      issues: write  # For label creation
     steps:
       - uses: actions/checkout@v4
 
