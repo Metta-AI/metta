@@ -22,13 +22,15 @@ const FilterableFrontmatterViewer: FC<{
   // Function to check if a key-value pair is currently in the filters
   const isFiltered = (key: string, value: string) => {
     return (
-      filters?.some((filter) => filter.key === key && filter.value === value) ||
-      false
+      filters?.some(
+        (filter) => `config.${filter.key}` === key && filter.value === value
+      ) || false
     );
   };
 
   // Function to handle clicking on a frontmatter line
-  const handleSelectLine = (key: string, value: string) => {
+  const handleSelectLine = (configKey: string, value: string) => {
+    const key = `config.${configKey}`;
     const newFilter: FilterItem = { key, value };
 
     // Check if this filter already exists
@@ -63,6 +65,7 @@ export const StorableMapViewer: FC<{
   // in /stored-maps list interface, we allow filtering by frontmatter props (which works by updating the URL)
   filterable?: boolean;
 }> = ({ map, filterable = false }) => {
+  console.log(`map: ${map}`);
   // Parse the frontmatter YAML
   const grid = useMemo(() => MettaGrid.fromAscii(map.data), [map.data]);
 

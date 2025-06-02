@@ -68,6 +68,7 @@ export async function loadStoredMapIndex(dir: string): Promise<MapIndex> {
 }
 
 const mettagridCfgFileMetadataSchema = z.object({
+  absolute_path: z.string(),
   path: z.string(),
   kind: z.string(),
 });
@@ -119,4 +120,13 @@ export async function getMettagridCfgMap(
     return { type: "error", error: String(data.error) };
   }
   return { type: "map", data: parseStorableMap(data) };
+}
+
+export async function indexDir(dir: string): Promise<void> {
+  const response = await fetch(
+    `${API_URL}/stored-maps/index-dir?dir=${encodeURIComponent(dir)}`,
+    { method: "POST" }
+  );
+  const data = await response.json();
+  return data;
 }

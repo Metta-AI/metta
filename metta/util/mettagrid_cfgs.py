@@ -55,8 +55,12 @@ class MettagridCfgFileMetadata:
 
         return MettagridCfgFile(metadata=self, cfg=cfg)
 
+    def absolute_path(self) -> str:
+        return os.path.join(os.getcwd(), "configs", METTAGRID_CFG_ROOT, self.path)
+
     def to_dict(self):
         return {
+            "absolute_path": self.absolute_path(),
             "path": self.path,
             "kind": self.kind,
         }

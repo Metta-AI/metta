@@ -6,17 +6,17 @@ import { getMettagridCfgFile } from "../../../lib/api";
 import { MapFromCfg } from "./MapFromCfg";
 
 interface EnvViewPageProps {
-  searchParams: { path?: string };
+  searchParams: Promise<{ path?: string }>;
 }
 
 export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
-  const cfgName = searchParams.path;
+  const { path } = await searchParams;
 
-  if (!cfgName) {
+  if (!path) {
     throw new Error("No config name provided");
   }
 
-  const cfg = await getMettagridCfgFile(cfgName);
+  const cfg = await getMettagridCfgFile(path);
 
   return (
     <div className="p-4">
@@ -29,7 +29,14 @@ export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
         </Link>
       </div>
       <h1 className="mb-4 text-2xl font-bold">
-        <span>{cfg.metadata.path}</span>
+        <span>
+          <a
+            className="hover:underline"
+            href={`cursor://file${cfg.metadata.absolute_path}`}
+          >
+            {cfg.metadata.path}
+          </a>
+        </span>
         <span className="text-xl text-gray-400"> {cfg.metadata.kind}</span>
       </h1>
       {(cfg.metadata.kind === "map" || cfg.metadata.kind === "env") && (

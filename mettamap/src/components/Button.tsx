@@ -7,11 +7,20 @@ export const Button: FC<{
   children: React.ReactNode;
   theme?: "primary" | "secondary";
   type?: "button" | "submit";
-}> = ({ onClick, children, theme = "secondary", type = "button" }) => {
+  size?: "sm" | "md";
+}> = ({
+  onClick,
+  children,
+  theme = "secondary",
+  type = "button",
+  size = "md",
+}) => {
   return (
     <button
       className={clsx(
-        "cursor-pointer rounded-md border-2 px-4 py-1 text-sm",
+        "cursor-pointer rounded-md border-2",
+        size === "sm" && "px-2 py-0.5 text-xs",
+        size === "md" && "px-4 py-1 text-sm",
         theme === "primary" &&
           "border-blue-500 bg-blue-500 text-white hover:bg-blue-600",
         theme === "secondary" &&

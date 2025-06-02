@@ -71,7 +71,8 @@ def make_app():
 
     @app.post("/stored-maps/index-dir")
     async def route_stored_maps_index_dir(dir: str):
-        return index_storable_maps(dir)
+        index_storable_maps(dir)
+        return {"success": True}
 
     @app.get("/stored-maps/get-index")
     async def route_stored_maps_get_index(dir: str):

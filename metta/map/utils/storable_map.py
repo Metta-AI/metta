@@ -6,7 +6,6 @@ from datetime import datetime
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
-from pufferlib.utils import unroll_nested_dict
 
 import mettagrid.util.file
 from metta.map.types import MapGrid
@@ -99,10 +98,29 @@ def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
 class StorableMapIndex:
     index: dict[str, dict[str, list[str]]] = {}
 
+    def _flatten_nested_dict(self, obj, parent_key=""):
+        """Flatten nested dictionaries and lists into dot-separated keys."""
+        items = []
+
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                new_key = f"{parent_key}.{k}" if parent_key else k
+                items.extend(self._flatten_nested_dict(v, new_key))
+        elif isinstance(obj, list):
+            for i, v in enumerate(obj):
+                new_key = f"{parent_key}.{i}" if parent_key else str(i)
+                items.extend(self._flatten_nested_dict(v, new_key))
+        else:
+            items.append((parent_key, obj))
+
+        return items
+
     def process(self, map: StorableMap, uri: str):
         key_to_value: dict[str, str] = {}
-        for k, v in unroll_nested_dict(OmegaConf.to_container(map.config, resolve=False)):
-            key_to_value[f"config.{str(k).replace('/', '.')}"] = str(v)
+        config_container = OmegaConf.to_container(map.config, resolve=False)
+        for k, v in self._flatten_nested_dict(config_container):
+            key = f"config.{k}"
+            key_to_value[key] = str(v)
 
         key_to_value.update({f"metadata.{k}": v for k, v in map.metadata.items()})
         for key, value in key_to_value.items():
