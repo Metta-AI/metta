@@ -32,6 +32,7 @@ from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from metta.rl.pufferlib.policy import PufferAgent
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +137,8 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent = self._policy_pr.policy_as_metta_agent()
-        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent)), metta_agent
+        metta_agent: MettaAgent | DistributedMettaAgent | PufferAgent = self._policy_pr.policy_as_metta_agent()
+        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), metta_agent
         metta_agent.activate_actions(action_names, max_args, self._device)
 
         if self._npc_pr is not None:
