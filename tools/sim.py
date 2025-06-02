@@ -94,21 +94,24 @@ def simulate_policy(
             agent_metrics_df = results.stats_db.query(
                 "SELECT DISTINCT metric FROM agent_metrics WHERE metric NOT LIKE 'agent_raw/%'"
             )
-            agent_metrics = set(agent_metrics_df["metric"].tolist())
+            expected_metrics = [
+                "reward",
+                "action.attack",
+                "action.move",
+                "action.rotate",
+                "action.noop",
+            ]  # Add more expected metrics
+            actual_metrics = set(agent_metrics_df["metric"].tolist())
+            for metric in expected_metrics:
+                assert any(metric in m for m in actual_metrics), (
+                    f"Expected metric pattern '{metric}' not found in {actual_metrics}"
+                )
 
-            # Check that we have some expected aggregated metrics (not per-agent)
-            expected_metrics = {"reward"}  # At minimum we expect reward
-            missing_metrics = expected_metrics - agent_metrics
-            assert not missing_metrics, (
-                f"Missing expected aggregated metrics: {missing_metrics}. Found: {agent_metrics}"
-            )
-
-            # Verify no agent_raw metrics are logged (they should be filtered out)
-            raw_metrics_df = results.stats_db.query(
+            # Verify no agent_raw metrics exist (they should not be created anymore)
+            raw_metrics_count = results.stats_db.query(
                 "SELECT COUNT(*) as count FROM agent_metrics WHERE metric LIKE 'agent_raw/%'"
-            )
-            raw_count = raw_metrics_df.iloc[0]["count"]
-            logger.info(f"Found {raw_count} agent_raw metrics in stats DB (expected > 0 for internal use)")
+            ).iloc[0]["count"]
+            assert raw_metrics_count == 0, f"Found {raw_metrics_count} unexpected agent_raw metrics"
 
             logger.info("Smoke test passed: stats structure is correct")
             return

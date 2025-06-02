@@ -93,12 +93,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        # Only validate agent count if expecting agents
-        if self._task.env_cfg().game.num_agents > 0:
-            assert self._task.env_cfg().game.num_agents == level_agents, (
-                f"Number of agents {self._task.env_cfg().game.num_agents} "
-                f"does not match number of agents in map {level_agents}"
-            )
+        assert self._task.env_cfg().game.num_agents == level_agents, (
+            f"Number of agents {self._task.env_cfg().game.num_agents} "
+            f"does not match number of agents in map {level_agents}"
+        )
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))
@@ -189,25 +187,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         stats = self._c_env.get_episode_stats()
 
         infos["episode_rewards"] = episode_rewards
-
-        # Flatten agent_raw stats - one entry per agent per stat
-        if "agent" in stats:
-            for agent_idx, agent_stats in enumerate(stats["agent"]):
-                for stat_name, stat_value in agent_stats.items():
-                    infos[f"agent_raw/{agent_idx}/{stat_name}"] = stat_value
-
-        # Flatten game stats
-        if "game" in stats:
-            for k, v in unroll_nested_dict(stats["game"]):
-                infos[f"game/{k}"] = v
-
-        # Keep the aggregated agent stats as before
-        agent_totals = {}
+        # infos["agent_raw"] = stats["agent"]
+        infos["game"] = stats["game"]
+        infos["agent"] = {}
         for agent_stats in stats["agent"]:
             for n, v in agent_stats.items():
-                agent_totals[n] = agent_totals.get(n, 0) + v
-        for n, v in agent_totals.items():
-            infos[f"agent/{n}"] = v / self._c_env.num_agents
+                infos["agent"][n] = infos["agent"].get(n, 0) + v
+        for n, v in infos["agent"].items():
+            infos["agent"][n] = v / self._c_env.num_agents
 
         replay_url = None
         if self._replay_writer:

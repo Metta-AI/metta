@@ -603,7 +603,7 @@ class PufferTrainer:
             self.losses.explained_variance = explained_var
             self.epoch += 1
 
-        profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
+            profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -714,9 +714,7 @@ class PufferTrainer:
             if score is not None:
                 overview[f"{category}_evals"] = score
 
-        # Filter out per-agent stats (agent_raw/*) to maintain backward compatibility with wandb graphs
-        filtered_stats = {k: v for k, v in self.stats.items() if not k.startswith("agent_raw/")}
-        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in filtered_stats.items()}
+        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         if self.wandb_run and self._master:
             self.wandb_run.log(
