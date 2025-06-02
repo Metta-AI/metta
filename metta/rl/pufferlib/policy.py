@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
-from pufferlib.cleanrl import sample_logits
+from pufferlib.pytorch import sample_logits
 from torch import nn
 
 
@@ -37,7 +37,7 @@ class PufferAgent(nn.Module):
         super().__init__()
         self.policy = policy
         self.hidden_size = policy.hidden_size
-        self.lstm = policy
+        self.lstm = policy.lstm  # Point to the actual LSTM module, not the entire policy
 
     def forward(self, obs: torch.Tensor, state, action=None):
         """Uses variable names from LSTMWrapper. Translating for Metta:
