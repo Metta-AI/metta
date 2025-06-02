@@ -17,6 +17,7 @@ num_random_samples: 10
 
 trainer:
   evaluate_interval: 600
+  total_timesteps: 5e7
   # env_overrides:
   #   game:
   #     use_observation_tokens: true
