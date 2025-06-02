@@ -38,11 +38,14 @@ game:
         altar: ${sampling:1,3,2}
   objects:
     altar:
+      max_output: 1
       input_battery.red: 1
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
     generator.red:
+      max_output: 1
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
     mine.red:
+      max_output: 1
       cooldown: ${sampling:15, 50, 10}
