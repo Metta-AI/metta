@@ -2,7 +2,7 @@ defaults:
   - common
   - wandb: metta_research
   - agent: simple
-  - sim: simple
+  - sim: navigation
   - trainer: puffer
   - _self_
 

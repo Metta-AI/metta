@@ -12,6 +12,7 @@ import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
+from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import config_from_path
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.wandb.sweep import generate_run_id_for_sweep, sweep_id_from_name
@@ -71,6 +72,9 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
     """
 
     sweep_cfg = OmegaConf.load(os.path.join(cfg.sweep_dir, "config.yaml"))
+
+    # Create the simulation suite config to make sure it's valid
+    SimulationSuiteConfig(**cfg.sweep_job.evals)
 
     logger.info(f"Creating new run for sweep: {sweep_name} ({sweep_cfg.wandb_path})")
     run_name = generate_run_id_for_sweep(sweep_cfg.wandb_path, cfg.runs_dir)
