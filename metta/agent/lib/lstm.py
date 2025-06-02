@@ -1,9 +1,12 @@
+from typing import List
+
 import torch
 import torch.nn as nn
 from einops import rearrange
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
+from metta.agent.lib.metta_module import MettaModule
 
 
 class LSTM(LayerBase):
@@ -88,3 +91,83 @@ class LSTM(LayerBase):
         td["state"] = state
 
         return td
+
+
+class MettaLSTM(MettaModule):
+    """LSTM layer that processes input sequences and maintains internal state."""
+
+    def __init__(
+        self,
+        obs_shape: List[int],
+        hidden_size: int,
+        num_layers: int = 1,
+        input_key: str = "x",
+        hidden_key: str = "hidden",
+        state_key: str = "state",
+        output_key: str = "lstm_output",
+    ):
+        self.input_key = input_key
+        self.hidden_key = hidden_key
+        self.state_key = state_key
+        self.output_key = output_key
+        self._obs_shape = list(obs_shape)
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        super().__init__(
+            in_keys=[input_key, hidden_key, state_key],
+            out_keys=[output_key, state_key],
+            input_features_shape=obs_shape,
+            output_features_shape=[hidden_size],
+        )
+        self._net = nn.LSTM(input_size=obs_shape[0], hidden_size=hidden_size, num_layers=num_layers, batch_first=False)
+        for name, param in self._net.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1)
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1)
+
+    @torch.compile(disable=True)
+    def _compute(self, td: TensorDict) -> TensorDict:
+        x = td[self.input_key]
+        hidden = td[self.hidden_key]
+        state = td[self.state_key]
+        if state is not None:
+            split_size = self.num_layers
+            state = (state[:split_size], state[split_size:])
+        x_shape, space_shape = x.shape, self._obs_shape
+        x_n, space_n = len(x_shape), len(space_shape)
+        if tuple(x_shape[-space_n:]) != tuple(space_shape):
+            raise ValueError("Invalid input tensor shape", x.shape)
+        if x_n == space_n + 1:
+            B, TT = x_shape[0], 1
+        elif x_n == space_n + 2:
+            B, TT = x_shape[:2]
+        else:
+            raise ValueError("Invalid input tensor shape", x.shape)
+        if state is not None:
+            assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
+        assert hidden.shape == (B * TT, self.input_features_shape[0]), (
+            f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self.input_features_shape[0])}"
+        )
+        hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
+        hidden, state = self._net(hidden, state)
+        hidden = rearrange(hidden, "t b h -> (b t) h")
+        if state is not None:
+            state = tuple(s.detach() for s in state)
+            state = torch.cat(state, dim=0)
+        td[self.output_key] = hidden
+        td[self.state_key] = state
+        return td
+
+    def _check_shapes(self, td: TensorDict) -> None:
+        """Only validate the shape of the main input tensor (not state/hidden keys)."""
+        tensor = td[self.input_key]
+        if tensor is None:
+            raise ValueError(f"Input tensor {self.input_key} is None")
+        if len(tensor.shape) < 2:
+            raise ValueError(f"Input tensor {self.input_key} must have at least 2 dimensions (batch + features)")
+        if tensor.shape[1:] != self.input_features_shape:
+            raise ValueError(
+                f"Input tensor {self.input_key} has feature shape {tensor.shape[1:]}, "
+                f"expected {self.input_features_shape} (ignoring batch dimension)"
+            )
