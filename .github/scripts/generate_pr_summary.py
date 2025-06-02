@@ -130,7 +130,6 @@ def save_pr_summary_cache(summaries: dict[str, dict[str, Any]], model_name: str)
 
 
 def summarize_pr_with_cache(
-def summarize_pr_with_cache(
     pr: dict[str, Any], model: genai.GenerativeModel, cache: dict[str, dict[str, Any]]
 ) -> dict[str, Any]:
     """Summarize a single PR, using cache if available."""
