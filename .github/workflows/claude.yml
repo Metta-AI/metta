@@ -165,7 +165,16 @@ jobs:
           model: "claude-4-sonnet-20250514"
           timeout_minutes: 45
           direct_prompt: |
-            You are working in the metta repository on a new branch that has already been created.
+            You are working on branch: ${{ steps.branches.outputs.new_branch }}
+
+            CRITICAL: You MUST use mcp__github_file_ops__commit_files to commit your changes.
+            This tool will commit to the current branch (claude/auto-769-...).
+
+            DO NOT use any git commands directly.
+            DO NOT try to switch branches.
+
+            After making all changes with Edit/Replace tools, use:
+            mcp__github_file_ops__commit_files with a descriptive message.
 
             CONTEXT:
             - Working directory: /home/runner/work/metta/metta
@@ -191,6 +200,35 @@ jobs:
             - The workflow will handle branch pushing and PR creation
 
           allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,Read,Write,mcp__github_file_ops__commit_files,mcp__github__update_issue_comment"
+
+      # Debug git state after Claude
+      - name: Debug git state after Claude
+        if: steps.check_action.outputs.action == 'create_pr' && steps.claude_pr.outcome == 'success'
+        run: |
+          echo "=== GIT STATE AFTER CLAUDE ==="
+          echo "Current branch: $(git branch --show-current)"
+          echo ""
+          echo "Git status on current branch:"
+          git status --short
+          echo ""
+          echo "Commits on current branch not on target:"
+          git log --oneline origin/${{ steps.branches.outputs.target_branch }}..HEAD
+          echo ""
+          echo "=== CHECKING TARGET BRANCH ==="
+          # Save current branch
+          CURRENT_BRANCH=$(git branch --show-current)
+
+          # Check target branch
+          git checkout ${{ steps.branches.outputs.target_branch }}
+          echo "Commits on target branch not on origin:"
+          git log --oneline origin/${{ steps.branches.outputs.target_branch }}..HEAD
+
+          # Return to original branch
+          git checkout $CURRENT_BRANCH
+          echo ""
+          echo "=== ALL LOCAL BRANCHES ==="
+          git branch -vv
+          echo "================================"
 
       # Push the branch after Claude makes changes
       - name: Push branch if needed
@@ -357,7 +395,6 @@ jobs:
               ].join('\n')
             });
 
-      # Final debug output
       - name: Final Debug Summary
         if: always()
         run: |
