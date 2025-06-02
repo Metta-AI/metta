@@ -51,7 +51,7 @@ class GitHubClient:
         self.token = token
         self.headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"}
 
-    def _make_request(self, url: str, headers: dict = None, params: dict = None) -> requests.Response:
+    def _make_request(self, url: str, headers: dict | None = None, params: dict | None = None) -> requests.Response:
         """Make a request with rate limit handling."""
         response = requests.get(url, headers=headers or self.headers, params=params)
 
