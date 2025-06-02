@@ -7,6 +7,7 @@ import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
 import { initAgentTable, updateAgentTable } from './agentpanel.js';
+import { localStorageSetNumber } from './htmlutils.js';
 
 // Handle resize events.
 export function onResize() {
@@ -48,6 +49,7 @@ export function onResize() {
   ui.tracePanel.width = screenWidth;
   ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
 
+  // Agent panel is always on the top of the screen.
   ui.agentPanel.x = 0;
   ui.agentPanel.y = Common.HEADER_HEIGHT;
   ui.agentPanel.width = screenWidth;
@@ -123,11 +125,13 @@ function onMouseMove(event: MouseEvent) {
   // Drag the trace panel up or down.
   if (ui.traceDragging) {
     ui.traceSplit = ui.mousePos.y() / window.innerHeight
+    localStorageSetNumber("traceSplit", ui.traceSplit);
     onResize();
   }
 
   if (ui.agentPanelDragging) {
     ui.agentPanelSplit = (ui.mousePos.y() - ui.agentPanel.y) / window.innerHeight
+    localStorageSetNumber("agentPanelSplit", ui.agentPanelSplit);
     onResize();
   }
 

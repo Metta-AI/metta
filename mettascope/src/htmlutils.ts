@@ -159,3 +159,18 @@ export function hideDropdown() {
   }
   scrim.classList.add("hidden");
 }
+
+
+// Get number out of local storage with a default value.
+export function localStorageGetNumber(key: string, defaultValue: number): number {
+  let value = localStorage.getItem(key);
+  if (value == null) {
+    return defaultValue;
+  }
+  return parseFloat(value);
+}
+
+// Set number in local storage.
+export function localStorageSetNumber(key: string, value: number) {
+  localStorage.setItem(key, value.toString());
+}

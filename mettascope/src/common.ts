@@ -1,6 +1,6 @@
 import { Vec2f } from './vector_math.js';
 import { Context3d } from './context3d.js';
-import { find, parseHtmlColor } from './htmlutils.js';
+import { find, parseHtmlColor, localStorageGetNumber } from './htmlutils.js';
 import { PanelInfo } from './panels.js';
 
 // The 3d context, used for nearly everything.
@@ -13,7 +13,6 @@ export const DEFAULT_ZOOM_LEVEL = 1 / 2;
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4;
 export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
 export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-export const DEFAULT_TRACE_SPLIT = 0.80;  // default horizontal split ratio
 export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
 export const HEADER_HEIGHT = 60;          // height of the header
 export const SCRUBBER_HEIGHT = 120;        // height of the scrubber
@@ -52,9 +51,9 @@ export const ui = {
   lastClickTime: 0, // For double-click detection
 
   // Split between trace and info panels.
-  traceSplit: DEFAULT_TRACE_SPLIT,
+  traceSplit: localStorageGetNumber("traceSplit", 0.8),
   traceDragging: false,
-  agentPanelSplit: 0.5,
+  agentPanelSplit: localStorageGetNumber("agentPanelSplit", 0.5),
   agentPanelDragging: false,
 
   // Panels
