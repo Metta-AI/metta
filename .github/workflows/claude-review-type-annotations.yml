@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'Pull Request number to review'
+        description: "Pull Request number to review"
         required: true
         type: string
 
@@ -18,19 +18,26 @@ permissions:
 jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
+    secrets:
+      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     with:
       review_name: "Type Annotations"
-      file_pattern: "\.py$"
+      file_pattern: "\\.py$"
       setup_python: true
       install_packages: "mypy"
       tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)"
       pr_number: ${{ inputs.pr_number || '' }}
       prompt: |
-        Please review the Python code in this PR for type annotation improvements that would enhance code readability and IDE support. Our philosophy is that type annotations should make code easier to understand and refactor, not harder.
+        Please review the Python code in this PR for type annotation improvements that would enhance code
+        readability and IDE support. Our philosophy is that type annotations should make code easier to
+        understand and refactor, not harder.
 
-        **IMPORTANT**: Only create a PR comment if you find type annotation improvements worth suggesting. If the code already has good type coverage or doesn't need additional annotations, do not comment at all.
+        **IMPORTANT**: Only create a PR comment if you find type annotation improvements worth suggesting.
+        If the code already has good type coverage or doesn't need additional annotations, do not comment
+        at all.
 
-        **Core Principle:** Only suggest type annotations that provide real value. When in doubt, trust type inference.
+        **Core Principle:** Only suggest type annotations that provide real value. When in doubt, trust
+        type inference.
 
         **1. Function Parameters - Always annotate these:**
         - All function parameters should have type annotations
@@ -84,15 +91,5 @@ jobs:
         - For return types, mention if it's for API clarity or as a safety assertion
         - If you see complex dict structures, suggest considering dataclasses as an alternative
 
-        Remember: The goal is to make code easier to understand and refactor, not to achieve 100% annotation coverage. Good type hints guide developers and catch bugs without getting in the way.
-
-        **TLDR Section:**
-        If you do make suggestions, conclude with a brief summary organized by value:
-        - **Must fix:** Missing parameter annotations
-        - **Recommended:** Public API return types, complex function returns
-        - **Consider:** Dataclass refactoring for complex dicts
-        - **Optional:** Other minor improvements
-
-        Keep the TLDR concise with file names and line numbers.
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+        Remember: The goal is to make code easier to understand and refactor, not to achieve 100% annotation coverage.
+        Good type hints guide developers and catch bugs without getting in the way.
