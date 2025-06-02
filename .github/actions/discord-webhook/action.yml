@@ -1,26 +1,26 @@
-name: 'Discord Webhook Post'
-description: 'Posts content to Discord via webhook with automatic message splitting'
-author: 'Metta-AI'
+name: "Discord Webhook Post"
+description: "Posts content to Discord via webhook with automatic message splitting"
+author: "Metta-AI"
 
 inputs:
   webhook-url:
-    description: 'Discord webhook URL'
+    description: "Discord webhook URL"
     required: true
   content:
-    description: 'Content to post to Discord'
+    description: "Content to post to Discord"
     required: true
   suppress-embeds:
-    description: 'Whether to suppress embeds in Discord messages'
+    description: "Whether to suppress embeds in Discord messages"
     required: false
-    default: 'true'
+    default: "true"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: "3.10"
 
     - name: Install dependencies
       run: pip install requests
