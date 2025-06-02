@@ -62,7 +62,7 @@ game:
       cooldown: 1
       input_battery: 1
       max_output: 10
-      conversion_ticks: 16
+      conversion_ticks: 1
       initial_items: 0
     generator.red:
       cooldown: 1
@@ -72,7 +72,7 @@ game:
     mine.red:
       cooldown: 1
       max_output: 10
-      conversion_ticks: 16
+      conversion_ticks: 1
       initial_items: 1
 
   reward_sharing:
