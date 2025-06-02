@@ -1,29 +1,19 @@
 name: "Claude Review: README"
 on:
-  pull_request:
-    types: [opened, reopened]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       pr_number:
-        description: "Pull Request number to review"
         required: true
         type: string
-
-permissions:
-  contents: read
-  pull-requests: write
-  id-token: write
 
 jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     with:
       review_name: "README Accuracy"
       review_type: "readme"
       tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(find . -name README.md)"
-      pr_number: ${{ inputs.pr_number || github.event.pull_request.number || '' }}
+      pr_number: ${{ inputs.pr_number }}
       prompt: |
         Review the diff for this pull request and compare it to all README.md files in the repository.
 

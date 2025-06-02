@@ -15,236 +15,55 @@ permissions:
   id-token: write
 
 jobs:
+  # Validate PR context
+  validate-pr:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.validate.outputs.pr_number }}
+    steps:
+      - name: Validate PR Number
+        id: validate
+        run: |
+          PR_NUMBER="${{ inputs.pr_number || github.event.pull_request.number }}"
+
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "0" ]; then
+            echo "❌ Error: No valid PR number found"
+            echo "For workflow_dispatch, you must provide a pr_number input"
+            echo "For pull_request events, this should be automatic"
+            exit 1
+          fi
+
+          echo "✅ Valid PR number: $PR_NUMBER"
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
   # Run all review types in parallel
   review-readme:
-    uses: ./.github/workflows/claude-review-analyzer.yml
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    needs: validate-pr
+    uses: ./.github/workflows/claude-review-readme.yml
     with:
-      review_name: "README Accuracy"
-      review_type: "readme"
-      tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(find . -name README.md)"
-      pr_number: ${{ inputs.pr_number || github.event.pull_request.number || '' }}
-      prompt: |
-        Review the diff for this pull request and compare it to all README.md files in the repository.
-
-        **CRITICAL INSTRUCTIONS**:
-        1. ONLY report issues if you find README content that is now INCORRECT due to the changes
-        2. If all READMEs remain accurate after these changes, respond with "No issues found."
-        3. DO NOT suggest adding new documentation - only flag outdated/incorrect content
-        4. DO NOT create suggestions for:
-           - Missing documentation that wasn't there before
-           - Improvements to existing correct documentation
-           - Additional examples or clarifications
-           - Style or formatting changes
-
-        **Only flag these specific types of issues**:
-        - Commands or CLI usage that no longer work after this PR
-        - Installation instructions that are now incorrect
-        - Dependencies that were removed but still documented
-        - Configuration options that no longer exist
-        - API endpoints or functions that were removed/renamed
-        - File paths that no longer exist
-        - Import statements that would now fail
-        - Default values that have changed
-        - Examples that would throw errors
-
-        **Review Process**:
-        1. Examine the code changes in the PR diff
-        2. Find all README.md files in the repository
-        3. For each README, check if any content is now WRONG (not just incomplete)
-        4. Only create suggestions for content that needs to be FIXED to remain accurate
-
-        Remember: The goal is to catch documentation that would mislead users or cause errors,
-        not to improve documentation coverage. If the READMEs are still technically correct
-        (even if incomplete), then report "No issues found."
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
 
   review-comments:
-    uses: ./.github/workflows/claude-review-analyzer.yml
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    needs: validate-pr
+    uses: ./.github/workflows/claude-review-comments.yml
     with:
-      review_name: "Code Comments"
-      review_type: "comments"
-      tools: "Edit,Replace,Bash(git diff HEAD~1)"
-      pr_number: ${{ inputs.pr_number || github.event.pull_request.number || '' }}
-      prompt: |
-        Review the PR diff and specifically look for unnecessary comments in the code.
-
-        **CRITICAL INSTRUCTIONS**:
-        1. If you find NO unnecessary comments that should be removed:
-           - Simply respond with "No issues found."
-           - DO NOT create any review
-        2. ONLY create a review if you find comments that genuinely need to be removed
-        3. Focus on comments that add no value or actively harm code readability
-
-        **Comments to flag for removal**:
-        1. Comments that merely restate what the code is doing (e.g., "# increment counter" for "counter += 1")
-        2. Comments explaining obvious operations that are clear from the code itself
-        3. Outdated or incorrect comments that no longer match the implementation
-        4. Comments that duplicate information already conveyed by descriptive variable/function names
-        5. Comments stating obvious Git commands or simple technical operations
-
-        **Comments to KEEP (do not flag these)**:
-        - Comments explaining WHY something is done
-        - Comments providing important context or warnings
-        - TODO/FIXME comments (unless they're clearly obsolete)
-        - Comments explaining complex algorithms or business logic
-        - License headers or copyright notices
-        - Comments that help with code navigation or structure
-
-        **Examples**:
-        - REMOVE: `# set git detachedHead config to false` before `git config advice.detachedHead false`
-        - KEEP: `# Disable detached HEAD warnings to avoid confusing new contributors`
-        - REMOVE: `# loop through users` before `for user in users:`
-        - KEEP: `# Process users in reverse order to handle dependencies`
-
-        Only create suggestions for comments that genuinely harm code readability or provide
-        misleading information. If the comments are merely redundant but not harmful, or if
-        you're unsure, err on the side of not creating a review.
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
 
   review-types:
-    uses: ./.github/workflows/claude-review-analyzer.yml
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    needs: validate-pr
+    uses: ./.github/workflows/claude-review-typing.yml
     with:
-      review_name: "Type Annotations"
-      review_type: "types"
-      file_pattern: "\\.py$"
-      setup_python: true
-      install_packages: "mypy"
-      tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)"
-      pr_number: ${{ inputs.pr_number || github.event.pull_request.number || '' }}
-      prompt: |
-        Review the Python code in this PR for MISSING type annotations that would provide real value.
-
-        **CRITICAL INSTRUCTIONS**:
-        1. If the code already has adequate type coverage for its use case:
-           - Simply respond with "No issues found."
-           - DO NOT create any review
-        2. ONLY create a review if you find missing annotations that would genuinely improve:
-           - Code clarity and understanding
-           - IDE support and developer experience
-           - Bug prevention through type checking
-        3. Never suggest annotations just for coverage - they must add real value
-
-        **HIGHEST PRIORITY - Always flag these**:
-        - Missing parameter type annotations on any function
-        - Missing return type annotations on public API functions (not prefixed with _)
-        - Functions returning Optional values without -> X | None annotation
-
-        **MEDIUM PRIORITY - Flag when beneficial**:
-        - Return types for complex functions with multiple return paths
-        - Return types for functions where the return isn't obvious from the name
-        - Type annotations for empty collections that will hold specific types
-        - Complex data structures that would benefit from typing
-
-        **DO NOT FLAG**:
-        - Return types for private methods (those prefixed with _)
-        - Return types for simple getters/setters/property methods
-        - Return types for very short functions (1-3 lines) with obvious returns
-        - Variable annotations for assignments with clear type inference
-        - Return types for functions defined inside other functions
-        - Type annotations that would just repeat what's obvious
-
-        **Modern syntax preferences** (suggest only if already adding types):
-        - Use `list[str]` not `List[str]` (Python 3.9+)
-        - Use `type | None` not `Optional[type]` (Python 3.10+)
-        - Use `dict[str, int]` not `Dict[str, int]`
-
-        **Examples of GOOD suggestions**:
-        ```python
-        # Missing parameter types (always flag):
-        def process_data(data, config):  # Should be: def process_data(data: pd.DataFrame, config: dict[str, Any]):
-
-        # Public API missing return type:
-        def get_user_stats(user_id: int):  # Should be: def get_user_stats(user_id: int) -> UserStats:
-
-        # Unclear Optional return:
-        def find_user(id: int):  # Should be: def find_user(id: int) -> User | None:
-        ```
-
-        **Examples of what NOT to flag**:
-        ```python
-        # Private method (don't flag):
-        def _helper(self, x: int):
-            return x * 2
-
-        # Obvious return type (don't flag):
-        @property
-        def name(self) -> str:
-            return self._name
-
-        # Clear type inference (don't flag):
-        result = []  # Obviously List[Any]
-        count = 0    # Obviously int
-        ```
-
-        Remember: The goal is to improve code quality, not achieve 100% coverage. Only suggest
-        annotations that make the code meaningfully better. When in doubt, don't suggest it.
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
 
   review-einops:
-    uses: ./.github/workflows/claude-review-analyzer.yml
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    needs: validate-pr
+    uses: ./.github/workflows/claude-review-einops.yml
     with:
-      review_name: "Einops Suggestions"
-      review_type: "einops"
-      file_pattern: "\\.py$"
-      tools: "Edit,Replace,Bash(git diff HEAD~1)"
-      pr_number: ${{ inputs.pr_number || github.event.pull_request.number || '' }}
-      prompt: |
-        Review the Python diff for PyTorch tensor operations that could be significantly improved
-        with einops.rearrange.
-
-        **CRITICAL INSTRUCTIONS**:
-        1. If you find NO tensor operations that would clearly benefit from einops:
-           - Simply respond with "No issues found."
-           - DO NOT create any review
-        2. ONLY create a review if einops would provide substantial improvements
-        3. Do not suggest einops for simple, already-clear operations
-
-        **When to suggest einops.rearrange**:
-        - Multiple chained tensor operations that obscure the transformation intent
-        - Complex permutations where dimension meanings are unclear
-        - Reshape operations where the semantic meaning isn't obvious
-        - Cases where dimension names would significantly clarify the transformation
-        - Operations that are error-prone due to hardcoded dimension indices
-
-        **When NOT to suggest einops**:
-        - Simple, clear operations like single transpose or reshape calls
-        - When the existing code is already readable and the intent is clear
-        - When einops wouldn't add meaningful clarity
-        - For operations where performance is critical and einops might add overhead
-        - When the codebase doesn't already use einops (don't introduce new dependencies)
-
-        **Good candidates for einops**:
-        ```python
-        # Complex and unclear:
-        x = x.permute(0, 2, 1).reshape(batch_size, -1)
-        # Clear with einops:
-        x = rearrange(x, 'b h w -> b (w h)')
-
-        # Multiple operations:
-        x = x.transpose(1, 2).contiguous().view(b, -1, c)
-        # Single einops call:
-        x = rearrange(x, 'b h w c -> b (h w) c')
-        ```
-
-        **Poor candidates for einops**:
-        ```python
-        # Already clear:
-        x = x.transpose(0, 1)  # Don't suggest einops for this
-        x = x.reshape(-1, d)   # Simple and obvious
-        ```
-
-        Only create suggestions for transformations where einops would make the code
-        substantially more readable and maintainable. The goal is quality over quantity -
-        better to suggest nothing than to suggest marginal improvements.
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
 
   # Consolidate all results and create a single review
   consolidate-review:
-    needs: [review-readme, review-comments, review-types, review-einops]
+    needs: [validate-pr, review-readme, review-comments, review-types, review-einops]
     runs-on: ubuntu-latest
     if: always()
     permissions:
@@ -258,26 +77,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
 
       - name: Install Dependencies
         run: |
           pip install -r .github/scripts/requirements-claude-review.txt
 
-      - name: Consolidate Reviews
+      - name: Consolidate Reviews and Create GitHub Review
         id: consolidate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.validate-pr.outputs.pr_number }}
         run: |
-          python .github/scripts/consolidate_claude_review_artifacts.py
-
-      - name: Create Unified GitHub Review
-        if: steps.consolidate.outputs.has_any_issues == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
-        run: |
-          python .github/scripts/open_claude_github_review.py
+          python .github/scripts/claude_review.py
 
       - name: Summary
         if: always()

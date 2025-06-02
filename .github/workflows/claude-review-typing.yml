@@ -1,33 +1,22 @@
 name: "Claude Review: Types"
 on:
-  pull_request:
-    types: [opened, reopened]
-    paths: ["**/*.py"]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       pr_number:
-        description: "Pull Request number to review"
         required: true
         type: string
-
-permissions:
-  contents: read
-  pull-requests: write
-  id-token: write
 
 jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     with:
       review_name: "Type Annotations"
-      review_type: "typing"
+      review_type: "types"
       file_pattern: "\\.py$"
       setup_python: true
       install_packages: "mypy"
       tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)"
-      pr_number: ${{ inputs.pr_number || github.event.pull_request.number || '' }}
+      pr_number: ${{ inputs.pr_number }}
       prompt: |
         Review the Python code in this PR for MISSING type annotations that would provide real value.
 
