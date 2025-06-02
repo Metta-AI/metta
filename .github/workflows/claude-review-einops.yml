@@ -22,9 +22,10 @@ jobs:
       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     with:
       review_name: "Einops Suggestions"
+      review_type: "einops"
       file_pattern: "\\.py$"
       tools: "Edit,Replace,Bash(git diff HEAD~1)"
-      pr_number: ${{ inputs.pr_number || '' }}
+      pr_number: ${{ inputs.pr_number || github.event.pull_request.number || '' }}
       prompt: |
         Review the Python diff for PyTorch tensor operations that could be significantly improved
         with einops.rearrange.

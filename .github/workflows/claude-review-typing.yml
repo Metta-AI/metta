@@ -22,11 +22,12 @@ jobs:
       anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     with:
       review_name: "Type Annotations"
+      review_type: "typing"
       file_pattern: "\\.py$"
       setup_python: true
       install_packages: "mypy"
       tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)"
-      pr_number: ${{ inputs.pr_number || '' }}
+      pr_number: ${{ inputs.pr_number || github.event.pull_request.number || '' }}
       prompt: |
         Review the Python code in this PR for MISSING type annotations that would provide real value.
 
