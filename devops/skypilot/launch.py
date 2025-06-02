@@ -72,7 +72,7 @@ def main():
     else:
         for i in range(1, args.copies + 1):
             copy_task = copy.deepcopy(task)
-            run_id = f"{args.run}_{i}"
+            run_id = args.run
             copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
             copy_task.name = run_id
             copy_task.validate_name()
