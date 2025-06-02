@@ -3,15 +3,21 @@
 Author: Axel
 Created: 2024-03-19
 
+This module defines the ModularNetwork class for the Metta architecture.
+
+ModularNetwork composes MettaModules into a directed acyclic graph, automatically routing tensor data and
+arbitrary metadata between components using the MettaData wrapper. All data propagation and computation
+within the network is performed using MettaData, which holds both a TensorDict (for batched tensors) and a
+metadata dictionary (for arbitrary information to be shared between modules). This design enables modular,
+extensible, and debuggable architectures with unified tensor and metadata flow.
 """
 
 from typing import Dict, List, Set
 
 import torch
 import torch.nn as nn
-from tensordict import TensorDict
 
-from metta.agent.lib.metta_module import MettaModule
+from metta.agent.lib.metta_module import MettaData, MettaModule
 
 
 class ModularNetwork(MettaModule):
@@ -19,12 +25,12 @@ class ModularNetwork(MettaModule):
 
     This class provides a way to build networks by connecting MettaModules together.
     Each module's output keys are mapped to input keys of subsequent modules through
-    the network's forward pass.
+    the network's forward pass. All data and metadata is propagated using MettaData.
 
     The way this works is that each node corresponds to a MettaModule, and the network
     keeps track of the mapping between output keys and the node that produces them.
     The network then uses this mapping to route the output tensors to the input keys of
-    the next node in the network.
+    the next node in the network, along with any associated metadata.
 
     For example, if we have:
     - Node A with out_keys=["x", "y"]
@@ -34,6 +40,9 @@ class ModularNetwork(MettaModule):
     Attributes:
         nodes: Dictionary mapping node identifiers to their MettaModules
         out_key_to_node: Maps output keys to node identifiers for routing
+
+    All computation and data propagation is performed using MettaData, which holds both
+    tensors and arbitrary metadata for extensibility and debugging.
     """
 
     def __init__(self):
@@ -67,23 +76,23 @@ class ModularNetwork(MettaModule):
         if __debug__:
             self._validate_network()
 
-    def compute_component(self, node_id: str, td: TensorDict) -> TensorDict:
+    def compute_component(self, node_id: str, md: MettaData) -> MettaData:
         """Compute the output of a component.
         Caution: This function does not clear the computation cache.
         If you want to clear the cache, you need to call _computed_components.clear() first.
 
         Args:
             node_id: Identifier of the component to compute
-            td: Input TensorDict containing initial tensors
+            md: Input MettaData containing initial tensors and metadata
 
         Returns:
-            The updated TensorDict with this component's outputs
+            The updated MettaData with this component's outputs
         """
         if node_id not in self.nodes:
             raise ValueError(f"Node identifier '{node_id}' not found")
 
         if node_id in self._computed_components:
-            return td
+            return md
 
         module = self.nodes[node_id]  # type: ignore[index]
 
@@ -91,13 +100,13 @@ class ModularNetwork(MettaModule):
         for in_key in module.in_keys:  # type: ignore[attr-defined]
             if in_key in self.out_key_to_node:
                 higher_level_component = self.out_key_to_node[in_key]
-                self.compute_component(higher_level_component, td)
+                self.compute_component(higher_level_component, md)
 
         # Compute this component's outputs
-        td = module(td)
+        md = module(md)
         self._computed_components.add(node_id)
 
-        return td
+        return md
 
     @property
     def network_in_keys(self) -> List[str]:
@@ -120,11 +129,11 @@ class ModularNetwork(MettaModule):
         self.in_keys = self.network_in_keys
         self.out_keys = self.network_out_keys
 
-    def _compute(self, td: TensorDict) -> Dict[str, torch.Tensor]:
+    def _compute(self, md: MettaData) -> Dict[str, torch.Tensor]:
         """Compute outputs by processing through all components.
 
         Args:
-            td: Input TensorDict containing initial tensors
+            md: Input MettaData containing initial tensors and metadata
 
         Returns:
             Dictionary mapping output keys to their tensors
@@ -134,10 +143,10 @@ class ModularNetwork(MettaModule):
 
         # Compute all output keys
         for out_key in self.out_keys:
-            self.compute_component(self.out_key_to_node[out_key], td)
+            self.compute_component(self.out_key_to_node[out_key], md)
 
         # Return only the requested output keys
-        return {key: td[key] for key in self.out_keys}
+        return {key: md[key] for key in self.out_keys}
 
     def _validate_network(self) -> None:
         """Validate the network."""

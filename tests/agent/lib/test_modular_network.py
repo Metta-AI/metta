@@ -8,7 +8,7 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.metta_module import MettaLinear, MettaReLU
+from metta.agent.lib.metta_module import MettaData, MettaLinear, MettaReLU
 from metta.agent.lib.modular_network import ModularNetwork
 
 
@@ -79,12 +79,63 @@ def test_modular_network_forward():
     network.add_component("relu", relu)
 
     td = TensorDict({"input": torch.tensor([[1.0, 2.0]])}, batch_size=[1])
-    result = network(td)
+    md = MettaData(td, {"meta": "info"})
+    result = network(md)
 
     assert "hidden" in result
     assert "output" in result
     assert torch.allclose(result["hidden"], torch.tensor([[3.0, 3.0, 3.0]]))
     assert torch.allclose(result["output"], torch.tensor([[3.0, 3.0, 3.0]]))
+    # Check metadata propagation
+    assert result.data["meta"] == "info"
+
+
+def test_modular_network_forward_tensordict():
+    """Test network forward pass with TensorDict input (should return TensorDict)."""
+    network = ModularNetwork()
+    linear = MettaLinear(
+        in_keys=["input"],
+        out_keys=["hidden"],
+        input_features_shape=[2],
+        output_features_shape=[3],
+    )
+    relu = MettaReLU(in_keys=["hidden"], out_keys=["output"])
+
+    # Initialize weights for deterministic output
+    linear.linear.weight.data = torch.ones_like(linear.linear.weight)
+    linear.linear.bias.data = torch.zeros_like(linear.linear.bias)
+
+    network.add_component("linear", linear)
+    network.add_component("relu", relu)
+
+    td = TensorDict({"input": torch.tensor([[1.0, 2.0]])}, batch_size=[1])
+    result = network(td)
+
+    assert isinstance(result, TensorDict)
+    assert "hidden" in result
+    assert "output" in result
+    assert torch.allclose(result["hidden"], torch.tensor([[3.0, 3.0, 3.0]]))
+    assert torch.allclose(result["output"], torch.tensor([[3.0, 3.0, 3.0]]))
+
+
+def test_modular_network_metadata_propagation():
+    """Test that metadata is propagated and updated through the network."""
+    network = ModularNetwork()
+    linear = MettaLinear(
+        in_keys=["input"],
+        out_keys=["hidden"],
+        input_features_shape=[2],
+        output_features_shape=[3],
+    )
+    relu = MettaReLU(in_keys=["hidden"], out_keys=["output"])
+
+    network.add_component("linear", linear)
+    network.add_component("relu", relu)
+
+    td = TensorDict({"input": torch.tensor([[1.0, 2.0]])}, batch_size=[1])
+    md = MettaData(td, {"foo": "bar"})
+    result = network(md)
+    assert result.data["foo"] == "bar"
 
 
 def test_modular_network_missing_input():
