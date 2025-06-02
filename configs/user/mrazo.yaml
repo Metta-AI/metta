@@ -5,16 +5,16 @@ defaults:
 
 trainer:
   curriculum: /env/mettagrid/curriculum/two_rooms_curriculum
-  wandb.enabled: false
-  wandb.track: false
+  wandb.enabled: true
+  wandb.track: true
   # initial_policy:
   #   uri: wandb://run/mrazo_action-obs_navigation_v03
   # evaluate_interval: 100
   # checkpoint_interval: 100
 
-replay_job:
-  policy_uri: wandb://run/mrazo_action-obs_navigation_v03
-  wandb.enabled: false
-  wandb.track: false
+# replay_job:
+#   policy_uri: wandb://run/mrazo_action-obs_navigation_v03
+#   wandb.enabled: false
+#   wandb.track: false
 
-run: mrazo_cooperation_overcooked_tick01_v03
+run: mrazo_cooperation_overcooked_tick02_v02
