@@ -375,3 +375,153 @@ class ObsSlotAttn(LayerBase):
 
         td[self._name] = slots  # Output shape: [B_TT, num_slots, slot_dim]
         return td
+    
+
+class ObsInducedSetAttention(LayerBase):
+    """
+    Induced Set Attention Block (ISAB).
+    Reduces attention complexity from O(N^2) to O(M*N) using M inducing points.
+    Q_induce from Inducing Points, K_input, V_input from Input Features.
+    Then Q_input from Input Features, K_induce, V_induce from updated Inducing Points.
+    """
+
+    def __init__(
+        self,
+        out_dim: int,
+        num_inducing_points: int,  # M in Set Transformer paper
+        inducing_point_dim: int,
+        num_heads: int = 1,  # Keep simple for now, like other custom attention layers
+        use_mask: bool = False,
+        mlp_hidden_dim_factor: int = 2,  # Factor to determine MLP hidden layer size
+        **cfg,
+    ) -> None:
+        super().__init__(**cfg)
+        self._out_dim = out_dim
+        self._num_inducing_points = num_inducing_points
+        self._inducing_point_dim = inducing_point_dim
+        self._num_heads = num_heads  # For now, will implement as if num_heads=1 for simplicity
+        self._use_mask = use_mask
+        self._mlp_hidden_dim_factor = mlp_hidden_dim_factor
+
+    def _make_net(self) -> None:
+        # Expected input shape for x_features: [B, N, feat_dim] (N is sequence length, M in your other files)
+        self._N_seq_len = self._in_tensor_shapes[0][0]  # N (original M)
+        self._feat_dim = self._in_tensor_shapes[0][1]  # D_in
+        self._scale = self._feat_dim**-0.5  # Standard scaling for attention
+
+        self._out_tensor_shape = [self._N_seq_len, self._out_dim]  # Output will be [B, N, D_out]
+
+        # Learnable inducing points
+        self._inducing_points = nn.Parameter(
+            torch.randn(1, self._num_inducing_points, self._inducing_point_dim)
+        )  # [1, M, D_ip]
+
+        # Layer norms
+        self._norm_input = nn.LayerNorm(self._feat_dim)
+        self._norm_inducing = nn.LayerNorm(self._inducing_point_dim)
+        self._norm_output_inducing = nn.LayerNorm(self._inducing_point_dim)  # Norm after first attention
+        self._norm_final_output = nn.LayerNorm(self._feat_dim)
+
+        # Projections for MAB_1 (Inducing Points to Input)
+        # Q from Inducing Points, K, V from Input
+        self.q_proj_induce = nn.Linear(self._inducing_point_dim, self._inducing_point_dim, bias=False)
+        self.k_proj_input1 = nn.Linear(self._feat_dim, self._inducing_point_dim, bias=False)
+        self.v_proj_input1 = nn.Linear(self._feat_dim, self._inducing_point_dim, bias=False)
+
+        # Projections for MAB_2 (Input to Updated Inducing Points)
+        # Q from Input, K, V from Updated Inducing Points
+        self.q_proj_input = nn.Linear(
+            self._feat_dim, self._feat_dim, bias=False
+        )  # query dim matches output feature dim
+        self.k_proj_inducing2 = nn.Linear(self._inducing_point_dim, self._feat_dim, bias=False)
+        self.v_proj_inducing2 = nn.Linear(self._inducing_point_dim, self._feat_dim, bias=False)
+
+        # MLP / FeedForward
+        mlp_hidden_dim = self._feat_dim * self._mlp_hidden_dim_factor
+        self.mlp = nn.Sequential(
+            nn.Linear(self._feat_dim, mlp_hidden_dim),
+            nn.ReLU(),
+            nn.Linear(mlp_hidden_dim, self._out_dim),  # Project to out_dim
+        )
+        self._layer_norm_mlp = nn.LayerNorm(self._out_dim)  # Norm after MLP
+
+        if self._feat_dim != self._out_dim:
+            self._final_res_proj = nn.Linear(self._feat_dim, self._out_dim)
+        else:
+            self._final_res_proj = nn.Identity()
+
+    def _attention(self, q, k, v, key_mask: Optional[torch.Tensor] = None, scale_factor: Optional[float] = None):
+        # q: [B, N_q, D_qkv]
+        # k: [B, N_kv, D_qkv]
+        # v: [B, N_kv, D_v]
+        # key_mask: [B, N_kv] (True for masked values)
+        # Output: [B, N_q, D_v]
+
+        current_scale_factor: float = scale_factor if scale_factor is not None else (q.shape[-1] ** -0.5)
+
+        attn_scores = torch.einsum("bqd,bkd->bqk", q, k) * current_scale_factor  # [B, N_q, N_kv]
+
+        if key_mask is not None:
+            # Expand mask for broadcasting: [B, N_kv] -> [B, 1, N_kv]
+            attn_scores.masked_fill_(key_mask.unsqueeze(1), -torch.finfo(attn_scores.dtype).max)
+
+        attn_weights = torch.softmax(attn_scores, dim=-1)  # [B, N_q, N_kv]
+        output = torch.einsum("bqk,bkd->bqd", attn_weights, v)  # [B, N_q, D_v]
+        return output
+
+    def _forward(self, td: TensorDict) -> TensorDict:
+        x_features = td[self._sources[0]["name"]]  # Shape: [B_TT, N, D_in]
+        input_mask = None
+        if self._use_mask:
+            input_mask = td.get("obs_mask", None)  # Shape: [B_TT, N], True for elements to be masked
+
+        B_TT = x_features.shape[0]
+
+        # Expand inducing points to batch size
+        inducing_points_batched = self._inducing_points.expand(B_TT, -1, -1)  # [B_TT, M, D_ip]
+
+        # Normalize inputs
+        x_norm = self._norm_input(x_features)
+        ip_norm = self._norm_inducing(inducing_points_batched)
+
+        # MAB 1: Inducing points attend to input features (I -> X)
+        # Q_induce from inducing_points, K_input1, V_input1 from x_features
+        q_i = self.q_proj_induce(ip_norm)  # [B_TT, M, D_ip]
+        k_x1 = self.k_proj_input1(x_norm)  # [B_TT, N, D_ip]
+        v_x1 = self.v_proj_input1(x_norm)  # [B_TT, N, D_ip]
+
+        # attn_output_ip has dim D_ip
+        attn_output_ip = self._attention(q_i, k_x1, v_x1, key_mask=input_mask)  # [B_TT, M, D_ip]
+
+        # Add & Norm for inducing points (H_tilde in some notations)
+        updated_inducing_points = self._norm_output_inducing(ip_norm + attn_output_ip)  # [B_TT, M, D_ip]
+
+        # MAB 2: Input features attend to updated inducing points (X -> I_updated)
+        # Q_input from x_features, K_inducing2, V_inducing2 from updated_inducing_points
+        # The K,V projections here will project D_ip to D_in (feat_dim) for the attention output
+        q_x = self.q_proj_input(x_norm)  # [B_TT, N, D_in]
+        k_i2 = self.k_proj_inducing2(updated_inducing_points)  # [B_TT, M, D_in]
+        v_i2 = self.v_proj_inducing2(updated_inducing_points)  # [B_TT, M, D_in]
+
+        # attn_output_x has dim D_in (feat_dim)
+        attn_output_x = self._attention(q_x, k_i2, v_i2, key_mask=None)  # No mask on inducing points [B_TT, N, D_in]
+
+        # Add & Norm for input features (H in some notations)
+        # Residual connection with original x_features (or x_norm, depending on typical transformer structure)
+        # Using x_features as input to residual, similar to ObsVanillaAttn
+        # If out_dim is different, original x_features cannot be directly added before MLP if MLP output is out_dim
+        # Let's make the residual connection after MLP if out_dim != feat_dim for the input to MLP
+
+        x_res_attention = x_features + attn_output_x  # [B_TT, N, D_in]
+        x_norm_final = self._norm_final_output(x_res_attention)  # [B_TT, N, D_in]
+
+        # MLP part
+        mlp_out = self.mlp(x_norm_final)  # [B_TT, N, D_out]
+
+        # Final residual connection and norm
+        # Need to project x_norm_final if D_in != D_out for residual connection
+        projected_residual_source = self._final_res_proj(x_norm_final)
+        output = self._layer_norm_mlp(projected_residual_source + mlp_out)  # [B_TT, N, D_out]
+
+        td[self._name] = output
+        return td
