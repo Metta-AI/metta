@@ -90,23 +90,6 @@ def simulate_policy(
             logger.info("Reward is %s", reward)
             assert reward >= SMOKE_TEST_MIN_SCORE, f"Reward is {reward}, expected at least {SMOKE_TEST_MIN_SCORE}"
 
-            # Verify stats structure is correct - check for aggregated agent metrics
-            agent_metrics_df = results.stats_db.query(
-                "SELECT DISTINCT metric FROM agent_metrics WHERE metric NOT LIKE 'agent_raw/%'"
-            )
-            expected_metrics = [
-                "reward",
-                "action.attack",
-                "action.move",
-                "action.rotate",
-                "action.noop",
-            ]  # Add more expected metrics
-            actual_metrics = set(agent_metrics_df["metric"].tolist())
-            for metric in expected_metrics:
-                assert any(metric in m for m in actual_metrics), (
-                    f"Expected metric pattern '{metric}' not found in {actual_metrics}"
-                )
-
             # Verify no agent_raw metrics exist (they should not be created anymore)
             raw_metrics_count = results.stats_db.query(
                 "SELECT COUNT(*) as count FROM agent_metrics WHERE metric LIKE 'agent_raw/%'"

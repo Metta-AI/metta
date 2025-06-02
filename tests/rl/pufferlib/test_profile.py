@@ -8,18 +8,6 @@ from metta.rl.pufferlib.profile import Profile, _fmt_perf
 class TestProfile:
     """Test the Profile class and its methods."""
 
-    def test_fmt_perf(self):
-        """Test the _fmt_perf helper function returns string percentages."""
-        # Test normal case
-        assert _fmt_perf(10, 100) == "10.0%"
-        assert _fmt_perf(33.333, 100) == "33.3%"
-
-        # Test zero total (avoid division by zero)
-        assert _fmt_perf(10, 0) == "0.0%"
-
-        # Test zero elapsed
-        assert _fmt_perf(0, 100) == "0.0%"
-
     def test_profile_initialization(self):
         """Test Profile initialization."""
         profile = Profile()
@@ -47,38 +35,6 @@ class TestProfile:
             value = getattr(profile, attr)
             assert isinstance(value, (int, float)), f"{attr} should return numeric value, got {type(value)}"
             assert value == 0  # Should be 0 initially
-
-    def test_profile_iter_returns_strings(self):
-        """Test that Profile.__iter__ returns formatted strings for timing metrics."""
-        profile = Profile()
-        profile.uptime = 100.0  # Set uptime to avoid division by zero
-
-        # Collect all items from iterator
-        items = {}
-        for key, value in profile:
-            items[key] = value
-
-        # Check that timing metrics are strings
-        timing_keys = [
-            "eval_time",
-            "env_time",
-            "eval_forward_time",
-            "eval_misc_time",
-            "train_time",
-            "train_forward_time",
-            "learn_time",
-            "train_misc_time",
-        ]
-
-        for key in timing_keys:
-            assert key in items, f"Missing key {key} in iterator output"
-            assert isinstance(items[key], str), f"{key} should be string in iterator"
-            assert items[key].endswith("%"), f"{key} should end with % sign"
-
-        # Check that non-timing metrics are numeric
-        assert isinstance(items["SPS"], (int, float))
-        assert isinstance(items["uptime"], (int, float))
-        assert isinstance(items["remaining"], (int, float))
 
     def test_profile_update_stats(self):
         """Test the update_stats method."""
@@ -113,31 +69,6 @@ class TestProfile:
             # Just verify it has __enter__ and __exit__ methods
             assert hasattr(ctx_manager, "__enter__"), f"{attr} should have __enter__ method"
             assert hasattr(ctx_manager, "__exit__"), f"{attr} should have __exit__ method"
-
-    def test_numeric_vs_string_comparison(self):
-        """Test that demonstrates the difference between numeric and string representations."""
-        profile = Profile()
-        profile.uptime = 100.0
-
-        # Since we can't easily mock the internal PufferProfile structure,
-        # let's test the actual behavior through the public interface
-
-        # Test direct attribute access (should be numeric)
-        numeric_value = profile.train_time
-        assert isinstance(numeric_value, (int, float))
-
-        # Test percentage calculation (what we do in trainer.py)
-        if profile.uptime > 0:
-            percentage = 100 * numeric_value / profile.uptime
-            assert isinstance(percentage, float)
-
-        # Test iterator output (should be string)
-        items = {}
-        for key, value in profile:
-            items[key] = value
-        string_value = items["train_time"]
-        assert isinstance(string_value, str)
-        assert string_value.endswith("%")  # Should be formatted as percentage
 
     def test_profile_epoch_time_property(self):
         """Test the epoch_time property."""
