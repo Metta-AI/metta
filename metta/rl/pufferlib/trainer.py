@@ -131,6 +131,11 @@ class PufferTrainer:
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
+        if torch.distributed.is_initialized():
+            # convert all BatchNorms to SyncBatchNorms
+            logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+            self.policy = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.policy)
+
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
