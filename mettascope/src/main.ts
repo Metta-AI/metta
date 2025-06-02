@@ -19,6 +19,7 @@ export function onResize() {
   // Make sure traceSplit and infoSplit are not too small or too large.
   const a = 0.025;
   ui.traceSplit = Math.max(a, Math.min(ui.traceSplit, 1 - a));
+  ui.agentPanelSplit = Math.max(a, Math.min(ui.agentPanelSplit, 1 - a));
 
   ui.mapPanel.x = 0;
   ui.mapPanel.y = Common.HEADER_HEIGHT;
@@ -47,6 +48,11 @@ export function onResize() {
   ui.tracePanel.width = screenWidth;
   ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
 
+  ui.agentPanel.x = 0;
+  ui.agentPanel.y = ui.tracePanel.y + ui.tracePanel.height;
+  ui.agentPanel.width = screenWidth;
+  ui.agentPanel.height = screenHeight - ui.agentPanel.y - Common.SCRUBBER_HEIGHT;
+
   html.actionButtons.style.top = (ui.tracePanel.y - 148) + 'px';
 
   ui.mapPanel.updateDiv();
@@ -70,6 +76,12 @@ function onMouseDown() {
     ui.mouseDown = true;
   }
 
+  if (Math.abs(ui.mousePos.y() - ui.agentPanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
+    ui.agentPanelDragging = true
+  } else {
+    ui.mouseDown = true;
+  }
+
   requestFrame();
 }
 
@@ -78,6 +90,7 @@ function onMouseUp() {
   ui.mouseUp = true;
   ui.mouseDown = false;
   ui.traceDragging = false;
+  ui.agentPanelDragging = false;
 
   // Due to how we select objects on mouse-up (mouse-down is drag/pan),
   // we need to check for double-click on mouse-up as well.
@@ -102,12 +115,21 @@ function onMouseMove(event: MouseEvent) {
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ns-resize";
   }
+  if (Math.abs(ui.mousePos.y() - ui.agentPanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
+    document.body.style.cursor = "ns-resize";
+  }
 
   // Drag the trace panel up or down.
   if (ui.traceDragging) {
     ui.traceSplit = ui.mousePos.y() / window.innerHeight
     onResize();
   }
+
+  if (ui.agentPanelDragging) {
+    ui.agentPanelSplit = ui.mousePos.y() / window.innerHeight
+    onResize();
+  }
+
   requestFrame();
 }
 

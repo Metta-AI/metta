@@ -54,6 +54,8 @@ export const ui = {
   // Split between trace and info panels.
   traceSplit: DEFAULT_TRACE_SPLIT,
   traceDragging: false,
+  agentPanelSplit: 0.5,
+  agentPanelDragging: false,
 
   // Panels
   mapPanel: new PanelInfo("#worldmap-panel"),

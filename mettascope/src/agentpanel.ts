@@ -97,7 +97,9 @@ export function initAgentTable() {
   onEvent("click", "#agent-panel .header-cell .dropdown", (target: HTMLElement, e: Event) => {
     let columnMenu = find("#column-menu");
     let columnField = walkUpAttribute(target, "data-column-field");
+    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
     columnMenu.setAttribute("data-column-field", columnField);
+    columnMenu.setAttribute("data-column-is-final", columnIsFinal.toString());
     showMenu(target, columnMenu);
   });
 
@@ -162,7 +164,9 @@ export function initAgentTable() {
     hideMenu();
     // Remove this column from the columns array.
     let columnField = walkUpAttribute(target, "data-column-field");
-    columns = columns.filter(column => column.field != columnField && column.isFinal == false);
+    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
+    console.log("Removing column: " + columnField + " " + columnIsFinal);
+    columns = columns.filter(column => !(column.field == columnField && column.isFinal == columnIsFinal));
     updateAgentTable();
   });
 
