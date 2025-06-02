@@ -15,7 +15,7 @@ from typing import List, Optional, Set, Tuple
 
 
 def run_gh_command(args: List[str]) -> Tuple[bool, str]:
-    """Run a GitHub CLI command and return success status and output."""
+    """Execute GitHub CLI commands with error handling to prevent script failures from non-critical operations."""
     try:
         result = subprocess.run(["gh"] + args, capture_output=True, text=True, check=True)
         return True, result.stdout.strip()
@@ -26,7 +26,7 @@ def run_gh_command(args: List[str]) -> Tuple[bool, str]:
 
 
 def get_pr_info(pr_number: str, repo: str) -> dict:
-    """Get PR information including author, assignees, reviewers, and labels."""
+    """Fetch PR metadata to understand current state before making changes."""
     success, output = run_gh_command(
         ["pr", "view", pr_number, "--repo", repo, "--json", "author,assignees,reviewRequests,labels,title"]
     )
@@ -42,24 +42,24 @@ def get_pr_info(pr_number: str, repo: str) -> dict:
 
 
 def is_empty(value: Optional[str]) -> bool:
-    """Check if a string is empty or contains only whitespace."""
+    """Safely handle potentially None values from configuration parsing."""
     return not value or not value.strip()
 
 
 def is_true(value: str) -> bool:
-    """Check if a value represents true (case insensitive)."""
+    """Normalize boolean string inputs from action parameters to handle case variations."""
     return value.lower() == "true"
 
 
 def parse_list(value: str) -> List[str]:
-    """Parse a comma-separated list into a list of trimmed strings."""
+    """Convert action input strings to usable lists, filtering empty values from malformed input."""
     if is_empty(value):
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def select_random(items: List[str], exclude: Optional[str] = None) -> Optional[str]:
-    """Randomly select an item from a list, optionally excluding one value."""
+    """Ensure fair distribution of assignments while preventing self-assignment to PR authors."""
     if not items:
         return None
 
@@ -72,7 +72,7 @@ def select_random(items: List[str], exclude: Optional[str] = None) -> Optional[s
 
 
 def clear_assignees(pr_number: str, repo: str, current_assignees: List[str]) -> bool:
-    """Clear all existing assignees from a PR."""
+    """Remove existing assignments to reset state before applying new assignment logic."""
     if not current_assignees:
         print("No existing assignees to clear")
         return False
@@ -88,7 +88,7 @@ def clear_assignees(pr_number: str, repo: str, current_assignees: List[str]) -> 
 
 
 def clear_reviewers(pr_number: str, repo: str, current_reviewers: List[str]) -> bool:
-    """Clear all existing review requests from a PR."""
+    """Reset review state to prevent accumulation of stale review requests."""
     if not current_reviewers:
         print("No existing review requests to clear")
         return False
@@ -104,7 +104,7 @@ def clear_reviewers(pr_number: str, repo: str, current_reviewers: List[str]) -> 
 
 
 def clear_labels(pr_number: str, repo: str, current_labels: List[str]) -> bool:
-    """Clear all existing labels from a PR."""
+    """Remove existing labels to ensure clean state for forced label application."""
     if not current_labels:
         print("No existing labels to clear")
         return False
@@ -120,7 +120,7 @@ def clear_labels(pr_number: str, repo: str, current_labels: List[str]) -> bool:
 
 
 def add_assignees(pr_number: str, repo: str, assignees: List[str]) -> Set[str]:
-    """Add assignees to a PR. Returns set of successfully added assignees."""
+    """Track successful assignments to build accurate summary comments and handle partial failures."""
     added = set()
     for assignee in assignees:
         success, _ = run_gh_command(["pr", "edit", pr_number, "--add-assignee", assignee, "--repo", repo])
@@ -131,7 +131,7 @@ def add_assignees(pr_number: str, repo: str, assignees: List[str]) -> Set[str]:
 
 
 def add_reviewers(pr_number: str, repo: str, reviewers: List[str]) -> Set[str]:
-    """Add reviewers to a PR. Returns set of successfully added reviewers."""
+    """Track successful review requests to build accurate summary comments and handle partial failures."""
     added = set()
     for reviewer in reviewers:
         success, _ = run_gh_command(["pr", "edit", pr_number, "--add-reviewer", reviewer, "--repo", repo])
@@ -142,7 +142,7 @@ def add_reviewers(pr_number: str, repo: str, reviewers: List[str]) -> Set[str]:
 
 
 def add_labels(pr_number: str, repo: str, labels: List[str]) -> Set[str]:
-    """Add labels to a PR. Returns set of successfully added labels."""
+    """Track successful label applications to build accurate summary comments and handle partial failures."""
     added = set()
     for label in labels:
         success, _ = run_gh_command(["pr", "edit", pr_number, "--add-label", label, "--repo", repo])
@@ -153,7 +153,7 @@ def add_labels(pr_number: str, repo: str, labels: List[str]) -> Set[str]:
 
 
 def post_comment(pr_number: str, repo: str, comment: str) -> None:
-    """Post a comment on a PR."""
+    """Provide visibility into automated actions taken by the workflow."""
     run_gh_command(["pr", "comment", pr_number, "--body", comment, "--repo", repo])
 
 
@@ -186,7 +186,7 @@ def detect_version_change(pr_title: str) -> Optional[str]:
 
 
 def ensure_version_labels_exist(repo: str) -> None:
-    """Create version labels if they don't exist."""
+    """Pre-create semantic version labels for Dependabot PRs to avoid label creation failures."""
     labels = [
         ("major", "FF0000", "Major version update"),
         ("minor", "FFFF00", "Minor version update"),
@@ -199,7 +199,6 @@ def ensure_version_labels_exist(repo: str) -> None:
 
 def main():
     """Main function to process PR assignments."""
-    # Get arguments
     if len(sys.argv) < 10:
         print("Error: Not enough arguments provided")
         sys.exit(1)
@@ -216,7 +215,6 @@ def main():
 
     repo = os.environ.get("GITHUB_REPOSITORY", "")
 
-    # Get PR information
     pr_info = get_pr_info(pr_number, repo)
     pr_author = pr_info.get("author", {}).get("login", "")
     pr_title = pr_info.get("title", "")
@@ -226,7 +224,6 @@ def main():
 
     print(f"Processing PR #{pr_number} by @{pr_author}")
 
-    # Check if this is a Dependabot PR and add version label
     if pr_author == "dependabot[bot]":
         print("Detected Dependabot PR, checking for version changes...")
         ensure_version_labels_exist(repo)
@@ -241,25 +238,21 @@ def main():
                     print(f"Added '{version_type}' label to PR")
                     current_labels.append(version_type)
 
-    # Track actions taken
     actions = []
     assigned = set()
     reviewed = set()
     labeled = set()
 
-    # Clear existing assignees if requested
     if is_true(clear_existing_assignees):
         print("Clearing existing assignees...")
         if clear_assignees(pr_number, repo, current_assignees):
             actions.append("Cleared all existing assignees")
 
-    # Clear existing reviewers if requested
     if is_true(clear_existing_reviewers):
         print("Clearing existing review requests...")
         if clear_reviewers(pr_number, repo, current_reviewers):
             actions.append("Cleared all existing review requests")
 
-    # Clear existing labels if requested
     if is_true(clear_existing_labels):
         print("Clearing existing labels...")
         # For Dependabot PRs, preserve version labels
@@ -272,13 +265,11 @@ def main():
         if clear_labels(pr_number, repo, labels_to_clear):
             actions.append("Cleared all existing labels")
 
-    # Process forced assignees
     forced_assignee_list = parse_list(forced_assignees)
     if forced_assignee_list:
         print(f"Adding forced assignees: {', '.join(forced_assignee_list)}")
         assigned = add_assignees(pr_number, repo, forced_assignee_list)
 
-    # Process random assignee
     possible_assignee_list = parse_list(possible_assignees)
     if possible_assignee_list:
         selected_assignee = select_random(possible_assignee_list, pr_author)
@@ -288,13 +279,11 @@ def main():
                 assigned.add(selected_assignee)
                 print(f"Successfully assigned PR #{pr_number} to {selected_assignee}")
 
-    # Process forced reviewers
     forced_reviewer_list = parse_list(forced_reviewers)
     if forced_reviewer_list:
         print(f"Adding forced reviewers: {', '.join(forced_reviewer_list)}")
         reviewed = add_reviewers(pr_number, repo, forced_reviewer_list)
 
-    # Process random reviewer
     possible_reviewer_list = parse_list(possible_reviewers)
     if possible_reviewer_list:
         selected_reviewer = select_random(possible_reviewer_list, pr_author)
@@ -304,16 +293,14 @@ def main():
                 reviewed.add(selected_reviewer)
                 print(f"Successfully requested review from {selected_reviewer} for PR #{pr_number}")
 
-    # Process forced labels
     forced_label_list = parse_list(forced_labels)
     if forced_label_list:
         print(f"Setting forced labels: {', '.join(forced_label_list)}")
-        # Clear existing labels if not already cleared
+        # Forced labels require clean slate to prevent mixing with existing labels
         if not is_true(clear_existing_labels) and current_labels:
             clear_labels(pr_number, repo, current_labels)
         labeled = add_labels(pr_number, repo, forced_label_list)
 
-    # Build and post summary comment
     if assigned:
         actions.append(f"Assigned to: {' '.join(f'@{a}' for a in sorted(assigned))}")
 
