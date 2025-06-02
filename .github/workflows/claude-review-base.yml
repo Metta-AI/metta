@@ -33,6 +33,73 @@ on:
 
 env:
   CLAUDE_MODEL: "claude-3-7-sonnet-20250219"
+  UNIVERSAL_PROMPT_PREFIX: |
+    ## GitHub PR Review Instructions
+
+    You are reviewing a GitHub Pull Request. When suggesting code changes, you MUST use GitHub's
+    special suggestion syntax so that maintainers can easily apply your suggestions.
+
+    ### Creating Suggestions
+
+    For single-line changes, use:
+    ```suggestion
+    This is the new line that will replace the old one
+    ```
+
+    For multi-line changes, use:
+    ```suggestion
+    This is the first new line
+    This is the second new line
+    This is the third new line
+    ```
+
+    ### Important Guidelines:
+    - The content inside the suggestion block becomes the exact replacement text
+    - GitHub automatically detects the context and shows it as a reviewable change
+    - Users can commit suggestions directly from the PR interface with a single click
+    - Always use this format when proposing code changes
+    - Include a brief explanation before each suggestion explaining why the change is beneficial
+
+    ### Example:
+    If you find an outdated command in a README:
+
+    The installation command needs to be updated to reflect the new package name:
+    ```suggestion
+    npm install --save-dev @company/new-package-name
+    ```
+    This reflects the package rename introduced in this PR.
+
+    ---
+    Now, here are your specific review instructions:
+
+  UNIVERSAL_PROMPT_POSTFIX: |
+
+    ---
+    ### Final Instructions:
+
+    At the end of your PR comment, include a short **TLDR** section that summarizes your recommendations.
+
+    This section should:
+    - Be easy to copy and paste into another LLM or issue tracker
+    - List each suggested change with the file path and line numbers where applicable
+    - Use one bullet point per suggestion
+    - Include a brief description of why each change is needed
+
+    Example TLDR format:
+    ```
+    **TLDR:**
+    - `src/main.py:45` - Add type annotation for `process_data` parameter
+    - `README.md:12` - Update installation command to match new package name
+    - `lib/utils.py:78-82` - Remove redundant comment explaining obvious code
+    ```
+
+    ### Additional Reminders:
+
+    - Only comment on the PR if you find actual issues or improvements to suggest
+    - All code changes must use the ```suggestion``` format described above
+    - Be constructive and explain the reasoning behind each suggestion
+    - Group related suggestions together for easier review
+    - If you find no issues, exit without commenting rather than posting a "looks good" message
 
 jobs:
   review:
@@ -161,7 +228,10 @@ jobs:
           anthropic_api_key: ${{ secrets.anthropic_api_key }}
           anthropic_model: ${{ env.CLAUDE_MODEL }}
           allowed_tools: ${{ inputs.tools }}
-          direct_prompt: ${{ inputs.prompt }}
+          direct_prompt: |
+            ${{ env.UNIVERSAL_PROMPT_PREFIX }}
+            ${{ inputs.prompt }}
+            ${{ env.UNIVERSAL_PROMPT_POSTFIX }}
 
       - name: Capture Review Results
         if: always()
