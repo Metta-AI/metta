@@ -241,7 +241,7 @@ def summarize_prs_sequential(
     else:
         cached_summaries = cache_data.get("summaries", {})
 
-    for i, pr in enumerate(prs):
+    for _, pr in enumerate(prs):
         summary_data = summarize_pr_with_cache(pr, model, cached_summaries)
         pr_summaries.append(summary_data)
 
