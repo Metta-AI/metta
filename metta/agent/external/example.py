@@ -65,32 +65,12 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
-        max_vec = torch.tensor(
-            [
-                1.0,
-                9.0,
-                1.0,
-                30.0,
-                1.0,
-                3.0,
-                255.0,
-                26.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                47.0,
-                3.0,
-                3.0,
-                2.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-            ]
-        )[None, :, None, None]
+        # TODO - fix magic numbers!
+        # fmt: off
+        max_vec = torch.tensor([  1.,   9.,   1.,  30.,   1.,   3., 255.,  26.,   1.,   1.,   1.,   1.,
+                1.,  47.,   3.,   3.,   2.,   1.,   1.,   1.,   1.])[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
+        # fmt: on
 
         action_nvec = env.single_action_space.nvec
         self.actor = nn.ModuleList(
@@ -109,8 +89,6 @@ class Policy(nn.Module):
     def encode_observations(self, observations, state=None):
         # observations are already in [batch, channels, height, width] format
         features = observations.float() / self.max_vec
-        # mmax = features.max(0)[0].max(1)[0].max(1)[0]
-        # self.max_vec = torch.maximum(self.max_vec, mmax[None, :, None, None])
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
         return torch.cat([self_features, cnn_features], dim=1)

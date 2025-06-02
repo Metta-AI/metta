@@ -127,7 +127,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override
     def step(self, actions: list[list[int]]) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
-        self.actions = actions #[:] = np.array(actions).astype(np.int32)
+        self.actions = actions  # [:] = np.array(actions).astype(np.int32)
 
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)
