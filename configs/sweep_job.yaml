@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - agent: robust_cross
+  - agent: simple
   - sim: all
   - trainer: puffer
   - _self_
@@ -17,9 +17,9 @@ num_random_samples: 10
 
 trainer:
   evaluate_interval: 600
-  env_overrides:
-    game:
-      use_observation_tokens: true
+  # env_overrides:
+  #   game:
+  #     use_observation_tokens: true
 
 sim:
   num_episodes: 1
