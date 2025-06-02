@@ -19,7 +19,6 @@ trainer:
   evaluate_interval: 300
 
 sim:
-  num_envs: 5
   num_episodes: 5
 
 sweep_job:
