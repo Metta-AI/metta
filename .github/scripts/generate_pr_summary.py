@@ -17,7 +17,7 @@ MODEL_CONFIG = {
 }
 
 
-def get_model_config():
+def get_model_config() -> tuple[str, str]:
     """Get model configuration from environment or use defaults."""
     phase1_model = os.getenv("PHASE1_MODEL", MODEL_CONFIG["phase1"])
     phase2_model = os.getenv("PHASE2_MODEL", MODEL_CONFIG["phase2"])
@@ -96,7 +96,7 @@ Keep the summary focused and technical. Maximum 200 words."""
         return f"[Error summarizing PR #{pr['number']}]"
 
 
-def load_pr_summary_cache() -> Dict[str, Dict[str, Any]]:
+def load_pr_summary_cache() -> dict[str, dict[str, Any]]:
     """Load cached individual PR summaries."""
     cache_file = Path(".pr-digest-cache/pr_summaries_cache.json")
     if cache_file.exists():
@@ -113,7 +113,7 @@ def load_pr_summary_cache() -> Dict[str, Dict[str, Any]]:
     return {}
 
 
-def save_pr_summary_cache(summaries: Dict[str, Dict[str, Any]], model_name: str) -> None:
+def save_pr_summary_cache(summaries: dict[str, dict[str, Any]], model_name: str) -> None:
     """Save individual PR summaries to cache with model info."""
     cache_dir = Path(".pr-digest-cache")
     cache_dir.mkdir(exist_ok=True)
@@ -130,8 +130,8 @@ def save_pr_summary_cache(summaries: Dict[str, Dict[str, Any]], model_name: str)
 
 
 def summarize_pr_with_cache(
-    pr: Dict[str, Any], model: genai.GenerativeModel, cache: Dict[str, Dict[str, Any]]
-) -> Dict[str, Any]:
+    pr: dict[str, Any], model: genai.GenerativeModel, cache: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
     """Summarize a single PR, using cache if available."""
     cache_key = f"{pr['number']}-{pr['merged_at']}"
 
@@ -151,8 +151,8 @@ def summarize_pr_with_cache(
 
 
 def summarize_prs_parallel(
-    prs: List[Dict[str, Any]], model: genai.GenerativeModel, model_name: str, max_workers: int = 5
-) -> List[Dict[str, Any]]:
+    prs: list[dict[str, Any]], model: genai.GenerativeModel, model_name: str, max_workers: int = 5
+) -> list[dict[str, Any]]:
     """Summarize PRs in parallel with caching."""
     pr_summaries = []
     cache_data = load_pr_summary_cache()
@@ -228,8 +228,8 @@ def summarize_prs_parallel(
 
 
 def summarize_prs_sequential(
-    prs: List[Dict[str, Any]], model: genai.GenerativeModel, model_name: str
-) -> List[Dict[str, Any]]:
+    prs: list[dict[str, Any]], model: genai.GenerativeModel, model_name: str
+) -> list[dict[str, Any]]:
     """Summarize PRs sequentially with caching."""
     pr_summaries = []
     cache_data = load_pr_summary_cache()
@@ -251,7 +251,7 @@ def summarize_prs_sequential(
     return pr_summaries
 
 
-def create_final_summary_prompt(pr_summaries: List[Dict[str, str]], start_date: str, end_date: str, days: int) -> str:
+def create_final_summary_prompt(pr_summaries: list[dict[str, str]], start_date: str, end_date: str, days: int) -> str:
     """Create prompt for final summary from individual PR summaries."""
     prompt = f"""You have individual summaries for all PRs merged into [Metta-AI/metta](https://github.com/Metta-AI/metta)
 from {start_date} to {end_date} ({days} days).
@@ -288,7 +288,7 @@ Focus on technical accuracy and create a well-structured Markdown summary for Di
     return prompt
 
 
-def main():
+def main() -> None:
     """Generate summary from PR digest using two-phase approach."""
     print("Starting two-phase PR summarization...")
 

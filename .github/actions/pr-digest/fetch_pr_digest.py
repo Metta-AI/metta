@@ -51,7 +51,7 @@ class GitHubClient:
         self.token = token
         self.headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github.v3+json"}
 
-    def _make_request(self, url: str, headers: dict = None, params: dict = None) -> requests.Response:
+    def _make_request(self, url: str, headers: dict | None = None, params: dict | None = None) -> requests.Response:
         """Make a request with rate limit handling."""
         response = requests.get(url, headers=headers or self.headers, params=params)
 
@@ -132,7 +132,7 @@ class GitHubClient:
         )
 
 
-def load_cache(cache_file: Path) -> Optional[CacheData]:
+def load_cache(cache_file: Path) -> CacheData | None:
     """Load cache if it exists and is valid."""
     if not cache_file.exists():
         return None
@@ -159,7 +159,7 @@ def load_cache(cache_file: Path) -> Optional[CacheData]:
         return None
 
 
-def save_cache(cache_file: Path, cache_data: CacheData):
+def save_cache(cache_file: Path, cache_data: CacheData) -> None:
     """Save cache data."""
     cache_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -194,7 +194,7 @@ def prune_cache(cache_data: CacheData, max_age_days: int = 60) -> CacheData:
     return cache_data
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     # Read inputs
     repository = os.getenv("REPOSITORY", "")

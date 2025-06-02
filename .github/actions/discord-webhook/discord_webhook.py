@@ -123,7 +123,7 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
     return True
 
 
-def main():
+def main() -> None:
     """Main entry point for the Discord posting action."""
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
     content = os.getenv("DISCORD_CONTENT")
