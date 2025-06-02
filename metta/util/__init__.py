@@ -1,3 +1,3 @@
-# This module contains various utilities used throughout the metta package
+from .validate import validate_arg_types
 
-__all__ = []
+__all__ = ["validate_arg_types"]
