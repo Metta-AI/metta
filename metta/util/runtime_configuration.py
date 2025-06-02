@@ -56,6 +56,6 @@ def setup_mettagrid_environment(cfg):
 
     # print(OmegaConf.to_yaml(cfg))
     traceback.install(show_locals=False)
-    seed_everything(cfg.seed, cfg.torch_deterministic)
+    # seed_everything(cfg.seed, cfg.torch_deterministic) # deactivate to debug distributed training
     os.makedirs(cfg.run_dir, exist_ok=True)
     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
