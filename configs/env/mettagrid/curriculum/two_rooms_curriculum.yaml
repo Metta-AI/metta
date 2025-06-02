@@ -1,0 +1,3 @@
+_target_: mettagrid.curriculum.SingleTaskCurriculum
+
+task_id: /env/mettagrid/cooperation/training/two_rooms_coord
