@@ -2,7 +2,7 @@ defaults:
   - common
   - wandb: metta_research
   - agent: robust_cross
-  - sim: navigation
+  - sim: sweep_eval
   - trainer: puffer
   - _self_
 
