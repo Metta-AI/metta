@@ -23,7 +23,7 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
-from metta.rl.pufferlib.policy import PufferAgent, load_policy
+from metta.rl.pufferlib.policy import load_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
@@ -57,7 +57,7 @@ class PolicyRecord:
     def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
         """Get the policy as a MettaAgent or DistributedMettaAgent."""
         policy = self.policy()
-        if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PufferAgent)):
+        if not isinstance(policy, (MettaAgent, DistributedMettaAgent)):
             raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
         return policy
 
@@ -529,17 +529,9 @@ class PolicyStore:
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
-
-            # Handle device mapping for cross-platform compatibility
-            if self._device == "cpu" or not torch.cuda.is_available():
-                # Map CUDA tensors to CPU when CUDA is not available
-                map_location = "cpu"
-            else:
-                map_location = self._device
-
             pr = torch.load(
                 path,
-                map_location=map_location,
+                map_location=self._device,
                 weights_only=False,
             )
             pr._policy_store = self

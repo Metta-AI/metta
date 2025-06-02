@@ -8,10 +8,10 @@ import gymnasium as gym
 import numpy as np
 import pufferlib
 from omegaconf import OmegaConf
-from pufferlib import unroll_nested_dict
-from pydantic import validate_call
+from pufferlib.utils import unroll_nested_dict
 from typing_extensions import override
 
+from metta.util import validate_arg_types
 from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
@@ -43,7 +43,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     rewards: np.ndarray
     actions: np.ndarray
 
-    @validate_call(config={"arbitrary_types_allowed": True})
+    @validate_arg_types
     def __init__(
         self,
         curriculum: Curriculum,
@@ -93,12 +93,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        # Only validate agent count if expecting agents
-        if self._task.env_cfg().game.num_agents > 0:
-            assert self._task.env_cfg().game.num_agents == level_agents, (
-                f"Number of agents {self._task.env_cfg().game.num_agents} "
-                f"does not match number of agents in map {level_agents}"
-            )
+        assert self._task.env_cfg().game.num_agents == level_agents, (
+            f"Number of agents {self._task.env_cfg().game.num_agents} "
+            f"does not match number of agents in map {level_agents}"
+        )
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))
@@ -189,25 +187,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         stats = self._c_env.get_episode_stats()
 
         infos["episode_rewards"] = episode_rewards
+        infos["agent_raw"] = stats["agent"]
+        infos["game"] = stats["game"]
+        infos["converter"] = stats["converter"]
+        infos["agent"] = {}
 
-        # Flatten agent_raw stats - one entry per agent per stat
-        if "agent" in stats:
-            for agent_idx, agent_stats in enumerate(stats["agent"]):
-                for stat_name, stat_value in agent_stats.items():
-                    infos[f"agent_raw/{agent_idx}/{stat_name}"] = stat_value
-
-        # Flatten game stats
-        if "game" in stats:
-            for k, v in unroll_nested_dict(stats["game"]):
-                infos[f"game/{k}"] = v
-
-        # Keep the aggregated agent stats as before
-        agent_totals = {}
         for agent_stats in stats["agent"]:
             for n, v in agent_stats.items():
-                agent_totals[n] = agent_totals.get(n, 0) + v
-        for n, v in agent_totals.items():
-            infos[f"agent/{n}"] = v / self._c_env.num_agents
+                infos["agent"][n] = infos["agent"].get(n, 0) + v
+        for n, v in infos["agent"].items():
+            infos["agent"][n] = v / self._c_env.num_agents
 
         replay_url = None
         if self._replay_writer:
