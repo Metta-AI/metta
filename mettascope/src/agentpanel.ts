@@ -3,41 +3,55 @@ import { state, setFollowSelection, html } from "./common.js";
 import { getAttr } from "./replay.js";
 import { updateSelection } from "./main.js";
 
-class ColumnDefinition {
-  name: string;
-  field: string;
-  isFinal: boolean;
-  sortDirection: number;
-
-  constructor(name: string, field: string, isFinal: boolean, sortDirection: number = 0) {
-    this.name = name;
-    this.field = field;
-    this.isFinal = isFinal;
-    this.sortDirection = sortDirection;
-  }
-}
-
-var columns = [
-  new ColumnDefinition("Agent Id", "agent_id", false),
-  new ColumnDefinition("Total Reward", "total_reward", false),
-  new ColumnDefinition("Final Total Reward", "total_reward", true),
-
-  new ColumnDefinition("Red Ore", "inv:ore.red", false),
-  new ColumnDefinition("Blue Ore", "inv:ore.blue", false),
-  new ColumnDefinition("Green Ore", "inv:ore.green", false),
-
-  new ColumnDefinition("Red Battery", "inv:battery.red", false),
-  new ColumnDefinition("Blue Battery", "inv:battery.blue", false),
-  new ColumnDefinition("Green Battery", "inv:battery.green", false),
-];
-var mainSort: ColumnDefinition = columns[1];
-
-
 // Capitalize the first letter of every word in a string.
 // Example: "hello world" -> "Hello World"
 function capitalize(str: string) {
   return str.split(" ").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
 }
+
+class ColumnDefinition {
+  field: string;
+  isFinal: boolean;
+  sortDirection: number;
+
+  constructor(field: string, isFinal: boolean, sortDirection: number = 0) {
+    this.field = field;
+    this.isFinal = isFinal;
+    this.sortDirection = sortDirection;
+  }
+
+  generateName() {
+    let name = capitalize(this.field.replace("inv:", "").replace("agent:", "").replace(".", " "));
+    if (this.isFinal) {
+      name = "Final: " + name;
+    }
+    return name;
+  }
+
+  generateIcon() {
+    if (this.field.startsWith("inv:") || this.field.startsWith("agent:inv:")) {
+      return "/data/resources/" + this.field.replace("inv:", "").replace("agent:", "") + ".png";
+    } else {
+      return "/data/ui/table/" + this.field.replace("agent:", "") + ".png";
+    }
+  }
+}
+
+var columns = [
+  new ColumnDefinition("agent_id", false),
+  new ColumnDefinition("total_reward", false),
+  new ColumnDefinition("total_reward", true),
+
+  // new ColumnDefinition("inv:ore.red", false),
+  // new ColumnDefinition("inv:ore.blue", false),
+  // new ColumnDefinition("inv:ore.green", false),
+
+  // new ColumnDefinition("inv:battery.red", false),
+  // new ColumnDefinition("inv:battery.blue", false),
+  // new ColumnDefinition("inv:battery.green", false),
+];
+var mainSort: ColumnDefinition = columns[1];
+
 
 // Swaps the element 1 position to the right.
 function swapRight(list: any[], element: any) {
@@ -82,17 +96,17 @@ export function initAgentTable() {
   // Clicking on the column menu button should show the column menu.
   onEvent("click", "#agent-panel .header-cell .dropdown", (target: HTMLElement, e: Event) => {
     let columnMenu = find("#column-menu");
-    let columnName = walkUpAttribute(target, "data-column-name");
-    columnMenu.setAttribute("data-column-name", columnName);
+    let columnField = walkUpAttribute(target, "data-column-field");
+    columnMenu.setAttribute("data-column-field", columnField);
     showMenu(target, columnMenu);
   });
 
   // Clicking on the sort up button should sort the column in ascending order.
   onEvent("click", "#column-menu .sort-up", (target: HTMLElement, e: Event) => {
     console.log("Sort up clicked");
-    let columnName = walkUpAttribute(target, "data-column-name");
+    let columnField = walkUpAttribute(target, "data-column-field");
     for (let i = 0; i < columns.length; i++) {
-      if (columns[i].name == columnName) {
+      if (columns[i].field == columnField && columns[i].isFinal == false) {
         columns[i].sortDirection = -1;
         mainSort = columns[i];
       } else {
@@ -106,9 +120,9 @@ export function initAgentTable() {
   // Clicking on the sort down button should sort the column in descending order.
   onEvent("click", "#column-menu .sort-down", (target: HTMLElement, e: Event) => {
     console.log("Sort up clicked");
-    let columnName = walkUpAttribute(target, "data-column-name");
+    let columnField = walkUpAttribute(target, "data-column-field");
     for (let i = 0; i < columns.length; i++) {
-      if (columns[i].name == columnName) {
+      if (columns[i].field == columnField && columns[i].isFinal == false) {
         columns[i].sortDirection = 1;
         mainSort = columns[i];
       } else {
@@ -121,8 +135,8 @@ export function initAgentTable() {
 
   onEvent("click", "#column-menu .move-left", (target: HTMLElement, e: Event) => {
     console.log("Move left clicked");
-    let columnName = walkUpAttribute(target, "data-column-name");
-    let column = columns.find(column => column.name == columnName);
+    let columnField = walkUpAttribute(target, "data-column-field");
+    let column = columns.find(column => column.field == columnField && column.isFinal == false);
     if (column != null) {
       swapLeft(columns, column);
       updateAgentTable();
@@ -133,8 +147,8 @@ export function initAgentTable() {
   // Clicking on the move right button should move the column to the right.
   onEvent("click", "#column-menu .move-right", (target: HTMLElement, e: Event) => {
     console.log("Move right clicked");
-    let columnName = walkUpAttribute(target, "data-column-name");
-    let column = columns.find(column => column.name == columnName);
+    let columnField = walkUpAttribute(target, "data-column-field");
+    let column = columns.find(column => column.field == columnField && column.isFinal == false);
     if (column != null) {
       swapRight(columns, column);
       updateAgentTable();
@@ -147,8 +161,8 @@ export function initAgentTable() {
     console.log("Hide column clicked");
     hideMenu();
     // Remove this column from the columns array.
-    let columnName = walkUpAttribute(target, "data-column-name");
-    columns = columns.filter(column => column.name != columnName);
+    let columnField = walkUpAttribute(target, "data-column-field");
+    columns = columns.filter(column => column.field != columnField && column.isFinal == false);
     updateAgentTable();
   });
 
@@ -200,19 +214,52 @@ export function initAgentTable() {
   });
 
   onEvent("click", "#new-column-dropdown .step-check", (target: HTMLElement, e: Event) => {
-    if (target.getAttribute("src") == "data/ui/check-on.png") {
-      target.setAttribute("src", "data/ui/check-off.png");
-    } else {
-      target.setAttribute("src", "data/ui/check-on.png");
+    let columnField = walkUpAttribute(target, "data-column-field");
+    let columnIsFinal = false;
+    let found = -1;
+    if (columnField != "") {
+      for (let i = 0; i < columns.length; i++) {
+        if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
+          found = i
+        }
+      }
     }
+    if (found != -1) {
+      // Remove the column from the columns array.
+      columns.splice(found, 1);
+    } else {
+      // Add the column to the columns array.
+      columns.push(new ColumnDefinition(columnField, columnIsFinal));
+    }
+    updateAgentTable();
+    updateAvailableColumns();
   });
 
   onEvent("click", "#new-column-dropdown .final-check", (target: HTMLElement, e: Event) => {
-    if (target.getAttribute("src") == "data/ui/check-on.png") {
-      target.setAttribute("src", "data/ui/check-off.png");
-    } else {
-      target.setAttribute("src", "data/ui/check-on.png");
+    // if (target.getAttribute("src") == "data/ui/check-on.png") {
+    //   target.setAttribute("src", "data/ui/check-off.png");
+    // } else {
+    //   target.setAttribute("src", "data/ui/check-on.png");
+    // }
+    let columnField = walkUpAttribute(target, "data-column-field");
+    let columnIsFinal = true;
+    let found = -1;
+    if (columnField != "") {
+      for (let i = 0; i < columns.length; i++) {
+        if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
+          found = i
+        }
+      }
     }
+    if (found != -1) {
+      // Remove the column from the columns array.
+      columns.splice(found, 1);
+    } else {
+      // Add the column to the columns array.
+      columns.push(new ColumnDefinition(columnField, columnIsFinal));
+    }
+    updateAgentTable();
+    updateAvailableColumns();
   });
 
   removeChildren(table);
@@ -228,26 +275,36 @@ export function updateAvailableColumns() {
   let agentKeys = new Set<string>();
   for (let agent of state.replay.agents) {
     for (let key in agent) {
-      if (key.startsWith("agent:")) {
-        agentKeys.add(key);
-      }
+      agentKeys.add(key);
     }
   }
   // All inventory keys:
   for (let key of agentKeys) {
     let name = capitalize(key.replace("agent:", "").replace("inv:", "").replace(".", " "));
-    availableColumns.push(new ColumnDefinition(name, key, false));
+    if (key != "agent" && key != "c" && key != "r") {
+      availableColumns.push(new ColumnDefinition(key, false));
+    }
   }
 
   removeChildren(columnOptions);
 
   for (let column of availableColumns) {
     let option = columnOptionTemplate.cloneNode(true) as HTMLElement;
-    option.querySelector(".name")!.textContent = column.name;
-    let src = "data/resources/" + column.field.replace("inv:", "").replace("agent:", "") + ".png";
-    option.querySelector(".icon")!.setAttribute("src", src);
+    option.querySelector(".name")!.textContent = column.generateName();
+    option.querySelector(".icon")!.setAttribute("src", column.generateIcon());
     option.setAttribute("title", column.field);
-    option.setAttribute("data-column-name", column.name);
+    option.setAttribute("data-column-field", column.field);
+    var stepColumnExists = false;
+    var finalColumnExists = false;
+    for (let c of columns) {
+      if (c.field == column.field && c.isFinal == false) {
+        stepColumnExists = true;
+      } else if (c.field == column.field && c.isFinal == true) {
+        finalColumnExists = true;
+      }
+    }
+    option.querySelector(".step-check")!.setAttribute("src", stepColumnExists ? "data/ui/check-on.png" : "data/ui/check-off.png");
+    option.querySelector(".final-check")!.setAttribute("src", finalColumnExists ? "data/ui/check-on.png" : "data/ui/check-off.png");
     columnOptions.appendChild(option);
   }
 
@@ -284,10 +341,9 @@ export function updateAgentTable() {
     column.setAttribute("data-column-is-final", columnDef.isFinal.toString());
     let headerCell = headerCellTemplate.cloneNode(true) as HTMLElement;
     let name = headerCell.querySelectorAll(".name")[0];
-    name.textContent = columnDef.name;
+    name.textContent = columnDef.generateName();
     let icon = headerCell.querySelectorAll(".icon")[0];
-    let iconName = columnDef.field.replace("inv:", "").replace("agent:", "")
-    icon.setAttribute("src", "data/resources/" + iconName + ".png");
+    icon.setAttribute("src", columnDef.generateIcon());
 
     let sortIcon = headerCell.querySelector(".sort-icon") as HTMLElement;
     if (columnDef.sortDirection == 1) {
