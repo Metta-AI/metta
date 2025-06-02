@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from dataclasses import dataclass
@@ -5,9 +6,12 @@ from datetime import datetime
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from pufferlib.utils import unroll_nested_dict
 
+import mettagrid.util.file
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import ascii_to_grid, grid_to_ascii
+from metta.map.utils.s3utils import list_objects
 from mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
@@ -90,3 +94,33 @@ def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
         config=cfg,
     )
     return storable_map
+
+
+class StorableMapIndex:
+    index: dict[str, dict[str, list[str]]] = {}
+
+    def process(self, map: StorableMap, uri: str):
+        key_to_value: dict[str, str] = {}
+        for k, v in unroll_nested_dict(OmegaConf.to_container(map.config, resolve=False)):
+            key_to_value[f"config.{str(k).replace('/', '.')}"] = str(v)
+
+        key_to_value.update({f"metadata.{k}": v for k, v in map.metadata.items()})
+        for key, value in key_to_value.items():
+            if key not in self.index:
+                self.index[key] = {}
+            if value not in self.index[key]:
+                self.index[key][value] = []
+            self.index[key][value].append(uri)
+
+    def index_dir(self, dir: str):
+        filenames = list_objects(dir)
+        for filename in filenames:
+            map = StorableMap.from_uri(filename)
+            self.process(map, filename)
+
+
+def index_storable_maps(dir: str):
+    indexer = StorableMapIndex()
+    indexer.index_dir(dir)
+    index_uri = f"{dir}/index.json"
+    mettagrid.util.file.write_data(index_uri, json.dumps(indexer.index), content_type="text/plain")

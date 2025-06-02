@@ -3,51 +3,15 @@ import json
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from omegaconf import DictConfig, OmegaConf
-from pufferlib.utils import unroll_nested_dict
 
 import mettagrid.util.file
 from metta.map.utils.s3utils import list_objects
-from metta.map.utils.storable_map import StorableMap, map_builder_cfg_to_storable_map
+from metta.map.utils.storable_map import StorableMap, index_storable_maps, map_builder_cfg_to_storable_map
 from metta.util.mettagrid_cfgs import (
     MettagridCfgFile,
     MettagridCfgFileMetadata,
 )
 from metta.util.resolvers import register_resolvers
-
-
-def omegaconf_to_key_values(cfg: DictConfig, prefix: str) -> dict[str, str]:
-    key_to_value: dict[str, str] = {}
-    for k, v in unroll_nested_dict(OmegaConf.to_container(cfg, resolve=False)):
-        key_to_value[f"{prefix}.{str(k).replace('/', '.')}"] = str(v)
-    return key_to_value
-
-
-class StorableMapIndex:
-    index: dict[str, dict[str, list[str]]] = {}
-
-    def process(self, map: StorableMap, uri: str):
-        key_to_value = omegaconf_to_key_values(map.config, "config")
-        key_to_value.update({f"metadata.{k}": v for k, v in map.metadata.items()})
-        for key, value in key_to_value.items():
-            if key not in self.index:
-                self.index[key] = {}
-            if value not in self.index[key]:
-                self.index[key][value] = []
-            self.index[key][value].append(uri)
-
-    def index_dir(self, dir: str):
-        filenames = list_objects(dir)
-        for filename in filenames:
-            map = StorableMap.from_uri(filename)
-            self.process(map, filename)
-
-
-def index_storable_maps(dir: str):
-    indexer = StorableMapIndex()
-    indexer.index_dir(dir)
-    index_uri = f"{dir}/index.json"
-    mettagrid.util.file.write_data(index_uri, json.dumps(indexer.index), content_type="text/plain")
 
 
 def make_app():
@@ -66,7 +30,7 @@ def make_app():
     async def route_stored_maps_dirs():
         return {
             "dirs": [
-                # TODO
+                # TODO - list all dirs in s3://softmax-public/maps/
                 "s3://softmax-public/maps/test-collection",
             ]
         }
@@ -127,15 +91,9 @@ def make_app():
     @app.get("/mettagrid-cfgs/get-map")
     async def route_mettagrid_cfgs_get_map(path: str):
         cfg = MettagridCfgFile.from_path(path)
-        map_cfg = None
-        if cfg.metadata.kind == "map":
-            map_cfg = cfg.cfg
-        elif cfg.metadata.kind == "env":
-            map_cfg = cfg.cfg.game.map_builder
-        else:
-            raise ValueError(f"Config {path} is not a map or env")
 
         try:
+            map_cfg = cfg.get_map_cfg()
             storable_map = map_builder_cfg_to_storable_map(map_cfg)
         except Exception as e:
             return {

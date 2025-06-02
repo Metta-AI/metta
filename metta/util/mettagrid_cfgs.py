@@ -76,3 +76,14 @@ class MettagridCfgFile:
     @staticmethod
     def from_path(path: str) -> "MettagridCfgFile":
         return MettagridCfgFileMetadata.from_path(path).get_cfg()
+
+    def get_map_cfg(self) -> DictConfig:
+        map_cfg = None
+        if self.metadata.kind == "map":
+            map_cfg = self.cfg
+        elif self.metadata.kind == "env":
+            map_cfg = self.cfg.game.map_builder
+        else:
+            raise ValueError(f"Config {self.metadata.path} is not a map or env")
+
+        return map_cfg
