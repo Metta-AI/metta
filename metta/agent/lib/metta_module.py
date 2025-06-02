@@ -3,16 +3,6 @@
 Author: Axel
 Created: 2024-03-19
 
-Structure:
-- Imports
-- MettaModule class
-  - __init__
-  - forward
-  - _compute (abstract)
-  - _check_input_keys
-  - _check_output_keys
-- Subclasses
-
 TODO: Figure out key/shape validation pipeline.
 
 """
@@ -25,7 +15,6 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 
-# 1 - Base class
 class MettaModule(nn.Module, ABC):
     """Base class for all modules in the Metta architecture.
 
@@ -64,7 +53,7 @@ class MettaModule(nn.Module, ABC):
         Returns:
             Updated TensorDict with new output tensors
         """
-        self._check_input_keys(td)
+        self._validate_input_keys(td)
         if self.input_features_shape is not None:
             self._check_shapes(td)
         outputs = self._compute(td)
@@ -87,24 +76,21 @@ class MettaModule(nn.Module, ABC):
         """
         pass
 
-    def _check_input_keys(self, td: TensorDict) -> None:
-        """Check if the input keys are present in the TensorDict.
-        If not, raise a KeyError.
+    def _validate_input_keys(self, td: TensorDict) -> None:
+        """Validate that all required input keys are present in the TensorDict.
+
+        This method enforces the input contract by ensuring all keys specified in
+        self.in_keys exist in the input TensorDict.
+
+        Args:
+            td: Input TensorDict to validate
+
+        Raises:
+            KeyError: If any required input key is missing from the TensorDict
         """
         for key in self.in_keys:
             if key not in td:
                 raise KeyError(f"Input key {key} not found in the TensorDict")
-
-    def _check_output_keys(self, td: TensorDict) -> None:
-        """Check if the output keys are present in the TensorDict.
-        If they are, raise a KeyError.
-
-        NOTE: This is not a problem if the output keys are already in the TensorDict,
-        as the forward method will overwrite them, so maybe we don't need to check for this.
-        """
-        for key in self.out_keys:
-            if key in td:
-                raise KeyError(f"Output key {key} already exists in the TensorDict")
 
     def _check_shapes(self, td: TensorDict) -> None:
         """Check if the input tensors have the expected shapes.
@@ -124,9 +110,6 @@ class MettaModule(nn.Module, ABC):
                     f"Input tensor {key} has feature shape {tensor.shape[1:]}, "
                     f"expected {self.input_features_shape} (ignoring batch dimension)"
                 )
-
-
-# 2 - Subclasses (specific modules)
 
 
 class MettaLinear(MettaModule):

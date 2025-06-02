@@ -3,12 +3,6 @@
 Author: Axel
 Created: 2024-03-19
 
-Structure:
-- Imports
-- ModularNetwork class
-  - __init__
-  - add_component
-  - forward
 """
 
 from typing import Dict, List, Set
