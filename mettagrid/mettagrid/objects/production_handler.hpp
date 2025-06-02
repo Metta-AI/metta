@@ -3,7 +3,6 @@
 
 #include "../event.hpp"
 #include "../grid.hpp"
-#include "../stats_tracker.hpp"
 #include "constants.hpp"
 #include "converter.hpp"
 
@@ -19,7 +18,7 @@ public:
     }
 
     converter->finish_converting();
-    this->event_manager->stats->incr(ObjectTypeNames[converter->_type_id], "produced");
+    converter->stats.incr(ObjectTypeNames[converter->_type_id] + ".produced");
   }
 };
 
