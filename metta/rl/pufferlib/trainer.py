@@ -152,6 +152,8 @@ class PufferTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
+        self._last_agent_step = self.agent_step
+        self._total_minibatches = 0
 
         assert self.trainer_cfg.optimizer.type in (
             "adam",
@@ -204,6 +206,7 @@ class PufferTrainer:
 
         if wandb_run and self._master:
             wandb_run.define_metric("train/agent_step")
+            wandb_run.define_metric("train/agent_steps_per_update", step_metric="train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
@@ -431,6 +434,9 @@ class PufferTrainer:
     def _train(self):
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
+        self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
+        steps_since_last = self.agent_step - self._last_agent_step
+        self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
         with profile.train_misc:
             idxs = experience.sort_training_data()
@@ -592,6 +598,14 @@ class PufferTrainer:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
 
+                    if self.wandb_run and self._master:
+                        self.wandb_run.log(
+                            {
+                                "train/agent_step": self.agent_step,
+                                "train/agent_steps_per_update": self._agent_steps_per_update,
+                            }
+                        )
+
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
@@ -723,6 +737,14 @@ class PufferTrainer:
         # Now synchronize and aggregate stats across processes
         sps = self.profile.SPS
         agent_steps = self.agent_step
+        if torch.distributed.is_initialized():
+            agent_steps_tensor = torch.tensor(agent_steps, device=self.device)
+            torch.distributed.broadcast(agent_steps_tensor, src=0)
+            agent_steps = agent_steps_tensor.item()
+        steps_per_update = 0.0
+        if self._total_minibatches:
+            steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
+            self._last_agent_step = agent_steps
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
         losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
@@ -750,6 +772,7 @@ class PufferTrainer:
                     **self._weights_helper.stats(),
                     **self._eval_grouped_scores,
                     "train/agent_step": agent_steps,
+                    "train/agent_steps_per_update": steps_per_update,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
                     "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
