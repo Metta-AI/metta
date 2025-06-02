@@ -21,7 +21,7 @@ class ColumnDefinition {
   }
 
   generateName() {
-    let name = capitalize(this.field.replace("inv:", "").replace("agent:", "").replace(".", " "));
+    let name = capitalize(this.field.replace("inv:", "").replace("agent:", "").replace(".", " ").replace("_", " "));
     if (this.isFinal) {
       name = "Final: " + name;
     }
@@ -280,8 +280,7 @@ export function updateAvailableColumns() {
   }
   // All inventory keys:
   for (let key of agentKeys) {
-    let name = capitalize(key.replace("agent:", "").replace("inv:", "").replace(".", " "));
-    if (key != "agent" && key != "c" && key != "r") {
+    if (key != "agent" && key != "c" && key != "r" && key != "reward") {
       availableColumns.push(new ColumnDefinition(key, false));
     }
   }
