@@ -17,11 +17,11 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             # Training path: B, T, H, W, C -> use forward_train
             x = rearrange(observations, "b t h w c -> b t c h w").float()
             return self._forward_train_with_state_conversion(x, state)
-        
+
         # Inference path: B, H, W, C
         x = rearrange(observations, "b h w c -> b c h w").float() / self.policy.max_vec
         hidden = self.policy.encode_observations(x, state=state)
-        
+
         # Handle LSTM state
         h, c = state.lstm_h, state.lstm_c
         if h is not None:
@@ -34,28 +34,24 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
         # LSTM forward pass
         hidden, c = self.cell(hidden, lstm_state)
-        
+
         # Update state
         state.hidden = hidden
         state.lstm_h = hidden
         state.lstm_c = c
-        
+
         return self.policy.decode_actions(hidden)
 
     def _forward_train_with_state_conversion(self, x, state):
         """Helper to handle state conversion for training"""
-        if hasattr(state, 'lstm_h'):
+        if hasattr(state, "lstm_h"):
             # Convert PolicyState to dict for forward_train compatibility
-            state_dict = {
-                'lstm_h': state.lstm_h,
-                'lstm_c': state.lstm_c,
-                'hidden': getattr(state, 'hidden', None)
-            }
+            state_dict = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c, "hidden": getattr(state, "hidden", None)}
             result = self.forward_train(x, state_dict)
             # Update original state
-            state.lstm_h = state_dict.get('lstm_h')
-            state.lstm_c = state_dict.get('lstm_c') 
-            state.hidden = state_dict.get('hidden')
+            state.lstm_h = state_dict.get("lstm_h")
+            state.lstm_c = state_dict.get("lstm_c")
+            state.hidden = state_dict.get("hidden")
             return result
         else:
             return self.forward_train(x, state)
