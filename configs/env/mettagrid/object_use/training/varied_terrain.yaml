@@ -50,25 +50,26 @@ game:
         block: ${sampling:5,50,20}
         wall: ${sampling:5,50,20}
   objects:
-      altar:
-        # initial_items: ${choose:0,1}
-        cooldown: ${sampling:5, 20, 10}
+    altar:
+      input_battery.red: 1
+      # initial_items: ${choose:0,1}
+      cooldown: ${sampling:5, 20, 10}
 
-      generator.red:
-        # initial_items: ${choose:0,1}
-        cooldown: ${sampling:5, 20, 10}
+    generator.red:
+      # initial_items: ${choose:0,1}
+      cooldown: ${sampling:5, 20, 10}
 
-      generator.blue:
-        cooldown: ${sampling:5, 20, 10}
+    generator.blue:
+      cooldown: ${sampling:5, 20, 10}
 
-      generator.green:
-        cooldown: ${sampling:5, 20, 10}
+    generator.green:
+      cooldown: ${sampling:5, 20, 10}
 
-      mine.red:
-        cooldown: ${sampling:15, 50, 10}
+    mine.red:
+      cooldown: ${sampling:15, 50, 10}
 
-      mine.blue:
-        cooldown: ${sampling:15, 50, 10}
+    mine.blue:
+      cooldown: ${sampling:15, 50, 10}
 
-      mine.green:
-        cooldown: ${sampling:15, 50, 10}
+    mine.green:
+      cooldown: ${sampling:15, 50, 10}

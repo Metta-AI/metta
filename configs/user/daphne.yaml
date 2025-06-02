@@ -16,9 +16,7 @@ trainer:
   env: /env/mettagrid/object_use/training/multienv
   evaluate_interval: 10
 
-
-policy_uri: wandb://run/b.george.navsequence_all:v35
-
+policy_uri: wandb://run/dd_navsequence_pretrained_objuse
 
 run_id: 5
 run: ${oc.env:USER}.local.${run_id}
