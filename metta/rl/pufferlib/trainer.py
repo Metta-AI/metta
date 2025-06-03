@@ -4,7 +4,6 @@ import time
 from collections import defaultdict
 from types import SimpleNamespace
 
-import hydra
 import numpy as np
 import torch
 import wandb
@@ -29,8 +28,7 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
-from metta.util.config import config_from_path
-from mettagrid.curriculum import SamplingCurriculum
+from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv
 
 torch.set_float32_matmul_precision("high")
@@ -78,13 +76,10 @@ class PufferTrainer:
         self._eval_suite_avgs = {}
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
-        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
 
-        if "curriculum" in self.trainer_cfg:
-            curriculum_cfg = config_from_path(self.trainer_cfg.curriculum, env_overrides)
-            self._curriculum = hydra.utils.instantiate(curriculum_cfg)
-        else:
-            self._curriculum = SamplingCurriculum(self.trainer_cfg.env, env_overrides)
+        curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
+        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
+        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore

@@ -58,15 +58,15 @@
             ]
         },
         {
-          "name": "Dashboard",
-          "type": "debugpy",
-          "request": "launch",
-          "module": "tools.dashboard",
-          "args": [
-              "+user=${env:USER}",
-              "+hardware=macbook"
-          ]
-        },        
+            "name": "Dashboard",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "tools.dashboard",
+            "args": [
+                "+user=${env:USER}",
+                "+hardware=macbook"
+            ]
+        },
         {
             "name": "Analyze",
             "type": "debugpy",
@@ -97,6 +97,27 @@
                 "+user=${env:USER}",
                 "+hardware=macbook"
             ]
+        },
+        {
+            "name": "Test",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "-v",
+                "-s",
+                "./tests",
+                "-p",
+                "test_*.py"
+            ]
+        },
+        {
+            "name": "MettaGridTest",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [],
+            "cwd": "${workspaceFolder}/mettagrid"
         }
     ]
 }
