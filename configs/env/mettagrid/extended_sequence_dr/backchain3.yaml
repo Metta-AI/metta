@@ -21,16 +21,16 @@ game:
 
     room:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:20,40,15}
-      height: ${sampling:20,40,15}
+      width: ${sampling:12,25,15}
+      height: ${sampling:12,25,15}
       border_width: ${sampling:1,6,3}
       agents: 1
       style: all-sparse
 
       objects:
-        altar: ${sampling:3,6,3}
-        mine.red: ${sampling:3,6,3}
-        generator.red: ${sampling:3,6,3}
+        altar: ${sampling:1,2,3}
+        mine.red: ${sampling:1,2,3}
+        generator.red: ${sampling:1,2,3}
         mine.blue: 0
         generator.blue: 0
         mine.green: 0

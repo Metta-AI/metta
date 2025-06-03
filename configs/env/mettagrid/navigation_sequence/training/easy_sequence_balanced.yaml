@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/navigation_sequence/training/triplets_defaults@
+  - /env/mettagrid/navigation_sequence/training/easy_sequence_defaults@
   - _self_
 
 game:
