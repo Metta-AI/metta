@@ -184,6 +184,17 @@ class UniqueOutKeyMixin:
         return self.out_keys[0]  # type: ignore
 
 
+class CustomShapeInferenceMixin:
+    """
+    Mixin for MettaModule subclasses that require custom shape validation or inference.
+    Inheriting this mixin disables the base class _check_shapes; the subclass is responsible for all shape validation/inference.
+    """
+
+    def _check_shapes(self, td):
+        # No-op: shape validation is the responsibility of the subclass
+        pass
+
+
 class MettaLinear(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
     def __init__(
         self,
