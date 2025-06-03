@@ -3,6 +3,7 @@ from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
 
+
 class ObservationNormalizer(LayerBase):
     """
     Normalizes observation features by dividing each feature by its approximate maximum value.
