@@ -625,6 +625,17 @@ class PufferTrainer:
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
+
+                    # we have to manually sync gradients because we are somehow getting around
+                    # the default hooks that should be added by PyTorch DDP
+                    if torch.distributed.is_initialized():
+                        for name, param in self.policy.named_parameters():
+                            if param.grad is not None:
+                                torch.distributed.all_reduce(param.grad, op=torch.distributed.ReduceOp.SUM)
+                                param.grad /= self._world_size
+                            else:
+                                logger.warning(f"Parameter {name} has no gradient")
+
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
 
