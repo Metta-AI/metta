@@ -4,29 +4,29 @@ Tests for the AsciiRenderer class.
 
 This test suite validates:
 1. Basic renderer functionality
-2. Double-width character handling 
+2. Double-width character handling
 3. NetHack-style symbol conversion
 4. Integration with MettaGridEnv
 5. Alignment consistency
 6. tools.sim compatibility
 """
 
-import pytest
-import sys
 import os
-import numpy as np
-from unittest.mock import patch, MagicMock
-from io import StringIO
+import sys
+from unittest.mock import patch
+
+import pytest
 
 # Add mettagrid to path for testing
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from mettagrid.renderer.renderer import AsciiRenderer
-from mettagrid.room.ascii import SYMBOLS
+from omegaconf import OmegaConf
+
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.renderer.renderer import AsciiRenderer
+from mettagrid.room.ascii import SYMBOLS
 from mettagrid.util.hydra import get_cfg
-from omegaconf import OmegaConf
 
 
 class TestAsciiRenderer:
@@ -79,7 +79,7 @@ class TestAsciiRenderer:
         # but applies NetHack conversion during rendering
         assert "wall" in basic_renderer.SYMBOLS
         assert basic_renderer.SYMBOLS["wall"] == "█"
-        
+
         # The conversion happens in _convert_to_nethack_style
         wall_converted = basic_renderer._convert_to_nethack_style("█")
         assert wall_converted == "#"
@@ -91,21 +91,21 @@ class TestAsciiRenderer:
             obj = {"type": 0, "agent_id": i}
             symbol = basic_renderer._symbol_for(obj)
             assert symbol == str(i)
-        
+
         # Test letter agents (10+)
         obj = {"type": 0, "agent_id": 10}
         assert basic_renderer._symbol_for(obj) == "a"
-        
+
         obj = {"type": 0, "agent_id": 35}
         assert basic_renderer._symbol_for(obj) == "z"
-        
+
         obj = {"type": 0, "agent_id": 36}
         assert basic_renderer._symbol_for(obj) == "a"  # wraps around
 
     def test_bounds_computation(self, basic_renderer, sample_grid_objects):
         """Test that renderer correctly computes grid bounds."""
         basic_renderer._compute_bounds(sample_grid_objects)
-        
+
         assert basic_renderer._bounds_set is True
         assert basic_renderer._min_row == 0
         assert basic_renderer._min_col == 0
@@ -114,13 +114,13 @@ class TestAsciiRenderer:
 
     def test_basic_rendering(self, basic_renderer, sample_grid_objects):
         """Test basic rendering functionality."""
-        with patch('builtins.print'):  # Suppress terminal output during testing
+        with patch("builtins.print"):  # Suppress terminal output during testing
             result = basic_renderer.render(0, sample_grid_objects)
-        
-        lines = result.split('\n')
+
+        lines = result.split("\n")
         assert len(lines) == 3
         assert all(len(line) == 3 for line in lines)
-        
+
         # Check that agent appears as "0"
         assert "0" in result
         # Check that walls appear as "#" (NetHack style)
@@ -128,12 +128,12 @@ class TestAsciiRenderer:
 
     def test_line_length_consistency(self, basic_renderer, sample_grid_objects):
         """Test that all rendered lines have consistent length."""
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             result = basic_renderer.render(0, sample_grid_objects)
-        
-        lines = result.split('\n')
+
+        lines = result.split("\n")
         lengths = [len(line) for line in lines]
-        
+
         # All lines should have the same length
         assert len(set(lengths)) == 1, f"Inconsistent line lengths: {lengths}"
 
@@ -142,11 +142,11 @@ class TestAsciiRenderer:
         # Test emoji characters that would cause issues
         double_width_chars = ["🧱", "⚙", "⛩", "🏭", "🔬", "🏰"]
         single_width_ascii = ["A", "0", "1", "#", "@", "G", "_", "F", "L", "T", "."]
-        
+
         for char in double_width_chars:
             # These are double-width Unicode characters
             assert ord(char[0]) > 127, f"Expected {char} to be Unicode"
-        
+
         for char in single_width_ascii:
             # These should be ASCII single-width
             assert ord(char[0]) <= 127, f"Expected {char} to be ASCII"
@@ -154,41 +154,42 @@ class TestAsciiRenderer:
     def test_nethack_style_conversion(self, basic_renderer):
         """Test NetHack-style symbol conversion."""
         # Test that renderer converts symbols to NetHack equivalents
-        
+
         test_cases = [
             ("generator", "G"),  # Should convert ⚙ → G
-            ("altar", "_"),      # Should convert ⛩ → _
-            ("factory", "F"),    # Should convert 🏭 → F
-            ("lab", "L"),        # Should convert 🔬 → L
-            ("temple", "T"),     # Should convert 🏰 → T
-            ("wall", "#"),       # Should convert █ → # (NetHack style)
+            ("altar", "_"),  # Should convert ⛩ → _
+            ("factory", "F"),  # Should convert 🏭 → F
+            ("lab", "L"),  # Should convert 🔬 → L
+            ("temple", "T"),  # Should convert 🏰 → T
+            ("wall", "#"),  # Should convert █ → # (NetHack style)
         ]
-        
+
         # Test the actual conversion behavior
         for obj_type, expected_symbol in test_cases:
             if obj_type in basic_renderer.SYMBOLS:
                 # Create a mock object to test symbol conversion
-                obj = {"type": 0}  # dummy type
-                
+
                 # Test the internal conversion
                 original_symbol = basic_renderer.SYMBOLS[obj_type]
                 converted_symbol = basic_renderer._convert_to_nethack_style(original_symbol)
-                assert converted_symbol == expected_symbol, f"Expected {obj_type} to convert to {expected_symbol}, got {converted_symbol}"
+                assert converted_symbol == expected_symbol, (
+                    f"Expected {obj_type} to convert to {expected_symbol}, got {converted_symbol}"
+                )
 
     def test_nethack_conversion_mapping(self, basic_renderer):
         """Test the NetHack conversion mapping."""
         # Test direct conversions
         conversions = [
-            ("🧱", "#"),   # wall emoji → NetHack wall
-            ("⚙", "G"),    # gear emoji → Generator
-            ("⛩", "_"),    # torii emoji → Altar
-            ("🏭", "F"),   # factory emoji → Factory
-            ("🔬", "L"),   # microscope emoji → Lab
-            ("🏰", "T"),   # castle emoji → Temple
-            ("█", "#"),    # block character → NetHack wall
-            (" ", "."),    # space → NetHack empty
+            ("🧱", "#"),  # wall emoji → NetHack wall
+            ("⚙", "G"),  # gear emoji → Generator
+            ("⛩", "_"),  # torii emoji → Altar
+            ("🏭", "F"),  # factory emoji → Factory
+            ("🔬", "L"),  # microscope emoji → Lab
+            ("🏰", "T"),  # castle emoji → Temple
+            ("█", "#"),  # block character → NetHack wall
+            (" ", "."),  # space → NetHack empty
         ]
-        
+
         for original, expected in conversions:
             result = basic_renderer._convert_to_nethack_style(original)
             assert result == expected, f"Expected {original} → {expected}, got {result}"
@@ -199,7 +200,7 @@ class TestAsciiRenderer:
         single_width = ["A", "0", "#", "@", ".", " "]
         for char in single_width:
             assert not basic_renderer._is_double_width_char(char), f"{char} should be single-width"
-        
+
         # Test emoji detection (some may not be detected as double-width by unicodedata)
         # but they will be converted by our mapping
         problem_chars = ["🧱", "⚙", "⛩", "🏭", "🔬", "🏰"]
@@ -216,29 +217,29 @@ class TestAsciiRenderer:
             0: {"type": 1, "r": 0, "c": 0},  # wall at corner
             1: {"type": 1, "r": 2, "c": 2},  # wall at opposite corner
         }
-        
-        with patch('builtins.print'):
+
+        with patch("builtins.print"):
             result = basic_renderer.render(0, grid_objects)
-        
+
         # Should contain dots for empty spaces
         assert "." in result, "Empty spaces should be rendered as dots"
         # Should not contain regular spaces in the middle
-        lines = result.split('\n')
+        lines = result.split("\n")
         for line in lines:
             # Each line should only contain # and . and digits (no spaces)
             for char in line:
                 assert char in "#.0123456789abcdefghijklmnopqrstuvwxyz", f"Unexpected character: {char}"
 
-    @patch('builtins.print')
+    @patch("builtins.print")
     def test_emoji_rendering_alignment(self, mock_print, basic_renderer, emoji_grid_objects):
         """Test rendering with emoji-causing objects for alignment issues."""
         result = basic_renderer.render(0, emoji_grid_objects)
-        lines = result.split('\n')
-        
+        lines = result.split("\n")
+
         # Check for alignment - should now be perfect with NetHack conversion
         lengths = [len(line) for line in lines]
         assert len(set(lengths)) == 1, f"All lines should have consistent length, got {lengths}"
-        
+
         # Check that emoji symbols were converted
         assert "G" in result, "Generator should appear as G"
         assert "_" in result, "Altar should appear as _"
@@ -249,8 +250,8 @@ class TestAsciiRenderer:
     def test_empty_grid_handling(self, basic_renderer):
         """Test handling of empty grids."""
         empty_grid = {}
-        
-        with patch('builtins.print'):
+
+        with patch("builtins.print"):
             # Should not crash on empty grid - we need to handle this gracefully
             try:
                 result = basic_renderer.render(0, empty_grid)
@@ -266,7 +267,7 @@ class TestAsciiRenderer:
         # Create a 10x10 grid
         large_grid = {}
         obj_id = 0
-        
+
         for r in range(10):
             for c in range(10):
                 if r == 0 or r == 9 or c == 0 or c == 9:
@@ -276,11 +277,11 @@ class TestAsciiRenderer:
                     # Agent in center
                     large_grid[obj_id] = {"type": 0, "r": r, "c": c, "agent_id": 0}
                 obj_id += 1
-        
-        with patch('builtins.print'):
+
+        with patch("builtins.print"):
             result = basic_renderer.render(0, large_grid)
-        
-        lines = result.split('\n')
+
+        lines = result.split("\n")
         assert len(lines) == 10
         assert all(len(line) == 10 for line in lines)
         assert "0" in result  # Agent should be present
@@ -289,82 +290,86 @@ class TestAsciiRenderer:
 class TestRendererIntegration:
     """Test renderer integration with MettaGridEnv and tools.sim style setup."""
 
-    @patch('builtins.print')
+    @patch("builtins.print")
     def test_environment_rendering_workflow(self, mock_print):
         """Test complete rendering workflow with environment."""
         # Use the working approach from our demo scripts
         cfg = get_cfg("benchmark")
         cfg.game.num_agents = 1
         cfg.game.max_steps = 5
-        cfg.game.map_builder = OmegaConf.create({
-            "_target_": "mettagrid.room.random.Random",
-            "width": 5,
-            "height": 5,
-            "agents": 1,
-            "border_width": 1,
-            "objects": {}
-        })
-        
+        cfg.game.map_builder = OmegaConf.create(
+            {
+                "_target_": "mettagrid.room.random.Random",
+                "width": 5,
+                "height": 5,
+                "agents": 1,
+                "border_width": 1,
+                "objects": {},
+            }
+        )
+
         curriculum = SingleTaskCurriculum("test", cfg)
         env = MettaGridEnv(curriculum, render_mode="human")
-        
+
         # Reset and render
         obs, info = env.reset()
         render_output = env.render()
-        
+
         assert render_output is not None
         assert isinstance(render_output, str)
-        
-        lines = render_output.split('\n')
+
+        lines = render_output.split("\n")
         assert len(lines) > 0
-        
+
         # Check consistency - should be perfect with NetHack conversion
         lengths = [len(line) for line in lines]
         assert len(set(lengths)) == 1, f"All lines should have same length, got {lengths}"
-        
+
         # Check NetHack-style rendering
         assert "#" in render_output, "Should contain NetHack-style walls"
         assert "." in render_output, "Should contain NetHack-style empty spaces"
-        
+
         env.close()
 
-    @patch('builtins.print')
+    @patch("builtins.print")
     def test_multiple_render_calls(self, mock_print):
         """Test multiple render calls for consistency."""
         cfg = get_cfg("benchmark")
         cfg.game.num_agents = 1
         cfg.game.max_steps = 5
-        
+
         # Override map builder to ensure agent count matches
-        cfg.game.map_builder = OmegaConf.create({
-            "_target_": "mettagrid.room.random.Random",
-            "width": 5,
-            "height": 5,
-            "agents": 1,
-            "border_width": 1,
-            "objects": {}
-        })
-        
+        cfg.game.map_builder = OmegaConf.create(
+            {
+                "_target_": "mettagrid.room.random.Random",
+                "width": 5,
+                "height": 5,
+                "agents": 1,
+                "border_width": 1,
+                "objects": {},
+            }
+        )
+
         curriculum = SingleTaskCurriculum("test", cfg)
         env = MettaGridEnv(curriculum, render_mode="human")
-        
+
         obs, info = env.reset()
-        
+
         # Render multiple times
         outputs = []
         for _ in range(3):
             output = env.render()
             outputs.append(output)
-        
+
         # All outputs should be identical if state hasn't changed
         assert all(output == outputs[0] for output in outputs)
-        
+
         # Check alignment consistency
         for output in outputs:
-            lines = output.split('\n')
+            lines = output.split("\n")
             lengths = [len(line) for line in lines]
             assert len(set(lengths)) == 1, "All lines should have consistent length"
-        
+
         env.close()
 
     def test_tools_sim_style_integration(self):
@@ -373,31 +378,33 @@ class TestRendererIntegration:
         cfg = get_cfg("benchmark")
         cfg.game.num_agents = 1
         cfg.game.max_steps = 5
-        
+
         # Override map builder to ensure agent count matches
-        cfg.game.map_builder = OmegaConf.create({
-            "_target_": "mettagrid.room.random.Random",
-            "width": 5,
-            "height": 5,
-            "agents": 1,
-            "border_width": 1,
-            "objects": {}
-        })
-        
+        cfg.game.map_builder = OmegaConf.create(
+            {
+                "_target_": "mettagrid.room.random.Random",
+                "width": 5,
+                "height": 5,
+                "agents": 1,
+                "border_width": 1,
+                "objects": {},
+            }
+        )
+
         curriculum = SingleTaskCurriculum("test", cfg)
-        
+
         # The key: render_mode="human" enables AsciiRenderer
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             env = MettaGridEnv(curriculum, render_mode="human")
             assert env._renderer is not None
             assert isinstance(env._renderer, AsciiRenderer)
-            
+
             # Test that it produces NetHack-style output
             obs, info = env.reset()
             output = env.render()
             assert "#" in output, "Should use NetHack-style walls"
             assert "." in output, "Should use NetHack-style empty spaces"
-            
+
             env.close()
 
 
@@ -408,17 +415,17 @@ class TestSymbolAnalysis:
         """Test analysis of current SYMBOLS mapping."""
         emoji_symbols = []
         ascii_symbols = []
-        
+
         for char, obj_type in SYMBOLS.items():
             if ord(char[0]) > 127:
                 emoji_symbols.append((char, obj_type))
             else:
                 ascii_symbols.append((char, obj_type))
-        
+
         # Should have exactly 6 emoji symbols causing issues
         expected_emojis = ["🧱", "⚙", "⛩", "🏭", "🔬", "🏰"]
         found_emojis = [char for char, _ in emoji_symbols]
-        
+
         # Check that we have the expected problematic emojis
         for emoji in expected_emojis:
             if emoji in SYMBOLS:
@@ -428,32 +435,32 @@ class TestSymbolAnalysis:
         """Test character width analysis for alignment issues."""
         # Focus on the characters that our NetHack conversion handles
         test_chars = [
-            ("A", 1),   # Single-width letter
-            ("0", 1),   # Single-width digit
-            ("#", 1),   # Single-width ASCII (NetHack wall)
-            ("@", 1),   # Single-width ASCII (NetHack agent)
-            (".", 1),   # Single-width ASCII (NetHack empty)
+            ("A", 1),  # Single-width letter
+            ("0", 1),  # Single-width digit
+            ("#", 1),  # Single-width ASCII (NetHack wall)
+            ("@", 1),  # Single-width ASCII (NetHack agent)
+            (".", 1),  # Single-width ASCII (NetHack empty)
         ]
-        
+
         # Test double-width emojis that get converted
         emoji_chars = [
             ("🧱", 2),  # Double-width emoji (gets converted to #)
             ("🏭", 2),  # Double-width emoji (gets converted to F)
         ]
-        
+
         for char, expected_width in test_chars:
             # String length is always 1
             assert len(char) == 1
-            
+
             # These should all be ASCII single-width
             is_ascii = ord(char[0]) <= 127
             assert is_ascii, f"Expected {char} to be ASCII"
             assert expected_width == 1
-        
+
         for char, expected_width in emoji_chars:
             # String length is always 1
             assert len(char) == 1
-            
+
             # These should be Unicode double-width
             is_ascii = ord(char[0]) <= 127
             assert not is_ascii, f"Expected {char} to be Unicode"
@@ -468,7 +475,7 @@ class TestNetHackStyleSolution:
         """Test proposed NetHack-style symbol mapping."""
         nethack_mapping = {
             "wall": "#",
-            "agent": "@", 
+            "agent": "@",
             "empty": ".",
             "generator": "G",
             "altar": "_",
@@ -478,7 +485,7 @@ class TestNetHackStyleSolution:
             "mine": "^",
             "converter": "*",
         }
-        
+
         # All NetHack symbols should be single-width ASCII
         for symbol in nethack_mapping.values():
             assert len(symbol) == 1
@@ -487,18 +494,18 @@ class TestNetHackStyleSolution:
     def test_perfect_alignment_guarantee(self):
         """Test that NetHack-style symbols guarantee perfect alignment."""
         nethack_symbols = ["#", "@", ".", "G", "_", "F", "L", "T", "^", "*"]
-        
+
         # Create a test grid with all symbols
         test_line = "".join(nethack_symbols)
-        
+
         # String length should equal terminal width for ASCII
         string_length = len(test_line)
         terminal_width = sum(1 for _ in test_line)  # All ASCII = 1 each
-        
+
         assert string_length == terminal_width
         assert string_length == len(nethack_symbols)
 
 
 if __name__ == "__main__":
     # Allow running tests directly
-    pytest.main([__file__, "-v"]) 
+    pytest.main([__file__, "-v"])

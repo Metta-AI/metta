@@ -1,15 +1,16 @@
 # Runs policies with ASCII rendering to visualize agent behavior in real-time.
 
-import hydra
-from omegaconf import DictConfig, OmegaConf
-import numpy as np
-import sys
 import os
+import sys
+
+import hydra
+import numpy as np
+from omegaconf import DictConfig, OmegaConf
 
 # Add the metta directories to the path (running from metta/ directory)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'PufferLib'))  # PufferLib in parent
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))  # metta directory  
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'mettagrid'))  # mettagrid
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "PufferLib"))  # PufferLib in parent
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))  # metta directory
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "mettagrid"))  # mettagrid
 
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -18,11 +19,11 @@ from mettagrid.util.hydra import get_cfg
 
 class RandomPolicy:
     """Simple random policy for demonstration."""
-    
+
     def __init__(self, env):
         self.env = env
         self.action_space = env.action_space
-        
+
     def predict(self, obs):
         """Return random actions for all agents."""
         action = self.action_space.sample()
@@ -31,13 +32,13 @@ class RandomPolicy:
 
 class SimplePolicy:
     """A simple policy that tries to move towards objectives."""
-    
+
     def __init__(self, env):
         self.env = env
         self.action_space = env.action_space
-        self.cardinal_directions = [1, 3, 5, 7]    # up, left, right, down
+        self.cardinal_directions = [1, 3, 5, 7]  # up, left, right, down
         self.move_directions = [1, 2, 3, 5, 7, 8]  # Cardinal + diagonal
-        
+
     def predict(self, obs):
         """Return simple movement actions."""
         if np.random.random() < 0.6:
@@ -46,7 +47,7 @@ class SimplePolicy:
             direction = np.random.choice(self.move_directions)
         else:
             direction = 4  # Stay in place
-        
+
         action_type = np.random.choice([0, 1, 2])
         return [direction, action_type]
 
@@ -61,15 +62,17 @@ def get_policy(policy_type: str, env, cfg: DictConfig):
         try:
             # Try to load trained policy if available
             from metta.agent.policy_store import PolicyStore
+
             policy_store = PolicyStore(cfg, None)
             policy_pr = policy_store.policy(cfg.policy_uri)
-            
+
             class TrainedPolicyWrapper:
                 def __init__(self, policy):
                     self.policy = policy
-                    
+
                 def predict(self, obs):
                     import torch
+
                     with torch.no_grad():
                         if isinstance(obs, np.ndarray):
                             obs_tensor = torch.from_numpy(obs).float()
@@ -79,7 +82,7 @@ def get_policy(policy_type: str, env, cfg: DictConfig):
                         if isinstance(actions, torch.Tensor):
                             actions = actions.numpy()
                         return actions.tolist()
-            
+
             return TrainedPolicyWrapper(policy_pr.policy())
         except Exception as e:
             print(f"Failed to load trained policy: {e}")
@@ -92,32 +95,32 @@ def get_policy(policy_type: str, env, cfg: DictConfig):
 
 def run_renderer(cfg: DictConfig):
     """Run policy visualization with ASCII rendering."""
-    
+
     # Create environment with ASCII rendering enabled
     env_cfg = get_cfg("benchmark")
     env_cfg.game.num_agents = cfg.renderer_job.num_agents
     env_cfg.game.max_steps = cfg.renderer_job.max_steps
-    
+
     if cfg.renderer_job.environment:
         env_cfg.game.map_builder = OmegaConf.create(cfg.renderer_job.environment)
-    
+
     curriculum = SingleTaskCurriculum("renderer", env_cfg)
     env = MettaGridEnv(curriculum, render_mode="human")
-    
+
     # Get policy
     policy = get_policy(cfg.renderer_job.policy_type, env, cfg)
-    
+
     # Reset environment
     obs, info = env.reset()
-    
+
     total_reward = 0
     step_count = 0
-    
+
     try:
-        for step in range(cfg.renderer_job.num_steps):
+        for _step in range(cfg.renderer_job.num_steps):
             # Get action and step environment
             actions = policy.predict([obs] if not isinstance(obs, list) else obs)
-            
+
             try:
                 obs, rewards, dones, truncs, info = env.step(actions)
             except AssertionError as e:
@@ -129,29 +132,30 @@ def run_renderer(cfg: DictConfig):
                     continue
                 else:
                     raise  # Re-raise if it's a different assertion error
-            
+
             # Track rewards
-            step_reward = np.sum(rewards) if hasattr(rewards, '__len__') else rewards
+            step_reward = np.sum(rewards) if hasattr(rewards, "__len__") else rewards
             total_reward += step_reward
             step_count += 1
-            
+
             # Render with ASCII renderer
             env.render()
-            
+
             # Reset if episode done
-            if (hasattr(dones, 'any') and dones.any()) or (hasattr(dones, '__len__') and any(dones)) or dones:
+            if (hasattr(dones, "any") and dones.any()) or (hasattr(dones, "__len__") and any(dones)) or dones:
                 obs, info = env.reset()
-            
+
             # Optional sleep for visualization
             if cfg.renderer_job.sleep_time > 0:
                 import time
+
                 time.sleep(cfg.renderer_job.sleep_time)
-                
+
     except KeyboardInterrupt:
         print("\n⏹️  Stopped by user")
     finally:
         env.close()
-    
+
     print(f"\n🎯 Final Results: {total_reward:.3f} reward over {step_count:,} steps")
 
 
@@ -161,4 +165,4 @@ def main(cfg: DictConfig):
 
 
 if __name__ == "__main__":
-    main() 
+    main()
