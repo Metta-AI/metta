@@ -47,6 +47,11 @@ public:
           assert(index < 256);
           features.insert({feature_name, index});
           _feature_names.push_back(feature_name);
+          if (FeatureNormalizations.count(feature_name) > 0) {
+            _feature_normalizations.push_back(FeatureNormalizations.at(feature_name));
+          } else {
+            _feature_normalizations.push_back(DEFAULT_NORMALIZATION);
+          }
         }
       }
     }
@@ -75,6 +80,10 @@ public:
     return _feature_names;
   }
 
+  const std::vector<float>& feature_normalizations() const {
+    return _feature_normalizations;
+  }
+
   const std::vector<std::vector<std::string>>& type_feature_names() const {
     return _type_feature_names;
   }
@@ -83,6 +92,7 @@ private:
   std::vector<std::vector<uint8_t>> _offsets;
   std::vector<std::vector<std::string>> _type_feature_names;
   std::vector<std::string> _feature_names;
+  std::vector<float> _feature_normalizations;
 };
 
 #endif  // METTAGRID_METTAGRID_OBSERVATION_ENCODER_HPP_
