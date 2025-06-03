@@ -20,7 +20,13 @@ exclude = [
 # Define import sections and their order
 known-third-party = ["wandb", "torch", "omegaconf"]
 known-first-party = ["metta", "mettagrid"]
-section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+section-order = [
+  "future",
+  "standard-library",
+  "third-party",
+  "first-party",
+  "local-folder",
+]
 
 [lint]
 # Rules to enable for linting
@@ -55,3 +61,7 @@ unfixable = []
 
 [lint.flake8-tidy-imports.banned-api]
 "mettagrid.mettagrid".msg = "Import mettagrid instead of mettagrid.mettagrid"
+
+# Note: torch.tensor() calls should always include explicit dtype parameter
+# This should be checked during code review since ruff doesn't have a built-in rule for this
+# Example: torch.tensor(data, dtype=torch.float32) instead of torch.tensor(data)

@@ -536,11 +536,11 @@ class PufferTrainer:
                         self.agent_step, full_log_probs_distribution, newvalue, obs, teacher_lstm_state
                     )
 
-                    l2_reg_loss = torch.tensor(0.0, device=self.device)
+                    l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                     if self.trainer_cfg.l2_reg_loss_coef > 0:
                         l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
 
-                    l2_init_loss = torch.tensor(0.0, device=self.device)
+                    l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                     if self.trainer_cfg.l2_init_loss_coef > 0:
                         l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
