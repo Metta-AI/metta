@@ -14,8 +14,9 @@ run_dir: ${data_dir}/${run}
 policy_uri: puffer://checkpoints/metta-new/metta.pt
 npc_policy_uri: null
 
+# FIXED: Use the correct PufferLib architecture that matches training
 puffer:
- _target_: metta.agent.external.example.Recurrent
+ _target_: metta.agent.external.pufferlib.Recurrent
  hidden_size: 512
  cnn_channels: 128
 
