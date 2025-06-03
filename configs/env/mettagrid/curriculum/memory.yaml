@@ -1,0 +1,7 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/memory/training/varied_terrain_sparse: 1
+  /env/mettagrid/memory/training/varied_terrain_balanced: 1
+  /env/mettagrid/memory/training/varied_terrain_maze: 1
+  /env/mettagrid/memory/training/varied_terrain_dense: 1
