@@ -59,12 +59,12 @@ for i in "${!POLICIES[@]}"; do
         sim_job.stats_db_uri=wandb://stats/stats_db \
         # device=cpu \
 
-   python3 -m tools.sim \
-        sim=multiagent \
-        run=multi_agent$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+#    python3 -m tools.sim \
+#         sim=multiagent \
+#         run=multi_agent$IDX \
+#         policy_uri=wandb://run/$POLICY_URI \
+#         sim_job.stats_db_uri=wandb://stats/stats_db \
+#         # device=cpu \
 
   python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
 
