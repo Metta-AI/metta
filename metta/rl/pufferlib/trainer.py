@@ -52,6 +52,11 @@ class PufferTrainer:
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
+
+        # Do we want to just put this check here?
+        if "obs_cross_attn" in cfg.agent.components:
+            sim_suite_config.env_overrides = {"game": {"use_observation_tokens": True}}
+
         self.sim_suite_config = sim_suite_config
 
         self._master = True
@@ -188,11 +193,6 @@ class PufferTrainer:
                             f"component_name: {component_name}\n"
                             f"component_shape: {component_shape}\n"
                             f"environment_shape: {environment_shape}\n"
-                        )
-                    # delete below after evaluate is tested with tokenized obs
-                    if len(environment_shape) == 2:
-                        assert self.trainer_cfg.evaluate_interval == 0, (
-                            "Tokenized obs agents aren't set up for evaluate yet (5-30-25)."
                         )
 
             if not found_match:
@@ -662,6 +662,7 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
+
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
                 config=self.replay_sim_config,
