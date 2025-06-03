@@ -54,7 +54,7 @@ class PolicyRecord:
             self._local_path = pr.local_path()
         return self._policy
 
-    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
+    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent, PufferAgent]:
         """Get the policy as a MettaAgent or DistributedMettaAgent."""
         policy = self.policy()
         if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PufferAgent)):
@@ -530,16 +530,9 @@ class PolicyStore:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
 
-            # Handle device mapping for cross-platform compatibility
-            if self._device == "cpu" or not torch.cuda.is_available():
-                # Map CUDA tensors to CPU when CUDA is not available
-                map_location = "cpu"
-            else:
-                map_location = self._device
-
             pr = torch.load(
                 path,
-                map_location=map_location,
+                map_location=self._device,
                 weights_only=False,
             )
             pr._policy_store = self

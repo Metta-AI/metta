@@ -601,7 +601,7 @@ class PufferTrainer:
             self.losses.explained_variance = explained_var
             self.epoch += 1
 
-        profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
+            profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
 
     def _checkpoint_trainer(self):
         if not self._master:

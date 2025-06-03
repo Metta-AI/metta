@@ -8,16 +8,7 @@ from torch import nn
 
 
 def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
-    # Handle device mapping for cross-platform compatibility
-    if device != "cpu" and not torch.cuda.is_available():
-        # Map to CPU when requested device is not available
-        map_location = "cpu"
-        actual_device = "cpu"
-    else:
-        map_location = device
-        actual_device = device
-
-    weights = torch.load(path, map_location=map_location, weights_only=True)
+    weights = torch.load(path, map_location=device, weights_only=True)
 
     try:
         num_actions, hidden_size = weights["policy.actor.0.weight"].shape
@@ -37,7 +28,7 @@ def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
 
     policy = instantiate(puffer, env=env, policy=None)
     policy.load_state_dict(weights)
-    policy = PufferAgent(policy).to(actual_device)
+    policy = PufferAgent(policy).to(device)
     return policy
 
 
@@ -46,7 +37,7 @@ class PufferAgent(nn.Module):
         super().__init__()
         self.policy = policy
         self.hidden_size = policy.hidden_size
-        self.lstm = policy
+        self.lstm = policy.lstm  # Point to the actual LSTM module, not the entire policy
 
     def forward(self, obs: torch.Tensor, state, action=None):
         """Uses variable names from LSTMWrapper. Translating for Metta:
