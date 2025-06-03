@@ -15,7 +15,7 @@ permissions:
   id-token: write
 
 env:
-  CLAUDE_MODEL: "claude-opus-4-20250514"
+  CLAUDE_MODEL: "claude-sonnet-4-20250514"
 
 jobs:
   claude-response:
