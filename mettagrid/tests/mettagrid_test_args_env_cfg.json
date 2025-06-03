@@ -7,7 +7,6 @@
     "obs_width": 11,
     "obs_height": 11,
     "max_steps": 1000,
-    "recursive_map_builder": true,
     "agent": {
       "default_item_max": 50,
       "freeze_duration": 10,

@@ -4,7 +4,6 @@ defaults:
 
 game:
   num_agents: 2
-  recursive_map_builder: false
 
   agent:
     default_item_max: 50

@@ -4,9 +4,10 @@ width: 200
 height: 100
 
 root:
-  _target_: metta.map.scenes.room_grid.RoomGrid
-  rows: 2
-  columns: 4
+  type: metta.map.scenes.room_grid.RoomGrid
+  params:
+    rows: 2
+    columns: 4
 
   children:
     - limit: 1

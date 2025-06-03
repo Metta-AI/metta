@@ -1,5 +1,4 @@
 -c requirements_pinned.txt
 -r requirements_pinned.txt
-git+https://github.com/Metta-AI/PufferLib.git@metta
-git+https://github.com/Metta-AI/wandb_carbs.git
+git+https://github.com/relh/PufferLib.git@3.0
 git+https://github.com/imbue-ai/carbs.git
