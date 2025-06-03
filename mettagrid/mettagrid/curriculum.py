@@ -1,12 +1,12 @@
 import copy
 import logging
 import random
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.util.config import config_from_path
+from mettagrid.util.hydra import config_from_path
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ class LowRewardCurriculum(RandomCurriculum):
 
 class SamplingCurriculum(Curriculum):
     def __init__(self, env_cfg_template: str, env_overrides: Optional[DictConfig] = None):
-        self._cfg_template = config_from_path(env_cfg_template, env_overrides)
+        self._cfg_template = cast(DictConfig, config_from_path(env_cfg_template, env_overrides))
 
     def get_task(self) -> Task:
         cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))

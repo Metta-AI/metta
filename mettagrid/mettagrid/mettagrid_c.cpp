@@ -593,7 +593,7 @@ py::object MettaGrid::action_space() {
   auto spaces = gym.attr("spaces");
 
   return spaces.attr("MultiDiscrete")(py::make_tuple(py::len(action_names()), _max_action_arg + 1),
-                                      py::arg("dtype") = py::module_::import("numpy").attr("int64"));
+                                      py::arg("dtype") = py::module_::import("numpy").attr("int32"));
 }
 
 py::object MettaGrid::observation_space() {
