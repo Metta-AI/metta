@@ -3,6 +3,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
+from metta.agent.lib.metta_module import MettaDict, MettaModule, UniqueInKeyMixin, UniqueOutKeyMixin
 
 
 class MergeLayerBase(LayerBase):
@@ -405,3 +406,62 @@ class CenterPixelLayer(LayerBase):
         center_w = W // 2
         td[self._name] = tensor[:, :, center_h, center_w]
         return td
+
+
+class MettaCenterPixel(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
+    def __init__(
+        self,
+        in_keys: list[str],
+        out_keys: list[str],
+        input_features_shape: list[int],
+        output_features_shape: list[int],
+    ):
+        super().__init__(in_keys, out_keys, input_features_shape, output_features_shape)
+
+    def _compute(self, md: MettaDict) -> dict:
+        x = md.td[self.in_key]
+        B, C, H, W = x.shape
+        center_h = H // 2
+        center_w = W // 2
+        return {self.out_key: x[:, :, center_h, center_w]}
+
+
+class MettaConcatMerge(UniqueOutKeyMixin, MettaModule):
+    def __init__(
+        self,
+        in_keys: list[str],
+        out_keys: list[str],
+        input_features_shape: list[list[int]],
+        output_features_shape: list[int],
+        dim: int = 1,
+        slices: list[tuple[int, int]] | None = None,
+    ):
+        # input_features_shape is a list of lists, not compatible with torch.Size
+        super().__init__(in_keys, out_keys, input_features_shape=None, output_features_shape=output_features_shape)
+        self.input_features_shape = input_features_shape
+        self.dim = dim
+        self.slices = slices or [None] * len(in_keys)
+        if len(self.slices) != len(self.in_keys):
+            raise ValueError("slices must be None or a list of the same length as in_keys")
+
+    def _compute(self, md: MettaDict) -> dict:
+        tensors = []
+        for key, slc in zip(self.in_keys, self.slices, strict=False):
+            t = md.td[key]
+            if slc is not None:
+                start, end = slc
+                t = t.narrow(self.dim, start, end - start)
+            tensors.append(t)
+        return {self.out_key: torch.cat(tensors, dim=self.dim)}
+
+    def _check_shapes(self, td):
+        # Validate each input tensor against its corresponding input_features_shape
+        for key, expected_shape in zip(self.in_keys, self.input_features_shape, strict=False):
+            tensor = td[key]
+            if len(tensor.shape) < 2:
+                raise ValueError(f"Input tensor {key} must have at least 2 dimensions (batch + features)")
+            if list(tensor.shape[1:]) != expected_shape:
+                raise ValueError(
+                    f"Input tensor {key} has feature shape {tensor.shape[1:]}, "
+                    f"expected {expected_shape} (ignoring batch dimension)"
+                )
