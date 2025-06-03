@@ -7,12 +7,16 @@ defaults:
   # - override /agent: non_robust_puffer
   - _self_
 
+run: eval.metta.new
+data_dir: ./train_dir
+run_dir: ${data_dir}/${run}
+
 policy_uri: puffer://checkpoints/metta-new/metta.pt
 npc_policy_uri: null
 
 puffer:
  _target_: metta.agent.external.example.Recurrent
- hidden_size: 512 
+ hidden_size: 512
  cnn_channels: 128
 
 #run: andre_local_2025_05_26_a
@@ -34,11 +38,11 @@ replay_job:
 eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: train_dir/richard.new.16/stats.db
+  eval_db_uri: ${run_dir}/stats.db
 
 analysis:
   policy_uri: ${..policy_uri}
-  eval_db_uri: train_dir/richard.new.16/stats.db
+  eval_db_uri: ${run_dir}/stats.db
 
 #run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: puffer://checkpoints/metta-new/metta.pt

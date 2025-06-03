@@ -13,36 +13,48 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
     def forward(self, observations, state):
         """Forward function for inference. 3x faster than using LSTM directly"""
-        # Either B, T, H, W, C or B, H, W, C
         if len(observations.shape) == 5:
+            # Training path: B, T, H, W, C -> use forward_train
             x = rearrange(observations, "b t h w c -> b t c h w").float()
-            x[:] /= self.policy.max_vec
-            return self.forward_train(x, state)
-        else:
-            x = rearrange(observations, "b h w c -> b c h w").float() / self.policy.max_vec
-        hidden = self.policy.encode_observations(x, state=state)
-        h = state.lstm_h
-        c = state.lstm_c
+            return self._forward_train_with_state_conversion(x, state)
 
-        # TODO: Don't break compile
+        # Inference path: B, H, W, C
+        x = rearrange(observations, "b h w c -> b c h w").float() / self.policy.max_vec
+        hidden = self.policy.encode_observations(x, state=state)
+
+        # Handle LSTM state
+        h, c = state.lstm_h, state.lstm_c
         if h is not None:
             if len(h.shape) == 3:
-                h = h.squeeze()
-            if len(c.shape) == 3:
-                c = c.squeeze()
+                h, c = h.squeeze(), c.squeeze()
             assert h.shape[0] == c.shape[0] == observations.shape[0], "LSTM state must be (h, c)"
             lstm_state = (h, c)
         else:
             lstm_state = None
 
-        # hidden = self.pre_layernorm(hidden)
+        # LSTM forward pass
         hidden, c = self.cell(hidden, lstm_state)
-        # hidden = self.post_layernorm(hidden)
+
+        # Update state
         state.hidden = hidden
         state.lstm_h = hidden
         state.lstm_c = c
-        logits, values = self.policy.decode_actions(hidden)
-        return logits, values
+
+        return self.policy.decode_actions(hidden)
+
+    def _forward_train_with_state_conversion(self, x, state):
+        """Helper to handle state conversion for training"""
+        if hasattr(state, "lstm_h"):
+            # Convert PolicyState to dict for forward_train compatibility
+            state_dict = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c, "hidden": getattr(state, "hidden", None)}
+            result = self.forward_train(x, state_dict)
+            # Update original state
+            state.lstm_h = state_dict.get("lstm_h")
+            state.lstm_c = state_dict.get("lstm_c")
+            state.hidden = state_dict.get("hidden")
+            return result
+        else:
+            return self.forward_train(x, state)
 
 
 class Policy(nn.Module):
@@ -66,32 +78,12 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
-        max_vec = torch.tensor(
-            [
-                1.0,
-                9.0,
-                1.0,
-                30.0,
-                1.0,
-                3.0,
-                255.0,
-                26.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                47.0,
-                3.0,
-                3.0,
-                2.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-            ]
-        )[None, :, None, None]
+        # TODO - fix magic numbers!
+        # fmt: off
+        max_vec = torch.tensor([  1.,   9.,   1.,  30.,   1.,   3., 255.,  26.,   1.,   1.,   1.,   1.,
+                1.,  47.,   3.,   3.,   2.,   1.,   1.,   1.,   1.])[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
+        # fmt: on
 
         action_nvec = env.single_action_space.nvec
         self.actor = nn.ModuleList(
@@ -110,8 +102,6 @@ class Policy(nn.Module):
     def encode_observations(self, observations, state=None):
         # observations are already in [batch, channels, height, width] format
         features = observations.float() / self.max_vec
-        # mmax = features.max(0)[0].max(1)[0].max(1)[0]
-        # self.max_vec = torch.maximum(self.max_vec, mmax[None, :, None, None])
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
         return torch.cat([self_features, cnn_features], dim=1)

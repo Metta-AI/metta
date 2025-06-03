@@ -7,7 +7,7 @@ from pufferlib.pufferl import Profile as PufferProfile
 def _fmt_perf(elapsed, total):
     """Format performance metric as percentage of total time."""
     pct = 100 * elapsed / total if total > 0 else 0
-    return f"{pct:.1f}%"
+    return pct
 
 
 class ProfileTimer:
@@ -131,12 +131,17 @@ class Profile:
         yield "uptime", self.uptime
         yield "remaining", self.remaining
 
+        # Compute aggregate times as sum of components
+        # This is more accurate than using the decorator-based measurements
+        eval_time_computed = self.eval_misc_time + self.env_time + self.eval_forward_time
+        train_time_computed = self.train_misc_time + self.train_forward_time + self.learn_time
+
         # Yield formatted performance metrics
-        yield "eval_time", _fmt_perf(self.eval_time, self.uptime)
+        yield "eval_time", _fmt_perf(eval_time_computed, self.uptime)
         yield "env_time", _fmt_perf(self.env_time, self.uptime)
         yield "eval_forward_time", _fmt_perf(self.eval_forward_time, self.uptime)
         yield "eval_misc_time", _fmt_perf(self.eval_misc_time, self.uptime)
-        yield "train_time", _fmt_perf(self.train_time, self.uptime)
+        yield "train_time", _fmt_perf(train_time_computed, self.uptime)
         yield "train_forward_time", _fmt_perf(self.train_forward_time, self.uptime)
         yield "learn_time", _fmt_perf(self.learn_time, self.uptime)
         yield "train_misc_time", _fmt_perf(self.train_misc_time, self.uptime)

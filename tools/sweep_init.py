@@ -7,10 +7,10 @@ from logging import Logger
 
 import hydra
 import wandb
-import wandb_carbs
 import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+import wandb_carbs
 from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
 from metta.util.config import config_from_path
 from metta.util.logging import setup_mettagrid_logger
