@@ -145,8 +145,6 @@ This launches a human-controlled session using the same configuration flags as
 training. It is useful for quickly testing maps or policies on your local
 hardware.
 
-If you're a member of `metta-research` on wandb, or you add your own wandb config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the readme.
-
 ### Run the terminal simulation
 
 ```
