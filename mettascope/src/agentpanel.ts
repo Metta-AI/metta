@@ -1,4 +1,4 @@
-import { find, finds, removeChildren, walkUpAttribute, onEvent, showMenu, hideMenu, showDropdown, hideDropdown } from "./htmlutils.js";
+import { find, finds, removeChildren, walkUpAttribute, onEvent, showMenu, hideMenu, showDropdown, hideDropdown, localStorageSetObject, localStorageGetObject } from "./htmlutils.js";
 import { state, setFollowSelection, html } from "./common.js";
 import { getAttr } from "./replay.js";
 import { updateSelection } from "./main.js";
@@ -81,6 +81,10 @@ function swapLeft(list: any[], element: any) {
 }
 
 export function initAgentTable() {
+
+  // Load the columns from local storage.
+  let plainColumns = localStorageGetObject("agent-panel-columns", columns);
+  columns = plainColumns.map(column => new ColumnDefinition(column.field, column.isFinal, column.sortDirection));
 
   // Hide the column menu and new column dropdown.
   columnMenu.classList.add("hidden");
@@ -422,4 +426,7 @@ export function updateAgentTable() {
   // Restore the typeahead value.
   var typeahead = find("#new-column-input") as HTMLInputElement;
   typeahead.value = typeaheadValue;
+
+  // Save the columns to local storage.
+  localStorageSetObject("agent-panel-columns", columns);
 }

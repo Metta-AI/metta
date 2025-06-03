@@ -174,3 +174,17 @@ export function localStorageGetNumber(key: string, defaultValue: number): number
 export function localStorageSetNumber(key: string, value: number) {
   localStorage.setItem(key, value.toString());
 }
+
+// Get a whole data structure from local storage.
+export function localStorageGetObject<T>(key: string, defaultValue: T): T {
+  let value = localStorage.getItem(key);
+  if (value == null) {
+    return defaultValue;
+  }
+  return JSON.parse(value);
+}
+
+// Set a whole data structure in local storage.
+export function localStorageSetObject<T>(key: string, value: T) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
