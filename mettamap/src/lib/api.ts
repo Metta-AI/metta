@@ -107,11 +107,19 @@ export async function getMettagridCfgFile(
   return mettagridCfgFileSchema.parse(data);
 }
 
+export type MaybeStorableMap =
+  | {
+      type: "map";
+      data: StorableMap;
+    }
+  | {
+      type: "error";
+      error: string;
+    };
+
 export async function getMettagridCfgMap(
   path: string
-): Promise<
-  { type: "map"; data: StorableMap } | { type: "error"; error: string }
-> {
+): Promise<MaybeStorableMap> {
   const response = await fetch(
     `${API_URL}/mettagrid-cfgs/get-map?path=${encodeURIComponent(path)}`
   );

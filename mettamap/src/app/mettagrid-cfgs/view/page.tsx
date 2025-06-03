@@ -3,7 +3,7 @@ import Link from "next/link";
 import { JsonAsYaml } from "@/components/JsonAsYaml";
 
 import { getMettagridCfgFile } from "../../../lib/api";
-import { MapFromCfg } from "./MapFromCfg";
+import { MapSection } from "./MapSection";
 
 interface EnvViewPageProps {
   searchParams: Promise<{ path?: string }>;
@@ -40,10 +40,7 @@ export default async function EnvViewPage({ searchParams }: EnvViewPageProps) {
         <span className="text-xl text-gray-400"> {cfg.metadata.kind}</span>
       </h1>
       {(cfg.metadata.kind === "map" || cfg.metadata.kind === "env") && (
-        <section className="mb-8">
-          <h2 className="mb-4 text-xl font-bold">Generated Map</h2>
-          <MapFromCfg cfg={cfg} />
-        </section>
+        <MapSection cfg={cfg} />
       )}
       <section className="mb-8">
         <h2 className="mb-4 text-xl font-bold">Config</h2>
