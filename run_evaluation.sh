@@ -4,15 +4,21 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-    "b.daphne.navsequence_curriculum"
-    "b.daphne.navigation_curriculum"
-    "daphne_navseq_curriculum_SA"
-    "b.daphne.navsequence.sweep.r.0"
-    "b.daphne.multiagent_curriculum"
-    "b.daphne.objectuse_sweep.r.3"
-    "b.daphne.objectuse_curriculum"
-    "b.daphne.navigation_sweep.r.0"
-    "b.daphne.navsequence_sweep_sa.r.0"
+    "dd.2objectuse_curriculum"
+    "dd_navigation_curriculum"
+    "dd_navsequence_memory_pretrained"
+    "dd_navsequence_memory"
+    "dd_navsequence_all_pretrained"
+    "dd_navsequence_all"
+    "dd_multiagent"
+    "dd_multiagent_pretrained"
+    # "dd_navsequence_memory_l2"
+    # "dd_navsequence_memory_pretrained_l2"
+    # "dd_navsequence_all_l2"
+    # "dd_navsequence_all_pretrained_l2"
+    # "dd_nav_sequence_memory_tokenized"
+    # "dd_nav_tokenized"
+    # "dd_objectuse_tokenized"
     )
 
 
@@ -32,21 +38,22 @@ for i in "${!POLICIES[@]}"; do
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        device=cpu \
+        # device=cpu \
+
 
     python3 -m tools.sim \
         sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        device=cpu \
+        # device=cpu \
 
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        device=cpu \
+        # device=cpu \
 
 
     python3 -m tools.sim \
@@ -54,15 +61,15 @@ for i in "${!POLICIES[@]}"; do
         run=nav_sequence$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        device=cpu \
+        # device=cpu \
 
    python3 -m tools.sim \
         sim=multiagent \
         run=multi_agent$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        device=cpu \
+        # device=cpu \
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db run=navigation_db2 ++dashboard.output_path=s3://softmax-public/policydash/results.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
 
 done
