@@ -67,7 +67,6 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
     has_any_issues = False
     reviews_with_issues = []
 
-    # Connect to GitHub API
     g = Github(token)
     repo_obj = g.get_repo(repo)
     run = repo_obj.get_workflow_run(run_id)
