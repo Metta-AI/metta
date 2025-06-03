@@ -90,6 +90,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      id-token: write
     outputs:
       has_issues: ${{ steps.parse-analysis.outputs.found_issues }}
       suggestion_count: ${{ steps.parse-analysis.outputs.suggestion_count }}
