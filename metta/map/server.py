@@ -1,4 +1,5 @@
 import json
+import os
 
 import uvicorn
 from fastapi import FastAPI
@@ -102,6 +103,12 @@ def make_app():
             }
 
         return storable_map.to_dict()
+
+    @app.get("/repo-root")
+    async def route_repo_root():
+        return {
+            "repo_root": os.getcwd(),
+        }
 
     return app
 

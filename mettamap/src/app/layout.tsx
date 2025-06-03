@@ -5,15 +5,21 @@ import Link from "next/link";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { FC, PropsWithChildren, Suspense } from "react";
 
+import { RepoRootProvider } from "@/components/RepoRootContext";
+import { getRepoRoot } from "@/lib/api";
+
 export const metadata: Metadata = {
   title: "MettaMap viewer",
 };
 
-const GlobalProviders: FC<PropsWithChildren> = ({ children }) => {
+const GlobalProviders: FC<PropsWithChildren> = async ({ children }) => {
+  const repoRoot = await getRepoRoot();
   return (
-    <Suspense>
-      <NuqsAdapter>{children}</NuqsAdapter>
-    </Suspense>
+    <RepoRootProvider root={repoRoot}>
+      <Suspense>
+        <NuqsAdapter>{children}</NuqsAdapter>
+      </Suspense>
+    </RepoRootProvider>
   );
 };
 

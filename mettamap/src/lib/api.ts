@@ -138,3 +138,10 @@ export async function indexDir(dir: string): Promise<void> {
   const data = await response.json();
   return data;
 }
+
+export async function getRepoRoot(): Promise<string> {
+  const response = await fetch(`${API_URL}/repo-root`);
+  const data = await response.json();
+  const parsed = z.object({ repo_root: z.string() }).parse(data);
+  return parsed.repo_root;
+}
