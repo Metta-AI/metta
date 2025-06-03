@@ -59,7 +59,7 @@ class Simulation:
         suite=None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
-        env_overrides: Dict[str, Any] = {},
+        global_env_overrides: Dict[str, Any] = {},
     ):
         self._name = name
         self._suite = suite
@@ -72,8 +72,10 @@ class Simulation:
 
         if config.env_overrides is not None:
             # merge the global env_overrides with the config.env_overrides
-            _env_overrides = env_overrides.update(config.env_overrides)
+            _env_overrides = global_env_overrides.update(config.env_overrides)
             env_overrides = OmegaConf.create(_env_overrides)
+        else:
+            env_overrides = OmegaConf.create(global_env_overrides)
 
         self._env_name = config.env
 

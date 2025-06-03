@@ -34,6 +34,7 @@ class SimulationSuiteConfig(SimulationConfig):
 
     name: str
     simulations: Dict[str, SingleEnvSimulationConfig]
+    env_overrides: Optional[dict] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -54,4 +55,5 @@ class SimulationSuiteConfig(SimulationConfig):
             merged[name] = {**explicitly_provided, **sim_cfg}
 
         values["simulations"] = merged
+
         return values
