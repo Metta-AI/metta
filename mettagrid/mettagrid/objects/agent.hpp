@@ -30,8 +30,6 @@ public:
   // New tracking fields
   unsigned char last_action;
   unsigned char last_action_success;
-  //   float last_reward;
-  //   float total_reward;
 
   Agent(GridCoord r,
         GridCoord c,
@@ -75,8 +73,6 @@ public:
     // Initialize new tracking fields
     this->last_action = 0;
     this->last_action_success = 0;
-    //   this->last_reward = 0.0f;
-    //   this->total_reward = 0.0f;
   }
 
   void init(float* reward) {
