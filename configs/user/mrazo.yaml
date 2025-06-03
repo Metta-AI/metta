@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navigation
+  curriculum: /env/mettagrid/curriculum/object_use
   wandb.enabled: true
   wandb.track: true
 
@@ -13,4 +13,4 @@ trainer:
 #   wandb.enabled: false
 #   wandb.track: false
 
-run: mrazo_action-obs_navigation_v001
+run: mrazo_action-obs_objectuse_v001
