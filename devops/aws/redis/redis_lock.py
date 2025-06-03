@@ -93,7 +93,7 @@ class RedisLock:
                 # Check if current lock is expired (shouldn't happen with EX, but just in case)
                 current_holder = self.redis.get(self.key)
                 if current_holder:
-                    logger.debug(f"Lock {self.key} held by: {current_holder.decode('utf-8')}")
+                    logger.debug(f"Lock {self.key} held by: {current_holder}")
 
             except (RedisError, ConnectionError) as e:
                 logger.warning(f"Redis error while acquiring lock: {e}")
