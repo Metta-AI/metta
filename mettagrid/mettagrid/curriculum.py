@@ -16,7 +16,7 @@ class Curriculum:
         raise NotImplementedError("Subclasses must implement this method")
 
     def complete_task(self, id: str, score: float) -> None:
-        logger.debug(f"Task completed: {id} -> {score:.5f}")
+        logger.info(f"Task completed: {id} -> {score:.5f}")
 
     @staticmethod
     def from_config_path(config_path: str, env_overrides: Optional[DictConfig] = None) -> "Curriculum":
@@ -43,7 +43,6 @@ class Task:
         for curriculum, id in self._curriculums:
             curriculum.complete_task(id, score)
         self._is_complete = True
-        logger.info(f"Task completed: {self.name()} -> {score:.5f}")
 
     def is_complete(self):
         return self._is_complete
