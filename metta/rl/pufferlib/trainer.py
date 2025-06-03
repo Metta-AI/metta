@@ -729,11 +729,7 @@ class PufferTrainer:
             timer_data = {}
             wall_time = self.timer.get_elapsed()  # global timer
 
-            for timer_name in self.timer._timers:
-                if timer_name != "__global__":
-                    elapsed = self.timer.get_elapsed(timer_name)
-                    clean_name = timer_name.lstrip("_")
-                    timer_data[clean_name] = elapsed
+            timer_data = self.timer.get_all_elapsed()
 
             # Calculate key performance metrics
             training_time = timer_data.get("rollout", 0) + timer_data.get("train", 0)
