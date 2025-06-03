@@ -31,8 +31,8 @@ export function removeChildren(element: HTMLElement) {
   }
 }
 
-// Walk up the DOM tree to find an attribute.
-export function walkUpAttribute(element: HTMLElement, attribute: string): string {
+// Walks up the DOM tree and finds the given attribute.
+export function findAttr(element: HTMLElement, attribute: string): string {
   var e = element;
   while (e != null && e != document.body) {
     if (e.hasAttribute(attribute)) {

@@ -1,4 +1,4 @@
-import { find, finds, removeChildren, walkUpAttribute, onEvent, showMenu, hideMenu, showDropdown, hideDropdown, localStorageSetObject, localStorageGetObject } from "./htmlutils.js";
+import { find, finds, removeChildren, findAttr, onEvent, showMenu, hideMenu, showDropdown, hideDropdown, localStorageSetObject, localStorageGetObject } from "./htmlutils.js";
 import { state, setFollowSelection, html } from "./common.js";
 import { getAttr } from "./replay.js";
 import { updateSelection } from "./main.js";
@@ -14,14 +14,22 @@ class ColumnDefinition {
   isFinal: boolean;
   sortDirection: SortDirection;
 
-  constructor(field: string, isFinal: boolean, sortDirection: SortDirection = SortDirection.None) {
+  constructor(
+    field: string,
+    isFinal: boolean,
+    sortDirection: SortDirection = SortDirection.None,
+    isStepColumn: boolean = false
+  ) {
     this.field = field;
     this.isFinal = isFinal;
     this.sortDirection = sortDirection;
   }
 
   generateName() {
-    let name = capitalize(this.field.replace("inv:", "").replace("agent:", "").replace(".", " ").replace("_", " "));
+    let name = capitalize(this.field.replace("inv:", "")
+      .replace("agent:", "")
+      .replace(".", " ")
+      .replace("_", " "));
     if (this.isFinal) {
       name = "Final: " + name;
     }
@@ -34,6 +42,15 @@ class ColumnDefinition {
     } else {
       return "/data/ui/table/" + this.field.replace("agent:", "") + ".png";
     }
+  }
+
+  // Unlike name, a tool tip has exact field.
+  generateTooltip() {
+    let tooltip = this.field + " field";
+    if (this.isFinal) {
+      tooltip = "Final: " + tooltip;
+    }
+    return tooltip;
   }
 }
 
@@ -49,6 +66,7 @@ const columnMenu = find("#column-menu");
 const newColumnDropdown = find("#new-column-dropdown");
 const columnOptions = find("#new-column-dropdown .column-options");
 const columnOptionTemplate = find("#new-column-dropdown .column-option");
+const typeahead = find("#new-column-input") as HTMLInputElement;
 
 var columns = [
   new ColumnDefinition("agent_id", false),
@@ -86,200 +104,199 @@ function swapLeft(list: any[], element: any) {
   list[index - 1] = tmp;
 }
 
-export function initAgentTable() {
+function saveAgentTable() {
+  localStorageSetObject("agent-panel-columns", columns);
+}
 
+export function initAgentTable() {
   // Load the columns from local storage.
   let plainColumns = localStorageGetObject("agent-panel-columns", columns);
-  columns = plainColumns.map(column => new ColumnDefinition(column.field, column.isFinal, column.sortDirection));
+  columns = plainColumns.map(column => new ColumnDefinition(
+    column.field, column.isFinal, column.sortDirection
+  ));
 
   // Hide the column menu and new column dropdown.
   columnMenu.classList.add("hidden");
   newColumnDropdown.classList.add("hidden");
 
-  // Clicking on the column menu button should show the column menu.
-  onEvent("click", "#agent-panel .header-cell .dropdown", (target: HTMLElement, e: Event) => {
-    let columnMenu = find("#column-menu");
-    let columnField = walkUpAttribute(target, "data-column-field");
-    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
-    columnMenu.setAttribute("data-column-field", columnField);
-    columnMenu.setAttribute("data-column-is-final", columnIsFinal.toString());
-    showMenu(target, columnMenu);
-  });
-
-  // Clicking on the sort up button should sort the column in ascending order.
-  onEvent("click", "#column-menu .sort-up", (target: HTMLElement, e: Event) => {
-    let columnField = walkUpAttribute(target, "data-column-field");
-    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
-    for (let i = 0; i < columns.length; i++) {
-      if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
-        columns[i].sortDirection = SortDirection.Ascending;
-        mainSort = columns[i];
-      } else {
-        columns[i].sortDirection = SortDirection.None;
-      }
-    }
-    updateAgentTable();
-    hideMenu();
-  });
-
-  // Clicking on the sort down button should sort the column in descending order.
-  onEvent("click", "#column-menu .sort-down", (target: HTMLElement, e: Event) => {
-    let columnField = walkUpAttribute(target, "data-column-field");
-    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
-    for (let i = 0; i < columns.length; i++) {
-      if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
-        columns[i].sortDirection = SortDirection.Descending;
-        mainSort = columns[i];
-      } else {
-        columns[i].sortDirection = SortDirection.None;
-      }
-    }
-    updateAgentTable();
-    hideMenu();
-  });
-
-  onEvent("click", "#column-menu .move-left", (target: HTMLElement, e: Event) => {
-    let columnField = walkUpAttribute(target, "data-column-field");
-    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
-    let column = columns.find(column => column.field == columnField && column.isFinal == columnIsFinal);
-    if (column != null) {
-      swapLeft(columns, column);
-      updateAgentTable();
-    }
-    hideMenu();
-  });
-
-  // Clicking on the move right button should move the column to the right.
-  onEvent("click", "#column-menu .move-right", (target: HTMLElement, e: Event) => {
-    let columnField = walkUpAttribute(target, "data-column-field");
-    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
-    let column = columns.find(column => column.field == columnField && column.isFinal == columnIsFinal);
-    if (column != null) {
-      swapRight(columns, column);
-      updateAgentTable();
-    }
-    hideMenu();
-  });
-
-  // Clicking on the hide column button should remove the column from the columns array.
-  onEvent("click", "#column-menu .hide-column", (target: HTMLElement, e: Event) => {
-    hideMenu();
-    // Remove this column from the columns array.
-    let columnField = walkUpAttribute(target, "data-column-field");
-    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
-    columns = columns.filter(column => !(column.field == columnField && column.isFinal == columnIsFinal));
-    updateAgentTable();
-  });
-
-  // Clicking on the table directly should cycle the sort direction.
-  onEvent("click", "#agent-panel .header-cell", (target: HTMLElement, e: Event) => {
-    let columnField = walkUpAttribute(target, "data-column-field");
-    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
-    if (columnField != "") {
-      for (let column of columns) {
-        if (column.field == columnField && column.isFinal == columnIsFinal) {
-          if (mainSort == column) {
-            if (column.sortDirection == SortDirection.None) {
-              column.sortDirection = SortDirection.Descending;
-            } else {
-              column.sortDirection = column.sortDirection == SortDirection.Descending ?
-                SortDirection.Ascending : SortDirection.Descending;
-            }
-          } else {
-            column.sortDirection = SortDirection.Descending;
-          }
-          mainSort = column;
-        } else {
-          column.sortDirection = SortDirection.None;
-        }
-      }
-      updateAgentTable();
-    }
-  });
-
-  // Clicking on a data cell should select the agent.
-  onEvent("click", "#agent-panel .data-cell", (target: HTMLElement, e: Event) => {
-    let agentId = walkUpAttribute(target, "data-agent-id");
-    if (agentId != "") {
-      for (let i = 0; i < state.replay.grid_objects.length; i++) {
-        let gridObject = state.replay.grid_objects[i];
-        if (getAttr(gridObject, "agent_id") == agentId) {
-          updateSelection(gridObject, true)
-          break;
-        }
-      }
-    }
-  });
-
-  // Clicking on the new column input should show the new column dropdown and
-  // allow you to type-ahead to select search for the column.
-  onEvent("click", "#new-column-input", (target: HTMLElement, e: Event) => {
-    let newColumnDropdown = find("#new-column-dropdown");
-    updateAvailableColumns()
-    showDropdown(target, newColumnDropdown);
-  });
-
-  onEvent("input", "#new-column-input", (target: HTMLElement, e: Event) => {
-    updateAvailableColumns()
-  });
-
-  onEvent("click", "#new-column-dropdown .step-check", (target: HTMLElement, e: Event) => {
-    let columnField = walkUpAttribute(target, "data-column-field");
-    let columnIsFinal = false;
-    let found = -1;
-    if (columnField != "") {
-      for (let i = 0; i < columns.length; i++) {
-        if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
-          found = i
-        }
-      }
-    }
-    if (found != -1) {
-      // Remove the column from the columns array.
-      columns.splice(found, 1);
-    } else {
-      // Add the column to the columns array.
-      columns.push(new ColumnDefinition(columnField, columnIsFinal));
-    }
-    updateAgentTable();
-    updateAvailableColumns();
-  });
-
-  onEvent("click", "#new-column-dropdown .final-check", (target: HTMLElement, e: Event) => {
-    let columnField = walkUpAttribute(target, "data-column-field");
-    let columnIsFinal = true;
-    let found = -1;
-    if (columnField != "") {
-      for (let i = 0; i < columns.length; i++) {
-        if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
-          found = i
-        }
-      }
-    }
-    if (found != -1) {
-      // Remove the column from the columns array.
-      columns.splice(found, 1);
-    } else {
-      // Add the column to the columns array.
-      columns.push(new ColumnDefinition(columnField, columnIsFinal));
-    }
-    updateAgentTable();
-    updateAvailableColumns();
-  });
-
+  // Clear the templates for addition of elements.
   removeChildren(table);
   removeChildren(columnTemplate);
   removeChildren(newColumnTemplate);
 }
 
+// Given an element, get the field and isFinal information thats up the DOM tree.
+function getFieldInfo(target: HTMLElement): { columnField: string, columnIsFinal: boolean } {
+  let columnField = findAttr(target, "data-column-field");
+  let columnIsFinal = findAttr(target, "data-column-is-final") == "true";
+  return { columnField, columnIsFinal };
+}
+
+// Clicking on the column menu button should show the column menu.
+onEvent("click", "#agent-panel .header-cell .dropdown", (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target);
+  let columnMenu = find("#column-menu");
+  columnMenu.setAttribute("data-column-field", columnField);
+  columnMenu.setAttribute("data-column-is-final", columnIsFinal.toString());
+  showMenu(target, columnMenu);
+});
+
+function toggleSortDirection(columnField: string, columnIsFinal: boolean) {
+  for (let i = 0; i < columns.length; i++) {
+    if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
+      columns[i].sortDirection = SortDirection.Ascending;
+      mainSort = columns[i];
+    } else {
+      columns[i].sortDirection = SortDirection.None;
+    }
+  }
+  updateAgentTable();
+  saveAgentTable();
+  hideMenu();
+}
+
+// Clicking on the sort up button should sort the column in ascending order.
+onEvent("click", "#column-menu .sort-up", (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target);
+  toggleSortDirection(columnField, columnIsFinal);
+});
+
+// Clicking on the sort down button should sort the column in descending order.
+onEvent("click", "#column-menu .sort-down", (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target);
+  toggleSortDirection(columnField, columnIsFinal);
+});
+
+onEvent("click", "#column-menu .move-left", (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target);
+  let column = columns.find(column => column.field == columnField && column.isFinal == columnIsFinal);
+  if (column != null) {
+    swapLeft(columns, column);
+    updateAgentTable();
+    saveAgentTable();
+  }
+  hideMenu();
+});
+
+// Clicking on the move right button should move the column to the right.
+onEvent("click", "#column-menu .move-right", (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target);
+  let column = columns.find(column => column.field == columnField && column.isFinal == columnIsFinal);
+  if (column != null) {
+    swapRight(columns, column);
+    updateAgentTable();
+    saveAgentTable();
+  }
+  hideMenu();
+});
+
+// Clicking on the hide column button should remove the column from the columns array.
+onEvent("click", "#column-menu .hide-column", (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target);
+  columns = columns.filter(column => !(column.field == columnField && column.isFinal == columnIsFinal));
+  updateAgentTable();
+  saveAgentTable();
+  hideMenu();
+});
+
+// Clicking on the table directly should set is as main sort column or cycle the sort direction.
+onEvent("click", "#agent-panel .header-cell", (target: HTMLElement, e: Event) => {
+  let { columnField, columnIsFinal } = getFieldInfo(target);
+  if (columnField != "") {
+    for (let column of columns) {
+      if (column.field == columnField && column.isFinal == columnIsFinal) {
+        if (mainSort == column) {
+          if (column.sortDirection == SortDirection.None) {
+            column.sortDirection = SortDirection.Descending;
+          } else {
+            column.sortDirection = column.sortDirection == SortDirection.Descending ?
+              SortDirection.Ascending : SortDirection.Descending;
+          }
+        } else {
+          column.sortDirection = SortDirection.Descending;
+        }
+        mainSort = column;
+      } else {
+        column.sortDirection = SortDirection.None;
+      }
+    }
+    updateAgentTable();
+    saveAgentTable();
+  }
+});
+
+// Clicking on a data cell should select the agent.
+onEvent("click", "#agent-panel .data-cell", (target: HTMLElement, e: Event) => {
+  let agentId = findAttr(target, "data-agent-id");
+  if (agentId != "") {
+    for (let i = 0; i < state.replay.grid_objects.length; i++) {
+      let gridObject = state.replay.grid_objects[i];
+      if (getAttr(gridObject, "agent_id") == agentId) {
+        updateSelection(gridObject, true)
+        break;
+      }
+    }
+  }
+});
+
+// Clicking on the new column input should show the new column dropdown and
+// allow you to type-ahead to select or search for the column.
+onEvent("click", "#new-column-input", (target: HTMLElement, e: Event) => {
+  let newColumnDropdown = find("#new-column-dropdown");
+  updateAvailableColumns()
+  showDropdown(target, newColumnDropdown);
+});
+
+// When the user types in the typeahead, filter the available columns.
+onEvent("input", "#new-column-input", (target: HTMLElement, e: Event) => {
+  updateAvailableColumns()
+});
+
+// Toggles the column in the columns array based on the field and isFinal.
+function toggleColumn(columnField: string, columnIsFinal: boolean) {
+  let found = -1;
+  if (columnField != "") {
+    for (let i = 0; i < columns.length; i++) {
+      if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
+        found = i
+      }
+    }
+  }
+  if (found != -1) {
+    // Remove the column from the columns array.
+    columns.splice(found, 1);
+  } else {
+    // Add the column to the columns array.
+    columns.push(new ColumnDefinition(columnField, columnIsFinal));
+  }
+  updateAgentTable();
+  updateAvailableColumns();
+  saveAgentTable();
+}
+
+// Clicking on the step check should add or remove the "current step" column
+// from the columns array.
+onEvent("click", "#new-column-dropdown .step-check", (target: HTMLElement, e: Event) => {
+  toggleColumn(findAttr(target, "data-column-field"), false);
+});
+
+// Clicking on the final check should add or remove the "final step" column
+// from the columns array.
+onEvent("click", "#new-column-dropdown .final-check", (target: HTMLElement, e: Event) => {
+  toggleColumn(findAttr(target, "data-column-field"), true);
+});
+
+
 export function updateAvailableColumns() {
-  // Replay format might change the available columns, in real time.
+  // The columns might change due to changes in:
+  //   * The replay format.
+  //   * The typeahead value.
+  //   * The columns array.
+  //   * The main sort column.
 
   var availableColumns: ColumnDefinition[] = [];
-
   var typeahead = find("#new-column-input") as HTMLInputElement;
   typeaheadValue = typeahead.value;
-
   var noMatchFound = find("#new-column-dropdown .no-match-found");
 
   // All agent keys:
@@ -330,6 +347,13 @@ export function updateAvailableColumns() {
 }
 
 export function updateAgentTable() {
+  // The agent table might change due to changes in:
+  //   * The columns array.
+  //   * The main sort column.
+  //   * The sort direction.
+  //   * The selected grid object.
+  //   * The selected agent.
+
   removeChildren(agentTable);
 
   let list = state.replay.agents.slice();
@@ -363,7 +387,6 @@ export function updateAgentTable() {
     name.textContent = columnDef.generateName();
     let icon = headerCell.querySelectorAll(".icon")[0];
     icon.setAttribute("src", columnDef.generateIcon());
-
     let sortIcon = headerCell.querySelector(".sort-icon") as HTMLElement;
     if (columnDef.sortDirection == SortDirection.Descending) {
       sortIcon.setAttribute("src", "data/ui/sort-down.png");
@@ -372,11 +395,7 @@ export function updateAgentTable() {
     } else {
       sortIcon.classList.add("hidden");
     }
-    let title = columnDef.field
-    if (columnDef.isFinal) {
-      title = "Final: " + title;
-    }
-    headerCell.setAttribute("title", title);
+    headerCell.setAttribute("title", columnDef.generateTooltip());
     column.appendChild(headerCell);
 
     // Create the data cells.
@@ -424,9 +443,5 @@ export function updateAgentTable() {
   table.appendChild(newColumn);
 
   // Restore the typeahead value.
-  var typeahead = find("#new-column-input") as HTMLInputElement;
   typeahead.value = typeaheadValue;
-
-  // Save the columns to local storage.
-  localStorageSetObject("agent-panel-columns", columns);
 }
