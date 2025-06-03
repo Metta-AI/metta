@@ -39,24 +39,28 @@ jobs:
   # Run all review types in parallel
   review-readme:
     needs: validate-pr
+    secrets: inherit
     uses: ./.github/workflows/claude-review-readme.yml
     with:
       pr_number: ${{ needs.validate-pr.outputs.pr_number }}
 
   review-comments:
     needs: validate-pr
+    secrets: inherit
     uses: ./.github/workflows/claude-review-comments.yml
     with:
       pr_number: ${{ needs.validate-pr.outputs.pr_number }}
 
   review-types:
     needs: validate-pr
+    secrets: inherit
     uses: ./.github/workflows/claude-review-typing.yml
     with:
       pr_number: ${{ needs.validate-pr.outputs.pr_number }}
 
   review-einops:
     needs: validate-pr
+    secrets: inherit
     uses: ./.github/workflows/claude-review-einops.yml
     with:
       pr_number: ${{ needs.validate-pr.outputs.pr_number }}

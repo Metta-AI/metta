@@ -9,6 +9,7 @@ on:
 jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
+    secrets: inherit
     with:
       review_name: "Type Annotations"
       review_type: "types"
