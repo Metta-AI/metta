@@ -19,44 +19,32 @@ TODO: Figure out key/shape validation pipeline.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
+from torch.nn.modules.normalization import _shape_t
 
 
-class MettaData:
+class MettaDict:
     """
     Wrapper for tensor data and arbitrary metadata in the Metta architecture.
 
-    MettaData holds a TensorDict (for batched tensors) and a metadata dictionary (for arbitrary
+    MettaDict holds a TensorDict (for batched tensors) and a metadata dictionary (for arbitrary
     information to be shared between modules). It is used to propagate both tensors and side-channel
     information through the network in a unified way. Modules should only modify their own keys in
     the metadata dictionary to avoid conflicts.
+
+    Access the TensorDict via the 'td' attribute and the metadata via the 'data' attribute.
     """
 
     def __init__(self, td: TensorDict, data: Dict[str, Any]):
         self.td = td
         self.data = data
 
-    def __getitem__(self, key: str) -> Any:
-        return self.td[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.td[key] = value
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.td
-
-    def __iter__(self) -> Iterator[str]:
-        return iter(self.td)
-
-    def __len__(self) -> int:
-        return len(self.td)
-
     def __repr__(self) -> str:
-        return f"MettaData(td={self.td}, data={self.data})"
+        return f"MettaDict(td={self.td}, data={self.data})"
 
 
 class MettaModule(nn.Module, ABC):
@@ -91,7 +79,7 @@ class MettaModule(nn.Module, ABC):
         self.input_features_shape = torch.Size(input_features_shape) if input_features_shape else None
         self.output_features_shape = torch.Size(output_features_shape) if output_features_shape else None
 
-    def forward(self, td: Union[TensorDict, MettaData]) -> Union[TensorDict, MettaData]:
+    def forward(self, td: Union[TensorDict, MettaDict]) -> Union[TensorDict, MettaDict]:
         """Forward pass that computes outputs and updates the TensorDict or MettaData.
         This method should only be overridden if the module needs to perform additional operations
         beyond the computation of the output tensors.
@@ -102,8 +90,8 @@ class MettaModule(nn.Module, ABC):
         Returns:
             Updated TensorDict or MettaData with new output tensors (matches input type)
         """
-        is_metta = isinstance(td, MettaData)
-        md = td if is_metta else MettaData(td, {})
+        is_metta = isinstance(td, MettaDict)
+        md = td if is_metta else MettaDict(td, {})
 
         if __debug__:
             self._validate_input_keys(md.td)
@@ -113,12 +101,12 @@ class MettaModule(nn.Module, ABC):
         outputs = self._compute(md)
 
         for key, tensor in outputs.items():
-            md[key] = tensor
+            md.td[key] = tensor
 
         return md if is_metta else md.td
 
     @abstractmethod
-    def _compute(self, md: MettaData) -> Dict[str, torch.Tensor]:
+    def _compute(self, md: MettaDict) -> Dict[str, torch.Tensor]:
         """Compute the module's output tensors.
         This method is called by the forward method to compute the output tensors.
         Override this method in your subclass to implement the actual computation.
@@ -168,7 +156,35 @@ class MettaModule(nn.Module, ABC):
                 )
 
 
-class MettaLinear(MettaModule):
+class UniqueInKeyMixin:
+    """Mixin for MettaModule subclasses that require exactly one input key.
+    Checks the contract at initialization and provides the 'in_key' property."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not hasattr(self, "in_keys") or len(self.in_keys) != 1:  # type: ignore
+            raise ValueError(f"{self.__class__.__name__} requires exactly one input key.")
+
+    @property
+    def in_key(self) -> str:
+        return self.in_keys[0]  # type: ignore
+
+
+class UniqueOutKeyMixin:
+    """Mixin for MettaModule subclasses that require exactly one output key.
+    Checks the contract at initialization and provides the 'out_key' property."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not hasattr(self, "out_keys") or len(self.out_keys) != 1:  # type: ignore
+            raise ValueError(f"{self.__class__.__name__} requires exactly one output key.")
+
+    @property
+    def out_key(self) -> str:
+        return self.out_keys[0]  # type: ignore
+
+
+class MettaLinear(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
     def __init__(
         self,
         in_keys: List[str],
@@ -185,22 +201,11 @@ class MettaLinear(MettaModule):
 
         self.linear = nn.Linear(self.input_features_shape[0], self.output_features_shape[0])
 
-    # Components with a single input and output key can
-    # implement these if you want the code to be more readable.
-    # Otherwise, you can just use the in_keys and out_keys attributes.
-    @property
-    def in_key(self) -> str:
-        return self.in_keys[0]
-
-    @property
-    def out_key(self) -> str:
-        return self.out_keys[0]
-
-    def _compute(self, td: TensorDict) -> Dict[str, torch.Tensor]:
-        return {self.out_key: self.linear(td[self.in_key])}
+    def _compute(self, td) -> Dict[str, torch.Tensor]:
+        return {self.out_key: self.linear(td.td[self.in_key])}
 
 
-class MettaReLU(MettaModule):
+class MettaReLU(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
     def __init__(
         self,
         in_keys: List[str],
@@ -211,13 +216,91 @@ class MettaReLU(MettaModule):
             raise ValueError("MettaReLU requires exactly one input and one output key")
         self.relu = nn.ReLU()
 
-    @property
-    def in_key(self) -> str:
-        return self.in_keys[0]
+    def _compute(self, td) -> Dict[str, torch.Tensor]:
+        return {self.out_key: self.relu(td.td[self.in_key])}
 
-    @property
-    def out_key(self) -> str:
-        return self.out_keys[0]
 
-    def _compute(self, td: TensorDict) -> Dict[str, torch.Tensor]:
-        return {self.out_key: self.relu(td[self.in_key])}
+class MettaConv2d(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
+    def __init__(
+        self,
+        in_keys: list[str],
+        out_keys: list[str],
+        input_features_shape: list[int],
+        output_features_shape: list[int],
+        out_channels: int,
+        kernel_size: int,
+        stride: int = 1,
+        padding: int = 0,
+        dilation: int = 1,
+        groups: int = 1,
+        bias: bool = True,
+        padding_mode: str = "zeros",
+        device=None,
+        dtype=None,
+    ):
+        super().__init__(in_keys, out_keys, input_features_shape, output_features_shape)
+        if len(in_keys) != 1 or len(out_keys) != 1:
+            raise ValueError("MettaConv2d requires exactly one input and one output key")
+        self.conv = nn.Conv2d(
+            in_channels=input_features_shape[0],
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias,
+            padding_mode=padding_mode,
+            device=device,
+            dtype=dtype,
+        )
+
+    def _compute(self, md: MettaDict) -> dict:
+        return {self.out_key: self.conv(md.td[self.in_key])}
+
+
+class MettaFlatten(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
+    def __init__(
+        self,
+        in_keys: list[str],
+        out_keys: list[str],
+        input_features_shape: list[int],
+        output_features_shape: list[int],
+        start_dim: int = 1,
+        end_dim: int = -1,
+    ):
+        super().__init__(in_keys, out_keys, input_features_shape, output_features_shape)
+        if len(in_keys) != 1 or len(out_keys) != 1:
+            raise ValueError("MettaFlatten requires exactly one input and one output key")
+        self.flatten = nn.Flatten(start_dim=start_dim, end_dim=end_dim)
+
+    def _compute(self, md: MettaDict) -> dict:
+        return {self.out_key: self.flatten(md.td[self.in_key])}
+
+
+class MettaLayerNorm(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
+    def __init__(
+        self,
+        in_keys: list[str],
+        out_keys: list[str],
+        input_features_shape: list[int],
+        output_features_shape: list[int],
+        normalized_shape: _shape_t,
+        eps: float = 1e-5,
+        elementwise_affine: bool = True,
+        device=None,
+        dtype=None,
+    ):
+        super().__init__(in_keys, out_keys, input_features_shape, output_features_shape)
+        if len(in_keys) != 1 or len(out_keys) != 1:
+            raise ValueError("MettaLayerNorm requires exactly one input and one output key")
+        self.ln = nn.LayerNorm(
+            normalized_shape=normalized_shape,
+            eps=eps,
+            elementwise_affine=elementwise_affine,
+            device=device,
+            dtype=dtype,
+        )
+
+    def _compute(self, md: MettaDict) -> dict:
+        return {self.out_key: self.ln(md.td[self.in_key])}
