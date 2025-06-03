@@ -61,7 +61,6 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
     # Review types to check
     review_types = ["readme", "comments", "types", "einops"]
 
-    # Counters
     total_suggestions = 0
     total_compliments = 0
     has_any_issues = False
