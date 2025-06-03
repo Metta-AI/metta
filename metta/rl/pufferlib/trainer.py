@@ -630,6 +630,13 @@ class PufferTrainer:
                     self.optimizer.zero_grad()
                     loss.backward()
 
+                    # check whether there are any parameters without gradients
+                    # print the names of the parameters without gradients
+                    if torch.distributed.is_initialized():
+                        for name, param in self.policy.named_parameters():
+                            if param.grad is None:
+                                logger.warning(f"Parameter {name} has no gradient")
+
                     # we have to manually sync gradients because we are somehow getting around
                     # the default hooks that should be added by PyTorch DDP
                     if torch.distributed.is_initialized():
