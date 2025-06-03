@@ -1,8 +1,12 @@
-from metta.map.node import Node
-from metta.map.scene import Scene, TypedChild
+from metta.map.scene import Scene
+from metta.util.config import Config
 
 
-class RemoveAgents(Scene):
+class RemoveAgentsParams(Config):
+    pass
+
+
+class RemoveAgents(Scene[RemoveAgentsParams]):
     """
     This class solves a frequent problem: `game.num_agents` must match the
     number of agents in the map.
@@ -14,12 +18,9 @@ class RemoveAgents(Scene):
     entirely, and just use the number of agents in the map.)
     """
 
-    def __init__(self, children: list[TypedChild] | None = None):
-        super().__init__(children=children)
-
-    def _render(self, node: Node):
-        for i in range(node.height):
-            for j in range(node.width):
-                value = node.grid[i, j]
+    def render(self):
+        for i in range(self.height):
+            for j in range(self.width):
+                value = self.grid[i, j]
                 if value.startswith("agent.") or value == "agent":
-                    node.grid[i, j] = "empty"
+                    self.grid[i, j] = "empty"

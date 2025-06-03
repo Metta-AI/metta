@@ -5,10 +5,11 @@ width: 40
 height: 40
 
 root:
-  _target_: metta.map.scenes.random_scene.RandomScene
+  type: metta.map.scenes.random_scene.RandomScene
 
-  candidates:
-    - scene: /convchain/dungeon.yaml
-      weight: 2
-    - scene: /convchain/blob.yaml
-      weight: 1
+  params:
+    candidates:
+      - scene: convchain/dungeon.yaml
+        weight: 2
+      - scene: convchain/blob.yaml
+        weight: 1

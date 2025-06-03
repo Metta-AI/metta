@@ -1,12 +1,12 @@
 import copy
 import logging
 import random
-from typing import Dict, Optional
+from typing import Dict, Optional, cast
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.util.config import config_from_path
+from mettagrid.util.hydra import config_from_path
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,8 @@ class Curriculum:
         raise NotImplementedError("Subclasses must implement this method")
 
     def complete_task(self, id: str, score: float):
-        logger.info(f"Task completed: {id} -> {score:.5f}")
+        # logger.info(f"Task completed: {id} -> {score:.5f}")
+        pass
 
     @staticmethod
     def from_config_path(config_path: str, env_overrides: Optional[DictConfig] = None) -> "Curriculum":
@@ -43,7 +44,7 @@ class Task:
         for curriculum, id in self._curriculums:
             curriculum.complete_task(id, score)
         self._is_complete = True
-        logger.info(f"Task completed: {self.name()} -> {score:.5f}")
+        # logger.info(f"Task completed: {self.name()} -> {score:.5f}")
 
     def is_complete(self):
         return self._is_complete
@@ -130,7 +131,7 @@ class LowRewardCurriculum(RandomCurriculum):
 
 class SamplingCurriculum(Curriculum):
     def __init__(self, env_cfg_template: str, env_overrides: Optional[DictConfig] = None):
-        self._cfg_template = config_from_path(env_cfg_template, env_overrides)
+        self._cfg_template = cast(DictConfig, config_from_path(env_cfg_template, env_overrides))
 
     def get_task(self) -> Task:
         cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))
