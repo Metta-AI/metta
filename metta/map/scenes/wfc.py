@@ -51,7 +51,7 @@ class WFCParams(Config):
     next_node_heuristic: NextNodeHeuristic = "entropy"
     periodic_input: bool = True
     symmetry: Symmetry = "all"
-    attempts: int = 3
+    attempts: int = 1000
 
 
 class WFC(Scene[WFCParams]):
