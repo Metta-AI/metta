@@ -147,6 +147,14 @@ hardware.
 
 If you're a member of `metta-research` on wandb, or you add your own wandb config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the readme.
 
+### Run the terminal simulation
+
+```
+python -m tools.renderer run=renderer_demo renderer_job.policy_type=simple renderer_job.num_steps=100000
+```
+
+If you're a member of `metta-research` on wandb, or you add your own wandb config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the readme.
+
 # Evaluating a model
 
 When you run training, if you have wandb enabled, then you will be able to see in your wandb run page results for the eval suites.
