@@ -31,7 +31,7 @@ on:
         type: string
 
 env:
-  CLAUDE_MODEL: "claude-opus-4-20250514"
+  CLAUDE_MODEL: "claude-sonnet-4-20250514"
   UNIVERSAL_PROMPT_PREFIX: |
     ## GitHub PR Review Instructions - Conditional JSON Output
 
