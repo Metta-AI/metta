@@ -35,7 +35,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   max_steps = cfg["max_steps"].cast<unsigned int>();
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
-  _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
+  use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
   unsigned int num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
@@ -164,7 +164,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
-  if (_use_observation_tokens) {
+  if (use_observation_tokens) {
     shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(num_observation_tokens), static_cast<ssize_t>(3)};
   } else {
     shape = {static_cast<ssize_t>(num_agents),
@@ -229,7 +229,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
-  if (_use_observation_tokens) {
+  if (use_observation_tokens) {
     size_t tokens_written = 0;
     auto observation_view = _observations.mutable_unchecked<3>();
     // TODO: Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
@@ -384,7 +384,7 @@ void MettaGrid::validate_buffers() {
   // data types and contiguity are handled by pybind11. We still need to check
   // shape.
   unsigned int num_agents = _agents.size();
-  if (_use_observation_tokens) {
+  if (use_observation_tokens) {
     auto observation_info = _observations.request();
     auto shape = observation_info.shape;
     if (observation_info.ndim != 3) {
@@ -600,7 +600,7 @@ py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  if (_use_observation_tokens) {
+  if (use_observation_tokens) {
     // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
     // that matters to us.
     return spaces.attr("Box")(0,
@@ -730,5 +730,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
       .def("inventory_item_names", &MettaGrid::inventory_item_names)
-      .def("get_agent_groups", &MettaGrid::get_agent_groups);
+      .def("get_agent_groups", &MettaGrid::get_agent_groups)
+      .def_readonly("use_observation_tokens", &MettaGrid::use_observation_tokens);
 }

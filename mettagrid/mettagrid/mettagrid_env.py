@@ -316,3 +316,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     def inventory_item_names(self):
         return self._c_env.inventory_item_names()
+
+    @property
+    def use_observation_tokens(self) -> bool:
+        return self._c_env.use_observation_tokens

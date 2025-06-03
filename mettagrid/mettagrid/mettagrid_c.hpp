@@ -38,6 +38,8 @@ public:
   unsigned int current_step;
   unsigned int max_steps;
 
+  bool use_observation_tokens;
+
   // Python API methods
   py::tuple reset();
   py::tuple step(py::array_t<int> actions);
@@ -85,8 +87,6 @@ private:
 
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
-
-  bool _use_observation_tokens;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
