@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import os
 import time
@@ -216,7 +215,6 @@ class PufferTrainer:
             num_episodes=1,
             env_overrides=self.trainer_cfg.env_overrides,
         )
-        self.log_counter_env0 = 0
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -398,34 +396,6 @@ class PufferTrainer:
             with profile.eval_misc:
                 value = value.flatten()
                 mask = torch.as_tensor(mask)  # * policy.mask)
-                # Determine which observation tensor to log (original 'o' or 'o_device')
-                # Based on the existing logic for experience.store:
-                obs_to_log = o if self.trainer_cfg.cpu_offload else o_device
-
-                # Logging for unique experience generation verification
-                if torch.any(training_env_id == 0).item() and self.log_counter_env0 < 5:
-                    try:
-                        obs_hash = hashlib.sha256(obs_to_log.cpu().numpy().tobytes()).hexdigest()
-                        # Ensure we log the first env_id if it's a batch, or the specific env_id if it's 0
-                        log_env_id = (
-                            training_env_id[0].item()
-                            if training_env_id.dim() > 0 and training_env_id.numel() > 0
-                            else training_env_id.item()
-                        )
-
-                        logger.info(
-                            f"Rank: {os.environ.get('RANK', 'N/A')}, "
-                            f"LocalRank: {os.environ.get('LOCAL_RANK', 'N/A')}, "
-                            f"EnvID_0_Log_Count: {self.log_counter_env0}, "
-                            f"AgentStep: {self.agent_step}, "
-                            f"TrainingEnvID_First: {log_env_id}, "
-                            f"ObsHash: {obs_hash}, "
-                            f"Actions: {actions.cpu().numpy().tolist()}"  # Convert actions to list for better readability
-                        )
-                        self.log_counter_env0 += 1
-                    except Exception as e:
-                        logger.error(f"Error during logging: {e}")
-
                 o = o if self.trainer_cfg.cpu_offload else o_device
                 self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
