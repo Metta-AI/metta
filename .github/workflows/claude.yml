@@ -14,6 +14,9 @@ permissions:
   issues: write
   id-token: write
 
+env:
+  CLAUDE_MODEL: "claude-opus-4-20250514"
+
 jobs:
   claude-response:
     if: contains(github.event.comment.body, '@claude')
@@ -75,7 +78,7 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: "claude-4-sonnet-20250514"
+          model: ${{ env.CLAUDE_MODEL }}
           timeout_minutes: 30
           allowed_tools: "Bash(git status),Bash(git log --oneline -10),Bash(git show),Bash(git diff *),Bash(git branch -a),Bash(ruff check *),Bash(python -m *),View,GlobTool,GrepTool"
           custom_instructions: |
@@ -162,7 +165,7 @@ jobs:
         continue-on-error: true
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: "claude-4-sonnet-20250514"
+          model: ${{ env.CLAUDE_MODEL }}
           timeout_minutes: 45
           direct_prompt: |
             You are working on branch: ${{ steps.branches.outputs.new_branch }}

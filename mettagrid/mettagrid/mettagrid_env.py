@@ -8,10 +8,10 @@ import gymnasium as gym
 import numpy as np
 import pufferlib
 from omegaconf import OmegaConf
-from pufferlib.utils import unroll_nested_dict
+from pufferlib import unroll_nested_dict
+from pydantic import validate_call
 from typing_extensions import override
 
-from metta.util import validate_arg_types
 from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
@@ -43,7 +43,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     rewards: np.ndarray
     actions: np.ndarray
 
-    @validate_arg_types
+    @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
         self,
         curriculum: Curriculum,
@@ -127,7 +127,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override
     def step(self, actions: list[list[int]]) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
-        self.actions[:] = np.array(actions).astype(np.uint32)
+        self.actions[:] = actions
 
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)
@@ -187,11 +187,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         stats = self._c_env.get_episode_stats()
 
         infos["episode_rewards"] = episode_rewards
-        infos["agent_raw"] = stats["agent"]
+        # infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
-        infos["converter"] = stats["converter"]
         infos["agent"] = {}
-
         for agent_stats in stats["agent"]:
             for n, v in agent_stats.items():
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
