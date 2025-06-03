@@ -7,11 +7,6 @@ import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-# Add the metta directories to the path (running from metta/ directory)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "PufferLib"))  # PufferLib in parent
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))  # metta directory
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "mettagrid"))  # mettagrid
-
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.util.hydra import get_cfg
