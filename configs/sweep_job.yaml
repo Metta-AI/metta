@@ -2,7 +2,7 @@ defaults:
   - common
   - wandb: metta_research
   - agent: robust_cross
-  - sim: all
+  - sim: sweep_eval
   - trainer: puffer
   - _self_
 
@@ -16,14 +16,13 @@ metric: reward
 num_random_samples: 10
 
 trainer:
-  evaluate_interval: 0
-  total_timesteps: 5e7
+  evaluate_interval: 300
   env_overrides:
     game:
       use_observation_tokens: true
 
 sim:
-  num_episodes: 1
+  num_episodes: 5
 
 sweep_job:
   evals: ${sim}

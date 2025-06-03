@@ -5,7 +5,7 @@ from pathlib import Path
 from metta.map.load import Load
 from metta.map.utils import s3utils
 
-from .scene import SceneCfg
+from .types import SceneCfg
 
 
 def parse_file_uri(uri: str) -> str:
@@ -24,6 +24,8 @@ def get_random_map_uri(dir_uri: str) -> str:
     if dir_uri.startswith("s3://"):
         filenames = s3utils.list_objects(dir_uri)
         filenames = [uri for uri in filenames if uri.endswith(".yaml")]
+        if not filenames:
+            raise ValueError(f"No maps found in {dir_uri}")
         return random.choice(filenames)
     else:
         dirname = parse_file_uri(dir_uri)
@@ -32,6 +34,8 @@ def get_random_map_uri(dir_uri: str) -> str:
 
         filenames = os.listdir(dirname)
         filenames = [Path(dirname) / Path(filename) for filename in filenames if filename.endswith(".yaml")]
+        if not filenames:
+            raise ValueError(f"No maps found in {dirname}")
         return str(random.choice(filenames))
 
 
