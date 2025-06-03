@@ -221,7 +221,7 @@ class TestRewards:
         # Create buffers
         num_features = len(env.grid_features())
         observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=dtype_observations)
-        terminals = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
+        terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
         truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
         rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
 
