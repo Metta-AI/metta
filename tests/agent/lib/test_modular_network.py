@@ -8,7 +8,7 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.agent.lib.metta_module import MettaData, MettaLinear, MettaReLU
+from metta.agent.lib.metta_module import MettaDict, MettaLinear, MettaReLU
 from metta.agent.lib.modular_network import ModularNetwork
 
 
@@ -79,13 +79,13 @@ def test_modular_network_forward():
     network.add_component("relu", relu)
 
     td = TensorDict({"input": torch.tensor([[1.0, 2.0]])}, batch_size=[1])
-    md = MettaData(td, {"meta": "info"})
+    md = MettaDict(td, {"meta": "info"})
     result = network(md)
 
-    assert "hidden" in result
-    assert "output" in result
-    assert torch.allclose(result["hidden"], torch.tensor([[3.0, 3.0, 3.0]]))
-    assert torch.allclose(result["output"], torch.tensor([[3.0, 3.0, 3.0]]))
+    assert "hidden" in result.td
+    assert "output" in result.td
+    assert torch.allclose(result.td["hidden"], torch.tensor([[3.0, 3.0, 3.0]]))
+    assert torch.allclose(result.td["output"], torch.tensor([[3.0, 3.0, 3.0]]))
     # Check metadata propagation
     assert result.data["meta"] == "info"
 
@@ -111,11 +111,16 @@ def test_modular_network_forward_tensordict():
     td = TensorDict({"input": torch.tensor([[1.0, 2.0]])}, batch_size=[1])
     result = network(td)
 
-    assert isinstance(result, TensorDict)
-    assert "hidden" in result
-    assert "output" in result
-    assert torch.allclose(result["hidden"], torch.tensor([[3.0, 3.0, 3.0]]))
-    assert torch.allclose(result["output"], torch.tensor([[3.0, 3.0, 3.0]]))
+    if isinstance(result, MettaDict):
+        assert "hidden" in result.td
+        assert "output" in result.td
+        assert torch.allclose(result.td["hidden"], torch.tensor([[3.0, 3.0, 3.0]]))
+        assert torch.allclose(result.td["output"], torch.tensor([[3.0, 3.0, 3.0]]))
+    else:
+        assert "hidden" in result
+        assert "output" in result
+        assert torch.allclose(result["hidden"], torch.tensor([[3.0, 3.0, 3.0]]))
+        assert torch.allclose(result["output"], torch.tensor([[3.0, 3.0, 3.0]]))
 
 
 def test_modular_network_metadata_propagation():
@@ -133,7 +138,7 @@ def test_modular_network_metadata_propagation():
     network.add_component("relu", relu)
 
     td = TensorDict({"input": torch.tensor([[1.0, 2.0]])}, batch_size=[1])
-    md = MettaData(td, {"foo": "bar"})
+    md = MettaDict(td, {"foo": "bar"})
     result = network(md)
     assert result.data["foo"] == "bar"
 
