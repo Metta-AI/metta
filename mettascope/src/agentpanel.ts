@@ -286,7 +286,6 @@ onEvent("click", "#new-column-dropdown .final-check", (target: HTMLElement, e: E
   toggleColumn(findAttr(target, "data-column-field"), true);
 });
 
-
 export function updateAvailableColumns() {
   // The columns might change due to changes in:
   //   * The replay format.
@@ -329,7 +328,7 @@ export function updateAvailableColumns() {
     let option = columnOptionTemplate.cloneNode(true) as HTMLElement;
     option.querySelector(".name")!.textContent = column.generateName();
     option.querySelector(".icon")!.setAttribute("src", column.generateIcon());
-    option.setAttribute("title", column.field);
+    option.setAttribute("title", column.generateTooltip());
     option.setAttribute("data-column-field", column.field);
     var stepColumnExists = false;
     var finalColumnExists = false;
