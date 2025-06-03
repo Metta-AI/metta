@@ -40,8 +40,6 @@ enum ObservationFeatureEnum : uint8_t {
   Swappable = 8,
   LastAction = 9,
   LastActionSuccess = 10,
-  LastReward = 11,
-  TotalReward = 12,
   ObservationFeatureCount
 };
 }  // namespace ObservationFeature
