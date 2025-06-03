@@ -192,7 +192,7 @@ class ObsCrossAttn(LayerBase):
 
         self._q_token = nn.Parameter(torch.randn(1, 1, self._hidden_size))
 
-        self._layer_norm_1 = nn.LayerNorm(self._hidden_size)
+        self._layer_norm_1 = nn.LayerNorm(self._feat_dim)
 
         if self._hidden_size != self._feat_dim:
             self._feat_proj = nn.Linear(self._hidden_size, self._feat_dim)
@@ -233,10 +233,10 @@ class ObsCrossAttn(LayerBase):
         # query = self._layer_norm_1(state_h_prev)
 
         query = self._q_token.expand(B_TT, -1, -1)
-
         query = self._feat_proj(query)
 
         q_p = self.q_proj(query)  # q_p is now [B_TT, 1, _feat_dim]
+        x_features = self._layer_norm_1(x_features)
         k_p = self.k_proj(x_features)  # [B_TT, M, _feat_dim]
         v_p = self.v_proj(x_features)  # [B_TT, M, _feat_dim]
 

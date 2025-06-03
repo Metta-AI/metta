@@ -2,15 +2,15 @@ import logging
 import os
 import time
 from collections import defaultdict
+from types import SimpleNamespace
 
 import hydra
 import numpy as np
-import pufferlib
 import torch
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from pufferlib.utils import profile, unroll_nested_dict
+from pufferlib import unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -22,7 +22,7 @@ from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.policy import PufferAgent
-from metta.rl.pufferlib.profile import Profile
+from metta.rl.pufferlib.profile import Profile, profile_section
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
@@ -189,9 +189,6 @@ class PufferTrainer:
                             f"component_shape: {component_shape}\n"
                             f"environment_shape: {environment_shape}\n"
                         )
-                    # delete below after evaluate is tested with tokenized obs
-                    if len(environment_shape) == 2:
-                        assert self.trainer_cfg.evaluate_interval == 0, "Tokenized obs agents aren't set up for evaluate yet (5-30-25)."
 
             if not found_match:
                 raise ValueError(
@@ -342,7 +339,7 @@ class PufferTrainer:
     def _on_train_step(self):
         pass
 
-    @profile
+    @profile_section("eval")
     def _rollout(self):
         experience, profile = self.experience, self.profile
 
@@ -372,7 +369,9 @@ class PufferTrainer:
                 d = torch.as_tensor(d)
 
             with profile.eval_forward, torch.no_grad():
-                assert training_env_id.dtype in [torch.int32, torch.int64], "training_env_id must be integer type"
+                assert training_env_id is not None and training_env_id.numel() > 0, (
+                    "training_env_id must exist and have elements"
+                )
                 assert training_env_id.device == lstm_h.device, "training_env_id must be on the same device as lstm_h"
                 assert training_env_id.dim() == 1, "training_env_id should be 1D (list of env indices)"
                 assert training_env_id.max() < lstm_h.shape[1], "Index out of bounds for lstm_h"
@@ -433,7 +432,7 @@ class PufferTrainer:
         experience.step = 0
         return self.stats, infos
 
-    @profile
+    @profile_section("train")
     def _train(self):
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
@@ -596,7 +595,8 @@ class PufferTrainer:
             explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
             self.losses.explained_variance = explained_var
             self.epoch += 1
-            profile.update(self.agent_step, self.trainer_cfg.total_timesteps, self._timers)
+
+            profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -783,7 +783,7 @@ class PufferTrainer:
         )
 
     def _make_losses(self):
-        return pufferlib.namespace(
+        return SimpleNamespace(
             policy_loss=0,
             value_loss=0,
             entropy=0,

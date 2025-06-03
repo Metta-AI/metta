@@ -89,6 +89,14 @@ def simulate_policy(
             reward = rewards_df.iloc[0]["avg_reward"]
             logger.info("Reward is %s", reward)
             assert reward >= SMOKE_TEST_MIN_SCORE, f"Reward is {reward}, expected at least {SMOKE_TEST_MIN_SCORE}"
+
+            # Verify no agent_raw metrics exist (they should not be created anymore)
+            raw_metrics_count = results.stats_db.query(
+                "SELECT COUNT(*) as count FROM agent_metrics WHERE metric LIKE 'agent_raw/%'"
+            ).iloc[0]["count"]
+            assert raw_metrics_count == 0, f"Found {raw_metrics_count} unexpected agent_raw metrics"
+
+            logger.info("Smoke test passed: stats structure is correct")
             return
         # ------------------------------------------------------------------ #
         # Export                                                             #

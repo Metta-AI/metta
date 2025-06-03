@@ -5,4 +5,4 @@ width: 10
 height: 10
 
 root:
-  _target_: metta.map.scenes.maze.MazeKruskal
+  type: metta.map.scenes.maze.MazeKruskal

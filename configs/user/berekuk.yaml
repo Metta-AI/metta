@@ -11,7 +11,6 @@ run: ${oc.env:USER}.local.${run_id}
 policy_uri: wandb://run/${run}
 
 eval:
-  num_envs: 10
   num_episodes: 16
   max_time_s: 600
   policy_uri: ${..policy_uri}
