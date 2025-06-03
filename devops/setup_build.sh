@@ -12,10 +12,15 @@ cd "$PROJECT_DIR"
 
 # Parse command line arguments
 CLEAN=0
+CLEAR_UV_CACHE=0
 for arg in "$@"; do
   case $arg in
     --clean)
       CLEAN=1
+      shift
+      ;;
+    --clear-uv-cache)
+      CLEAR_UV_CACHE=1
       shift
       ;;
   esac
@@ -72,6 +77,30 @@ if ! command -v uv &> /dev/null; then
 fi
 
 VENV_PATH=".venv"
+
+# ========== CLEAR UV CACHE ==========
+if [ "$CLEAR_UV_CACHE" -eq 1 ]; then
+  UV_CACHE_DIR="$HOME/.cache/uv"
+  if [ -d "$UV_CACHE_DIR" ]; then
+    echo "⚠️  WARNING: This will delete the entire UV cache directory at $UV_CACHE_DIR"
+    echo "This will remove all cached packages and force re-downloading on next use."
+    echo -n "Are you sure you want to proceed? (y/N): "
+    read -r response
+    case "$response" in
+      [yY][eE][sS]|[yY])
+        echo "Removing UV cache directory..."
+        rm -rf "$UV_CACHE_DIR"
+        echo "✅ UV cache directory cleared"
+        ;;
+      *)
+        echo "Operation cancelled"
+        exit 0
+        ;;
+    esac
+  else
+    echo "ℹ️ UV cache directory not found at $UV_CACHE_DIR"
+  fi
+fi
 
 # ========== CLEAN BUILD ==========
 if [ "$CLEAN" -eq 1 ]; then
