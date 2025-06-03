@@ -910,6 +910,7 @@ class PufferTrainer:
             self.cfg.seed = np.random.randint(0, 1000000)
 
         if torch.distributed.is_initialized():
+            print("Resetting seeds the proper way")
             print(
                 f"Resetting envs with seed (RANK {os.environ['RANK']}) {self.cfg.seed * (int(os.environ['RANK']) + 1)}"
             )
@@ -917,6 +918,7 @@ class PufferTrainer:
                 self.cfg.seed * (int(os.environ["RANK"]) + 1)
             )  # make sure that the envs are not perfectly correlated
         else:
+            print("Resetting seeds the wrong way")
             print(f"Resetting envs with seed (RANK {os.environ['RANK']}) {self.cfg.seed}")
             self.vecenv.async_reset(self.cfg.seed)
 
