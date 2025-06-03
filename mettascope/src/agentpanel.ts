@@ -338,9 +338,9 @@ export function updateAgentTable() {
     }
     // Sort direction adjustment.
     if (mainSort.sortDirection == 1) {
-      return aValue - bValue;
-    } else {
       return bValue - aValue;
+    } else {
+      return aValue - bValue;
     }
   });
 
