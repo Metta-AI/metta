@@ -102,7 +102,6 @@ export function initAgentTable() {
 
   // Clicking on the sort up button should sort the column in ascending order.
   onEvent("click", "#column-menu .sort-up", (target: HTMLElement, e: Event) => {
-    console.log("Sort up clicked");
     let columnField = walkUpAttribute(target, "data-column-field");
     let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
     for (let i = 0; i < columns.length; i++) {
@@ -119,7 +118,6 @@ export function initAgentTable() {
 
   // Clicking on the sort down button should sort the column in descending order.
   onEvent("click", "#column-menu .sort-down", (target: HTMLElement, e: Event) => {
-    console.log("Sort up clicked");
     let columnField = walkUpAttribute(target, "data-column-field");
     let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
     for (let i = 0; i < columns.length; i++) {
@@ -135,7 +133,6 @@ export function initAgentTable() {
   });
 
   onEvent("click", "#column-menu .move-left", (target: HTMLElement, e: Event) => {
-    console.log("Move left clicked");
     let columnField = walkUpAttribute(target, "data-column-field");
     let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
     let column = columns.find(column => column.field == columnField && column.isFinal == columnIsFinal);
@@ -148,7 +145,6 @@ export function initAgentTable() {
 
   // Clicking on the move right button should move the column to the right.
   onEvent("click", "#column-menu .move-right", (target: HTMLElement, e: Event) => {
-    console.log("Move right clicked");
     let columnField = walkUpAttribute(target, "data-column-field");
     let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
     let column = columns.find(column => column.field == columnField && column.isFinal == columnIsFinal);
@@ -161,12 +157,10 @@ export function initAgentTable() {
 
   // Clicking on the hide column button should remove the column from the columns array.
   onEvent("click", "#column-menu .hide-column", (target: HTMLElement, e: Event) => {
-    console.log("Hide column clicked");
     hideMenu();
     // Remove this column from the columns array.
     let columnField = walkUpAttribute(target, "data-column-field");
     let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
-    console.log("Removing column: " + columnField + " " + columnIsFinal);
     columns = columns.filter(column => !(column.field == columnField && column.isFinal == columnIsFinal));
     updateAgentTable();
   });
@@ -293,7 +287,6 @@ export function updateAvailableColumns() {
     if (key != "agent" && key != "c" && key != "r" && key != "reward") {
       // If there is a typeahead value, only show columns that match the typeahead value.
       if (typeaheadValue != "" && !(key.toLowerCase().includes(typeaheadValue.toLowerCase()))) {
-        console.log("Skipping ", key, " because it doesn't match ", typeaheadValue);
         continue
       }
       availableColumns.push(new ColumnDefinition(key, false));
