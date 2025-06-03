@@ -93,7 +93,6 @@ export async function listMettagridCfgsMetadata(): Promise<MettagridCfgsMetadata
   const response = await fetch(`${API_URL}/mettagrid-cfgs`);
   const data = await response.json();
   const parsed = mettagridCfgsMetadataSchema.parse(data);
-  console.log(parsed);
   return parsed;
 }
 

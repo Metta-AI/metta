@@ -97,12 +97,11 @@ def make_app():
         try:
             map_cfg = cfg.get_map_cfg()
             storable_map = map_builder_cfg_to_storable_map(map_cfg)
+            return storable_map.to_dict()
         except Exception as e:
             return {
                 "error": str(e),
             }
-
-        return storable_map.to_dict()
 
     @app.get("/repo-root")
     async def route_repo_root():

@@ -65,7 +65,6 @@ export const StorableMapViewer: FC<{
   // in /stored-maps list interface, we allow filtering by frontmatter props (which works by updating the URL)
   filterable?: boolean;
 }> = ({ map, filterable = false }) => {
-  console.log(`map: ${map}`);
   // Parse the frontmatter YAML
   const grid = useMemo(() => MettaGrid.fromAscii(map.data), [map.data]);
 
