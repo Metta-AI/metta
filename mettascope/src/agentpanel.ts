@@ -3,12 +3,6 @@ import { state, setFollowSelection, html } from "./common.js";
 import { getAttr } from "./replay.js";
 import { updateSelection } from "./main.js";
 
-// Capitalize the first letter of every word in a string.
-// Example: "hello world" -> "Hello World"
-function capitalize(str: string) {
-  return str.split(" ").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
-}
-
 class ColumnDefinition {
   field: string;
   isFinal: boolean;
@@ -37,21 +31,32 @@ class ColumnDefinition {
   }
 }
 
+const agentTable = find("#agent-panel .table");
+const table = find("#agent-panel .table");
+const columnTemplate = finds("#agent-panel .table .column")[0];
+const headerCellTemplate = finds("#agent-panel .table .header-cell")[0];
+const dataCellTemplate = finds("#agent-panel .table .data-cell")[0];
+const newColumnTemplate = finds("#agent-panel .table .new-column")[0];
+const newColumnHeaderCell = finds("#agent-panel .table .new-column .header-cell")[0];
+const newColumnDataCell = finds("#agent-panel .table .new-column .data-cell")[0];
+const columnMenu = find("#column-menu");
+const newColumnDropdown = find("#new-column-dropdown");
+const columnOptions = find("#new-column-dropdown .column-options");
+const columnOptionTemplate = find("#new-column-dropdown .column-option");
+
 var columns = [
   new ColumnDefinition("agent_id", false),
   new ColumnDefinition("total_reward", false),
   new ColumnDefinition("total_reward", true),
-
-  // new ColumnDefinition("inv:ore.red", false),
-  // new ColumnDefinition("inv:ore.blue", false),
-  // new ColumnDefinition("inv:ore.green", false),
-
-  // new ColumnDefinition("inv:battery.red", false),
-  // new ColumnDefinition("inv:battery.blue", false),
-  // new ColumnDefinition("inv:battery.green", false),
 ];
 var mainSort: ColumnDefinition = columns[1];
+var typeaheadValue = "";
 
+// Capitalize the first letter of every word in a string.
+// Example: "hello world" -> "Hello World"
+function capitalize(str: string) {
+  return str.split(" ").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+}
 
 // Swaps the element 1 position to the right.
 function swapRight(list: any[], element: any) {
@@ -75,21 +80,9 @@ function swapLeft(list: any[], element: any) {
   list[index - 1] = tmp;
 }
 
-const agentTable = find("#agent-panel .table");
-const table = find("#agent-panel .table");
-const columnTemplate = finds("#agent-panel .table .column")[0];
-const headerCellTemplate = finds("#agent-panel .table .header-cell")[0];
-const dataCellTemplate = finds("#agent-panel .table .data-cell")[0];
-const newColumnTemplate = finds("#agent-panel .table .new-column")[0];
-const newColumnHeaderCell = finds("#agent-panel .table .new-column .header-cell")[0];
-const newColumnDataCell = finds("#agent-panel .table .new-column .data-cell")[0];
-const columnMenu = find("#column-menu");
-const newColumnDropdown = find("#new-column-dropdown");
-const columnOptions = find("#new-column-dropdown .column-options");
-const columnOptionTemplate = find("#new-column-dropdown .column-option");
-
 export function initAgentTable() {
 
+  // Hide the column menu and new column dropdown.
   columnMenu.classList.add("hidden");
   newColumnDropdown.classList.add("hidden");
 
@@ -217,6 +210,10 @@ export function initAgentTable() {
     showDropdown(target, newColumnDropdown);
   });
 
+  onEvent("input", "#new-column-input", (target: HTMLElement, e: Event) => {
+    updateAvailableColumns()
+  });
+
   onEvent("click", "#new-column-dropdown .step-check", (target: HTMLElement, e: Event) => {
     let columnField = walkUpAttribute(target, "data-column-field");
     let columnIsFinal = false;
@@ -240,11 +237,6 @@ export function initAgentTable() {
   });
 
   onEvent("click", "#new-column-dropdown .final-check", (target: HTMLElement, e: Event) => {
-    // if (target.getAttribute("src") == "data/ui/check-on.png") {
-    //   target.setAttribute("src", "data/ui/check-off.png");
-    // } else {
-    //   target.setAttribute("src", "data/ui/check-on.png");
-    // }
     let columnField = walkUpAttribute(target, "data-column-field");
     let columnIsFinal = true;
     let found = -1;
@@ -275,6 +267,12 @@ export function updateAvailableColumns() {
   // Replay format might change the available columns, in real time.
 
   var availableColumns: ColumnDefinition[] = [];
+
+  var typeahead = find("#new-column-input") as HTMLInputElement;
+  typeaheadValue = typeahead.value;
+
+  var noMatchFound = find("#new-column-dropdown .no-match-found");
+
   // All agent keys:
   let agentKeys = new Set<string>();
   for (let agent of state.replay.agents) {
@@ -285,8 +283,19 @@ export function updateAvailableColumns() {
   // All inventory keys:
   for (let key of agentKeys) {
     if (key != "agent" && key != "c" && key != "r" && key != "reward") {
+      // If there is a typeahead value, only show columns that match the typeahead value.
+      if (typeaheadValue != "" && !(key.toLowerCase().includes(typeaheadValue.toLowerCase()))) {
+        console.log("Skipping ", key, " because it doesn't match ", typeaheadValue);
+        continue
+      }
       availableColumns.push(new ColumnDefinition(key, false));
     }
+  }
+
+  if (availableColumns.length == 0) {
+    noMatchFound.classList.remove("hidden");
+  } else {
+    noMatchFound.classList.add("hidden");
   }
 
   removeChildren(columnOptions);
@@ -310,7 +319,6 @@ export function updateAvailableColumns() {
     option.querySelector(".final-check")!.setAttribute("src", finalColumnExists ? "data/ui/check-on.png" : "data/ui/check-off.png");
     columnOptions.appendChild(option);
   }
-
 }
 
 export function updateAgentTable() {
@@ -407,4 +415,7 @@ export function updateAgentTable() {
   }
   table.appendChild(newColumn);
 
+  // Restore the typeahead value.
+  var typeahead = find("#new-column-input") as HTMLInputElement;
+  typeahead.value = typeaheadValue;
 }
