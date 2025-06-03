@@ -1,23 +1,20 @@
 from pathlib import Path
-from typing import Optional, cast
-
-import numpy as np
+from typing import cast
 
 from metta.map.config import scenes_root
-from metta.map.scene import Scene, TypedChild
+from metta.map.scene import Scene
 from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
-from metta.map.utils.random import MaybeSeed
+from metta.map.types import ChildrenAction
+from metta.util.config import Config
 
 
-class RandomSceneFromDir(Scene):
-    def __init__(
-        self,
-        dir: str,
-        seed: MaybeSeed = None,
-        children: Optional[list[TypedChild]] = None,
-    ):
-        super().__init__(children or [])
-        self._dir = Path(dir).resolve()
+class RandomSceneFromDirParams(Config):
+    dir: str
+
+
+class RandomSceneFromDir(Scene[RandomSceneFromDirParams]):
+    def post_init(self):
+        self._dir = Path(self.params.dir).resolve()
 
         if not self._dir.exists():
             raise ValueError(f"Directory {self._dir} does not exist")
@@ -29,16 +26,15 @@ class RandomSceneFromDir(Scene):
         if not self._scenes:
             raise ValueError(f"No files found in {self._dir}")
 
-        self._rng = np.random.default_rng(seed)
-
-    def get_children(self, node) -> list[TypedChild]:
+    def get_children(self) -> list[ChildrenAction]:
         candidates = [cast(RandomSceneCandidate, {"scene": scene, "weight": 1.0}) for scene in self._scenes]
         return [
-            {
-                "scene": RandomScene(candidates),
-                "where": "full",
-            }
+            ChildrenAction(
+                scene=lambda grid: RandomScene(grid=grid, params={"candidates": candidates}, seed=self.rng),
+                where="full",
+            ),
+            *self.children,
         ]
 
-    def _render(self, node):
+    def render(self):
         pass

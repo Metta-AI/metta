@@ -126,11 +126,6 @@ uv pip install -r requirements.txt
 echo -e "\nInstalling Metta..."
 uv pip install -e .
 
-# The following will build mettagrid, cmake and all, but in isolated environment.
-# This is according to scikit-build-core and PEP-517 conventions.
-echo -e "\nInstalling MettaGrid..."
-uv pip --directory mettagrid install -e .
-
 # ========== SANITY CHECK ==========
 echo -e "\nSanity check: verifying all local deps are importable..."
 

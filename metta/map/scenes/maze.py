@@ -1,10 +1,8 @@
-from typing import Any, List, Literal, Optional, Tuple, Union
+from typing import List, Literal, Tuple, Union
 
-import numpy as np
-
-from metta.map.node import Node
 from metta.map.scene import Scene
-from metta.map.utils.random import IntDistribution, MaybeSeed, sample_int_distribution
+from metta.map.utils.random import IntDistribution, sample_int_distribution
+from metta.util.config import Config
 
 Anchor = Union[
     Literal["top-left"],
@@ -27,7 +25,12 @@ def anchor_to_position(anchor: Anchor, width: int, height: int) -> Tuple[int, in
         return (width - 1, height - 1)
 
 
-class MazeKruskal(Scene):
+class MazeKruskalParams(Config):
+    room_size: IntDistribution = 1
+    wall_size: IntDistribution = 1
+
+
+class MazeKruskal(Scene[MazeKruskalParams]):
     """
     Maze generation using Randomized Kruskal's algorithm.
 
@@ -49,24 +52,12 @@ class MazeKruskal(Scene):
 
     EMPTY, WALL = "empty", "wall"
 
-    def __init__(
-        self,
-        room_size: IntDistribution = 1,
-        wall_size: IntDistribution = 1,
-        seed: MaybeSeed = None,
-        children: Optional[List[Any]] = None,
-    ):
-        super().__init__(children=children)
-        self._rng = np.random.default_rng(seed)
-        self._room_size = sample_int_distribution(room_size, self._rng)
-        self._wall_size = sample_int_distribution(wall_size, self._rng)
-
-    def _render(self, node: Node):
-        grid = node.grid
-        width = node.width
-        height = node.height
-        room_size = self._room_size
-        wall_size = self._wall_size
+    def render(self):
+        grid = self.grid
+        width = self.width
+        height = self.height
+        room_size = sample_int_distribution(self.params.room_size, self.rng)
+        wall_size = sample_int_distribution(self.params.wall_size, self.rng)
         rw_size = room_size + wall_size
 
         width_in_rooms = (width + wall_size) // rw_size
@@ -127,7 +118,7 @@ class MazeKruskal(Scene):
 
                 grid[y0:y1, x0:x1] = self.EMPTY
 
-        self._rng.shuffle(walls)
+        self.rng.shuffle(walls)
 
         for wall in walls:
             col, row, direction = wall
@@ -139,4 +130,4 @@ class MazeKruskal(Scene):
 
         for anchor in ALL_ANCHORS:
             x, y = anchor_to_position(anchor, width, height)
-            node.make_area(x, y, 1, 1, tags=[anchor])
+            self.make_area(x, y, 1, 1, tags=[anchor])

@@ -25,14 +25,13 @@
 import heapq
 import logging
 import time
-from typing import Any, List, Literal, Optional
+from typing import Literal
 
 import numpy as np
 
-from metta.map.node import Node
 from metta.map.scene import Scene
 from metta.map.utils.pattern import Symmetry, ascii_to_patterns_with_counts
-from metta.map.utils.random import MaybeSeed
+from metta.util.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -46,25 +45,22 @@ def opposite_direction(d: int) -> int:
     return (d + 2) % 4
 
 
-class WFC(Scene):
-    def __init__(
-        self,
-        pattern: str,
-        pattern_size: int = 3,
-        next_node_heuristic: NextNodeHeuristic = "entropy",
-        periodic_input: bool = True,
-        symmetry: Symmetry = "all",
-        attempts: int = 3,
-        seed: MaybeSeed = None,
-        children: Optional[List[Any]] = None,
-    ):
-        super().__init__(children=children)
+class WFCParams(Config):
+    pattern: str
+    pattern_size: int = 3
+    next_node_heuristic: NextNodeHeuristic = "entropy"
+    periodic_input: bool = True
+    symmetry: Symmetry = "all"
+    attempts: int = 1000
 
-        self._ascii_pattern = pattern
-        self._pattern_size = pattern_size
-        self._rng = np.random.default_rng(seed)
+
+class WFC(Scene[WFCParams]):
+    def post_init(self):
         patterns_with_counts = ascii_to_patterns_with_counts(
-            self._ascii_pattern, pattern_size, periodic=periodic_input, symmetry=symmetry
+            self.params.pattern,
+            self.params.pattern_size,
+            periodic=self.params.periodic_input,
+            symmetry=self.params.symmetry,
         )
 
         self._weights = np.array([p[1] for p in patterns_with_counts], dtype=np.float64)
@@ -76,8 +72,8 @@ class WFC(Scene):
 
         self._starting_entropy = np.log(self._sum_of_weights) - self._sum_of_weight_log_weights / self._sum_of_weights
 
-        self._next_node_heuristic = next_node_heuristic
-        self._attempts = attempts
+        self._next_node_heuristic = self.params.next_node_heuristic
+        self._attempts = self.params.attempts
 
         self._fill_propagator()
 
@@ -102,20 +98,17 @@ class WFC(Scene):
                 self._propagator_lengths[d, t] = len(compatibles)
             self._propagator.append(d_propagator)
 
-    def _render(self, node: Node):
-        WFCRenderSession(self, node).run()
+    def render(self):
+        WFCRenderSession(self).run()
 
 
 class WFCRenderSession:
-    def __init__(self, scene: WFC, node: Node):
+    def __init__(self, scene: WFC):
         self.scene = scene
-        self.node = node
 
-        self.width = self.node.width
-        self.height = self.node.height
-        self.weights = self.scene._weights
-        self.pattern_count = len(self.weights)
-        self.rng = self.scene._rng
+        self.pattern_count = len(self.scene._weights)
+        self.width = self.scene.width
+        self.height = self.scene.height
 
         self.reset()
 
@@ -130,7 +123,7 @@ class WFCRenderSession:
                 for d in range(4):
                     self.compatible[y, x, d, :] = self.scene._propagator_lengths[opposite_direction(d), :]
 
-        self.sums_of_ones = np.full((self.height, self.width), len(self.weights), dtype=np.int_)
+        self.sums_of_ones = np.full((self.height, self.width), len(self.scene._weights), dtype=np.int_)
         self.sums_of_weights = np.full((self.height, self.width), self.scene._sum_of_weights, dtype=np.float64)
         self.sums_of_weight_log_weights = np.full(
             (self.height, self.width),
@@ -173,7 +166,7 @@ class WFCRenderSession:
     def run(self):
         ok = False
         for i in range(self.scene._attempts):
-            logger.debug(f"Attempt {i + 1} of {self.scene._attempts}, pattern:\n{self.scene._ascii_pattern}")
+            logger.debug(f"Attempt {i + 1} of {self.scene._attempts}, pattern:\n{self.scene.params.pattern}")
             start_time = time.time()
             self.reset()
             ok = self.attempt_run()
@@ -191,20 +184,20 @@ class WFCRenderSession:
                 logger.debug(f"Attempt {i + 1} failed")
 
         if not ok:
-            raise Exception(f"Failed to generate map with pattern:\n{self.scene._ascii_pattern}")
+            raise Exception(f"Failed to generate map with pattern:\n{self.scene.params.pattern}")
 
         for y in range(self.height):
             for x in range(self.width):
                 for t in range(self.pattern_count):
                     if self.wave[y, x, t]:
-                        self.node.grid[y, x] = "wall" if self.scene._patterns[t].data[0][0] else "empty"
+                        self.scene.grid[y, x] = "wall" if self.scene._patterns[t].data[0][0] else "empty"
 
     def pick_next_node(self):
         # non-periodic
         self._pick_next_count += 1
         start = time.time()
-        used_width = self.width - self.scene._pattern_size + 1
-        used_height = self.height - self.scene._pattern_size + 1
+        used_width = self.width - self.scene.params.pattern_size + 1
+        used_height = self.height - self.scene.params.pattern_size + 1
 
         if self.scene._next_node_heuristic == "scanline":
             for i in range(self.observed, used_width * used_height):
@@ -225,9 +218,9 @@ class WFCRenderSession:
     def observe(self, cell: tuple[int, int]):
         start = time.time()
         y, x = cell
-        distribution = self.wave[y, x] * self.weights
+        distribution = self.wave[y, x] * self.scene._weights
         distribution /= np.sum(distribution)
-        r = self.rng.choice(range(self.pattern_count), p=distribution)
+        r = self.scene.rng.choice(range(self.pattern_count), p=distribution)
         for t in range(self.pattern_count):
             if t != r and self.wave[y, x, t]:
                 self.ban(y, x, t)
@@ -244,7 +237,7 @@ class WFCRenderSession:
         if self.sums_of_ones[y, x] == 0:
             return False
 
-        self.sums_of_weights[y, x] -= self.weights[t]
+        self.sums_of_weights[y, x] -= self.scene._weights[t]
         self.sums_of_weight_log_weights[y, x] -= self.scene._weights[t] * np.log(self.scene._weights[t])
 
         sum = self.sums_of_weights[y, x]

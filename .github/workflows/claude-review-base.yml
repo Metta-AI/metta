@@ -105,13 +105,20 @@ jobs:
           PR_NUMBER="${{ inputs.pr_number }}"
 
           if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "$PR_NUMBER" ]; then
-            gh pr checkout $PR_NUMBER
+            # Get PR info first
+            PR_INFO=$(gh pr view $PR_NUMBER --json headRefName,baseRefName)
+            BRANCH_NAME=$(echo "$PR_INFO" | jq -r '.headRefName')
+            BASE_REF=$(echo "$PR_INFO" | jq -r '.baseRefName')
+
+            # Use explicit git commands instead of gh pr checkout
+            git fetch origin $BRANCH_NAME:$BRANCH_NAME
+            git checkout $BRANCH_NAME --
+          else
+            # For regular PR events, get base ref from the event
+            BASE_REF="${{ github.event.pull_request.base.ref }}"
           fi
 
-          # Get base ref
-          PR_INFO=$(gh pr view $PR_NUMBER --json baseRefName,title,author)
-          BASE_REF=$(echo "$PR_INFO" | jq -r '.baseRefName')
-
+          # Output the base ref for use in later steps
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "base_ref=$BASE_REF" >> $GITHUB_OUTPUT
         env:
