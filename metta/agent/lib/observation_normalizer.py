@@ -2,6 +2,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
+from metta.agent.lib.metta_module import MettaDict, MettaModule, UniqueInKeyMixin, UniqueOutKeyMixin
 
 # ##ObservationNormalization
 # These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
@@ -67,3 +68,23 @@ class ObservationNormalizer(LayerBase):
     def _forward(self, td: TensorDict):
         td[self._name] = td[self._sources[0]["name"]] / self.obs_norm
         return td
+
+
+class MettaObsNormalizer(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
+    def __init__(
+        self,
+        in_keys: list[str],
+        out_keys: list[str],
+        input_features_shape: list[int],
+        output_features_shape: list[int],
+        grid_features: list[str],
+    ):
+        super().__init__(in_keys, out_keys, input_features_shape, output_features_shape)
+        self._grid_features = grid_features
+        num_objects = len(self._grid_features)
+        obs_norm = torch.tensor([OBS_NORMALIZATIONS[k] for k in self._grid_features], dtype=torch.float32)
+        obs_norm = obs_norm.view(1, num_objects, 1, 1)
+        self.register_buffer("obs_norm", obs_norm)
+
+    def _compute(self, md: MettaDict) -> dict:
+        return {self.out_key: md.td[self.in_key] / self.obs_norm}
