@@ -25,7 +25,6 @@ setup: |
 
   uv pip install -r requirements.txt
   uv pip install -e .
-  uv --directory mettagrid pip install -e .
 
   mkdir -p $WANDB_DIR
 
