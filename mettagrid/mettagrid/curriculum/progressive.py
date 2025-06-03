@@ -6,7 +6,8 @@ from typing import Optional
 
 from omegaconf import DictConfig, OmegaConf
 
-from .sampling import SamplingCurriculum, Task
+from .curriculum import Task
+from .sampling import SamplingCurriculum
 
 logger = logging.getLogger(__name__)
 
