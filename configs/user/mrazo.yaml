@@ -5,8 +5,8 @@ defaults:
 
 trainer:
   curriculum: /env/mettagrid/curriculum/simple
-  wandb.enabled: false
-  wandb.track: false
+  wandb.enabled: true
+  wandb.track: true
 
 # replay_job:
 #   policy_uri: wandb://run/mrazo_action-obs_memory_test01
