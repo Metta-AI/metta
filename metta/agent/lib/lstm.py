@@ -6,7 +6,7 @@ from einops import rearrange
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
-from metta.agent.lib.metta_module import MettaModule
+from metta.agent.lib.metta_module import MettaDict, MettaModule, UniqueInKeyMixin, UniqueOutKeyMixin
 
 
 class LSTM(LayerBase):
@@ -56,8 +56,9 @@ class LSTM(LayerBase):
         state = td["state"]
 
         if state is not None:
-            split_size = self.num_layers
-            state = (state[:split_size], state[split_size:])
+            h_state = state[: self.num_layers].contiguous()
+            c_state = state[self.num_layers :].contiguous()
+            state = (h_state, c_state)
 
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
@@ -77,9 +78,27 @@ class LSTM(LayerBase):
             f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self._in_tensor_shapes[0][0])}"
         )
 
+        # Debug prints
+        print("[LEGACY LSTM] Input x shape:", x.shape, "sample:", x.flatten()[:5])
+        if state is not None:
+            print("[LEGACY LSTM] State[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
+            print("[LEGACY LSTM] State[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
+        else:
+            print("[LEGACY LSTM] State: None")
+
+        # These are the important ones
+        B = td["_B_"]
+        TT = td["_TT_"]
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
         hidden, state = self._net(hidden, state)
+
+        print("[LEGACY LSTM] Output hidden shape:", hidden.shape, "sample:", hidden.flatten()[:5])
+        if state is not None:
+            print("[LEGACY LSTM] Output state[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
+            print("[LEGACY LSTM] Output state[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
+        else:
+            print("[LEGACY LSTM] Output state: None")
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
@@ -93,29 +112,29 @@ class LSTM(LayerBase):
         return td
 
 
-class MettaLSTM(MettaModule):
-    """LSTM layer that processes input sequences and maintains internal state."""
+class MettaEncodedLSTM(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
+    """LSTM layer that processes encoded input sequences (under the key 'encoded_features') and maintains internal state via md.data[self.output_key]['state'].
+    The input is expected to be an encoded/processed feature tensor, not a raw observation.
+    Assumes B (batch size) and TT (time steps) are provided in the global metadata dict as md.data['global']['batch_size'] and md.data['global']['tt'].
+    Shape validation is handled upstream.
+    """
 
     def __init__(
         self,
         obs_shape: List[int],
         hidden_size: int,
         num_layers: int = 1,
-        input_key: str = "x",
-        hidden_key: str = "hidden",
-        state_key: str = "state",
+        input_key: str = "encoded_features",
         output_key: str = "lstm_output",
     ):
         self.input_key = input_key
-        self.hidden_key = hidden_key
-        self.state_key = state_key
         self.output_key = output_key
         self._obs_shape = list(obs_shape)
         self.hidden_size = hidden_size
         self.num_layers = num_layers
         super().__init__(
-            in_keys=[input_key, hidden_key, state_key],
-            out_keys=[output_key, state_key],
+            in_keys=[input_key],
+            out_keys=[output_key],
             input_features_shape=obs_shape,
             output_features_shape=[hidden_size],
         )
@@ -127,47 +146,52 @@ class MettaLSTM(MettaModule):
                 nn.init.orthogonal_(param, 1)
 
     @torch.compile(disable=True)
-    def _compute(self, td: TensorDict) -> TensorDict:
-        x = td[self.input_key]
-        hidden = td[self.hidden_key]
-        state = td[self.state_key]
+    def _compute(self, md: MettaDict) -> dict:
+        # B and TT are expected to be present in the global metadata dict
+        B = md.data["global"]["batch_size"]
+        TT = md.data["global"]["tt"]
+        encoded_features = md.td[self.input_key]
+        # Enforce [B * TT, H] shape
+        if encoded_features.shape[0] != B * TT:
+            raise ValueError(
+                f"encoded_features shape {encoded_features.shape} does not match expected [{B * TT}, H] with B={B}, TT={TT}"
+            )
+        # Namespace state under output_key
+        state_dict = md.data.get(self.output_key, {})
+        state = state_dict.get("state", None)
         if state is not None:
             split_size = self.num_layers
             state = (state[:split_size], state[split_size:])
-        x_shape, space_shape = x.shape, self._obs_shape
-        x_n, space_n = len(x_shape), len(space_shape)
-        if tuple(x_shape[-space_n:]) != tuple(space_shape):
-            raise ValueError("Invalid input tensor shape", x.shape)
-        if x_n == space_n + 1:
-            B, TT = x_shape[0], 1
-        elif x_n == space_n + 2:
-            B, TT = x_shape[:2]
-        else:
-            raise ValueError("Invalid input tensor shape", x.shape)
-        if state is not None:
-            assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
-        assert hidden.shape == (B * TT, self.input_features_shape[0]), (
-            f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self.input_features_shape[0])}"
+        # Debug prints
+        print(
+            "[METTA LSTM] Input encoded_features shape:",
+            encoded_features.shape,
+            "sample:",
+            encoded_features.flatten()[:5],
         )
-        hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
-        hidden, state = self._net(hidden, state)
-        hidden = rearrange(hidden, "t b h -> (b t) h")
+        if state is not None:
+            print("[METTA LSTM] State[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
+            print("[METTA LSTM] State[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
+        else:
+            print("[METTA LSTM] State: None")
+        encoded_features = rearrange(encoded_features, "(b t) h -> t b h", b=B, t=TT)
+        output, state = self._net(encoded_features, state)
+        print("[METTA LSTM] Output shape:", output.shape, "sample:", output.flatten()[:5])
+        if state is not None:
+            print("[METTA LSTM] Output state[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
+            print("[METTA LSTM] Output state[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
+        else:
+            print("[METTA LSTM] Output state: None")
+        output = rearrange(output, "t b h -> (b t) h")
         if state is not None:
             state = tuple(s.detach() for s in state)
             state = torch.cat(state, dim=0)
-        td[self.output_key] = hidden
-        td[self.state_key] = state
-        return td
+        # Store state under output_key
+        if self.output_key not in md.data or not isinstance(md.data[self.output_key], dict):
+            md.data[self.output_key] = {}
+        md.data[self.output_key]["state"] = state
+        return {self.output_key: output}
 
-    def _check_shapes(self, td: TensorDict) -> None:
-        """Only validate the shape of the main input tensor (not state/hidden keys)."""
-        tensor = td[self.input_key]
-        if tensor is None:
-            raise ValueError(f"Input tensor {self.input_key} is None")
-        if len(tensor.shape) < 2:
-            raise ValueError(f"Input tensor {self.input_key} must have at least 2 dimensions (batch + features)")
-        if tensor.shape[1:] != self.input_features_shape:
-            raise ValueError(
-                f"Input tensor {self.input_key} has feature shape {tensor.shape[1:]}, "
-                f"expected {self.input_features_shape} (ignoring batch dimension)"
-            )
+    def _check_shapes(self, md: MettaDict) -> None:
+        # No-op: shape validation is handled upstream
+        pass
