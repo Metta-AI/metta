@@ -33,7 +33,6 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
         cfg.agent,
         obs_space=obs_space,
         action_space=env.single_action_space,
-        grid_features=env.grid_features,
         feature_normalizations=env.feature_normalizations,
         global_features=env.global_features,
         device=cfg.device,
@@ -60,7 +59,6 @@ class MettaAgent(nn.Module):
         self,
         obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
         action_space: gym.spaces.Space,
-        grid_features: list[str],
         feature_normalizations: list[float],
         device: str,
         **cfg,
@@ -86,7 +84,6 @@ class MettaAgent(nn.Module):
         self.agent_attributes = {
             "clip_range": self.clip_range,
             "action_space": action_space,
-            "grid_features": grid_features,
             "feature_normalizations": feature_normalizations,
             "obs_key": cfg.observations.obs_key,
             "obs_shape": obs_shape,
