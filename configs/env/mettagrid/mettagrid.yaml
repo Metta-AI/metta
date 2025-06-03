@@ -97,28 +97,28 @@ game:
       hp: 30
       output_ore.red: 1
       color: 0
-      max_output: 5
+      max_output: 1
       conversion_ticks: 1
       cooldown: ${sampling:0, 100, 50}
-      initial_items: 1
+      initial_items: 0
 
     mine.blue:
       hp: 30
       color: 1
       output_ore.blue: 1
-      max_output: 5
+      max_output: 1
       conversion_ticks: 1
       cooldown: ${sampling:0, 100, 50}
-      initial_items: 1
+      initial_items: 0
 
     mine.green:
       hp: 30
       output_ore.green: 1
       color: 2
-      max_output: 5
+      max_output: 1
       conversion_ticks: 1
       cooldown: ${sampling:0, 100, 50}
-      initial_items: 1
+      initial_items: 0
 
     generator.red:
       hp: 30
@@ -128,7 +128,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:0, 50, 25}
-      initial_items: ${choose:0,0,0,0,1}
+      initial_items: 0
 
     generator.blue:
       hp: 30
