@@ -10,6 +10,7 @@ This script:
 
 import json
 import os
+import re
 import sys
 import zipfile
 from io import BytesIO
@@ -177,6 +178,84 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
     return consolidated, has_any_issues
 
 
+def build_future_suggestions_comment(suggestions_for_future: List[Dict[str, Any]]) -> str:
+    """Build a separate comment for suggestions on unchanged code."""
+    sections = []
+
+    # Header
+    sections.append("## 💡 Claude Found Additional Issues in Unchanged Code")
+    sections.append("")
+    sections.append(
+        f"Claude's review found {len(suggestions_for_future)} suggestion(s) in code that wasn't modified in this PR."
+    )
+    sections.append("These can be addressed in a future PR or by using Claude assistant in open-PR mode.")
+    sections.append("")
+
+    # Group by review type and file
+    by_type_and_file = {}
+
+    for suggestion in suggestions_for_future:
+        # Extract review type from the suggestion if available
+        review_type = "general"
+        full_suggestion = suggestion.get("suggestion", {})
+
+        # Try to determine review type from the reason
+        reason = full_suggestion.get("reason", "")
+        if "comment" in reason.lower() or "restate" in reason.lower():
+            review_type = "comments"
+        elif "type" in reason.lower() or "annotation" in reason.lower():
+            review_type = "types"
+        elif "einops" in reason.lower():
+            review_type = "einops"
+        elif "readme" in reason.lower():
+            review_type = "readme"
+
+        if review_type not in by_type_and_file:
+            by_type_and_file[review_type] = {}
+
+        file = suggestion["file"]
+        if file not in by_type_and_file[review_type]:
+            by_type_and_file[review_type][file] = []
+
+        by_type_and_file[review_type][file].append(suggestion)
+
+    # Create sections for each review type
+    emoji_map = {"readme": "📝", "comments": "💬", "types": "🏷️", "einops": "🔄", "general": "📋"}
+
+    for review_type, files in by_type_and_file.items():
+        emoji = emoji_map.get(review_type, "📋")
+        title = review_type.capitalize()
+
+        sections.append(f"### {emoji} {title} Suggestions")
+        sections.append("")
+
+        for file, suggestions in files.items():
+            sections.append(f"**{file}**")
+            for s in suggestions:
+                full_suggestion = s.get("suggestion", {})
+                line_info = f"Line {s.get('line', full_suggestion.get('start_line', 'unknown'))}"
+                reason = full_suggestion.get("reason", "Issue found")
+                severity = full_suggestion.get("severity", "minor")
+
+                sections.append(f"- {line_info} ({severity}): {reason}")
+
+                # Include the suggested code if it's substantial
+                if full_suggestion.get("suggested_code"):
+                    sections.append("  ```suggestion")
+                    sections.append(f"  {full_suggestion['suggested_code']}")
+                    sections.append("  ```")
+
+            sections.append("")
+
+    # Footer
+    sections.append("---")
+    sections.append(
+        "*These suggestions are for code not changed in this PR. Consider creating a follow-up PR to address them.*"
+    )
+
+    return "\n".join(sections)
+
+
 def create_review_comment(suggestion: Dict[str, Any]) -> Dict[str, Any]:
     """Create a review comment from a suggestion."""
     comment = {
@@ -286,38 +365,121 @@ def create_unified_review(token: str, repo: str, pr_number: int, analysis: Dict[
     print(f"   PR has {len(pr_files)} files")
     print(f"   Latest commit: {latest_commit_sha[:7]}")
 
+    # Build a mapping of files to their patches and content
+    file_patches = {}
+    file_diff_lines = {}
+
+    for pr_file in pr_files:
+        file_patches[pr_file.filename] = pr_file.patch or ""
+        file_diff_lines[pr_file.filename] = {}
+
+        if pr_file.patch:
+            lines = pr_file.patch.split("\n")
+            current_line = 0
+
+            for i, line in enumerate(lines):
+                if line.startswith("@@"):
+                    # Parse the line number from the diff header
+                    match = re.search(r"\+(\d+)", line)
+                    if match:
+                        current_line = int(match.group(1)) - 1
+                elif line.startswith("+") and not line.startswith("+++"):
+                    current_line += 1
+                    # Store the actual content and its line number in the new file
+                    content = line[1:]  # Remove the '+' prefix
+                    file_diff_lines[pr_file.filename][current_line] = content
+                elif not line.startswith("-"):
+                    current_line += 1
+
     # Build review comments
     comments = []
     skipped_suggestions = []
+    suggestions_for_future = []
 
     # Process suggestions
     for suggestion in analysis.get("suggestions", []):
         if suggestion["file"] not in pr_filenames:
-            skipped_suggestions.append(f"{suggestion['file']} - file not in PR diff")
+            skipped_suggestions.append(
+                {"file": suggestion["file"], "reason": "File not in PR", "suggestion": suggestion}
+            )
+            continue
+
+        # Try to find the original code in the diff
+        original_code = suggestion.get("original_code", "").strip()
+        if not original_code:
+            skipped_suggestions.append(
+                {"file": suggestion["file"], "reason": "No original code to match", "suggestion": suggestion}
+            )
+            continue
+
+        # Search for the original code in the file's diff lines
+        found_line = None
+        diff_lines = file_diff_lines.get(suggestion["file"], {})
+
+        # Try exact match first
+        for line_num, content in diff_lines.items():
+            if original_code in content or content.strip() == original_code:
+                found_line = line_num
+                break
+
+        # If not found, try fuzzy matching (remove extra whitespace)
+        if not found_line:
+            normalized_original = " ".join(original_code.split())
+            for line_num, content in diff_lines.items():
+                normalized_content = " ".join(content.split())
+                if normalized_original in normalized_content:
+                    found_line = line_num
+                    break
+
+        if not found_line:
+            # This suggestion is for code not changed in this PR
+            suggestions_for_future.append(
+                {
+                    "file": suggestion["file"],
+                    "line": suggestion.get("start_line", "unknown"),
+                    "reason": suggestion["reason"],
+                    "suggestion": suggestion,
+                }
+            )
             continue
 
         try:
-            comment = create_review_comment(suggestion)
+            # Create comment with the found line
+            comment = {
+                "path": suggestion["file"],
+                "line": found_line,
+                "side": "RIGHT",
+                "body": (
+                    f"**{suggestion.get('severity', 'minor')}**: {suggestion['reason']}\n\n"
+                    f"```suggestion\n{suggestion['suggested_code']}\n```"
+                ),
+            }
             comments.append(comment)
         except Exception as e:
             print(f"Error creating comment for {suggestion['file']}: {e}")
-            skipped_suggestions.append(f"{suggestion['file']} - error creating comment")
+            skipped_suggestions.append(
+                {"file": suggestion["file"], "reason": f"Error: {str(e)}", "suggestion": suggestion}
+            )
 
-    # Process compliments
+    # Process compliments similarly
     for compliment in analysis.get("compliments", []):
         if compliment["file"] in pr_filenames:
-            try:
-                comment = create_compliment_comment(compliment)
-                comments.append(comment)
-            except Exception as e:
-                print(f"Error creating compliment for {compliment['file']}: {e}")
+            # For compliments, we're more lenient - just check if the line exists in diff
+            line = compliment.get("line", 0)
+            if line in file_diff_lines.get(compliment["file"], {}):
+                try:
+                    comment = create_compliment_comment(compliment)
+                    comments.append(comment)
+                except Exception as e:
+                    print(f"Error creating compliment for {compliment['file']}: {e}")
 
     print(f"   Created {len(comments)} review comments")
+    print(f"   Found {len(suggestions_for_future)} suggestions for unchanged code")
     if skipped_suggestions:
-        print(f"   Skipped {len(skipped_suggestions)} suggestions")
+        print(f"   Skipped {len(skipped_suggestions)} suggestions due to errors")
 
     # Build review body
-    review_body = build_review_body(analysis, skipped_suggestions)
+    review_body = build_review_body(analysis, [s["file"] + " - " + s["reason"] for s in skipped_suggestions])
 
     # Create the review
     try:
@@ -326,30 +488,52 @@ def create_unified_review(token: str, repo: str, pr_number: int, analysis: Dict[
         if review_event == "NONE":
             review_event = "COMMENT"
 
-        # Create review with comments using GitHub API
-        review_data = {
-            "commit_id": latest_commit_sha,
-            "body": review_body,
-            "event": review_event,
-            "comments": comments,
-        }
+        review_created = False
 
-        headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
+        if comments:
+            # Only create a review if we have valid inline comments
+            # Create review with comments using GitHub API
+            review_data = {
+                "commit_id": latest_commit_sha,
+                "body": review_body,
+                "event": review_event,
+                "comments": comments,
+            }
 
-        response = requests.post(
-            f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews", headers=headers, json=review_data
-        )
+            headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
 
-        if response.status_code in [200, 201]:
-            review_id = response.json()["id"]
-            print(f"\n✅ Created unified review #{review_id} with {len(comments)} inline comments")
+            response = requests.post(
+                f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews", headers=headers, json=review_data
+            )
+
+            if response.status_code in [200, 201]:
+                review_id = response.json()["id"]
+                print(f"\n✅ Created unified review #{review_id} with {len(comments)} inline comments")
+                review_created = True
+            else:
+                print(f"\n❌ Failed to create review: {response.status_code}")
+                print(response.json())
+
+                # Fallback to simple comment
+                pr.create_issue_comment(review_body)
+                print("✅ Created fallback comment")
+                review_created = True
         else:
-            print(f"\n❌ Failed to create review: {response.status_code}")
-            print(response.json())
-
-            # Fallback to simple comment
+            # No valid inline comments, just create a regular comment
             pr.create_issue_comment(review_body)
-            print("✅ Created fallback comment")
+            print("\n✅ Created summary comment (no inline comments were applicable to the diff)")
+            review_created = True
+
+        # Create a separate comment for future suggestions if we have any
+        if review_created and suggestions_for_future:
+            try:
+                future_comment_body = build_future_suggestions_comment(suggestions_for_future)
+                pr.create_issue_comment(future_comment_body)
+                print(
+                    f"\n📋 Created separate comment with {len(suggestions_for_future)} suggestions for unchanged code"
+                )
+            except Exception as e:
+                print(f"\n⚠️  Failed to create future suggestions comment: {e}")
 
     except Exception as e:
         print(f"\nError creating review: {e}")
@@ -357,6 +541,16 @@ def create_unified_review(token: str, repo: str, pr_number: int, analysis: Dict[
         try:
             pr.create_issue_comment(review_body)
             print("✅ Created fallback comment")
+
+            # Still try to create future suggestions comment
+            if suggestions_for_future:
+                try:
+                    future_comment_body = build_future_suggestions_comment(suggestions_for_future)
+                    pr.create_issue_comment(future_comment_body)
+                    print(f"\n📋 Created separate comment with {len(suggestions_for_future)} suggestions")
+                except Exception as e2:
+                    print(f"\n⚠️  Failed to create future suggestions comment: {e2}")
+
         except Exception as e2:
             print(f"Failed to create fallback comment: {e2}")
             sys.exit(1)

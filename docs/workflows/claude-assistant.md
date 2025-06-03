@@ -136,7 +136,7 @@ GITHUB_TOKEN       # Usually provided automatically
 ### Environment Variables
 
 ```yaml
-CLAUDE_MODEL: "claude-opus-4-20250514"  # Model version
+CLAUDE_MODEL: "claude-sonnet-4-20250514"  # Model version
 ```
 
 ### Permissions Required

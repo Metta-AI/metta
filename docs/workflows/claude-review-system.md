@@ -441,7 +441,7 @@ Potential improvements:
 Change in `claude-review-base.yml`:
 ```yaml
 env:
-  CLAUDE_MODEL: "claude-opus-4-20250514"  # Update model version here
+  CLAUDE_MODEL: "claude-sonnet-4-20250514"
 ```
 
 ### Monitoring Usage
