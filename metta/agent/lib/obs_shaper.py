@@ -2,6 +2,7 @@ from einops import rearrange
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
+from metta.agent.lib.metta_module import MettaDict, MettaModule, UniqueInKeyMixin, UniqueOutKeyMixin
 
 
 class ObsShaper(LayerBase):
@@ -76,3 +77,65 @@ class ObsShaper(LayerBase):
         x = x.transpose(1, 2)
         x = x.contiguous().view(bs, c, h, w)
         return x
+
+
+class MettaObsShaper(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
+    def __init__(
+        self,
+        in_keys: list[str],
+        out_keys: list[str],
+        input_features_shape: list[int] | None,
+        output_features_shape: list[int],
+        obs_shape: list[int],
+    ):
+        super().__init__(in_keys, out_keys, input_features_shape, output_features_shape)
+        self._obs_shape = list(obs_shape)
+
+    def _check_shapes(self, td):
+        if self.input_features_shape is None:
+            return
+        super()._check_shapes(td)
+
+    def _compute(self, md: MettaDict) -> dict:
+        x = md.td[self.in_key]
+        x_shape, space_shape = x.shape, self._obs_shape
+        x_n, space_n = len(x_shape), len(space_shape)
+        if tuple(x_shape[-space_n:]) != tuple(space_shape):
+            expected_shape = f"[B(, T), {', '.join(str(dim) for dim in space_shape)}]"
+            actual_shape = f"{list(x_shape)}"
+            raise ValueError(
+                f"Shape mismatch error:\n"
+                f"x.shape: {x.shape}\n"
+                f"self._obs_shape: {self._obs_shape}\n"
+                f"Expected tensor with shape {expected_shape}\n"
+                f"Got tensor with shape {actual_shape}\n"
+                f"The last {space_n} dimensions should match {tuple(space_shape)}"
+            )
+        if x_n == space_n + 1:
+            B, TT = x_shape[0], 1
+        elif x_n == space_n + 2:
+            B, TT = x_shape[:2]
+        else:
+            raise ValueError(
+                f"Invalid input tensor dimensionality:\n"
+                f"Expected tensor with {space_n + 1} or {space_n + 2} dimensions\n"
+                f"Got tensor with {x_n} dimensions: {list(x_shape)}\n"
+                f"Expected format: [batch_size(, time_steps), {', '.join(str(dim) for dim in space_shape)}]"
+            )
+        x = x.reshape(B * TT, *space_shape)
+        x = x.float()
+        # Permute to [B*TT, C, H, W]
+        if x.device.type == "mps":
+            bs, h, w, c = x.shape
+            x = x.contiguous().view(bs, h * w, c)
+            x = x.transpose(1, 2)
+            x = x.contiguous().view(bs, c, h, w)
+        else:
+            from einops import rearrange
+
+            x = rearrange(x, "b h w c -> b c h w")
+        # Insert metadata into md.data
+        md.data["_TT_"] = TT
+        md.data["_batch_size_"] = B
+        md.data["_BxTT_"] = B * TT
+        return {self.out_key: x}
