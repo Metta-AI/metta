@@ -725,18 +725,46 @@ class PufferTrainer:
 
         # Add timing metrics to wandb
         if self.wandb_run and self._master:
-            rollout_time = self.timer.get_elapsed("_rollout")
-            train_time = self.timer.get_elapsed("_train")
-            stats_time = self.timer.get_elapsed("_process_stats")
-            checkpoint_time = self.timer.get_elapsed("_checkpoint_trainer")
-            evaluate_time = self.timer.get_elapsed("_evaluate_policy")
-            wandb_save_time = self.timer.get_elapsed("_save_policy_to_wandb")
-            replay_time = self.timer.get_elapsed("_generate_and_upload_replay")
+            # Collect all timer metrics
+            timer_data = {}
+            wall_time = self.timer.get_elapsed()  # global timer
 
-            training_time = rollout_time + train_time
-            wall_time = self.timer.get_elapsed()
-            steps_per_sec = self.agent_step / training_time
+            for timer_name in self.timer._timers:
+                if timer_name != "__global__":
+                    elapsed = self.timer.get_elapsed(timer_name)
+                    clean_name = timer_name.lstrip("_")
+                    timer_data[clean_name] = elapsed
 
+            # Calculate key performance metrics
+            training_time = timer_data.get("rollout", 0) + timer_data.get("train", 0)
+            overhead_time = wall_time - training_time
+            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
+
+            # Create a performance summary
+            training_pct = 100 * training_time / wall_time if wall_time > 0 else 0
+            overhead_pct = 100 * overhead_time / wall_time if wall_time > 0 else 0
+
+            timing_summary = (
+                f"{steps_per_sec:.0f} steps/s | {training_pct:.0f}% training | {overhead_pct:.0f}% overhead"
+            )
+
+            # Log structured timing data
+            timing_logs = {
+                # Key performance indicators
+                "timing/steps_per_second": steps_per_sec,
+                "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
+                "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
+                "timing/summary": timing_summary,
+                # Breakdown by operation (as a single structured metric)
+                "timing/breakdown": {
+                    op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
+                    for op, elapsed in timer_data.items()
+                },
+                # Total time for reference
+                "timing/total_seconds": wall_time,
+            }
+
+            # Log everything to wandb
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
@@ -749,17 +777,7 @@ class PufferTrainer:
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
                     "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
-                    # Timing metrics
-                    "timing/steps_per_sec": steps_per_sec,
-                    "timing/training_pct": 100 * training_time / wall_time,
-                    "timing/rollout_pct": 100 * rollout_time / wall_time,
-                    "timing/train_pct": 100 * train_time / wall_time,
-                    "timing/stats_pct": 100 * stats_time / wall_time,
-                    "timing/checkpoint_pct": 100 * checkpoint_time / wall_time,
-                    "timing/evaluate_pct": 100 * evaluate_time / wall_time,
-                    "timing/wandb_save_pct": 100 * wandb_save_time / wall_time,
-                    "timing/replay_pct": 100 * replay_time / wall_time,
-                    "timing/wall_time": wall_time,
+                    **timing_logs,
                 }
             )
 
