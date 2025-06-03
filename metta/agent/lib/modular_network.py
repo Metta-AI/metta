@@ -17,7 +17,7 @@ from typing import Dict, List, Set
 import torch
 import torch.nn as nn
 
-from metta.agent.lib.metta_module import MettaData, MettaModule
+from metta.agent.lib.metta_module import MettaDict, MettaModule
 
 
 class ModularNetwork(MettaModule):
@@ -76,7 +76,7 @@ class ModularNetwork(MettaModule):
         if __debug__:
             self._validate_network()
 
-    def compute_component(self, node_id: str, md: MettaData) -> MettaData:
+    def compute_component(self, node_id: str, md: MettaDict) -> MettaDict:
         """Compute the output of a component.
         Caution: This function does not clear the computation cache.
         If you want to clear the cache, you need to call _computed_components.clear() first.
@@ -129,7 +129,7 @@ class ModularNetwork(MettaModule):
         self.in_keys = self.network_in_keys
         self.out_keys = self.network_out_keys
 
-    def _compute(self, md: MettaData) -> Dict[str, torch.Tensor]:
+    def _compute(self, md: MettaDict) -> Dict[str, torch.Tensor]:
         """Compute outputs by processing through all components.
 
         Args:
@@ -146,7 +146,7 @@ class ModularNetwork(MettaModule):
             self.compute_component(self.out_key_to_node[out_key], md)
 
         # Return only the requested output keys
-        return {key: md[key] for key in self.out_keys}
+        return {key: md.td[key] for key in self.out_keys}
 
     def _validate_network(self) -> None:
         """Validate the network."""
