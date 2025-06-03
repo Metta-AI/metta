@@ -1,0 +1,27 @@
+{
+  "name": "skypilot-queue",
+  "displayName": "Skypilot Queue",
+  "description": "VSCode panel that displays Skypilot queue status.",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": ["onCommand:skypilot.showQueue"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "skypilot.showQueue",
+        "title": "Show Skypilot Queue"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.2.2"
+  }
+}
