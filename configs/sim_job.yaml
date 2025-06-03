@@ -14,5 +14,6 @@ sim_job:
   stats_dir: ${run_dir}/stats
   stats_db_uri: ${run_dir}/stats.db
   replay_dir: s3://softmax-public/replays/local
+  env_overrides: {}
 
 cmd: sim

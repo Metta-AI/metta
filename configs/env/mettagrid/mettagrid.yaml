@@ -10,8 +10,8 @@ game:
 
   diversity_bonus:
     enabled: false
-    similarity_coef: 0.5  # Coefficient for within-group similarity
-    diversity_coef: 0.5   # Coefficient for between-group diversity
+    similarity_coef: 0.5 # Coefficient for within-group similarity
+    diversity_coef: 0.5 # Coefficient for between-group diversity
 
   agent:
     default_item_max: ${sampling:0, 100, 50}

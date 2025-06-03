@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 
 import numpy as np
 import torch
@@ -59,6 +59,7 @@ class Simulation:
         suite=None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
+        env_overrides: Dict[str, Any] = {},
     ):
         self._name = name
         self._suite = suite
@@ -69,10 +70,7 @@ class Simulation:
         logger.info(f"config.env {config.env}")
         logger.info(f"config.env_overrides {config.env_overrides}")
 
-        if config.env_overrides is not None:
-            env_overrides = OmegaConf.create(config.env_overrides)
-        else:
-            env_overrides = None
+        env_overrides = OmegaConf.create(config.env_overrides)
 
         self._env_name = config.env
 
