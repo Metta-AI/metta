@@ -4,6 +4,7 @@ defaults:
 
 game:
   max_steps: 80
+
   objects:
     lasery:
       initial_items: 1
@@ -11,6 +12,8 @@ game:
   agent:
     rewards:
       laser: 1
+      ore.red: 0
+      battery.red: 0
   map_builder:
     objects:
       lasery: 1
