@@ -122,30 +122,30 @@ def test_select_areas_with_offset(scene):
     assert selected_areas[1].id == 1
 
 
-def test_select_areas_returns_list_type(node):
+def test_select_areas_returns_list_type(scene):
     """Test that select_areas always returns a list, not a numpy array"""
     # Test with no query
-    selected_areas = node.select_areas({})
+    selected_areas = scene.select_areas(AreaQuery())
     assert isinstance(selected_areas, list), "select_areas should return a list"
 
     # Test with random ordering (which uses numpy internally)
-    query = {"limit": 2, "order_by": "random", "order_by_seed": 42}
-    selected_areas = node.select_areas(query)
+    query = AreaQuery(limit=2, order_by="random", order_by_seed=42)
+    selected_areas = scene.select_areas(query)
     assert isinstance(selected_areas, list), "select_areas with random ordering should return a list"
 
     # Test with first ordering
-    query = {"limit": 2, "order_by": "first"}
-    selected_areas = node.select_areas(query)
+    query = AreaQuery(limit=2, order_by="first")
+    selected_areas = scene.select_areas(query)
     assert isinstance(selected_areas, list), "select_areas with first ordering should return a list"
 
     # Test with last ordering
-    query = {"limit": 2, "order_by": "last"}
-    selected_areas = node.select_areas(query)
+    query = AreaQuery(limit=2, order_by="last")
+    selected_areas = scene.select_areas(query)
     assert isinstance(selected_areas, list), "select_areas with last ordering should return a list"
 
     # Verify list operations work
-    query = {"limit": 1, "order_by": "random", "order_by_seed": 42}
-    selected_areas = node.select_areas(query)
+    query = AreaQuery(limit=1, order_by="random", order_by_seed=42)
+    selected_areas = scene.select_areas(query)
     # This should not raise AttributeError if it's a proper list
     selected_areas_copy = selected_areas.copy()
     assert len(selected_areas_copy) == 1
