@@ -1,31 +1,97 @@
+# Unified PufferLib-compatible environment configuration
+# Inherits from mettagrid.yaml and only overrides what's necessary to match PufferLib training
+
 defaults:
-  - /env/mettagrid/mettagrid@
+  - mettagrid
   - _self_
 
 game:
-  num_agents: 16
+  num_agents: 16  # PufferLib uses 16 agents
 
   agent:
-    default_item_max: 50
-    freeze_duration: 0
+    # Override reward values to match PufferLib training (mettagrid has much smaller values)
+    rewards:
+      ore.red: 0.25         # mettagrid default: 0.005 (50x smaller!)
+      ore.blue: 0.25        # mettagrid default: 0.005
+      ore.green: 0.25       # mettagrid default: 0.005
+      battery: 0.25         # PufferLib uses generic "battery"
+      battery.red: 0.25     # mettagrid default: 0.01 (25x smaller!)
+      battery.blue: 0.25    # mettagrid default: 0.01
+      battery.green: 0.25   # mettagrid default: 0.01
+      # heart: 1 is already correct in mettagrid
+      # heart_max: 1000 is already correct in mettagrid
 
+    # Override agent limits to match PufferLib
+    default_item_max: 50    # mettagrid uses sampling, PufferLib uses fixed 50
+    freeze_duration: 0      # mettagrid uses sampling, PufferLib uses 0
+
+  # Override object configuration to match PufferLib naming and inputs/outputs
+  objects:
+    # PufferLib uses generic "mine" that outputs ore.red (not colored mines)
+    mine:
+      hp: 30
+      output_ore.red: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 50          # mettagrid uses sampling, PufferLib uses fixed 50
+      initial_items: 1
+
+    # PufferLib uses generic "generator" that consumes ore.red and outputs "battery"
+    generator:
+      hp: 30
+      input_ore.red: 1
+      output_battery: 1     # PufferLib uses generic "battery", not "battery.red"
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 50          # mettagrid uses sampling, PufferLib uses fixed 50
+      initial_items: 1
+
+    # PufferLib altar consumes generic "battery" (not "battery.red")
+    altar:
+      hp: 30
+      input_battery: 3      # PufferLib uses generic "battery", not "battery.red"
+      output_heart: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: 10          # mettagrid uses sampling, PufferLib uses fixed 10
+      initial_items: 1
+
+    # Override cooldowns to match PufferLib fixed values (mettagrid uses sampling)
+    armory:
+      cooldown: 20          # mettagrid: sampling(0, 20, 10)
+    lasery:
+      cooldown: 20          # mettagrid: sampling(0, 20, 10)  
+    lab:
+      cooldown: 5           # mettagrid: sampling(0, 10, 5)
+    factory:
+      cooldown: 5           # mettagrid: sampling(0, 10, 5)
+    temple:
+      cooldown: 5           # mettagrid: sampling(0, 10, 5)
+    wall:
+      hp: 10                # mettagrid: sampling(1, 20, 10)
+
+  # Override map builder to match PufferLib structure
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${div:${..num_agents},4}
+    num_rooms: ${div:${..num_agents},4}  # 16 agents ÷ 4 = 4 rooms
     border_width: 6
+
     room:
-      _target_: mettagrid.room.random.Random
-      width: 25
-      height: 25
+      _target_: mettagrid.room.random.Random  
+      width: 25             # mettagrid uses sampling(10,100,25)
+      height: 25            # mettagrid uses sampling(10,100,25)
       border_width: 0
-      agents: 4
+
+      agents: 4             # PufferLib: 4 agents per room, mettagrid: 6
+
       objects:
-        mine: 10
-        generator: 2
-        altar: 1
-        armory: 1
-        lasery: 1
-        lab: 1
-        factory: 1
-        temple: 1
-        wall: 40
+        # Match PufferLib object counts exactly (mettagrid uses sampling)
+        mine: 10            # mettagrid: sampling(1,20,10)
+        generator: 2        # mettagrid: sampling(1,10,2)  
+        altar: 1            # mettagrid: sampling(1,5,1)
+        armory: 1           # mettagrid: sampling(1,5,1)
+        lasery: 1           # mettagrid: sampling(1,5,1)
+        lab: 1              # mettagrid: sampling(1,5,1)
+        factory: 1          # mettagrid: sampling(1,5,1)
+        temple: 1           # mettagrid: sampling(1,5,1)
+        wall: 40            # mettagrid: sampling(5,50,20)

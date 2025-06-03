@@ -1,0 +1,9 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: puffer
+
+simulations:
+  puffer:
+    env: env/mettagrid/puffer 
