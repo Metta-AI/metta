@@ -2,4 +2,4 @@
 
 # For backward compatibility, loading mac_serial.yaml
 defaults:
-  - mac_serial
+  - mac_parallel
