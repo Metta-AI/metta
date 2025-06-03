@@ -48,7 +48,7 @@ for i in "${!POLICIES[@]}"; do
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
         +agent=robust_cross \
         +sim_job.env_overrides.game.use_observation_tokens=true \
 
@@ -57,7 +57,7 @@ for i in "${!POLICIES[@]}"; do
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
         +agent=robust_cross \
         +sim_job.env_overrides.game.use_observation_tokens=true \
 
@@ -67,7 +67,7 @@ for i in "${!POLICIES[@]}"; do
         run=nav_sequence$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
         +agent=robust_cross \
         +sim_job.env_overrides.game.use_observation_tokens=true \
 
@@ -76,7 +76,7 @@ for i in "${!POLICIES[@]}"; do
         run=multi_agent$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
         +agent=robust_cross \
         +sim_job.env_overrides.game.use_observation_tokens=true \
 
