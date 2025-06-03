@@ -1230,7 +1230,7 @@ button#help-button.hover-icon .icon {
 .header-cell input#new-column-input {
     position: relative;
     display: flex;
-    width: 141px;
+    width: 303px;
     height: fit-content;
     flex-direction: row;
     flex-wrap: nowrap;
@@ -1284,8 +1284,8 @@ button#help-button.hover-icon .icon {
     display: flex;
     width: 313px;
     height: fit-content;
-    left: 492px;
-    top: 80px;
+    left: 155px;
+    top: 121px;
     flex-direction: column;
     flex-wrap: nowrap;
     padding: 0px 0px 10px 0px;
@@ -1521,8 +1521,8 @@ button#help-button.hover-icon .icon {
     display: flex;
     width: 162px;
     height: fit-content;
-    left: 305px;
-    top: 79px;
+    left: 509px;
+    top: 244px;
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 4px;

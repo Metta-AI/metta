@@ -100,8 +100,9 @@ export function initAgentTable() {
   onEvent("click", "#column-menu .sort-up", (target: HTMLElement, e: Event) => {
     console.log("Sort up clicked");
     let columnField = walkUpAttribute(target, "data-column-field");
+    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
     for (let i = 0; i < columns.length; i++) {
-      if (columns[i].field == columnField && columns[i].isFinal == false) {
+      if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
         columns[i].sortDirection = -1;
         mainSort = columns[i];
       } else {
@@ -116,8 +117,9 @@ export function initAgentTable() {
   onEvent("click", "#column-menu .sort-down", (target: HTMLElement, e: Event) => {
     console.log("Sort up clicked");
     let columnField = walkUpAttribute(target, "data-column-field");
+    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
     for (let i = 0; i < columns.length; i++) {
-      if (columns[i].field == columnField && columns[i].isFinal == false) {
+      if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
         columns[i].sortDirection = 1;
         mainSort = columns[i];
       } else {
@@ -131,7 +133,8 @@ export function initAgentTable() {
   onEvent("click", "#column-menu .move-left", (target: HTMLElement, e: Event) => {
     console.log("Move left clicked");
     let columnField = walkUpAttribute(target, "data-column-field");
-    let column = columns.find(column => column.field == columnField && column.isFinal == false);
+    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
+    let column = columns.find(column => column.field == columnField && column.isFinal == columnIsFinal);
     if (column != null) {
       swapLeft(columns, column);
       updateAgentTable();
@@ -143,7 +146,8 @@ export function initAgentTable() {
   onEvent("click", "#column-menu .move-right", (target: HTMLElement, e: Event) => {
     console.log("Move right clicked");
     let columnField = walkUpAttribute(target, "data-column-field");
-    let column = columns.find(column => column.field == columnField && column.isFinal == false);
+    let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
+    let column = columns.find(column => column.field == columnField && column.isFinal == columnIsFinal);
     if (column != null) {
       swapRight(columns, column);
       updateAgentTable();
@@ -329,8 +333,8 @@ export function updateAgentTable() {
     var aValue, bValue: number;
     if (mainSort.isFinal) {
       // Uses the final step for the sort.
-      aValue = getAttr(a, mainSort.field, state.replay.max_step);
-      bValue = getAttr(b, mainSort.field, state.replay.max_step);
+      aValue = getAttr(a, mainSort.field, state.replay.max_steps - 1);
+      bValue = getAttr(b, mainSort.field, state.replay.max_steps - 1);
     } else {
       // Uses the current step for the sort.
       aValue = getAttr(a, mainSort.field)
