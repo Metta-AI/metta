@@ -3,12 +3,18 @@ import { state, setFollowSelection, html } from "./common.js";
 import { getAttr } from "./replay.js";
 import { updateSelection } from "./main.js";
 
+enum SortDirection {
+  None = 0,
+  Descending = 1,
+  Ascending = -1
+}
+
 class ColumnDefinition {
   field: string;
   isFinal: boolean;
-  sortDirection: number;
+  sortDirection: SortDirection;
 
-  constructor(field: string, isFinal: boolean, sortDirection: number = 0) {
+  constructor(field: string, isFinal: boolean, sortDirection: SortDirection = SortDirection.None) {
     this.field = field;
     this.isFinal = isFinal;
     this.sortDirection = sortDirection;
@@ -106,10 +112,10 @@ export function initAgentTable() {
     let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
     for (let i = 0; i < columns.length; i++) {
       if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
-        columns[i].sortDirection = -1;
+        columns[i].sortDirection = SortDirection.Ascending;
         mainSort = columns[i];
       } else {
-        columns[i].sortDirection = 0;
+        columns[i].sortDirection = SortDirection.None;
       }
     }
     updateAgentTable();
@@ -122,10 +128,10 @@ export function initAgentTable() {
     let columnIsFinal = walkUpAttribute(target, "data-column-is-final") == "true";
     for (let i = 0; i < columns.length; i++) {
       if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
-        columns[i].sortDirection = 1;
+        columns[i].sortDirection = SortDirection.Descending;
         mainSort = columns[i];
       } else {
-        columns[i].sortDirection = 0;
+        columns[i].sortDirection = SortDirection.None;
       }
     }
     updateAgentTable();
@@ -173,17 +179,18 @@ export function initAgentTable() {
       for (let column of columns) {
         if (column.field == columnField && column.isFinal == columnIsFinal) {
           if (mainSort == column) {
-            if (column.sortDirection == 0) {
-              column.sortDirection = 1
+            if (column.sortDirection == SortDirection.None) {
+              column.sortDirection = SortDirection.Descending;
             } else {
-              column.sortDirection = -column.sortDirection;
+              column.sortDirection = column.sortDirection == SortDirection.Descending ?
+                SortDirection.Ascending : SortDirection.Descending;
             }
           } else {
-            column.sortDirection = 1;
+            column.sortDirection = SortDirection.Descending;
           }
           mainSort = column;
         } else {
-          column.sortDirection = 0;
+          column.sortDirection = SortDirection.None;
         }
       }
       updateAgentTable();
@@ -338,7 +345,7 @@ export function updateAgentTable() {
       bValue = getAttr(b, mainSort.field)
     }
     // Sort direction adjustment.
-    if (mainSort.sortDirection == 1) {
+    if (mainSort.sortDirection == SortDirection.Descending) {
       return bValue - aValue;
     } else {
       return aValue - bValue;
@@ -358,9 +365,9 @@ export function updateAgentTable() {
     icon.setAttribute("src", columnDef.generateIcon());
 
     let sortIcon = headerCell.querySelector(".sort-icon") as HTMLElement;
-    if (columnDef.sortDirection == 1) {
+    if (columnDef.sortDirection == SortDirection.Descending) {
       sortIcon.setAttribute("src", "data/ui/sort-down.png");
-    } else if (columnDef.sortDirection == -1) {
+    } else if (columnDef.sortDirection == SortDirection.Ascending) {
       sortIcon.setAttribute("src", "data/ui/sort-up.png");
     } else {
       sortIcon.classList.add("hidden");
