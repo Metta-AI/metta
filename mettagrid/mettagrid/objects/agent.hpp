@@ -113,31 +113,32 @@ public:
 
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.push_back({ObservationFeature::TypeId, _type_id});
-    features.push_back({ObservationFeature::Group, group});
-    features.push_back({ObservationFeature::Hp, hp});
-    features.push_back({ObservationFeature::Frozen, frozen});
-    features.push_back({ObservationFeature::Orientation, orientation});
-    features.push_back({ObservationFeature::Color, color});
+    features.push_back({ObservationFeature::TypeId, scaled_obs(_type_id, ObservationScaling::MediumRange)});
+    features.push_back({ObservationFeature::Group, scaled_obs(group, ObservationScaling::MediumRange)});
+    features.push_back({ObservationFeature::Hp, scaled_obs(hp, ObservationScaling::MediumRange)});
+    features.push_back({ObservationFeature::Frozen, scaled_obs(frozen, ObservationScaling::BooleanRange)});
+    features.push_back({ObservationFeature::Orientation, scaled_obs(orientation, ObservationScaling::SmallRange)});
+    features.push_back({ObservationFeature::Color, scaled_obs(color, ObservationScaling::MaximumRange)});
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (inventory[i] > 0) {
-        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
+        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i),
+                            scaled_obs(inventory[i], ObservationScaling::LargeRange)});
       }
     }
     return features;
   }
 
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = 1;
-    obs[offsets[1]] = _type_id;
-    obs[offsets[2]] = group;
-    obs[offsets[3]] = hp;
-    obs[offsets[4]] = frozen;
-    obs[offsets[5]] = orientation;
-    obs[offsets[6]] = color;
+    obs[offsets[0]] = ObservationScaling::MaxVal;
+    obs[offsets[1]] = scaled_obs(_type_id, ObservationScaling::MediumRange);
+    obs[offsets[2]] = scaled_obs(group, ObservationScaling::MediumRange);
+    obs[offsets[3]] = scaled_obs(hp, ObservationScaling::MediumRange);
+    obs[offsets[4]] = scaled_obs(frozen, ObservationScaling::BooleanRange);
+    obs[offsets[5]] = scaled_obs(orientation, ObservationScaling::SmallRange);
+    obs[offsets[6]] = scaled_obs(color, ObservationScaling::MaximumRange);
 
-    for (int i = 0; i < InventoryItemCount; i++) {
-      obs[offsets[7 + i]] = inventory[i];
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      obs[offsets[7 + i]] = scaled_obs(inventory[i], ObservationScaling::LargeRange);
     }
   }
 

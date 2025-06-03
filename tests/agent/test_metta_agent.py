@@ -34,10 +34,6 @@ def create_metta_agent():
                 "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
                 "sources": None,
             },
-            "obs_normalizer": {
-                "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
-                "sources": [{"name": "_obs_"}],
-            },
             "obs_flattener": {
                 "_target_": "metta.agent.lib.nn_layer_library.Flatten",
                 "sources": [{"name": "obs_normalizer"}],

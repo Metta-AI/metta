@@ -43,13 +43,8 @@ l2_init_weight_update_interval: 0 # update the copy of initial weights every N e
 components:
   _obs_:
     _target_: metta.agent.lib.obs_shaper.ObsShaper
-    sources: 
-      null
-
-  obs_normalizer:
-    _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
     sources:
-      - name: _obs_
+      null
 
   channel_selector_0-11: # a merge layer that takes a slice of the input
     _target_: metta.agent.lib.merge_layer.ConcatMergeLayer

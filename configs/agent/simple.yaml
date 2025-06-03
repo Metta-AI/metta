@@ -14,13 +14,8 @@ components:
 
   _obs_:
     _target_: metta.agent.lib.obs_shaper.ObsShaper
-    sources: 
-      null
-
-  obs_normalizer:
-    _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
     sources:
-      - name: _obs_
+      null
 
   cnn1:
     _target_: metta.agent.lib.nn_layer_library.Conv2d

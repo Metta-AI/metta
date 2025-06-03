@@ -20,16 +20,16 @@ public:
 
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.push_back({ObservationFeature::TypeId, _type_id});
-    features.push_back({ObservationFeature::Hp, hp});
-    features.push_back({ObservationFeature::Swappable, _swappable});
+    features.push_back({ObservationFeature::TypeId, scaled_obs(_type_id, ObservationScaling::MediumRange)});
+    features.push_back({ObservationFeature::Hp, scaled_obs(hp, ObservationScaling::MediumRange)});
+    features.push_back({ObservationFeature::Swappable, scaled_obs(_swappable, ObservationScaling::BooleanRange)});
     return features;
   }
 
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = _type_id;
-    obs[offsets[1]] = this->hp;
-    obs[offsets[2]] = this->_swappable;
+    obs[offsets[0]] = scaled_obs(_type_id, ObservationScaling::MediumRange);
+    obs[offsets[1]] = scaled_obs(hp, ObservationScaling::MediumRange);
+    obs[offsets[2]] = scaled_obs(_swappable, ObservationScaling::BooleanRange);
   }
 
   static std::vector<std::string> feature_names() {

@@ -1,8 +1,8 @@
 #ifndef METTAGRID_METTAGRID_GRID_OBJECT_HPP_
 #define METTAGRID_METTAGRID_GRID_OBJECT_HPP_
 
-#include <span>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -11,6 +11,8 @@
 typedef unsigned short Layer;
 typedef uint8_t TypeId;
 typedef unsigned int GridCoord;
+// We'd be happy to use float or bfloat16_t, but we're also sending features and location as bytes,
+// and it's easier logistically (e.g., working with Gym) to have a homogeneous type.
 using ObsType = uint8_t;
 
 // These may make more sense in observation_encoder.hpp, but we need to include that
@@ -18,7 +20,7 @@ using ObsType = uint8_t;
 struct alignas(1) ObservationToken {
   uint8_t location;
   uint8_t feature_id;
-  uint8_t value;
+  ObsType value;
 };
 
 // The alignas should make sure of this, but let's be explicit.
@@ -30,7 +32,7 @@ using ObservationTokens = std::span<ObservationToken>;
 
 struct PartialObservationToken {
   uint8_t feature_id;
-  uint8_t value;
+  ObsType value;
 };
 
 class GridLocation {

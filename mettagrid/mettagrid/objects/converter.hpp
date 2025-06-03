@@ -156,26 +156,28 @@ public:
 
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
-    features.push_back({ObservationFeature::TypeId, _type_id});
-    features.push_back({ObservationFeature::Hp, hp});
-    features.push_back({ObservationFeature::Color, color});
-    features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
+    features.push_back({ObservationFeature::TypeId, scaled_obs(_type_id, ObservationScaling::MediumRange)});
+    features.push_back({ObservationFeature::Hp, scaled_obs(hp, ObservationScaling::MediumRange)});
+    features.push_back({ObservationFeature::Color, scaled_obs(color, ObservationScaling::MaximumRange)});
+    features.push_back({ObservationFeature::ConvertingOrCoolingDown,
+                        scaled_obs(this->converting || this->cooling_down, ObservationScaling::BooleanRange)});
     for (uint8_t i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (inventory[i] > 0) {
-        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
+        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i),
+                            scaled_obs(inventory[i], ObservationScaling::LargeRange)});
       }
     }
     return features;
   }
 
   void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = 1;
-    obs[offsets[1]] = _type_id;
-    obs[offsets[2]] = this->hp;
-    obs[offsets[3]] = this->color;
-    obs[offsets[4]] = this->converting || this->cooling_down;
+    obs[offsets[0]] = ObservationScaling::MaxVal;
+    obs[offsets[1]] = scaled_obs(_type_id, ObservationScaling::MediumRange);
+    obs[offsets[2]] = scaled_obs(hp, ObservationScaling::MediumRange);
+    obs[offsets[3]] = scaled_obs(color, ObservationScaling::MaximumRange);
+    obs[offsets[4]] = scaled_obs(this->converting || this->cooling_down, ObservationScaling::BooleanRange);
     for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      obs[offsets[5 + i]] = this->inventory[i];
+      obs[offsets[5 + i]] = scaled_obs(this->inventory[i], ObservationScaling::LargeRange);
     }
   }
 

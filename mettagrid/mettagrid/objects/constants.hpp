@@ -42,6 +42,28 @@ enum ObservationFeatureEnum : uint8_t {
 };
 }  // namespace ObservationFeature
 
+// We scale all values to be between 0 and 255.
+enum ObservationScaling {
+  // No scaling, for values with natural maximums near 255.
+  MaximumRange = 1,
+  // For values with natural maximums near 100.
+  LargeRange = 2,
+  // For values with natural maximums near 10.
+  MediumRange = 25,
+  // For values with natural maximums near 3.
+  SmallRange = 85,
+  // For values with natural maximums near 1.
+  BooleanRange = 255,
+  // The maximum value of the observation.
+  MaxVal = 255,
+};
+
+// It's not great that this is in a file calls "constants". It's here because of
+// import order. Feel free to move it to a more appropriate place.
+ObsType scaled_obs(ObsType value, ObservationScaling scaling) {
+  return std::min(value * scaling, static_cast<int>(ObservationScaling::MaxVal));
+}
+
 const uint8_t InventoryFeatureOffset = 100;
 
 // There should be a one-to-one mapping between ObjectType and ObjectTypeNames.
@@ -87,8 +109,16 @@ enum InventoryItem {
   InventoryItemCount
 };
 
-constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {
-    {"ore.red", "ore.blue", "ore.green", "battery.red", "battery.blue", "battery.green", "heart", "armor", "laser", "blueprint"}};
+constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {{"ore.red",
+                                                                                  "ore.blue",
+                                                                                  "ore.green",
+                                                                                  "battery.red",
+                                                                                  "battery.blue",
+                                                                                  "battery.green",
+                                                                                  "heart",
+                                                                                  "armor",
+                                                                                  "laser",
+                                                                                  "blueprint"}};
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
