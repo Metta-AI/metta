@@ -6,7 +6,7 @@ from typing import Optional
 
 from omegaconf import DictConfig, OmegaConf
 
-from metta.util.config import config_from_path
+from mettagrid.util.hydra import config_from_path
 
 from .curriculum import Curriculum, Task
 
