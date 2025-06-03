@@ -67,7 +67,6 @@ Sandboxes are often easier for quick experimentation.
 
 The following command creates a new EC2 instance with specifications as defined in `sandbox.yaml`.
 The script also runs a setup job to compile a metta repo on the machine, defaulting to main, but specific git commits can be specified.
-
 ```bash
 ./devops/skypilot/sandbox.py [--git-ref <GIT_REF>] [--new]
 ```
@@ -78,6 +77,13 @@ The script also runs a setup job to compile a metta repo on the machine, default
 ### Connecting
 
 Connect to the sandbox using ssh (e.g., `ssh <cluster_name>`). The hostname will be printed by the deployment script. Authentication will be magically handled by SkyPilot.
+
+### Shutting Down
+
+To shut down a sandbox, use the following command:
+```bash
+sky down <CLUSTER_NAME>
+```
 
 ## Notes
 
