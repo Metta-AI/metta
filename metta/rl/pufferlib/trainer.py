@@ -725,32 +725,19 @@ class PufferTrainer:
 
         # Add timing metrics to wandb
         if self.wandb_run and self._master:
-            # Collect all timer metrics
             timer_data = {}
             wall_time = self.timer.get_elapsed()  # global timer
-
             timer_data = self.timer.get_all_elapsed()
 
-            # Calculate key performance metrics
-            training_time = timer_data.get("rollout", 0) + timer_data.get("train", 0)
+            training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
             overhead_time = wall_time - training_time
             steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
 
-            # Create a performance summary
-            training_pct = 100 * training_time / wall_time if wall_time > 0 else 0
-            overhead_pct = 100 * overhead_time / wall_time if wall_time > 0 else 0
-
-            timing_summary = (
-                f"{steps_per_sec:.0f} steps/s | {training_pct:.0f}% training | {overhead_pct:.0f}% overhead"
-            )
-
-            # Log structured timing data
             timing_logs = {
                 # Key performance indicators
                 "timing/steps_per_second": steps_per_sec,
                 "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
                 "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
-                "timing/summary": timing_summary,
                 # Breakdown by operation (as a single structured metric)
                 "timing/breakdown": {
                     op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}

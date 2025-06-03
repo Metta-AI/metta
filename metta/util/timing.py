@@ -202,12 +202,11 @@ class Stopwatch:
                 summaries[display_name] = self.get_summary(timer_name if timer_name != "__global__" else None)
         return summaries
 
-    def get_all_elapsed(self, exclude_global: bool = True, clean_names: bool = True) -> Dict[str, float]:
+    def get_all_elapsed(self, exclude_global: bool = True) -> Dict[str, float]:
         """Get elapsed times for all timers.
 
         Args:
             exclude_global: If True, excludes the global timer from results
-            clean_names: If True, removes leading underscores from timer names
 
         Returns:
             Dictionary mapping timer names to elapsed times in seconds
@@ -219,33 +218,6 @@ class Stopwatch:
 
             elapsed = self.get_elapsed(timer_name if timer_name != "__global__" else None)
 
-            if clean_names and timer_name != "__global__":
-                # Remove leading underscores
-                display_name = timer_name.lstrip("_")
-            else:
-                display_name = timer_name
-
-            results[display_name] = elapsed
+            results[timer_name] = elapsed
 
         return results
-
-    def get_timing_breakdown(self) -> Dict[str, Any]:
-        """Get a comprehensive timing breakdown with useful metrics.
-
-        Returns:
-            Dictionary containing:
-            - all_timers: Dict of all timer elapsed times
-            - wall_time: Total elapsed time
-            - active_timers: Only timers that have been used
-        """
-        all_timers = self.get_all_elapsed(exclude_global=True, clean_names=True)
-        wall_time = self.get_elapsed()  # global timer
-
-        # Filter to only include timers that have actually been used
-        active_timers = {k: v for k, v in all_timers.items() if v > 0}
-
-        return {
-            "all_timers": all_timers,
-            "active_timers": active_timers,
-            "wall_time": wall_time,
-        }
