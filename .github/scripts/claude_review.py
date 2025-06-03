@@ -13,7 +13,7 @@ import os
 import sys
 import zipfile
 from io import BytesIO
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from github import Github
@@ -45,7 +45,7 @@ def extract_json_from_artifact(artifact_data: bytes) -> Optional[Dict[str, Any]]
     return None
 
 
-def consolidate_reviews(token: str, repo: str, run_id: int) -> Dict[str, Any]:
+def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, Any], bool]:
     """Consolidate all review artifacts into a single structure."""
     # Initialize consolidated review
     consolidated = {
@@ -268,19 +268,23 @@ def build_review_body(analysis: Dict[str, Any], skipped_suggestions: List[str]) 
     return "\n".join(sections)
 
 
-def create_unified_review(token: str, repo: str, pr_number: int, analysis: Dict[str, Any]):
+def create_unified_review(token: str, repo: str, pr_number: int, analysis: Dict[str, Any]) -> None:
     """Create a unified GitHub review from the consolidated analysis."""
     # Connect to GitHub
     g = Github(token)
     repo_obj = g.get_repo(repo)
     pr = repo_obj.get_pull(pr_number)
 
-    # Get PR files
+    # Get PR files and latest commit
     pr_files = list(pr.get_files())
     pr_filenames = {f.filename for f in pr_files}
 
+    # Get the latest commit SHA from the PR
+    latest_commit_sha = pr.head.sha
+
     print(f"\n📝 Creating GitHub review for PR #{pr_number}")
     print(f"   PR has {len(pr_files)} files")
+    print(f"   Latest commit: {latest_commit_sha[:7]}")
 
     # Build review comments
     comments = []
@@ -323,7 +327,12 @@ def create_unified_review(token: str, repo: str, pr_number: int, analysis: Dict[
             review_event = "COMMENT"
 
         # Create review with comments using GitHub API
-        review_data = {"body": review_body, "event": review_event, "comments": comments}
+        review_data = {
+            "commit_id": latest_commit_sha,
+            "body": review_body,
+            "event": review_event,
+            "comments": comments,
+        }
 
         headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
 
