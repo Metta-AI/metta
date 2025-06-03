@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 
-def map_builder_cfg_to_storable_map(cfg: DictConfig, recursive: bool = False) -> StorableMap:
+def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
     # Generate and measure time taken
     start = time.time()
-    map_builder = hydra.utils.instantiate(cfg, _recursive_=recursive)
+    map_builder = hydra.utils.instantiate(cfg, _recursive_=True)
     level = map_builder.build()
     gen_time = time.time() - start
     logger.info(f"Time taken to build map: {gen_time}s")
@@ -60,21 +60,13 @@ def make_map(cfg_path: str, overrides: DictConfig | None = None):
 
     cfg = cast(DictConfig, cfg)
 
-    recursive = False
-
     if cfg.get("game") and cfg.game.get("map_builder"):
-        # safe default for old room maps
-        recursive = cfg.game.get("recursive_map_builder", True)
         # Looks like env config, unwrapping the map config from it. This won't
         # work for all configs because they could rely on Hydra-specific
         # features, but it has a decent chance of working.
         cfg = cfg.game.map_builder
 
-    if "mapgen" in cfg.get("_target_"):
-        # mapgen works better with recursive=False
-        recursive = False
-
-    return map_builder_cfg_to_storable_map(cfg, recursive=recursive)
+    return map_builder_cfg_to_storable_map(cfg)
 
 
 # Based on heuristics, see https://github.com/Metta-AI/mettagrid/pull/108#discussion_r2054699842
