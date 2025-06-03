@@ -1,7 +1,5 @@
 # Runs policies with ASCII rendering to visualize agent behavior in real-time.
 
-import os
-import sys
 
 import hydra
 import numpy as np
