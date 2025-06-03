@@ -375,7 +375,7 @@ def create_unified_review(token: str, repo: str, pr_number: int, analysis: Dict[
             lines = pr_file.patch.split("\n")
             current_line = 0
 
-            for i, line in enumerate(lines):
+            for _, line in enumerate(lines):
                 if line.startswith("@@"):
                     # Parse the line number from the diff header
                     match = re.search(r"\+(\d+)", line)
