@@ -134,6 +134,8 @@ const std::map<std::string, float> FeatureNormalizations = {
     {"type_id", 10.0},
 };
 
+const float DEFAULT_NORMALIZATION = 1.0;
+
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
                                                   {ObjectType::WallT, GridLayer::Object_Layer},
                                                   {ObjectType::MineT, GridLayer::Object_Layer},

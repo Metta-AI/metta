@@ -47,7 +47,11 @@ public:
           assert(index < 256);
           features.insert({feature_name, index});
           _feature_names.push_back(feature_name);
-          _feature_normalizations.push_back(FeatureNormalizations.at(feature_name));
+          if (FeatureNormalizations.count(feature_name) > 0) {
+            _feature_normalizations.push_back(FeatureNormalizations.at(feature_name));
+          } else {
+            _feature_normalizations.push_back(DEFAULT_NORMALIZATION);
+          }
         }
       }
     }
