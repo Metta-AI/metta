@@ -1,6 +1,7 @@
 import logging
 import uuid
 from pathlib import Path
+from typing import Any, Dict
 
 import torch
 
@@ -25,6 +26,7 @@ class SimulationSuite:
         vectorization: str,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
+        env_overrides: Dict[str, Any] = {},
     ):
         self._config = config
         self._policy_pr = policy_pr
@@ -34,6 +36,7 @@ class SimulationSuite:
         self._device = device
         self._vectorization = vectorization
         self.name = config.name
+        self.env_overrides = env_overrides
 
     def simulate(self) -> SimulationResults:
         """Run every simulation, merge their DBs/replay dicts, and return a single `SimulationResults`."""
@@ -55,6 +58,7 @@ class SimulationSuite:
                     suite=self,
                     stats_dir=self._stats_dir,
                     replay_dir=self._replay_dir,
+                    env_overrides=self.env_overrides,
                 )
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()

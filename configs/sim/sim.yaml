@@ -1,3 +1,2 @@
-
-num_episodes: 1
+num_episodes: 20
 max_time_s: 60
