@@ -1,0 +1,6 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/extended_sequence_dr/backchain2: 1
+  /env/mettagrid/extended_sequence_dr/backchain3: 1
+  /env/mettagrid/extended_sequence_dr/backchain4: 1
