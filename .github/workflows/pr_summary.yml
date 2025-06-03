@@ -46,7 +46,7 @@ jobs:
           DATE_RANGE: ${{ steps.pr-digest.outputs.date-range }}
           DAYS_TO_SCAN: ${{ inputs.days_to_scan || '7' }}
         run: |
-          pip install -r .github/scripts/requirements.txt
+          pip install -r .github/scripts/requirements-pr-summary.txt
           python .github/scripts/generate_pr_summary.py
 
       - name: Read Summary
