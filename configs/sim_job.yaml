@@ -14,5 +14,5 @@ sim_job:
   stats_dir: ${run_dir}/stats
   stats_db_uri: ${run_dir}/stats.db
   replay_dir: ${run_dir}/replays/evals
-
+  env_overrides: {}
 cmd: sim
