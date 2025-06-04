@@ -49,8 +49,8 @@ class Kickstarter:
             self.teachers.append(policy)
 
     def loss(self, agent_step, student_normalized_logits, student_value, o, teacher_lstm_state: List[PolicyState]):
-        ks_value_loss = torch.tensor(0.0, device=self.device)
-        ks_action_loss = torch.tensor(0.0, device=self.device)
+        ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+        ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
         if not self.enabled or agent_step > self.kickstart_steps:
             return ks_action_loss, ks_value_loss
@@ -59,9 +59,7 @@ class Kickstarter:
             teacher_lstm_state = [PolicyState() for _ in range(len(self.teachers))]
 
         for i, teacher in enumerate(self.teachers):
-            teacher_value, teacher_normalized_logits, teacher_lstm_state[i] = self._forward(
-                teacher, o, teacher_lstm_state[i]
-            )
+            teacher_value, teacher_normalized_logits = self._forward(teacher, o, teacher_lstm_state[i])
             ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
             ks_action_loss *= teacher.action_loss_coef
 

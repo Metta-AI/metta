@@ -1,4 +1,4 @@
-.PHONY: help all install test clean check-venv
+.PHONY: help all install test clean check-venv lint-tensor-dtype
 
 
 # Default target when just running 'make'
@@ -6,6 +6,7 @@ help:
 	@echo "Available targets:"
 	@echo " install - Prepare the dev environment"
 	@echo " test - Run all unit tests"
+	@echo " lint-tensor-dtype - Check for torch.tensor() calls without explicit dtype"
 	@echo " all - Run install and test"
 	@echo " clean - Remove build artifacts and temporary files"
 
@@ -39,5 +40,9 @@ install:
 test: check-venv
 	@echo "Running python tests with coverage"
 	pytest --cov=metta --cov-report=term-missing
+
+lint-tensor-dtype: check-venv
+	@echo "Checking for torch.tensor() calls without explicit dtype parameter..."
+	@python devops/lint_tensor_dtype.py metta/
 
 all: clean install check-venv test

@@ -134,7 +134,7 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - Use Union type syntax for Python 3.10+ (`type | None` instead of `Optional[type]`)
 - Follow selective type annotation guidelines:
   - **Always annotate**: All function parameters
-  - **Selectively annotate returns for**: 
+  - **Selectively annotate returns for**:
     - Public API functions/methods (not prefixed with _)
     - Functions with complex logic or multiple branches
     - Functions where the return type isn't obvious from the name
@@ -150,6 +150,11 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - Remove unnecessary comments that just restate what the code does
 - Prefer properties over methods for computed attributes using `@property` decorator
 - Implement proper error handling with clear, actionable error messages
+- **Tensor Creation**: Always specify `dtype` when creating tensors with `torch.tensor()`
+  - Use `torch.float32` for floating point computations (default PyTorch dtype)
+  - Use `torch.long` for integer indices and counters
+  - Use `torch.int32` for integer data when memory efficiency is important
+  - Example: `torch.tensor(0.0, dtype=torch.float32)` instead of `torch.tensor(0.0)`
 
 ## Code Review Criteria
 

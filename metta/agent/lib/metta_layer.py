@@ -259,7 +259,7 @@ class ParamLayer(LayerBase):
             torch.Tensor: The L2 regularization loss scaled by l2_norm_scale,
                           or zero if regularization is disabled.
         """
-        l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
+        l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device, dtype=torch.float32)
         if self.l2_norm_scale != 0 and self.l2_norm_scale is not None:
             l2_reg_loss = (torch.sum(self.weight_net.weight.data**2)) * self.l2_norm_scale
         return l2_reg_loss
@@ -274,7 +274,7 @@ class ParamLayer(LayerBase):
             torch.Tensor: The L2-init regularization loss scaled by l2_init_scale,
                           or zero if regularization is disabled.
         """
-        l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
+        l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device, dtype=torch.float32)
         if self.l2_init_scale != 0 and self.l2_init_scale is not None:
             l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
