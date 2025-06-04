@@ -2,6 +2,7 @@ import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
 import { focusFullMap, requestFrame } from './worldmap.js';
 import { onResize, updateStep } from './main.js';
+import { updateAgentTable } from './agentpanel.js';
 
 // Gets an attribute from a grid object respecting the current step.
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
@@ -271,6 +272,7 @@ async function loadReplayJson(url: string, replayData: any) {
 
   Common.closeModal();
   focusFullMap(ui.mapPanel);
+  updateAgentTable();
   onResize();
   requestFrame();
 }
