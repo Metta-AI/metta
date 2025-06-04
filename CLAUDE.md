@@ -19,7 +19,7 @@ The codebase consists of:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Run setup script (creates virtual environment automatically)
-./devops/setup_build.sh
+./devops/setup_dev.sh
 ```
 
 ## Common Commands

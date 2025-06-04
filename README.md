@@ -106,11 +106,13 @@ Install uv (a fast Python package installer and resolver):
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Then run the setup script which will create a virtual environment and install dependencies:
+Optional: run the script which will configure the development environment (the script might fail if you're not on the Metta dev team and don't have permissions):
 
 ```bash
-./devops/setup_build.sh
+./devops/setup_dev.sh
 ```
+
+After git updates, you might need to run `uv sync` to reinstall all necessary dependencies.
 
 # Training a Model
 

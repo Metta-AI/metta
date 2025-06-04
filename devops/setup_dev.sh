@@ -102,6 +102,6 @@ if [ -z "$IS_DOCKER" ]; then
   echo -e "\nInstalling Skypilot..."
   bash "devops/skypilot/install.sh"
 
-  echo "✅ setup_build.sh completed successfully!"
+  echo "✅ setup_dev.sh completed successfully!"
   echo -e "Activate virtual environment with: \033[32;1msource $VENV_PATH/bin/activate\033[0m"
 fi

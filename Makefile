@@ -20,8 +20,8 @@ clean:
 
 # Dev all project dependencies and external components
 dev:
-	@echo "Running full devops/setup_build.sh installation script..."
-	@bash devops/setup_build.sh
+	@echo "Running full devops/setup_dev.sh installation script..."
+	@bash devops/setup_dev.sh
 
 test:
 	@echo "Running python tests with coverage"
