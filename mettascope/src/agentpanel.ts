@@ -38,9 +38,9 @@ class ColumnDefinition {
 
   generateIcon() {
     if (this.field.startsWith("inv:") || this.field.startsWith("agent:inv:")) {
-      return "/data/resources/" + this.field.replace("inv:", "").replace("agent:", "") + ".png";
+      return "data/resources/" + this.field.replace("inv:", "").replace("agent:", "") + ".png";
     } else {
-      return "/data/ui/table/" + this.field.replace("agent:", "") + ".png";
+      return "data/ui/table/" + this.field.replace("agent:", "") + ".png";
     }
   }
 
@@ -105,12 +105,12 @@ function swapLeft(list: any[], element: any) {
 }
 
 function saveAgentTable() {
-  localStorageSetObject("agent-panel-columns", columns);
+  localStorageSetObject("agentPanelColumns", columns);
 }
 
 export function initAgentTable() {
   // Load the columns from local storage.
-  let plainColumns = localStorageGetObject("agent-panel-columns", columns);
+  let plainColumns = localStorageGetObject("agentPanelColumns", columns);
   columns = plainColumns.map(column => new ColumnDefinition(
     column.field, column.isFinal, column.sortDirection
   ));
