@@ -49,12 +49,7 @@ runs:
       uses: actions/cache@v3
       with:
         path: ~/.cache/pip
-        key: pip-${{ hashFiles('**/requirements.txt') }}
-
-    - name: Install dependencies
-      shell: bash
-      run: |
-        pip install -r ${{ github.action_path }}/requirements.txt
+        key: pip-${{ hashFiles('**/uv.lock') }}
 
     - name: Set cache key
       id: cache-key
