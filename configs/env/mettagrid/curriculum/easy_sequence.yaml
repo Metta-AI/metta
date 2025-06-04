@@ -6,7 +6,6 @@ tasks:
   /env/mettagrid/navigation_sequence/training/mem_easy_sparse: 1
   /env/mettagrid/navigation_sequence/training/mem_easy_maze: 1
   /env/mettagrid/navigation_sequence/training/mem_easy_balanced: 1
-  /env/mettagrid/navigation_sequence/training/mem_easy_dense: 1
   /env/mettagrid/navigation_sequence/training/easy_sequence_balanced: 1
   /env/mettagrid/navigation_sequence/training/easy_sequence_maze: 1
   /env/mettagrid/navigation_sequence/training/easy_sequence_sparse: 1
