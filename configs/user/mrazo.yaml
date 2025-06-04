@@ -10,4 +10,4 @@ trainer:
   wandb.track: true
   evaluate_interval: 0
 
-run: mrazo_cooperation_overcooked_tick01_robust-cross_v01
+run: mrazo_cooperation_overcooked_tick02_robust-cross_v01
