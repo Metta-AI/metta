@@ -51,6 +51,7 @@ class PufferTrainer:
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
+
         self.sim_suite_config = sim_suite_config
 
         self._master = True
@@ -661,6 +662,7 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
+
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
                 config=self.replay_sim_config,
