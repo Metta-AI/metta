@@ -8,8 +8,6 @@ trainer:
   curriculum: /env/mettagrid/curriculum/two_rooms_curriculum
   wandb.enabled: true
   wandb.track: true
-  env_overrides.game.use_observation_tokens: true
   evaluate_interval: 0
 
-# run: mrazo_cooperation_overcooked_tick-random-01-10-01_main_v01
-run: robust-cross_test03
+run: mrazo_cooperation_overcooked_tick01_robust-cross_v01
