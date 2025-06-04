@@ -113,7 +113,7 @@ class StorableMapIndex:
     """
     Inverted index of storable maps in an S3 directory.
 
-    The index can find all maps that have a particular value for a particular key in its config.
+    The index can quickly find all maps that have a particular value for a particular key in their configs.
     """
 
     dir: str
