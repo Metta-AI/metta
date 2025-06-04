@@ -38,6 +38,8 @@ enum ObservationFeatureEnum : uint8_t {
   Color = 6,
   ConvertingOrCoolingDown = 7,
   Swappable = 8,
+  LastAction = 9,
+  LastActionSuccess = 10,
   ObservationFeatureCount
 };
 }  // namespace ObservationFeature
@@ -113,6 +115,8 @@ const std::map<std::string, float> FeatureNormalizations = {
     {"agent:orientation", 1.0},
     {"agent:shield", 1.0},
     {"agent:color", 255.0},
+    {"agent:last_action", 10.0},
+    {"agent:last_action_success", 1.0},
     {"converter", 1.0},
     {"inv:ore.red", 100.0},
     {"inv:ore.blue", 100.0},

@@ -27,6 +27,10 @@ public:
   float current_resource_reward;
   float* reward;
 
+  // New tracking fields
+  unsigned char last_action;
+  unsigned char last_action_success;
+
   Agent(GridCoord r,
         GridCoord c,
         std::string group_name,
@@ -65,6 +69,10 @@ public:
     this->color = 0;
     this->current_resource_reward = 0;
     this->reward = nullptr;
+
+    // Initialize new tracking fields
+    this->last_action = 0;
+    this->last_action_success = 0;
   }
 
   void init(float* reward) {
@@ -119,6 +127,8 @@ public:
     features.push_back({ObservationFeature::Frozen, frozen});
     features.push_back({ObservationFeature::Orientation, orientation});
     features.push_back({ObservationFeature::Color, color});
+    features.push_back({ObservationFeature::LastAction, last_action});
+    features.push_back({ObservationFeature::LastActionSuccess, last_action_success});
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (inventory[i] > 0) {
         features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
@@ -135,9 +145,20 @@ public:
     obs[offsets[4]] = frozen;
     obs[offsets[5]] = orientation;
     obs[offsets[6]] = color;
+    obs[offsets[7]] = last_action;
+    obs[offsets[8]] = last_action_success;
 
-    for (int i = 0; i < InventoryItemCount; i++) {
-      obs[offsets[7 + i]] = inventory[i];
+    // DEBUG: Print observation encoding for action tracking
+    if (last_action > 0 || last_action_success > 0) {
+      printf("Agent obs encoding: last_action=%d at offset %d, last_action_success=%d at offset %d\n",
+             last_action,
+             offsets[7],
+             last_action_success,
+             offsets[8]);
+    }
+
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      obs[offsets[9 + i]] = inventory[i];
     }
   }
 
@@ -150,10 +171,13 @@ public:
     names.push_back("agent:frozen");
     names.push_back("agent:orientation");
     names.push_back("agent:color");
+    names.push_back("agent:last_action");
+    names.push_back("agent:last_action_success");
 
     for (const auto& name : InventoryItemNames) {
       names.push_back("inv:" + name);
     }
+
     return names;
   }
 
