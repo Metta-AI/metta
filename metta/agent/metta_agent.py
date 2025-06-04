@@ -33,7 +33,8 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
         cfg.agent,
         obs_space=obs_space,
         action_space=env.single_action_space,
-        grid_features=env.grid_features,
+        feature_normalizations=env.feature_normalizations,
+        global_features=env.global_features,
         device=cfg.device,
         _recursive_=False,
     )
