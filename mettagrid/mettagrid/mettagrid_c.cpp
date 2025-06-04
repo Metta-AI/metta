@@ -22,6 +22,7 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
+#include "types.hpp"
 
 namespace py = pybind11;
 
@@ -326,7 +327,25 @@ void MettaGrid::_step(py::array_t<int> actions) {
         continue;
       }
 
-      _action_success[idx] = handler->handle_action(agent->id, arg);
+      // Validate agent
+      if (agent == nullptr) {
+        throw std::runtime_error("Agent is null at index " + std::to_string(idx));
+      }
+
+      // Validate agent ID
+      if (agent->id <= 0) {
+        throw std::runtime_error("Agent ID must be positive. Agent " + std::to_string(idx) + " has ID " +
+                                 std::to_string(agent->id));
+      }
+
+      if (agent->id >= _grid->objects.size()) {
+        throw std::runtime_error("Agent ID " + std::to_string(agent->id) + " exceeds grid object count " +
+                                 std::to_string(_grid->objects.size()) + " for agent " + std::to_string(idx));
+      }
+
+      // Execute the action
+      bool success = handler->handle_action(agent->id, arg);
+      _action_success[idx] = success;
     }
   }
 
@@ -609,26 +628,31 @@ py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  return spaces.attr("MultiDiscrete")(py::make_tuple(py::len(action_names()), _max_action_arg + 1),
-                                      py::arg("dtype") = py::module_::import("numpy").attr("int32"));
+  size_t number_of_actions = py::len(action_names());
+  size_t number_of_action_args = _max_action_arg + 1;
+  return spaces.attr("MultiDiscrete")(py::make_tuple(number_of_actions, number_of_action_args),
+                                      py::arg("dtype") = dtype_actions());
 }
 
 py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
+  ObservationType min_value = std::numeric_limits<ObservationType>::min();  // 0
+  ObservationType max_value = std::numeric_limits<ObservationType>::max();  // 255
+
   if (_use_observation_tokens) {
     // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
     // that matters to us.
-    return spaces.attr("Box")(0,
-                              255,
+    return spaces.attr("Box")(min_value,
+                              max_value,
                               py::make_tuple(_observations.shape(1), _observations.shape(2)),
-                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+                              py::arg("dtype") = dtype_observations());
   } else {
-    return spaces.attr("Box")(0,
-                              255,
+    return spaces.attr("Box")(min_value,
+                              max_value,
                               py::make_tuple(obs_height, obs_width, _grid_features.size()),
-                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+                              py::arg("dtype") = dtype_observations());
   }
 }
 
