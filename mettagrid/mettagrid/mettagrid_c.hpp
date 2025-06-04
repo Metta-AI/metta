@@ -88,6 +88,7 @@ private:
   std::unique_ptr<StatsTracker> _stats;
 
   bool _use_observation_tokens;
+  unsigned int _num_observation_tokens;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
