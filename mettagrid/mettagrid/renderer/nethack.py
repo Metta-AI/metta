@@ -10,7 +10,6 @@ class AsciiRenderer:
     """Simple ASCII renderer for ``MettaGridEnv`` with NetHack-style alignment fixes."""
 
     SYMBOLS = {v: k for k, v in MAP_SYMBOLS.items()}
-    SYMBOLS["wall"] = "█"
 
     # NetHack-style conversion mapping for perfect alignment
     NETHACK_CONVERSION = {
@@ -20,7 +19,6 @@ class AsciiRenderer:
         "🏭": "F",  # factory emoji → Factory
         "🔬": "L",  # microscope emoji → Lab
         "🏰": "T",  # castle emoji → Temple
-        "█": "#",  # block character → NetHack wall
         " ": ".",  # space → NetHack empty
     }
 

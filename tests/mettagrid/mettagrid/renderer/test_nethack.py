@@ -24,7 +24,7 @@ from omegaconf import OmegaConf
 
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.renderer.renderer import AsciiRenderer
+from mettagrid.renderer.nethack import AsciiRenderer
 from mettagrid.room.ascii import SYMBOLS
 from mettagrid.util.hydra import get_cfg
 

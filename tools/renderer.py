@@ -112,7 +112,13 @@ def is_episode_done(dones):
 
 
 def run_renderer(cfg: DictConfig):
-    """Run policy visualization with ASCII rendering."""
+    """Run policy visualization with ASCII or Miniscope rendering."""
+
+    # Determine render mode
+    render_mode = cfg.renderer_job.get("renderer_type", "human")
+    if render_mode not in ["human", "nethack", "miniscope"]:
+        print(f"⚠️  Unknown renderer type '{render_mode}', using 'human' (nethack)")
+        render_mode = "human"
 
     # Use the full config if environment config is provided
     if hasattr(cfg, "env") and cfg.env is not None:
@@ -131,11 +137,12 @@ def run_renderer(cfg: DictConfig):
 
         curriculum = SingleTaskCurriculum("renderer", env_cfg)
 
-    env = MettaGridEnv(curriculum, render_mode="human")
+    env = MettaGridEnv(curriculum, render_mode=render_mode)
 
     # Get policy
     policy = get_policy(cfg.renderer_job.policy_type, env, cfg)
     print(f"🤖 Using {cfg.renderer_job.policy_type} policy")
+    print(f"🎨 Using {render_mode} renderer")
 
     # Reset environment
     obs, info = env.reset()
