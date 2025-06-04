@@ -5,4 +5,4 @@ defaults:
 game:
   map_builder:
     room:
-      style: sparse
+      style: all-sparse
