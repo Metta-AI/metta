@@ -161,12 +161,12 @@ jobs:
 
       - name: Run Pytest on core tests
         run: |
-          uv run pytest --maxfail=1 --disable-warnings -q
+          pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on MettaGrid tests
         working-directory: mettagrid
         run: |
-          uv run pytest --maxfail=1 --disable-warnings -q
+          pytest --maxfail=1 --disable-warnings -q
 
       - name: Run MettaGrid C++ tests
         run: |
@@ -320,11 +320,11 @@ jobs:
       - name: Run Python benchmarks
         run: |
           # Main benchmarks
-          uv run pytest --benchmark-only --benchmark-json=main_benchmark_results.json
+          pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
           # Mettagrid benchmarks
           cd mettagrid
-          uv run pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
+          pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
 
       - name: Upload Python benchmark artifacts
         uses: actions/upload-artifact@v4
