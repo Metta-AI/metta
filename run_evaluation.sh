@@ -58,14 +58,14 @@ for i in "${!POLICIES[@]}"; do
         sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/stats_db \
+        sim_job.stats_db_uri=wandb://stats/stats_db1 \
         device=cpu \
 
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/stats_db \
+        sim_job.stats_db_uri=wandb://stats/stats_db1 \
         device=cpu \
 
 
@@ -73,7 +73,7 @@ for i in "${!POLICIES[@]}"; do
         sim=nav_sequence \
         run=nav_sequence$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/stats_db \
+        sim_job.stats_db_uri=wandb://stats/stats_db1 \
         device=cpu \
 
   #  python3 -m tools.sim \
@@ -83,6 +83,6 @@ for i in "${!POLICIES[@]}"; do
   #       sim_job.stats_db_uri=wandb://stats/stats_db \
   #       # device=cpu \
 
-  # python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
+  # python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db1 run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
 
 done
