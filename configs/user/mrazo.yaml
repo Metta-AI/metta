@@ -7,10 +7,11 @@ trainer:
   curriculum: /env/mettagrid/curriculum/object_use
   wandb.enabled: true
   wandb.track: true
+  initial_policy.uri: wandb://run/mrazo_action-obs_objectuse_v01:v19
 
 # replay_job:
 #   policy_uri: wandb://run/mrazo_action-obs_objectuse_v01
 #   wandb.enabled: false
 #   wandb.track: false
 
-run: mrazo_action-obs_objectuse_v01
+run: mrazo_action-obs_objectuse_v01.a
