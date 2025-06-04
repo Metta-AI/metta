@@ -95,8 +95,16 @@ def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
     return storable_map
 
 
+@dataclass
 class StorableMapIndex:
-    index: dict[str, dict[str, list[str]]] = {}
+    """
+    Inverted index of storable maps in an S3 directory.
+
+    The index can find all maps that have a particular value for a particular key in its config.
+    """
+
+    dir: str
+    index_data: dict[str, dict[str, list[str]]]
 
     def _flatten_nested_dict(self, obj, parent_key=""):
         """Flatten nested dictionaries and lists into dot-separated keys."""
@@ -115,7 +123,7 @@ class StorableMapIndex:
 
         return items
 
-    def process(self, map: StorableMap, uri: str):
+    def _process(self, map: StorableMap, uri: str):
         key_to_value: dict[str, str] = {}
         config_container = OmegaConf.to_container(map.config, resolve=False)
         for k, v in self._flatten_nested_dict(config_container):
@@ -124,21 +132,48 @@ class StorableMapIndex:
 
         key_to_value.update({f"metadata.{k}": v for k, v in map.metadata.items()})
         for key, value in key_to_value.items():
-            if key not in self.index:
-                self.index[key] = {}
-            if value not in self.index[key]:
-                self.index[key][value] = []
-            self.index[key][value].append(uri)
+            if key not in self.index_data:
+                self.index_data[key] = {}
+            if value not in self.index_data[key]:
+                self.index_data[key][value] = []
+            self.index_data[key][value].append(uri)
 
-    def index_dir(self, dir: str):
-        filenames = list_objects(dir)
+    def find_maps(self, filters: list[tuple[str, str]]) -> list[str]:
+        map_files: list[str]
+
+        if filters:
+            map_files_set: set[str] | None = None
+            for key, value in filters:
+                filter_files = self.index_data[key][value]
+                map_files_set = map_files_set.intersection(set(filter_files)) if map_files_set else set(filter_files)
+
+            map_files = list(map_files_set) if map_files_set else []
+        else:
+            map_files = [f for f in list_objects(self.dir) if f.endswith(".yaml")]
+
+        return map_files
+
+    def _index_dir(self):
+        filenames = list_objects(self.dir)
         for filename in filenames:
             map = StorableMap.from_uri(filename)
-            self.process(map, filename)
+            self._process(map, filename)
 
+    def _save(self):
+        index_uri = f"{self.dir}/index.json"
+        mettagrid.util.file.write_data(index_uri, json.dumps(self.index_data), content_type="text/plain")
 
-def index_storable_maps(dir: str):
-    indexer = StorableMapIndex()
-    indexer.index_dir(dir)
-    index_uri = f"{dir}/index.json"
-    mettagrid.util.file.write_data(index_uri, json.dumps(indexer.index), content_type="text/plain")
+    @staticmethod
+    def load(dir: str):
+        """Load an index from `dir`."""
+        index_content = mettagrid.util.file.read(f"{dir}/index.json")
+        index_data = json.loads(index_content.decode("utf-8"))
+        index = StorableMapIndex(dir=dir, index_data=index_data)
+        return index
+
+    @staticmethod
+    def create(dir: str):
+        """Create a new index in `dir`. If the index already exists, it will be overwritten."""
+        index = StorableMapIndex(dir=dir, index_data={})
+        index._index_dir()
+        index._save()

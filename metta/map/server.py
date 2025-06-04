@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import mettagrid.util.file
 from metta.map.utils.s3utils import list_objects
-from metta.map.utils.storable_map import StorableMap, index_storable_maps, map_builder_cfg_to_storable_map
+from metta.map.utils.storable_map import StorableMap, StorableMapIndex, map_builder_cfg_to_storable_map
 from metta.util.mettagrid_cfgs import (
     MettagridCfgFile,
     MettagridCfgFileMetadata,
@@ -47,20 +47,8 @@ def make_app():
             key, value = item.split("=")
             filter_items.append((key, value))
 
-        map_files: list[str]
-
-        if filter_items:
-            map_index = mettagrid.util.file.read(f"{dir}/index.json")
-            map_index = json.loads(map_index.decode("utf-8"))
-
-            map_files_set: set[str] | None = None
-            for key, value in filter_items:
-                filter_files = map_index[key][value]
-                map_files_set = map_files_set.intersection(set(filter_files)) if map_files_set else set(filter_files)
-
-            map_files = list(map_files_set) if map_files_set else []
-        else:
-            map_files = [f for f in list_objects(dir) if f.endswith(".yaml")]
+        index = StorableMapIndex.load(dir)
+        map_files = index.find_maps(filter_items)
 
         return {
             "maps": map_files,
@@ -72,7 +60,7 @@ def make_app():
 
     @app.post("/stored-maps/index-dir")
     async def route_stored_maps_index_dir(dir: str):
-        index_storable_maps(dir)
+        StorableMapIndex.create(dir)
         return {"success": True}
 
     @app.get("/stored-maps/get-index")
