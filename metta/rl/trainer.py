@@ -21,13 +21,12 @@ from metta.rl.experience import Experience
 from metta.rl.fast_gae import compute_gae
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.policy import PufferAgent
-from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
-from metta.util.timing import Stopwatch
+from metta.util.stopwatch import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv
 
@@ -65,8 +64,6 @@ class PufferTrainer:
             self.device = f"cuda:{os.environ['LOCAL_RANK']}"
             logger.info(f"Setting up distributed training on device {self.device}")
 
-        self.profile = Profile()
-        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -229,12 +226,11 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            with self.torch_profiler:
-                with self.timer("_rollout"):
-                    self._rollout()
+            with self.timer("_rollout"):
+                self._rollout()
 
-                with self.timer("_train"):
-                    self._train()
+            with self.timer("_train"):
+                self._train()
 
             # Processing stats
             with self.timer("_process_stats"):
@@ -263,7 +259,6 @@ class PufferTrainer:
                     self._evaluate_policy()
 
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
-            self.torch_profiler.on_epoch_end(self.epoch)
 
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 with self.timer("_save_policy_to_wandb"):
@@ -341,17 +336,16 @@ class PufferTrainer:
     def _on_train_step(self):
         pass
 
-    @profile_section("eval")
     def _rollout(self):
-        experience, profile = self.experience, self.profile
+        experience = self.experience
 
-        with profile.eval_misc:
+        with self.timer("_rollout.misc"):
             policy = self.policy
             infos = defaultdict(list)
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
 
         while not experience.full:
-            with profile.env:
+            with self.timer("_rollout.env"):
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
                 if self.trainer_cfg.require_contiguous_env_ids:
@@ -362,7 +356,7 @@ class PufferTrainer:
 
                 training_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
-            with profile.eval_misc:
+            with self.timer("_rollout.misc"):
                 num_steps = sum(mask)
                 self.agent_step += num_steps * self._world_size
 
@@ -370,7 +364,7 @@ class PufferTrainer:
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
-            with profile.eval_forward, torch.no_grad():
+            with self.timer("_rollout.forward"), torch.no_grad():
                 assert training_env_id is not None and training_env_id.numel() > 0, (
                     "training_env_id must exist and have elements"
                 )
@@ -397,21 +391,21 @@ class PufferTrainer:
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
-            with profile.eval_misc:
+            with self.timer("_rollout.misc"):
                 value = value.flatten()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
+                experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
                 for i in info:
                     for k, v in unroll_nested_dict(i):
                         infos[k].append(v)
 
-            with profile.env:
+            with self.timer("_rollout.env"):
                 actions = actions.cpu().numpy()
                 self.vecenv.send(actions)
 
-        with profile.eval_misc:
+        with self.timer("_rollout.misc"):
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
                     v = v.tolist()
@@ -434,12 +428,12 @@ class PufferTrainer:
         experience.step = 0
         return self.stats, infos
 
-    @profile_section("train")
     def _train(self):
-        experience, profile = self.experience, self.profile
+        experience = self.experience
+
         self.losses = self._make_losses()
 
-        with profile.train_misc:
+        with self.timer("_train.misc"):
             idxs = experience.sort_training_data()
             dones_np = experience.dones_np[idxs]
             values_np = experience.values_np[idxs]
@@ -477,7 +471,7 @@ class PufferTrainer:
             lstm_state = PolicyState()
             teacher_lstm_state = []
             for mb in range(experience.num_minibatches):
-                with profile.train_misc:
+                with self.timer("_train.misc"):
                     obs = experience.b_obs[mb]
                     obs = obs.to(self.device, non_blocking=True)
                     atn = experience.b_actions[mb]
@@ -486,7 +480,7 @@ class PufferTrainer:
                     adv = experience.b_advantages[mb]
                     ret = experience.b_returns[mb]
 
-                with profile.train_forward:
+                with self.timer("_train.forward"):
                     # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
                     _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
                         obs, lstm_state, action=atn
@@ -494,7 +488,7 @@ class PufferTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-                with profile.train_misc:
+                with self.timer("_train.misc"):
                     if __debug__:
                         assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
                         assert_shape(old_action_log_probs, ("B", "T"), "old_action_log_probs")
@@ -556,7 +550,7 @@ class PufferTrainer:
                         + ks_value_loss
                     )
 
-                with profile.learn:
+                with self.timer("_train.learn"):
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
@@ -568,7 +562,7 @@ class PufferTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-                with profile.train_misc:
+                with self.timer("_train.misc"):
                     if self.losses is None:
                         raise ValueError("self.losses is None")
 
@@ -587,7 +581,7 @@ class PufferTrainer:
                 if approx_kl > self.trainer_cfg.target_kl:
                     break
 
-        with profile.train_misc:
+        with self.timer("_train.misc"):
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
@@ -597,8 +591,6 @@ class PufferTrainer:
             explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
             self.losses.explained_variance = explained_var
             self.epoch += 1
-
-            profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
 
     def _checkpoint_trainer(self):
         if not self._master:
