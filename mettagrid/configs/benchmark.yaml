@@ -16,6 +16,7 @@ game:
       width: 25
       height: 25
       border_width: 0
+      seed: 42
 
       agents: 6
 
@@ -98,7 +99,7 @@ game:
   diversity_bonus:
     enabled: false
     similarity_coef: 0.5
-    diversity_coef: 0.5 
+    diversity_coef: 0.5
 
   objects:
     altar:

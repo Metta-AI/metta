@@ -129,3 +129,23 @@ class TestEnvironmentFunctionality:
     def test_object_type_names(self, environment):
         """Test object type names functionality."""
         assert environment.object_type_names == environment._c_env.object_type_names()
+
+    def test_initial_grid_hash(self, environment):
+        """Test initial grid hash functionality."""
+        # Check that hash exists and is a valid uint64 value
+        hash_value = environment._c_env.initial_grid_hash
+        assert isinstance(hash_value, int)
+        assert 0 <= hash_value <= 2**64 - 1  # Valid uint64 range
+
+        # Reset and check that hash is consistent for same map
+        initial_hash = hash_value
+        environment.reset()
+        assert environment._c_env.initial_grid_hash == initial_hash
+
+        # The hash should be non-zero for any non-empty grid
+        assert hash_value != 0, "Grid hash should not be zero for non-empty grids"
+
+        # Log the hash value for debugging
+        print(f"Initial grid hash: {hash_value}")
+
+        assert hash_value == 15684112579441699572, "Unexpected initial grid hash for the `benchmark` cfg!"

@@ -206,6 +206,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "seed": self._current_seed,
                 "map_w": self.map_width,
                 "map_h": self.map_height,
+                "initial_grid_hash": self.initial_grid_hash,
             }
 
             for k, v in unroll_nested_dict(OmegaConf.to_container(self._task.env_cfg(), resolve=False)):
@@ -315,3 +316,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     def inventory_item_names(self):
         return self._c_env.inventory_item_names()
+
+    @property
+    def initial_grid_hash(self) -> int:
+        """Returns the hash of the initial grid configuration."""
+        return self._c_env.initial_grid_hash

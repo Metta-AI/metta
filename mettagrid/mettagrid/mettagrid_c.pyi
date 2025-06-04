@@ -21,6 +21,7 @@ class MettaGrid:
     num_agents: int
     action_space: gym.spaces.MultiDiscrete
     observation_space: gym.spaces.Box
+    initial_grid_hash: int
 
     def __init__(self, env_cfg: dict, map: list) -> None: ...
     def reset(self) -> Tuple[np.ndarray, dict]: ...

@@ -70,6 +70,8 @@ public:
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
 
+  uint64_t initial_grid_hash;
+
 private:
   // Member variables
   py::dict _cfg;
