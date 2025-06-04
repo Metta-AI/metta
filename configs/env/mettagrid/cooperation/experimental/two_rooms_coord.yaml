@@ -68,7 +68,7 @@ game:
       input_ore.red: 1
       cooldown: 1
       max_output: 10
-      conversion_ticks: 1
+      conversion_ticks: 2
       initial_items: 0
     mine.red:
       cooldown: 1
