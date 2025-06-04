@@ -30,7 +30,6 @@ POLICIES=(
     “gd_all"
     “gd_backchain_mem_pretrained"
     “gd_sequence_strippedt"
-    “gd1.sequence_stripped"
     “gd1.easysequence"
 
     )
