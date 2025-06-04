@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 """
 A script to download a stats file from wandb or S3 and launch duckdb against it.
 
 Usage:
-    python -m tools.stats_duckdb_cli ++eval_db_uri=wandb://stats/my_stats_db
+    ./tools/stats_duckdb_cli.py ++eval_db_uri=wandb://stats/my_stats_db
 """
 
 import subprocess
