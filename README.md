@@ -117,7 +117,7 @@ Then run the setup script which will create a virtual environment and install de
 ### Run the training
 
 ```
-python -m tools.train run=my_experiment +hardware=macbook wandb=off
+./tools/train.py run=my_experiment +hardware=macbook wandb=off
 ```
 
 `run` names your experiment and controls where checkpoints are saved under
@@ -129,7 +129,7 @@ if you don't have access.
 ### Run the evaluation
 
 ```
-python -m tools.sim run=my_experiment +hardware=macbook wandb=off
+./tools/sim.py run=my_experiment +hardware=macbook wandb=off
 ```
 
 Use the same `run`, `+hardware` and `+user` arguments as in training to control
@@ -138,7 +138,7 @@ where evaluation results are stored and to apply machine or personal presets.
 ### Run the interactive simulation
 
 ```
-python -m tools.play run=my_experiment +hardware=macbook wandb=off
+./tools/play.py run=my_experiment +hardware=macbook wandb=off
 ```
 
 This launches a human-controlled session using the same configuration flags as
@@ -148,7 +148,7 @@ hardware.
 ### Run the terminal simulation
 
 ```
-python -m tools.renderer run=renderer_demo renderer_job.policy_type=simple renderer_job.num_steps=100000
+./tools/renderer.py run=renderer_demo renderer_job.policy_type=simple renderer_job.num_steps=100000
 ```
 
 If you're a member of `metta-research` on wandb, or you add your own wandb config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the readme.
@@ -166,7 +166,7 @@ If you want to run evaluation post-training to compare different policies, you c
 To add your policy to the existing navigation evals db:
 
 ```
-python3 -m tools.sim eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
+./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
 ```
 
 This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db` artifact on wandb
@@ -174,7 +174,7 @@ This will run your policy through the `configs/eval/navigation` eval_suite and t
 Then, to see the results in the heatmap along with the other policies in the database, you can run:
 
 ```
-python3 -m tools.analyze run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
+./tools/analyze.py run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
 ```
 
 Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation db, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that
@@ -188,7 +188,7 @@ To run the style checks and tests locally:
 ```bash
 ruff format
 ruff check
-python -m mypy metta  # optional, some stubs are missing
+pyright metta  # optional, some stubs are missing
 pytest
 ```
 

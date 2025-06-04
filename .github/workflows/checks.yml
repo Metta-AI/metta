@@ -128,7 +128,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python and uv
-        uses: ./.github/actions/setup-python-uv
+        uses: ./.github/actions/setup-uv
 
       - name: Run Ruff linter
         run: |
@@ -156,17 +156,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python and uv
-        uses: ./.github/actions/setup-python-uv
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Run Pytest on core tests
         run: |
-          uv run --active pytest --maxfail=1 --disable-warnings -q
+          pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on MettaGrid tests
         working-directory: mettagrid
         run: |
-          uv run --active pytest --maxfail=1 --disable-warnings -q
+          pytest --maxfail=1 --disable-warnings -q
 
       - name: Run MettaGrid C++ tests
         run: |
@@ -190,8 +190,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python and uv
-        uses: ./.github/actions/setup-python-uv
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Training smoke test
         id: train
@@ -202,7 +202,7 @@ jobs:
         run: |
           mkdir -p train_dir
           source .github/scripts/benchmark.sh
-          benchmark "train" "uv run --active python -m tools.train +hardware=github wandb=off"
+          benchmark "train" "./tools/train.py +hardware=github wandb=off"
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
@@ -248,7 +248,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "replay" "uv run --active python -m tools.replay +hardware=github wandb=off"
+          benchmark "replay" "./tools/replay.py +hardware=github wandb=off"
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
@@ -314,17 +314,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python and uv
-        uses: ./.github/actions/setup-python-uv
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Run Python benchmarks
         run: |
           # Main benchmarks
-          uv run --active pytest --benchmark-only --benchmark-json=main_benchmark_results.json
+          pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
           # Mettagrid benchmarks
           cd mettagrid
-          uv run --active pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
+          pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
 
       - name: Upload Python benchmark artifacts
         uses: actions/upload-artifact@v4
@@ -347,8 +347,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python and uv
-        uses: ./.github/actions/setup-python-uv
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Build and run C++ benchmarks
         run: |
