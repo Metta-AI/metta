@@ -189,7 +189,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             for label in self.labels:
                 infos[f"rewards/env:{label}"] = episode_rewards_mean
 
-        # Get episode stats
         episode_stats = self._c_env.get_episode_stats()
 
         stat_aggregates = {"converter": {}, "agent": {}}
