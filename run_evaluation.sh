@@ -18,17 +18,31 @@ POLICIES=(
     "dd.navsequencemem.smallinventory"
     "dd.navsequence_seq.smallinventory"
     "dd.navsequence_all.smallinventory"
-    "gd_sequence_strippedt"
-    "gd.1.sequence_stripped"
-    "gd.1.easysequence"
-    "gd.1.kitchensink"
-    "b.gd.easysequence"
-    "gd.backchain_kitchen2"
-    "gd2_backchain_kitchen"
-    "gd_backchain3"
-    "gd_sequence_stripped3"
-    "gd_backchain_seq3"
-    # "gd_backchain_mem_pretrained2"
+    “gd_sequence_stripped”
+    “gd.1.sequence_stripped”
+    “gd.1.easysequence”
+    “gd.1.kitchensink”
+    “b.gd.easysequence”
+    “gd.backchain_kitchen2”
+    “gd2_backchain_kitchen”
+    “gd_backchain3”
+    “gd_sequence_stripped3”
+    “gd_backchain_seq3”
+    “gd_backchain_mem_pretrained2”
+    “gd_backchain_none3”
+    “gd_backchain_none2”
+    “gd_backchain2”
+    “gd_backchain_seq2”
+    “gd_sequence_stripped2”
+    “gd_easy_sequence2”
+    “gd_backchain_kitchen2”
+    “gd_all2”
+    “gd_all”
+    “gd_backchain_mem_pretrained”
+    “gd_sequence_strippedt”
+    “gd1.sequence_stripped”
+    “gd1.easysequence”
+    “gd1.kitchensink”
 
     )
 
