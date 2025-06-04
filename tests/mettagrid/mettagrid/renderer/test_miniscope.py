@@ -5,17 +5,11 @@ This module contains unit tests for the MiniscopeRenderer, ensuring proper
 emoji rendering, alignment, and functionality for MettaGrid environments.
 """
 
-# Add mettagrid to path for testing
 import io
 import sys
 from contextlib import contextmanager
-from pathlib import Path
 
 import pytest
-
-# Get the path to the mettagrid module
-mettagrid_path = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(mettagrid_path))
 
 from mettagrid.renderer.miniscope import MiniscopeRenderer
 
@@ -184,7 +178,7 @@ class TestMiniscopeRenderer:
         grid_objects = {}
 
         # Should not crash
-        output = renderer.render(step=0, grid_objects=grid_objects)
+        renderer.render(step=0, grid_objects=grid_objects)
 
         # Should have minimal dimensions
         assert renderer._height == 1

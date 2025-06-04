@@ -5,7 +5,6 @@ Simplified tests that are more robust in CI environments.
 
 import os
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -79,8 +78,7 @@ class TestRendererJob:
     def test_miniscope_renderer_imports(self):
         """Test that MiniscopeRenderer can be imported and initialized."""
         try:
-            sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-            from mettagrid.mettagrid.renderer.miniscope import MiniscopeRenderer
+            from mettagrid.renderer.miniscope import MiniscopeRenderer
 
             # Test basic initialization
             object_type_names = ["agent", "wall", "altar", "mine", "generator"]
