@@ -18,7 +18,7 @@ components:
     sources:
       null
 
-  obs_latent_attn:
+  obs_latent_query_attn:
     _target_: metta.agent.lib.obs_enc.ObsCrossAttn
     out_dim: 32
     use_mask: true
@@ -30,6 +30,13 @@ components:
     sources:
       - name: _obs_
 
+  obs_latent_self_attn:
+    _target_: metta.agent.lib.obs_enc.ObsVanillaAttn
+    out_dim: 32
+    use_mask: false
+    sources:
+      - name: obs_latent_query_attn
+
   obs_cross_attn:
     _target_: metta.agent.lib.obs_enc.ObsCrossAttn
     out_dim: 128
@@ -39,7 +46,7 @@ components:
     v_dim: 64
     mlp_out_hidden_dim: 256
     sources:
-      - name: obs_latent_attn
+      - name: obs_latent_self_attn
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
