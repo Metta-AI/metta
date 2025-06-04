@@ -21,9 +21,12 @@ const FilterableFrontmatterViewer: FC<{
 
   // Function to check if a key-value pair is currently in the filters
   const isFiltered = (key: string, value: string) => {
+    if (key === "height") {
+      console.log({ filters, key, value });
+    }
     return (
       filters?.some(
-        (filter) => `config.${filter.key}` === key && filter.value === value
+        (filter) => `config.${key}` === filter.key && filter.value === value
       ) || false
     );
   };

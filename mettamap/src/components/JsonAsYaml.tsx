@@ -1,4 +1,5 @@
 "use client";
+import clsx from "clsx";
 import { createContext, FC, ReactNode, use } from "react";
 
 import { RepoRootContext } from "./RepoRootContext";
@@ -83,8 +84,23 @@ const YamlKeyValue: FC<{
   const fullKey = path ? `${path}.${yamlKey}` : yamlKey;
 
   if (isScalar(value)) {
+    const { isSelected, onSelectLine } = use(YamlContext);
+
+    const isActive = isSelected?.(fullKey, String(value));
+
+    const onClick = onSelectLine
+      ? () => onSelectLine(fullKey, String(value))
+      : undefined;
+
     return (
-      <div className="flex gap-1">
+      <div
+        className={clsx(
+          "flex gap-1",
+          isActive && "-mx-1 bg-blue-100 px-1",
+          onClick && "cursor-pointer hover:bg-blue-200"
+        )}
+        onClick={onClick}
+      >
         <YamlKey name={yamlKey} />
         <YamlScalar value={value} path={fullKey} />
       </div>
@@ -113,7 +129,7 @@ const YamlObject: FC<{
           key={key}
           yamlKey={key}
           value={value}
-          path={path ? `${path}.${key}` : key}
+          path={path}
           depth={depth}
         />
       ))}
