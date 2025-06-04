@@ -141,7 +141,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)
 
-        self._c_env.step(self.actions)
+        self._c_env.step(np.array(actions).astype(np.uint32))  # checking smoke test
 
         if self._replay_writer:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
