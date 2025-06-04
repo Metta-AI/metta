@@ -87,10 +87,54 @@ enum InventoryItem {
   InventoryItemCount
 };
 
-constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {
-    {"ore.red", "ore.blue", "ore.green", "battery.red", "battery.blue", "battery.green", "heart", "armor", "laser", "blueprint"}};
+constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {{"ore.red",
+                                                                                  "ore.blue",
+                                                                                  "ore.green",
+                                                                                  "battery.red",
+                                                                                  "battery.blue",
+                                                                                  "battery.green",
+                                                                                  "heart",
+                                                                                  "armor",
+                                                                                  "laser",
+                                                                                  "blueprint"}};
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
+
+// ##ObservationNormalization
+// These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
+// but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
+// These should move to configuration "soon". E.g., by 2025-06-10.
+const std::map<std::string, float> FeatureNormalizations = {
+    {"agent", 1.0},
+    {"agent:group", 10.0},
+    {"agent:hp", 30.0},
+    {"agent:frozen", 1.0},
+    {"agent:energy", 255.0},
+    {"agent:orientation", 1.0},
+    {"agent:shield", 1.0},
+    {"agent:color", 255.0},
+    {"converter", 1.0},
+    {"inv:ore.red", 100.0},
+    {"inv:ore.blue", 100.0},
+    {"inv:ore.green", 100.0},
+    {"inv:battery.red", 100.0},
+    {"inv:battery.blue", 100.0},
+    {"inv:battery.green", 100.0},
+    {"inv:heart", 100.0},
+    {"inv:laser", 100.0},
+    {"inv:armor", 100.0},
+    {"inv:blueprint", 100.0},
+    {"last_action", 10.0},
+    {"last_action_argument", 10.0},
+    {"agent:kinship", 10.0},
+    {"hp", 30.0},
+    {"converting", 1.0},
+    {"color", 10.0},
+    {"swappable", 1.0},
+    {"type_id", 10.0},
+};
+
+const float DEFAULT_NORMALIZATION = 1.0;
 
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
                                                   {ObjectType::WallT, GridLayer::Object_Layer},

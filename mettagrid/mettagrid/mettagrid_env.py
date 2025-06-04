@@ -314,6 +314,18 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._c_env.grid_features()
 
     @property
+    def feature_normalizations(self):
+        return self._c_env.feature_normalizations()
+
+    @property
+    def global_features(self):
+        return []
+
+    @property
+    def render_mode(self):
+        return self._render_mode
+
+    @property
     def map_width(self) -> int:
         return self._c_env.map_width
 

@@ -30,8 +30,6 @@ permissions:
   checks: write
   pull-requests: write
 
-# We should switch to using uv projects rather than requirements.txt
-# but for now, this installs in the global venv
 env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
@@ -84,7 +82,7 @@ jobs:
         uses: ./.github/actions/file-changes
         with:
           patterns: "**/*.py,**/*.pyx,**/*.pxd,**/*.cpp,**/*.hpp"
-          specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
+          specific_files: "uv.lock"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine which tasks to run
@@ -326,7 +324,7 @@ jobs:
           # Main benchmarks
           uv run --active pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
-          # Mettagrid benchmarks  
+          # Mettagrid benchmarks
           cd mettagrid
           uv run --active pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
 

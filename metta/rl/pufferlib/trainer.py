@@ -4,7 +4,6 @@ import time
 from collections import defaultdict
 from types import SimpleNamespace
 
-import hydra
 import numpy as np
 import torch
 import wandb
@@ -29,9 +28,8 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
-from metta.util.config import config_from_path
 from metta.util.timing import Stopwatch
-from mettagrid.curriculum import SamplingCurriculum
+from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 
 torch.set_float32_matmul_precision("high")
@@ -53,6 +51,7 @@ class PufferTrainer:
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
+
         self.sim_suite_config = sim_suite_config
 
         self._master = True
@@ -79,13 +78,10 @@ class PufferTrainer:
         self._eval_suite_avgs = {}
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
-        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
 
-        if "curriculum" in self.trainer_cfg:
-            curriculum_cfg = config_from_path(self.trainer_cfg.curriculum, env_overrides)
-            self._curriculum = hydra.utils.instantiate(curriculum_cfg)
-        else:
-            self._curriculum = SamplingCurriculum(self.trainer_cfg.env, env_overrides)
+        curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
+        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
+        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -189,11 +185,6 @@ class PufferTrainer:
                             f"component_name: {component_name}\n"
                             f"component_shape: {component_shape}\n"
                             f"environment_shape: {environment_shape}\n"
-                        )
-                    # delete below after evaluate is tested with tokenized obs
-                    if len(environment_shape) == 2:
-                        assert self.trainer_cfg.evaluate_interval == 0, (
-                            "Tokenized obs agents aren't set up for evaluate yet (5-30-25)."
                         )
 
             if not found_match:
@@ -672,6 +663,7 @@ class PufferTrainer:
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
+
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
                 config=self.replay_sim_config,
@@ -726,18 +718,29 @@ class PufferTrainer:
 
         # Add timing metrics to wandb
         if self.wandb_run and self._master:
-            rollout_time = self.timer.get_elapsed("_rollout")
-            train_time = self.timer.get_elapsed("_train")
-            stats_time = self.timer.get_elapsed("_process_stats")
-            checkpoint_time = self.timer.get_elapsed("_checkpoint_trainer")
-            evaluate_time = self.timer.get_elapsed("_evaluate_policy")
-            wandb_save_time = self.timer.get_elapsed("_save_policy_to_wandb")
-            replay_time = self.timer.get_elapsed("_generate_and_upload_replay")
+            timer_data = {}
+            wall_time = self.timer.get_elapsed()  # global timer
+            timer_data = self.timer.get_all_elapsed()
 
-            training_time = rollout_time + train_time
-            wall_time = self.timer.get_elapsed()
-            steps_per_sec = self.agent_step / training_time
+            training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
+            overhead_time = wall_time - training_time
+            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
 
+            timing_logs = {
+                # Key performance indicators
+                "timing/steps_per_second": steps_per_sec,
+                "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
+                "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
+                # Breakdown by operation (as a single structured metric)
+                "timing/breakdown": {
+                    op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
+                    for op, elapsed in timer_data.items()
+                },
+                # Total time for reference
+                "timing/total_seconds": wall_time,
+            }
+
+            # Log everything to wandb
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
@@ -750,17 +753,7 @@ class PufferTrainer:
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
                     "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
-                    # Timing metrics
-                    "timing/steps_per_sec": steps_per_sec,
-                    "timing/training_pct": 100 * training_time / wall_time,
-                    "timing/rollout_pct": 100 * rollout_time / wall_time,
-                    "timing/train_pct": 100 * train_time / wall_time,
-                    "timing/stats_pct": 100 * stats_time / wall_time,
-                    "timing/checkpoint_pct": 100 * checkpoint_time / wall_time,
-                    "timing/evaluate_pct": 100 * evaluate_time / wall_time,
-                    "timing/wandb_save_pct": 100 * wandb_save_time / wall_time,
-                    "timing/replay_pct": 100 * replay_time / wall_time,
-                    "timing/wall_time": wall_time,
+                    **timing_logs,
                 }
             )
 
