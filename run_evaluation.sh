@@ -4,20 +4,20 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-    "dd.2objectuse_curriculum"
-    "dd_navigation_curriculum"
-    "dd_navsequence_memory_pretrained"
-    "dd_navsequence_memory"
-    "dd_navsequence_all_pretrained"
-    "dd_navsequence_all"
-    "dd_multiagent"
-    "dd_multiagent_pretrained"
-    "dd.curriculum_ALL"
-    "dd_curriculum_all_reg0.1"
-    "b.dd.curriculum_all"
-    "dd.navsequencemem.smallinventory"
-    "dd.navsequence_seq.smallinventory"
-    "dd.navsequence_all.smallinventory"
+    # "dd.2objectuse_curriculum"
+    # "dd_navigation_curriculum"
+    # "dd_navsequence_memory_pretrained"
+    # "dd_navsequence_memory"
+    # "dd_navsequence_all_pretrained"
+    # "dd_navsequence_all"
+    # "dd_multiagent"
+    # "dd_multiagent_pretrained"
+    # "dd.curriculum_ALL"
+    # "dd_curriculum_all_reg0.1"
+    # "b.dd.curriculum_all"
+    # "dd.navsequencemem.smallinventory"
+    # "dd.navsequence_seq.smallinventory"
+    # "dd.navsequence_all.smallinventory"
     “gd.1.kitchensink”
     “b.gd.easysequence”
     “gd.backchain_kitchen2”
