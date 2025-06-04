@@ -17,13 +17,12 @@ from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.experience import Experience
 from metta.rl.fast_gae import compute_gae
-from metta.rl.pufferlib.experience import Experience
-from metta.rl.pufferlib.kickstarter import Kickstarter
-from metta.rl.pufferlib.policy import PufferAgent
-from metta.rl.pufferlib.profile import Profile, profile_section
-from metta.rl.pufferlib.torch_profiler import TorchProfiler
-from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.policy import PufferAgent
+from metta.rl.torch_profiler import TorchProfiler
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
