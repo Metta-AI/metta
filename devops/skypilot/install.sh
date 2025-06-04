@@ -12,4 +12,5 @@ fi
 # This is not in requirements_pinned.txt because want to make sure that users are using our remote API server
 uv pip install skypilot==0.9.2 --prerelease=allow
 
+. .venv/bin/activate
 sky api login -e "$SERVER"
