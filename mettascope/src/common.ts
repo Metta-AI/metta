@@ -1,6 +1,6 @@
 import { Vec2f } from './vector_math.js';
 import { Context3d } from './context3d.js';
-import { find, parseHtmlColor } from './htmlutils.js';
+import { find, parseHtmlColor, localStorageGetNumber } from './htmlutils.js';
 import { PanelInfo } from './panels.js';
 
 // The 3d context, used for nearly everything.
@@ -13,7 +13,6 @@ export const DEFAULT_ZOOM_LEVEL = 1 / 2;
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4;
 export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
 export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-export const DEFAULT_TRACE_SPLIT = 0.80;  // default horizontal split ratio
 export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
 export const HEADER_HEIGHT = 60;          // height of the header
 export const SCRUBBER_HEIGHT = 120;        // height of the scrubber
@@ -46,20 +45,22 @@ export const ui = {
   mouseDoubleClick: false,
   mousePos: new Vec2f(0, 0),
   mouseTarget: "",
+  dragging: "",
   lastMousePos: new Vec2f(0, 0),
   mouseDownPos: new Vec2f(0, 0),
   scrollDelta: 0,
   lastClickTime: 0, // For double-click detection
 
   // Split between trace and info panels.
-  traceSplit: DEFAULT_TRACE_SPLIT,
-  traceDragging: false,
+  traceSplit: localStorageGetNumber("traceSplit", 0.8),
+  agentPanelSplit: localStorageGetNumber("agentPanelSplit", 0.5),
 
   // Panels
   mapPanel: new PanelInfo("#worldmap-panel"),
   miniMapPanel: new PanelInfo("#minimap-panel"),
   tracePanel: new PanelInfo("#trace-panel"),
   infoPanel: new PanelInfo("#info-panel"),
+  agentPanel: new PanelInfo("#agent-panel"),
 };
 
 export const state = {
@@ -82,6 +83,7 @@ export const state = {
   showMiniMap: true,
   showInfo: true,
   showControls: true,
+  showAgentPanel: true,
 
   showAttackMode: false,
 
@@ -118,14 +120,18 @@ export const html = {
     find('#speed6') as HTMLImageElement,
   ],
 
-  resourcesToggle: find('#resources-toggle') as HTMLImageElement,
   focusToggle: find('#focus-toggle') as HTMLImageElement,
-  gridToggle: find('#grid-toggle') as HTMLImageElement,
-  visualRangeToggle: find('#visual-range-toggle') as HTMLImageElement,
-  fogOfWarToggle: find('#fog-of-war-toggle') as HTMLImageElement,
+
   minimapToggle: find('#minimap-toggle') as HTMLImageElement,
   controlsToggle: find('#controls-toggle') as HTMLImageElement,
   infoToggle: find('#info-toggle') as HTMLImageElement,
+  agentPanelToggle: find('#agent-panel-toggle') as HTMLImageElement,
+
+  resourcesToggle: find('#resources-toggle') as HTMLImageElement,
+  gridToggle: find('#grid-toggle') as HTMLImageElement,
+  visualRangeToggle: find('#visual-range-toggle') as HTMLImageElement,
+  fogOfWarToggle: find('#fog-of-war-toggle') as HTMLImageElement,
+
 
   // Utility
   modal: find('#modal') as HTMLDivElement,
