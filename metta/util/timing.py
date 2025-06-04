@@ -108,8 +108,21 @@ class Stopwatch:
         """
         return self.time(name, log)
 
-    def checkpoint(self, checkpoint_name: str, steps: int, timer_name: Optional[str] = None):
-        """Record a named checkpoint with step count."""
+    def checkpoint(self, steps: int, checkpoint_name: Optional[str] = None, timer_name: Optional[str] = None):
+        """Record a checkpoint (i.e. lap marker) with step count.
+
+        Args:
+            steps: Current step count
+            checkpoint_name: Optional name for the checkpoint. If None, uses auto-generated name.
+            timer_name: Name of the timer (None for global)
+
+        Usage:
+            # Named checkpoint (for specific milestones)
+            stopwatch.checkpoint(1000, "epoch_1")
+
+            # Anonymous checkpoint (for lap-based rate tracking)
+            stopwatch.checkpoint(1000)
+        """
         timer = self._get_timer(timer_name)
         display_name = timer_name or "global"
 
@@ -118,7 +131,38 @@ class Stopwatch:
             return
 
         elapsed = time.time() - timer["start_time"]
+
+        # Generate name if not provided
+        if checkpoint_name is None:
+            checkpoint_name = f"_lap_{len(timer['checkpoints'])}"
+
         timer["checkpoints"][checkpoint_name] = (elapsed, steps)
+
+    def lap(self, steps: int, name: Optional[str] = None) -> float:
+        """Record a lap and return the lap time.
+
+        Convenience method that creates a checkpoint and returns time since last checkpoint.
+
+        Args:
+            steps: Current step count
+            name: Timer name (None for global)
+
+        Returns:
+            Time elapsed since last lap (or start if first lap)
+        """
+        timer = self._get_timer(name)
+
+        # Get time since last checkpoint (or start)
+        if timer["checkpoints"]:
+            last_time, _ = max(timer["checkpoints"].values(), key=lambda x: x[0])
+            lap_time = self.get_elapsed(name) - last_time
+        else:
+            lap_time = self.get_elapsed(name)
+
+        # Record this lap
+        self.checkpoint(steps, timer_name=name)
+
+        return lap_time
 
     def get_elapsed(self, name: Optional[str] = None) -> float:
         """Get total elapsed time including current run if active."""
@@ -134,21 +178,46 @@ class Stopwatch:
             return time.time() - timer["start_time"]
         return timer["last_elapsed"]
 
-    def get_rate(self, steps: int, name: Optional[str] = None, since_start: bool = True) -> float:
-        """Calculate rate (steps per second)."""
+    def get_rate(self, current_steps: int, name: Optional[str] = None) -> float:
+        """Calculate average rate (steps per second) since timer start.
+
+        Args:
+            current_steps: The current total step count
+            name: Timer name (None for global)
+
+        Returns:
+            Steps per second since the timer was started
+        """
+        elapsed = self.get_elapsed(name)
+        return current_steps / elapsed if elapsed > 0 else 0.0
+
+    def get_lap_rate(self, current_steps: int, name: Optional[str] = None) -> float:
+        """Calculate rate (steps per second) for the current lap.
+
+        A lap is defined as the period since the last checkpoint.
+        If no checkpoints exist, calculates rate since timer start.
+
+        Args:
+            current_steps: The current total step count
+            name: Timer name (None for global)
+
+        Returns:
+            Steps per second since the last checkpoint (or since start if no checkpoints)
+        """
         timer = self._get_timer(name)
 
-        if since_start:
-            elapsed = self.get_elapsed(name)
-        else:
-            # Get time since last checkpoint
-            if not timer["checkpoints"]:
-                elapsed = self.get_elapsed(name)
-            else:
-                last_checkpoint = max(timer["checkpoints"].values(), key=lambda x: x[0])
-                elapsed = self.get_elapsed(name) - last_checkpoint[0]
+        if not timer["checkpoints"]:
+            # No checkpoints, fall back to total rate
+            return self.get_rate(current_steps, name)
 
-        return steps / elapsed if elapsed > 0 else 0.0
+        # Find the most recent checkpoint
+        last_checkpoint_time, last_checkpoint_steps = max(timer["checkpoints"].values(), key=lambda x: x[0])
+
+        # Calculate elapsed time and steps since last checkpoint
+        elapsed_since_checkpoint = self.get_elapsed(name) - last_checkpoint_time
+        steps_since_checkpoint = current_steps - last_checkpoint_steps
+
+        return steps_since_checkpoint / elapsed_since_checkpoint if elapsed_since_checkpoint > 0 else 0.0
 
     def format_time(self, seconds: float) -> str:
         """Format time duration in human-readable format."""
