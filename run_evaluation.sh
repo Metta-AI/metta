@@ -4,8 +4,8 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-    # "dd.2objectuse_curriculum"
-    # "dd_navigation_curriculum"
+    "dd.2objectuse_curriculum"
+    "dd_navigation_curriculum"
     "dd_navsequence_memory_pretrained"
     "dd_navsequence_memory"
     "dd_navsequence_all_pretrained"
@@ -46,11 +46,11 @@ for i in "${!POLICIES[@]}"; do
     echo "Running full sequence eval for policy $POLICY_URI"
     RANDOM_NUM=$((RANDOM % 1000))
     IDX="${IDX}_${RANDOM_NUM}"
-    # python3 -m tools.sim \
-    #     sim=navigation \
-    #     run=navigation$IDX \
-    #     policy_uri=wandb://run/$POLICY_URI \
-    #     sim_job.stats_db_uri=wandb://stats/stats_db \
+    python3 -m tools.sim \
+        sim=navigation \
+        run=navigation$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        sim_job.stats_db_uri=wandb://stats/stats_db1 \
     #     # device=cpu \
 
 
@@ -76,13 +76,13 @@ for i in "${!POLICIES[@]}"; do
         sim_job.stats_db_uri=wandb://stats/stats_db1 \
         device=cpu \
 
-  #  python3 -m tools.sim \
-  #       sim=multiagent \
-  #       run=multi_agent$IDX \
-  #       policy_uri=wandb://run/$POLICY_URI \
-  #       sim_job.stats_db_uri=wandb://stats/stats_db \
+   python3 -m tools.sim \
+        sim=multiagent \
+        run=multi_agent$IDX \
+        policy_uri=wandb://run/$POLICY_URI \
+        sim_job.stats_db_uri=wandb://stats/stats_db1 \
   #       # device=cpu \
 
-  # python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db1 run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db1 run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
 
 done
