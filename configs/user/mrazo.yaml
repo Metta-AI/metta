@@ -1,0 +1,11 @@
+# @package __global__
+
+defaults:
+  - _self_
+
+trainer:
+  curriculum: /env/mettagrid/curriculum/two_rooms_curriculum
+  wandb.enabled: true
+  wandb.track: true
+
+run: mrazo_cooperation_overcooked_tick-random-01-10-01_main_v01
