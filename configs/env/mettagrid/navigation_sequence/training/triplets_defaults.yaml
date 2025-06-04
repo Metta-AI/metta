@@ -1,0 +1,37 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+    agent:
+    ore.red_max: ${sampling:1,2,3}
+    battery.red_max: ${sampling:1,2,3}
+    rewards:
+      action_failure_penalty: 0
+      ore.red: ${sampling:0.005,0.05, 0.01}
+      battery.red: ${sampling:0.01,0.1, 0.1}
+  map_builder:
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+    room:
+      _target_: mettagrid.room.navigation.varied_terrain_sequence.VariedTerrainSequence
+      width: ${sampling:40,80,60}
+      height: ${sampling:40,80,60}
+      border_width: 6
+      agents: 1
+      style: ???
+      num_triplets: ${sampling:30,75,50}
+  objects:
+      altar:
+        input_battery.red: 1
+        initial_items: 0
+        cooldown: 200
+      generator.red:
+        initial_items: 0
+        cooldown: 200
+      mine.red:
+        cooldown: 200

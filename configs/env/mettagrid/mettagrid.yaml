@@ -10,14 +10,18 @@ game:
 
   diversity_bonus:
     enabled: false
-    similarity_coef: 0.5  # Coefficient for within-group similarity
-    diversity_coef: 0.5   # Coefficient for between-group diversity
+    similarity_coef: 0.5 # Coefficient for within-group similarity
+    diversity_coef: 0.5 # Coefficient for between-group diversity
 
   agent:
     default_item_max: ${sampling:0, 100, 50}
     # the agent should be able to pick up as many hearts as they want, even if
     # "normal" item limits are lower
-    heart_max: 255
+    heart_max: 20
+    ore.red_max: ${sampling:3, 20, 10}
+    ore.blue_max: ${sampling:3, 20, 10}
+    ore.green_max: ${sampling:3, 20, 10}
+    battery_max: ${sampling:5, 20, 10}
     freeze_duration: ${sampling:0, 200, 10}
     hp: 10
     rewards:
@@ -87,34 +91,34 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:1, 20, 10}
-      initial_items: 1
+      initial_items: ${choose:0,0,0,0,1}
 
     mine.red:
       hp: 30
       output_ore.red: 1
       color: 0
-      max_output: 5
+      max_output: 1
       conversion_ticks: 1
       cooldown: ${sampling:0, 100, 50}
-      initial_items: 1
+      initial_items: 0
 
     mine.blue:
       hp: 30
       color: 1
       output_ore.blue: 1
-      max_output: 5
+      max_output: 1
       conversion_ticks: 1
       cooldown: ${sampling:0, 100, 50}
-      initial_items: 1
+      initial_items: 0
 
     mine.green:
       hp: 30
       output_ore.green: 1
       color: 2
-      max_output: 5
+      max_output: 1
       conversion_ticks: 1
       cooldown: ${sampling:0, 100, 50}
-      initial_items: 1
+      initial_items: 0
 
     generator.red:
       hp: 30
@@ -124,7 +128,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:0, 50, 25}
-      initial_items: 1
+      initial_items: 0
 
     generator.blue:
       hp: 30
@@ -134,7 +138,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:0, 50, 25}
-      initial_items: 1
+      initial_items: ${choose:0,0,0,0,1}
 
     generator.green:
       hp: 30
@@ -144,7 +148,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:0, 50, 25}
-      initial_items: 1
+      initial_items: ${choose:0,0,0,0,1}
 
     armory:
       hp: 30
@@ -195,7 +199,7 @@ game:
       max_output: 5
       conversion_ticks: 1
       cooldown: ${sampling:0, 10, 5}
-      initial_items: 1
+      initial_items: ${choose:0,0,0,0,1}
 
     wall:
       hp: ${sampling:1, 20, 10}

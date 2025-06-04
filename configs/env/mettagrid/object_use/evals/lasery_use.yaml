@@ -18,6 +18,7 @@ game:
       cooldown: 255
     lasery:
       initial_items: 0
+      cooldown: 255
 
   map_builder:
     objects:
