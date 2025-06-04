@@ -86,25 +86,60 @@ def get_policy(policy_type: str, env, cfg: DictConfig):
         return SimplePolicy(env)
 
 
+def is_episode_done(dones):
+    """Safely check if episode is done, handling various formats of dones."""
+    if dones is None:
+        return False
+
+    # Handle boolean scalar
+    if isinstance(dones, (bool, np.bool_)):
+        return dones
+
+    # Handle single value in array/list
+    if hasattr(dones, "__len__") and len(dones) == 1:
+        return bool(dones[0])
+
+    # Handle multiple agents - episode is done if any agent is done
+    if hasattr(dones, "__len__") and len(dones) > 1:
+        return any(dones)
+
+    # Handle numpy arrays with any() method
+    if hasattr(dones, "any"):
+        return dones.any()
+
+    # Fallback
+    return bool(dones)
+
+
 def run_renderer(cfg: DictConfig):
     """Run policy visualization with ASCII rendering."""
 
-    # Create environment with ASCII rendering enabled
-    env_cfg = get_cfg("benchmark")
-    env_cfg.game.num_agents = cfg.renderer_job.num_agents
-    env_cfg.game.max_steps = cfg.renderer_job.max_steps
+    # Use the full config if environment config is provided
+    if hasattr(cfg, "env") and cfg.env is not None:
+        # Use the env configuration directly
+        curriculum = SingleTaskCurriculum("renderer", cfg.env)
+        print(f"📊 Using environment config: {cfg.env.game.num_agents} agents")
+    else:
+        # Fall back to the legacy renderer_job.environment approach
+        env_cfg = get_cfg("benchmark")
+        env_cfg.game.num_agents = cfg.renderer_job.num_agents
+        env_cfg.game.max_steps = cfg.renderer_job.max_steps
 
-    if cfg.renderer_job.environment:
-        env_cfg.game.map_builder = OmegaConf.create(cfg.renderer_job.environment)
+        if hasattr(cfg.renderer_job, "environment") and cfg.renderer_job.environment:
+            env_cfg.game.map_builder = OmegaConf.create(cfg.renderer_job.environment)
+            print(f"📊 Using legacy environment config: {cfg.renderer_job.num_agents} agents")
 
-    curriculum = SingleTaskCurriculum("renderer", env_cfg)
+        curriculum = SingleTaskCurriculum("renderer", env_cfg)
+
     env = MettaGridEnv(curriculum, render_mode="human")
 
     # Get policy
     policy = get_policy(cfg.renderer_job.policy_type, env, cfg)
+    print(f"🤖 Using {cfg.renderer_job.policy_type} policy")
 
     # Reset environment
     obs, info = env.reset()
+    print(f"🎮 Starting visualization for {cfg.renderer_job.num_steps} steps...")
 
     total_reward = 0
     step_count = 0
@@ -134,8 +169,9 @@ def run_renderer(cfg: DictConfig):
             # Render with ASCII renderer
             env.render()
 
-            # Reset if episode done
-            if (hasattr(dones, "any") and dones.any()) or (hasattr(dones, "__len__") and any(dones)) or dones:
+            # Reset if episode done - use our safe done checking function
+            if is_episode_done(dones):
+                print("🏁 Episode finished, resetting...")
                 obs, info = env.reset()
 
             # Optional sleep for visualization
