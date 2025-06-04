@@ -27,11 +27,13 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
         }
     )
 
+    # Here's where we create MettaAgent. We're including the term MettaAgent here for better
+    # searchability. Otherwise you might only find yaml files.
     return hydra.utils.instantiate(
         cfg.agent,
         obs_space=obs_space,
         action_space=env.single_action_space,
-        grid_features=env.grid_features,
+        feature_normalizations=env.feature_normalizations,
         global_features=env.global_features,
         device=cfg.device,
         _recursive_=False,
@@ -57,11 +59,13 @@ class MettaAgent(nn.Module):
         self,
         obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
         action_space: gym.spaces.Space,
-        grid_features: list[str],
+        feature_normalizations: list[float],
         device: str,
         **cfg,
     ):
         super().__init__()
+        # Note that this doesn't instantiate the components -- that will happen later once
+        # we've built up the right parameters for them.
         cfg = OmegaConf.create(cfg)
 
         logger.info(f"obs_space: {obs_space} ")
@@ -80,7 +84,7 @@ class MettaAgent(nn.Module):
         self.agent_attributes = {
             "clip_range": self.clip_range,
             "action_space": action_space,
-            "grid_features": grid_features,
+            "feature_normalizations": feature_normalizations,
             "obs_key": cfg.observations.obs_key,
             "obs_shape": obs_shape,
             "hidden_size": self.hidden_size,

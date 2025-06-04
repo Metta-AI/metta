@@ -5,7 +5,7 @@ inputs:
     description: 'File patterns to check for changes, comma-separated (e.g., "mettagrid/,*.cpp,*.pyx")'
     required: true
   specific_files:
-    description: 'Comma-separated list of specific files to check (e.g., "requirements.txt,setup.py")'
+    description: 'Comma-separated list of specific files to check (e.g., "uv.lock,pyproject.toml")'
     required: false
     default: ""
   directory_paths:
@@ -56,7 +56,7 @@ runs:
                 pull_number: context.payload.pull_request.number,
               });
               changedFiles = prFiles;
-            } 
+            }
             else if (eventName === 'push') {
               console.log('Push event detected. Fetching commit information...');
               // For push events, get the list of files from the latest commit
@@ -73,31 +73,31 @@ runs:
               core.setOutput('has_relevant_changes', true);
               return;
             }
-            
+
             console.log(`Found ${changedFiles.length} changed files in total`);
-            
+
             // Log all changed files for debugging
             changedFiles.forEach(file => {
               const filename = file.filename || file.path || '';
               console.log(`Changed file: ${filename}`);
             });
-            
+
             const hasRelevantChanges = changedFiles.some(file => {
               const filename = file.filename || file.path || '';
               if (!filename) return false;
-              
+
               // Check if the file matches any specific file
               if (specificFiles.some(specificFile => filename === specificFile)) {
                 console.log(`File ${filename} matched specific file check`);
                 return true;
               }
-              
+
               // Check if the file matches any directory path
               if (directoryPaths.some(directory => filename.includes(directory))) {
                 console.log(`File ${filename} matched directory path check`);
                 return true;
               }
-              
+
               // Check if the file matches any of our patterns
               return patterns.some(pattern => {
                 // Handle glob-like patterns with * (simple implementation)
@@ -105,31 +105,31 @@ runs:
                   const regexPattern = pattern
                     .replace(/\./g, '\\.')    // Escape dots
                     .replace(/\*/g, '.*');    // Convert * to regex equivalent
-                  
+
                   const regex = new RegExp(regexPattern);
                   const result = regex.test(filename);
-                  
+
                   if (result) {
                     console.log(`File ${filename} matched pattern ${pattern}`);
                   }
-                  
+
                   return result;
                 } else {
                   // Simple substring match
                   const result = filename.includes(pattern);
-                  
+
                   if (result) {
                     console.log(`File ${filename} matched pattern ${pattern}`);
                   }
-                  
+
                   return result;
                 }
               });
             });
-            
+
             console.log('Has relevant changes matching pattern: ' + hasRelevantChanges);
             core.setOutput('has_relevant_changes', hasRelevantChanges);
-            
+
           } catch (error) {
             console.log('Error occurred while checking files:');
             console.log(error);

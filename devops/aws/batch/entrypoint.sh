@@ -204,7 +204,6 @@ else
 fi
 
 # Install packages and requirements
-uv pip install -r requirements.txt
 uv pip install -e .
 
 export NUM_NODES=${AWS_BATCH_JOB_NUM_NODES:-1}
