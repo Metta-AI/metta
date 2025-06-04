@@ -114,7 +114,6 @@ export function initAgentTable() {
   columns = plainColumns.map(column => new ColumnDefinition(
     column.field, column.isFinal, column.sortDirection
   ));
-  console.log("Columns: ", columns);
 
   // Hide the column menu and new column dropdown.
   columnMenu.classList.add("hidden");
