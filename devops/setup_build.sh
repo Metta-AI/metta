@@ -120,9 +120,6 @@ fi
 
 # ========== BUILD AND INSTALL ==========
 
-echo -e "\nInstalling project requirements..."
-uv pip install -r requirements.txt
-
 echo -e "\nInstalling Metta..."
 uv pip install -e .
 

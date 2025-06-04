@@ -189,7 +189,7 @@ To run the style checks and tests locally:
 ruff format
 ruff check
 python -m mypy metta  # optional, some stubs are missing
-uv run pytest
+pytest
 ```
 
 Running these commands mirrors our CI configuration and helps keep the codebase
