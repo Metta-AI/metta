@@ -9,4 +9,3 @@ runs:
       with:
         version: "0.7.3"
         enable-cache: true
-        activate-environment: true
