@@ -4,8 +4,8 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-    "dd.2objectuse_curriculum"
-    "dd_navigation_curriculum"
+    # "dd.2objectuse_curriculum"
+    # "dd_navigation_curriculum"
     "dd_navsequence_memory_pretrained"
     "dd_navsequence_memory"
     "dd_navsequence_all_pretrained"
@@ -28,7 +28,9 @@ POLICIES=(
     "gd_backchain3"
     "gd_sequence_stripped3"
     "gd_backchain_seq3"
-    # "gd_backchain_mem_pretrained2"
+    "gd_backchain_mem_pretrained"
+    "gd_all"
+    "gd_all2"
 
     )
 
@@ -49,7 +51,7 @@ for i in "${!POLICIES[@]}"; do
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
 
 
     python3 -m tools.sim \
@@ -57,14 +59,14 @@ for i in "${!POLICIES[@]}"; do
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
 
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
 
 
     python3 -m tools.sim \
@@ -72,14 +74,14 @@ for i in "${!POLICIES[@]}"; do
         run=nav_sequence$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
 
    python3 -m tools.sim \
         sim=multiagent \
         run=multi_agent$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
 
   python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
 
