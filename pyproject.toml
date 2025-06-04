@@ -9,6 +9,53 @@ description = "Metta AI framework"
 readme = "README.md"
 requires-python = "==3.11.7"
 license = "MIT"
+dependencies = [
+    "boto3==1.38.23",
+    "carbs",
+    "colorama==0.4.6",
+    "cpplint==2.0.2",
+    "duckdb==1.2.0",
+    "einops==0.8.1",
+    "fastapi==0.115.5",
+    "gymnasium==1.1.1",
+    "heavyball==1.7.2",
+    "hydra-core==1.4.0.dev1",
+    "imageio==2.37.0",
+    "jmespath==1.0.1",
+    "matplotlib==3.10.3",
+    "mettagrid",
+    "numpy==2.2.6",
+    "omegaconf==2.4.0.dev3",
+    "pandas==2.2.3",
+    "pettingzoo==1.25.0",
+    "pixie-python==4.3.0",
+    "plotly==6.1.1",
+    "pufferlib",
+    "pybind11==2.10.4",
+    "pydantic==2.11.5",
+    "pynvml==11.5.3",
+    "pyright==1.1.401",
+    "pytest==8.3.3",
+    "pytest-benchmark==5.1.0",
+    "pytest-cov==6.1.1",
+    "python-dotenv==1.1.0",
+    "pyyaml==6.0.2",
+    "rich==13.9.4",
+    "ruff==0.11.12",
+    "scipy==1.15.3",
+    "setuptools==80.9.0",
+    "shimmy==2.0.0",
+    "sympy==1.13.3",
+    "tabulate==0.9.0",
+    "tensordict==0.8.3",
+    "termcolor==2.4.0",
+    "torchrl==0.8.1",
+    "tqdm==4.67.1",
+    "uvicorn[standard]==0.34.2",
+    "wandb==0.19.11",
+    "wandb-carbs",
+    "wandb-core==0.17.0b11",
+]
 
 [project.scripts]
 skypilot = "devops.skypilot.launch:main"
@@ -28,3 +75,9 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
+
+[tool.uv.sources]
+pufferlib = { git = "https://github.com/relh/PufferLib.git", rev = "3.0" }
+carbs = { git = "https://github.com/imbue-ai/carbs.git" }
+wandb-carbs = { path = "wandb_carbs" }
+mettagrid = { path = "mettagrid" }
