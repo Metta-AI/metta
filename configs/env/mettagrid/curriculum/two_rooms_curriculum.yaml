@@ -1,0 +1,4 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/cooperation/experimental/two_rooms_coord: 1
