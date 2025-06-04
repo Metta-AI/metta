@@ -19,7 +19,6 @@ WORKDIR /workspace/metta
 RUN git checkout ${BRANCH}
 
 RUN uv venv
-RUN uv pip install -r requirements.txt
 RUN uv pip install -e .
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
