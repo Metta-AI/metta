@@ -53,10 +53,6 @@ class PufferTrainer:
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
 
-        # Do we want to just put this check here?
-        if "obs_cross_attn" in cfg.agent.components:
-            sim_suite_config.env_overrides = {"game": {"use_observation_tokens": True}}
-
         self.sim_suite_config = sim_suite_config
 
         self._master = True
