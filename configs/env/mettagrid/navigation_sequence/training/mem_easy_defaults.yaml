@@ -14,7 +14,7 @@ game:
   num_agents: 4
   agent:
     ore.red_max: ${sampling:1,2,6}
-    battery_max: ${sampling:1,2,6}
+    battery.red_max: ${sampling:1,2,6}
     rewards:
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1, 0.01}
