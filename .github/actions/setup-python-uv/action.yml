@@ -28,3 +28,8 @@ runs:
       shell: bash
       run: |
         uv pip install -e .
+
+    - name: Build MettaGrid
+      shell: bash
+      run: |
+        uv pip install -e ./mettagrid
