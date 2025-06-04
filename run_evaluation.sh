@@ -12,6 +12,12 @@ POLICIES=(
     "dd_navsequence_all"
     "dd_multiagent"
     "dd_multiagent_pretrained"
+    "dd.curriculum_ALL"
+    "dd_curriculum_all_reg0.1"
+    "b.dd.curriculum_all"
+    "dd.navsequencemem.smallinventory"
+    "dd.navsequence_seq.smallinventory"
+    "dd.navsequence_all.smallinventory"
     "gd_sequence_strippedt"
     "gd.1.sequence_stripped"
     "gd.1.easysequence"
@@ -22,6 +28,7 @@ POLICIES=(
     "gd_backchain3"
     "gd_sequence_stripped3"
     "gd_backchain_seq3"
+    # "gd_backchain_mem_pretrained2"
 
     )
 
