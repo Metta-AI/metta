@@ -6,8 +6,8 @@ from typing import Dict, List
 from mettagrid.room.ascii import SYMBOLS as MAP_SYMBOLS
 
 
-class AsciiRenderer:
-    """Simple ASCII renderer for ``MettaGridEnv`` with NetHack-style alignment fixes."""
+class NethackRenderer:
+    """Simple NetHack-style renderer for ``MettaGridEnv`` with perfect alignment."""
 
     SYMBOLS = {v: k for k, v in MAP_SYMBOLS.items()}
 

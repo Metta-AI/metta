@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Tests for the AsciiRenderer class using NetHack-style symbols.
+Tests for the NethackRenderer class using NetHack-style symbols.
 
-This module contains unit tests for the AsciiRenderer, ensuring proper
+This module contains unit tests for the NethackRenderer, ensuring proper
 ASCII rendering, alignment, and NetHack-style conversion functionality.
 """
 
@@ -13,19 +13,19 @@ from omegaconf import OmegaConf
 
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.renderer.nethack import AsciiRenderer
+from mettagrid.renderer.nethack import NethackRenderer
 from mettagrid.room.ascii import SYMBOLS
 from mettagrid.util.hydra import get_cfg
 
 
-class TestAsciiRenderer:
-    """Test suite for AsciiRenderer functionality."""
+class TestNethackRenderer:
+    """Test suite for NethackRenderer functionality."""
 
     @pytest.fixture
     def basic_renderer(self):
         """Create a basic renderer for testing."""
         object_type_names = ["agent", "wall", "empty", "mine", "generator", "altar", "factory", "lab", "temple"]
-        return AsciiRenderer(object_type_names)
+        return NethackRenderer(object_type_names)
 
     @pytest.fixture
     def sample_grid_objects(self):
@@ -383,11 +383,11 @@ class TestRendererIntegration:
 
         curriculum = SingleTaskCurriculum("test", cfg)
 
-        # The key: render_mode="human" enables AsciiRenderer
+        # The key: render_mode="human" enables NethackRenderer
         with patch("builtins.print"):
             env = MettaGridEnv(curriculum, render_mode="human")
             assert env._renderer is not None
-            assert isinstance(env._renderer, AsciiRenderer)
+            assert isinstance(env._renderer, NethackRenderer)
 
             # Test that it produces NetHack-style output
             obs, info = env.reset()
