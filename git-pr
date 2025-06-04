@@ -20,7 +20,6 @@ fi
 
 # Reinstall packages to pick up local changes
 uv pip install -e .
-uv pip --directory mettagrid install -e .
 
 # Lint and format
 ruff format

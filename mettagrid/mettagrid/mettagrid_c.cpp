@@ -51,6 +51,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
   _obs_encoder = std::make_unique<ObservationEncoder>();
   _grid_features = _obs_encoder->feature_names();
+  _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
@@ -549,6 +550,11 @@ py::list MettaGrid::grid_features() {
   return py::cast(_grid_features);
 }
 
+// These should correspond to the grid_features list.
+py::list MettaGrid::feature_normalizations() {
+  return py::cast(_feature_normalizations);
+}
+
 unsigned int MettaGrid::num_agents() {
   return _agents.size();
 }
@@ -593,7 +599,7 @@ py::object MettaGrid::action_space() {
   auto spaces = gym.attr("spaces");
 
   return spaces.attr("MultiDiscrete")(py::make_tuple(py::len(action_names()), _max_action_arg + 1),
-                                      py::arg("dtype") = py::module_::import("numpy").attr("int64"));
+                                      py::arg("dtype") = py::module_::import("numpy").attr("int32"));
 }
 
 py::object MettaGrid::observation_space() {
@@ -717,6 +723,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
       .def("grid_features", &MettaGrid::grid_features)
+      .def("feature_normalizations", &MettaGrid::feature_normalizations)
       .def_property_readonly("num_agents", &MettaGrid::num_agents)
       .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
       .def("get_episode_stats", &MettaGrid::get_episode_stats)
