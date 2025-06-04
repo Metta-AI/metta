@@ -71,14 +71,14 @@ for i in "${!POLICIES[@]}"; do
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db1 \
-        device=cpu \
+        # device=cpu \
 
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db1 \
-        device=cpu \
+        # device=cpu \
 
 
     python3 -m tools.sim \
@@ -86,7 +86,7 @@ for i in "${!POLICIES[@]}"; do
         run=nav_sequence$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db1 \
-        device=cpu \
+        # device=cpu \
 
    python3 -m tools.sim \
         sim=multiagent \
