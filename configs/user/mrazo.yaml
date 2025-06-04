@@ -8,4 +8,4 @@ trainer:
   wandb.enabled: true
   wandb.track: true
 
-run: mrazo_cooperation_overcooked_tick04_main_v01
+run: mrazo_cooperation_overcooked_tick08_main_v01
