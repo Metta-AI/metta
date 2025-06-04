@@ -12,13 +12,17 @@ POLICIES=(
     "dd_navsequence_all"
     "dd_multiagent"
     "dd_multiagent_pretrained"
-    # "dd_navsequence_memory_l2"
-    # "dd_navsequence_memory_pretrained_l2"
-    # "dd_navsequence_all_l2"
-    # "dd_navsequence_all_pretrained_l2"
-    # "dd_nav_sequence_memory_tokenized"
-    # "dd_nav_tokenized"
-    # "dd_objectuse_tokenized"
+    "gd_sequence_strippedt"
+    "gd.1.sequence_stripped"
+    "gd.1.easysequence"
+    "gd.1.kitchensink"
+    "b.gd.easysequence"
+    "gd.backchain_kitchen2"
+    "gd2_backchain_kitchen"
+    "gd_backchain3"
+    "gd_sequence_stripped3"
+    "gd_backchain_seq3"
+
     )
 
 
