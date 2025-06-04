@@ -72,7 +72,7 @@ fi
 # ========== BUILD AND INSTALL ==========
 
 echo -e "\nInstalling Metta..."
-uv sync
+uv sync --extra dev
 
 # ========== SANITY CHECK ==========
 echo -e "\nSanity check: verifying all local deps are importable..."
