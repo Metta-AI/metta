@@ -1,0 +1,24 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - _self_
+
+cmd: renderer
+run: ???
+
+renderer_job:
+  policy_type: simple  # random, simple, or trained
+  num_steps: 1000
+  num_agents: 1
+  max_steps: 10000
+  sleep_time: 0.0  # Set to 0 for maximum speed, increase for slower visualization
+  environment:
+    _target_: mettagrid.room.random.Random
+    width: 10
+    height: 8
+    agents: 1
+    border_width: 1
+    objects:
+      altar: 2
+      generator: 1
+      factory: 1

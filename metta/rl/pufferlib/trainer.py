@@ -4,7 +4,6 @@ import time
 from collections import defaultdict
 from types import SimpleNamespace
 
-import hydra
 import numpy as np
 import torch
 import wandb
@@ -29,9 +28,8 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
-from metta.util.config import config_from_path
 from metta.util.timing import Stopwatch
-from mettagrid.curriculum import SamplingCurriculum
+from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv
 
 torch.set_float32_matmul_precision("high")
@@ -79,13 +77,10 @@ class PufferTrainer:
         self._eval_suite_avgs = {}
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
-        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
 
-        if "curriculum" in self.trainer_cfg:
-            curriculum_cfg = config_from_path(self.trainer_cfg.curriculum, env_overrides)
-            self._curriculum = hydra.utils.instantiate(curriculum_cfg)
-        else:
-            self._curriculum = SamplingCurriculum(self.trainer_cfg.env, env_overrides)
+        curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
+        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
+        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -189,11 +184,6 @@ class PufferTrainer:
                             f"component_name: {component_name}\n"
                             f"component_shape: {component_shape}\n"
                             f"environment_shape: {environment_shape}\n"
-                        )
-                    # delete below after evaluate is tested with tokenized obs
-                    if len(environment_shape) == 2:
-                        assert self.trainer_cfg.evaluate_interval == 0, (
-                            "Tokenized obs agents aren't set up for evaluate yet (5-30-25)."
                         )
 
             if not found_match:

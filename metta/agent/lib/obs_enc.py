@@ -13,6 +13,7 @@ class ObsTokenShaper(LayerBase):
         self,
         obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
+        feature_normalizations: list[float],
         **cfg,
     ) -> None:
         super().__init__(**cfg)
@@ -21,15 +22,30 @@ class ObsTokenShaper(LayerBase):
         self._value_dim = 1
         self._feat_dim = self._atr_embed_dim + self._value_dim
         self.M = obs_shape[0]
+        self._feature_normalizations = list(feature_normalizations)
+        self._max_embeds = 256
 
     def _make_net(self) -> None:
         self._out_tensor_shape = [self.M, self._feat_dim]
 
-        self._atr_embeds = nn.Embedding(257, self._atr_embed_dim, padding_idx=0)
+        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=0)
         nn.init.uniform_(self._atr_embeds.weight, -0.1, 0.1)
 
-        self._coord_embeds = nn.Embedding(256, self._atr_embed_dim)
+        # Coord byte supports up to 16x16, so 256 possible coord values
+        self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
         nn.init.uniform_(self._coord_embeds.weight, -0.1, 0.1)
+
+        # Create a tensor for feature normalizations
+        # We need to handle the case where atr_idx might be 0 (padding) or larger than defined normalizations.
+        # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
+        # Initialize with 1.0 to avoid division by zero for unmapped indices.
+        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
+        for i, val in enumerate(self._feature_normalizations):
+            if i < len(norm_tensor):  # Ensure we don't go out of bounds
+                norm_tensor[i] = val
+            else:
+                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
+        self.register_buffer("_norm_factors", norm_tensor)
 
         return None
 
@@ -65,8 +81,15 @@ class ObsTokenShaper(LayerBase):
 
         combined_embeds = atr_embeds + coord_pair_embedding
 
-        # atr_values are floats and we're assuming normalized 0-1 from the env but this won't break if not
-        atr_values = observations[..., 2].float().unsqueeze(-1)  # Shape: [B_TT, M, 1]
+        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+
+        # Gather normalization factors based on atr_indices
+        norm_factors = self._norm_factors[atr_indices]  # Shape: [B_TT, M]
+
+        # Normalize atr_values
+        # no epsilon to prevent division by zero - we want to fail if we have a bad normalization
+        normalized_atr_values = atr_values / (norm_factors)
+        normalized_atr_values = normalized_atr_values.unsqueeze(-1)  # Shape: [B_TT, M, 1]
 
         # Assemble feature vectors
         # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
@@ -77,7 +100,7 @@ class ObsTokenShaper(LayerBase):
         )
         # Combined embedding portion
         feat_vectors[..., : self._atr_embed_dim] = combined_embeds
-        feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = atr_values
+        feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = normalized_atr_values
 
         obs_mask = atr_indices == 0  # important! true means 0 ie mask me
 
@@ -190,14 +213,9 @@ class ObsCrossAttn(LayerBase):
 
         self._out_tensor_shape = [self._out_dim]
 
-        self._q_token = nn.Parameter(torch.randn(1, 1, self._hidden_size))
+        self._q_token = nn.Parameter(torch.randn(1, 1, self._feat_dim))
 
-        self._layer_norm_1 = nn.LayerNorm(self._hidden_size)
-
-        if self._hidden_size != self._feat_dim:
-            self._feat_proj = nn.Linear(self._hidden_size, self._feat_dim)
-        else:
-            self._feat_proj = nn.Identity()
+        self._layer_norm_1 = nn.LayerNorm(self._feat_dim)
 
         self.q_proj = nn.Linear(self._feat_dim, self._feat_dim, bias=False)
         self.k_proj = nn.Linear(self._feat_dim, self._feat_dim, bias=False)
@@ -219,22 +237,8 @@ class ObsCrossAttn(LayerBase):
             key_mask = td["obs_mask"]
         B_TT = td["_BxTT_"]
 
-        # state_h_prev = td.get("state", None)  # Variable is actually all of the state -> goes to h_prev in lines below
-        # state_h_prev = None
-        # if state_h_prev is None or state_h_prev.shape[0] != B_TT:
-        #     state_h_prev = self._q_token.expand(B_TT, -1, -1)
-        # else:
-        #     state_h_prev = state_h_prev[self._core_num_layers - 1].unsqueeze(1)  # Takes the last layer's hidden state
-
-        # # Ensure state_h_prev is [B_TT, 1, H] during training.
-        # if state_h_prev.shape[0] != B_TT:
-        #     TT = td["_TT_"]
-        #     state_h_prev = einops.repeat(state_h_prev, "b one h -> (b t) one h", t=TT)
-        # query = self._layer_norm_1(state_h_prev)
-
         query = self._q_token.expand(B_TT, -1, -1)
-
-        query = self._feat_proj(query)
+        x_features = self._layer_norm_1(x_features)  # [B_TT, M, _feat_dim]
 
         q_p = self.q_proj(query)  # q_p is now [B_TT, 1, _feat_dim]
         k_p = self.k_proj(x_features)  # [B_TT, M, _feat_dim]
