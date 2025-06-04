@@ -35,8 +35,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   max_steps = cfg["max_steps"].cast<unsigned int>();
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
+
   _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
-  unsigned int num_observation_tokens =
+  _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
   current_step = 0;
@@ -166,7 +167,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
   if (_use_observation_tokens) {
-    shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(num_observation_tokens), static_cast<ssize_t>(3)};
+    shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
   } else {
     shape = {static_cast<ssize_t>(num_agents),
              static_cast<ssize_t>(obs_height),
@@ -564,6 +565,14 @@ py::array_t<float> MettaGrid::get_episode_rewards() {
 }
 
 py::dict MettaGrid::get_episode_stats() {
+  // Returns a dictionary with the following structure:
+  // {
+  //   "game": dict[str, float],  // Global game statistics
+  //   "agent": list[dict[str, float]],  // Per-agent statistics
+  //   "converter": list[dict[str, float]]  // Per-converter statistics
+  // }
+  // All stat values are guaranteed to be floats from StatsTracker::to_dict()
+
   py::dict stats;
   stats["game"] = py::cast(_stats->to_dict());
 
@@ -582,15 +591,17 @@ py::dict MettaGrid::get_episode_stats() {
     // Check if this is a converter
     Converter* converter = dynamic_cast<Converter*>(obj);
     if (converter) {
+      // Add metadata to the converter's stats tracker BEFORE converting to dict
+      converter->stats.set("type_id", static_cast<int>(converter->_type_id));
+      converter->stats.set("location.r", static_cast<int>(converter->location.r));
+      converter->stats.set("location.c", static_cast<int>(converter->location.c));
+
+      // Now convert to dict - all values will be floats
       py::dict converter_stat = py::cast(converter->stats.to_dict());
-      // Add metadata about the converter
-      converter_stat["type"] = ObjectTypeNames[converter->_type_id];
-      converter_stat["location"] = py::make_tuple(converter->location.r, converter->location.c);
       converter_stats.append(converter_stat);
     }
   }
   stats["converter"] = converter_stats;
-
   return stats;
 }
 
