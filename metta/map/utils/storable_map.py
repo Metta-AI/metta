@@ -6,6 +6,7 @@ from datetime import datetime
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from typing_extensions import TypedDict
 
 import mettagrid.util.file
 from metta.map.types import MapGrid
@@ -14,6 +15,16 @@ from metta.map.utils.s3utils import list_objects
 from mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
+
+
+class FrontmatterDict(TypedDict):
+    metadata: dict
+    config: dict
+
+
+class StorableMapDict(TypedDict):
+    frontmatter: FrontmatterDict
+    data: str
 
 
 @dataclass
@@ -66,11 +77,13 @@ class StorableMap:
         logger.info(f"Saved map to {uri}")
 
     # Useful in API responses
-    def to_dict(self) -> dict:
+    def to_dict(self) -> StorableMapDict:
+        config_dict = OmegaConf.to_container(self.config, resolve=False)
+        assert isinstance(config_dict, dict)
         return {
             "frontmatter": {
                 "metadata": self.metadata,
-                "config": OmegaConf.to_container(self.config, resolve=False),
+                "config": config_dict,
             },
             "data": "\n".join(grid_to_ascii(self.grid)),
         }

@@ -4,16 +4,20 @@ from typing import Literal
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from typing_extensions import TypedDict
 
 from metta.util.config import config_from_path
 
 METTAGRID_CFG_ROOT = "env/mettagrid"
 
 
+CfgKind = Literal["env", "curriculum", "map", "unknown"]
+
+
 @dataclass
 class MettagridCfgFileMetadata:
     path: str
-    kind: Literal["env", "curriculum", "map", "unknown"]
+    kind: CfgKind
 
     @staticmethod
     def from_path(path: str) -> "MettagridCfgFileMetadata":
@@ -31,8 +35,8 @@ class MettagridCfgFileMetadata:
         return MettagridCfgFileMetadata(path=path, kind=kind)
 
     @staticmethod
-    def get_all():
-        metadata_by_kind: dict[Literal["env", "curriculum", "map", "unknown"], list[MettagridCfgFileMetadata]] = {}
+    def get_all() -> dict[CfgKind, list["MettagridCfgFileMetadata"]]:
+        metadata_by_kind: dict[CfgKind, list[MettagridCfgFileMetadata]] = {}
 
         for root, _, files in os.walk("configs/" + METTAGRID_CFG_ROOT):
             for f in files:
@@ -71,10 +75,16 @@ class MettagridCfgFile:
     metadata: MettagridCfgFileMetadata
     cfg: DictConfig
 
-    def to_dict(self):
+    class AsDict(TypedDict):
+        metadata: dict
+        cfg: dict
+
+    def to_dict(self) -> AsDict:
+        cfg_dict = OmegaConf.to_container(self.cfg, resolve=False)
+        assert isinstance(cfg_dict, dict)
         return {
             "metadata": self.metadata.to_dict(),
-            "cfg": OmegaConf.to_container(self.cfg, resolve=False),
+            "cfg": cfg_dict,
         }
 
     @staticmethod

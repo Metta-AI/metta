@@ -4,11 +4,12 @@ import os
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from typing_extensions import TypedDict
 
 import mettagrid.util.file
-from metta.map.utils.s3utils import list_objects
-from metta.map.utils.storable_map import StorableMap, StorableMapIndex, map_builder_cfg_to_storable_map
+from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
 from metta.util.mettagrid_cfgs import (
+    CfgKind,
     MettagridCfgFile,
     MettagridCfgFileMetadata,
 )
@@ -27,8 +28,11 @@ def make_app():
         allow_headers=["*"],
     )
 
+    class StoredMapsDirsResult(TypedDict):
+        dirs: list[str]
+
     @app.get("/stored-maps/dirs")
-    async def route_stored_maps_dirs():
+    async def route_stored_maps_dirs() -> StoredMapsDirsResult:
         return {
             "dirs": [
                 # TODO - list all dirs in s3://softmax-public/maps/
@@ -36,8 +40,11 @@ def make_app():
             ]
         }
 
+    class StoredMapsFindMapsResult(TypedDict):
+        maps: list[str]
+
     @app.get("/stored-maps/find-maps")
-    async def route_stored_maps_find_maps(dir: str, filter: str):
+    async def route_stored_maps_find_maps(dir: str, filter: str) -> StoredMapsFindMapsResult:
         filter_items: list[tuple[str, str]] = []
         for item in filter.split(","):
             if not item:
@@ -55,31 +62,40 @@ def make_app():
         }
 
     @app.get("/stored-maps/get-map")
-    async def route_stored_maps_get_map(url: str):
+    async def route_stored_maps_get_map(url: str) -> StorableMapDict:
         return StorableMap.from_uri(url).to_dict()
 
+    class StoredMapsIndexDirResult(TypedDict):
+        success: bool
+
     @app.post("/stored-maps/index-dir")
-    async def route_stored_maps_index_dir(dir: str):
+    async def route_stored_maps_index_dir(dir: str) -> StoredMapsIndexDirResult:
         StorableMapIndex.create(dir)
         return {"success": True}
 
     @app.get("/stored-maps/get-index")
-    async def route_stored_maps_get_index(dir: str):
+    async def route_stored_maps_get_index(dir: str) -> dict:
         return json.loads(mettagrid.util.file.read(f"{dir}/index.json").decode("utf-8"))
 
     @app.get("/mettagrid-cfgs")
-    async def route_mettagrid_cfgs():
+    async def route_mettagrid_cfgs() -> dict[CfgKind, list[dict]]:
         metadata_by_kind = MettagridCfgFileMetadata.get_all()
-        result = {kind: [e.to_dict() for e in cfgs] for kind, cfgs in metadata_by_kind.items()}
+
+        result: dict[CfgKind, list[dict]] = {
+            kind: [e.to_dict() for e in cfgs] for kind, cfgs in metadata_by_kind.items()
+        }
         return result
 
     @app.get("/mettagrid-cfgs/get")
-    async def route_mettagrid_cfgs_get(path: str):
+    async def route_mettagrid_cfgs_get(path: str) -> MettagridCfgFile.AsDict:
         cfg = MettagridCfgFile.from_path(path)
         return cfg.to_dict()
 
+    class ErrorResult(TypedDict):
+        error: str
+
     @app.get("/mettagrid-cfgs/get-map")
-    async def route_mettagrid_cfgs_get_map(path: str):
+    async def route_mettagrid_cfgs_get_map(path: str) -> StorableMapDict | ErrorResult:
         cfg = MettagridCfgFile.from_path(path)
 
         try:
@@ -91,8 +107,11 @@ def make_app():
                 "error": str(e),
             }
 
+    class RepoRootResult(TypedDict):
+        repo_root: str
+
     @app.get("/repo-root")
-    async def route_repo_root():
+    async def route_repo_root() -> RepoRootResult:
         return {
             "repo_root": os.getcwd(),
         }
