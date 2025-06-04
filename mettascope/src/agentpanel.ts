@@ -105,15 +105,16 @@ function swapLeft(list: any[], element: any) {
 }
 
 function saveAgentTable() {
-  localStorageSetObject("agent-panel-columns", columns);
+  localStorageSetObject("agentPanelColumns", columns);
 }
 
 export function initAgentTable() {
   // Load the columns from local storage.
-  let plainColumns = localStorageGetObject("agent-panel-columns", columns);
+  let plainColumns = localStorageGetObject("agentPanelColumns", columns);
   columns = plainColumns.map(column => new ColumnDefinition(
     column.field, column.isFinal, column.sortDirection
   ));
+  console.log("Columns: ", columns);
 
   // Hide the column menu and new column dropdown.
   columnMenu.classList.add("hidden");
