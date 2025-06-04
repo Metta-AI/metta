@@ -59,14 +59,14 @@ for i in "${!POLICIES[@]}"; do
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
 
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
 
 
     python3 -m tools.sim \
@@ -74,7 +74,7 @@ for i in "${!POLICIES[@]}"; do
         run=nav_sequence$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db \
-        # device=cpu \
+        device=cpu \
 
   #  python3 -m tools.sim \
   #       sim=multiagent \
@@ -83,6 +83,6 @@ for i in "${!POLICIES[@]}"; do
   #       sim_job.stats_db_uri=wandb://stats/stats_db \
   #       # device=cpu \
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
+  # python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
 
 done
