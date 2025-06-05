@@ -67,8 +67,6 @@ class MettaTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
 
-        self.average_reward = 0.0
-
         self._eval_scores = {}
 
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
@@ -85,14 +83,17 @@ class MettaTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
+        # In __init__
+        self._checkpoint_avg_reward = None
+        if checkpoint.policy_path and "average_reward" in checkpoint.extra_args:
+            self._checkpoint_avg_reward = checkpoint.extra_args["average_reward"]
+
         policy_record = None
         load_policy_attempts = 10
         while policy_record is None and load_policy_attempts > 0:
             if checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
                 policy_record = policy_store.policy(checkpoint.policy_path)
-                if "average_reward" in checkpoint.extra_args:
-                    self.average_reward = checkpoint.extra_args["average_reward"]
             elif cfg.trainer.initial_policy.uri is not None:
                 logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
                 policy_record = policy_store.policy(cfg.trainer.initial_policy)
@@ -457,9 +458,15 @@ class MettaTrainer:
         experience.step = 0
         return self.stats, infos
 
+    def _get_experience_buffer_mean_reward(self) -> float:
+        # Use rewards from experience buffer
+        if hasattr(self, "experience") and self.experience.rewards_np is not None:
+            return float(np.mean(self.experience.rewards_np))
+
+        return 0.0
+
     def _train(self):
         experience = self.experience
-
         self.losses = self._make_losses()
 
         with self.timer("_train.misc"):
@@ -468,31 +475,35 @@ class MettaTrainer:
             values_np = experience.values_np[idxs]
             rewards_np = experience.rewards_np[idxs]
 
-            # Update average reward estimate
-            if self.trainer_cfg.average_reward:
-                # Update average reward estimate using EMA with configured alpha
-                alpha = self.trainer_cfg.average_reward_alpha
-                self.average_reward = (1 - alpha) * self.average_reward + alpha * np.mean(rewards_np)
-                # Adjust rewards by subtracting average reward for advantage computation
-                rewards_np_adjusted = rewards_np - self.average_reward
-                # Set gamma to 1.0 for average reward case
-                effective_gamma = 1.0
-                # Compute advantages using adjusted rewards
-                advantages_np = compute_gae(
-                    dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
+        # Calculate advantages based on RL formulation
+        if self.trainer_cfg.average_reward:
+            # Get previous estimate (from checkpoint or last calculation)
+            if not hasattr(self, "_average_reward_estimate"):
+                # Initialize from checkpoint or zero
+                self._average_reward_estimate = (
+                    self._checkpoint_avg_reward if self._checkpoint_avg_reward is not None else 0.0
                 )
-                # For average reward case, returns are computed differently:
-                # R(s) = Σ(r_t - ρ) represents the bias function
-                experience.returns_np = advantages_np + values_np
-            else:
-                effective_gamma = self.trainer_cfg.gamma
-                # Standard GAE computation for discounted case
-                advantages_np = compute_gae(
-                    dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
-                )
-                experience.returns_np = advantages_np + values_np
 
-            experience.flatten_batch(advantages_np)
+            # Calculate current batch mean
+            current_batch_mean = self._get_experience_buffer_mean_reward()
+
+            # Apply IIR filter (exponential moving average)
+            alpha = self.trainer_cfg.average_reward_alpha
+            self._average_reward_estimate = (1 - alpha) * self._average_reward_estimate + alpha * current_batch_mean
+
+            # Use filtered estimate for advantage computation
+            rewards_np_adjusted = (rewards_np - self._average_reward_estimate).astype(np.float32)
+            effective_gamma = 1.0
+            advantages_np = compute_gae(
+                dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
+            )
+        else:
+            # Standard discounted case
+            effective_gamma = self.trainer_cfg.gamma
+            advantages_np = compute_gae(dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda)
+
+        experience.returns_np = advantages_np + values_np
+        experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
@@ -626,12 +637,14 @@ class MettaTrainer:
             return
 
         pr = self._checkpoint_policy()
+
+        # Save filtered average reward estimate for restart continuity
+        extra_args = {}
+        if self.trainer_cfg.average_reward and hasattr(self, "_average_reward_estimate"):
+            extra_args["average_reward"] = self._average_reward_estimate
+
         self.checkpoint = TrainerCheckpoint(
-            self.agent_step,
-            self.epoch,
-            self.optimizer.state_dict(),
-            pr.local_path(),
-            average_reward=self.average_reward,  # Save average reward state
+            self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
@@ -766,6 +779,17 @@ class MettaTrainer:
                 for k, v in self._eval_scores.items():
                     overview[k] = v  # This adds "overall_score", "navigation_score", etc.
 
+            # Build training metrics
+            train_log = {
+                "train/agent_step": self.agent_step,  # defined as the x-axis value (step_metric) in init()
+                "train/epoch": self.epoch,
+                "train/learning_rate": learning_rate,
+            }
+
+            # Add the IIR filtered average reward if using that RL formulation
+            if self.trainer_cfg.average_reward and hasattr(self, "_average_reward_estimate"):
+                train_log["train/average_reward"] = self._average_reward_estimate
+
             # Log everything to wandb
             self.wandb_run.log(
                 {
@@ -774,10 +798,7 @@ class MettaTrainer:
                     **environment,
                     **weight_metrics,
                     **eval_metrics,
-                    "train/agent_step": self.agent_step,  # defined as the x-axis value (step_metric) in init()
-                    "train/epoch": self.epoch,
-                    "train/learning_rate": learning_rate,
-                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+                    **train_log,
                     **timing_logs,
                 }
             )
