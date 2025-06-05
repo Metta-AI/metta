@@ -430,7 +430,8 @@ class MettaAgent(nn.Module):
         component_loss_tensors = self._apply_to_components("l2_reg_loss")
         if len(component_loss_tensors) > 0:
             l2_reg_loss = torch.sum(torch.stack(component_loss_tensors))
-        return l2_reg_loss
+      else:
+            return  torch.tensor(0.0, device=self.device)
 
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
