@@ -145,7 +145,9 @@ def test_environment_initialization():
 
     # Test reset functionality
     obs, info = c_env.reset()
-    assert obs.shape == (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), "Observation shape should match expected dimensions"
+    assert obs.shape == (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), (
+        "Observation shape should match expected dimensions"
+    )
     assert isinstance(info, dict), "Info should be a dictionary"
 
 

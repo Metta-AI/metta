@@ -19,6 +19,7 @@ OBS_HEIGHT = 3  # should be odd
 NUM_OBS_TOKENS = 100
 OBS_TOKEN_SIZE = 3
 
+
 @pytest.fixture
 def base_config():
     """Base configuration for MettaGrid tests."""
