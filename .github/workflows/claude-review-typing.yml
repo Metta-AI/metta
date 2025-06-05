@@ -16,7 +16,7 @@ jobs:
       file_pattern: "\\.py$"
       setup_python: true
       install_packages: "mypy"
-      tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version)"
+      tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(python -m mypy --version),Bash(pyright)"
       pr_number: ${{ inputs.pr_number }}
       prompt: |
         Review the Python code in this PR for MISSING type annotations that would provide real value.

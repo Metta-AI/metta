@@ -3,10 +3,8 @@
 ## Initial Setup
 
 1. Configure AWS SSO and credentials:
-```bash
-# Create AWS config directory if it doesn't exist
-mkdir -p ~/.aws
 
+```bash
 # Run the setup script to configure AWS profiles
 ./devops/aws/setup_aws_profiles.sh
 
@@ -157,6 +155,7 @@ cmd.sh ce <compute_env_name> stop
 ## Monitoring Jobs
 
 1. Monitor jobs through command line:
+
 ```bash
 # Using cmd.sh
 cmd.sh jobs [<job_queue>="metta-jq"] [--max=10]
@@ -181,6 +180,7 @@ python -m devops.aws.cluster_info
 ## Troubleshooting
 
 If you encounter issues:
+
 1. Verify your AWS SSO session is active (`aws s3 ls`)
 2. Check the AWS Batch console for job status and logs
 3. Ensure your run name follows the correct format (`b.$USER.your_run_name`)
@@ -289,4 +289,3 @@ aws batch describe-compute-environments --compute-environments YOUR_COMPUTE_ENV 
 # Check ECS container instances
 aws ecs list-container-instances --cluster YOUR_ECS_CLUSTER --profile softmax-root
 ```
-

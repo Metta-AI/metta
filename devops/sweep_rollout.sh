@@ -22,7 +22,7 @@ mkdir -p ./train_dir/sweep/$sweep
 
 # Initialize sweep
 echo "[SWEEP:$sweep] Initializing sweep configuration..."
-cmd="python -m tools.sweep_init sweep_name=$sweep dist_cfg_path=$DIST_CFG_PATH $args"
+cmd="./tools/sweep_init.py sweep_name=$sweep dist_cfg_path=$DIST_CFG_PATH $args"
 echo "[SWEEP:$sweep] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Sweep initialization failed: $sweep"
@@ -40,7 +40,7 @@ fi
 
 # Evaluation phase
 echo "[SWEEP:$sweep] Starting evaluation phase..."
-cmd="python -m tools.sweep_eval sweep_name=$sweep dist_cfg_path=$DIST_CFG_PATH data_dir=./train_dir/sweep/$sweep/runs $args"
+cmd="./tools/sweep_eval.py sweep_name=$sweep dist_cfg_path=$DIST_CFG_PATH data_dir=./train_dir/sweep/$sweep/runs $args"
 echo "[SWEEP:$sweep] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Evaluation failed for sweep: $sweep"
