@@ -1,0 +1,5 @@
+# Turborepo
+.turbo
+node_modules
+.next
+*.tsbuildinfo

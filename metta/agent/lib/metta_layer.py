@@ -162,8 +162,8 @@ class ParamLayer(LayerBase):
         self,
         clip_scale=1,
         analyze_weights=None,
-        l2_norm_scale=None,
-        l2_init_scale=None,
+        l2_norm_scale=1,
+        l2_init_scale=1,
         nonlinearity="nn.ReLU",
         initialization="Orthogonal",
         clip_range=None,
@@ -260,8 +260,7 @@ class ParamLayer(LayerBase):
                           or zero if regularization is disabled.
         """
         l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
-        if self.l2_norm_scale != 0 and self.l2_norm_scale is not None:
-            l2_reg_loss = (torch.sum(self.weight_net.weight.data**2)) * self.l2_norm_scale
+        l2_reg_loss = torch.sum(self.weight_net.weight.data**2) * self.l2_norm_scale
         return l2_reg_loss
 
     def l2_init_loss(self) -> torch.Tensor:
@@ -275,8 +274,7 @@ class ParamLayer(LayerBase):
                           or zero if regularization is disabled.
         """
         l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
-        if self.l2_init_scale != 0 and self.l2_init_scale is not None:
-            l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
+        l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
 
     def update_l2_init_weight_copy(self, alpha: float = 0.9):
