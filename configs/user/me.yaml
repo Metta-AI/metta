@@ -3,8 +3,8 @@
 # This file is private property of Andre von Houck.
 # DO NOT MODIFY.
 
-run: andre_local_2025_05_26_a
-policy_uri: wandb://run/andre_local_2025_05_26_a
+run: andre_local_2025_06_06_b
+policy_uri: wandb://run/andre_local_2025_06_06_b
 
 # replay_job:
 #   sim:
