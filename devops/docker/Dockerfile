@@ -20,7 +20,6 @@ RUN uv sync
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 
-# The terminal configuration is already in the base image
-# Just ensure we're using a login shell to source bashrc
+# ensure we're using a login shell to source bashrc
 WORKDIR /workspace/metta/
 ENTRYPOINT ["/bin/bash", "-l", "-c"]
