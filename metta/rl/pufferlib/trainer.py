@@ -56,14 +56,14 @@ class PufferTrainer:
 
         self._master = True
         self._world_size = 1
-        self.device: torch.device = cfg.device
+        self.device: torch.device = torch.device(cfg.device)
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
-            self.device = f"cuda:{os.environ['LOCAL_RANK']}"
+            self.device = torch.device(f"cuda:{os.environ['LOCAL_RANK']}")
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
@@ -372,7 +372,7 @@ class PufferTrainer:
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
-            with profile.eval_forward, torch.no_grad():
+            with profile.eval_forward, torch.no_grad(), torch.autocast(device_type=self.device.type):
                 assert training_env_id is not None and training_env_id.numel() > 0, (
                     "training_env_id must exist and have elements"
                 )
@@ -488,13 +488,14 @@ class PufferTrainer:
                     adv = experience.b_advantages[mb]
                     ret = experience.b_returns[mb]
 
-                with profile.train_forward:
-                    # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
-                    _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
-                        obs, lstm_state, action=atn
-                    )
-                    if self.device == "cuda":
-                        torch.cuda.synchronize()
+                with torch.autocast(device_type=self.device.type):
+                    with profile.train_forward:
+                        # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
+                        _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
+                            obs, lstm_state, action=atn
+                        )
+                        if self.device.type == "cuda":
+                            torch.cuda.synchronize()
 
                 with profile.train_misc:
                     if __debug__:
