@@ -112,15 +112,14 @@ def create_job_definition(args):
                         },
                         "logConfiguration": {
                             "logDriver": "awslogs",
-                            "options": {
-                                #     "awslogs-group": f"/aws/batch/{args.job_definition_name}",
-                                #     "awslogs-region": "us-east-1",
-                                #     "awslogs-stream-prefix": "batch-job",
-                                #     "awslogs-create-group": "true",
-                                #     "mode": "non-blocking",
-                                "max-buffer-size": "25m",
-                                "awslogs-multiline-pattern": "^\\[[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]+\\]",
-                            },
+                            # "options": {
+                            #     "awslogs-group": f"/aws/batch/{args.job_definition_name}",
+                            #     "awslogs-region": "us-east-1",
+                            #     "awslogs-stream-prefix": "batch-job",
+                            #     "awslogs-create-group": "true",
+                            #     "mode": "non-blocking",
+                            #     "max-buffer-size": "25m",
+                            # },
                         },
                     },
                 }
