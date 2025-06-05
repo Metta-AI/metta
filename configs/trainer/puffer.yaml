@@ -61,6 +61,8 @@ profiler_interval_epochs: 10000
 forward_pass_minibatch_target_size: 2048
 async_factor: 2
 
+autocast: true
+
 stats:
   overview:
     episode/reward.mean: episode_reward

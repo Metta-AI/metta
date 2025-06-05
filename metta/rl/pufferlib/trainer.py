@@ -10,6 +10,7 @@ import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib import unroll_nested_dict
+from torch.cuda.amp import GradScaler, autocast
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -69,6 +70,12 @@ class PufferTrainer:
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
+        # Mixed precision setup
+        self._use_autocast = (
+            (isinstance(self.device, str) and self.device.startswith("cuda"))
+            or (isinstance(self.device, torch.device) and self.device.type == "cuda")
+        ) and self.trainer_cfg.autocast
+        self._scaler = GradScaler("cuda", enabled=self._use_autocast)
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
@@ -384,7 +391,8 @@ class PufferTrainer:
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
 
                 o_device = o.to(self.device, non_blocking=True)
-                actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
+                with autocast(enabled=self._use_autocast):
+                    actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "collected_log_probs")
@@ -489,10 +497,11 @@ class PufferTrainer:
                     ret = experience.b_returns[mb]
 
                 with profile.train_forward:
-                    # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
-                    _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
-                        obs, lstm_state, action=atn
-                    )
+                    with autocast(enabled=self._use_autocast):
+                        # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
+                        _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
+                            obs, lstm_state, action=atn
+                        )
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
@@ -560,9 +569,16 @@ class PufferTrainer:
 
                 with profile.learn:
                     self.optimizer.zero_grad()
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                    self.optimizer.step()
+                    if self._use_autocast:
+                        self._scaler.scale(loss).backward()
+                        self._scaler.unscale_(self.optimizer)
+                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                        self._scaler.step(self.optimizer)
+                        self._scaler.update()
+                    else:
+                        loss.backward()
+                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                        self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
