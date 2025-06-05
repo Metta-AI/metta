@@ -209,5 +209,5 @@ def test_environment_state_consistency():
 
     actions2 = c_env.action_names()
 
-    assert features1 == features2, "Grid features should remain consistent"
+    assert normalizations1 == normalizations2, "Grid feature normalizations should remain consistent"
     assert actions1 == actions2, "Action names should remain consistent"
