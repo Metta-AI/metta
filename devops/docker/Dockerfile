@@ -22,5 +22,10 @@ RUN uv sync
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 
+ENV COLUMNS=200
+ENV LINES=50
+ENV TERM=xterm-256color
+ENV PYTHONUNBUFFERED=1
+
 WORKDIR /workspace/metta/
-ENTRYPOINT ["/bin/bash", "-c", "export COLUMNS=200; exec \"$@\"", "--"]
+ENTRYPOINT ["/bin/bash", "-c"]
