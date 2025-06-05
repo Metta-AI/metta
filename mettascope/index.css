@@ -1789,7 +1789,7 @@ button#help-button.hover-icon .icon {
 .top .param {
     position: relative;
     display: flex;
-    width: 41px;
+    width: fit-content;
     height: fit-content;
     flex-direction: column;
     flex-wrap: nowrap;
@@ -1799,35 +1799,33 @@ button#help-button.hover-icon .icon {
 .param .name {
     position: relative;
     display: inline-block;
-    width: 100%;
+    width: fit-content;
     height: fit-content;
-    align-self: stretch;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
-    font-size: 10px;
+    font-size: 16px;
     text-align: left;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 12px;
+    line-height: 20.80px;
 }
 
 .param .value {
     position: relative;
     display: inline-block;
-    width: 100%;
+    width: fit-content;
     height: fit-content;
-    align-self: stretch;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
-    font-size: 18px;
+    font-size: 22px;
     text-align: left;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 21.60px;
+    line-height: 28.60px;
 }
 
 .infopanel .bottom {
@@ -1851,14 +1849,14 @@ button#help-button.hover-icon .icon {
     height: fit-content;
     align-self: stretch;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Scout;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
-    font-size: 12px;
+    font-size: 16px;
     text-align: left;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 14.40px;
+    line-height: 20.80px;
 }
 
 .bottom .inventory {
@@ -1879,8 +1877,8 @@ button#help-button.hover-icon .icon {
 .inventory .item {
     position: relative;
     display: block;
-    width: 32px;
-    height: 50px;
+    width: 40px;
+    height: 64px;
     background-color: rgba(20, 27, 35, 1.00);
     border-radius: 5px;
     overflow: hidden;
@@ -1892,19 +1890,19 @@ button#help-button.hover-icon .icon {
 .item .amount {
     position: absolute;
     display: inline-block;
-    width: 32px;
-    height: 15px;
+    width: 40px;
+    height: 25px;
     left: 0px;
-    top: 33px;
+    top: 36px;
     color: rgba(255, 255, 255, 1.00);
-    font-family: Inter;
+    font-family: IBM Plex Sans;
     font-style: normal;
     font-weight: 400;
-    font-size: 12px;
+    font-size: 20px;
     text-align: center;
     vertical-align: top;
     letter-spacing: 0px;
-    line-height: 14.52px;
+    line-height: 26px;
 }
 
 .item .icon {
@@ -1912,6 +1910,6 @@ button#help-button.hover-icon .icon {
     display: block;
     width: 32px;
     height: 32px;
-    left: 0px;
-    top: 1px;
+    left: 4px;
+    top: 4px;
 }

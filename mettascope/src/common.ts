@@ -2,6 +2,7 @@ import { Vec2f } from './vector_math.js';
 import { Context3d } from './context3d.js';
 import { find, parseHtmlColor, localStorageGetNumber } from './htmlutils.js';
 import { PanelInfo } from './panels.js';
+import { InfoPanel } from './infopanels.js';
 
 // The 3d context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement);
@@ -61,6 +62,9 @@ export const ui = {
   tracePanel: new PanelInfo("#trace-panel"),
   infoPanel: new PanelInfo("#info-panel"),
   agentPanel: new PanelInfo("#agent-panel"),
+
+
+  infoPanels: [] as InfoPanel[],
 };
 
 export const state = {

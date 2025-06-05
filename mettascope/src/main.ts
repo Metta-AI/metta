@@ -2,12 +2,13 @@ import { Vec2f, Mat3f } from './vector_math.js';
 import * as Common from './common.js';
 import { ui, state, html, ctx, setFollowSelection } from './common.js';
 import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js';
-import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
+import { focusFullMap, drawMap, requestFrame } from './worldmap.js';
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
 import { initAgentTable, updateAgentTable } from './agentpanel.js';
 import { localStorageSetNumber } from './htmlutils.js';
+import { updateReadout } from './infopanels.js';
 
 // Handle resize events.
 export function onResize() {

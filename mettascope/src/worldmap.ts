@@ -7,7 +7,6 @@ import { PanelInfo } from './panels.js';
 import { onFrame, updateSelection } from './main.js';
 import { parseHtmlColor, find } from './htmlutils.js';
 
-
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
 
@@ -671,17 +670,17 @@ function attackGrid(orientation: number, idx: number) {
   const i = idx - 1;
   let dx, dy;
   if (orientation === 0) {
-      dx = mod(i, 3) - 1;
-      dy = -div(i, 3) - 1;
+    dx = mod(i, 3) - 1;
+    dy = -div(i, 3) - 1;
   } else if (orientation === 1) {
-      dx = -mod(i, 3) + 1;
-      dy = div(i, 3) + 1;
+    dx = -mod(i, 3) + 1;
+    dy = div(i, 3) + 1;
   } else if (orientation === 2) {
-      dx = -div(i, 3) - 1;
-      dy = -mod(i, 3) + 1;
+    dx = -div(i, 3) - 1;
+    dy = -mod(i, 3) + 1;
   } else if (orientation === 3) {
-      dx = div(i, 3) + 1;
-      dy = mod(i, 3) - 1;
+    dx = div(i, 3) + 1;
+    dy = mod(i, 3) - 1;
   }
   return [dx, dy];
 }
@@ -709,16 +708,16 @@ function drawAttackMode() {
     const orientation = getAttr(state.selectedGridObject, "agent:orientation");
 
     // Draw a 3x3 grid of targets in the direction of the selected agent.
-    for(let attackIndex = 1; attackIndex <= 9; attackIndex++) {
-        const [dx, dy] = attackGrid(orientation, attackIndex);
-        const targetX = x + dx;
-        const targetY = y + dy;
-        ctx.drawSprite('target.png', targetX * Common.TILE_SIZE, targetY * Common.TILE_SIZE);
-        if (gridMousePos != null && targetX == gridMousePos.x() && targetY == gridMousePos.y()) {
-          // Check if we are clicking this specific tile.
-          console.log("Attack mode clicked on:", targetX, targetY);
-          sendAction("attack", attackIndex)
-        }
+    for (let attackIndex = 1; attackIndex <= 9; attackIndex++) {
+      const [dx, dy] = attackGrid(orientation, attackIndex);
+      const targetX = x + dx;
+      const targetY = y + dy;
+      ctx.drawSprite('target.png', targetX * Common.TILE_SIZE, targetY * Common.TILE_SIZE);
+      if (gridMousePos != null && targetX == gridMousePos.x() && targetY == gridMousePos.y()) {
+        // Check if we are clicking this specific tile.
+        console.log("Attack mode clicked on:", targetX, targetY);
+        sendAction("attack", attackIndex)
+      }
     }
   }
 }
@@ -802,42 +801,4 @@ export function drawMap(panel: PanelInfo) {
   }
 
   ctx.restore();
-}
-
-// Updates the readout of the selected object or replay info.
-export function updateReadout() {
-  var readout = ""
-  if (state.selectedGridObject !== null) {
-    if (state.followSelection) {
-      readout += "FOLLOWING SELECTION (double-click to unfollow)\n\n";
-    }
-    for (const key in state.selectedGridObject) {
-      var value = getAttr(state.selectedGridObject, key);
-      if (key == "type") {
-        value = state.replay.object_types[value] + " (" + value + ")";
-      } else if (key == "color" && value >= 0 && value < Common.COLORS.length) {
-        value = Common.COLORS[value][0] + " (" + value + ")";
-      }
-      readout += key + ": " + value + "\n";
-    }
-  } else {
-    readout += "Step: " + state.step + "\n";
-    readout += "Map size: " + state.replay.map_size[0] + "x" + state.replay.map_size[1] + "\n";
-    readout += "Num agents: " + state.replay.num_agents + "\n";
-    readout += "Max steps: " + state.replay.max_steps + "\n";
-
-    var objectTypeCounts = new Map<string, number>();
-    for (const gridObject of state.replay.grid_objects) {
-      const type = getAttr(gridObject, "type");
-      const typeName = state.replay.object_types[type];
-      objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1);
-    }
-    for (const [key, value] of objectTypeCounts.entries()) {
-      readout += key + " count: " + value + "\n";
-    }
-  }
-  let info = find("#info-panel .info")
-  if (info !== null) {
-    info.innerHTML = readout;
-  }
 }
