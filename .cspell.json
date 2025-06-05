@@ -119,6 +119,7 @@
     "npcs",
     "nthreads",
     "numpy",
+    "nuqs",
     "nvec",
     "omegaconf",
     "pettingzoo",
