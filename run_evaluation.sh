@@ -18,23 +18,25 @@ POLICIES=(
     "dd.navsequencemem.smallinventory"
     "dd.navsequence_seq.smallinventory"
     "dd.navsequence_all.smallinventory"
-    # "gd.1.kitchensink"
-    # "b.gd.easysequence"
-    # "gd.backchain_kitchen2"
-    # "gd2_backchain_kitchen"
-    # "gd_backchain3"
-    # "gd_sequence_stripped3"
-    # "gd_backchain_seq3"
-    # "gd_backchain_none3"
-    # "gd_all2"
-    # "gd_all"
-    # "gd_backchain_mem_pretrained"
-    # "gd_sequence_strippedt"
-    # "gd1.easysequence"
-    # "dd3_all_tokenized"
-    # "dd2_curriculum_all_tokenized"
-    # "dd_curriculum_navigation_tokenized"
-
+    "gd.1.kitchensink"
+    "b.gd.easysequence"
+    "gd.backchain_kitchen2"
+    "gd2_backchain_kitchen"
+    "gd_backchain3"
+    "gd_sequence_stripped3"
+    "gd_backchain_seq3"
+    "gd_backchain_none3"
+    "gd_all2"
+    "gd_all"
+    "gd_backchain_mem_pretrained"
+    "gd_sequence_strippedt"
+    "gd1.easysequence"
+    "gd_pure_mem_backchain"
+    "gd_pure_seq_backchain"
+    "gd_kitchen_hard_pretrained"
+    "gd_backchain_full_extended"
+    "gd_backchain_in_context"
+    "gd_backchain_scratch_hard"
     )
 
 
@@ -42,7 +44,9 @@ POLICIES=(
   #  "daphne.token.object_use"
   #  "daphne.token.navsequence"
  #   "daphne.token.nav"
-
+    # "dd3_all_tokenized"
+    # "dd2_curriculum_all_tokenized"
+    # "dd_curriculum_navigation_tokenized"
 for i in "${!POLICIES[@]}"; do
   POLICY_URI=${POLICIES[$i]}
 
@@ -53,7 +57,7 @@ for i in "${!POLICIES[@]}"; do
         sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/stats_db1 \
+        sim_job.stats_db_uri=wandb://stats/navstatsdb \
     #     # device=cpu \
 
 
@@ -61,14 +65,14 @@ for i in "${!POLICIES[@]}"; do
         sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/stats_db1 \
+        sim_job.stats_db_uri=wandb://stats/memstatsdb \
         # device=cpu \
 
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/stats_db1 \
+        sim_job.stats_db_uri=wandb://stats/objusestatsdb \
         # device=cpu \
 
 
@@ -76,16 +80,19 @@ for i in "${!POLICIES[@]}"; do
         sim=nav_sequence \
         run=nav_sequence$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/stats_db1 \
+        sim_job.stats_db_uri=wandb://stats/navseqstatsdb \
         # device=cpu \
 
-   python3 -m tools.sim \
-        sim=multiagent \
-        run=multi_agent$IDX \
-        policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/stats_db1 \
-  #       # device=cpu \
+  #  python3 -m tools.sim \
+  #       sim=multiagent \
+  #       run=multi_agent$IDX \
+  #       policy_uri=wandb://run/$POLICY_URI \
+  #       sim_job.stats_db_uri=wandb://stats/stats_db1 \
+  # #       # device=cpu \
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db1 run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/navstatsdb run=makestatsdbnav ++dashboard.output_path=s3://softmax-public/policydash/navstatsdb.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/memstatsdb run=makestatsdbmem ++dashboard.output_path=s3://softmax-public/policydash/memstatsdb.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/objusestatsdb run=makestatsdbobj ++dashboard.output_path=s3://softmax-public/policydash/objusestatsdb.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/navseqstatsdb run=makestatsdbnavseq ++dashboard.output_path=s3://softmax-public/policydash/navseqstatsdb.html
 
 done
