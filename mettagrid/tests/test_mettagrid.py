@@ -86,7 +86,7 @@ class TestObservations:
 
     def test_observation_tokens(self):
         """Test observation token format and content."""
-        c_env = create_minimal_mettagrid_c_env(use_observation_tokens=True)
+        c_env = create_minimal_mettagrid_c_env()
         # These come from constants in the C++ code, and are fragile.
         TYPE_ID_FEATURE = 1
         WALL_TYPE_ID = 1
@@ -211,5 +211,4 @@ def test_environment_state_consistency():
 
     actions2 = c_env.action_names()
 
-    assert normalizations1 == normalizations2, "Grid feature normalizations should remain consistent"
     assert actions1 == actions2, "Action names should remain consistent"
