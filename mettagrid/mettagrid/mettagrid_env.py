@@ -113,10 +113,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
         self._reset_env()
 
-        self.observations = self.observations.astype(dtype_observations, copy=False)
-        self.terminals = self.terminals.astype(dtype_terminals, copy=False)
-        self.truncations = self.truncations.astype(dtype_truncations, copy=False)
-        self.rewards = self.rewards.astype(dtype_rewards, copy=False)
+        assert self.observations.dtype == dtype_observations
+        assert self.terminals.dtype == dtype_terminals
+        assert self.truncations.dtype == dtype_truncations
+        assert self.rewards.dtype == dtype_rewards
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
