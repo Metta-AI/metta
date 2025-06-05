@@ -77,7 +77,7 @@ class PufferTrainer:
         self._eval_suite_avgs = {}
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
-        self._make_vecenv()
+        self._make_vecenv()  # this sets self.batch_size
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), (
@@ -859,7 +859,9 @@ class PufferTrainer:
             self.target_batch_size = 2
 
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
-        num_envs = self.batch_size * self.trainer_cfg.async_factor
+        num_envs = self.batch_size * self.trainer_cfg.async_factor // torch.distributed.get_world_size()
+
+        print(f"self.num_envs: {num_envs}")
 
         if num_envs < 1:
             logger.error(
