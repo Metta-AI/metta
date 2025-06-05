@@ -18,6 +18,8 @@ from mettagrid.util.actions import (
 NUM_AGENTS = 1
 OBS_HEIGHT = 3
 OBS_WIDTH = 3
+NUM_OBS_TOKENS = 100
+OBS_TOKEN_SIZE = 3
 
 
 def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
@@ -37,6 +39,8 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             "num_agents": num_agents,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
+            "use_observation_tokens": True,
+            "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
                 "noop": {"enabled": True},
                 "get_items": {"enabled": True},
@@ -90,6 +94,8 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
             "num_agents": num_agents,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
+            "use_observation_tokens": True,
+            "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
                 "noop": {"enabled": True},
                 "move": {"enabled": True},
@@ -163,8 +169,7 @@ class TestRewards:
         env = create_reward_test_env()
 
         # Create buffers
-        num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np_observations_type)
         terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
         truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
         rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
@@ -190,8 +195,7 @@ class TestRewards:
         env = create_heart_reward_test_env()
 
         # Create buffers
-        num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np_observations_type)
         terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
         truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
         rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
@@ -219,8 +223,7 @@ class TestRewards:
         env = create_heart_reward_test_env()
 
         # Create buffers
-        num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np_observations_type)
         terminals = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
         truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
         rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
@@ -262,8 +265,7 @@ class TestRewards:
         env = create_reward_test_env()
 
         # Create buffers
-        num_features = len(env.grid_features())
-        observations = np.zeros((NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, num_features), dtype=np_observations_type)
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np_observations_type)
         terminals = np.zeros(NUM_AGENTS, dtype=np_terminals_type)
         truncations = np.zeros(NUM_AGENTS, dtype=np_truncations_type)
         rewards = np.zeros(NUM_AGENTS, dtype=np_rewards_type)
