@@ -617,19 +617,16 @@ py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  if (_use_observation_tokens) {
-    // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
-    // that matters to us.
-    return spaces.attr("Box")(0,
-                              255,
-                              py::make_tuple(_observations.shape(1), _observations.shape(2)),
-                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
-  } else {
-    return spaces.attr("Box")(0,
-                              255,
-                              py::make_tuple(obs_height, obs_width, _grid_features.size()),
-                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  auto observation_info = _observations.request();
+  auto shape = observation_info.shape;
+  auto space_shape = py::tuple(observation_info.ndim - 1);
+  for (size_t i = 0; i < observation_info.ndim - 1; i++) {
+    space_shape[i] = shape[i + 1];
   }
+
+  // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
+  // that matters to us.
+  return spaces.attr("Box")(0, 255, space_shape, py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
 }
 
 py::list MettaGrid::action_success() {
