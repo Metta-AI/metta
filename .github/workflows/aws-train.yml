@@ -122,7 +122,7 @@ jobs:
             --skip-validation \
             --skip-push-check \
             --profile="" \
-            trainer.env=$ENV
+            trainer.curriculum=$ENV
 
       - name: Output job details
         run: |
