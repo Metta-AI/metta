@@ -13,7 +13,6 @@ game:
     battery.red_max: 1
     battery.blue_max: 1
     battery.green_max: 1
-  agent:
     rewards:
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1,0.01}
@@ -74,4 +73,3 @@ game:
     #   max_output: 1
     #   conversion_ticks: 1
     #   initial_items: 0
-
