@@ -118,4 +118,4 @@ def set_github_variable(variable_name, value, repo=None):
         subprocess.run(cmd, check=True)
         return True
     except subprocess.CalledProcessError:
-        return Fals
+        return False
