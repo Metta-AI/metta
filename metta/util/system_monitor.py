@@ -74,8 +74,17 @@ class SystemMonitor:
         }
 
         # Platform-specific metrics
-        if hasattr(psutil, "sensors_temperatures"):
-            self._metric_collectors["cpu_temperature"] = self._get_cpu_temperature
+        # Only add temperature monitoring if the platform supports it
+        sensors_temperatures = getattr(psutil, "sensors_temperatures", None)
+        if sensors_temperatures is not None:
+            try:
+                # Test if sensors_temperatures actually works
+                temps = sensors_temperatures()
+                if temps:  # Only add if we get actual data
+                    self._metric_collectors["cpu_temperature"] = self._get_cpu_temperature
+            except (AttributeError, OSError, NotImplementedError):
+                # Some platforms have the method but it doesn't work
+                self.logger.debug("Temperature sensors not functional on this platform")
 
         # Docker/container detection
         self._is_container = self._detect_container()
