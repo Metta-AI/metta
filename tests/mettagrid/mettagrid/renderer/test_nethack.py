@@ -1,41 +1,31 @@
+#!/usr/bin/env python3
 """
-Tests for the AsciiRenderer class.
+Tests for the NethackRenderer class using NetHack-style symbols.
 
-This test suite validates:
-1. Basic renderer functionality
-2. Double-width character handling
-3. NetHack-style symbol conversion
-4. Integration with MettaGridEnv
-5. Alignment consistency
-6. tools.sim compatibility
+This module contains unit tests for the NethackRenderer, ensuring proper
+ASCII rendering, alignment, and NetHack-style conversion functionality.
 """
 
-import os
-import sys
 from unittest.mock import patch
 
 import pytest
-
-# Add mettagrid to path for testing
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-
 from omegaconf import OmegaConf
 
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.renderer.renderer import AsciiRenderer
+from mettagrid.renderer.nethack import NethackRenderer
 from mettagrid.room.ascii import SYMBOLS
 from mettagrid.util.hydra import get_cfg
 
 
-class TestAsciiRenderer:
-    """Test suite for AsciiRenderer functionality."""
+class TestNethackRenderer:
+    """Test suite for NethackRenderer functionality."""
 
     @pytest.fixture
     def basic_renderer(self):
         """Create a basic renderer for testing."""
         object_type_names = ["agent", "wall", "empty", "mine", "generator", "altar", "factory", "lab", "temple"]
-        return AsciiRenderer(object_type_names)
+        return NethackRenderer(object_type_names)
 
     @pytest.fixture
     def sample_grid_objects(self):
@@ -70,17 +60,17 @@ class TestAsciiRenderer:
         assert basic_renderer._bounds_set is False
         assert basic_renderer._last_buffer is None
         assert "wall" in basic_renderer.SYMBOLS
-        assert basic_renderer.SYMBOLS["wall"] == "█"
+        assert basic_renderer.SYMBOLS["wall"] == "🧱"
 
     def test_symbol_mapping_reverse(self, basic_renderer):
         """Test that SYMBOLS mapping is correctly reversed from MAP_SYMBOLS."""
         # The renderer maintains the original SYMBOLS mapping for compatibility
         # but applies NetHack conversion during rendering
         assert "wall" in basic_renderer.SYMBOLS
-        assert basic_renderer.SYMBOLS["wall"] == "█"
+        assert basic_renderer.SYMBOLS["wall"] == "🧱"
 
         # The conversion happens in _convert_to_nethack_style
-        wall_converted = basic_renderer._convert_to_nethack_style("█")
+        wall_converted = basic_renderer._convert_to_nethack_style("🧱")
         assert wall_converted == "#"
 
     def test_agent_symbol_generation(self, basic_renderer):
@@ -160,7 +150,7 @@ class TestAsciiRenderer:
             ("factory", "F"),  # Should convert 🏭 → F
             ("lab", "L"),  # Should convert 🔬 → L
             ("temple", "T"),  # Should convert 🏰 → T
-            ("wall", "#"),  # Should convert █ → # (NetHack style)
+            ("wall", "#"),  # Should convert 🧱 → # (NetHack style)
         ]
 
         # Test the actual conversion behavior
@@ -185,7 +175,7 @@ class TestAsciiRenderer:
             ("🏭", "F"),  # factory emoji → Factory
             ("🔬", "L"),  # microscope emoji → Lab
             ("🏰", "T"),  # castle emoji → Temple
-            ("█", "#"),  # block character → NetHack wall
+            ("🧱", "#"),  # block character → NetHack wall
             (" ", "."),  # space → NetHack empty
         ]
 
@@ -325,6 +315,7 @@ class TestRendererIntegration:
         assert len(set(lengths)) == 1, f"All lines should have same length, got {lengths}"
 
         # Check NetHack-style rendering
+        assert render_output is not None, "Render output should not be None"
         assert "#" in render_output, "Should contain NetHack-style walls"
         assert "." in render_output, "Should contain NetHack-style empty spaces"
 
@@ -392,15 +383,16 @@ class TestRendererIntegration:
 
         curriculum = SingleTaskCurriculum("test", cfg)
 
-        # The key: render_mode="human" enables AsciiRenderer
+        # The key: render_mode="human" enables NethackRenderer
         with patch("builtins.print"):
             env = MettaGridEnv(curriculum, render_mode="human")
             assert env._renderer is not None
-            assert isinstance(env._renderer, AsciiRenderer)
+            assert isinstance(env._renderer, NethackRenderer)
 
             # Test that it produces NetHack-style output
             obs, info = env.reset()
             output = env.render()
+            assert output is not None, "Render output should not be None"
             assert "#" in output, "Should use NetHack-style walls"
             assert "." in output, "Should use NetHack-style empty spaces"
 
