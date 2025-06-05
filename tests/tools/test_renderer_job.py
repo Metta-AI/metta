@@ -124,6 +124,10 @@ class TestRendererJob:
                 env = os.environ.copy()
                 env["DEBUG_MAP_URI"] = map_path
 
+                # Set dummy AWS credentials to bypass AWS configuration check
+                env["AWS_ACCESS_KEY_ID"] = "dummy_access_key_for_testing"
+                env["AWS_SECRET_ACCESS_KEY"] = "dummy_secret_key_for_testing"
+
                 # Run with shorter timeout and better error handling
                 result = subprocess.run(
                     cmd,
