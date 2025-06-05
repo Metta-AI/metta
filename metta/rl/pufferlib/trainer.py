@@ -560,6 +560,12 @@ class PufferTrainer:
                 with profile.learn:
                     self.optimizer.zero_grad()
                     loss.backward()
+
+                    # manual grad syncing
+                    for n, p in self.policy.named_parameters():
+                        torch.distributed.all_reduce(p.grad, op=torch.distributed.ReduceOp.SUM)
+                        p.grad.div_(self._world_size)
+
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
 
