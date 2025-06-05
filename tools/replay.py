@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 # Generate a replay file that can be used in MettaScope to visualize a single run.
 
 import platform

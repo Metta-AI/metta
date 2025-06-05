@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 # Runs policies with ASCII rendering to visualize agent behavior in real-time.
 
 

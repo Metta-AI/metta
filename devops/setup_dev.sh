@@ -26,23 +26,6 @@ if [ -f /.dockerenv ]; then
   export IS_DOCKER=1
 fi
 
-# Define a function to check if we're in a UV virtual environment
-is_uv_venv() {
-  # Check if we're in a virtual environment
-  if [ -z "$VIRTUAL_ENV" ]; then
-    return 1 # Not in any virtual environment
-  fi
-
-  # Check if it's a UV virtual environment by looking for UV marker files
-  if [ -f "$VIRTUAL_ENV/pyvenv.cfg" ] && grep -q "uv" "$VIRTUAL_ENV/pyvenv.cfg"; then
-    return 0 # It's a UV venv
-  elif [ -d "$VIRTUAL_ENV/.uv" ]; then
-    return 0 # It has a .uv directory
-  else
-    return 1 # Not a UV venv
-  fi
-}
-
 # Verify uv is available
 if ! command -v uv &> /dev/null; then
   # Try to find uv directly in common installation locations
@@ -78,15 +61,6 @@ if [ "$CLEAN" -eq 1 ]; then
 
   make clean
 
-  # deactivate the venv
-  echo -e "\nDeactivating current virtual environment: $VIRTUAL_ENV"
-  # This is a bit of a hack since 'deactivate' is a function in the activated environment
-  # Using 'command' to temporarily disable the function behavior
-  if [[ "$(type -t deactivate)" == "function" ]]; then
-    deactivate
-    echo "✅ Virtual environment deactivated"
-  fi
-
   # Remove the virtual environment
   if [ -d .venv ]; then
     echo "Removing .venv virtual environment..."
@@ -95,33 +69,10 @@ if [ "$CLEAN" -eq 1 ]; then
   fi
 fi
 
-# ========== CREATE VENV ==========
-# Check if we're already in a UV venv
-if ! is_uv_venv; then
-  # Check if a virtual environment exists but is not activated
-  if [ -d "$VENV_PATH" ]; then
-    echo "⚠️ Existing environment is not a UV environment, recreating it"
-
-    # Remove the existing environment
-    rm -rf "$VENV_PATH"
-  fi
-
-  # Create a new environment
-  echo "Creating new virtual environment..."
-  uv venv "$VENV_PATH" || {
-    echo "Error: Failed to create virtual environment with uv command."
-    exit 1
-  }
-  echo "✅ Virtual environment '$VENV_PATH' created and activated"
-
-  # Activate the environment
-  source "$VENV_PATH/bin/activate"
-fi
-
 # ========== BUILD AND INSTALL ==========
 
 echo -e "\nInstalling Metta..."
-uv pip install -e .
+uv sync --extra dev
 
 # ========== SANITY CHECK ==========
 echo -e "\nSanity check: verifying all local deps are importable..."
@@ -139,7 +90,7 @@ for dep in \
   }
 done
 
-if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
+if [ -z "$IS_DOCKER" ]; then
   # ========== INSTALL METTASCOPE ==========
   echo -e "\nSetting up MettaScope..."
   bash "mettascope/install.sh"
@@ -151,6 +102,6 @@ if [ -z "$CI" ] && [ -z "$IS_DOCKER" ]; then
   echo -e "\nInstalling Skypilot..."
   bash "devops/skypilot/install.sh"
 
-  echo "✅ setup_build.sh completed successfully!"
+  echo "✅ setup_dev.sh completed successfully!"
   echo -e "Activate virtual environment with: \033[32;1msource $VENV_PATH/bin/activate\033[0m"
 fi
