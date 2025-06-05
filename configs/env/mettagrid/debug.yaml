@@ -29,5 +29,5 @@ game:
 
   map_builder:
     _target_: mettagrid.room.ascii.Ascii
-    uri: "configs/env/mettagrid/maps/debug/tiny_two_altars.map"
+    uri: ${oc.env:DEBUG_MAP_URI,"configs/env/mettagrid/maps/debug/tiny_two_altars.map"}
     border_width: 0
