@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 # Starts a websocket server that allows you to play as a metta agent.
 
 import hydra
