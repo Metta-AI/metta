@@ -69,14 +69,53 @@ def get_branch_commit(branch_name, repo_path=None):
         return None
 
 
-def get_commit_message(commit_hash):
+def get_commit_message(commit_hash, repo_path=None):
     """Get the commit message for a specific commit hash."""
     try:
-        import subprocess
+        cmd = ["git", "log", "-1", "--pretty=%B", commit_hash]
+        if repo_path:
+            cmd = ["git", "-C", repo_path, "log", "-1", "--pretty=%B", commit_hash]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
 
+
+def get_current_repo():
+    """Get the current GitHub repository in owner/repo format."""
+    try:
         result = subprocess.run(
-            ["git", "log", "-1", "--pretty=%B", commit_hash], capture_output=True, text=True, check=True
+            ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+            capture_output=True,
+            text=True,
+            check=True
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError:
         return None
+
+
+def get_github_variable(variable_name, repo=None):
+    """Get the current value of a GitHub variable."""
+    cmd = ["gh", "variable", "get", variable_name]
+    if repo:
+        cmd.extend(["--repo", repo])
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
+
+
+def set_github_variable(variable_name, value, repo=None):
+    """Set a GitHub variable using the GitHub CLI."""
+    cmd = ["gh", "variable", "set", variable_name, "--body", value]
+    if repo:
+        cmd.extend(["--repo", repo])
+
+    try:
+        subprocess.run(cmd, check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return Fals

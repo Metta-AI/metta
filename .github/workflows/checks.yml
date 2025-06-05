@@ -178,7 +178,6 @@ jobs:
 
   smoke-test:
     name: "Smoke Tests"
-    # temporarily disabled
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     needs: [graphite-ci-optimizer, setup-checks]
@@ -272,14 +271,25 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
+          EVAL_SMOKE_TEST_POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
         # We retry evals a few times because they're not deterministic (despite our best efforts)
         # Our smoke tests should pass at least 90% of the time if they're working, so this should have
         # a spurious failure rate of less than 0.01%. We assume that spurious successes should be
         # extremely rare.
         run: |
           source .github/scripts/benchmark.sh
+          echo "Using smoke test policy: $EVAL_SMOKE_TEST_POLICY"
+
+          # Smoke test configuration
+          SMOKE_TEST_ARGS="+sim_job.smoke_test=True seed=31415 torch_deterministic=True device=cpu"
+
           for i in {1..4}; do
-            if benchmark "evals_try$i" "./run_evals.sh smoke_test"; then
+            if benchmark "evals_try$i" "python3 -m tools.sim \
+              sim=navigation \
+              run=navigation_smoke_$i \
+              policy_uri=wandb://run/$EVAL_SMOKE_TEST_POLICY \
+              +eval_db_uri=wandb://artifacts/navigation_db \
+              $SMOKE_TEST_ARGS"; then
               exit 0
             fi
           done
