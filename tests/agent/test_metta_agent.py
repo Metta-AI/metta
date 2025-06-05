@@ -24,7 +24,6 @@ def create_metta_agent():
     )
 
     action_space = gym.spaces.MultiDiscrete([3, 2])
-    grid_features = ["agent", "hp", "type_id"]
     feature_normalizations = [1.0, 30.0, 10.0]
 
     config_dict = {
@@ -89,7 +88,6 @@ def create_metta_agent():
     agent = MettaAgent(
         obs_space=obs_space,
         action_space=action_space,
-        grid_features=grid_features,
         device="cpu",
         feature_normalizations=feature_normalizations,
         **config_dict,
