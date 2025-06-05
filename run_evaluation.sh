@@ -91,6 +91,6 @@ for i in "${!POLICIES[@]}"; do
         sim_job.stats_db_uri=wandb://stats/stats_db1 \
   #       # device=cpu \
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db1 run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
+#   python3 -m tools.dashboard +eval_db_uri=wandb://stats/stats_db1 run=makestatsdb ++dashboard.output_path=s3://softmax-public/policydash/results.html
 
 done
