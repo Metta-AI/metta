@@ -350,7 +350,6 @@ class ObsCrossAttn(LayerBase):
             # Reshape [B_TT, 1, self._out_dim] to [B_TT, self._out_dim]
             # This explicitly removes the middle dimension of size 1.
             x = einops.rearrange(x, "btt 1 d -> btt d")
-            print(x.shape)
         # Else (num_query_tokens > 1), x is already [B_TT, self._num_query_tokens, self._out_dim]
         # and this shape is consistent with self._out_tensor_shape (plus batch dim).
 
