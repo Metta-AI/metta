@@ -80,7 +80,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: ${{ env.CLAUDE_MODEL }}
           timeout_minutes: 30
-          allowed_tools: "Bash(git status),Bash(git log --oneline -10),Bash(git show),Bash(git diff *),Bash(git branch -a),Bash(ruff check *),Bash(python -m *),View,GlobTool,GrepTool"
+          allowed_tools: "Bash(git status),Bash(git log --oneline -10),Bash(git show),Bash(git diff *),Bash(git branch -a),Bash(ruff check *),Bash(python -m *),Bash(./tools/*),View,GlobTool,GrepTool"
           custom_instructions: |
             Follow the project's coding standards defined in CLAUDE.md.
             Provide helpful analysis and suggestions for code improvements.

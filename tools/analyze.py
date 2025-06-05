@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 """Analysis tool for MettaGrid evaluation results."""
 
 import hydra
