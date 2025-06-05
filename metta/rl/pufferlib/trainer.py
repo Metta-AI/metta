@@ -163,6 +163,7 @@ class PufferTrainer:
             lr=self.trainer_cfg.optimizer.learning_rate,
             betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
             eps=self.trainer_cfg.optimizer.eps,
+            weight_decay=self.trainer_cfg.optimizer.weight_decay,
         )
 
         # validate that policy matches environment
