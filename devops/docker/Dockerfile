@@ -31,4 +31,4 @@ RUN echo '# Terminal configuration for proper log display' >> ~/.bashrc && \
     echo 'stty cols $COLUMNS rows $LINES 2>/dev/null || true' >> ~/.bashrc
 
 WORKDIR /workspace/metta/
-ENTRYPOINT ["/bin/bash", "-c"]
+ENTRYPOINT ["/bin/bash", "-l", "-c"]
