@@ -10,7 +10,7 @@ import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib import unroll_nested_dict
-from torch.cuda.amp import GradScaler, autocast
+from torch.cuda.amp import autocast
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -75,7 +75,6 @@ class PufferTrainer:
             (isinstance(self.device, str) and self.device.startswith("cuda"))
             or (isinstance(self.device, torch.device) and self.device.type == "cuda")
         ) and self.trainer_cfg.autocast
-        self._scaler = GradScaler(enabled=self._use_autocast)  # needs "cuda"?
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
@@ -573,16 +572,9 @@ class PufferTrainer:
 
                 with profile.learn:
                     self.optimizer.zero_grad()
-                    if self._use_autocast:
-                        self._scaler.scale(loss).backward()
-                        self._scaler.unscale_(self.optimizer)
-                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                        self._scaler.step(self.optimizer)
-                        self._scaler.update()
-                    else:
-                        loss.backward()
-                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                        self.optimizer.step()
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                    self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
