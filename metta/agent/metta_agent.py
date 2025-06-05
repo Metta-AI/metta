@@ -416,7 +416,9 @@ class MettaAgent(nn.Module):
             if not callable(method):
                 raise TypeError(f"Component '{name}' has {method_name} attribute but it's not callable")
 
-            results.append(method(*args, **kwargs))
+            result = method(*args, **kwargs)
+            if result is not None:
+                results.append(result)
 
         return results
 
