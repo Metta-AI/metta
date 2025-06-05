@@ -593,26 +593,8 @@ class PufferTrainer:
                     )
 
                 with profile.learn:
-                    # deactivate DDP gradient sync
-                    if torch.distributed.is_initialized():
-                        self.policy.require_backward_grad_sync = False  # deactivate DDP gradient sync
-
                     self.optimizer.zero_grad()
                     loss.backward()
-
-                    # check whether there are any parameters without gradients
-                    # print the names of the parameters without gradients
-                    if torch.distributed.is_initialized():
-                        for name, param in self.policy.named_parameters():
-                            if param.grad is None:
-                                logger.warning(f"Parameter {name} has no gradient")
-
-                    # we have to manually sync gradients because we are somehow getting around
-                    # the default hooks that should be added by PyTorch DDP
-                    if torch.distributed.is_initialized():
-                        grads = [p.grad for p in self.policy.parameters() if p.grad is not None]
-                        sync_grads_flat(grads, world_size=self._world_size)
-
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
 
@@ -927,19 +909,3 @@ class AbortingTrainer(PufferTrainer):
         self.wandb_run.config.update(
             {"trainer.total_timesteps": self.cfg.trainer.total_timesteps}, allow_val_change=True
         )
-
-
-from typing import List
-
-import torch.distributed as dist
-from torch._utils import _flatten_dense_tensors, _unflatten_dense_tensors
-
-
-def sync_grads_flat(
-    grads: List[torch.Tensor], *, world_size: int, group: torch.distributed.ProcessGroup | None = None
-) -> None:
-    flat = _flatten_dense_tensors(grads)  # 1 contiguous buffer
-    dist.all_reduce(flat, op=dist.ReduceOp.SUM, group=group)  # one collective
-    flat.div_(world_size)
-    for g_src, g_tgt in zip(_unflatten_dense_tensors(flat, grads), grads, strict=False):
-        g_tgt.copy_(g_src)
