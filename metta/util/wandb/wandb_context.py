@@ -29,6 +29,8 @@ class WandbConfigOn(Config):
     run_id: str
     data_dir: str
     job_type: str
+    tags: list[str] = []
+    msg: str = ""
 
 
 class WandbConfigOff(Config, extra="allow"):
@@ -64,7 +66,7 @@ class WandbContext:
 
         self.global_cfg = global_cfg
 
-        self.run = None
+        self.run: WandbRun | None = None
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
@@ -89,6 +91,8 @@ class WandbContext:
         logger.info(f"Initializing W&B run with timeout={self.timeout}s")
 
         try:
+            tags = list(self.cfg.tags)
+            tags.append("user:" + os.environ.get("METTA_USER", "unknown"))
             self.run = wandb.init(
                 id=self.cfg.run_id,
                 job_type=self.cfg.job_type,
@@ -101,7 +105,8 @@ class WandbContext:
                 monitor_gym=True,
                 save_code=True,
                 resume=True,
-                tags=["user:" + os.environ.get("METTA_USER", "unknown")],
+                tags=tags,
+                notes=self.cfg.msg or None,
                 settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
             )
 
