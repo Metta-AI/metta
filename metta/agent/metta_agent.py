@@ -426,15 +426,21 @@ class MettaAgent(nn.Module):
         """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
         it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
         """
+        l2_reg_loss = torch.tensor(0.0, device=self.device)
         component_loss_tensors = self._apply_to_components("l2_reg_loss")
-        return torch.sum(torch.stack(component_loss_tensors))
+        if len(component_loss_tensors) > 0:
+            l2_reg_loss = torch.sum(torch.stack(component_loss_tensors))
+        return l2_reg_loss
 
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
         it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.
         """
+        l2_init_loss = torch.tensor(0.0, device=self.device)
         component_loss_tensors = self._apply_to_components("l2_init_loss")
-        return torch.sum(torch.stack(component_loss_tensors))
+        if len(component_loss_tensors) > 0:
+            l2_init_loss = torch.sum(torch.stack(component_loss_tensors))
+        return l2_init_loss
 
     def update_l2_init_weight_copy(self):
         """Update interval set by l2_init_weight_update_interval. 0 means no updating."""
