@@ -79,10 +79,16 @@ class PufferTrainer:
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
 
+        self.timer = Stopwatch(logger)
+        self.timer.start()
+
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
-        self._make_vecenv()
+
+
+        with self.timer("_make_vecenv"):
+            self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), (
@@ -214,8 +220,6 @@ class PufferTrainer:
             env_overrides=self._curriculum.get_task().env_cfg(),
         )
 
-        self.timer = Stopwatch(logger)
-        self.timer.start()
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -354,7 +358,8 @@ class PufferTrainer:
 
         while not experience.full:
             with profile.env:
-                o, r, d, t, info, env_id, mask = self.vecenv.recv()
+                with self.timer("_rollout.vecenv.recv"):
+                    o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
                 if self.trainer_cfg.require_contiguous_env_ids:
                     raise ValueError(
@@ -411,7 +416,8 @@ class PufferTrainer:
 
             with profile.env:
                 actions = actions.cpu().numpy()
-                self.vecenv.send(actions)
+                with self.timer("_rollout.vecenv.send"):
+                    self.vecenv.send(actions)
 
         with profile.eval_misc:
             for k, v in infos.items():
