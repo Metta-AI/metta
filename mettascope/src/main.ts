@@ -313,7 +313,11 @@ export function onFrame() {
     if (state.partialStep >= 1) {
       const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.max_steps;
       state.partialStep -= Math.floor(state.partialStep);
-      updateStep(nextStep);
+      if (state.ws !== null) {
+        state.ws.send(JSON.stringify({ type: "advance" }));
+      } else {
+        updateStep(nextStep);
+      }
     }
     requestFrame();
   }
@@ -494,7 +498,11 @@ html.playButton.addEventListener('click', () =>
 );
 html.stepForwardButton.addEventListener('click', () => {
   setIsPlaying(false);
-  updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+  if (state.ws !== null) {
+    state.ws.send(JSON.stringify({ type: "advance" }));
+  } else {
+    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+  }
 });
 html.rewindToEndButton.addEventListener('click', () => {
   setIsPlaying(false);
