@@ -69,10 +69,7 @@ class Simulation:
         logger.info(f"config.env {config.env}")
         logger.info(f"config.env_overrides {config.env_overrides}")
 
-        if config.env_overrides is not None:
-            env_overrides = OmegaConf.create(config.env_overrides)
-        else:
-            env_overrides = None
+        env_overrides = OmegaConf.create(config.env_overrides)
 
         self._env_name = config.env
 

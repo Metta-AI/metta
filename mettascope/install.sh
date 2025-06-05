@@ -12,4 +12,4 @@ npm install --force
 tsc
 
 # Generate atlas
-python tools/gen_atlas.py
+./tools/gen_atlas.py

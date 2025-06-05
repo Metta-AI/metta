@@ -1,7 +1,8 @@
 import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
 import { focusFullMap, requestFrame } from './worldmap.js';
-import { onResize } from './main.js';
+import { onResize, updateStep } from './main.js';
+import { updateAgentTable } from './agentpanel.js';
 
 // Gets an attribute from a grid object respecting the current step.
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
@@ -134,6 +135,10 @@ async function loadReplayText(url: string, replayData: string) {
   loadReplayJson(url, JSON.parse(replayData));
 }
 
+// Replays can be in many different formats, with stuff missing or broken.
+// This function fixes the replay to be in a consistent format.
+// Adding missing keys, recomputing invalid values. etc...
+// It also creates some internal data structures for faster access to images.
 function fixReplay() {
   // Create action image mappings for faster access.
   state.replay.action_images = [];
@@ -267,6 +272,7 @@ async function loadReplayJson(url: string, replayData: any) {
 
   Common.closeModal();
   focusFullMap(ui.mapPanel);
+  updateAgentTable();
   onResize();
   requestFrame();
 }
@@ -278,7 +284,7 @@ export function loadReplayStep(replayStep: any) {
   const step = replayStep.step;
 
   state.replay.max_steps = Math.max(state.replay.max_steps, step + 1);
-  state.step = step; // Rewind to the current step.
+
 
   for (const gridObject of replayStep.grid_objects) {
     // Grid objects are 1-indexed.
@@ -310,6 +316,8 @@ export function loadReplayStep(replayStep: any) {
   }
 
   fixReplay()
+
+  updateStep(step)
 
   requestFrame();
 }
