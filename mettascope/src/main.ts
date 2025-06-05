@@ -494,7 +494,11 @@ html.playButton.addEventListener('click', () =>
 );
 html.stepForwardButton.addEventListener('click', () => {
   setIsPlaying(false);
-  updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+  if (state.ws !== null) {
+    state.ws.send(JSON.stringify({ type: "advance" }));
+  } else {
+    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+  }
 });
 html.rewindToEndButton.addEventListener('click', () => {
   setIsPlaying(false);
