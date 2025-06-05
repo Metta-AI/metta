@@ -273,10 +273,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._should_reset
 
     @property
-    def grid_features(self):
-        return self._c_env.grid_features()
-
-    @property
     def feature_normalizations(self):
         return self._c_env.feature_normalizations()
 
