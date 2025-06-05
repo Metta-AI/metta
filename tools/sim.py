@@ -1,4 +1,4 @@
-# tools/sim.py
+#!/usr/bin/env -S uv run
 """
 Simulation driver for evaluating policies in the Metta environment.
 

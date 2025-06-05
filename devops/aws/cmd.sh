@@ -7,9 +7,8 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Check if python3 is available
-if ! command -v python3 &> /dev/null; then
-  echo "Error: python3 is required but not found"
+if ! command -v uv &> /dev/null; then
+  echo "Error: uv is required but not found"
   exit 1
 fi
 
@@ -30,9 +29,9 @@ if [ "${ARGS[0]}" = "launch" ]; then
   LAUNCH_ARGS=("${ARGS[@]:1}")
 
   # Execute the launch_cmd.py script with the remaining arguments
-  PYTHONPATH="$PROJECT_ROOT" python3 "$SCRIPT_DIR/batch/launch_cmd.py" $NO_COLOR "${LAUNCH_ARGS[@]}"
+  "$SCRIPT_DIR/batch/launch_cmd.py" $NO_COLOR "${LAUNCH_ARGS[@]}"
 else
-  # Execute the Python command handler as a module
+  # Execute the any other command
   cd "$PROJECT_ROOT"
-  PYTHONPATH="$PROJECT_ROOT" python3 -m devops.aws.cmd "$@"
+  uv run -m devops.aws.cmd "$@"
 fi
