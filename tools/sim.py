@@ -23,6 +23,7 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.util.config import Config
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
+from mettagrid.postgres_stats_db import PostgresStatsDB
 
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
@@ -35,7 +36,6 @@ class SimJob(Config):
     policy_uris: List[str]
     selector_type: str = "top"
     stats_db_uri: str
-    stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
 
 
@@ -74,27 +74,24 @@ def simulate_policy(
             policy_pr=pr,
             policy_store=policy_store,
             replay_dir=replay_dir,
-            stats_dir=sim_job.stats_dir,
+            stats_db_url=sim_job.stats_db_uri,
             device=cfg.device,
             vectorization=cfg.vectorization,
         )
-        sim_results = sim.simulate()
+        sim.simulate()
 
         # Collect metrics from the results
         checkpoint_data = {"name": pr.name, "uri": pr.uri, "metrics": {}}
 
-        # Get average reward
-        rewards_df = sim_results.stats_db.query(
-            "SELECT AVG(value) AS reward_avg FROM agent_metrics WHERE metric = 'reward'"
-        )
-        if len(rewards_df) > 0 and rewards_df.iloc[0]["reward_avg"] is not None:
-            checkpoint_data["metrics"]["reward_avg"] = float(rewards_df.iloc[0]["reward_avg"])
+        with PostgresStatsDB(sim_job.stats_db_uri) as stats_db:
+            # Get average reward
+            rewards_df = stats_db.query(
+                "SELECT AVG(value) AS reward_avg FROM episode_agent_metrics WHERE metric = 'reward'"
+            )
+            if len(rewards_df) > 0 and rewards_df[0][0] is not None:
+                checkpoint_data["metrics"]["reward_avg"] = float(rewards_df[0][0])
 
-        results["checkpoints"].append(checkpoint_data)
-
-        # Export the stats DB
-        logger.info("Exporting merged stats DB → %s", sim_job.stats_db_uri)
-        sim_results.stats_db.export(sim_job.stats_db_uri)
+            results["checkpoints"].append(checkpoint_data)
 
         logger.info("Evaluation complete for policy %s", pr.uri)
 

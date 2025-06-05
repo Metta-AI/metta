@@ -8,8 +8,8 @@ from typing import Any, Dict, Optional, cast
 import gymnasium as gym
 import numpy as np
 import pufferlib
-from omegaconf import OmegaConf
 from pufferlib import unroll_nested_dict
+from omegaconf import OmegaConf
 from pydantic import validate_call
 from typing_extensions import override
 
@@ -244,7 +244,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._stats_writer:
             assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-            attributes = {
+            attributes: Dict[str, Any] = {
                 "seed": self._current_seed,
                 "map_w": self.map_width,
                 "map_h": self.map_height,
@@ -266,14 +266,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
             }
 
+            attributes["agent_groups"] = agent_groups
+
             self._stats_writer.record_episode(
-                self._episode_id,
-                attributes,
-                agent_metrics,
-                agent_groups,
-                self.max_steps,
-                replay_url,
-                self._reset_at,
+                agent_metrics=agent_metrics,
+                replay_url=replay_url,
+                attributes=attributes,
             )
         self._episode_id = None
 

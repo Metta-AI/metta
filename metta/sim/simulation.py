@@ -14,8 +14,6 @@ import logging
 import os
 import time
 import uuid
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Dict
 
 import numpy as np
@@ -28,10 +26,10 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.rl.pufferlib.policy import PufferAgent
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
 from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from mettagrid.postgres_stats_db import PostgresStatsDB
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
@@ -42,6 +40,38 @@ class SimulationCompatibilityError(Exception):
     """Raised when there's a compatibility issue that prevents simulation from running."""
 
     pass
+
+
+def get_agent_policies(
+    stats_db_url: str,
+    policy_idxs: torch.Tensor,
+    npc_idxs: torch.Tensor,
+    policy_pr: PolicyRecord,
+    npc_pr: PolicyRecord | None,
+) -> Dict[int, int]:
+    with PostgresStatsDB(stats_db_url) as db:
+        policy_names = [policy_pr.name]
+        if npc_pr is not None:
+            policy_names.append(npc_pr.name)
+        policy_ids = db.get_policy_ids(policy_names)
+
+        for policy_name in policy_names:
+            if policy_name not in policy_ids:
+                policy_id = db.create_policy(policy_name, None, None, None)
+                policy_ids[policy_name] = policy_id
+
+        agent_map: Dict[int, int] = {}
+
+        # Add policy agents to the map
+        for idx in policy_idxs:
+            agent_map[int(idx.item())] = policy_ids[policy_pr.name]
+
+        # Add NPC agents to the map if they exist
+        if npc_pr is not None:
+            for idx in npc_idxs:
+                agent_map[int(idx.item())] = policy_ids[npc_pr.name]
+
+        return agent_map
 
 
 class Simulation:
@@ -57,12 +87,11 @@ class Simulation:
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
-        suite=None,
-        stats_dir: str = "/tmp/stats",
+        stats_db_url: str | None = None,
+        suite_name: str | None = None,
         replay_dir: str | None = None,
     ):
         self._name = name
-        self._suite = suite
         self._config = config
         self._id = uuid.uuid4().hex[:12]
 
@@ -76,10 +105,13 @@ class Simulation:
 
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
-        sim_stats_dir = (Path(stats_dir) / self._id).resolve()
-        sim_stats_dir.mkdir(parents=True, exist_ok=True)
-        self._stats_dir = sim_stats_dir
-        self._stats_writer = StatsWriter(sim_stats_dir)
+        self._stats_writer = None
+        if stats_db_url is not None:
+            self._stats_writer = StatsWriter(
+                db_url=stats_db_url,
+                eval_name=config.env,
+                simulation_suite=suite_name,
+            )
         self._replay_writer = ReplayWriter(replay_dir)
         self._device = device
 
@@ -140,7 +172,7 @@ class Simulation:
         metta_agent.activate_actions(action_names, max_args, self._device)
 
         if self._npc_pr is not None:
-            npc_agent: MettaAgent | DistributedMettaAgent = self._npc_pr.policy_as_metta_agent()
+            npc_agent: MettaAgent | DistributedMettaAgent | PufferAgent = self._npc_pr.policy_as_metta_agent()
             assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent)), npc_agent
             npc_agent.activate_actions(action_names, max_args, self._device)
 
@@ -159,6 +191,17 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
+        if self._stats_writer is not None:
+            self._stats_writer.set_agent_policies(
+                get_agent_policies(
+                    stats_db_url=self._stats_writer.db_url,
+                    policy_idxs=self._policy_idxs,
+                    npc_idxs=self._npc_idxs,
+                    policy_pr=self._policy_pr,
+                    npc_pr=self._npc_pr,
+                )
+            )
+
     def start_simulation(self) -> None:
         """
         Start the simulation.
@@ -170,7 +213,6 @@ class Simulation:
             self._agents_per_env,
             100 * self._policy_agents_per_env / self._agents_per_env,
         )
-        logger.info("Stats dir: %s", self._stats_dir)
         # ---------------- reset ------------------------------- #
         self._obs, _ = self._vecenv.reset()
         self._policy_state = PolicyState()
@@ -271,10 +313,9 @@ class Simulation:
             elif not done_now[e] and self._env_done_flags[e]:
                 self._env_done_flags[e] = False
 
-    def end_simulation(self) -> SimulationResults:
+    def end_simulation(self) -> None:
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
-        db = self._from_shards_and_context()
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
@@ -282,9 +323,8 @@ class Simulation:
             int(self._episode_counters.sum()),
             time.time() - self._t0,
         )
-        return SimulationResults(db)
 
-    def simulate(self) -> SimulationResults:
+    def simulate(self) -> None:
         """
         Run the simulation; returns the merged `StatsDB`.
         """
@@ -294,55 +334,17 @@ class Simulation:
             actions_np = self.generate_actions()
             self.step_simulation(actions_np)
 
-        return self.end_simulation()
-
-    def _from_shards_and_context(self) -> SimulationStatsDB:
-        """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
-        # Make sure we're creating a dictionary of the right type
-        agent_map: Dict[int, PolicyRecord] = {}
-
-        # Add policy agents to the map
-        for idx in self._policy_idxs:
-            agent_map[int(idx.item())] = self._policy_pr
-
-        # Add NPC agents to the map if they exist
-        if self._npc_pr is not None:
-            for idx in self._npc_idxs:
-                agent_map[int(idx.item())] = self._npc_pr
-
-        suite_name = "" if self._suite is None else self._suite.name
-        db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_pr
-        )
-        return db
-
-    def get_replays(self) -> dict:
-        """Get all replays for this simulation."""
-        return self._replay_writer.episodes.values()
+        self.end_simulation()
 
     def get_replay(self) -> dict:
         """Makes sure this sim has a single replay, and return it."""
         if len(self._replay_writer.episodes) != 1:
             raise ValueError("Attempting to get single replay, but simulation has multiple episodes")
-        for _, episode_replay in self._replay_writer.episodes.items():
-            return episode_replay.get_replay_data()
-
-    def get_envs(self):
-        """Returns a list of all envs in the simulation."""
-        return self._vecenv.envs
+        episode_replay = list(self._replay_writer.episodes.values())[0]
+        return episode_replay.get_replay_data()
 
     def get_env(self):
         """Make sure this sim has a single env, and return it."""
-        if len(self._vecenv.envs) != 1:
+        if len(self._vecenv.envs) != 1:  # type: ignore
             raise ValueError("Attempting to get single env, but simulation has multiple envs")
-        return self._vecenv.envs[0]
-
-
-@dataclass
-class SimulationResults:
-    """
-    Results of a simulation.
-    For now just a stats db. Replay plays can be retrieved from the stats db.
-    """
-
-    stats_db: SimulationStatsDB
+        return self._vecenv.envs[0]  # type: ignore

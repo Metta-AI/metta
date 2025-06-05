@@ -3,13 +3,9 @@ StatsWriter is a class for writing statistics to a DuckDB database.
 It is used to record the outcomes of episodes in MettaGrid.
 """
 
-import datetime
-import os
-import uuid
-from pathlib import Path
-from typing import Dict
+from typing import Any, Dict
 
-from mettagrid.episode_stats_db import EpisodeStatsDB
+from mettagrid.postgres_stats_db import PostgresStatsDB
 
 
 class StatsWriter:
@@ -18,38 +14,35 @@ class StatsWriter:
     Safe to serialize/deserialize with multiprocessing as long as we have not yet created a connection to a duckdb file.
     """
 
-    def __init__(self, dir: Path) -> None:
-        self.dir = dir
-        # We do not pick a specific path or open a connection here,
-        # because for simplicity we pass a single StatsWriter as an
-        # argument to make_vecenv. These objects are pickled/unpickled
-        # when using multiprocessing. Only one process can have an open
-        # connection to a particular duckdb file, so we create a random
-        # path and open a connection on demand.
-        self.db = None
+    def __init__(
+        self,
+        db_url: str,
+        eval_name: str | None,
+        simulation_suite: str | None,
+    ) -> None:
+        self.db_url = db_url
+        self.eval_name = eval_name
+        self.simulation_suite = simulation_suite
+        self.agent_policies: Dict[int, int] = {}
 
-    def _ensure_db(self) -> None:
-        if self.db is None:
-            # Create a random filename for the duckdb file within the specified directory.
-            # This ensures that each process has a unique file, and that
-            # the file is not locked by another process.
-            path = Path(self.dir) / f"{os.getpid()}_{uuid.uuid4().hex[:6]}.duckdb"
-            self.db = EpisodeStatsDB(path)
+    # TODO: This is hacky, but the reason we set separately instead of in the constructor is that we need to build
+    # mettagrid env to get the agent policies, and we are passing the stats_writer to the vecenv.
+    # We should refactor this to not need to do this.
+    def set_agent_policies(self, agent_policies: Dict[int, int]) -> None:
+        self.agent_policies = agent_policies
 
     def record_episode(
         self,
-        episode_id: str,
-        attributes: Dict[str, str],
         agent_metrics: Dict[int, Dict[str, float]],
-        agent_groups: Dict[int, int],
-        step_count: int,
         replay_url: str | None,
-        created_at: datetime.datetime,
+        attributes: Dict[str, Any],
     ) -> None:
-        self._ensure_db()
-        assert self.db is not None, "Database must be initialized before recording episodes"
-        self.db.record_episode(episode_id, attributes, agent_metrics, agent_groups, step_count, replay_url, created_at)
-
-    def close(self) -> None:
-        if self.db is not None:
-            self.db.close()
+        with PostgresStatsDB(self.db_url) as db:
+            db.record_episode(
+                agent_policies=self.agent_policies,
+                agent_metrics=agent_metrics,
+                eval_name=self.eval_name,
+                simulation_suite=self.simulation_suite,
+                replay_url=replay_url,
+                attributes=attributes,
+            )

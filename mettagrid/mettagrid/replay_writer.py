@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 if TYPE_CHECKING:
     from mettagrid.mettagrid_env import MettaGridEnv
@@ -18,7 +18,7 @@ class ReplayWriter:
 
     def __init__(self, replay_dir: str | None = None):
         self.replay_dir = replay_dir
-        self.episodes = {}
+        self.episodes: Dict[str, EpisodeReplay] = {}
 
     def start_episode(self, episode_id: str, env: MettaGridEnv):
         self.episodes[episode_id] = EpisodeReplay(env)
