@@ -52,7 +52,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
 
   _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
   _obs_encoder = std::make_unique<ObservationEncoder>();
-  _grid_features = _obs_encoder->feature_names();
   _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
@@ -173,7 +172,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
     shape = {static_cast<ssize_t>(num_agents),
              static_cast<ssize_t>(obs_height),
              static_cast<ssize_t>(obs_width),
-             static_cast<ssize_t>(_grid_features.size())};
+             static_cast<ssize_t>(_feature_normalizations.size())};
   }
   auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
   auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
@@ -423,11 +422,11 @@ void MettaGrid::validate_buffers() {
     auto observation_info = _observations.request();
     auto shape = observation_info.shape;
     if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != obs_height || shape[2] != obs_width ||
-        shape[3] != _grid_features.size()) {
+        shape[3] != _feature_normalizations.size()) {
       std::stringstream ss;
       ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << ", " << shape[3]
-         << "] but expected [" << num_agents << ", " << obs_height << ", " << obs_width << ", " << _grid_features.size()
-         << "]";
+         << "] but expected [" << num_agents << ", " << obs_height << ", " << obs_width << ", "
+         << _feature_normalizations.size() << "]";
       throw std::runtime_error(ss.str());
     }
   }
@@ -566,11 +565,8 @@ unsigned int MettaGrid::map_height() {
   return _grid->height;
 }
 
-py::list MettaGrid::grid_features() {
-  return py::cast(_grid_features);
-}
-
-// These should correspond to the grid_features list.
+// These should correspond to the features we emit in the observations -- either
+// the channel or the feature_id.
 py::list MettaGrid::feature_normalizations() {
   return py::cast(_feature_normalizations);
 }
@@ -638,22 +634,19 @@ py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
+  auto observation_info = _observations.request();
+  auto shape = observation_info.shape;
+  auto space_shape = py::tuple(observation_info.ndim - 1);
+  for (size_t i = 0; i < observation_info.ndim - 1; i++) {
+    space_shape[i] = shape[i + 1];
+  }
+
   ObservationType min_value = std::numeric_limits<ObservationType>::min();  // 0
   ObservationType max_value = std::numeric_limits<ObservationType>::max();  // 255
 
-  if (_use_observation_tokens) {
-    // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
-    // that matters to us.
-    return spaces.attr("Box")(min_value,
-                              max_value,
-                              py::make_tuple(_observations.shape(1), _observations.shape(2)),
-                              py::arg("dtype") = dtype_observations());
-  } else {
-    return spaces.attr("Box")(min_value,
-                              max_value,
-                              py::make_tuple(obs_height, obs_width, _grid_features.size()),
-                              py::arg("dtype") = dtype_observations());
-  }
+  // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
+  // that matters to us.
+  return spaces.attr("Box")(min_value, max_value, space_shape, py::arg("dtype") = dtype_observations());
 }
 
 py::list MettaGrid::action_success() {
@@ -757,7 +750,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
-      .def("grid_features", &MettaGrid::grid_features)
       .def("feature_normalizations", &MettaGrid::feature_normalizations)
       .def_property_readonly("num_agents", &MettaGrid::num_agents)
       .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
