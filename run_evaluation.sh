@@ -4,45 +4,34 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-    "dd.2objectuse_curriculum"
-    "dd_navigation_curriculum"
-    "dd_navsequence_memory_pretrained"
-    "dd_navsequence_memory"
-    "dd_navsequence_all_pretrained"
-    "dd_navsequence_all"
-    "dd_multiagent"
-    "dd_multiagent_pretrained"
-    "dd.curriculum_ALL"
-    "dd_curriculum_all_reg0.1"
-    "b.dd.curriculum_all"
-    "dd.navsequencemem.smallinventory"
-    "dd.navsequence_seq.smallinventory"
-    "dd.navsequence_all.smallinventory"
-    “gd_sequence_stripped”
-    “gd.1.sequence_stripped”
-    “gd.1.easysequence”
-    “gd.1.kitchensink”
-    “b.gd.easysequence”
-    “gd.backchain_kitchen2”
-    “gd2_backchain_kitchen”
-    “gd_backchain3”
-    “gd_sequence_stripped3”
-    “gd_backchain_seq3”
-    “gd_backchain_mem_pretrained2”
-    “gd_backchain_none3”
-    “gd_backchain_none2”
-    “gd_backchain2”
-    “gd_backchain_seq2”
-    “gd_sequence_stripped2”
-    “gd_easy_sequence2”
-    “gd_backchain_kitchen2”
-    “gd_all2”
-    “gd_all”
-    “gd_backchain_mem_pretrained”
-    “gd_sequence_strippedt”
-    “gd1.sequence_stripped”
-    “gd1.easysequence”
-    “gd1.kitchensink”
+    # "dd.2objectuse_curriculum"
+    # "dd_navigation_curriculum"
+    # "dd_navsequence_memory_pretrained"
+    # "dd_navsequence_memory"
+    # "dd_navsequence_all_pretrained"
+    # "dd_navsequence_all"
+    # "dd_multiagent"
+    # "dd_multiagent_pretrained"
+    # "dd.curriculum_ALL"
+    # "dd_curriculum_all_reg0.1"
+    # "b.dd.curriculum_all"
+    # "dd.navsequencemem.smallinventory"
+    # "dd.navsequence_seq.smallinventory"
+    # "dd.navsequence_all.smallinventory"
+    “gd.1.kitchensink"
+    “b.gd.easysequence"
+    “gd.backchain_kitchen2"
+    “gd2_backchain_kitchen"
+    “gd_backchain3"
+    “gd_sequence_stripped3"
+    “gd_backchain_seq3"
+    “gd_backchain_none3"
+    “gd_all2"
+    “gd_all"
+    “gd_backchain_mem_pretrained"
+    “gd_sequence_strippedt"
+    “gd1.sequence_stripped"
+    “gd1.easysequence"
 
     )
 
@@ -71,14 +60,14 @@ for i in "${!POLICIES[@]}"; do
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db1 \
-        device=cpu \
+        # device=cpu \
 
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db1 \
-        device=cpu \
+        # device=cpu \
 
 
     python3 -m tools.sim \
@@ -86,7 +75,7 @@ for i in "${!POLICIES[@]}"; do
         run=nav_sequence$IDX \
         policy_uri=wandb://run/$POLICY_URI \
         sim_job.stats_db_uri=wandb://stats/stats_db1 \
-        device=cpu \
+        # device=cpu \
 
    python3 -m tools.sim \
         sim=multiagent \
