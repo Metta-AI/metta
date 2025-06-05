@@ -331,9 +331,6 @@ void MettaGrid::_step(py::array_t<int> actions) {
       // Update agent's last action and success
       agent->last_action = static_cast<unsigned char>(action);
       agent->last_action_success = _action_success[idx] ? 1 : 0;
-
-      // DEBUG: Print action tracking
-      printf("Agent %zu: action=%d, success=%d\n", idx, agent->last_action, agent->last_action_success);
     }
   }
 

@@ -148,15 +148,6 @@ public:
     obs[offsets[7]] = last_action;
     obs[offsets[8]] = last_action_success;
 
-    // DEBUG: Print observation encoding for action tracking
-    if (last_action > 0 || last_action_success > 0) {
-      printf("Agent obs encoding: last_action=%d at offset %d, last_action_success=%d at offset %d\n",
-             last_action,
-             offsets[7],
-             last_action_success,
-             offsets[8]);
-    }
-
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       obs[offsets[9 + i]] = inventory[i];
     }
