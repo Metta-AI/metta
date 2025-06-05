@@ -426,7 +426,6 @@ class MettaAgent(nn.Module):
         """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
         it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
         """
-        l2_reg_loss = torch.tensor(0.0, device=self.device)
         component_loss_tensors = self._apply_to_components("l2_reg_loss")
         if len(component_loss_tensors) > 0:
             l2_reg_loss = torch.sum(torch.stack(component_loss_tensors))
