@@ -150,7 +150,8 @@ hardware.
 ### Run the terminal simulation
 
 ```
-./tools/renderer.py run=renderer_demo renderer_job.policy_type=simple renderer_job.num_steps=100000
+./tools/renderer.py run=demo_obstacles \
+renderer_job.environment.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
 If you're a member of `metta-research` on wandb, or you add your own wandb config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the readme.
