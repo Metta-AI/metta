@@ -1,5 +1,5 @@
-  defaults:
-    - /env/mettagrid/navigation_sequence/training/hard_sequence_defaults@
+defaults:
+  - /env/mettagrid/navigation_sequence/training/hard_sequence_defaults@
   - _self_
 
 game:
