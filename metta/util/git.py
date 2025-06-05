@@ -69,7 +69,7 @@ def get_branch_commit(branch_name, repo_path=None):
         return None
 
 
-def get_commit_message(commit_hash, repo_path=None):
+def get_commit_message(commit_hash: str, repo_path: str | None = None) -> str | None:
     """Get the commit message for a specific commit hash."""
     try:
         cmd = ["git", "log", "-1", "--pretty=%B", commit_hash]
@@ -81,7 +81,7 @@ def get_commit_message(commit_hash, repo_path=None):
         return None
 
 
-def get_current_repo():
+def get_current_repo() -> str | None:
     """Get the current GitHub repository in owner/repo format."""
     try:
         result = subprocess.run(
@@ -95,7 +95,7 @@ def get_current_repo():
         return None
 
 
-def get_github_variable(variable_name, repo=None):
+def get_github_variable(variable_name: str, repo: str | None = None) -> str | None:
     """Get the current value of a GitHub variable."""
     cmd = ["gh", "variable", "get", variable_name]
     if repo:
@@ -108,7 +108,7 @@ def get_github_variable(variable_name, repo=None):
         return None
 
 
-def set_github_variable(variable_name, value, repo=None):
+def set_github_variable(variable_name: str, value: str, repo: str | None = None) -> bool:
     """Set a GitHub variable using the GitHub CLI."""
     cmd = ["gh", "variable", "set", variable_name, "--body", value]
     if repo:

@@ -34,7 +34,7 @@ sys.path.insert(0, str(project_root))
 from metta.util.git import get_current_commit, get_current_repo, get_github_variable, set_github_variable
 
 
-def check_wandb_policy_exists(policy_name):
+def check_wandb_policy_exists(policy_name: str) -> bool:
     """Check if a policy exists on wandb."""
     try:
         # Try using wandb CLI to check if the artifact exists
@@ -52,7 +52,7 @@ def check_wandb_policy_exists(policy_name):
         return False
 
 
-def confirm_update(current_value, new_value):
+def confirm_update(current_value: str | None, new_value: str) -> bool:
     """Ask user to confirm the update."""
     print("\n" + "="*60)
     print("SMOKE TEST POLICY UPDATE")
@@ -71,7 +71,7 @@ def confirm_update(current_value, new_value):
             print("Please enter 'y' for yes or 'n' for no.")
 
 
-def check_dependencies():
+def check_dependencies() -> bool:
     """Check if required dependencies are installed."""
     try:
         import boto3
@@ -84,7 +84,7 @@ def check_dependencies():
         return False
 
 
-def main():
+def main() -> None:
     """Main function."""
     # Parse command line arguments
     parser = argparse.ArgumentParser(
