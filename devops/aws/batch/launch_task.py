@@ -114,7 +114,6 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
         "./devops/aws/batch/entrypoint.sh",
         f"./devops/{args.cmd}.sh",
         "uv.lock",
-        "pyproject.toml",
     ]
 
     if args.cmd == "train":

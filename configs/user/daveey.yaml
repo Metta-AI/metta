@@ -2,6 +2,7 @@
 
 defaults:
   - /sim/all@sim_job.simulation_suite
+  - override /agent: robust_cross
   - _self_
 
 trainer:
@@ -12,6 +13,7 @@ trainer:
     sampling: 0.7
     game:
       max_steps: 13
+      use_observation_tokens: true
 
   evaluate_interval: 200
   # optimizer:
@@ -74,7 +76,7 @@ sim_job:
   #         agents: 4
   #       num_rooms: 4
 
-run_id: 24
+run_id: 26
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

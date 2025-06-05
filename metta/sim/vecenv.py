@@ -74,6 +74,8 @@ def make_vecenv(
         "replay_writer": replay_writer,
     }
 
+    logger.info(f"Making vecenv with {num_envs} envs, {num_workers} workers, {vectorization} backend")
+
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,
     # but the type annotations only allow PufferEnv.
     vecenv = pufferlib.vector.make(
