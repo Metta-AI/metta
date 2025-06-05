@@ -9,4 +9,4 @@ trainer:
   wandb.enabled: true
   wandb.track: true
 
-run: mrazo_act-obs_objectuse_robust-cross_v01
+run: mrazo_act-obs_objectuse_robust-cross_v02
