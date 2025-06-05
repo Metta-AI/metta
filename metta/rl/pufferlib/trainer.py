@@ -408,8 +408,8 @@ class PufferTrainer:
                 else:
                     lstm_c[:, training_env_id] = torch.zeros_like(lstm_c[:, training_env_id])
 
-                # if self.device == "cuda":
-                #     torch.cuda.synchronize()
+                if self.device == "cuda":
+                    torch.cuda.synchronize()
 
             with profile.eval_misc:
                 value = value.flatten()
