@@ -127,7 +127,7 @@ class TestBuffers:
 
     def test_set_buffers_wrong_shape(self):
         """Test that set_buffers properly validates buffer shapes."""
-        c_env = create_minimal_mettagrid_c_env(use_observation_tokens=True)
+        c_env = create_minimal_mettagrid_c_env()
         terminals = np.zeros(NUM_AGENTS, dtype=bool)
         truncations = np.zeros(NUM_AGENTS, dtype=bool)
         rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
