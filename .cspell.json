@@ -133,6 +133,7 @@
     "pybind",
     "Pylance",
     "pynvml",
+    "pyright",
     "pytest",
     "PYTHONHOME",
     "Pythonic",

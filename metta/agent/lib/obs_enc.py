@@ -187,46 +187,117 @@ class ObsVanillaAttn(LayerBase):
 
 
 class ObsCrossAttn(LayerBase):
-    """Use LSTM as a classifier token. If LSTM hidden is None, use a learnable token in its stead.
-    This layer collapses also input sequence length to 1 so it also squeezes the output to [B, out_dim]. This makes it
-    the only of the above layers that can feed directly into the LSTM (otherwise, you need to decide how you'd like to
-    collapse your sequence to a single token)."""
+    """
+    Performs cross-attention between learnable query tokens and input features.
+
+    This layer uses a set of `num_query_tokens` learnable parameters as queries to attend
+    to the input features `x_features` (typically coming from an observation encoder).
+
+    !!! Note About Output Shape: !!!
+    The output shape depends on the `num_query_tokens` parameter:
+    - If `num_query_tokens == 1`, the output tensor shape will be `[B, out_dim]`,
+      where B is the batch-time dimension (B_TT).
+    - If `num_query_tokens > 1`, the output tensor shape will be `[B, num_query_tokens, out_dim]`.
+
+    Key Functionality:
+    1. Initializes `num_query_tokens` learnable query tokens.
+    2. Projects these query tokens to `qk_dim` (query projection).
+    3. Projects input features to `qk_dim` (key projection) and `v_dim` (value projection).
+    4. Computes scaled dot-product attention scores between projected queries and keys.
+    5. Applies softmax to get attention weights.
+    6. Computes the weighted sum of projected values using these weights.
+    7. Passes the result through a LayerNorm and an optional output MLP.
+
+    Args:
+        out_dim (int): The final output dimension for each query token's processed features.
+        use_mask (bool, optional): If True, uses an observation mask (`obs_mask` from the
+            input TensorDict) to mask attention scores for padded elements in `x_features`.
+            Defaults to False.
+        num_query_tokens (int, optional): The number of learnable query tokens to use.
+            Defaults to 1.
+        query_token_dim (Optional[int], optional): The embedding dimension for the initial
+            learnable query tokens. If None, defaults to the input feature dimension (`feat_dim`).
+            Defaults to None.
+        qk_dim (Optional[int], optional): The dimension for query and key projections in the
+            attention mechanism. If None, defaults to `feat_dim`. Defaults to None.
+        v_dim (Optional[int], optional): The dimension for value projection in the attention
+            mechanism. If None, defaults to `feat_dim`. Defaults to None.
+        mlp_out_hidden_dim (Optional[int], optional): If provided, an MLP is used as the final
+            output projection. This defines the hidden layer size of that MLP.
+            The MLP structure is Linear(v_dim, mlp_out_hidden_dim) -> ReLU -> Linear(mlp_out_hidden_dim, out_dim).
+            If None and v_dim == out_dim, an nn.Identity() is used. If None and v_dim != out_dim,
+            a ValueError is raised (as mlp_out_hidden_dim is required to define the MLP).
+            Defaults to None.
+        **cfg: Additional configuration for LayerBase.
+
+    Input TensorDict:
+        - `x_features` (from `self._sources[0]["name"]`): Tensor of shape `[B_TT, M, feat_dim]`
+          containing the input features.
+        - `obs_mask` (optional, if `use_mask` is True): Tensor of shape `[B_TT, M]` indicating
+          elements to be masked (True for masked).
+        - `_BxTT_`: Batch-time dimension.
+
+    Output TensorDict:
+        - `self._name`: Output tensor. Shape is `[B_TT, out_dim]` if `num_query_tokens == 1`,
+          or `[B_TT, num_query_tokens, out_dim]` if `num_query_tokens > 1`.
+    """
 
     def __init__(
         self,
         out_dim: int,
-        hidden_size: int,
-        core_num_layers: int,
         use_mask: bool = False,
+        num_query_tokens: int = 1,
+        query_token_dim: Optional[int] = None,
+        qk_dim: Optional[int] = None,
+        v_dim: Optional[int] = None,
+        mlp_out_hidden_dim: Optional[int] = None,
         **cfg,
     ) -> None:
         super().__init__(**cfg)
         self._out_dim = out_dim
-        self._hidden_size = hidden_size
-        self._core_num_layers = core_num_layers
         self._use_mask = use_mask
+        self._num_query_tokens = num_query_tokens
+        self._query_token_dim = query_token_dim
+        self._qk_dim = qk_dim
+        self._v_dim = v_dim
+        self._mlp_out_hidden_dim = mlp_out_hidden_dim
 
     def _make_net(self) -> None:
         # we expect input shape to be [B, M, feat_dim]
         self._M = self._in_tensor_shapes[0][0]
         self._feat_dim = self._in_tensor_shapes[0][1]
 
-        self._out_tensor_shape = [self._out_dim]
+        if self._qk_dim is None:
+            self._qk_dim = self._feat_dim
+        if self._v_dim is None:
+            self._v_dim = self._feat_dim
+        if self._query_token_dim is None:
+            self._query_token_dim = self._feat_dim
 
-        self._q_token = nn.Parameter(torch.randn(1, 1, self._feat_dim))
+        if self._num_query_tokens == 1:
+            self._out_tensor_shape = [self._out_dim]
+        else:
+            self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
+
+        self._q_token = nn.Parameter(torch.randn(1, self._num_query_tokens, self._query_token_dim))
 
         self._layer_norm_1 = nn.LayerNorm(self._feat_dim)
 
-        self.q_proj = nn.Linear(self._feat_dim, self._feat_dim, bias=False)
-        self.k_proj = nn.Linear(self._feat_dim, self._feat_dim, bias=False)
-        self.v_proj = nn.Linear(self._feat_dim, self._feat_dim, bias=False)
+        self.q_proj = nn.Linear(self._query_token_dim, self._qk_dim, bias=False)
+        self.k_proj = nn.Linear(self._feat_dim, self._qk_dim, bias=False)
+        self.v_proj = nn.Linear(self._feat_dim, self._v_dim, bias=False)
 
-        self._layer_norm_2 = nn.LayerNorm(self._feat_dim)
+        self._layer_norm_2 = nn.LayerNorm(self._v_dim)
 
-        if self._feat_dim != self._out_dim:
-            self._out_proj = nn.Linear(self._feat_dim, self._out_dim)
-        else:
-            self._out_proj = nn.Identity()
+        self._out_proj = nn.Identity()
+        if self._v_dim != self._out_dim or self._mlp_out_hidden_dim is not None:
+            if self._mlp_out_hidden_dim is None:
+                raise ValueError("mlp_out_hidden_dim must be provided if v_dim != out_dim")
+            self._out_proj = nn.Sequential(
+                nn.Linear(self._v_dim, self._mlp_out_hidden_dim),
+                nn.ReLU(),
+                nn.Linear(self._mlp_out_hidden_dim, self._out_dim),
+            )
 
         return None
 
@@ -237,36 +308,51 @@ class ObsCrossAttn(LayerBase):
             key_mask = td["obs_mask"]
         B_TT = td["_BxTT_"]
 
-        query = self._q_token.expand(B_TT, -1, -1)
-        x_features = self._layer_norm_1(x_features)  # [B_TT, M, _feat_dim]
+        # query_token_unprojected will have shape [B_TT, num_query_tokens, _feat_dim]
+        query_token_unprojected = self._q_token.expand(B_TT, -1, -1)
+        x_features_norm = self._layer_norm_1(x_features)  # [B_TT, M, _feat_dim]
 
-        q_p = self.q_proj(query)  # q_p is now [B_TT, 1, _feat_dim]
-        k_p = self.k_proj(x_features)  # [B_TT, M, _feat_dim]
-        v_p = self.v_proj(x_features)  # [B_TT, M, _feat_dim]
+        q_p = self.q_proj(query_token_unprojected)  # q_p is now [B_TT, num_query_tokens, _actual_qk_dim]
+        k_p = self.k_proj(x_features_norm)  # [B_TT, M, _actual_qk_dim]
+        v_p = self.v_proj(x_features_norm)  # [B_TT, M, _actual_v_dim]
 
         # Calculate attention scores: Q_projected @ K_projected.T
-        # q_p: [B_TT, 1, _feat_dim], k_p: [B_TT, M, _feat_dim]. that means linear attention, yay.
-        attn_scores = torch.einsum("bqd,bkd->bqk", q_p, k_p)  # Result: [B_TT, 1, M]
+        # q_p: [B_TT, num_query_tokens, _actual_qk_dim], k_p: [B_TT, M, _actual_qk_dim].
+        # attn_scores will have shape [B_TT, num_query_tokens, M]
+        attn_scores = torch.einsum("bqd,bkd->bqk", q_p, k_p)
 
         # Scale scores
-        attn_scores = attn_scores / (self._feat_dim**0.5)
+        attn_scores = attn_scores / (self._qk_dim**0.5)
 
         # Apply mask
         if key_mask is not None:
             # key_mask shape: [B_TT, M] -> unsqueeze to [B_TT, 1, M] for broadcasting
+            # This will broadcast across the num_query_tokens dimension.
             key_mask_expanded = key_mask.unsqueeze(1)
             attn_scores = attn_scores.masked_fill(key_mask_expanded, -float("inf"))
 
         # Softmax to get attention weights
-        attn_weights = torch.softmax(attn_scores, dim=-1)  # Result: [B_TT, 1, M]
+        # attn_weights will have shape [B_TT, num_query_tokens, M]
+        attn_weights = torch.softmax(attn_scores, dim=-1)
 
         # Calculate output: Weights @ V_projected
-        x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)  # Result: [B_TT, 1, _feat_dim]
+        # x will have shape [B_TT, num_query_tokens, _actual_v_dim]
+        x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
 
         x = self._layer_norm_2(x)
 
+        # x shape: [B_TT, num_query_tokens, _actual_v_dim]
+        # _out_proj maps last dim from _actual_v_dim to _out_dim
+        # x after _out_proj: [B_TT, num_query_tokens, _out_dim]
         x = self._out_proj(x)
-        x = einops.rearrange(x, "b m h -> b (m h)")
+
+        if self._num_query_tokens == 1:
+            # Reshape [B_TT, 1, self._out_dim] to [B_TT, self._out_dim]
+            # This explicitly removes the middle dimension of size 1.
+            x = einops.rearrange(x, "btt 1 d -> btt d")
+        # Else (num_query_tokens > 1), x is already [B_TT, self._num_query_tokens, self._out_dim]
+        # and this shape is consistent with self._out_tensor_shape (plus batch dim).
+
         td[self._name] = x
         return td
 
