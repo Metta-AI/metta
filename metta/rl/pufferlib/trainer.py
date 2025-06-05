@@ -75,7 +75,7 @@ class PufferTrainer:
             (isinstance(self.device, str) and self.device.startswith("cuda"))
             or (isinstance(self.device, torch.device) and self.device.type == "cuda")
         ) and self.trainer_cfg.autocast
-        self._scaler = GradScaler(enabled=self._use_autocast)
+        self._scaler = GradScaler(enabled=self._use_autocast)  # needs "cuda"?
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
@@ -408,8 +408,8 @@ class PufferTrainer:
                 else:
                     lstm_c[:, training_env_id] = torch.zeros_like(lstm_c[:, training_env_id])
 
-                if self.device == "cuda":
-                    torch.cuda.synchronize()
+                # if self.device == "cuda":
+                #     torch.cuda.synchronize()
 
             with profile.eval_misc:
                 value = value.flatten()
