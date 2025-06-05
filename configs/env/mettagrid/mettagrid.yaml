@@ -21,7 +21,9 @@ game:
     ore.red_max: ${sampling:3, 20, 10}
     ore.blue_max: ${sampling:3, 20, 10}
     ore.green_max: ${sampling:3, 20, 10}
-    battery_max: ${sampling:5, 20, 10}
+    battery.red_max: ${sampling:5, 20, 10}
+    battery.blue_max: ${sampling:5, 20, 10}
+    battery.green_max: ${sampling:5, 20, 10}
     freeze_duration: ${sampling:0, 200, 10}
     hp: 10
     rewards:

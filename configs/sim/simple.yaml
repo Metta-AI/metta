@@ -2,4 +2,4 @@ defaults:
   - sim_single
   - _self_
 
-env: /env/mettagrid/navigation_sequence/training/mem_balanced
+env: /env/mettagrid/navigation_sequence/training/hard_mem_sparse
