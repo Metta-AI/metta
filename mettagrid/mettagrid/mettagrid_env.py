@@ -19,6 +19,7 @@ from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.diversity import calculate_diversity_bonus
 from mettagrid.util.hydra import simple_instantiate
+from metta.util.timing import Stopwatch # ignore
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 np_observations_type = np.dtype(np.uint8)
@@ -54,6 +55,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+
+        self.timer = Stopwatch(logger)
+        self.timer.start()
+        self._steps = 0
+
         self._render_mode = render_mode
         self._curriculum = curriculum
         self._task = self._curriculum.get_task()
@@ -87,11 +93,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def _reset_env(self):
         # Prepare the level
-        self._task = self._curriculum.get_task()
+        with self.timer("_reset_env._curriculum.get_task"):
+            self._task = self._curriculum.get_task()
         level = self._level
-        if level is None:
-            map_builder = simple_instantiate(self._task.env_cfg().game.map_builder, recursive=True)
-            level = map_builder.build()
+        with self.timer("_reset_env.simple_instantiate"):
+            if level is None:
+                map_builder = simple_instantiate(self._task.env_cfg().game.map_builder, recursive=True)
+                level = map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
@@ -107,13 +115,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        self._c_env = MettaGrid(config_dict, level.grid.tolist())
+        with self.timer("_reset_env.MettaGrid"):
+            self._c_env = MettaGrid(config_dict, level.grid.tolist())
 
         self._grid_env = self._c_env
 
     @override
     def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
-        self._reset_env()
+        with self.timer("_reset_env"):
+            self._reset_env()
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
@@ -123,7 +133,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._replay_writer:
             self._replay_writer.start_episode(self._episode_id, self)
 
-        obs, infos = self._c_env.reset()
+        with self.timer("_c_env.reset"):
+            obs, infos = self._c_env.reset()
+
         self._should_reset = False
         return obs, infos
 
@@ -134,7 +146,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._replay_writer:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)
 
-        self._c_env.step(self.actions)
+        with self.timer("_c_env.step"):
+            self._c_env.step(self.actions)
+            self._steps += 1
 
         if self._replay_writer:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
@@ -186,7 +200,28 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                     }
                 )
 
-        stats = self._c_env.get_episode_stats()
+        with self.timer("_c_env.get_episode_stats"):
+            stats = self._c_env.get_episode_stats()
+
+        timer_data = {}
+        wall_time = self.timer.get_elapsed()  # global timer
+        timer_data = self.timer.get_all_elapsed()
+
+        steps_per_sec = self._steps / wall_time if wall_time > 0 else 0
+
+        timing_logs = {
+            # Key performance indicators
+            "timing/steps_per_second": steps_per_sec,
+            # Breakdown by operation (as a single structured metric)
+            "timing/breakdown": {
+                op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
+                for op, elapsed in timer_data.items()
+            },
+            # Total time for reference
+            "timing/total_seconds": wall_time,
+        }
+
+        info["timing"] = timing_logs
 
         infos["episode_rewards"] = episode_rewards
         # infos["agent_raw"] = stats["agent"]
