@@ -4,8 +4,8 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-    "dd_all_tokenized.sweep.r.1"
-    "dd_all_tokenized.sweep.r.0"
+    "dd_all_tokenized_sweep.r.1"
+    "dd_all_tokenized_sweep.r.0"
     "gd_pure_seq_backchain_tokenized"
     "gd_backchain_full_extended_tokenized2"
     "gd_backchain_scratch_hard_tokenized"
