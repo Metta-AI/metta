@@ -1,0 +1,12 @@
+# @package __global__
+
+defaults:
+  - override /agent: robust_cross
+  - _self_
+
+trainer:
+  curriculum: /env/mettagrid/curriculum/navigation
+  wandb.enabled: true
+  wandb.track: true
+
+run: mrazo_act-obs_navigation_robust-cross_v01
