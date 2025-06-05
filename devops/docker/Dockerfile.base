@@ -28,12 +28,39 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure screen
+# Configure screen with wider terminal
 RUN echo "defscrollback 10000" >> /root/.screenrc && \
-    echo "termcapinfo xterm* ti@:te@" >> /root/.screenrc
+    echo "termcapinfo xterm* ti@:te@" >> /root/.screenrc && \
+    echo "width 200" >> /root/.screenrc && \
+    echo "height 50" >> /root/.screenrc
 
-# fix bash history
-RUN echo "unset HISTIGNORE" >> ~/.bashrc
+# Set up comprehensive terminal configuration in bashrc
+RUN echo "unset HISTIGNORE" >> ~/.bashrc && \
+    echo "" >> ~/.bashrc && \
+    echo "# Terminal configuration for proper log display" >> ~/.bashrc && \
+    echo "export COLUMNS=200" >> ~/.bashrc && \
+    echo "export LINES=50" >> ~/.bashrc && \
+    echo "export TERM=xterm-256color" >> ~/.bashrc && \
+    echo "export PYTHONUNBUFFERED=1" >> ~/.bashrc && \
+    echo "" >> ~/.bashrc && \
+    echo "# Force terminal size if we have a tty" >> ~/.bashrc && \
+    echo 'if [ -t 1 ]; then' >> ~/.bashrc && \
+    echo '    stty cols ${COLUMNS:-200} rows ${LINES:-50} 2>/dev/null || true' >> ~/.bashrc && \
+    echo 'fi' >> ~/.bashrc
+
+# Also set as environment variables for non-interactive shells
+ENV COLUMNS=200
+ENV LINES=50
+ENV TERM=xterm-256color
+ENV PYTHONUNBUFFERED=1
 
 RUN touch /root/.no_auto_tmux
 COPY devops/mettabox/tmux.conf /root/.tmux.conf
+
+# Append terminal settings to tmux.conf if it exists
+RUN if [ -f /root/.tmux.conf ]; then \
+        echo "" >> /root/.tmux.conf && \
+        echo "# Terminal width settings" >> /root/.tmux.conf && \
+        echo "set -g default-terminal \"screen-256color\"" >> /root/.tmux.conf && \
+        echo "set -g window-size latest" >> /root/.tmux.conf; \
+    fi
