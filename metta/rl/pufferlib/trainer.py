@@ -75,7 +75,7 @@ class PufferTrainer:
             (isinstance(self.device, str) and self.device.startswith("cuda"))
             or (isinstance(self.device, torch.device) and self.device.type == "cuda")
         ) and self.trainer_cfg.autocast
-        self._scaler = GradScaler("cuda", enabled=self._use_autocast)
+        self._scaler = GradScaler(enabled=self._use_autocast)
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
@@ -397,12 +397,16 @@ class PufferTrainer:
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "collected_log_probs")
 
-                lstm_h[:, training_env_id] = (
-                    state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
-                )
-                lstm_c[:, training_env_id] = (
-                    state.lstm_c if state.lstm_c is not None else torch.zeros_like(lstm_c[:, training_env_id])
-                )
+                # Ensure dtype compatibility when autocast returns fp16 states but the buffer is fp32
+                if state.lstm_h is not None:
+                    lstm_h[:, training_env_id] = state.lstm_h.to(lstm_h.dtype)
+                else:
+                    lstm_h[:, training_env_id] = torch.zeros_like(lstm_h[:, training_env_id])
+
+                if state.lstm_c is not None:
+                    lstm_c[:, training_env_id] = state.lstm_c.to(lstm_c.dtype)
+                else:
+                    lstm_c[:, training_env_id] = torch.zeros_like(lstm_c[:, training_env_id])
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
