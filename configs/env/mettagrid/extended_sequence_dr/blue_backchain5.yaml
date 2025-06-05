@@ -48,28 +48,14 @@ game:
   objects:
     altar:
       cooldown: 10
-      input_battery.red: 1
+      input_battery.blue: 1
       output_heart: 1
       max_output: 1
       conversion_ticks: 1
       initial_items: 0
-    mine.red:
-      cooldown: 5
-      input_battery.blue: 1
-      output_ore.red: 1
-      max_output: 1
-      conversion_ticks: 1
-      initial_items: 0
-    generator.red:
-      cooldown: 10
-      input_ore.red: 1
-      output_battery.red: 1
-      max_output: 1
-      conversion_ticks: 1
-      initial_items: 0
     mine.blue:
-      cooldown: 10
-      input_battery.green: 1
+      cooldown: 5
+      input_battery.red: 1
       output_ore.blue: 1
       max_output: 1
       conversion_ticks: 1
@@ -81,10 +67,23 @@ game:
       max_output: 1
       conversion_ticks: 1
       initial_items: 0
-    generator.green:
+    mine.red:
       cooldown: 10
-      output_battery.green: 1
+      output_ore.blue: 1
       max_output: 1
       conversion_ticks: 1
       initial_items: 0
+    generator.red:
+      cooldown: 10
+      input_ore.red: 1
+      output_battery.red: 1
+      max_output: 1
+      conversion_ticks: 1
+      initial_items: 0
+    # generator.green:
+    #   cooldown: 10
+    #   output_battery.green: 1
+    #   max_output: 1
+    #   conversion_ticks: 1
+    #   initial_items: 0
 
