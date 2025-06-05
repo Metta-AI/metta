@@ -1,0 +1,13 @@
+# @package __global__
+
+defaults:
+  - override /agent: robust_cross
+  - _self_
+
+trainer:
+  curriculum: /env/mettagrid/curriculum/two_rooms_curriculum
+  wandb.enabled: true
+  wandb.track: true
+  evaluate_interval: 0
+
+run: mrazo_cooperation_overcooked_tick04_robust-cross_v01
