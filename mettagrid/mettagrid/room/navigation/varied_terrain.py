@@ -95,6 +95,7 @@ class VariedTerrain(Room):
         # Determine scale from the room area relative to a 60x60 (3600 cells) grid.
         area = width * height
         scale = area / 3600.0
+        self.style = style
 
         # Define approximate average cell occupancy for each obstacle type.
         avg_sizes = {
