@@ -661,6 +661,11 @@ class PufferTrainer:
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _generate_and_upload_replay(self):
+        self.replay_sim_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
 
@@ -859,7 +864,7 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
 
-        # Use rank-specific seed for environment reset to ensure different 
+        # Use rank-specific seed for environment reset to ensure different
         # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
         rank_specific_env_seed = self.cfg.seed + rank if self.cfg.seed is not None else rank
