@@ -5,10 +5,10 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: { { .Values.acmeEmail } }
+    email: {{ .Values.acmeEmail }}
     privateKeySecretRef:
       name: letsencrypt
     solvers:
-      - http01:
-          ingress:
-            ingressClassName: nginx
+    - http01:
+        ingress:
+          ingressClassName: nginx
