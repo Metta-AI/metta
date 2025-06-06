@@ -9,6 +9,7 @@ from metta.agent.lib.nn_layer_library import LayerBase
 
 # This file contains multiple versions of the ObsTokenShaper for experiments. Pending testing, most will be removed.
 
+
 class ObsTokenShaper(LayerBase):
     def __init__(
         self,
