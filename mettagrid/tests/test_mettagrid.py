@@ -110,9 +110,10 @@ class TestObservations:
         for location in obs[0, :, 0]:
             # cast as ints to avoid numpy uint8 underflow
             x = int(location >> 4)
-            y = int(location & 0xf)
-            distances.append(abs(x - 1) + abs(y - 1)) # 1,1 is the agent's location
+            y = int(location & 0xF)
+            distances.append(abs(x - 1) + abs(y - 1))  # 1,1 is the agent's location
         assert distances == sorted(distances), f"Distances should be increasing: {distances}"
+
 
 def test_grid_objects():
     """Test grid object representation and properties."""
