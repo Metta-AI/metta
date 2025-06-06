@@ -68,20 +68,16 @@ def get_log_level(provided_level=None):
     return "INFO"
 
 
-def force_terminal_width(width: int):
-    """
-    Attempt to force terminal width through various methods.
-    This is useful for AWS Batch environments.
-    """
-    logger = logging.getLogger(__name__)
+def force_terminal_width_on_aws(width: int):
+    # check if we are on AWS
+    if not os.environ["AWS_BATCH_JOB_ID"]:
+        return
 
-    # Set environment variables
+    # Set environment variable
     os.environ["COLUMNS"] = str(width)
 
-    # Try to use stty if available
     try:
         subprocess.run(["stty", "cols", str(width)], check=False)
-        logger.info(f"Set terminal width to {width} using stty")
     except Exception:
         pass
 
@@ -105,6 +101,6 @@ def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
     root_logger.setLevel(getattr(logging, log_level))
 
     # Note that log lines are padded with about 45 chars of metadata (timestamp, log level, file and line info)
-    force_terminal_width(200)
+    force_terminal_width_on_aws(200)
 
     return logging.getLogger(name)
