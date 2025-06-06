@@ -27,7 +27,7 @@ eval:
   # max_time_s: 60
 
 trainer:
-  # curriculum: /env/mettagrid/curriculum/two_rooms_curriculum
+  curriculum: /env/mettagrid/curriculum/two_rooms_curriculum
   evaluate_interval: 0
 
 sweep:
@@ -37,7 +37,7 @@ wandb:
   enabled: true
   # checkpoint_interval: 1
 
-run_id: 758
+run_id: 759
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
