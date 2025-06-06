@@ -593,7 +593,7 @@ class ObsTokenCatFourier(LayerBase):
         self.M = obs_shape[0]
         self._feature_normalizations = list(feature_normalizations)
         self._max_embeds = 256
-        self._mu = 11.0  # hardcoding 11 as the max coord value for now (range 0-10)
+        self._mu = 11.0  # hardcoding 11 as the max coord value for now (range 0-10). can grab from mettagrid_env.py
 
     def _make_net(self) -> None:
         self._out_tensor_shape = [self.M, self._feat_dim]
