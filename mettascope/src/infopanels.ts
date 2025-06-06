@@ -4,9 +4,10 @@
 // when they are on pined on screen. They can also be moved around in this pinned mode.
 
 import { find, findIn, removeChildren } from "./htmlutils.js";
-import { state } from "./common.js";
+import { state, ui } from "./common.js";
 import { getAttr } from "./replay.js";
 import * as Common from "./common.js";
+import { Vec2f } from "./vector_math.js";
 
 export class InfoPanel {
   private object: any;
@@ -71,5 +72,18 @@ export function updateReadout() {
         top.appendChild(param);
       }
     }
+
+    let panelRect = hoverPanel.getBoundingClientRect();
+
+    let x = getAttr(state.selectedGridObject, "c") * Common.TILE_SIZE;
+    let y = getAttr(state.selectedGridObject, "r") * Common.TILE_SIZE;
+
+    let uiPoint = ui.mapPanel.transformInner(new Vec2f(x, y - Common.TILE_SIZE / 2));
+
+    // Put it in the center above the object.
+    hoverPanel.style.left = uiPoint.x() - panelRect.width / 2 + "px";
+    hoverPanel.style.top = uiPoint.y() - panelRect.height + "px";
+
+
   }
 }

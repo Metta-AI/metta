@@ -1751,20 +1751,35 @@ button#help-button.hover-icon .icon {
 .infopanel {
     position: absolute;
     display: flex;
-    width: fit-content;
     height: fit-content;
     left: 40px;
     top: 730px;
+    min-width: 300px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: center;
+    width: fit-content;
+    background-color: rgba(0, 0, 0, 0.00);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.infopanel .panel-body {
+    position: relative;
+    display: flex;
+    height: fit-content;
+    min-width: 300px;
     flex-direction: column;
     flex-wrap: nowrap;
     gap: 10px;
     padding: 20px 20px 20px 20px;
+    width: fit-content;
     background-color: rgba(20, 20, 20, 0.90);
     border-radius: 20px;
     overflow: hidden;
 }
 
-.infopanel .top {
+.panel-body .top {
     position: relative;
     display: flex;
     width: fit-content;
@@ -1828,7 +1843,7 @@ button#help-button.hover-icon .icon {
     line-height: 28.60px;
 }
 
-.infopanel .bottom {
+.panel-body .bottom {
     position: relative;
     display: flex;
     width: 100%;
@@ -1912,4 +1927,12 @@ button#help-button.hover-icon .icon {
     height: 32px;
     left: 4px;
     top: 4px;
+}
+
+.infopanel .tip {
+    position: relative;
+    display: block;
+    width: 32px;
+    height: 16px;
+    background-color: rgba(0, 0, 0, 0.00);
 }
