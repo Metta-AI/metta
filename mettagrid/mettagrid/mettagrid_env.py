@@ -127,6 +127,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+        """
+        This method overrides the reset method from PufferEnv. Unlike typical Gym environments,
+        the C environment backend refuses to reset after any steps have been computed, so this
+        method acts more as an initializer that must be called before any steps.
+
+        """
+
         self._reset_env()
 
         assert self.observations.dtype == dtype_observations
@@ -148,16 +155,30 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
+        """
+        Execute one timestep of the environment dynamics with the given actions.
+
+        IMPORTANT: In training mode, the `actions` parameter and `self.actions` may be the same
+        object, but in simulation mode they are independent. Always use the passed-in `actions`
+        parameter to ensure correct behavior in all contexts.
+
+        Args:
+            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
+
+        Returns:
+            Tuple of (observations, rewards, terminals, truncations, infos)
+
+        """
+
         if __debug__:
-            # Validate actions BEFORE type conversion to catch issues early
             from mettagrid.util.actions import validate_actions
 
             validate_actions(self, actions, logger)
 
         if self._replay_writer and self._episode_id:
-            self._replay_writer.log_pre_step(self._episode_id, self.actions)
+            self._replay_writer.log_pre_step(self._episode_id, actions)
 
-        self._c_env.step(self.actions)
+        self._c_env.step(actions)
 
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
