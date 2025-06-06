@@ -60,6 +60,8 @@ class MettaAgent(nn.Module):
     def __init__(
         self,
         obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
+        obs_width: int,
+        obs_height: int,
         action_space: gym.spaces.Space,
         feature_normalizations: list[float],
         device: str,
@@ -87,6 +89,8 @@ class MettaAgent(nn.Module):
             "clip_range": self.clip_range,
             "action_space": action_space,
             "feature_normalizations": feature_normalizations,
+            "obs_width": obs_width,
+            "obs_height": obs_height,
             "obs_key": cfg.observations.obs_key,
             "obs_shape": obs_shape,
             "hidden_size": self.hidden_size,
