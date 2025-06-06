@@ -22,16 +22,17 @@ The script will:
 """
 
 import argparse
+import importlib.util
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
+from metta.util.git import get_current_commit, get_current_repo, get_github_variable, set_github_variable
+
 # Add the project root to Python path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
-
-from metta.util.git import get_current_commit, get_current_repo, get_github_variable, set_github_variable
 
 
 def check_wandb_policy_exists(policy_name: str) -> bool:
@@ -54,18 +55,18 @@ def check_wandb_policy_exists(policy_name: str) -> bool:
 
 def confirm_update(current_value: str | None, new_value: str) -> bool:
     """Ask user to confirm the update."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("SMOKE TEST POLICY UPDATE")
-    print("="*60)
+    print("=" * 60)
     print(f"Current value: {current_value or '<not set>'}")
     print(f"New value:     {new_value}")
-    print("="*60)
+    print("=" * 60)
 
     while True:
         response = input("\nDo you want to update the smoke test policy? (y/n): ").lower().strip()
-        if response in ['y', 'yes']:
+        if response in ["y", "yes"]:
             return True
-        elif response in ['n', 'no']:
+        elif response in ["n", "no"]:
             return False
         else:
             print("Please enter 'y' for yes or 'n' for no.")
@@ -74,10 +75,11 @@ def confirm_update(current_value: str | None, new_value: str) -> bool:
 def check_dependencies() -> bool:
     """Check if required dependencies are installed."""
     try:
-        import boto3
-        return True
+        return importlib.util.find_spec("boto3") is not None
+
     except ImportError as e:
         import sys
+
         print(f"Debug: Failed to import boto3: {e}")
         print(f"Debug: Python: {sys.executable}")
         print(f"Debug: Python version: {sys.version}")
@@ -98,18 +100,14 @@ Examples:
   # Use a specific policy
   %(prog)s my_custom_policy_name
   %(prog)s --policy my_custom_policy_name
-        """
+        """,
     )
     parser.add_argument(
         "policy",
         nargs="?",
-        help="Specific policy name to use (optional). If not provided, generates name from current commit."
+        help="Specific policy name to use (optional). If not provided, generates name from current commit.",
     )
-    parser.add_argument(
-        "--policy",
-        dest="policy_flag",
-        help="Alternative way to specify policy name"
-    )
+    parser.add_argument("--policy", dest="policy_flag", help="Alternative way to specify policy name")
 
     args = parser.parse_args()
 
@@ -174,22 +172,27 @@ Examples:
                 print("\nWould you like to launch a training job for this policy?")
                 response = input("Launch training job? (y/n): ").lower().strip()
 
-                if response in ['y', 'yes']:
+                if response in ["y", "yes"]:
                     print("\nLaunching training job...")
                     cmd = [
-                        "python3", "-m", "devops.aws.batch.launch_task",
+                        "python3",
+                        "-m",
+                        "devops.aws.batch.launch_task",
                         "--cmd=train",
                         "trainer.env=env/mettagrid/simple",
                         "--timeout-minutes=180",
-                        f"--run={new_policy_name}"
+                        f"--run={new_policy_name}",
                     ]
 
                     try:
                         print(f"Command: {' '.join(cmd)}")
                         subprocess.run(cmd, check=True)
-                        print(f"\n✓ Training job launched successfully!")
+                        print("\n✓ Training job launched successfully!")
                         print(f"Policy name: {new_policy_name}")
-                        print("\nThe training will take some time. Once complete, run this script again to update the smoke test.")
+                        print(
+                            "\nThe training will take some time. Once complete, "
+                            "run this script again to update the smoke test."
+                        )
                         return
                     except subprocess.CalledProcessError as e:
                         print(f"\n✗ Failed to launch training job: {e}")
@@ -205,11 +208,19 @@ Examples:
                         return
                 else:
                     print("\nTo train this policy manually, run:")
-                    print(f"  python3 -m devops.aws.batch.launch_task --cmd=train trainer.env=env/mettagrid/simple --timeout-minutes=180 --run={new_policy_name}")
+                    print(
+                        f"  python3 -m devops.aws.batch.launch_task "
+                        f"--cmd=train trainer.env=env/mettagrid/simple "
+                        f"--timeout-minutes=180 --run={new_policy_name}"
+                    )
             else:
                 print("\nNote: Training job launch is unavailable (boto3 not installed).")
                 print("To train this policy, run the following on a machine with AWS setup:")
-                print(f"  python3 -m devops.aws.batch.launch_task --cmd=train trainer.env=env/mettagrid/simple --timeout-minutes=180 --run={new_policy_name}")
+                print(
+                    f"  python3 -m devops.aws.batch.launch_task "
+                    f"--cmd=train trainer.env=env/mettagrid/simple "
+                    f"--timeout-minutes=180 --run={new_policy_name}"
+                )
         else:
             print("\nNote: Auto-training is only available for auto-generated policy names.")
             print("For custom policy names, please ensure the policy exists on wandb before updating.")
@@ -217,11 +228,11 @@ Examples:
         print("\nDo you want to update the GitHub variable anyway?")
         print("(Only do this if you're sure the policy exists or will exist soon)")
         response = input("Continue with update? (y/n): ").lower().strip()
-        if response not in ['y', 'yes']:
+        if response not in ["y", "yes"]:
             print("Update cancelled.")
             return
     else:
-        print(f"✓ Policy found on wandb")
+        print("✓ Policy found on wandb")
 
     # Check if already set to this value
     if current_value == new_policy_name:
@@ -235,7 +246,7 @@ Examples:
         return
 
     # Update the GitHub variable
-    print(f"\nUpdating EVAL_SMOKE_TEST_POLICY variable...")
+    print("\nUpdating EVAL_SMOKE_TEST_POLICY variable...")
 
     if set_github_variable("EVAL_SMOKE_TEST_POLICY", new_policy_name, repo):
         print("\n✓ Success! The smoke test will now use the new policy.")
