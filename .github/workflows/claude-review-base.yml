@@ -63,13 +63,6 @@ env:
           "suggested_code": "replacement code"
         }
       ],
-      "compliments": [
-        {
-          "file": "path/to/file.py",
-          "line": 45,
-          "comment": "Positive feedback about good code"
-        }
-      ],
       "tldr": [
         "file.py:23-24 - Remove redundant comment",
         "README.md:12 - Update installation command"
