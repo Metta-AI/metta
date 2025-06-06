@@ -14,8 +14,8 @@ components:
 
   _obs_:
     _target_: metta.agent.lib.obs_enc.ObsTokenCat
-    atr_embed_dim: 8
-    coord_embed_dim: 8
+    atr_embed_dim: 12
+    coord_embed_dim: 4
     sources:
       null
 
