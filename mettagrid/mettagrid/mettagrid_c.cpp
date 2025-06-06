@@ -739,7 +739,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   py::class_<MettaGrid>(m, "MettaGrid")
       .def(py::init<py::dict, py::list>())
       .def("reset", &MettaGrid::reset)
-      .def("step", &MettaGrid::step)
+      .def("step", &MettaGrid::step, py::arg("actions").noconvert())
       .def("set_buffers",
            &MettaGrid::set_buffers,
            py::arg("observations").noconvert(),
