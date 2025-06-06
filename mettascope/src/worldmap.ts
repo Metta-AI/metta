@@ -692,7 +692,7 @@ function drawAttackMode() {
   var gridMousePos: Vec2f | null = null;
   if (ui.mouseUp && ui.mouseTarget == "worldmap-panel" && state.showAttackMode) {
     state.showAttackMode = false;
-    const localMousePos = ui.mapPanel.transformPoint(ui.mousePos);
+    const localMousePos = ui.mapPanel.transformOuter(ui.mousePos);
     if (localMousePos != null) {
       gridMousePos = new Vec2f(
         Math.round(localMousePos.x() / Common.TILE_SIZE),
@@ -744,7 +744,7 @@ export function drawMap(panel: PanelInfo) {
     ) {
       // Check if we are clicking on an object.
       console.log("Map up without dragging - selecting object");
-      const localMousePos = panel.transformPoint(ui.mousePos);
+      const localMousePos = panel.transformOuter(ui.mousePos);
       if (localMousePos != null) {
         const gridMousePos = new Vec2f(
           Math.round(localMousePos.x() / Common.TILE_SIZE),
