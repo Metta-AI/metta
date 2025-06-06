@@ -24,16 +24,32 @@ def coerce_numbers(d):
 def load_cfg(path):
     with open(path) as f:
         cfg = yaml.safe_load(f)["sweep"]
-        return coerce_numbers(cfg)
+        cfg = coerce_numbers(cfg)
+        # Convert to DictConfig for type compatibility
+        from omegaconf import OmegaConf
+
+        return OmegaConf.create(cfg)
 
 
 def main():
     cfg = load_cfg("configs/sweep/minimal_protein_sweep.yaml")
-    protein = MettaProtein(cfg)
-    params, info = protein.suggest(fill=None)
+    # Test with wandb_run parameter (stubbed)
+    protein = MettaProtein(cfg, wandb_run=None)
+    print("✅ Constructor works with wandb_run parameter")
+
+    params = protein.suggest()
+    print("✅ suggest() method works")
     print("Suggested params:", params)
-    # Optionally, observe a fake result
+
+    # Test observe method
     protein.observe(params, score=1.0, cost=0.5)
+    print("✅ observe() method works")
+
+    # Test static method
+    MettaProtein._record_observation(None, 1.0, 0.5)
+    print("✅ _record_observation() static method works")
+
+    print("✅ All stubbed WandB methods working!")
 
 
 if __name__ == "__main__":
