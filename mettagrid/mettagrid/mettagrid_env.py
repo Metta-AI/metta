@@ -311,7 +311,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @override
     def close(self):
         """Clean up resources including the precalculation thread."""
-        # Stop the precalculation thread
         if self._precalc_thread is not None:
             self._stop_precalc.set()
             self._precalc_thread.join(timeout=1.0)
