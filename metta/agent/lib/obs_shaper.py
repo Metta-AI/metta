@@ -135,6 +135,7 @@ class MettaObsShaper(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
 
             x = rearrange(x, "b h w c -> b c h w")
         # Insert metadata into md.data
+        # TODO: DOUBLE CHECK PIPELINE FOR THIS DATA
         md.data["_TT_"] = TT
         md.data["_batch_size_"] = B
         md.data["_BxTT_"] = B * TT

@@ -438,3 +438,85 @@ class TestMettaConcatMergeParity:
         md_slice = MettaDict(TensorDict({"input1": x1, "input2": x2}, batch_size=[]), {})
         result_slice = metta_slices(md_slice)
         torch.testing.assert_close(td["output_slice"], result_slice.td["output_slice"], rtol=1e-5, atol=1e-7)
+
+
+class TestMettaActorBigModular:
+    def test_metta_actor_big_modular_forward(self):
+        import torch
+
+        from metta.agent.lib.actor import MettaActorBig, MettaActorBigModular
+
+        batch = 2
+        num_actions = 5
+        hidden_dim = 8
+        embed_dim = 4
+        bilinear_output_dim = 6
+        mlp_hidden_dim = 7
+        hidden = torch.randn(batch, hidden_dim)
+        action_embeds = torch.randn(batch, num_actions, embed_dim)
+        # Legacy
+        legacy = MettaActorBig(bilinear_output_dim=bilinear_output_dim, mlp_hidden_dim=mlp_hidden_dim)
+        legacy._in_tensor_shapes = [[hidden_dim], [num_actions, embed_dim]]
+        legacy._name = "logits"
+        legacy._sources = [{"name": "hidden"}, {"name": "action_embeds"}]
+        legacy._make_net()
+        td_legacy = TensorDict({"hidden": hidden, "action_embeds": action_embeds}, batch_size=[batch])
+        td_legacy = legacy._forward(td_legacy)
+        # Modular
+        from metta.agent.lib.metta_module import MettaDict
+
+        modular = MettaActorBigModular(
+            in_keys=["hidden", "action_embeds"],
+            out_keys=["logits"],
+            input_features_shape=[[hidden_dim], [num_actions, embed_dim]],
+            bilinear_output_dim=bilinear_output_dim,
+            mlp_hidden_dim=mlp_hidden_dim,
+        )
+        # Copy weights
+        modular.W.data.copy_(legacy.W.data)
+        modular.bias.data.copy_(legacy.bias.data)
+        # Only copy weights/bias for nn.Linear layers (indices 0 and 2)
+        for idx in [0, 2]:
+            m_mod = modular._MLP[idx]
+            m_leg = legacy._MLP[idx]
+            if (
+                hasattr(m_mod, "weight")
+                and isinstance(m_mod.weight, torch.Tensor)
+                and hasattr(m_leg, "weight")
+                and isinstance(m_leg.weight, torch.Tensor)
+            ):
+                m_mod.weight.data.copy_(m_leg.weight.data)
+            if (
+                hasattr(m_mod, "bias")
+                and isinstance(m_mod.bias, torch.Tensor)
+                and hasattr(m_leg, "bias")
+                and isinstance(m_leg.bias, torch.Tensor)
+            ):
+                m_mod.bias.data.copy_(m_leg.bias.data)
+        md = MettaDict(TensorDict({"hidden": hidden, "action_embeds": action_embeds}, batch_size=[batch]), {})
+        out_modular = modular(md)
+        torch.testing.assert_close(td_legacy["logits"], out_modular.td["logits"], rtol=1e-5, atol=1e-7)
+
+    def test_metta_actor_big_modular_unit(self):
+        from metta.agent.lib.actor import MettaActorBigModular
+        from metta.agent.lib.metta_module import MettaDict
+
+        batch = 2
+        num_actions = 3
+        hidden_dim = 4
+        embed_dim = 5
+        bilinear_output_dim = 6
+        mlp_hidden_dim = 7
+        hidden = torch.randn(batch, hidden_dim)
+        action_embeds = torch.randn(batch, num_actions, embed_dim)
+        modular = MettaActorBigModular(
+            in_keys=["hidden", "action_embeds"],
+            out_keys=["logits"],
+            input_features_shape=[[hidden_dim], [num_actions, embed_dim]],
+            bilinear_output_dim=bilinear_output_dim,
+            mlp_hidden_dim=mlp_hidden_dim,
+        )
+        md = MettaDict(TensorDict({"hidden": hidden, "action_embeds": action_embeds}, batch_size=[batch]), {})
+        out = modular(md)
+        assert "logits" in out.td
+        assert out.td["logits"].shape == (batch, num_actions)
