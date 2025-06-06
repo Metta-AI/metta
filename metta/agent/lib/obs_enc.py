@@ -7,6 +7,7 @@ from tensordict import TensorDict
 
 from metta.agent.lib.nn_layer_library import LayerBase
 
+# This file contains multiple versions of the ObsTokenShaper for experiments. Pending testing, most will be removed.
 
 class ObsTokenShaper(LayerBase):
     def __init__(
@@ -579,14 +580,14 @@ class ObsTokenCatFourier(LayerBase):
         obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
         feature_normalizations: list[float],
-        f: int = 3,
+        num_freqs: int = 3,
         **cfg,
     ) -> None:
         super().__init__(**cfg)
         self._obs_shape = obs_shape
         self._atr_embed_dim = atr_embed_dim  # Dimension of attribute embeddings
-        self._f = f  # fourier feature frequencies
-        self._coord_embed_dim = 4 * self._f  # x, y, sin, cos for each freq
+        self._num_freqs = num_freqs  # fourier feature frequencies
+        self._coord_embed_dim = 4 * self._num_freqs  # x, y, sin, cos for each freq
         self._value_dim = 1
         self._feat_dim = self._atr_embed_dim + self._coord_embed_dim + self._value_dim
         self.M = obs_shape[0]
@@ -611,7 +612,7 @@ class ObsTokenCatFourier(LayerBase):
             else:
                 raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
         self.register_buffer("_norm_factors", norm_tensor)
-        self.register_buffer("frequencies", 2.0 ** torch.arange(self._f))
+        self.register_buffer("frequencies", 2.0 ** torch.arange(self._num_freqs))
 
         return None
 
@@ -668,13 +669,13 @@ class ObsTokenCatFourier(LayerBase):
 
         # Compute and place Fourier features directly into the feature vector
         offset = self._atr_embed_dim
-        feat_vectors[..., offset : offset + self._f] = torch.cos(x_scaled)
-        offset += self._f
-        feat_vectors[..., offset : offset + self._f] = torch.sin(x_scaled)
-        offset += self._f
-        feat_vectors[..., offset : offset + self._f] = torch.cos(y_scaled)
-        offset += self._f
-        feat_vectors[..., offset : offset + self._f] = torch.sin(y_scaled)
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(x_scaled)
+        offset += self._num_freqs
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(x_scaled)
+        offset += self._num_freqs
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(y_scaled)
+        offset += self._num_freqs
+        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(y_scaled)
 
         atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
 
