@@ -68,7 +68,6 @@ def get_log_level(provided_level=None):
     return "INFO"
 
 
-# Additional utility function to force terminal width if needed
 def force_terminal_width(width: int):
     """
     Attempt to force terminal width through various methods.
@@ -105,14 +104,8 @@ def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
     # Set the level
     root_logger.setLevel(getattr(logging, log_level))
 
-    # Create logger for this module
-    logger = logging.getLogger(name)
-
-    # Log basic setup information
-    logger.info(f"Logger initialized: name={name}, level={log_level}")
-
     # Force terminal width
     # lines are padded with about 45 chars of metadata (timestamp, log level, file and line info)
     force_terminal_width(300)
 
-    return logger
+    return logging.getLogger(name)
