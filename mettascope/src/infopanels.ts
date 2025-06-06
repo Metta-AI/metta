@@ -76,7 +76,7 @@ export function showInfoPanel(object: any) {
   // Show the info panel.
 }
 
-export function updateReadout(object: any) {
+export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
     updateDom(hoverPanel, object);
 
@@ -136,5 +136,28 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
       param.querySelector(".value")!.textContent = value;
       top.appendChild(param);
     }
+  }
+}
+
+// Updates the readout of the selected object or replay info.
+export function updateReadout() {
+  var readout = ""
+  readout += "Step: " + state.step + "\n";
+  readout += "Map size: " + state.replay.map_size[0] + "x" + state.replay.map_size[1] + "\n";
+  readout += "Num agents: " + state.replay.num_agents + "\n";
+  readout += "Max steps: " + state.replay.max_steps + "\n";
+
+  var objectTypeCounts = new Map<string, number>();
+  for (const gridObject of state.replay.grid_objects) {
+    const type = getAttr(gridObject, "type");
+    const typeName = state.replay.object_types[type];
+    objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1);
+  }
+  for (const [key, value] of objectTypeCounts.entries()) {
+    readout += key + " count: " + value + "\n";
+  }
+  let info = find("#info-panel .info")
+  if (info !== null) {
+    info.innerHTML = readout;
   }
 }
