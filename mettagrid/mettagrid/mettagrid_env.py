@@ -128,10 +128,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @override
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
         """
-        This method overrides the reset method from PufferEnv. Unlike typical Gym environments,
-        the C environment backend refuses to reset after any steps have been computed, so this
-        method acts more as an initializer that must be called before any steps.
-
+        This method overrides the reset method from PufferEnv.
         """
 
         self._reset_env()
