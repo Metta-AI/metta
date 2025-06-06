@@ -21,18 +21,18 @@ game:
 
     room:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:10,20,15}
-      height: ${sampling:10,20,15}
+      width: ${sampling:50,100,75}
+      height: ${sampling:50,100,75}
       border_width: ${sampling:1,6,3}
       agents: 1
       style: all-sparse
       objects:
         altar: 0
         generator.red: 0
-        mine.red: ${sampling:1,3,2}
+        mine.red: ${sampling:20,50,30}
   objects:
     mine.red:
-      cooldown: ${sampling:1,10,1}
+      cooldown: 255
       output_ore.red: 1
       max_output: 1
       initial_items: 1
