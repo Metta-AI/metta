@@ -22,6 +22,5 @@ RUN uv sync
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 
-# ensure we're using a login shell to source bashrc
 WORKDIR /workspace/metta/
-ENTRYPOINT ["/bin/bash", "-l", "-c"]
+ENTRYPOINT ["/bin/bash", "-c"]

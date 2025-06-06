@@ -82,7 +82,7 @@ def create_job_definition(args):
                     "targetNodes": "0:",
                     "container": {
                         "image": args.image,
-                        "command": ["/bin/bash", "-l", "-c"],
+                        "command": ["/bin/bash", "-c"],
                         "jobRoleArn": job_role_arn,
                         "executionRoleArn": execution_role_arn,
                         "volumes": [
