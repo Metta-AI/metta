@@ -16,7 +16,7 @@ game:
   num_agents: 8
   map_builder:
     _target_: mettagrid.room.room_list.RoomList
-    border_width: 6
+    border_width: 1 # 6
 
 
     rooms:
@@ -28,7 +28,7 @@ game:
         num_mines: ${sampling:1,2,2}
         agents:
           team_1: 2
-        border_width: 2
+        border_width: 1 # 2
       - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
         width: ${sampling:3,8,5}
         height: ${sampling:3,8,5}
@@ -37,7 +37,7 @@ game:
         num_mines: ${sampling:1,2,2}
         agents:
           team_2: 2
-        border_width: 2
+        border_width: 1 # 2
       - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
         width: ${sampling:3,8,5}
         height: ${sampling:3,8,5}
@@ -46,7 +46,7 @@ game:
         num_mines: ${sampling:1,2,2}
         agents:
           team_3: 2
-        border_width: 2
+        border_width: 1 # 2
       - _target_: mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
         width: ${sampling:3,8,5}
         height: ${sampling:3,8,5}
@@ -55,7 +55,7 @@ game:
         num_mines: ${sampling:1,2,2}
         agents:
           team_4: 2
-        border_width: 2
+        border_width: 1 # 2
 
   objects:
     altar:
