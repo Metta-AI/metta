@@ -16,6 +16,7 @@ public:
   unsigned char frozen;
   unsigned char freeze_duration;
   unsigned char orientation;
+  unsigned char z_level;  // Track agent's Z-level (0 = ground, 1 = elevated)
   std::vector<unsigned char> inventory;
   std::vector<float> resource_rewards;
   std::vector<float> resource_reward_max;
@@ -43,6 +44,7 @@ public:
     this->frozen = 0;
     this->freeze_duration = cfg["freeze_duration"];
     this->orientation = 0;
+    this->z_level = 0;  // Initialize to ground level
     this->inventory.resize(InventoryItem::InventoryItemCount);
     unsigned char default_item_max = cfg["default_item_max"];
     this->max_items_per_type.resize(InventoryItem::InventoryItemCount);
@@ -119,6 +121,7 @@ public:
     features.push_back({ObservationFeature::Frozen, frozen});
     features.push_back({ObservationFeature::Orientation, orientation});
     features.push_back({ObservationFeature::Color, color});
+    features.push_back({ObservationFeature::ZLevel, z_level});
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (inventory[i] > 0) {
         features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
@@ -135,9 +138,10 @@ public:
     obs[offsets[4]] = frozen;
     obs[offsets[5]] = orientation;
     obs[offsets[6]] = color;
+    obs[offsets[7]] = z_level;
 
     for (int i = 0; i < InventoryItemCount; i++) {
-      obs[offsets[7 + i]] = inventory[i];
+      obs[offsets[8 + i]] = inventory[i];
     }
   }
 
@@ -150,6 +154,7 @@ public:
     names.push_back("agent:frozen");
     names.push_back("agent:orientation");
     names.push_back("agent:color");
+    names.push_back("agent:z_level");
 
     for (const auto& name : InventoryItemNames) {
       names.push_back("inv:" + name);

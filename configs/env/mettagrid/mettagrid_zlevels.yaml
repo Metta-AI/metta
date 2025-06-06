@@ -1,0 +1,22 @@
+# Configuration for Mettagrid with Z-levels, stairs, and tall bridges
+defaults:
+  - mettagrid
+
+game:
+  objects:
+    stairs:
+      hp: 100
+      swappable: false
+
+    tallbridge:
+      hp: 100
+      swappable: false
+
+  actions:
+    climb:
+      enabled: true
+
+# Sample map with stairs and tall bridges
+# 'S' = stairs, 'B' = tallbridge, 'W' = wall, 'A' = agent, '.' = empty
+# The walls will act as floors at the upper Z-level
+# TallBridges allow agents to walk on top while agents below can walk underneath

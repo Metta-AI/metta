@@ -42,6 +42,7 @@ enum ObservationFeatureEnum : uint8_t {
   Color = 5,
   ConvertingOrCoolingDown = 6,
   Swappable = 7,
+  ZLevel = 8,
   ObservationFeatureCount
 };
 }  // namespace ObservationFeature
@@ -67,11 +68,13 @@ enum ObjectType {
   FactoryT = 8,
   TempleT = 9,
   GenericConverterT = 10,
+  StairsT = 11,
+  TallBridgeT = 12,
   ObjectTypeCount
 };
 
 constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {
-    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"}};
+    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter", "stairs", "tallbridge"}};
 
 const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
 
@@ -117,6 +120,7 @@ const std::map<std::string, float> FeatureNormalizations = {
     {"agent:orientation", 1.0},
     {"agent:shield", 1.0},
     {"agent:color", 255.0},
+    {"agent:z_level", 1.0},
     {"converter", 1.0},
     {"inv:ore.red", 100.0},
     {"inv:ore.blue", 100.0},
@@ -136,6 +140,7 @@ const std::map<std::string, float> FeatureNormalizations = {
     {"color", 10.0},
     {"swappable", 1.0},
     {"type_id", 10.0},
+    {"z_level", 1.0},
 };
 
 const float DEFAULT_NORMALIZATION = 1.0;
@@ -149,6 +154,8 @@ const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer
                                                   {ObjectType::LaseryT, GridLayer::Object_Layer},
                                                   {ObjectType::LabT, GridLayer::Object_Layer},
                                                   {ObjectType::FactoryT, GridLayer::Object_Layer},
-                                                  {ObjectType::TempleT, GridLayer::Object_Layer}};
+                                                  {ObjectType::TempleT, GridLayer::Object_Layer},
+                                                  {ObjectType::StairsT, GridLayer::Object_Layer},
+                                                  {ObjectType::TallBridgeT, GridLayer::Object_Layer}};
 
 #endif  // METTAGRID_METTAGRID_OBJECTS_CONSTANTS_HPP_

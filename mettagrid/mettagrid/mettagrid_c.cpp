@@ -7,6 +7,7 @@
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
 #include "actions/change_color.hpp"
+#include "actions/climb.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
@@ -19,6 +20,8 @@
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/production_handler.hpp"
+#include "objects/stairs.hpp"
+#include "objects/tallbridge.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
@@ -92,6 +95,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
     _action_handlers.push_back(
         std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<ActionConfig>()));
   }
+  if (cfg["actions"]["climb"]["enabled"].cast<bool>()) {
+    _action_handlers.push_back(std::make_unique<Climb>(cfg["actions"]["climb"].cast<ActionConfig>()));
+  }
   init_action_handlers();
 
   auto groups = cfg["groups"].cast<py::dict>();
@@ -140,6 +146,14 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
         converter = new Converter(r, c, cfg["objects"]["factory"].cast<ObjectConfig>(), ObjectType::FactoryT);
       } else if (cell == "temple") {
         converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
+      } else if (cell == "stairs") {
+        Stairs* stairs = new Stairs(r, c, cfg["objects"]["stairs"].cast<ObjectConfig>());
+        _grid->add_object(stairs);
+        _stats->incr("objects.stairs");
+      } else if (cell == "tallbridge") {
+        TallBridge* tallbridge = new TallBridge(r, c, cfg["objects"]["tallbridge"].cast<ObjectConfig>());
+        _grid->add_object(tallbridge);
+        _stats->incr("objects.tallbridge");
       } else if (cell.starts_with("agent.")) {
         std::string group_name = cell.substr(6);
         auto group_cfg_py = groups[py::str(group_name)]["props"].cast<py::dict>();
