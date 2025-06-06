@@ -68,7 +68,7 @@ game:
       input_ore.red: 1
       cooldown: 1
       max_output: 10
-      conversion_ticks: ${sampling:1,8,1}
+      conversion_ticks: ${sampling:1,8,4}
       initial_items: 0
     mine.red:
       cooldown: 1
