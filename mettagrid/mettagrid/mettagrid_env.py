@@ -171,7 +171,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def _initialize_c_env(self) -> None:
         """Initialize the C++ environment."""
-        # Get construction args and task (either precalculated or calculated on demand)
         config_dict, grid, task = self._get_c_env_construction_args()
 
         # Convert string array to list of strings for C++ compatibility
