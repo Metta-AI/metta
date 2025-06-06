@@ -22,11 +22,20 @@ from mettagrid.util.diversity import calculate_diversity_bonus
 from mettagrid.util.hydra import simple_instantiate
 
 # These data types must match PufferLib -- see pufferlib/vector.py
+#
+# Important:
+#
+# In PufferLib's class Multiprocessing, the data type for actions will be set to int32
+# whenever the action space is Discrete or Multidiscrete. If we do not match the data type
+# here in our child class, then we will experience extra data conversions in the background.
+# Additionally the actions that are sent to the C environment will be int32 (because PufferEnv
+# controls the type of self.actions) -- creating an opprotunity for type confusion.
+#
 dtype_observations = np.dtype(np.uint8)
 dtype_terminals = np.dtype(bool)
 dtype_truncations = np.dtype(bool)
 dtype_rewards = np.dtype(np.float32)
-dtype_actions = np.dtype(np.int32)  # forced to int32 when actions are Discrete or MultiDiscrete
+dtype_actions = np.dtype(np.int32)  # must be int32!
 dtype_masks = np.dtype(bool)
 dtype_success = np.dtype(bool)
 
@@ -65,7 +74,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._map_labels = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
-        self._episode_id: str = ""
+        self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
@@ -143,12 +152,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
             validate_actions(self, actions, logger)
 
-        if self._replay_writer:
+        if self._replay_writer and self._episode_id:
             self._replay_writer.log_pre_step(self._episode_id, self.actions)
 
         self._c_env.step(self.actions)
 
-        if self._replay_writer:
+        if self._replay_writer and self._episode_id:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
 
         infos = {}
@@ -246,7 +255,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 replay_url,
                 self._reset_at,
             )
-        self._episode_id = ""
+        self._episode_id = None
 
     @property
     def max_steps(self) -> int:

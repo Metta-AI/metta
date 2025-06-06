@@ -330,23 +330,7 @@ void MettaGrid::_step(py::array_t<int> actions) {
         continue;
       }
 
-      // Validate agent
-      if (agent == nullptr) {
-        throw std::runtime_error("Agent is null at index " + std::to_string(idx));
-      }
-
-      // Validate agent ID
-      if (agent->id <= 0) {
-        throw std::runtime_error("Agent ID must be positive. Agent " + std::to_string(idx) + " has ID " +
-                                 std::to_string(agent->id));
-      }
-
-      if (agent->id >= _grid->objects.size()) {
-        throw std::runtime_error("Agent ID " + std::to_string(agent->id) + " exceeds grid object count " +
-                                 std::to_string(_grid->objects.size()) + " for agent " + std::to_string(idx));
-      }
-
-      // Execute the action
+      // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       bool success = handler->handle_action(agent->id, arg);
       _action_success[idx] = success;
     }
