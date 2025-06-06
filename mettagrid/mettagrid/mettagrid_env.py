@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import datetime
+import queue
+import threading
 import uuid
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, Tuple, cast
 
 import gymnasium as gym
 import numpy as np
@@ -12,7 +14,7 @@ from pufferlib import unroll_nested_dict
 from pydantic import validate_call
 from typing_extensions import override
 
-from mettagrid.curriculum import Curriculum
+from mettagrid.curriculum import Curriculum, Task
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
@@ -69,7 +71,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
 
-        self._reset_env()
+        # Initialize the precalculation system
+        self._precalc_queue = queue.Queue(maxsize=1)  # Single buffered queue
+        self._precalc_thread = None
+        self._stop_precalc = threading.Event()
+
+        # Start precalculation for the first environment
+        self._start_precalculation()
+
+        self._initialize_c_env()
 
         super().__init__(buf)
         if self._render_mode is not None:
@@ -85,35 +95,95 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
-    def _reset_env(self):
-        # Prepare the level
-        self._task = self._curriculum.get_task()
+    def _precalculation_worker(self):
+        """Worker thread that precalculates C environment construction arguments."""
+        while not self._stop_precalc.is_set():
+            try:
+                # Calculate the next set of construction args
+                config_dict, grid, map_labels, task = self._calculate_c_env_args()
+
+                # Try to put the result in the queue (will block if queue is full)
+                try:
+                    self._precalc_queue.put((config_dict, grid, map_labels, task), timeout=0.1)
+                except queue.Full:
+                    # Queue is full, skip this calculation
+                    pass
+
+            except Exception as e:
+                # Log error but continue running
+                print(f"Error in precalculation worker: {e}")
+
+            # Small sleep to prevent busy waiting
+            if not self._stop_precalc.is_set():
+                self._stop_precalc.wait(0.001)
+
+    def _start_precalculation(self):
+        """Start the precalculation thread if not already running."""
+        if self._precalc_thread is None or not self._precalc_thread.is_alive():
+            self._stop_precalc.clear()
+            self._precalc_thread = threading.Thread(target=self._precalculation_worker, daemon=True)
+            self._precalc_thread.start()
+
+    def _calculate_c_env_args(self) -> Tuple[Dict[str, Any], np.ndarray, list, Task]:
+        """Calculate C environment construction arguments (can be called from thread)."""
+        # Get the current task (this might change between calculations)
+        task = self._curriculum.get_task()
+
+        # Use provided level or build a new one
         level = self._level
         if level is None:
-            map_builder = simple_instantiate(self._task.env_cfg().game.map_builder, recursive=True)
+            map_builder = simple_instantiate(task.env_cfg().game.map_builder, recursive=True)
             level = map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert self._task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {self._task.env_cfg().game.num_agents} "
-            f"does not match number of agents in map {level_agents}"
+        assert task.env_cfg().game.num_agents == level_agents, (
+            f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        # Convert to container for C++ code with explicit casting to Dict[str, Any]
-        config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))
+        # Convert to container for C++ code
+        config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
 
-        self._map_labels = level.labels
+        return config_dict, level.grid, level.labels, task
+
+    def _get_c_env_construction_args(self) -> Tuple[Dict[str, Any], np.ndarray, Task]:
+        """Get precalculated construction args or calculate them on demand."""
+        try:
+            # Try to get precalculated args (non-blocking)
+            config_dict, grid, map_labels, task = self._precalc_queue.get_nowait()
+            self._map_labels = map_labels
+            self._task = task  # Update task from precalculation
+
+            # Ensure the precalculation thread is running for next time
+            self._start_precalculation()
+
+            return config_dict, grid, task
+
+        except queue.Empty:
+            # No precalculated args available, calculate synchronously
+            config_dict, grid, map_labels, task = self._calculate_c_env_args()
+            self._map_labels = map_labels
+            self._task = task  # Update task from calculation
+
+            # Ensure the precalculation thread is running for next time
+            self._start_precalculation()
+
+            return config_dict, grid, task
+
+    def _initialize_c_env(self) -> None:
+        """Initialize the C++ environment."""
+        # Get construction args and task (either precalculated or calculated on demand)
+        config_dict, grid, task = self._get_c_env_construction_args()
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        self._c_env = MettaGrid(config_dict, level.grid.tolist())
+        self._c_env = MettaGrid(config_dict, grid.tolist())
 
         self._grid_env = self._c_env
 
     @override
     def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
-        self._reset_env()
+        self._initialize_c_env()
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
@@ -242,7 +312,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override
     def close(self):
-        pass
+        """Clean up resources including the precalculation thread."""
+        # Stop the precalculation thread
+        if self._precalc_thread is not None:
+            self._stop_precalc.set()
+            self._precalc_thread.join(timeout=1.0)
+            self._precalc_thread = None
+
+    def __del__(self):
+        """Ensure cleanup on deletion."""
+        self.close()
 
     @property
     def max_steps(self):
