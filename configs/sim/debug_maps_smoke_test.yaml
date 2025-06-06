@@ -8,10 +8,10 @@ max_time_s: 30
 num_episodes: 3
 simulations:
   debug_mixed_objects:
-    env: env/mettagrid/navigation/evals/debug_mixed_objects
+    env: env/mettagrid/debug/evals/debug_mixed_objects
   debug_resource_collection:
-    env: env/mettagrid/navigation/evals/debug_resource_collection
+    env: env/mettagrid/debug/evals/debug_resource_collection
   debug_simple_obstacles:
-    env: env/mettagrid/navigation/evals/debug_simple_obstacles
+    env: env/mettagrid/debug/evals/debug_simple_obstacles
   debug_tiny_two_altars:
-    env: env/mettagrid/navigation/evals/debug_tiny_two_altars
+    env: env/mettagrid/debug/evals/debug_tiny_two_altars

@@ -60,7 +60,7 @@ class TestDebugMaps:
 
     def test_debug_environment_configs_exist(self):
         """Verify that environment configuration files exist for debug maps."""
-        config_dir = Path("configs/env/mettagrid/navigation/evals")
+        config_dir = Path("configs/env/mettagrid/debug/evals")
         expected_configs = [
             "debug_mixed_objects.yaml",
             "debug_resource_collection.yaml",
@@ -72,6 +72,12 @@ class TestDebugMaps:
             config_path = config_dir / config_name
             assert config_path.exists(), f"Environment config {config_name} should exist"
             assert config_path.is_file(), f"Environment config {config_name} should be a file"
+
+    def test_debug_defaults_config_exists(self):
+        """Verify that the debug defaults configuration exists."""
+        config_path = Path("configs/env/mettagrid/debug/evals/defaults.yaml")
+        assert config_path.exists(), "Debug defaults config should exist"
+        assert config_path.is_file(), "Debug defaults config should be a file"
 
     def test_smoke_test_simulation_config_exists(self):
         """Verify that the smoke test simulation configuration exists."""

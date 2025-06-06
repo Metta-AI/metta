@@ -250,10 +250,10 @@ def run_debug_maps_smoke_test(policy_uri: str, quick_test: bool = False) -> Debu
 
     # Define debug maps to test
     debug_maps = {
-        "mixed_objects": "env/mettagrid/navigation/evals/debug_mixed_objects",
-        "resource_collection": "env/mettagrid/navigation/evals/debug_resource_collection",
-        "simple_obstacles": "env/mettagrid/navigation/evals/debug_simple_obstacles",
-        "tiny_two_altars": "env/mettagrid/navigation/evals/debug_tiny_two_altars",
+        "mixed_objects": "env/mettagrid/debug/evals/debug_mixed_objects",
+        "resource_collection": "env/mettagrid/debug/evals/debug_resource_collection",
+        "simple_obstacles": "env/mettagrid/debug/evals/debug_simple_obstacles",
+        "tiny_two_altars": "env/mettagrid/debug/evals/debug_tiny_two_altars",
     }
 
     # Run tests

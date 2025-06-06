@@ -8,17 +8,19 @@ This document describes the smoke testing infrastructure created for the new deb
 
 ### 1. Debug Map Environment Configurations
 
-Created environment configuration files for each debug map:
+Created environment configuration files for each debug map in the debug evaluation structure:
 
-- `configs/env/mettagrid/navigation/evals/debug_mixed_objects.yaml`
-- `configs/env/mettagrid/navigation/evals/debug_resource_collection.yaml`
-- `configs/env/mettagrid/navigation/evals/debug_simple_obstacles.yaml`
-- `configs/env/mettagrid/navigation/evals/debug_tiny_two_altars.yaml`
+- `configs/env/mettagrid/debug/evals/defaults.yaml` - Default configuration for debug evaluations
+- `configs/env/mettagrid/debug/evals/debug_mixed_objects.yaml`
+- `configs/env/mettagrid/debug/evals/debug_resource_collection.yaml`
+- `configs/env/mettagrid/debug/evals/debug_simple_obstacles.yaml`
+- `configs/env/mettagrid/debug/evals/debug_tiny_two_altars.yaml`
 
-These configurations follow the standard pattern used by other navigation evaluation environments, specifying:
+These configurations follow the standard pattern used by other evaluation environments, specifying:
 - Map builder using `mettagrid.room.ascii.Ascii`
 - URI pointing to the corresponding `.map` file
 - Appropriate `max_steps` values based on map complexity
+- Proper inheritance from debug-specific defaults
 
 ### 2. Smoke Test Simulation Suite
 
@@ -30,13 +32,13 @@ max_time_s: 30
 num_episodes: 3
 simulations:
   debug_mixed_objects:
-    env: env/mettagrid/navigation/evals/debug_mixed_objects
+    env: env/mettagrid/debug/evals/debug_mixed_objects
   debug_resource_collection:
-    env: env/mettagrid/navigation/evals/debug_resource_collection
+    env: env/mettagrid/debug/evals/debug_resource_collection
   debug_simple_obstacles:
-    env: env/mettagrid/navigation/evals/debug_simple_obstacles
+    env: env/mettagrid/debug/evals/debug_simple_obstacles
   debug_tiny_two_altars:
-    env: env/mettagrid/navigation/evals/debug_tiny_two_altars
+    env: env/mettagrid/debug/evals/debug_tiny_two_altars
 ```
 
 ### 3. Comprehensive Smoke Test Script
@@ -57,15 +59,45 @@ Created `tools/debug_maps_smoke_test.py` - a standalone script that:
 - **Detailed Reporting**: Comprehensive test result summary
 - **CLI Interface**: Command-line arguments for flexibility
 
-### 4. Unit Tests
+### 4. Unit Tests (Parallel Structure)
 
-Created `tests/map/test_debug_maps.py` with comprehensive test coverage:
+Created comprehensive test coverage following the parallel directory structure:
+
+- `tests/env/mettagrid/debug/test_debug_maps.py` - Tests for debug configurations and maps
+- `tests/tools/test_debug_maps_smoke_test.py` - Tests for the smoke test script itself
+
+#### Test Coverage:
 
 - Map file existence and structure validation
 - Environment configuration validation
 - Content uniqueness verification
 - Required game element presence checks
+- Smoke test script functionality validation
 - Integration with existing ASCII map validation infrastructure
+
+## Directory Structure
+
+```
+configs/env/mettagrid/debug/
+├── evals/
+│   ├── defaults.yaml
+│   ├── debug_mixed_objects.yaml
+│   ├── debug_resource_collection.yaml
+│   ├── debug_simple_obstacles.yaml
+│   └── debug_tiny_two_altars.yaml
+
+tests/env/mettagrid/debug/
+└── test_debug_maps.py
+
+tests/tools/
+└── test_debug_maps_smoke_test.py
+
+tools/
+└── debug_maps_smoke_test.py
+
+configs/sim/
+└── debug_maps_smoke_test.yaml
+```
 
 ## Usage
 
@@ -95,8 +127,11 @@ python tools/debug_maps_smoke_test.py --policy-uri "wandb://run/your-policy-uri"
 ### Running Unit Tests
 
 ```bash
-# Test debug map structure and configuration
-python -m pytest tests/map/test_debug_maps.py -v
+# Test debug map structure and configuration (parallel structure)
+python -m pytest tests/env/mettagrid/debug/test_debug_maps.py -v
+
+# Test smoke test script functionality
+python -m pytest tests/tools/test_debug_maps_smoke_test.py -v
 
 # Test all ASCII maps (includes debug maps)
 python -m pytest tests/map/test_validate_all_ascii_maps.py -v
@@ -135,8 +170,9 @@ Each map contains:
 
 The smoke test infrastructure integrates seamlessly with:
 
-- **Hydra Configuration System**: All configs follow standard patterns
+- **Hydra Configuration System**: All configs follow standard patterns with proper debug namespace
 - **Existing Test Suite**: Leverages ASCII map validation infrastructure
+- **Parallel Test Structure**: Follows the repository's parallel testing conventions
 - **W&B Integration**: Compatible with existing policy storage and metrics
 - **CI/CD Pipeline**: Unit tests can be integrated into automated testing
 
@@ -147,12 +183,14 @@ The smoke test infrastructure integrates seamlessly with:
 1. **Policy Not Found**: Ensure the policy URI points to a valid trained model
 2. **Environment Loading Errors**: Check that all map files exist and are properly formatted
 3. **Low Performance**: May indicate issues with map design or agent training
+4. **Configuration Path Errors**: Ensure using `env/mettagrid/debug/evals/` paths
 
 ### Validation Steps:
 
 1. Run ASCII map validation: `python -m pytest tests/map/test_validate_all_ascii_maps.py`
-2. Check environment configs: `python -m pytest tests/map/test_debug_maps.py`
-3. Test with known working policy from existing evaluations
+2. Check debug configurations: `python -m pytest tests/env/mettagrid/debug/test_debug_maps.py`
+3. Validate smoke test script: `python -m pytest tests/tools/test_debug_maps_smoke_test.py`
+4. Test with known working policy from existing evaluations
 
 ## Future Enhancements
 
@@ -163,3 +201,4 @@ Potential improvements to the smoke test infrastructure:
 3. **Multi-Agent Testing**: Test maps with multiple agents
 4. **Custom Metrics**: Task-specific performance measurements
 5. **Regression Detection**: Alert on significant performance degradation
+6. **Integration with CI/CD**: Automated smoke tests on map changes
