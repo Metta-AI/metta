@@ -1,4 +1,4 @@
-.PHONY: help all dev test clean
+.PHONY: help all dev test clean install
 
 
 # Default target when just running 'make'
@@ -26,5 +26,9 @@ dev:
 test:
 	@echo "Running python tests with coverage"
 	uv run pytest --cov=metta --cov-report=term-missing
+
+install:
+	@echo "Installing package in editable mode..."
+	uv sync --inexact
 
 all: dev test

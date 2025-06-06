@@ -73,9 +73,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         super().__init__(buf)
         if self._render_mode is not None:
-            from .renderer.renderer import AsciiRenderer
+            if self._render_mode == "human":
+                from .renderer.nethack import NethackRenderer
 
-            self._renderer = AsciiRenderer(self.object_type_names)
+                self._renderer = NethackRenderer(self.object_type_names)
+            elif self._render_mode == "miniscope":
+                from .renderer.miniscope import MiniscopeRenderer
+
+                self._renderer = MiniscopeRenderer(self.object_type_names)
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
