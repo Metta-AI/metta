@@ -9,4 +9,4 @@ trainer:
   wandb.enabled: true
   wandb.track: true
 
-run: mrazo_act-obs_memory_simple_v04
+run: mrazo_act-obs_memory_robust-cross_v04
