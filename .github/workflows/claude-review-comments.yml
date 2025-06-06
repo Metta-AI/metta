@@ -1,60 +1,51 @@
 name: "Claude Review: Comments"
 on:
-  pull_request:
-    types: [opened, reopened]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       pr_number:
-        description: "Pull Request number to review"
         required: true
         type: string
-
-permissions:
-  contents: read
-  pull-requests: write
-  id-token: write
 
 jobs:
   review:
     uses: ./.github/workflows/claude-review-base.yml
+    secrets: inherit
     with:
       review_name: "Code Comments"
+      review_type: "comments"
       tools: "Edit,Replace,Bash(git diff HEAD~1)"
-      pr_number: ${{ inputs.pr_number || '' }}
+      pr_number: ${{ inputs.pr_number }}
       prompt: |
-        Please review the PR diff and specifically look for unnecessary comments in the code.
+        Review the PR diff and specifically look for unnecessary comments in the code.
 
-        **IMPORTANT**: Only create a PR comment if you find significant improvements to suggest. If there are no unnecessary comments, do not comment on the PR at all.
+        **CRITICAL INSTRUCTIONS**:
+        1. If you find NO unnecessary comments that should be removed:
+           - Simply respond with "No issues found."
+           - DO NOT create any review
+        2. ONLY create a review if you find comments that genuinely need to be removed
+        3. Focus on comments that add no value or actively harm code readability
 
-        Focus on identifying comments that:
-        1. Merely restate what the code is doing (e.g., "# increment counter" for "counter += 1")
-        2. Explain obvious operations that are clear from the code itself
-        3. Are outdated or no longer relevant to the current implementation
-        4. Duplicate information that is already conveyed by descriptive variable/function names
-        5. State Git commands or simple technical operations that are obvious to developers
+        **Comments to flag for removal**:
+        1. Comments that merely restate what the code is doing (e.g., "# increment counter" for "counter += 1")
+        2. Comments explaining obvious operations that are clear from the code itself
+        3. Outdated or incorrect comments that no longer match the implementation
+        4. Comments that duplicate information already conveyed by descriptive variable/function names
+        5. Comments stating obvious Git commands or simple technical operations
 
-        For each unnecessary comment you find:
-        - Specify its location (file and line number)
-        - Explain why it's unnecessary
-        - Create a suggested change (using GitHub's suggested change format) showing the code with the comment removed
+        **Comments to KEEP (do not flag these)**:
+        - Comments explaining WHY something is done
+        - Comments providing important context or warnings
+        - TODO/FIXME comments (unless they're clearly obsolete)
+        - Comments explaining complex algorithms or business logic
+        - License headers or copyright notices
+        - Comments that help with code navigation or structure
 
-        A good comment should explain WHY something is done, not WHAT is done, when the WHAT is clear from the code itself.
-        For example, "# set git detachedHead config to false" is unnecessary for "git config advice.detachedHead false"
-        because it just restates what the code is doing without adding context for WHY.
+        **Examples**:
+        - REMOVE: `# set git detachedHead config to false` before `git config advice.detachedHead false`
+        - KEEP: `# Disable detached HEAD warnings to avoid confusing new contributors`
+        - REMOVE: `# loop through users` before `for user in users:`
+        - KEEP: `# Process users in reverse order to handle dependencies`
 
-        Follow these steps:
-        1. First, examine the diff to identify files with changes
-        2. For each file, identify any unnecessary comments in the changed code
-        3. For each unnecessary comment, create a suggested change showing the code without the comment
-        4. Summarize all your findings in a clear, organized PR comment
-
-        When creating suggested changes:
-        - Use GitHub's suggestion format so users can directly commit them
-        - Only remove the comment, leaving the actual code unchanged
-        - If a multi-line comment should be removed, show the complete removal
-
-        Be polite and constructive in your feedback. Explain that these are suggestions that the developer can choose to accept or ignore.
-
-        At the end of your PR comment, include a short **TLDR** section. This section should be easy to copy and paste into another LLM and concisely list each recommended change. Use one bullet per suggestion and mention the file and line number when possible.
-    secrets:
-      anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+        Only create suggestions for comments that genuinely harm code readability or provide
+        misleading information. If the comments are merely redundant but not harmful, or if
+        you're unsure, err on the side of not creating a review.

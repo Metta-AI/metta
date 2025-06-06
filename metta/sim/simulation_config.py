@@ -15,6 +15,7 @@ class SimulationConfig(Config):
     # Core simulation config
     num_episodes: int
     max_time_s: int = 120
+    env_overrides: dict = {}
 
     npc_policy_uri: Optional[str] = None
     policy_agents_pct: float = 1.0
@@ -26,7 +27,7 @@ class SingleEnvSimulationConfig(SimulationConfig):
     __init__ = SimulationConfig.__init__
 
     env: str
-    env_overrides: Optional[dict] = None
+    env_overrides: dict = {}
 
 
 class SimulationSuiteConfig(SimulationConfig):

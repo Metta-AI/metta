@@ -1,0 +1,25 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - _self_
+
+cmd: renderer
+run: ???
+
+# Optional: Override environment config (if not provided, uses renderer_job.environment)
+env: null
+
+renderer_job:
+  policy_type: random  # random is more active than simple
+  policy_uri: null     # URI for trained policy (if using trained policy)
+  num_steps: 50000     # Good length to see behavior
+  num_agents: 2        # All debug environments have 2 agents
+  max_steps: 10000
+  sleep_time: 0.0      # Visible but not too slow - good for all environments
+  renderer_type: human # Options: human/nethack (ASCII), miniscope (emoji)
+
+  # Default to tiny_two_altars, but easily overridable for other debug maps
+  environment:
+    _target_: mettagrid.room.ascii.Ascii
+    uri: "configs/env/mettagrid/maps/debug/tiny_two_altars.map"
+    border_width: 0

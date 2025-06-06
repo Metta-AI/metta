@@ -25,6 +25,7 @@ from omegaconf import OmegaConf
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.rl.pufferlib.policy import PufferAgent
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
@@ -68,10 +69,7 @@ class Simulation:
         logger.info(f"config.env {config.env}")
         logger.info(f"config.env_overrides {config.env_overrides}")
 
-        if config.env_overrides is not None:
-            env_overrides = OmegaConf.create(config.env_overrides)
-        else:
-            env_overrides = None
+        env_overrides = OmegaConf.create(config.env_overrides)
 
         self._env_name = config.env
 
@@ -136,8 +134,8 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent = self._policy_pr.policy_as_metta_agent()
-        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent)), metta_agent
+        metta_agent: MettaAgent | DistributedMettaAgent | PufferAgent = self._policy_pr.policy_as_metta_agent()
+        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), metta_agent
         metta_agent.activate_actions(action_names, max_args, self._device)
 
         if self._npc_pr is not None:

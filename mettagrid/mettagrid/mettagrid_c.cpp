@@ -35,8 +35,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   max_steps = cfg["max_steps"].cast<unsigned int>();
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
+
   _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
-  unsigned int num_observation_tokens =
+  _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
   current_step = 0;
@@ -50,7 +51,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
 
   _grid = std::make_unique<Grid>(width, height, layer_for_type_id);
   _obs_encoder = std::make_unique<ObservationEncoder>();
-  _grid_features = _obs_encoder->feature_names();
+  _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
@@ -165,12 +166,12 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
   if (_use_observation_tokens) {
-    shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(num_observation_tokens), static_cast<ssize_t>(3)};
+    shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
   } else {
     shape = {static_cast<ssize_t>(num_agents),
              static_cast<ssize_t>(obs_height),
              static_cast<ssize_t>(obs_width),
-             static_cast<ssize_t>(_grid_features.size())};
+             static_cast<ssize_t>(_feature_normalizations.size())};
   }
   auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
   auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
@@ -295,7 +296,11 @@ void MettaGrid::_step(py::array_t<int> actions) {
 
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, 0);
+  if (_use_observation_tokens) {
+    std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
+  } else {
+    std::fill(obs_ptr, obs_ptr + obs_size, 0);
+  }
 
   std::fill(_action_success.begin(), _action_success.end(), false);
 
@@ -402,11 +407,11 @@ void MettaGrid::validate_buffers() {
     auto observation_info = _observations.request();
     auto shape = observation_info.shape;
     if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != obs_height || shape[2] != obs_width ||
-        shape[3] != _grid_features.size()) {
+        shape[3] != _feature_normalizations.size()) {
       std::stringstream ss;
       ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << ", " << shape[3]
-         << "] but expected [" << num_agents << ", " << obs_height << ", " << obs_width << ", " << _grid_features.size()
-         << "]";
+         << "] but expected [" << num_agents << ", " << obs_height << ", " << obs_width << ", "
+         << _feature_normalizations.size() << "]";
       throw std::runtime_error(ss.str());
     }
   }
@@ -545,8 +550,10 @@ unsigned int MettaGrid::map_height() {
   return _grid->height;
 }
 
-py::list MettaGrid::grid_features() {
-  return py::cast(_grid_features);
+// These should correspond to the features we emit in the observations -- either
+// the channel or the feature_id.
+py::list MettaGrid::feature_normalizations() {
+  return py::cast(_feature_normalizations);
 }
 
 unsigned int MettaGrid::num_agents() {
@@ -558,6 +565,14 @@ py::array_t<float> MettaGrid::get_episode_rewards() {
 }
 
 py::dict MettaGrid::get_episode_stats() {
+  // Returns a dictionary with the following structure:
+  // {
+  //   "game": dict[str, float],  // Global game statistics
+  //   "agent": list[dict[str, float]],  // Per-agent statistics
+  //   "converter": list[dict[str, float]]  // Per-converter statistics
+  // }
+  // All stat values are guaranteed to be floats from StatsTracker::to_dict()
+
   py::dict stats;
   stats["game"] = py::cast(_stats->to_dict());
 
@@ -576,15 +591,17 @@ py::dict MettaGrid::get_episode_stats() {
     // Check if this is a converter
     Converter* converter = dynamic_cast<Converter*>(obj);
     if (converter) {
+      // Add metadata to the converter's stats tracker BEFORE converting to dict
+      converter->stats.set("type_id", static_cast<int>(converter->_type_id));
+      converter->stats.set("location.r", static_cast<int>(converter->location.r));
+      converter->stats.set("location.c", static_cast<int>(converter->location.c));
+
+      // Now convert to dict - all values will be floats
       py::dict converter_stat = py::cast(converter->stats.to_dict());
-      // Add metadata about the converter
-      converter_stat["type"] = ObjectTypeNames[converter->_type_id];
-      converter_stat["location"] = py::make_tuple(converter->location.r, converter->location.c);
       converter_stats.append(converter_stat);
     }
   }
   stats["converter"] = converter_stats;
-
   return stats;
 }
 
@@ -593,26 +610,23 @@ py::object MettaGrid::action_space() {
   auto spaces = gym.attr("spaces");
 
   return spaces.attr("MultiDiscrete")(py::make_tuple(py::len(action_names()), _max_action_arg + 1),
-                                      py::arg("dtype") = py::module_::import("numpy").attr("int64"));
+                                      py::arg("dtype") = py::module_::import("numpy").attr("int32"));
 }
 
 py::object MettaGrid::observation_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  if (_use_observation_tokens) {
-    // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
-    // that matters to us.
-    return spaces.attr("Box")(0,
-                              255,
-                              py::make_tuple(_observations.shape(1), _observations.shape(2)),
-                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
-  } else {
-    return spaces.attr("Box")(0,
-                              255,
-                              py::make_tuple(obs_height, obs_width, _grid_features.size()),
-                              py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  auto observation_info = _observations.request();
+  auto shape = observation_info.shape;
+  auto space_shape = py::tuple(observation_info.ndim - 1);
+  for (size_t i = 0; i < observation_info.ndim - 1; i++) {
+    space_shape[i] = shape[i + 1];
   }
+
+  // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
+  // that matters to us.
+  return spaces.attr("Box")(0, 255, space_shape, py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
 }
 
 py::list MettaGrid::action_success() {
@@ -716,7 +730,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
-      .def("grid_features", &MettaGrid::grid_features)
+      .def("feature_normalizations", &MettaGrid::feature_normalizations)
       .def_property_readonly("num_agents", &MettaGrid::num_agents)
       .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
       .def("get_episode_stats", &MettaGrid::get_episode_stats)

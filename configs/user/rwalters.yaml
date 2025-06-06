@@ -5,9 +5,6 @@ seed: null
 defaults:
   - _self_
 
-
-num_envs: 1
-
 trainer:
   env: /env/mettagrid/simple
   evaluate_interval: 200

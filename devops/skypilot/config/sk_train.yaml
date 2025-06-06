@@ -22,9 +22,7 @@ setup: |
   git fetch
   git checkout $METTA_GIT_REF
 
-  uv pip install -r requirements.txt
-  uv pip install -e .
-  uv --directory mettagrid pip install -e .
+  uv sync
 
   mkdir -p $WANDB_DIR
 
