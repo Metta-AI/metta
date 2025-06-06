@@ -99,7 +99,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         """Worker thread that precalculates C environment construction arguments."""
         while not self._stop_precalc.is_set():
             try:
-                # Calculate the next set of construction args
                 config_dict, grid, map_labels, task = self._calculate_c_env_args()
 
                 # Try to put the result in the queue (will block if queue is full)
