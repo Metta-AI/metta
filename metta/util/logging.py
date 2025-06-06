@@ -232,7 +232,8 @@ def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
     log_terminal_debug_info(logger, prefix="BEFORE")
 
     # Force terminal width
-    force_terminal_width(200)
+    # lines are padded with about 45 chars of metadata (timestamp, log level, file and line info)
+    force_terminal_width(300)
 
     # Log terminal state after forcing width
     log_terminal_debug_info(logger, prefix="AFTER")
@@ -241,7 +242,7 @@ def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
 
 
 # Additional utility function to force terminal width if needed
-def force_terminal_width(width: int = 200):
+def force_terminal_width(width: int):
     """
     Attempt to force terminal width through various methods.
     This is useful for AWS Batch environments.
