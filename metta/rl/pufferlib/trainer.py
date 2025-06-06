@@ -351,6 +351,13 @@ class PufferTrainer:
         while not experience.full:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
+                print(f"o.shape: {o.shape}")
+                print(f"r.shape: {r.shape}")
+                print(f"d.shape: {d.shape}")
+                print(f"t.shape: {t.shape}")
+                print(f"info.shape: {info.shape}")
+                print(f"env_id.shape: {env_id.shape}")
+                print(f"mask.shape: {mask.shape}")
 
                 if self.trainer_cfg.require_contiguous_env_ids:
                     raise ValueError(
@@ -859,7 +866,10 @@ class PufferTrainer:
             self.target_batch_size = 2
 
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
-        num_envs = self.batch_size * self.trainer_cfg.async_factor // torch.distributed.get_world_size()
+        if torch.distributed.is_initialized():
+            num_envs = (self.batch_size * self.trainer_cfg.async_factor) // torch.distributed.get_world_size()
+        else:
+            num_envs = self.batch_size * self.trainer_cfg.async_factor
 
         print(f"self.num_envs: {num_envs}")
 
@@ -890,8 +900,6 @@ class PufferTrainer:
                 self.cfg.seed * (int(os.environ["RANK"]) + 1)
             )  # make sure that the envs are not perfectly correlated
         else:
-            print("Resetting seeds the wrong way")
-            print(f"Resetting envs with seed (RANK {os.environ['RANK']}) {self.cfg.seed}")
             self.vecenv.async_reset(self.cfg.seed)
 
 
