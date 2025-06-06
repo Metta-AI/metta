@@ -40,7 +40,8 @@ public:
 
   // Python API methods
   py::tuple reset();
-  py::tuple step(py::array_t<int> actions);
+  // In general, these types need to match what puffer wants to use.
+  py::tuple step(py::array_t<int32_t, py::array::c_style> actions);
   void set_buffers(const py::array_t<unsigned char, py::array::c_style>& observations,
                    const py::array_t<bool, py::array::c_style>& terminals,
                    const py::array_t<bool, py::array::c_style>& truncations,
@@ -112,8 +113,8 @@ private:
                             unsigned short obs_width,
                             unsigned short obs_height,
                             size_t agent_idx);
-  void _compute_observations(py::array_t<int> actions);
-  void _step(py::array_t<int> actions);
+  void _compute_observations(py::array_t<int32_t, py::array::c_style> actions);
+  void _step(py::array_t<int32_t, py::array::c_style> actions);
 };
 
 #endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_
