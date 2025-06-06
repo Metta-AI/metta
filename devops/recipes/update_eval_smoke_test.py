@@ -45,10 +45,16 @@ def check_wandb_policy_exists(policy_name: str) -> bool:
         if result.returncode == 0:
             return True
         else:
+
             # Also check if it exists as a run
-            cmd = ["wandb", "run", "get", policy_name]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            return result.returncode == 0
+            import wandb
+            api = wandb.Api()
+            try:
+                api.run(f"{entity}/{project}/{policy_name}")
+                return True
+            except wandb.errors.CommError:
+                return False
+
     except Exception:
         return False
 
