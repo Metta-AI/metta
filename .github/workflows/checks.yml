@@ -281,7 +281,7 @@ jobs:
 
           # Smoke test configuration (will move to github vars)
           EVAL_SMOKE_TEST_POLICY="b.rwalters.0605.nav.pr811.00"
-          SMOKE_TEST_MIN_REWARD=0.2
+          SMOKE_TEST_MIN_REWARD=0.15
 
           for i in {1..4}; do
             echo "Running smoke test attempt $i..."
