@@ -284,19 +284,28 @@ jobs:
           SMOKE_TEST_MIN_REWARD=0.15
           MAX_ATTEMPTS=4
 
+          # Create a wrapper script for the eval command
+          cat > run_eval_smoke_test.sh << 'EOF'
+          #!/bin/bash
+          python3 -m tools.sim \
+              sim=navigation \
+              run=navigation_smoke_$1 \
+              policy_uri=wandb://run/$2 \
+              +eval_db_uri=wandb://artifacts/navigation_db \
+              seed=31415 \
+              torch_deterministic=True \
+              device=cpu
+          EOF
+          chmod +x run_eval_smoke_test.sh
+
           for i in $(seq 1 $MAX_ATTEMPTS); do
             echo "Running smoke test attempt $i/$MAX_ATTEMPTS..."
 
-            # Run simulation and extract JSON output
-            JSON_OUTPUT=$(python3 -m tools.sim \
-                sim=navigation \
-                run=navigation_smoke_$i \
-                policy_uri=wandb://run/$EVAL_SMOKE_TEST_POLICY \
-                +eval_db_uri=wandb://artifacts/navigation_db \
-                seed=31415 \
-                torch_deterministic=True \
-                device=cpu \
-                2>&1 | sed -n '/===JSON_OUTPUT_START===/,/===JSON_OUTPUT_END===/p' | sed '1d;$d')
+            # Run with benchmark and capture output
+            FULL_OUTPUT=$(benchmark "evals_try$i" "./run_eval_smoke_test.sh $i $EVAL_SMOKE_TEST_POLICY" 2>&1)
+
+            # Extract JSON output
+            JSON_OUTPUT=$(echo "$FULL_OUTPUT" | sed -n '/===JSON_OUTPUT_START===/,/===JSON_OUTPUT_END===/p' | sed '1d;$d')
 
             # Extract reward value
             REWARD=$(echo "$JSON_OUTPUT" | jq -r '.policies[0].checkpoints[0].metrics.reward_avg // "ERROR"' 2>/dev/null)
