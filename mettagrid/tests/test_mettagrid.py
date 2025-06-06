@@ -102,6 +102,18 @@ class TestObservations:
             token_matches = obs[0, :, 0] == location
             assert not token_matches.any(), f"Expected no tokens at location {x}, {y}"
 
+    def test_observation_token_order(self):
+        """Test observation token order."""
+        c_env = create_minimal_mettagrid_c_env()
+        obs, info = c_env.reset()
+        distances = []
+        for location in obs[0, :, 0]:
+            # cast as ints to avoid numpy uint8 underflow
+            x = int(location >> 4)
+            y = int(location & 0xF)
+            distances.append(abs(x - 1) + abs(y - 1))  # 1,1 is the agent's location
+        assert distances == sorted(distances), f"Distances should be increasing: {distances}"
+
 
 def test_grid_objects():
     """Test grid object representation and properties."""
