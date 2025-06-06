@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import uuid
 from typing import Any, Dict, Optional, cast
-import logging
 
 import gymnasium as gym
 import numpy as np
@@ -13,6 +13,7 @@ from pufferlib import unroll_nested_dict
 from pydantic import validate_call
 from typing_extensions import override
 
+from metta.util.timing import Stopwatch  # ignore
 from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
@@ -20,7 +21,6 @@ from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.diversity import calculate_diversity_bonus
 from mettagrid.util.hydra import simple_instantiate
-from metta.util.timing import Stopwatch # ignore
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 np_observations_type = np.dtype(np.uint8)
@@ -31,7 +31,8 @@ np_actions_type = np.dtype(np.int32)  # forced to int32 when actions are Discret
 np_masks_type = np.dtype(bool)
 np_success_type = np.dtype(bool)
 
-logger = logging.getLogger(f"MettaGridEnv")
+logger = logging.getLogger("MettaGridEnv")
+
 
 def required(func):
     """Marks methods that PufferEnv requires but does not implement for override."""
@@ -57,7 +58,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
-
         self.timer = Stopwatch(logger)
         self.timer.start()
         self._steps = 0
@@ -223,7 +223,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             "timing/total_seconds": wall_time,
         }
 
-        info["timing"] = timing_logs
+        infos["timing"] = timing_logs
 
         infos["episode_rewards"] = episode_rewards
         # infos["agent_raw"] = stats["agent"]
