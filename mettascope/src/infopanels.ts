@@ -1,7 +1,4 @@
 // Info panels are used to display information about the current state of objects.
-// They appear as hovers when you hover over an agent or click on a grid object.
-// They can be pinned to stack on screen, a line is drawn to the object,
-// when they are on pined on screen. They can also be moved around in this pinned mode.
 
 // Lower level hover rules:
 // * You need to hover over the object for 1 second for the info panel to show.
@@ -11,7 +8,7 @@
 //   * It will be only closed by clicking on the X.
 //   * It will loose its hover stem on the bottom when it detached mode.
 
-import { find, findIn, removeChildren } from "./htmlutils.js";
+import { find, findIn, onEvent, removeChildren } from "./htmlutils.js";
 import { state, ui } from "./common.js";
 import { getAttr } from "./replay.js";
 import * as Common from "./common.js";
@@ -29,8 +26,14 @@ export class InfoPanel {
   public update() {
     updateDom(this.div, this.object);
   }
-
 }
+
+onEvent("click", ".infopanel .close", (target: HTMLElement, e: Event) => {
+  console.log("Info panel close clicked");
+  let panel = target.parentElement as HTMLElement;
+  panel.remove();
+  ui.infoPanels = ui.infoPanels.filter(p => p.div !== panel);
+})
 
 var infoPanelTemplate = find(".infopanel") as HTMLElement;
 
@@ -93,6 +96,7 @@ export function updateReadout(object: any) {
   } else {
     hoverPanel.classList.add("hidden");
   }
+  findIn(hoverPanel, ".close").classList.add("hidden");
 }
 
 function updateDom(htmlPanel: HTMLElement, object: any) {

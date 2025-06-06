@@ -1787,6 +1787,7 @@ button#help-button.hover-icon .icon {
     flex-direction: row;
     flex-wrap: nowrap;
     gap: 10px;
+    padding: 0px 10px 0px 0px;
     align-items: center;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
@@ -1935,4 +1936,15 @@ button#help-button.hover-icon .icon {
     width: 32px;
     height: 16px;
     background-color: rgba(0, 0, 0, 0.00);
+}
+
+.infopanel .close.hover-icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    right: 0px;
+    top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
 }
