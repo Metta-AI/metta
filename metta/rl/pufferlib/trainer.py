@@ -859,15 +859,15 @@ class PufferTrainer:
 
         # self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
         self.batch_size = int(self.target_batch_size)
-        self.batch_size = 256
-        print(f"self.batch_size: {self.batch_size}") # 512
+        self.batch_size = 256 // 4
+        print(f"self.batch_size: {self.batch_size}")  # 512
 
         # if torch.distributed.is_initialized():
         #     # num_envs = (self.batch_size * self.trainer_cfg.async_factor) // torch.distributed.get_world_size()
         #     num_envs = (self.batch_size * self.trainer_cfg.async_factor) // 4
         # else:
         #     num_envs = self.batch_size * self.trainer_cfg.async_factor
-        num_envs=256
+        num_envs = 256 // 4
 
         print(f"self.num_envs: {num_envs}")
 
