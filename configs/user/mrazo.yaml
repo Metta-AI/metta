@@ -1,7 +1,6 @@
 # @package __global__
 
 defaults:
-  - override /agent: robust_cross
   - _self_
 
 trainer:
@@ -9,4 +8,4 @@ trainer:
   wandb.enabled: true
   wandb.track: true
 
-run: mrazo_act-obs_memory_robust-cross_v02
+run: mrazo_act-obs_memory_standard_v01
