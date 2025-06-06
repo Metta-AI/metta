@@ -94,6 +94,8 @@ onEvent("mouseup", "body", () => {
   ui.mouseUp = true;
   ui.mouseDown = false;
   ui.dragging = "";
+  ui.dragHtml = null;
+  ui.dragOffset = new Vec2f(0, 0);
 
   // Due to how we select objects on mouse-up (mouse-down is drag/pan),
   // we need to check for double-click on mouse-up as well.
@@ -136,6 +138,20 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
     onResize();
   }
 
+  if (ui.dragHtml != null) {
+    ui.dragHtml.style.left = (ui.mousePos.x() - ui.dragOffset.x()) + "px";
+    ui.dragHtml.style.top = (ui.mousePos.y() - ui.dragOffset.y()) + "px";
+  }
+
+  requestFrame();
+})
+
+onEvent("mousedown", ".draggable", (target: HTMLElement, e: Event) => {
+  let event = e as MouseEvent;
+  ui.dragHtml = target;
+  let rect = target.getBoundingClientRect();
+  ui.dragOffset = new Vec2f(event.clientX - rect.left, event.clientY - rect.top);
+  ui.dragging = "draggable";
   requestFrame();
 })
 
@@ -289,7 +305,7 @@ export function onFrame() {
 
   if (state.showInfo) {
     ui.infoPanel.div.classList.remove("hidden");
-    updateReadout();
+    //updateReadout();
   } else {
     ui.infoPanel.div.classList.add("hidden");
   }
