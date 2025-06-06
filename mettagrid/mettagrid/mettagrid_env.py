@@ -72,7 +72,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
 
         # Initialize the precalculation system
-        self._precalc_queue = queue.Queue(maxsize=1)  # Single buffered queue
+        self._precalc_queue = queue.Queue(maxsize=5)
         self._precalc_thread = None
         self._stop_precalc = threading.Event()
 
@@ -343,7 +343,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def num_agents(self):
         return self._c_env.num_agents
 
-    def render(self):
+    def render(self) -> str | None:
         if self._renderer is None:
             return None
 
