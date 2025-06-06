@@ -115,7 +115,6 @@ public:
     vector<PartialObservationToken> features;
     features.push_back({ObservationFeature::TypeId, _type_id});
     features.push_back({ObservationFeature::Group, group});
-    features.push_back({ObservationFeature::Hp, hp});
     features.push_back({ObservationFeature::Frozen, frozen});
     features.push_back({ObservationFeature::Orientation, orientation});
     features.push_back({ObservationFeature::Color, color});
