@@ -4,7 +4,7 @@ Test suite for debug maps functionality.
 This module tests that:
 1. Debug maps can be loaded without errors
 2. Environment configurations are valid
-3. Basic smoke tests can be run
+3. Basic smoke tests can be run through the simulation infrastructure
 """
 
 from pathlib import Path
@@ -85,12 +85,6 @@ class TestDebugMaps:
         assert config_path.exists(), "Debug maps smoke test config should exist"
         assert config_path.is_file(), "Debug maps smoke test config should be a file"
 
-    def test_smoke_test_script_exists(self):
-        """Verify that the smoke test script exists and is executable."""
-        script_path = Path("tools/debug_maps_smoke_test.py")
-        assert script_path.exists(), "Debug maps smoke test script should exist"
-        assert script_path.is_file(), "Debug maps smoke test script should be a file"
-
     def test_debug_map_contents_are_different(self, debug_maps_dir):
         """Verify that debug maps have different contents (not duplicates)."""
         map_contents = {}
@@ -123,3 +117,115 @@ class TestDebugMaps:
 
             for element in expected_elements:
                 assert element in content, f"Map {map_name} should contain element '{element}'"
+
+    @pytest.mark.parametrize(
+        "env_config",
+        [
+            "env/mettagrid/debug/evals/debug_mixed_objects",
+            "env/mettagrid/debug/evals/debug_resource_collection",
+            "env/mettagrid/debug/evals/debug_simple_obstacles",
+            "env/mettagrid/debug/evals/debug_tiny_two_altars",
+        ],
+    )
+    def test_debug_environment_configs_loadable(self, env_config):
+        """Test that debug environment configurations can be loaded by Hydra."""
+        import hydra
+
+        try:
+            # Use relative path from the test directory to the configs directory
+            with hydra.initialize(version_base=None, config_path="../../../../configs"):
+                cfg = hydra.compose(config_name=env_config)
+
+                # Access the nested configuration structure
+                debug_config = cfg.env.mettagrid.debug.evals
+
+                # Basic validation that config loaded correctly
+                assert "game" in debug_config, f"Config {env_config} should have 'game' section"
+                assert "map_builder" in debug_config.game, f"Config {env_config} should have map_builder"
+                assert "uri" in debug_config.game.map_builder, f"Config {env_config} should have map URI"
+                assert "max_steps" in debug_config.game, f"Config {env_config} should have max_steps"
+
+                # Verify it points to correct debug map
+                map_uri = debug_config.game.map_builder.uri
+                assert "debug" in map_uri, f"Config {env_config} should point to debug map"
+
+        except Exception as e:
+            pytest.fail(f"Failed to load environment config {env_config}: {e}")
+
+    def test_smoke_test_simulation_config_loadable(self):
+        """Test that the smoke test simulation configuration can be loaded."""
+        import hydra
+
+        try:
+            with hydra.initialize(version_base=None, config_path="../../../configs"):
+                cfg = hydra.compose(config_name="sim/debug_maps_smoke_test")
+
+                # Basic validation
+                assert "simulations" in cfg, "Smoke test config should have simulations"
+                assert len(cfg.simulations) == 4, "Should have 4 debug map simulations"
+
+                # Check each simulation points to debug environment
+                for sim_name, sim_config in cfg.simulations.items():
+                    assert "env" in sim_config, f"Simulation {sim_name} should have env config"
+                    assert "debug" in sim_config.env, f"Simulation {sim_name} should use debug environment"
+
+        except Exception as e:
+            pytest.fail(f"Failed to load smoke test simulation config: {e}")
+
+
+class TestDebugMapsSmoke:
+    """Smoke tests for debug maps that can be run without requiring trained policies."""
+
+    def test_debug_map_loading_smoke_test(self):
+        """Smoke test to verify debug maps can be loaded into ASCII room builders."""
+        from mettagrid.room.ascii import Ascii
+
+        debug_maps = [
+            "configs/env/mettagrid/maps/debug/mixed_objects.map",
+            "configs/env/mettagrid/maps/debug/resource_collection.map",
+            "configs/env/mettagrid/maps/debug/simple_obstacles.map",
+            "configs/env/mettagrid/maps/debug/tiny_two_altars.map",
+        ]
+
+        for map_path in debug_maps:
+            try:
+                # Try to create ASCII room builder with the map
+                room_builder = Ascii(uri=map_path, border_width=1)
+
+                # Basic validation that room builder was created successfully
+                assert room_builder is not None, f"Room builder should be created for {map_path}"
+
+            except Exception as e:
+                pytest.fail(f"Failed to load debug map {map_path} into ASCII room builder: {e}")
+
+    def test_debug_environments_can_be_instantiated(self):
+        """Smoke test to verify debug environments can be instantiated with Hydra."""
+        import hydra
+        from hydra.core.global_hydra import GlobalHydra
+
+        debug_configs = [
+            "env/mettagrid/debug/evals/debug_tiny_two_altars"  # Test the smallest map
+        ]
+
+        for config_name in debug_configs:
+            try:
+                # Clear any existing Hydra instance
+                GlobalHydra.instance().clear()
+
+                with hydra.initialize(version_base=None, config_path="../../../../configs"):
+                    cfg = hydra.compose(config_name=config_name)
+
+                    # Access the nested configuration structure
+                    debug_config = cfg.env.mettagrid.debug.evals
+
+                    # Verify we can at least load the configuration structure
+                    assert debug_config.game.map_builder._target_ == "mettagrid.room.ascii.Ascii"
+                    assert "debug" in debug_config.game.map_builder.uri
+                    assert debug_config.game.max_steps > 0
+
+            except Exception as e:
+                pytest.fail(f"Failed to instantiate debug environment {config_name}: {e}")
+            finally:
+                # Clean up Hydra instance
+                if GlobalHydra.instance().is_initialized():
+                    GlobalHydra.instance().clear()
