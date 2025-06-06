@@ -85,7 +85,7 @@ def test_mettagrid_env_no_memory_leaks(cfg):
 
     # Final memory should not be significantly higher than initial memory
     # Allow for some small fluctuations
-    memory_threshold = 5.0  # MB - adjust based on your environment's expected behavior
+    memory_threshold = 15.0  # MB - allow for the precalculation thread
 
     print(f"Memory growth after {num_iterations} iterations: {memory_growth:.2f} MB")
     assert memory_growth < memory_threshold, f"Possible memory leak detected: {memory_growth:.2f} MB growth"
