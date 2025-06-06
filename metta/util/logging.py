@@ -70,7 +70,7 @@ def get_log_level(provided_level=None):
 
 def force_terminal_width_on_aws(width: int):
     # check if we are on AWS
-    if not os.environ["AWS_BATCH_JOB_ID"]:
+    if not os.environ.get("AWS_BATCH_JOB_ID"):
         return
 
     # Set environment variable
