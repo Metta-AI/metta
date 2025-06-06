@@ -16,7 +16,7 @@ from typing import List, Tuple
 import numpy as np
 import pytest
 
-from mettagrid.room.ascii import SYMBOLS
+from mettagrid.room.ascii import CHAR_TO_NAME
 
 
 def find_map_files(root_dir: str = ".") -> List[Path]:
@@ -98,7 +98,7 @@ def validate_map_structure(file_path: Path) -> Tuple[bool, List[str]]:
 
     # Validate symbols
     all_chars = set("".join(lines))
-    unknown_chars = all_chars - set(SYMBOLS.keys())
+    unknown_chars = all_chars - set(CHAR_TO_NAME.keys())
     if unknown_chars:
         # Filter out acceptable whitespace characters
         truly_unknown = unknown_chars - {"\t", "\r", "\n"}
@@ -108,7 +108,7 @@ def validate_map_structure(file_path: Path) -> Tuple[bool, List[str]]:
     # Test NumPy array creation (the critical operation that was failing)
     try:
         level_array = np.array([list(line) for line in lines], dtype="U6")
-        np.vectorize(SYMBOLS.get)(level_array)
+        np.vectorize(CHAR_TO_NAME.get)(level_array)
     except Exception as e:
         errors.append(f"Failed to create NumPy array: {e}")
 
@@ -151,7 +151,7 @@ class TestAsciiMaps:
                     content = f.read()
 
                 all_chars = set(content)
-                unknown_chars = all_chars - set(SYMBOLS.keys()) - {"\t", "\r", "\n"}
+                unknown_chars = all_chars - set(CHAR_TO_NAME.keys()) - {"\t", "\r", "\n"}
 
                 if unknown_chars:
                     files_with_unknown_symbols[map_file] = sorted(unknown_chars)
@@ -206,7 +206,7 @@ class TestAsciiMaps:
                 if lines:
                     # This is the exact operation that causes InstantiationException
                     level_array = np.array([list(line) for line in lines], dtype="U6")
-                    _mapped_array = np.vectorize(SYMBOLS.get)(level_array)
+                    _mapped_array = np.vectorize(CHAR_TO_NAME.get)(level_array)
 
                     # Basic structure validation
                     assert level_array.ndim == 2, "Should be 2D array"

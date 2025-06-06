@@ -14,7 +14,7 @@ from omegaconf import OmegaConf
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.renderer.nethack import NethackRenderer
-from mettagrid.room.ascii import SYMBOLS
+from mettagrid.room.ascii import CHAR_TO_NAME
 from mettagrid.util.hydra import get_cfg
 
 
@@ -407,7 +407,7 @@ class TestSymbolAnalysis:
         emoji_symbols = []
         ascii_symbols = []
 
-        for char, obj_type in SYMBOLS.items():
+        for char, obj_type in CHAR_TO_NAME.items():
             if ord(char[0]) > 127:
                 emoji_symbols.append((char, obj_type))
             else:
@@ -419,7 +419,7 @@ class TestSymbolAnalysis:
 
         # Check that we have the expected problematic emojis
         for emoji in expected_emojis:
-            if emoji in SYMBOLS:
+            if emoji in CHAR_TO_NAME:
                 assert emoji in found_emojis, f"Expected emoji {emoji} not found in mapping"
 
     def test_character_width_analysis(self):

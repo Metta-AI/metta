@@ -3,7 +3,7 @@ from __future__ import annotations
 import unicodedata
 from typing import Dict, List
 
-from mettagrid.room.ascii import SYMBOLS as MAP_SYMBOLS
+from mettagrid.char_encoder import CHAR_TO_NAME as MAP_SYMBOLS
 
 
 class NethackRenderer:
