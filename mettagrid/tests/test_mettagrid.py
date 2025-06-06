@@ -68,7 +68,7 @@ def test_truncation_at_max_steps():
 
     # Noop until time runs out
     noop_action_idx = c_env.action_names().index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int32)
 
     for step_num in range(1, max_steps + 1):
         obs, rewards, terminals, truncations, info = c_env.step(actions)
@@ -176,7 +176,7 @@ def test_action_interface():
 
     # Test basic action execution
     noop_action_idx = action_names.index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int32)
 
     obs, rewards, terminals, truncations, info = c_env.step(actions)
 
@@ -203,7 +203,7 @@ def test_environment_state_consistency():
 
     # Take a noop action (should not change world state significantly)
     noop_action_idx = c_env.action_names().index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int32)
 
     _obs2, _rewards, _terminals, _truncations, _info2 = c_env.step(actions)
     post_step_objects = c_env.grid_objects()

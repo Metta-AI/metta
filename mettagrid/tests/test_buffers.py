@@ -405,7 +405,7 @@ class TestBuffers:
 
         # Take first step
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int32)
 
         obs, step_rewards_1, terminals_ret, truncations_ret, _info = c_env.step(actions)
         episode_rewards_1 = c_env.get_episode_rewards()
