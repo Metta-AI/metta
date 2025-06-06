@@ -118,7 +118,7 @@ def create_job_definition(args):
                             #     "awslogs-stream-prefix": "batch-job",
                             #     "awslogs-create-group": "true",
                             #     "mode": "non-blocking",
-                            #     "max-buffer-size": "25m",
+                            #     "max-buffer-size": "4m",
                             # },
                         },
                     },
