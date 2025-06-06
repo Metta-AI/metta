@@ -7,6 +7,8 @@
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
 #include "actions/change_color.hpp"
+#include "actions/freeze_attack.hpp"
+#include "actions/freeze_attack_nearest.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
@@ -18,6 +20,7 @@
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
+#include "objects/freeze_tower.hpp"
 #include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
@@ -61,6 +64,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   _event_manager->event_handlers.insert(
       {EventType::FinishConverting, std::make_unique<ProductionHandler>(_event_manager.get())});
   _event_manager->event_handlers.insert({EventType::CoolDown, std::make_unique<CoolDownHandler>(_event_manager.get())});
+  _event_manager->event_handlers.insert({EventType::FreezeTowerAttack, std::make_unique<FreezeTowerAttackHandler>(_event_manager.get())});
 
   _action_success.resize(num_agents);
 
@@ -84,6 +88,10 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   if (cfg["actions"]["attack"]["enabled"].cast<bool>()) {
     _action_handlers.push_back(std::make_unique<Attack>(cfg["actions"]["attack"].cast<ActionConfig>()));
     _action_handlers.push_back(std::make_unique<AttackNearest>(cfg["actions"]["attack"].cast<ActionConfig>()));
+  }
+  if (cfg["actions"]["freeze_attack"]["enabled"].cast<bool>()) {
+    _action_handlers.push_back(std::make_unique<FreezeAttack>(cfg["actions"]["freeze_attack"].cast<ActionConfig>()));
+    _action_handlers.push_back(std::make_unique<FreezeAttackNearest>(cfg["actions"]["freeze_attack"].cast<ActionConfig>()));
   }
   if (cfg["actions"]["swap"]["enabled"].cast<bool>()) {
     _action_handlers.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
@@ -134,12 +142,20 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
         converter = new Converter(r, c, cfg["objects"]["armory"].cast<ObjectConfig>(), ObjectType::ArmoryT);
       } else if (cell == "lasery") {
         converter = new Converter(r, c, cfg["objects"]["lasery"].cast<ObjectConfig>(), ObjectType::LaseryT);
+      } else if (cell == "freezery") {
+        converter = new Converter(r, c, cfg["objects"]["freezery"].cast<ObjectConfig>(), ObjectType::FreezeryT);
       } else if (cell == "lab") {
         converter = new Converter(r, c, cfg["objects"]["lab"].cast<ObjectConfig>(), ObjectType::LabT);
       } else if (cell == "factory") {
         converter = new Converter(r, c, cfg["objects"]["factory"].cast<ObjectConfig>(), ObjectType::FactoryT);
       } else if (cell == "temple") {
         converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
+      } else if (cell == "freeze_tower") {
+        FreezeTower* freeze_tower = new FreezeTower(r, c, cfg["objects"]["freeze_tower"].cast<ObjectConfig>());
+        _grid->add_object(freeze_tower);
+        freeze_tower->set_event_manager(_event_manager.get());
+        freeze_tower->stats.set_environment(this);
+        _stats->incr("objects.freeze_tower");
       } else if (cell.starts_with("agent.")) {
         std::string group_name = cell.substr(6);
         auto group_cfg_py = groups[py::str(group_name)]["props"].cast<py::dict>();
@@ -303,6 +319,17 @@ void MettaGrid::_step(py::array_t<int> actions) {
   // Increment timestep and process events
   current_step++;
   _event_manager->process_events(current_step);
+
+  // Step freeze towers to check for new targets
+  for (unsigned int obj_id = 1; obj_id < _grid->objects.size(); obj_id++) {
+    auto obj = _grid->object(obj_id);
+    if (!obj) continue;
+
+    FreezeTower* freeze_tower = dynamic_cast<FreezeTower*>(obj);
+    if (freeze_tower) {
+      freeze_tower->step();
+    }
+  }
 
   // Process actions by priority
   for (unsigned char p = 0; p <= _max_action_priority; p++) {
