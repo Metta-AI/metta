@@ -16,14 +16,14 @@ def seed_everything(seed, torch_deterministic, rank: int = 0):
     # Despite these efforts, we still don't get deterministic behavior. But presumably
     # this is better than nothing.
     # https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
-    
+
     # Add rank offset to base seed for distributed training to ensure different
     # processes generate uncorrelated random sequences
     if seed is not None:
         rank_specific_seed = seed + rank
     else:
         rank_specific_seed = rank
-    
+
     random.seed(rank_specific_seed)
     np.random.seed(rank_specific_seed)
     if seed is not None:
@@ -64,10 +64,10 @@ def setup_mettagrid_environment(cfg):
 
     # print(OmegaConf.to_yaml(cfg))
     traceback.install(show_locals=False)
-    
+
     # Get rank for distributed training seeding
     rank = int(os.environ.get("RANK", 0))
     seed_everything(cfg.seed, cfg.torch_deterministic, rank)
-    
+
     os.makedirs(cfg.run_dir, exist_ok=True)
     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))

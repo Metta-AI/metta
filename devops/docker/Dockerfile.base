@@ -32,8 +32,5 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
 RUN echo "defscrollback 10000" >> /root/.screenrc && \
     echo "termcapinfo xterm* ti@:te@" >> /root/.screenrc
 
-# fix bash history
-RUN echo "unset HISTIGNORE" >> ~/.bashrc
-
 RUN touch /root/.no_auto_tmux
 COPY devops/mettabox/tmux.conf /root/.tmux.conf
