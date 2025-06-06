@@ -96,9 +96,9 @@ Design and implement a comprehensive suite of intelligence evaluations for gridw
 
 Develop tools and infrastructure for efficient management, tracking, and deployment of experiments, such as cloud cluster management, experiment tracking and visualization, and continuous integration and deployment pipelines.
 
-This readme provides only a brief overview of research explorations. Visit the [research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
+This README provides only a brief overview of research explorations. Visit the [research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
 
-# Installation
+## Installation
 
 Install uv (a fast Python package installer and resolver):
 
@@ -114,7 +114,7 @@ Optional: run the script which will configure the development environment (the s
 
 After git updates, you might need to run `uv sync` to reinstall all necessary dependencies.
 
-# Training a Model
+## Training a Model
 
 ### Run the training
 
@@ -137,6 +137,10 @@ if you don't have access.
 Use the same `run`, `+hardware` and `+user` arguments as in training to control
 where evaluation results are stored and to apply machine or personal presets.
 
+If you're a member of `metta-research` on WandB, or you add your own WandB config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the README.
+
+## Visualizing a Model
+
 ### Run the interactive simulation
 
 ```
@@ -154,25 +158,23 @@ hardware.
 renderer_job.environment.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
-If you're a member of `metta-research` on wandb, or you add your own wandb config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the readme.
+## Evaluating a Model
 
-# Evaluating a model
-
-When you run training, if you have wandb enabled, then you will be able to see in your wandb run page results for the eval suites.
+When you run training, if you have WandB enabled, then you will be able to see in your WandB run page results for the eval suites.
 
 However, this will not apply for anything trained before April 8th.
 
-### Post hoc evaluation
+### Post Hoc Evaluation
 
-If you want to run evaluation post-training to compare different policies, you can do the following
+If you want to run evaluation post-training to compare different policies, you can do the following:
 
-To add your policy to the existing navigation evals db:
+To add your policy to the existing navigation evals DB:
 
 ```
-./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
+./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
 ```
 
-This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db` artifact on wandb
+This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db` artifact on WandB.
 
 Then, to see the results in the heatmap along with the other policies in the database, you can run:
 
@@ -180,7 +182,7 @@ Then, to see the results in the heatmap along with the other policies in the dat
 ./tools/analyze.py run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
 ```
 
-Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation db, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that
+Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation DB, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that.
 
 You can do the same process for the object-use eval artifact using: `wandb://artifacts/object_use_db`
 
@@ -198,7 +200,7 @@ pytest
 Running these commands mirrors our CI configuration and helps keep the codebase
 consistent.
 
-# Third-party Content
+## Third-party Content
 
 Some sample map patterns in `scenes/dcss` were adapted from the open-source game [Dungeon Crawl Stone Soup (DCSS)](https://github.com/crawl/crawl),
 specifically from the file [`simple.des`](https://github.com/crawl/crawl/blob/master/crawl-ref/source/dat/des/arrival/simple.des).
