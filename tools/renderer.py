@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import time
 from abc import ABC, abstractmethod
 from typing import Any, List, Protocol, Tuple
 
@@ -252,7 +251,6 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
 
         curriculum = SingleTaskCurriculum("renderer", env_cfg)
 
-    # Create environment
     env = MettaGridEnv(curriculum, render_mode=render_mode)
 
     return env, render_mode
@@ -279,11 +277,8 @@ def run_renderer(cfg: DictConfig) -> None:
 
     print(f"🎮 Starting visualization for {cfg.renderer_job.num_steps} steps...")
 
-    total_reward: float = 0.0
-    step_count: int = 0
-
-    # Sleep configuration
-    sleep_time: float = float(cfg.renderer_job.sleep_time)
+    total_reward = 0.0
+    step_count = 0
 
     try:
         for _step in range(cfg.renderer_job.num_steps):
@@ -311,11 +306,11 @@ def run_renderer(cfg: DictConfig) -> None:
                     raise  # Re-raise if it's a different assertion error
 
             # Track rewards
-            step_reward: float = float(np.sum(rewards)) if hasattr(rewards, "__len__") else float(rewards)
+            step_reward = np.sum(rewards)
             total_reward += step_reward
             step_count += 1
 
-            # Render
+            # Render with ASCII renderer
             env.render()
 
             # Reset if episode done
@@ -324,8 +319,10 @@ def run_renderer(cfg: DictConfig) -> None:
                 obs, _info = env.reset()
 
             # Optional sleep for visualization
-            if sleep_time > 0:
-                time.sleep(sleep_time)
+            if cfg.renderer_job.sleep_time > 0:
+                import time
+
+                time.sleep(cfg.renderer_job.sleep_time)
 
     except KeyboardInterrupt:
         print("\n⏹️  Stopped by user")
@@ -337,7 +334,6 @@ def run_renderer(cfg: DictConfig) -> None:
 
 @hydra.main(version_base=None, config_path="../configs", config_name="renderer_job")
 def main(cfg: DictConfig) -> None:
-    """Main entry point for the renderer."""
     run_renderer(cfg)
 
 
