@@ -822,7 +822,7 @@ requires-dist = [
     { name = "pettingzoo", specifier = "==1.25.0" },
     { name = "pixie-python", specifier = "==4.3.0" },
     { name = "plotly", specifier = "==6.1.1" },
-    { name = "pufferlib", git = "https://github.com/relh/PufferLib.git?rev=3.0" },
+    { name = "pufferlib", git = "https://github.com/Metta-AI/PufferLib.git?rev=3.0" },
     { name = "pybind11", specifier = "==2.10.4" },
     { name = "pydantic", specifier = "==2.11.5" },
     { name = "pynvml", specifier = "==11.5.3" },
