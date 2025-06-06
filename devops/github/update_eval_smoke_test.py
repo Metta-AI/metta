@@ -60,29 +60,9 @@ def check_wandb_policy_exists(policy_name: str) -> Tuple[bool, Optional[str]]:
     try:
         api = wandb.Api()
 
-        # Method 1: Try as an artifact
         try:
             api.artifact(f"{WANDB_ENTITY}/{WANDB_PROJECT}/{policy_name}:latest")
             return True, None
-        except Exception:
-            pass
-
-        # Method 2: Try as a run with full path
-        try:
-            api.run(f"{WANDB_ENTITY}/{WANDB_PROJECT}/{policy_name}")
-            return True, None
-        except Exception:
-            pass
-
-        # Method 3: Search through runs (limited to avoid long waits)
-        try:
-            runs = api.runs(f"{WANDB_ENTITY}/{WANDB_PROJECT}", filters={"display_name": policy_name})
-            # Check first 10 runs only
-            for i, run in enumerate(runs):
-                if i >= 10:
-                    break
-                if run.name == policy_name or run.id == policy_name:
-                    return True, None
         except Exception:
             pass
 
