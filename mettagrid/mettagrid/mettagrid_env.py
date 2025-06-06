@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import uuid
 from typing import Any, Dict, Optional, cast
+import logging
 
 import gymnasium as gym
 import numpy as np
@@ -30,6 +31,7 @@ np_actions_type = np.dtype(np.int32)  # forced to int32 when actions are Discret
 np_masks_type = np.dtype(bool)
 np_success_type = np.dtype(bool)
 
+logger = logging.getLogger(f"MettaGridEnv")
 
 def required(func):
     """Marks methods that PufferEnv requires but does not implement for override."""
