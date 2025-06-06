@@ -28,8 +28,10 @@ from mettagrid.util.hydra import simple_instantiate
 # In PufferLib's class Multiprocessing, the data type for actions will be set to int32
 # whenever the action space is Discrete or Multidiscrete. If we do not match the data type
 # here in our child class, then we will experience extra data conversions in the background.
+
 # Additionally the actions that are sent to the C environment will be int32 (because PufferEnv
-# controls the type of self.actions) -- creating an opprotunity for type confusion.
+# controls the type of self.actions) -- creating an opportunity for type confusion.
+
 #
 dtype_observations = np.dtype(np.uint8)
 dtype_terminals = np.dtype(bool)
