@@ -56,11 +56,10 @@ echo ""
 echo "Building Docker images..."
 
 # Get current git branch
-branch=$(git rev-parse --abbrev-ref HEAD)
-if [ $? -ne 0 ]; then
+branch=$(git rev-parse --abbrev-ref HEAD) || {
     echo "Warning: Could not determine git branch, using 'main'"
     branch="main"
-fi
+}
 
 echo "Using branch: $branch"
 echo ""
