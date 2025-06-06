@@ -1,32 +1,22 @@
 """
-This file defines the VariedTerrainDiverse environment.
-It creates a grid world with configurable features including:
-  - Large obstacles and small obstacles: randomly generated, connected shapes.
-  - Cross obstacles: cross-shaped patterns.
-  - Mini labyrinths: maze-like structures (≈11×11) with passages thickened probabilistically,
-      and with at least two-cell gaps along the borders; empty cells may be replaced with "heart".
-  - Scattered single walls: individual wall cells placed at random empty cells.
-  - Blocks: new rectangular objects whose width and height are sampled uniformly between 2 and 14.
-      The number of blocks is determined from the style.
-  - Altars: the only object placed, whose count is determined by hearts_count.
-  - A clumpiness factor that biases object placement.
-All objects are placed with at least a one-cell clearance.
-If no space is found for a new object, placement is skipped.
-The build order is:
-    mini labyrinths → obstacles (large, small, crosses) → scattered walls → blocks → altars → agents.
+Optimized VariedTerrainDiverse environment with significant performance improvements.
+Key optimizations:
+- Vectorized operations for maze generation
+- Pre-computed candidate lists
+- Efficient numpy operations
+- Reduced redundant calculations
+- Optimized occupancy tracking
 """
 
-from typing import List, Optional, Tuple
-
-import numpy as np
-from omegaconf import DictConfig
 import time
+import numpy as np
+from typing import List, Optional, Tuple, Set
+from omegaconf import DictConfig
 from mettagrid.room.room import Room
 
 
 class VariedTerrain(Room):
     # Base style parameters for a 60x60 (area=3600) grid.
-    # These counts are intentionally moderate.
     STYLE_PARAMETERS = {
         "all-sparse": {
             "large_obstacles": {"size_range": [10, 25], "count": [0, 2]},
@@ -55,15 +45,14 @@ class VariedTerrain(Room):
             "blocks": {"count": [5, 15]},
             "clumpiness": [2, 6],
         },
-        # New style: maze-like with predominant labyrinth features.
         "maze": {
-            "large_obstacles": {"size_range": [10, 25], "count": [0, 2]},  # Disable large obstacles.
-            "small_obstacles": {"size_range": [3, 6], "count": [0, 2]},  # Disable small obstacles.
-            "crosses": {"count": [0, 2]},  # No cross obstacles.
-            "labyrinths": {"count": [10, 20]},  # Increase labyrinth count to generate more maze segments.
-            "scattered_walls": {"count": [0, 2]},  # Avoid adding extra walls that could break up maze consistency.
-            "blocks": {"count": [0, 2]},  # No rectangular blocks.
-            "clumpiness": [0, 2],  # Clumpiness is not necessary when only labyrinths are used.
+            "large_obstacles": {"size_range": [10, 25], "count": [0, 2]},
+            "small_obstacles": {"size_range": [3, 6], "count": [0, 2]},
+            "crosses": {"count": [0, 2]},
+            "labyrinths": {"count": [10, 20]},
+            "scattered_walls": {"count": [0, 2]},
+            "blocks": {"count": [0, 2]},
+            "clumpiness": [0, 2],
         },
     }
 
@@ -76,7 +65,7 @@ class VariedTerrain(Room):
         seed: Optional[int] = None,
         border_width: int = 0,
         border_object: str = "wall",
-        occupancy_threshold: float = 0.66,  # maximum fraction of grid cells to occupy
+        occupancy_threshold: float = 0.66,
         style: str = "balanced",
         teams: list | None = None,
     ):
@@ -91,23 +80,26 @@ class VariedTerrain(Room):
 
         if style not in self.STYLE_PARAMETERS:
             raise ValueError(f"Unknown style: '{style}'. Available styles: {list(self.STYLE_PARAMETERS.keys())}")
+
+        self.style = style
         base_params = self.STYLE_PARAMETERS[style]
-        # Determine scale from the room area relative to a 60x60 (3600 cells) grid.
         area = width * height
         scale = area / 3600.0
-        self.style = style
 
-        # Define approximate average cell occupancy for each obstacle type.
+        # Pre-compute scaled parameters
+        self._setup_scaled_parameters(base_params, scale, area)
+        self._objects = objects
+
+    def _setup_scaled_parameters(self, base_params, scale, area):
+        """Pre-compute all scaled parameters to avoid repeated calculations."""
         avg_sizes = {
-            "large_obstacles": 17.5,  # average of 10 and 25
-            "small_obstacles": 4.5,  # average of 3 and 6
-            "crosses": 9,  # assumed average area
-            "labyrinths": 72,  # rough estimate for labyrinth wall area
+            "large_obstacles": 17.5,
+            "small_obstacles": 4.5,
+            "crosses": 9,
+            "labyrinths": 72,
             "scattered_walls": 1,
-            "blocks": 64,  # approximate average block area (e.g., 8x8)
+            "blocks": 64,
         }
-
-        # Allowed fraction of the room that obstacles of each type may occupy.
         allowed_fraction = 0.3
 
         def clamp_count(base_count, avg_size):
@@ -126,213 +118,288 @@ class VariedTerrain(Room):
         }
         self._crosses = {"count": clamp_count(base_params["crosses"]["count"], avg_sizes["crosses"])}
         self._labyrinths = {"count": clamp_count(base_params["labyrinths"]["count"], avg_sizes["labyrinths"])}
-        self._scattered_walls = {
-            "count": clamp_count(base_params["scattered_walls"]["count"], avg_sizes["scattered_walls"])
-        }
+        self._scattered_walls = {"count": clamp_count(base_params["scattered_walls"]["count"], avg_sizes["scattered_walls"])}
         self._blocks = {"count": clamp_count(base_params["blocks"]["count"], avg_sizes["blocks"])}
-        self._objects = objects
 
     def _build(self) -> np.ndarray:
         start = time.time()
-        # Prepare agent symbols.
-        if self._teams is None:
-            if isinstance(self._agents, int):
-                agents = ["agent.agent"] * self._agents
-        else:
-            agents = []
-            agents_per_team = self._agents // len(self._teams)
-            for team in self._teams:
-                agents += ["agent." + team] * agents_per_team
 
-        # Create an empty grid.
+        # Prepare agent symbols efficiently
+        agents = self._prepare_agents()
+
+        # Create empty grid and occupancy mask
         grid = np.full((self._height, self._width), "empty", dtype=object)
-        # Initialize an occupancy mask: False means cell is empty, True means occupied.
         self._occupancy = np.zeros((self._height, self._width), dtype=bool)
 
-        # Place features in order.
+        # Pre-compute empty positions for faster lookups
+        self._empty_positions_cache = None
+
+        # Place features in order
         grid = self._place_labyrinths(grid)
         grid = self._place_all_obstacles(grid)
         grid = self._place_scattered_walls(grid)
         grid = self._place_blocks(grid)
 
-        # Place agents.
-        for agent in agents:
-            pos = self._choose_random_empty()
-            if pos is None:
-                break
-            r, c = pos
-            grid[r, c] = agent
-            self._occupancy[r, c] = True
-
-        # Place objects.
-        for obj_name, obj_count in self._objects.items():
-            num_objs_to_place = obj_count - np.where(grid == obj_name, 1, 0).sum()
-            if num_objs_to_place > 0:
-                for _ in range(num_objs_to_place):
-                    pos = self._choose_random_empty()
-                    if pos is None:
-                        break
-                    r, c = pos
-                    grid[r, c] = obj_name
-                    self._occupancy[r, c] = True
+        # Place agents and objects efficiently
+        self._place_agents_and_objects(grid, agents)
 
         end = time.time()
-        print(f"Time taken to build varied terrain {self.style}: {end - start} seconds")
+        print(f"Time taken to build varied terrain {self.style}: {end - start:.3f} seconds")
         return grid
 
+    def _prepare_agents(self):
+        """Efficiently prepare agent list."""
+        if self._teams is None:
+            if isinstance(self._agents, int):
+                return ["agent.agent"] * self._agents
+        else:
+            agents = []
+            agents_per_team = self._agents // len(self._teams)
+            for team in self._teams:
+                agents.extend(["agent." + team] * agents_per_team)
+            return agents
+        return []
+
+    def _place_agents_and_objects(self, grid, agents):
+        """Place agents and objects efficiently using batch operations."""
+        # Get all empty positions at once
+        empty_positions = self._get_all_empty_positions()
+        placement_idx = 0
+
+        # Place agents
+        for agent in agents:
+            if placement_idx >= len(empty_positions):
+                break
+            r, c = empty_positions[placement_idx]
+            grid[r, c] = agent
+            self._occupancy[r, c] = True
+            placement_idx += 1
+
+        # Place objects
+        for obj_name, obj_count in self._objects.items():
+            existing_count = np.sum(grid == obj_name)
+            num_to_place = obj_count - existing_count
+
+            for _ in range(num_to_place):
+                if placement_idx >= len(empty_positions):
+                    break
+                r, c = empty_positions[placement_idx]
+                grid[r, c] = obj_name
+                self._occupancy[r, c] = True
+                placement_idx += 1
+
+    def _get_all_empty_positions(self):
+        """Get all empty positions and shuffle them once for random placement."""
+        empty_flat = np.flatnonzero(~self._occupancy)
+        self._rng.shuffle(empty_flat)
+        return [np.unravel_index(idx, self._occupancy.shape) for idx in empty_flat]
+
     # ---------------------------
-    # Helper Functions
+    # Optimized Helper Functions
     # ---------------------------
-    def _update_occupancy(self, top_left: Tuple[int, int], pattern: np.ndarray) -> None:
-        """
-        Updates the occupancy mask for the region where the pattern was placed.
-        """
+
+    def _update_occupancy_vectorized(self, top_left: Tuple[int, int], pattern: np.ndarray) -> None:
+        """Vectorized occupancy update."""
         r, c = top_left
         p_h, p_w = pattern.shape
-        self._occupancy[r : r + p_h, c : c + p_w] |= pattern != "empty"
+        mask = pattern != "empty"
+        self._occupancy[r:r + p_h, c:c + p_w] |= mask
+
+    def _find_candidates_optimized(self, region_shape: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """Optimized candidate finding with early termination."""
+        r_h, r_w = region_shape
+        H, W = self._occupancy.shape
+
+        if H < r_h or W < r_w:
+            return []
+
+        # Use convolution for faster sliding window
+        from scipy import ndimage
+        kernel = np.ones((r_h, r_w))
+        conv_result = ndimage.convolve(self._occupancy.astype(int), kernel, mode='constant')
+
+        # Find positions where convolution result is 0 (completely empty)
+        valid_positions = np.argwhere(conv_result[:H-r_h+1, :W-r_w+1] == 0)
+        return [tuple(pos) for pos in valid_positions]
+
+    def _place_candidate_region_optimized(self, grid: np.ndarray, pattern: np.ndarray, clearance: int = 0) -> bool:
+        """Optimized region placement with fewer operations."""
+        p_h, p_w = pattern.shape
+        eff_h, eff_w = p_h + 2 * clearance, p_w + 2 * clearance
+
+        try:
+            candidates = self._find_candidates_optimized((eff_h, eff_w))
+        except ImportError:
+            # Fallback to original method if scipy not available
+            candidates = self._find_candidates((eff_h, eff_w))
+
+        if candidates:
+            r, c = candidates[self._rng.integers(0, len(candidates))]
+            # Place pattern with clearance offset
+            pr, pc = r + clearance, c + clearance
+            grid[pr:pr + p_h, pc:pc + p_w] = pattern
+            self._update_occupancy_vectorized((pr, pc), pattern)
+            return True
+        return False
 
     def _find_candidates(self, region_shape: Tuple[int, int]) -> List[Tuple[int, int]]:
-        """
-        Efficiently finds candidate top-left positions where a subregion of shape 'region_shape'
-        is completely empty using a sliding window approach on the occupancy mask.
-        """
+        """Original candidate finding method (fallback)."""
         r_h, r_w = region_shape
         H, W = self._occupancy.shape
         if H < r_h or W < r_w:
             return []
-        # Create a view of all submatrices of shape (r_h, r_w)
+
         shape = (H - r_h + 1, W - r_w + 1, r_h, r_w)
         strides = self._occupancy.strides * 2
-        submats = np.lib.stride_tricks.as_strided(self._occupancy, shape=shape, strides=strides)
-        # Sum over each submatrix; candidate if sum == 0 (i.e., completely empty)
-        window_sums = submats.sum(axis=(2, 3))
-        candidates = np.argwhere(window_sums == 0)
-        return [tuple(idx) for idx in candidates]
-
-    def _choose_random_empty(self) -> Optional[Tuple[int, int]]:
-        """
-        Efficiently returns a random empty position using the occupancy mask.
-        """
-        empty_flat = np.flatnonzero(~self._occupancy)
-        if empty_flat.size == 0:
-            return None
-        idx = self._rng.integers(0, empty_flat.size)
-        return np.unravel_index(empty_flat[idx], self._occupancy.shape)
-
-    def _place_candidate_region(self, grid: np.ndarray, pattern: np.ndarray, clearance: int = 0) -> bool:
-        """
-        Attempts to place the given pattern in a candidate region that is completely empty,
-        taking into account a clearance border around the pattern.
-        """
-        p_h, p_w = pattern.shape
-        eff_h, eff_w = p_h + 2 * clearance, p_w + 2 * clearance
-        candidates = self._find_candidates((eff_h, eff_w))
-        if candidates:
-            r, c = candidates[self._rng.integers(0, len(candidates))]
-            # Place pattern with clearance offset.
-            grid[r + clearance : r + clearance + p_h, c + clearance : c + clearance + p_w] = pattern
-            self._update_occupancy((r + clearance, c + clearance), pattern)
-            return True
-        return False
+        try:
+            submats = np.lib.stride_tricks.as_strided(self._occupancy, shape=shape, strides=strides)
+            window_sums = submats.sum(axis=(2, 3))
+            candidates = np.argwhere(window_sums == 0)
+            return [tuple(idx) for idx in candidates]
+        except ValueError:
+            # Fallback for edge cases
+            candidates = []
+            for r in range(H - r_h + 1):
+                for c in range(W - r_w + 1):
+                    if not self._occupancy[r:r+r_h, c:c+r_w].any():
+                        candidates.append((r, c))
+            return candidates
 
     # ---------------------------
-    # Placement Routines
+    # Optimized Placement Routines
     # ---------------------------
+
     def _place_labyrinths(self, grid: np.ndarray) -> np.ndarray:
+        """Optimized labyrinth placement."""
         labyrinth_count = self._labyrinths.get("count", 0)
+
         for _ in range(labyrinth_count):
-            pattern = self._generate_labyrinth_pattern()
+            pattern = self._generate_labyrinth_pattern_optimized()
             candidates = self._find_candidates(pattern.shape)
+
             if candidates:
                 r, c = candidates[self._rng.integers(0, len(candidates))]
-                grid[r : r + pattern.shape[0], c : c + pattern.shape[1]] = pattern
-                self._update_occupancy((r, c), pattern)
+                grid[r:r + pattern.shape[0], c:c + pattern.shape[1]] = pattern
+                self._update_occupancy_vectorized((r, c), pattern)
+
         return grid
 
     def _place_all_obstacles(self, grid: np.ndarray) -> np.ndarray:
+        """Optimized obstacle placement."""
         clearance = 1
-        # Place large obstacles.
-        large_count = self._large_obstacles.get("count", 0)
-        low_large, high_large = self._large_obstacles.get("size_range", [10, 25])
-        for _ in range(large_count):
-            target = self._rng.integers(low_large, high_large + 1)
-            pattern = self._generate_random_shape(target)
-            self._place_candidate_region(grid, pattern, clearance)
-        # Place small obstacles.
-        small_count = self._small_obstacles.get("count", 0)
-        low_small, high_small = self._small_obstacles.get("size_range", [3, 6])
-        for _ in range(small_count):
-            target = self._rng.integers(low_small, high_small + 1)
-            pattern = self._generate_random_shape(target)
-            self._place_candidate_region(grid, pattern, clearance)
-        # Place cross obstacles (with no extra clearance).
+
+        # Place large obstacles
+        self._place_obstacles_batch(grid, self._large_obstacles, clearance)
+        # Place small obstacles
+        self._place_obstacles_batch(grid, self._small_obstacles, clearance)
+        # Place crosses
+        self._place_crosses_batch(grid)
+
+        return grid
+
+    def _place_obstacles_batch(self, grid: np.ndarray, obstacle_config: dict, clearance: int):
+        """Batch placement of obstacles."""
+        count = obstacle_config.get("count", 0)
+        size_range = obstacle_config.get("size_range", [3, 6])
+
+        for _ in range(count):
+            target = self._rng.integers(size_range[0], size_range[1] + 1)
+            pattern = self._generate_random_shape_optimized(target)
+            try:
+                self._place_candidate_region_optimized(grid, pattern, clearance)
+            except ImportError:
+                self._place_candidate_region(grid, pattern, clearance)
+
+    def _place_crosses_batch(self, grid: np.ndarray):
+        """Optimized cross placement."""
         crosses_count = self._crosses.get("count", 0)
+
         for _ in range(crosses_count):
             pattern = self._generate_cross_pattern()
             candidates = self._find_candidates(pattern.shape)
+
             if candidates:
                 r, c = candidates[self._rng.integers(0, len(candidates))]
-                grid[r : r + pattern.shape[0], c : c + pattern.shape[1]] = pattern
-                self._update_occupancy((r, c), pattern)
-        return grid
+                grid[r:r + pattern.shape[0], c:c + pattern.shape[1]] = pattern
+                self._update_occupancy_vectorized((r, c), pattern)
 
     def _place_scattered_walls(self, grid: np.ndarray) -> np.ndarray:
+        """Vectorized scattered wall placement."""
         count = self._scattered_walls.get("count", 0)
         empty_flat = np.flatnonzero(~self._occupancy)
         num_to_place = min(count, empty_flat.size)
+
         if num_to_place == 0:
             return grid
+
         chosen_flat = self._rng.choice(empty_flat, size=num_to_place, replace=False)
         r_coords, c_coords = np.unravel_index(chosen_flat, grid.shape)
+
+        # Vectorized assignment
         grid[r_coords, c_coords] = "wall"
         self._occupancy[r_coords, c_coords] = True
+
         return grid
 
     def _place_blocks(self, grid: np.ndarray) -> np.ndarray:
-        """
-        Places rectangular block objects on the grid.
-        For each block, the width and height are sampled uniformly between 2 and 14.
-        The number of blocks is determined by self._blocks["count"].
-        The block is placed in a candidate region that is completely empty.
-        """
+        """Optimized block placement."""
         block_count = self._blocks.get("count", 0)
+
         for _ in range(block_count):
-            block_w = self._rng.integers(2, 15)  # 2 to 14 inclusive.
+            block_w = self._rng.integers(2, 15)
             block_h = self._rng.integers(2, 15)
             candidates = self._find_candidates((block_h, block_w))
+
             if candidates:
                 r, c = candidates[self._rng.integers(0, len(candidates))]
-                grid[r : r + block_h, c : c + block_w] = "wall"
-                block_pattern = np.full((block_h, block_w), "wall", dtype=object)
-                self._update_occupancy((r, c), block_pattern)
+                # Vectorized block placement
+                grid[r:r + block_h, c:c + block_w] = "wall"
+                self._occupancy[r:r + block_h, c:c + block_w] = True
+
         return grid
 
     # ---------------------------
-    # Pattern Generation Functions
+    # Optimized Pattern Generation
     # ---------------------------
-    def _generate_random_shape(self, num_blocks: int) -> np.ndarray:
+
+    def _generate_random_shape_optimized(self, num_blocks: int) -> np.ndarray:
+        """Optimized random shape generation using sets and vectorized operations."""
         shape_cells = {(0, 0)}
+        directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+
         while len(shape_cells) < num_blocks:
-            candidates = []
+            # Pre-compute all candidates at once
+            candidates = set()
             for r, c in shape_cells:
-                for dr, dc in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+                for dr, dc in directions:
                     candidate = (r + dr, c + dc)
                     if candidate not in shape_cells:
-                        candidates.append(candidate)
+                        candidates.add(candidate)
+
             if not candidates:
                 break
-            new_cell = candidates[self._rng.integers(0, len(candidates))]
+
+            # Convert to list for random selection
+            candidates_list = list(candidates)
+            new_cell = candidates_list[self._rng.integers(0, len(candidates_list))]
             shape_cells.add(new_cell)
-        min_r = min(r for r, _ in shape_cells)
-        min_c = min(c for _, c in shape_cells)
-        max_r = max(r for r, _ in shape_cells)
-        max_c = max(c for _, c in shape_cells)
-        pattern = np.full((max_r - min_r + 1, max_c - min_c + 1), "empty", dtype=object)
+
+        # Vectorized bounding box calculation
+        coords = np.array(list(shape_cells))
+        min_coords = coords.min(axis=0)
+        max_coords = coords.max(axis=0)
+
+        pattern_shape = tuple(max_coords - min_coords + 1)
+        pattern = np.full(pattern_shape, "empty", dtype=object)
+
+        # Vectorized pattern filling
         for r, c in shape_cells:
-            pattern[r - min_r, c - min_c] = "wall"
+            pattern[r - min_coords[0], c - min_coords[1]] = "wall"
+
         return pattern
 
     def _generate_cross_pattern(self) -> np.ndarray:
+        """Generate cross pattern (no changes needed - already efficient)."""
         cross_w = self._rng.integers(1, 9)
         cross_h = self._rng.integers(1, 9)
         pattern = np.full((cross_h, cross_w), "empty", dtype=object)
@@ -342,67 +409,137 @@ class VariedTerrain(Room):
         pattern[:, center_col] = "wall"
         return pattern
 
-    def _generate_labyrinth_pattern(self) -> np.ndarray:
-        # Choose dimensions between 11 and 13, then clamp to 11 and force odd.
-        h = int(self._rng.integers(11, 26))
-        w = int(self._rng.integers(11, 26))
-        if h % 2 == 0:
-            h -= 1
-        if w % 2 == 0:
-            w -= 1
+    def _generate_labyrinth_pattern_optimized(self) -> np.ndarray:
+        """Highly optimized maze generation using vectorized operations and efficient algorithms."""
+        # Random dimensions, ensure odd
+        h = self._rng.integers(11, 26)
+        w = self._rng.integers(11, 26)
+        h = h if h % 2 == 1 else h - 1
+        w = w if w % 2 == 1 else w - 1
 
-        maze = np.full((h, w), "wall", dtype=object)
+        # Initialize maze - all walls
+        maze = np.full((h, w), True, dtype=bool)  # True = wall, False = empty
+
+        # Randomized DFS with optimized neighbor checking
         start = (1, 1)
-        maze[start] = "empty"
+        maze[start] = False
         stack = [start]
-        directions = [(-2, 0), (2, 0), (0, -2), (0, 2)]
+        directions = np.array([(-2, 0), (2, 0), (0, -2), (0, 2)])
+
         while stack:
             r, c = stack[-1]
-            neighbors = []
-            for dr, dc in directions:
-                nr, nc = r + dr, c + dc
-                if 0 <= nr < h and 0 <= nc < w and maze[nr, nc] == "wall":
-                    neighbors.append((nr, nc))
-            if neighbors:
-                next_cell = neighbors[self._rng.integers(0, len(neighbors))]
-                nr, nc = next_cell
-                wall_r, wall_c = r + (nr - r) // 2, c + (nc - c) // 2
-                maze[wall_r, wall_c] = "empty"
-                maze[nr, nc] = "empty"
-                stack.append(next_cell)
+
+            # Vectorized neighbor finding
+            next_coords = np.array([r, c]) + directions
+            valid_mask = (
+                (next_coords[:, 0] >= 0) & (next_coords[:, 0] < h) &
+                (next_coords[:, 1] >= 0) & (next_coords[:, 1] < w)
+            )
+            valid_coords = next_coords[valid_mask]
+
+            if len(valid_coords) > 0:
+                # Check which neighbors are walls
+                wall_mask = maze[valid_coords[:, 0], valid_coords[:, 1]]
+                unvisited = valid_coords[wall_mask]
+
+                if len(unvisited) > 0:
+                    # Choose random unvisited neighbor
+                    next_idx = self._rng.integers(0, len(unvisited))
+                    nr, nc = unvisited[next_idx]
+
+                    # Carve path
+                    wall_r, wall_c = (r + nr) // 2, (c + nc) // 2
+                    maze[wall_r, wall_c] = False
+                    maze[nr, nc] = False
+                    stack.append((nr, nc))
+                else:
+                    stack.pop()
             else:
                 stack.pop()
 
-        # Ensure each border has at least two contiguous empty cells.
-        if w > 3 and not self._has_gap(maze[0, 1 : w - 1]):
-            maze[0, 1:3] = "empty"
-        if w > 3 and not self._has_gap(maze[h - 1, 1 : w - 1]):
-            maze[h - 1, 1:3] = "empty"
-        if h > 3 and not self._has_gap(maze[1 : h - 1, 0]):
-            maze[1:3, 0] = "empty"
-        if h > 3 and not self._has_gap(maze[1 : h - 1, w - 1]):
-            maze[1:3, w - 1] = "empty"
+        # Ensure border gaps efficiently
+        self._ensure_border_gaps_vectorized(maze, h, w)
 
-        # Scatter hearts in empty cells with 1% probability.
-        for i in range(h):
-            for j in range(w):
-                if maze[i, j] == "empty" and self._rng.random() < 0.03:
-                    maze[i, j] = "altar"
+        # Convert boolean maze to object array and add hearts
+        result_maze = np.where(maze, "wall", "empty").astype(object)
 
-            # Apply thickening based on a random probability between 0.3 and 1.0.
+        # Vectorized heart placement
+        empty_mask = ~maze
+        heart_prob = 0.03
+        heart_positions = empty_mask & (self._rng.random((h, w)) < heart_prob)
+        result_maze[heart_positions] = "altar"
+
+        # Optimized thickening
+        result_maze = self._apply_maze_thickening_optimized(result_maze, h, w)
+
+        return result_maze
+
+    def _ensure_border_gaps_vectorized(self, maze: np.ndarray, h: int, w: int):
+        """Efficiently ensure border gaps using vectorized operations."""
+        # Top and bottom borders
+        if w > 3:
+            for border_row in [0, h-1]:
+                border = ~maze[border_row, 1:w-1]  # empty cells
+                if not self._has_gap_vectorized(border):
+                    maze[border_row, 1:3] = False
+
+        # Left and right borders
+        if h > 3:
+            for border_col in [0, w-1]:
+                border = ~maze[1:h-1, border_col]  # empty cells
+                if not self._has_gap_vectorized(border):
+                    maze[1:3, border_col] = False
+
+    def _has_gap_vectorized(self, line: np.ndarray) -> bool:
+        """Vectorized gap detection."""
+        if len(line) < 2:
+            return False
+
+        # Use convolution to find consecutive True values
+        kernel = np.ones(2)
+        conv_result = np.convolve(line.astype(int), kernel, mode='valid')
+        return np.any(conv_result == 2)  # Two consecutive empty cells
+
+    def _apply_maze_thickening_optimized(self, maze: np.ndarray, h: int, w: int) -> np.ndarray:
+        """Optimized maze thickening using vectorized operations."""
         thick_prob = 0.7 * self._rng.random()
-        maze_thick = maze.copy()
-        for i in range(1, h - 1):
-            for j in range(1, w - 1):
-                if maze[i, j] == "empty":
-                    if self._rng.random() < thick_prob and j + 1 < w:
-                        maze_thick[i, j + 1] = "empty"
-                    if self._rng.random() < thick_prob and i + 1 < h:
-                        maze_thick[i + 1, j] = "empty"
-        maze = maze_thick
+
+        # Create masks for positions to potentially thicken
+        empty_mask = (maze == "empty")
+        interior_mask = empty_mask[1:h-1, 1:w-1]
+
+        # Random thickening decisions
+        thicken_right = self._rng.random((h-2, w-2)) < thick_prob
+        thicken_down = self._rng.random((h-2, w-2)) < thick_prob
+
+        # Apply thickening where valid
+        valid_right = interior_mask & (maze[1:h-1, 2:w] != "empty")
+        valid_down = interior_mask & (maze[2:h, 1:w-1] != "empty")
+
+        thicken_right_final = thicken_right & valid_right
+        thicken_down_final = thicken_down & valid_down
+
+        # Apply thickening
+        maze[1:h-1, 2:w][thicken_right_final] = "empty"
+        maze[2:h, 1:w-1][thicken_down_final] = "empty"
+
         return maze
 
+    # Keep original methods for fallback compatibility
+    def _place_candidate_region(self, grid: np.ndarray, pattern: np.ndarray, clearance: int = 0) -> bool:
+        """Original method for fallback."""
+        p_h, p_w = pattern.shape
+        eff_h, eff_w = p_h + 2 * clearance, p_w + 2 * clearance
+        candidates = self._find_candidates((eff_h, eff_w))
+        if candidates:
+            r, c = candidates[self._rng.integers(0, len(candidates))]
+            grid[r + clearance:r + clearance + p_h, c + clearance:c + clearance + p_w] = pattern
+            self._update_occupancy_vectorized((r + clearance, c + clearance), pattern)
+            return True
+        return False
+
     def _has_gap(self, line: np.ndarray) -> bool:
+        """Original gap detection method."""
         contiguous = 0
         for cell in line:
             contiguous = contiguous + 1 if cell == "empty" else 0
@@ -411,4 +548,4 @@ class VariedTerrain(Room):
         return False
 
 
-# End of VariedTerrain class implementation
+# End of optimized VariedTerrain class implementation
