@@ -10,6 +10,7 @@
 enum EventType {
   FinishConverting = 0,
   CoolDown = 1,
+  FreezeTowerAttack = 2,
   EventTypeCount
 };
 
@@ -63,11 +64,12 @@ enum ObjectType {
   FactoryT = 8,
   TempleT = 9,
   GenericConverterT = 10,
+  FreezeTowerT = 11,
   ObjectTypeCount
 };
 
 constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {
-    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter"}};
+    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter", "freeze_tower"}};
 
 const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
 
@@ -145,6 +147,8 @@ const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer
                                                   {ObjectType::LaseryT, GridLayer::Object_Layer},
                                                   {ObjectType::LabT, GridLayer::Object_Layer},
                                                   {ObjectType::FactoryT, GridLayer::Object_Layer},
-                                                  {ObjectType::TempleT, GridLayer::Object_Layer}};
+                                                  {ObjectType::TempleT, GridLayer::Object_Layer},
+                                                  {ObjectType::GenericConverterT, GridLayer::Object_Layer},
+                                                  {ObjectType::FreezeTowerT, GridLayer::Object_Layer}};
 
 #endif  // METTAGRID_METTAGRID_OBJECTS_CONSTANTS_HPP_

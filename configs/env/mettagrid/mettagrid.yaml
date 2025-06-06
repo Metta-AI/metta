@@ -197,6 +197,12 @@ game:
       cooldown: ${sampling:0, 10, 5}
       initial_items: 1
 
+    freeze_tower:
+      hp: 50
+      attack_range: 3
+      cooldown: ${sampling:5, 30, 15}
+      color: 4
+
     wall:
       hp: ${sampling:1, 20, 10}
       swappable: false

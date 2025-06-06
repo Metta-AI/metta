@@ -5,6 +5,7 @@
 #include "../grid.hpp"
 #include "constants.hpp"
 #include "converter.hpp"
+#include "freeze_tower.hpp"
 
 // Handles the FinishConverting event
 class ProductionHandler : public EventHandler {
@@ -34,6 +35,21 @@ public:
     }
 
     converter->finish_cooldown();
+  }
+};
+
+// Handles the FreezeTowerAttack event
+class FreezeTowerAttackHandler : public EventHandler {
+public:
+  explicit FreezeTowerAttackHandler(EventManager* event_manager) : EventHandler(event_manager) {}
+
+  void handle_event(GridObjectId obj_id, EventArg arg) override {
+    FreezeTower* freeze_tower = static_cast<FreezeTower*>(this->event_manager->grid->object(obj_id));
+    if (!freeze_tower) {
+      return;
+    }
+
+    freeze_tower->finish_cooldown();
   }
 };
 

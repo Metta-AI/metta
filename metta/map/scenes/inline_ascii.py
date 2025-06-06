@@ -15,6 +15,7 @@ SYMBOLS = {
     " ": "empty",
     "b": "block",
     "L": "lasery",
+    "F": "freeze_tower",
     "Q": "agent.team_1",
     "E": "agent.team_2",
     "R": "agent.team_3",
@@ -25,6 +26,7 @@ SYMBOLS = {
     "🏭": "factory",
     "🔬": "lab",
     "🏰": "temple",
+    "❄️": "freeze_tower",
 }
 
 
