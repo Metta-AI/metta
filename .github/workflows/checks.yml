@@ -278,11 +278,43 @@ jobs:
         # extremely rare.
         run: |
           source .github/scripts/benchmark.sh
+
+          # Smoke test configuration (will move to github vars)
+          EVAL_SMOKE_TEST_POLICY="b.rwalters.0605.nav.pr811.00"
+          SMOKE_TEST_MIN_REWARD=0.2
+
           for i in {1..4}; do
-            if benchmark "evals_try$i" "./run_evals.sh smoke_test"; then
+            echo "Running smoke test attempt $i..."
+
+            # Run simulation and capture output
+            OUTPUT=$(python3 -m tools.sim \
+                sim=navigation \
+                run=navigation_smoke_$i \
+                policy_uri=wandb://run/$EVAL_SMOKE_TEST_POLICY \
+                +eval_db_uri=wandb://artifacts/navigation_db \
+                seed=31415 \
+                torch_deterministic=True \
+                device=cpu \
+                2>&1 | tail -20)  # Keep only last 20 lines to ensure we get the JSON
+
+            # Extract JSON (should be the last thing printed)
+            JSON_OUTPUT=$(echo "$OUTPUT" | grep -A 1000 '^{' | grep -B 1000 '^}' | tail -n 20)
+
+            # Get reward value
+            REWARD=$(echo "$JSON_OUTPUT" | jq -r '.policies[0].checkpoints[0].metrics.reward_avg // 0' 2>/dev/null || echo "0")
+
+            echo "Achieved reward: $REWARD"
+
+            # Check if reward meets threshold
+            if (( $(echo "$REWARD >= $SMOKE_TEST_MIN_REWARD" | bc -l) )); then
+              echo "✓ Smoke test passed with reward: $REWARD"
               exit 0
+            else
+              echo "✗ Smoke test failed with reward: $REWARD (minimum required: $SMOKE_TEST_MIN_REWARD)"
             fi
           done
+
+          echo "All smoke test attempts failed"
           exit 1
 
       - name: Save evals benchmark
