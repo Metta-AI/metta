@@ -1,7 +1,7 @@
 from typing import List, Optional, Tuple
 
 import numpy as np
-
+import time
 from mettagrid.room.room import Room
 
 
@@ -38,7 +38,11 @@ class CylinderWorld(Room):
     # Public build
     # ------------------------------------------------------------------ #
     def _build(self) -> np.ndarray:
-        return self._build_cylinder_world()
+        start = time.time()
+        x = self._build_cylinder_world()
+        end = time.time()
+        print(f"Time take to build cylinder world: {end - start} seconds")
+        return x
 
     # ------------------------------------------------------------------ #
     # Cylinder‑only build

@@ -2,7 +2,7 @@ from typing import Optional
 
 import numpy as np
 from omegaconf import DictConfig
-
+import time
 from mettagrid.room.room import Room
 
 
@@ -28,6 +28,7 @@ class Random(Room):
         self.set_size_labels(width, height)
 
     def _build(self):
+        start = time.time()
         symbols = []
         area = self._width * self._height
 
@@ -54,4 +55,6 @@ class Random(Room):
         # Shuffle and reshape the array into a room.
         symbols = np.array(symbols).astype(str)
         self._rng.shuffle(symbols)
+        end = time.time()
+        print(f"Time taken to build random room: {end - start} seconds")
         return symbols.reshape(self._height, self._width)

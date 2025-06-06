@@ -6,12 +6,12 @@ game:
   use_observation_tokens: false
   num_observation_tokens: 128
   tile_size: 16
-  max_steps: 1000
+  max_steps: 3
 
   diversity_bonus:
     enabled: false
-    similarity_coef: 0.5  # Coefficient for within-group similarity
-    diversity_coef: 0.5   # Coefficient for between-group diversity
+    similarity_coef: 0.5 # Coefficient for within-group similarity
+    diversity_coef: 0.5 # Coefficient for between-group diversity
 
   agent:
     default_item_max: ${sampling:0, 100, 50}

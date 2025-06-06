@@ -103,6 +103,7 @@ class TerrainFromNumpy(Room):
         return valid_positions
 
     def _build(self):
+        start = time.time()
         # TODO: add some way of sampling
         uri = self.uri or np.random.choice(self.files)
         level = safe_load(f"{self.dir}/{uri}")
@@ -141,4 +142,6 @@ class TerrainFromNumpy(Room):
                 level[pos] = obj_name
 
         self._level = level
+        end = time.time()
+        print(f"Time taken to build terrain from numpy: {end - start} seconds")
         return self._level

@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 from omegaconf import DictConfig
-
+import time
 from mettagrid.room.room import Room
 
 
@@ -132,6 +132,7 @@ class VariedTerrain(Room):
         self._objects = objects
 
     def _build(self) -> np.ndarray:
+        start = time.time()
         # Prepare agent symbols.
         if self._teams is None:
             if isinstance(self._agents, int):
@@ -174,6 +175,8 @@ class VariedTerrain(Room):
                     grid[r, c] = obj_name
                     self._occupancy[r, c] = True
 
+        end = time.time()
+        print(f"Time taken to build varied terrain {self.style}: {end - start} seconds")
         return grid
 
     # ---------------------------
