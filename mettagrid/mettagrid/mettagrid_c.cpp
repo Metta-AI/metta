@@ -18,6 +18,7 @@
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
+#include "objects/freeze_tile.hpp"
 #include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
@@ -140,6 +141,10 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
         converter = new Converter(r, c, cfg["objects"]["factory"].cast<ObjectConfig>(), ObjectType::FactoryT);
       } else if (cell == "temple") {
         converter = new Converter(r, c, cfg["objects"]["temple"].cast<ObjectConfig>(), ObjectType::TempleT);
+      } else if (cell == "freeze_tile") {
+        FreezeTile* freeze_tile = new FreezeTile(r, c, cfg["objects"]["freeze_tile"].cast<ObjectConfig>());
+        _grid->add_object(freeze_tile);
+        _stats->incr("objects.freeze_tile");
       } else if (cell.starts_with("agent.")) {
         std::string group_name = cell.substr(6);
         auto group_cfg_py = groups[py::str(group_name)]["props"].cast<py::dict>();

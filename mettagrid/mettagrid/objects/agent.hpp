@@ -16,6 +16,8 @@ public:
   unsigned char frozen;
   unsigned char freeze_duration;
   unsigned char orientation;
+  bool on_freeze_tile;
+  unsigned char freeze_tile_direction;
   std::vector<unsigned char> inventory;
   std::vector<float> resource_rewards;
   std::vector<float> resource_reward_max;
@@ -43,6 +45,8 @@ public:
     this->frozen = 0;
     this->freeze_duration = cfg["freeze_duration"];
     this->orientation = 0;
+    this->on_freeze_tile = false;
+    this->freeze_tile_direction = 0;
     this->inventory.resize(InventoryItem::InventoryItemCount);
     unsigned char default_item_max = cfg["default_item_max"];
     this->max_items_per_type.resize(InventoryItem::InventoryItemCount);

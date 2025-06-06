@@ -10,6 +10,7 @@
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
+#include "objects/freeze_tile.hpp"
 #include "objects/wall.hpp"
 
 class ObservationEncoder {
@@ -20,6 +21,7 @@ public:
 
     _type_feature_names[ObjectType::AgentT] = Agent::feature_names();
     _type_feature_names[ObjectType::WallT] = Wall::feature_names();
+    _type_feature_names[ObjectType::FreezeTileT] = FreezeTile::feature_names();
 
     // These are different types of Converters. They all have the same feature names,
     // so this is somewhat redundant.
