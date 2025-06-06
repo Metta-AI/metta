@@ -67,15 +67,6 @@ def get_log_level(provided_level=None):
     return "INFO"
 
 
-def force_terminal_width_on_aws(width: int):
-    # check if we are on AWS
-    if not os.environ.get("AWS_BATCH_JOB_ID"):
-        return
-
-    # Set environment variable
-    os.environ["COLUMNS"] = str(width)
-
-
 def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
     # Get the appropriate log level based on priority
     log_level = get_log_level(level)
@@ -94,7 +85,8 @@ def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
     # Set the level
     root_logger.setLevel(getattr(logging, log_level))
 
-    # Note that log lines are padded with about 45 chars of metadata (timestamp, log level, file and line info)
-    force_terminal_width_on_aws(200)
+    # set env COLUMNS if we are on AWS
+    if os.environ.get("AWS_BATCH_JOB_ID"):
+        os.environ["COLUMNS"] = "200"
 
     return logging.getLogger(name)
