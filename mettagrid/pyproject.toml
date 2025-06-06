@@ -57,4 +57,4 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/relh/PufferLib.git", rev = "d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }

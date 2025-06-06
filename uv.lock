@@ -822,7 +822,7 @@ requires-dist = [
     { name = "pettingzoo", specifier = "==1.25.0" },
     { name = "pixie-python", specifier = "==4.3.0" },
     { name = "plotly", specifier = "==6.1.1" },
-    { name = "pufferlib", git = "https://github.com/relh/PufferLib.git?rev=3.0" },
+    { name = "pufferlib", git = "https://github.com/Metta-AI/PufferLib.git?rev=3.0" },
     { name = "pybind11", specifier = "==2.10.4" },
     { name = "pydantic", specifier = "==2.11.5" },
     { name = "pynvml", specifier = "==11.5.3" },
@@ -891,7 +891,7 @@ requires-dist = [
     { name = "omegaconf", specifier = "==2.4.0.dev3" },
     { name = "pandas", specifier = "==2.2.3" },
     { name = "pettingzoo", specifier = "==1.25.0" },
-    { name = "pufferlib", git = "https://github.com/relh/PufferLib.git?rev=d3cde3f4107daaf8e195bf87f55742d7cd026ddb" },
+    { name = "pufferlib", git = "https://github.com/Metta-AI/PufferLib.git?rev=d3cde3f4107daaf8e195bf87f55742d7cd026ddb" },
     { name = "pydantic", specifier = "==2.11.5" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "rich", specifier = "==13.9.4" },
@@ -1322,7 +1322,7 @@ wheels = [
 [[package]]
 name = "pufferlib"
 version = "3.0.0"
-source = { git = "https://github.com/relh/PufferLib.git?rev=d3cde3f4107daaf8e195bf87f55742d7cd026ddb#d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }
+source = { git = "https://github.com/Metta-AI/PufferLib.git?rev=d3cde3f4107daaf8e195bf87f55742d7cd026ddb#d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }
 dependencies = [
     { name = "gym" },
     { name = "gymnasium" },
