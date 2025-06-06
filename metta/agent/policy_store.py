@@ -23,6 +23,7 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.agent.policy_state import PolicyState
 from metta.rl.pufferlib.policy import PufferAgent, load_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
@@ -363,7 +364,14 @@ class PolicyStore:
         pr = PolicyRecord(self, path, "file://" + path, metadata)
         pr._policy = policy
         pr._policy_store = None
-        torch.save(pr, path)
+
+        # For MettaAgent models, use torch.jit.trace to make them compatible across code changes
+        if isinstance(policy, (MettaAgent, DistributedMettaAgent)):
+            self._save_traced_metta_agent(pr, path, policy, metadata)
+        else:
+            # Fallback to original torch.save for non-MettaAgent models
+            torch.save(pr, path)
+
         pr._policy_store = self
         # Don't cache the policy that we just saved,
         # since it might be updated later. We always
@@ -371,6 +379,81 @@ class PolicyStore:
         pr._policy = None
         self._cached_prs[path] = pr
         return pr
+
+    def _save_traced_metta_agent(self, pr: PolicyRecord, path: str, policy: nn.Module, metadata: dict):
+        """Save a MettaAgent using torch.jit.trace for forward compatibility."""
+        logger.info(f"Saving MettaAgent using torch.jit.trace to {path}")
+
+        # Extract the actual MettaAgent if it's wrapped in DistributedDataParallel
+        actual_agent = policy.module if isinstance(policy, DistributedMettaAgent) else policy
+
+        # Create example inputs for tracing
+        # We need to create dummy inputs that match what the model expects
+        try:
+            # Get observation shape from agent attributes (it's a dictionary)
+            if hasattr(actual_agent, "agent_attributes") and isinstance(actual_agent.agent_attributes, dict):
+                obs_shape = actual_agent.agent_attributes.get("obs_shape", [10, 10, 8])
+            else:
+                obs_shape = [10, 10, 8]  # Default fallback
+
+            device = next(actual_agent.parameters()).device
+
+            # Create example observation tensor
+            batch_size = 1
+            example_obs = torch.randn(batch_size, *obs_shape, device=device)
+
+            # Get LSTM parameters
+            if hasattr(actual_agent, "core_num_layers") and hasattr(actual_agent, "hidden_size"):
+                core_num_layers_attr = getattr(actual_agent, "core_num_layers", 1)
+                hidden_size_attr = getattr(actual_agent, "hidden_size", 256)
+
+                # Ensure they are integers
+                try:
+                    core_num_layers = int(core_num_layers_attr)
+                    hidden_size = int(hidden_size_attr)
+                except (TypeError, ValueError):
+                    # Fallback values if conversion fails
+                    core_num_layers = 1
+                    hidden_size = 256
+            else:
+                # Fallback values
+                core_num_layers = 1
+                hidden_size = 256
+
+            # Create example state
+            example_state = PolicyState(
+                lstm_h=torch.zeros(core_num_layers, batch_size, hidden_size, device=device),
+                lstm_c=torch.zeros(core_num_layers, batch_size, hidden_size, device=device),
+            )
+
+            # Put the model in eval mode for tracing
+            actual_agent.eval()
+
+            # Trace the model for inference (action=None)
+            with torch.no_grad():
+                traced_model = torch.jit.trace(
+                    actual_agent,
+                    (example_obs, example_state),
+                    strict=False,  # Allow some flexibility in tracing
+                )
+
+            # Create a special save structure that includes both the traced model and metadata
+            save_data = {
+                "traced_model": traced_model,
+                "metadata": metadata,
+                "agent_attributes": getattr(actual_agent, "agent_attributes", {}),
+                "action_names": getattr(actual_agent, "action_names", []),
+                "action_max_params": getattr(actual_agent, "action_max_params", []),
+                "is_traced_metta_agent": True,
+            }
+
+            torch.save(save_data, path)
+            logger.info(f"Successfully saved traced MettaAgent to {path}")
+
+        except Exception as e:
+            logger.warning(f"Failed to trace MettaAgent, falling back to regular torch.save: {e}")
+            # Fallback to original method if tracing fails
+            torch.save(pr, path)
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
         local_path = pr.local_path()
@@ -524,24 +607,107 @@ class PolicyStore:
             path = os.path.join(path, os.listdir(path)[-1])
         logger.info(f"Loading policy from {path}")
 
-        self._make_codebase_backwards_compatible()
-
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
+
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
 
-            pr = torch.load(
-                path,
-                map_location=self._device,
-                weights_only=False,
+            # First try to load and check if it's a traced MettaAgent
+            try:
+                loaded_data = torch.load(path, map_location=self._device, weights_only=False)
+
+                # Check if this is a traced MettaAgent save format
+                if isinstance(loaded_data, dict) and loaded_data.get("is_traced_metta_agent", False):
+                    return self._load_traced_metta_agent(path, loaded_data, metadata_only)
+                else:
+                    # It's either a legacy PolicyRecord or non-MettaAgent model
+                    return self._load_legacy_policy_record(path, loaded_data, metadata_only)
+
+            except Exception as e:
+                logger.warning(f"Failed to load as traced model, trying legacy format: {e}")
+                return self._load_legacy_policy_record(path, None, metadata_only)
+
+    def _load_traced_metta_agent(self, path: str, loaded_data: dict, metadata_only: bool = False) -> PolicyRecord:
+        """Load a traced MettaAgent model."""
+        logger.info(f"Loading traced MettaAgent from {path}")
+
+        # Create PolicyRecord with metadata
+        pr = PolicyRecord(self, name=os.path.basename(path), uri="file://" + path, metadata=loaded_data["metadata"])
+        pr._local_path = path
+
+        if not metadata_only:
+            # Load the traced model
+            traced_model = loaded_data["traced_model"]
+
+            # Create a wrapper class that mimics the MettaAgent interface for inference
+            class TracedMettaAgentWrapper(nn.Module):
+                def __init__(self, traced_model, agent_attributes, action_names, action_max_params):
+                    super().__init__()
+                    self.traced_model = traced_model
+                    self.agent_attributes = agent_attributes
+                    self.action_names = action_names
+                    self.action_max_params = action_max_params
+
+                def forward(self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None):
+                    # For traced models, we only support inference (action=None)
+                    if action is not None:
+                        raise RuntimeError("Traced MettaAgent models only support inference mode (action must be None)")
+                    return self.traced_model(x, state)
+
+                def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
+                    # Store the action info but traced models don't need activation
+                    self.action_names = action_names
+                    self.action_max_params = action_max_params
+                    self.device = device
+
+                def parameters(self):
+                    return self.traced_model.parameters()
+
+                def to(self, device):
+                    self.traced_model = self.traced_model.to(device)
+                    return self
+
+                def eval(self):
+                    self.traced_model.eval()
+                    return self
+
+                def train(self, mode=True):
+                    # Traced models are always in eval mode
+                    return self
+
+            # Create the wrapper
+            wrapped_model = TracedMettaAgentWrapper(
+                traced_model,
+                loaded_data["agent_attributes"],
+                loaded_data["action_names"],
+                loaded_data["action_max_params"],
             )
+
+            pr._policy = wrapped_model
+
+        self._cached_prs[path] = pr
+        return pr
+
+    def _load_legacy_policy_record(self, path: str, loaded_data, metadata_only: bool = False) -> PolicyRecord:
+        """Load a legacy PolicyRecord (pre-traced format)."""
+        self._make_codebase_backwards_compatible()
+
+        if loaded_data is None:
+            loaded_data = torch.load(path, map_location=self._device, weights_only=False)
+
+        if isinstance(loaded_data, PolicyRecord):
+            pr = loaded_data
             pr._policy_store = self
             pr._local_path = path
-            self._cached_prs[path] = pr
-            if metadata_only:
-                pr._policy = None
-                pr._local_path = None
-            return pr
+        else:
+            # Handle other legacy formats if needed
+            raise ValueError(f"Unrecognized file format in {path}")
+
+        self._cached_prs[path] = pr
+        if metadata_only:
+            pr._policy = None
+            pr._local_path = None
+        return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")
