@@ -827,7 +827,7 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.11.5" },
     { name = "pynvml", specifier = "==11.5.3" },
     { name = "pyright", specifier = "==1.1.401" },
-    { name = "pytest", specifier = "==8.3.3" },
+    { name = "pytest", specifier = "==8.4.0" },
     { name = "pytest-benchmark", specifier = "==5.1.0" },
     { name = "pytest-cov", specifier = "==6.1.1" },
     { name = "python-dotenv", specifier = "==1.1.0" },
@@ -869,6 +869,8 @@ dependencies = [
     { name = "pettingzoo" },
     { name = "pufferlib" },
     { name = "pydantic" },
+    { name = "pytest" },
+    { name = "pytest-benchmark" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "scipy" },
@@ -893,6 +895,8 @@ requires-dist = [
     { name = "pettingzoo", specifier = "==1.25.0" },
     { name = "pufferlib", git = "https://github.com/Metta-AI/PufferLib.git?rev=d3cde3f4107daaf8e195bf87f55742d7cd026ddb" },
     { name = "pydantic", specifier = "==2.11.5" },
+    { name = "pytest", specifier = "==8.4.0" },
+    { name = "pytest-benchmark", specifier = "==5.1.0" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "rich", specifier = "==13.9.4" },
     { name = "scipy", specifier = "==1.15.3" },
@@ -1500,17 +1504,18 @@ wheels = [
 
 [[package]]
 name = "pytest"
-version = "8.3.3"
+version = "8.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
+    { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8b/6c/62bbd536103af674e227c41a8f3dcd022d591f6eed5facb5a0f31ee33bbc/pytest-8.3.3.tar.gz", hash = "sha256:70b98107bd648308a7952b06e6ca9a50bc660be218d53c257cc1fc94fda10181", size = 1442487, upload-time = "2024-09-10T10:52:15.003Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fb/aa/405082ce2749be5398045152251ac69c0f3578c7077efc53431303af97ce/pytest-8.4.0.tar.gz", hash = "sha256:14d920b48472ea0dbf68e45b96cd1ffda4705f33307dcc86c676c1b5104838a6", size = 1515232, upload-time = "2025-06-02T17:36:30.03Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6b/77/7440a06a8ead44c7757a64362dd22df5760f9b12dc5f11b6188cd2fc27a0/pytest-8.3.3-py3-none-any.whl", hash = "sha256:a6853c7375b2663155079443d2e45de913a911a11d669df02a50814944db57b2", size = 342341, upload-time = "2024-09-10T10:52:12.54Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/de/afa024cbe022b1b318a3d224125aa24939e99b4ff6f22e0ba639a2eaee47/pytest-8.4.0-py3-none-any.whl", hash = "sha256:f40f825768ad76c0977cbacdf1fd37c6f7a468e460ea6a0636078f8972d4517e", size = 363797, upload-time = "2025-06-02T17:36:27.859Z" },
 ]
 
 [[package]]
