@@ -1,0 +1,11 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/memory/training/varied_terrain_sparse_altar: 8
+  /env/mettagrid/memory/training/varied_terrain_sparse_generator: 8
+  /env/mettagrid/memory/training/varied_terrain_sparse_mine: 8
+  /env/mettagrid/memory/training/varied_terrain_sparse_mine-generator: 4
+  /env/mettagrid/memory/training/varied_terrain_sparse_generator-altar: 4
+  /env/mettagrid/memory/training/varied_terrain_sparse_mine-generator-altar: 2
+  /env/mettagrid/memory/training/varied_terrain_maze_mine-generator-altar: 2
+  /env/mettagrid/memory/training/varied_terrain_maze-medium_mine-generator-altar: 1
