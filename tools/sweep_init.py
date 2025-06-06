@@ -10,8 +10,7 @@ import wandb
 import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-import wandb_carbs
-from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
+from metta.rl.carbs.metta_protein import MettaProtein
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import config_from_path
 from metta.util.lock import run_once
@@ -53,14 +52,23 @@ def create_sweep(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) 
     logger.info(f"Creating new sweep: {cfg.sweep_dir}")
     os.makedirs(cfg.runs_dir, exist_ok=True)
 
-    carbs_params = carbs_params_from_cfg(cfg)
-    sweep_id = wandb_carbs.create_sweep(sweep_name, cfg.wandb.entity, cfg.wandb.project, carbs_params[0])
+    # TODO: Update wandb_carbs.create_sweep for Protein format or implement alternative
+    # For now, create a minimal sweep config
+    sweep_id = wandb.sweep(
+        sweep={
+            "name": sweep_name,
+            "method": "bayes",
+            "metric": {"name": "score", "goal": "maximize"},
+            "parameters": {},  # Protein will handle parameter space internally
+        },
+        project=cfg.wandb.project,
+        entity=cfg.wandb.entity,
+    )
     OmegaConf.save(
         {
             "sweep": sweep_name,
             "wandb_sweep_id": sweep_id,
             "wandb_path": f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
-            "carbs_params": carbs_params[0],
         },
         os.path.join(cfg.sweep_dir, "config.yaml"),
     )
@@ -95,27 +103,26 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
                 wandb_run.tags = ()
             wandb_run.tags += (f"sweep_id:{sweep_cfg.wandb_sweep_id}", f"sweep_name:{sweep_cfg.sweep}")
 
-            carbs = MettaCarbs(cfg, wandb_run)
+            protein = MettaProtein(cfg, wandb_run)
             logger.info("Config:")
             logger.info(OmegaConf.to_yaml(cfg))
             _log_file(
                 run_dir,
                 wandb_run,
-                "carbs_state.yaml",
+                "protein_state.yaml",
                 {
-                    "generation": carbs.generation,
-                    "observations": carbs._observations,
-                    "params": str(carbs._carbs.params),
+                    "observations": len(protein.success_observations),
+                    "failures": len(protein.failure_observations),
                 },
             )
 
-            suggestion = carbs.suggest()
-            logger.info("Generated CARBS suggestion: ")
+            suggestion = protein.suggest()
+            logger.info("Generated Protein suggestion: ")
             logger.info(f"\n{'-' * 10}\n{yaml.dump(suggestion, default_flow_style=False)}\n{'-' * 10}")
-            _log_file(run_dir, wandb_run, "carbs_suggestion.yaml", suggestion)
+            _log_file(run_dir, wandb_run, "protein_suggestion.yaml", suggestion)
 
             train_cfg = OmegaConf.create({key: cfg[key] for key in cfg.sweep.keys()})
-            apply_carbs_suggestion(train_cfg, suggestion)
+            apply_protein_suggestion(train_cfg, suggestion)
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             OmegaConf.save(train_cfg, save_path)
             logger.info(f"Saved train config overrides to {save_path}")
@@ -152,7 +159,7 @@ def wait_for_run(sweep_name: str, cfg: DictConfig | ListConfig, path: str, logge
     logger.info(f"Run ID: {run} ready")
 
 
-def apply_carbs_suggestion(config: DictConfig | ListConfig, suggestion: DictConfig):
+def apply_protein_suggestion(config: DictConfig | ListConfig, suggestion: dict):
     """Apply suggestions to a configuration object using dotted path notation.
 
     Args:
