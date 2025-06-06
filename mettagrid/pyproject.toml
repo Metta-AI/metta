@@ -44,7 +44,7 @@ dependencies = [
 
 [tool.scikit-build]
 # `release-no-tests` is faster than `release` preset.
-# `pip install` builds are done in isolated environment, so tests and benchmarks are not built here.
+# uv builds are done in isolated environment, so tests and benchmarks are not built here.
 # See `./README.md` for more details.
 cmake.args = ["--preset", "release-no-tests"]
 
@@ -55,6 +55,9 @@ testpaths = ["tests", "benchmarks"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
+
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "CMakeLists.txt" }, { file = "mettagrid/**/*.{cpp,hpp}" }]
 
 [tool.uv.sources]
 pufferlib = { git = "https://github.com/relh/PufferLib.git", rev = "d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }
