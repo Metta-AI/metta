@@ -1,0 +1,28 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 4
+  max_steps: 500
+
+  agent:
+    freeze_duration: 50
+    hp: 20
+
+  objects:
+    freeze_tower:
+      hp: 100
+      attack_range: 4
+      cooldown: 20
+      color: 4
+
+  map_builder:
+    _target_: mettagrid.room.ascii.Ascii
+    border_width: 1
+    uri: |
+      agent.team_1  .         .         .         agent.team_2
+      .             .         freeze_tower .         .
+      .             .         .         .         .
+      .             .         freeze_tower .         .
+      agent.team_2  .         .         .         agent.team_1

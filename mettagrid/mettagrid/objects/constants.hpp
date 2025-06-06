@@ -65,12 +65,11 @@ enum ObjectType {
   TempleT = 9,
   GenericConverterT = 10,
   FreezeTowerT = 11,
-  FreezeryT = 12,
   ObjectTypeCount
 };
 
 constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {
-    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter", "freeze_tower", "freezery"}};
+    {"agent", "wall", "mine", "generator", "altar", "armory", "lasery", "lab", "factory", "temple", "converter", "freeze_tower"}};
 
 const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
 
@@ -87,7 +86,6 @@ enum InventoryItem {
   armor = 7,
   laser = 8,
   blueprint = 9,
-  freeze_tower = 10,
   InventoryItemCount
 };
 
@@ -100,8 +98,7 @@ constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = 
                                                                                   "heart",
                                                                                   "armor",
                                                                                   "laser",
-                                                                                  "blueprint",
-                                                                                  "freeze_tower"}};
+                                                                                  "blueprint"}};
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
@@ -129,7 +126,6 @@ const std::map<std::string, float> FeatureNormalizations = {
     {"inv:laser", 100.0},
     {"inv:armor", 100.0},
     {"inv:blueprint", 100.0},
-    {"inv:freeze_tower", 100.0},
     {"last_action", 10.0},
     {"last_action_argument", 10.0},
     {"agent:kinship", 10.0},
@@ -153,7 +149,6 @@ const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer
                                                   {ObjectType::FactoryT, GridLayer::Object_Layer},
                                                   {ObjectType::TempleT, GridLayer::Object_Layer},
                                                   {ObjectType::GenericConverterT, GridLayer::Object_Layer},
-                                                  {ObjectType::FreezeTowerT, GridLayer::Object_Layer},
-                                                  {ObjectType::FreezeryT, GridLayer::Object_Layer}};
+                                                  {ObjectType::FreezeTowerT, GridLayer::Object_Layer}};
 
 #endif  // METTAGRID_METTAGRID_OBJECTS_CONSTANTS_HPP_

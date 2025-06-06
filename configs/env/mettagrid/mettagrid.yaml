@@ -38,8 +38,6 @@ game:
       battery.green_max: 5
       heart: 1
       heart_max: 1000
-      freeze_tower: 0.5
-      freeze_tower_max: 10
 
   groups:
     agent:
@@ -167,35 +165,6 @@ game:
       cooldown: ${sampling:0, 20, 10}
       initial_items: 1
 
-    freezery:
-      hp: 30
-      input_ore.red: 0
-      input_ore.blue: 1
-      input_ore.green: 0
-      input_battery.red: 0
-      input_battery.blue: 2
-      input_battery.green: 0
-      input_heart: 0
-      input_armor: 0
-      input_laser: 0
-      input_blueprint: 0
-      input_freeze_tower: 0
-      output_ore.red: 0
-      output_ore.blue: 0
-      output_ore.green: 0
-      output_battery.red: 0
-      output_battery.blue: 0
-      output_battery.green: 0
-      output_heart: 0
-      output_armor: 0
-      output_laser: 0
-      output_blueprint: 0
-      output_freeze_tower: 1
-      max_output: 5
-      conversion_ticks: 1
-      cooldown: ${sampling:0, 20, 10}
-      initial_items: 1
-
     lab:
       hp: 30
       input_ore.red: 3
@@ -254,8 +223,6 @@ game:
     get_items:
       enabled: true
     attack:
-      enabled: true
-    freeze_attack:
       enabled: true
     swap:
       enabled: true

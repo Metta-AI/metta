@@ -7,8 +7,6 @@
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
 #include "actions/change_color.hpp"
-#include "actions/freeze_attack.hpp"
-#include "actions/freeze_attack_nearest.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
 #include "actions/noop.hpp"
@@ -91,7 +89,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   }
   if (cfg["actions"]["freeze_attack"]["enabled"].cast<bool>()) {
     _action_handlers.push_back(std::make_unique<FreezeAttack>(cfg["actions"]["freeze_attack"].cast<ActionConfig>()));
-    _action_handlers.push_back(std::make_unique<FreezeAttackNearest>(cfg["actions"]["freeze_attack"].cast<ActionConfig>()));
   }
   if (cfg["actions"]["swap"]["enabled"].cast<bool>()) {
     _action_handlers.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
@@ -142,8 +139,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
         converter = new Converter(r, c, cfg["objects"]["armory"].cast<ObjectConfig>(), ObjectType::ArmoryT);
       } else if (cell == "lasery") {
         converter = new Converter(r, c, cfg["objects"]["lasery"].cast<ObjectConfig>(), ObjectType::LaseryT);
-      } else if (cell == "freezery") {
-        converter = new Converter(r, c, cfg["objects"]["freezery"].cast<ObjectConfig>(), ObjectType::FreezeryT);
       } else if (cell == "lab") {
         converter = new Converter(r, c, cfg["objects"]["lab"].cast<ObjectConfig>(), ObjectType::LabT);
       } else if (cell == "factory") {
