@@ -104,8 +104,7 @@ def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
     # Set the level
     root_logger.setLevel(getattr(logging, log_level))
 
-    # Force terminal width
-    # lines are padded with about 45 chars of metadata (timestamp, log level, file and line info)
-    force_terminal_width(300)
+    # Note that log lines are padded with about 45 chars of metadata (timestamp, log level, file and line info)
+    force_terminal_width(200)
 
     return logging.getLogger(name)
