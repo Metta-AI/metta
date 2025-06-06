@@ -1,0 +1,9 @@
+defaults:
+  - /env/mettagrid/navigation/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 30
+  map_builder:
+    _target_: mettagrid.room.ascii.Ascii
+    uri: "configs/env/mettagrid/maps/debug/tiny_two_altars.map"
