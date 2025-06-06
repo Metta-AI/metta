@@ -89,7 +89,7 @@ class TestBuffers:
         c_env.reset()
 
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int32)
         obs, rewards, terminals, truncations, info = c_env.step(actions)
         episode_rewards = c_env.get_episode_rewards()
 
@@ -255,7 +255,7 @@ class TestBuffers:
 
         # Take a step - this should overwrite our manual values
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int32)
 
         obs_returned, rewards_returned, terminals_returned, truncations_returned, info = c_env.step(actions)
 
@@ -294,7 +294,7 @@ class TestBuffers:
 
         # Take one step to reach max_steps
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int32)
         c_env.step(actions)  # current_step = 1, should trigger truncations
 
         # Now truncations should all be True
@@ -314,7 +314,7 @@ class TestBuffers:
 
         # Take a step to get valid baseline values
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int32)
         c_env.step(actions)
 
         # Store initial values
@@ -435,7 +435,7 @@ class TestBuffers:
         gym_obs, gym_info = gym_env.reset()
 
         noop_action_idx = gym_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int32)
 
         gym_obs_step, gym_rewards, gym_terminals, gym_truncations, gym_info_step = gym_env.step(actions)
         gym_episode_rewards = gym_env.get_episode_rewards()
