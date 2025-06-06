@@ -88,7 +88,7 @@ class TestObservations:
         """Test observation token format and content."""
         c_env = create_minimal_mettagrid_c_env()
         # These come from constants in the C++ code, and are fragile.
-        TYPE_ID_FEATURE = 1
+        TYPE_ID_FEATURE = 0
         WALL_TYPE_ID = 1
         obs, info = c_env.reset()
         # Agent 0 starts at (1,1) and should see walls above and to the left
