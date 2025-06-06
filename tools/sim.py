@@ -11,7 +11,7 @@ Simulation driver for evaluating policies in the Metta environment.
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import Any, Dict, List
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -42,6 +42,7 @@ class SimJob(Config):
     replay_dir: str  # where to store replays
     smoke_test: bool = False
     smoke_test_min_reward: float | None = None
+    env_overrides: Dict[str, Any] = {}
 
 
 # --------------------------------------------------------------------------- #
@@ -78,6 +79,7 @@ def simulate_policy(
             stats_dir=sim_job.stats_dir,
             device=cfg.device,
             vectorization=cfg.vectorization,
+            env_overrides=sim_job.env_overrides,
         )
         results = sim.simulate()
 
