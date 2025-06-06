@@ -32,6 +32,8 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
     return hydra.utils.instantiate(
         cfg.agent,
         obs_space=obs_space,
+        obs_width=env.obs_width,
+        obs_height=env.obs_height,
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
         global_features=env.global_features,

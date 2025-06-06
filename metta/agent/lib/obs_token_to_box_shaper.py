@@ -4,27 +4,23 @@ from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
 
-BOX_WIDTH = 11
-BOX_HEIGHT = 11
-
 class ObsTokenToBoxShaper(LayerBase):
     """
-    xcxc
-    This class does the following:
-    1) permutes input observations from [B, H, W, C] or [B, TT, H, W, C] to [..., C, H, W]
-    2) inspects tensor shapes, ensuring that input observations match expectations from the environment
-    3) inserts batch size, TT, and B * TT into the tensor dict for certain other layers in the network to use
-       if they need reshaping.
+    This class consumes token observations and outputs a box observation.
+
+    It's input should be the same as what ObsEncoder expects, and its output should be the same as what
+    ObsShaper outputs.
 
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent is instantiated
     and never again. I.e., not when it is reloaded from a saved policy.
     """
-    def __init__(self, obs_shape, feature_normalizations, **cfg):
+    def __init__(self, obs_shape, obs_width, obs_height, feature_normalizations, **cfg):
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
-        # xcxc don't hardcode. Or at least provide a reason. This should match the view window.
-        self.out_width = BOX_WIDTH
-        self.out_height = BOX_HEIGHT
+        # These let us know the grid size from which tokens are being computed, and thus the shape of the box
+        # observation.
+        self.out_width = obs_width
+        self.out_height = obs_height
         self.num_layers = len(feature_normalizations)
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
 
