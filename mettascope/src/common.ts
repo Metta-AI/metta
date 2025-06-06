@@ -47,6 +47,8 @@ export const ui = {
   mousePos: new Vec2f(0, 0),
   mouseTarget: "",
   dragging: "",
+  dragHtml: null as HTMLElement | null,
+  dragOffset: new Vec2f(0, 0),
   lastMousePos: new Vec2f(0, 0),
   mouseDownPos: new Vec2f(0, 0),
   scrollDelta: 0,
@@ -63,8 +65,10 @@ export const ui = {
   infoPanel: new PanelInfo("#info-panel"),
   agentPanel: new PanelInfo("#agent-panel"),
 
-
   infoPanels: [] as InfoPanel[],
+  hoverObject: null as any,
+  hoverTimer: null as any,
+  delayedHoverObject: null as any,
 };
 
 export const state = {
