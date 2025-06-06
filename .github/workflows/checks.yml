@@ -326,7 +326,6 @@ jobs:
           echo "✗ All attempts failed"
           exit 1
 
-
       - name: Save evals benchmark
         id: save_evals_benchmark
         uses: ./.github/actions/save-benchmarks
