@@ -43,7 +43,7 @@ class BucketedCurriculum(LowRewardCurriculum):
         self,
         tasks: Dict[str, float],
         env_overrides: DictConfig,
-        num_bins: int = 7,
+        num_bins: int = 3,
         alpha: float = 0.01,
     ):
         """
