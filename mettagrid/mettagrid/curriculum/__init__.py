@@ -5,7 +5,7 @@ from .progressive import ProgressiveCurriculum
 from .random import RandomCurriculum
 from .sampling import SamplingCurriculum
 from .util import curriculum_from_config_path
-
+from .bucketed import BucketedCurriculum
 __all__ = [
     "Curriculum",
     "Task",
@@ -15,5 +15,6 @@ __all__ = [
     "SamplingCurriculum",
     "LowRewardCurriculum",
     "ProgressiveCurriculum",
+    "BucketedCurriculum",
     "curriculum_from_config_path",
 ]
