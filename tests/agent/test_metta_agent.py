@@ -504,6 +504,7 @@ def test_action_use(create_metta_agent):
             [1, 2],  # action1 with params 0, 1, 2
             [2, 0],  # action2 with param 0
         ],
+        dtype=torch.long,
         device="cpu",
     )
     assert torch.all(agent.action_index_tensor == expected_action_index)
@@ -517,10 +518,11 @@ def test_action_use(create_metta_agent):
             [1, 2],  # should map to index 4
             [2, 0],  # should map to index 5
         ],
+        dtype=torch.long,
         device="cpu",
     )
 
-    expected_indices = torch.tensor([0, 1, 2, 4, 5], device="cpu")
+    expected_indices = torch.tensor([0, 1, 2, 4, 5], dtype=torch.long, device="cpu")
     action_logit_indices = agent._convert_action_to_logit_index(actions)
     assert torch.all(action_logit_indices == expected_indices)
 
@@ -571,10 +573,11 @@ def test_action_use(create_metta_agent):
             [2, 0],  # should map to index 5
             [0, 0],  # should map to index 0
         ],
+        dtype=torch.long,
         device="cpu",
     )
 
-    expected_indices2 = torch.tensor([3, 5, 0], device="cpu")
+    expected_indices2 = torch.tensor([3, 5, 0], dtype=torch.long, device="cpu")
     batch_logit_indices = agent._convert_action_to_logit_index(test_actions2)
     assert torch.all(batch_logit_indices == expected_indices2)
 
@@ -606,7 +609,7 @@ def test_action_use(create_metta_agent):
     # 2. Pass to sample_actions or evaluate_actions
     # 3. Convert sampled indices back to actions
 
-    test_actions3 = torch.tensor([[0, 0], [1, 1]], device="cpu")
+    test_actions3 = torch.tensor([[0, 0], [1, 1]], dtype=torch.long, device="cpu")
     logit_indices = agent._convert_action_to_logit_index(test_actions3)
 
     # Create logits for deterministic sampling
@@ -691,7 +694,9 @@ def test_forward_training_integration(create_metta_agent):
         [
             [[0, 1], [1, 2], [0, 0]],  # batch 1
             [[1, 0], [1, 3], [0, 1]],  # batch 2
-        ]
+        ],
+        dtype=torch.long,
+        device="cpu",
     )
 
     # Call forward_training
