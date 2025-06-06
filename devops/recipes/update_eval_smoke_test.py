@@ -171,15 +171,34 @@ def launch_training_job(policy_name: str) -> bool:
 
     try:
         print(f"\n{blue('Command:')} {' '.join(cmd)}")
-        subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        # Print the output regardless of success/failure
+        if result.stdout:
+            print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+
+        # Check if it actually succeeded
+        if result.returncode != 0:
+            print(f"\n{red('✗ Failed to launch training job')} (exit code: {result.returncode})")
+
+            # Check for specific error messages
+            output = result.stdout + result.stderr
+            if "unstaged changes" in output.lower():
+                print(f"\n{yellow('Tip:')} You have uncommitted changes. You can:")
+                print("  1. Commit your changes: git add . && git commit -m 'your message'")
+                print("  2. Stash your changes: git stash")
+                print("  3. Run with --skip-validation flag (not recommended)")
+            elif "missing dependencies" in output.lower() or result.returncode == 1:
+                print(f"\n{yellow('This might be due to missing dependencies.')}")
+                print("Make sure you have all dependencies installed:")
+                print("  ./devops/setup_dev.sh")
+
+            return False
+
         return True
-    except subprocess.CalledProcessError as e:
-        print(f"\n{red('✗ Failed to launch training job:')} {e}")
-        if e.returncode == 1:
-            print(f"\n{yellow('This might be due to missing dependencies.')}")
-            print("Make sure you have all dependencies installed:")
-            print("  ./devops/setup_dev.sh")
-        return False
+
     except FileNotFoundError:
         print(f"\n{red('✗ Failed to launch training job: python3 not found')}")
         return False
