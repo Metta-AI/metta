@@ -24,22 +24,6 @@ Metta AI is an open-source research project investigating the emergence of coope
 
 Metta AI explores the hypothesis that social dynamics, akin to love in biological systems, play a crucial role in the development of cooperative AGI and AI alignment. The project introduces a novel reward-sharing mechanism mimicking familial bonds and mate selection, allowing researchers to observe the evolution of complex social behaviors and cooperation among AI agents. By investigating this concept in a controlled multi-agent setting, the project seeks to contribute to the broader discussion on the path towards safe and beneficial AGI.
 
-## Installation
-
-Install uv (a fast Python package installer and resolver):
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
-
-Optional: run the script which will configure the development environment (the script might fail if you're not on the Metta dev team and don't have permissions):
-
-```bash
-./devops/setup_dev.sh
-```
-
-After git updates, you might need to run `uv sync` to reinstall all necessary dependencies.
-
 ## Introduction
 
 Metta is a simulation environment (game) designed to train AI agents capable of meta-learning general intelligence. The core idea is to create an environment where incremental intelligence is rewarded, fostering the development of generally intelligent agents.
@@ -113,6 +97,22 @@ Design and implement a comprehensive suite of intelligence evaluations for gridw
 Develop tools and infrastructure for efficient management, tracking, and deployment of experiments, such as cloud cluster management, experiment tracking and visualization, and continuous integration and deployment pipelines.
 
 This README provides only a brief overview of research explorations. Visit the [research roadmap](https://github.com/Metta-AI/metta/blob/main/roadmap.md) for more details.
+
+## Installation
+
+Install uv (a fast Python package installer and resolver):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Optional: run the script which will configure the development environment (the script might fail if you're not on the Metta dev team and don't have permissions):
+
+```bash
+./devops/setup_dev.sh
+```
+
+After git updates, you might need to run `uv sync` to reinstall all necessary dependencies.
 
 ## Training a Model
 
