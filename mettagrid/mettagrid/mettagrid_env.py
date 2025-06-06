@@ -72,7 +72,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
 
         # Initialize the precalculation system
-        self._precalc_queue = queue.Queue(maxsize=10)
+        self._precalc_queue = queue.Queue(maxsize=1)
         self._precalc_thread = None
         self._stop_precalc = threading.Event()
 
