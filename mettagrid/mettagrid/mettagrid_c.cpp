@@ -296,7 +296,13 @@ void MettaGrid::_step(py::array_t<int> actions) {
 
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, 0);
+  if (_use_observation_tokens) {
+    // We want empty tokens to be 0xff, since 0s are very natural numbers to have in the observations, and we want
+    // empty to be obviously different.
+    std::fill(obs_ptr, obs_ptr + obs_size, 0xff);
+  } else {
+    std::fill(obs_ptr, obs_ptr + obs_size, 0);
+  }
 
   std::fill(_action_success.begin(), _action_success.end(), false);
 
