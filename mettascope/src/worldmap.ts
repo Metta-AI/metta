@@ -6,7 +6,7 @@ import { getAttr, sendAction } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame, updateSelection } from './main.js';
 import { parseHtmlColor, find } from './htmlutils.js';
-import { updateReadout } from './infopanels.js';
+import { updateHoverPanel, updateReadout } from './infopanels.js';
 
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
@@ -780,7 +780,7 @@ export function drawMap(panel: PanelInfo) {
     ui.hoverTimer = setTimeout(() => {
       if (ui.mouseTarget == "worldmap-panel") {
         ui.delayedHoverObject = ui.hoverObject;
-        updateReadout(ui.delayedHoverObject)
+        updateHoverPanel(ui.delayedHoverObject)
       }
     }, 1000);
 
@@ -816,7 +816,8 @@ export function drawMap(panel: PanelInfo) {
     drawAttackMode();
   }
 
-  updateReadout(ui.delayedHoverObject)
+  updateHoverPanel(ui.delayedHoverObject)
+  updateReadout()
   for (const panel of ui.infoPanels) {
     panel.update();
   }

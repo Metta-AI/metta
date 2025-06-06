@@ -40,9 +40,9 @@ export function onResize() {
   }
 
   ui.infoPanel.x = screenWidth - 400;
-  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 200;
+  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300;
   ui.infoPanel.width = 400;
-  ui.infoPanel.height = 200;
+  ui.infoPanel.height = 300;
 
   // Trace panel is always on the bottom of the screen.
   ui.tracePanel.x = 0;
@@ -305,7 +305,7 @@ export function onFrame() {
 
   if (state.showInfo) {
     ui.infoPanel.div.classList.remove("hidden");
-    //updateReadout();
+    updateReadout();
   } else {
     ui.infoPanel.div.classList.add("hidden");
   }
