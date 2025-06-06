@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-from .random import LowRewardCurriculum  # <-- inherit from LowRewardCurriculum
+from .low_reward import LowRewardCurriculum  # <-- inherit from LowRewardCurriculum
 from mettagrid.curriculum.curriculum import Task
 from mettagrid.curriculum.util import curriculum_from_config_path
 
