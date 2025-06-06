@@ -86,14 +86,6 @@ def force_terminal_width(width: int):
     except Exception:
         pass
 
-    # # Try to configure Rich console if available
-    # try:
-    #     from rich.console import Console
-    #     _console = Console(width=width, force_terminal=True)
-    #     logger.info(f"Configured Rich console with width {width}")
-    # except Exception:
-    #     pass
-
 
 def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
     # Get the appropriate log level based on priority
