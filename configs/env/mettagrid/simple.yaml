@@ -4,4 +4,4 @@ defaults:
   - _self_
 
 game:
-  num_agents: 24
+  num_agents: 4
