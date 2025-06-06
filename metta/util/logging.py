@@ -1,6 +1,5 @@
 import logging
 import os
-import subprocess
 import sys
 from datetime import datetime
 
@@ -76,10 +75,10 @@ def force_terminal_width_on_aws(width: int):
     # Set environment variable
     os.environ["COLUMNS"] = str(width)
 
-    try:
-        subprocess.run(["stty", "cols", str(width)], check=False)
-    except Exception:
-        pass
+    # try:
+    #     subprocess.run(["stty", "cols", str(width)], check=False)
+    # except Exception:
+    #     pass
 
 
 def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
