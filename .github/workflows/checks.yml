@@ -272,22 +272,19 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
-        # We retry evals a few times because they're not deterministic (despite our best efforts)
-        # Our smoke tests should pass at least 90% of the time if they're working, so this should have
-        # a spurious failure rate of less than 0.01%. We assume that spurious successes should be
-        # extremely rare.
         run: |
           source .github/scripts/benchmark.sh
 
-          # Smoke test configuration (will move to github vars)
+          # Smoke test configuration
           EVAL_SMOKE_TEST_POLICY="b.rwalters.0605.nav.pr811.00"
           SMOKE_TEST_MIN_REWARD=0.15
+          MAX_ATTEMPTS=4
 
-          for i in {1..4}; do
-            echo "Running smoke test attempt $i..."
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            echo "Running smoke test attempt $i/$MAX_ATTEMPTS..."
 
-            # Run simulation and capture output
-            OUTPUT=$(python3 -m tools.sim \
+            # Run simulation and extract JSON output
+            JSON_OUTPUT=$(python3 -m tools.sim \
                 sim=navigation \
                 run=navigation_smoke_$i \
                 policy_uri=wandb://run/$EVAL_SMOKE_TEST_POLICY \
@@ -295,27 +292,27 @@ jobs:
                 seed=31415 \
                 torch_deterministic=True \
                 device=cpu \
-                2>&1 | tail -20)  # Keep only last 20 lines to ensure we get the JSON
+                2>&1 | sed -n '/===JSON_OUTPUT_START===/,/===JSON_OUTPUT_END===/p' | sed '1d;$d')
 
-            # Extract JSON (should be the last thing printed)
-            JSON_OUTPUT=$(echo "$OUTPUT" | grep -A 1000 '^{' | grep -B 1000 '^}' | tail -n 20)
+            # Extract reward value
+            REWARD=$(echo "$JSON_OUTPUT" | jq -r '.policies[0].checkpoints[0].metrics.reward_avg // "ERROR"' 2>/dev/null)
 
-            # Get reward value
-            REWARD=$(echo "$JSON_OUTPUT" | jq -r '.policies[0].checkpoints[0].metrics.reward_avg // 0' 2>/dev/null || echo "0")
-
+            echo "JSON output:"
+            echo "$JSON_OUTPUT"
             echo "Achieved reward: $REWARD"
 
             # Check if reward meets threshold
-            if (( $(echo "$REWARD >= $SMOKE_TEST_MIN_REWARD" | bc -l) )); then
-              echo "✓ Smoke test passed with reward: $REWARD"
+            if [ "$REWARD" != "ERROR" ] && python3 -c "exit(0 if float('$REWARD') >= $SMOKE_TEST_MIN_REWARD else 1)" 2>/dev/null; then
+              echo "✓ Smoke test passed"
               exit 0
-            else
-              echo "✗ Smoke test failed with reward: $REWARD (minimum required: $SMOKE_TEST_MIN_REWARD)"
             fi
+
+            echo "✗ Attempt $i failed"
           done
 
-          echo "All smoke test attempts failed"
+          echo "✗ All attempts failed"
           exit 1
+
 
       - name: Save evals benchmark
         id: save_evals_benchmark
