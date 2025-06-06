@@ -233,28 +233,40 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   if (_use_observation_tokens) {
     size_t tokens_written = 0;
     auto observation_view = _observations.mutable_unchecked<3>();
-    // TODO: Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
-    for (unsigned int r = r_start; r < r_end; r++) {
-      for (unsigned int c = c_start; c < c_end; c++) {
-        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
-          GridLocation object_loc(r, c, layer);
-          auto obj = _grid->object_at(object_loc);
-          if (!obj) continue;
+    // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
+    for (unsigned int distance = 0; distance < obs_width_radius + obs_height_radius; distance++) {
+      for (unsigned int r = r_start; r < r_end; r++) {
+        // In this row, there should be one or two columns that have the correct [L1] distance.
+        unsigned int r_dist = std::abs(static_cast<int>(r) - static_cast<int>(observer_row));
+        if (r_dist > distance) continue;
+        int c_dist = distance - r_dist;
+        // This is a set, which should de-dupe c_dist == 0.
+        std::set<int> c_offsets = {-c_dist, c_dist};
+        for (int c_offset : c_offsets) {
+          int c = observer_col + c_offset;
+          // c could still be outside of our bounds.
+          if (c < c_start || c >= c_end) continue;
 
-          int obs_r = object_loc.r + obs_height_radius - observer_row;
-          int obs_c = object_loc.c + obs_width_radius - observer_col;
+          for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+            GridLocation object_loc(r, c, layer);
+            auto obj = _grid->object_at(object_loc);
+            if (!obj) continue;
 
-          uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
-          ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
-          ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+            int obs_r = object_loc.r + obs_height_radius - observer_row;
+            int obs_c = object_loc.c + obs_width_radius - observer_col;
 
-          size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+            uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
+            ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
+            ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
-          uint8_t location = obs_r << 4 | obs_c;
-          for (size_t i = 0; i < obj_tokens_written; i++) {
-            agent_obs_tokens[i].location = location;
+            size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+
+            uint8_t location = obs_r << 4 | obs_c;
+            for (size_t i = 0; i < obj_tokens_written; i++) {
+              agent_obs_tokens[i].location = location;
+            }
+            tokens_written += obj_tokens_written;
           }
-          tokens_written += obj_tokens_written;
         }
       }
     }
