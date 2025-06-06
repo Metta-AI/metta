@@ -351,14 +351,6 @@ class PufferTrainer:
         while not experience.full:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                print(f"o.shape: {o.shape}")
-                print(f"r.shape: {r.shape}")
-                print(f"d.shape: {d.shape}")
-                print(f"t.shape: {t.shape}")
-                print(f"info.shape: {info.shape}")
-                print(f"env_id.shape: {env_id.shape}")
-                print(f"mask.shape: {mask.shape}")
-
                 if self.trainer_cfg.require_contiguous_env_ids:
                     raise ValueError(
                         "We are assuming contiguous eng id is always False. async_factor == num_workers = "
@@ -865,11 +857,17 @@ class PufferTrainer:
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
-        self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
-        if torch.distributed.is_initialized():
-            num_envs = (self.batch_size * self.trainer_cfg.async_factor) // torch.distributed.get_world_size()
-        else:
-            num_envs = self.batch_size * self.trainer_cfg.async_factor
+        # self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
+        self.batch_size = int(self.target_batch_size)
+        self.batch_size = 256
+        print(f"self.batch_size: {self.batch_size}") # 512
+
+        # if torch.distributed.is_initialized():
+        #     # num_envs = (self.batch_size * self.trainer_cfg.async_factor) // torch.distributed.get_world_size()
+        #     num_envs = (self.batch_size * self.trainer_cfg.async_factor) // 4
+        # else:
+        #     num_envs = self.batch_size * self.trainer_cfg.async_factor
+        num_envs=256
 
         print(f"self.num_envs: {num_envs}")
 
