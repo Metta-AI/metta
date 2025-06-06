@@ -5,10 +5,8 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: 4
   agent:
     default_item_max: 100
-
     rewards:
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1, 0.01}
@@ -22,40 +20,37 @@ game:
       blueprint_max: 1
       armor: ${sampling:0.005,0.1, 0.01}
       armor_max: 1
-  map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
+    num_agents: 4
+    map_builder:
+      _target_: mettagrid.room.multi_room.MultiRoom
+      num_rooms: ${..num_agents}
+      border_width: 6
 
-    border_width: 6
+      room:
+        _target_: mettagrid.room.random.Random
+        width: ${sampling:20,50,30}
+        height: ${sampling:20,50,30}
+        border_width: ${sampling:1,6,3}
+        agents: 1
+        objects:
+          mine.red: ${sampling:1,20,10}
+          generator.red: ${sampling:1,10,2}
+          altar: ${sampling:1,5,1}
+          armory: ${sampling:1,5,1}
+          lasery: ${sampling:1,5,1}
+          lab: ${sampling:1,5,1}
+          factory: ${sampling:1,5,1}
+          temple: ${sampling:1,5,1}
 
-    room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:20,50,30}
-      height: ${sampling:20,50,30}
-      border_width: ${sampling:1,6,3}
-      agents: 1
-      style: all-sparse # ${choose:"all-sparse","balanced","dense","maze"}
-      objects:
-        mine.red: ${sampling:1,20,10}
-        generator.red: ${sampling:1,10,2}
-        altar: ${sampling:1,5,1}
-        armory: ${sampling:1,5,1}
-        lasery: ${sampling:1,5,1}
-        lab: ${sampling:1,5,1}
-        factory: ${sampling:1,5,1}
-        temple: ${sampling:1,5,1}
-
-        block: ${sampling:5,50,20}
-        wall: ${sampling:5,50,20}
+          block: ${sampling:5,50,20}
+          wall: ${sampling:5,50,20}
 
   objects:
     altar:
       initial_items: ${choose:0,1}
       cooldown: ${sampling:20, 100, 50}
-
     generator.red:
       initial_items: ${choose:0,1}
       cooldown: ${sampling:20, 100, 50}
-
     mine.red:
       cooldown: ${sampling:20, 100, 50}
