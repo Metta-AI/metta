@@ -173,13 +173,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _get_c_env_construction_args(self) -> Tuple[Dict[str, Any], np.ndarray, Task]:
         """Get precalculated construction args or calculate them on demand."""
         logger.info(
-            f"Getting C env args - queue size: {self._precalc_queue.qsize()}, thread alive: {self._precalc_thread.is_alive() if self._precalc_thread else False}"
+            f"Getting C env args - queue size: {self._precalc_queue.qsize()}, "
+            f"thread alive: {self._precalc_thread.is_alive() if self._precalc_thread else False}"
         )
 
         try:
             # Try to get precalculated args, blocking with timeout
             # This ensures we wait for the precalculation to complete
-            config_dict, grid, map_labels, task = self._precalc_queue.get(timeout=30.0)
+            config_dict, grid, map_labels, task = self._precalc_queue.get(timeout=300.0)
 
             logger.info("Successfully retrieved args from queue")
             self._map_labels = map_labels
