@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import uuid
 from typing import Any, Dict, Optional, cast
 
@@ -21,13 +22,26 @@ from mettagrid.util.diversity import calculate_diversity_bonus
 from mettagrid.util.hydra import simple_instantiate
 
 # These data types must match PufferLib -- see pufferlib/vector.py
-np_observations_type = np.dtype(np.uint8)
-np_terminals_type = np.dtype(bool)
-np_truncations_type = np.dtype(bool)
-np_rewards_type = np.dtype(np.float32)
-np_actions_type = np.dtype(np.int32)  # forced to int32 when actions are Discrete or MultiDiscrete
-np_masks_type = np.dtype(bool)
-np_success_type = np.dtype(bool)
+#
+# Important:
+#
+# In PufferLib's class Multiprocessing, the data type for actions will be set to int32
+# whenever the action space is Discrete or Multidiscrete. If we do not match the data type
+# here in our child class, then we will experience extra data conversions in the background.
+
+# Additionally the actions that are sent to the C environment will be int32 (because PufferEnv
+# controls the type of self.actions) -- creating an opportunity for type confusion.
+
+#
+dtype_observations = np.dtype(np.uint8)
+dtype_terminals = np.dtype(bool)
+dtype_truncations = np.dtype(bool)
+dtype_rewards = np.dtype(np.float32)
+dtype_actions = np.dtype(np.int32)  # must be int32!
+dtype_masks = np.dtype(bool)
+dtype_success = np.dtype(bool)
+
+logger = logging.getLogger("MettaGridEnv")
 
 
 def required(func):
@@ -62,7 +76,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._map_labels = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
-        self._episode_id = None
+        self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
@@ -70,8 +84,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
 
         self._reset_env()
-
         super().__init__(buf)
+
         if self._render_mode is not None:
             if self._render_mode == "human":
                 from .renderer.nethack import NethackRenderer
@@ -112,8 +126,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._grid_env = self._c_env
 
     @override
-    def reset(self, seed: int | None = None, options: dict | None = None) -> tuple[np.ndarray, dict]:
+    def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+        """
+        This method overrides the reset method from PufferEnv.
+        """
+
         self._reset_env()
+
+        assert self.observations.dtype == dtype_observations
+        assert self.terminals.dtype == dtype_terminals
+        assert self.truncations.dtype == dtype_truncations
+        assert self.rewards.dtype == dtype_rewards
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
@@ -128,15 +151,33 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return obs, infos
 
     @override
-    def step(self, actions: list[list[int]]) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
-        self.actions[:] = actions
+    def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
+        """
+        Execute one timestep of the environment dynamics with the given actions.
 
-        if self._replay_writer:
-            self._replay_writer.log_pre_step(self._episode_id, self.actions)
+        IMPORTANT: In training mode, the `actions` parameter and `self.actions` may be the same
+        object, but in simulation mode they are independent. Always use the passed-in `actions`
+        parameter to ensure correct behavior in all contexts.
 
-        self._c_env.step(self.actions)
+        Args:
+            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
 
-        if self._replay_writer:
+        Returns:
+            Tuple of (observations, rewards, terminals, truncations, infos)
+
+        """
+
+        if __debug__:
+            from mettagrid.util.actions import validate_actions
+
+            validate_actions(self, actions, logger)
+
+        if self._replay_writer and self._episode_id:
+            self._replay_writer.log_pre_step(self._episode_id, actions)
+
+        self._c_env.step(actions)
+
+        if self._replay_writer and self._episode_id:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
 
         infos = {}
@@ -155,6 +196,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
+    @override
+    def close(self):
+        pass
+
     def process_episode_stats(self, infos: Dict[str, Any]):
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
@@ -172,19 +217,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         )
 
         for label in self._map_labels:
-            infos.update(
-                {
-                    f"rewards/map:{label}": episode_rewards_mean,
-                }
-            )
+            infos[f"rewards/map:{label}"] = episode_rewards_mean
 
         if self.labels is not None:
             for label in self.labels:
-                infos.update(
-                    {
-                        f"rewards/env:{label}": episode_rewards_mean,
-                    }
-                )
+                infos[f"rewards/env:{label}"] = episode_rewards_mean
 
         stats = self._c_env.get_episode_stats()
 
@@ -202,7 +239,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._replay_writer:
             assert self._episode_id is not None, "Episode ID must be set before writing a replay"
             replay_url = self._replay_writer.write_replay(self._episode_id)
-        infos["replay_url"] = replay_url
+            infos["replay_url"] = replay_url
 
         if self._stats_writer:
             assert self._episode_id is not None, "Episode ID must be set before writing stats"
@@ -240,22 +277,30 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             )
         self._episode_id = None
 
-    @override
-    def close(self):
-        pass
-
     @property
-    def max_steps(self):
-        return self._task.env_cfg().game.max_steps
+    def max_steps(self) -> int:
+        return self._c_env.max_steps
 
     @property
     @required
-    def single_observation_space(self):
+    def single_observation_space(self) -> gym.spaces.Box:
+        """
+        Return the observation space for a single agent.
+        Returns:
+            Box: A Box space with shape depending on whether observation tokens are used.
+                If using tokens: (num_agents, num_observation_tokens, 3)
+                Otherwise: (obs_height, obs_width, num_grid_features)
+        """
         return self._c_env.observation_space
 
     @property
     @required
-    def single_action_space(self):
+    def single_action_space(self) -> gym.spaces.MultiDiscrete:
+        """
+        Return the action space for a single agent.
+        Returns:
+            MultiDiscrete: A MultiDiscrete space with shape (num_actions, max_action_arg + 1)
+        """
         return self._c_env.action_space
 
     @property
@@ -264,7 +309,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     @required
-    def num_agents(self):
+    def num_agents(self) -> int:
         return self._c_env.num_agents
 
     def render(self):
@@ -298,21 +343,38 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._c_env.map_height
 
     @property
-    def grid_objects(self):
+    def grid_objects(self) -> dict[int, dict[str, Any]]:
+        """
+        Get information about all grid objects that are present in our map.
+
+        It is important to keep in mind the difference between grid_objects, which are things
+        like "walls" or "agents", and grid_features which is the encoded representation of all possible
+        observations of grid_objects that is provided to the policy.
+
+        Returns:
+            A dictionary mapping object IDs to their properties.
+        """
         return self._c_env.grid_objects()
 
     @property
     def max_action_args(self) -> list[int]:
-        return self._c_env.max_action_args()
+        """
+        Get the maximum argument variant for each action type.
+        Returns:
+            List of integers representing max parameters for each action type
+        """
+        action_args_array = self._c_env.max_action_args()
+        return [int(x) for x in action_args_array]
 
     @property
-    def action_success(self):
-        return np.asarray(self._c_env.action_success())
+    def action_success(self) -> list[bool]:
+        action_success_array = self._c_env.action_success()
+        return [bool(x) for x in action_success_array]
 
     @property
-    def object_type_names(self):
+    def object_type_names(self) -> list[str]:
         return self._c_env.object_type_names()
 
     @property
-    def inventory_item_names(self):
+    def inventory_item_names(self) -> list[str]:
         return self._c_env.inventory_item_names()
