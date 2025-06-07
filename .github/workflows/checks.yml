@@ -178,7 +178,6 @@ jobs:
 
   smoke-test:
     name: "Smoke Tests"
-    # temporarily disabled
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     needs: [graphite-ci-optimizer, setup-checks]
@@ -272,17 +271,16 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
+          POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
+          MIN_REWARD: ${{ vars.EVAL_SMOKE_TEST_MIN_REWARD }}
+          MAX_ATTEMPTS: ${{ vars.EVAL_SMOKE_TEST_MAX_ATTEMPTS }}
+
         # We retry evals a few times because they're not deterministic (despite our best efforts)
         # Our smoke tests should pass at least 90% of the time if they're working, so this should have
         # a spurious failure rate of less than 0.01%. We assume that spurious successes should be
         # extremely rare.
         run: |
           source .github/scripts/benchmark.sh
-
-          # Smoke test configuration
-          EVAL_SMOKE_TEST_POLICY="b.rwalters.0605.nav.pr811.00"
-          SMOKE_TEST_MIN_REWARD=0.15
-          MAX_ATTEMPTS=4
 
           # Create a wrapper script for the eval command
           cat > run_eval_smoke_test.sh << 'EOF'
@@ -302,7 +300,7 @@ jobs:
             echo "Running smoke test attempt $i/$MAX_ATTEMPTS..."
 
             # Run with benchmark and capture output
-            FULL_OUTPUT=$(benchmark "evals_try$i" "./run_eval_smoke_test.sh $i $EVAL_SMOKE_TEST_POLICY" 2>&1)
+            FULL_OUTPUT=$(benchmark "evals_try$i" "./run_eval_smoke_test.sh $i $POLICY" 2>&1)
 
             # Extract JSON output
             JSON_OUTPUT=$(echo "$FULL_OUTPUT" | sed -n '/===JSON_OUTPUT_START===/,/===JSON_OUTPUT_END===/p' | sed '1d;$d')
@@ -315,7 +313,7 @@ jobs:
             echo "Achieved reward: $REWARD"
 
             # Check if reward meets threshold
-            if [ "$REWARD" != "ERROR" ] && python3 -c "exit(0 if float('$REWARD') >= $SMOKE_TEST_MIN_REWARD else 1)" 2>/dev/null; then
+            if [ "$REWARD" != "ERROR" ] && python3 -c "exit(0 if float('$REWARD') >= $MIN_REWARD else 1)" 2>/dev/null; then
               echo "✓ Smoke test passed"
               exit 0
             fi
