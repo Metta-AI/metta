@@ -291,14 +291,14 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   }
 }
 
-void MettaGrid::_compute_observations(py::array_t<int32_t, py::array::c_style> actions) {
+void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx);
   }
 }
 
-void MettaGrid::_step(py::array_t<int32_t, py::array::c_style> actions) {
+void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
 
   // Reset rewards and observations
@@ -469,7 +469,7 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   validate_buffers();
 }
 
-py::tuple MettaGrid::step(py::array_t<int32_t, py::array::c_style> actions) {
+py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
   _step(actions);
 
   auto rewards_view = _rewards.mutable_unchecked<1>();

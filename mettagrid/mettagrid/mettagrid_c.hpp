@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+#include "types.hpp"
+
 // Forward declarations of existing C++ classes
 class Grid;
 class EventManager;
@@ -41,11 +43,11 @@ public:
   // Python API methods
   py::tuple reset();
   // In general, these types need to match what puffer wants to use.
-  py::tuple step(py::array_t<int32_t, py::array::c_style> actions);
-  void set_buffers(const py::array_t<unsigned char, py::array::c_style>& observations,
-                   const py::array_t<bool, py::array::c_style>& terminals,
-                   const py::array_t<bool, py::array::c_style>& truncations,
-                   const py::array_t<float, py::array::c_style>& rewards);
+  py::tuple step(py::array_t<ActionType, py::array::c_style> actions);
+  void set_buffers(const py::array_t<ObservationType, py::array::c_style>& observations,
+                   const py::array_t<TerminalType, py::array::c_style>& terminals,
+                   const py::array_t<TruncationType, py::array::c_style>& truncations,
+                   const py::array_t<RewardType, py::array::c_style>& rewards);
   void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
