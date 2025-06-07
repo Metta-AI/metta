@@ -83,7 +83,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
 
         # Initialize the precalculation system
-        self._precalc_queue = queue.Queue(maxsize=3)
+        self._precalc_queue = queue.Queue(maxsize=1)
         self._precalc_thread = None
         self._stop_precalc = threading.Event()
 
@@ -159,9 +159,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def _get_c_env_construction_args(self) -> Tuple[Dict[str, Any], np.ndarray, Task]:
         """Get precalculated construction args or calculate them on demand."""
+        logging.info("collecting args")
         try:
             # Try to get precalculated args (non-blocking)
             config_dict, grid, map_labels, task = self._precalc_queue.get_nowait()
+
+            logging.info("collected args from queue")
             self._map_labels = map_labels
             self._task = task  # Update task from precalculation
 
@@ -172,7 +175,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         except queue.Empty:
             # No precalculated args available, calculate synchronously
+            logging.info("queue was empty!")
             config_dict, grid, map_labels, task = self._calculate_c_env_args()
+            logging.info("calculated new args")
             self._map_labels = map_labels
             self._task = task  # Update task from calculation
 
