@@ -4,6 +4,8 @@ defaults:
 
 sampling: 1
 
+num_agents: 4
+
 game:
   num_agents: ${..num_agents}
   agent:
