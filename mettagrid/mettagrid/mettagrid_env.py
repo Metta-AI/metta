@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional, Tuple, cast
 import gymnasium as gym
 import numpy as np
 import pufferlib
+from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from pufferlib import unroll_nested_dict
 from pydantic import validate_call
@@ -21,7 +22,6 @@ from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.diversity import calculate_diversity_bonus
-from mettagrid.util.hydra import simple_instantiate
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
@@ -143,7 +143,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Use provided level or build a new one
         level = self._level
         if level is None:
-            map_builder = simple_instantiate(task.env_cfg().game.map_builder, recursive=True)
+            map_builder = instantiate(task.env_cfg().game.map_builder, _recursive_=True, _convert_="all")
             level = map_builder.build()
 
         # Validate the level
