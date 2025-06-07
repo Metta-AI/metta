@@ -84,8 +84,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
 
         # Initialize the precalculation system
-        # Increase queue size to hold more precalculated environments
-        self._precalc_queue = queue.Queue(maxsize=3)
+        self._precalc_queue = queue.Queue(maxsize=1)
         self._precalc_thread = None
         self._stop_precalc = threading.Event()
 
@@ -117,13 +116,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         while not self._stop_precalc.is_set():
             try:
-                # Check if queue is full before doing expensive calculation
-                if self._precalc_queue.full():
-                    # Queue is full, wait a bit before checking again
-                    logger.debug("Precalc worker: queue full, waiting...")
-                    self._stop_precalc.wait(0.1)
-                    continue
-
                 # Queue has space, do the calculation
                 start_time = datetime.datetime.now()
                 config_dict, grid, map_labels, task = self._calculate_c_env_args()
@@ -132,15 +124,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
                 logger.info(f"Precalc worker: calculation #{calculation_count} took {calc_time:.3f}s")
 
-                # Put the result in the queue (should always succeed since we checked it wasn't full)
+                # Put the result in the queue (will block if queue is full)
+                # This ensures we only calculate when needed
                 self._precalc_queue.put((config_dict, grid, map_labels, task))
-                logger.info(
-                    f"Precalc worker: successfully queued calculation #{calculation_count}, queue size now: {self._precalc_queue.qsize()}"
-                )
+                logger.info(f"Precalc worker: successfully queued calculation #{calculation_count}")
 
             except Exception as e:
                 # Log error but continue running
                 logger.error(f"Error in precalculation worker: {e}", exc_info=True)
+                # Wait a bit before retrying on error
+                self._stop_precalc.wait(0.5)
 
         logger.info("Precalculation worker thread stopping")
 
@@ -184,10 +177,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         )
 
         try:
-            # Try to get precalculated args (non-blocking)
-            config_dict, grid, map_labels, task = self._precalc_queue.get_nowait()
+            # Try to get precalculated args, blocking with timeout
+            # This ensures we wait for the precalculation to complete
+            config_dict, grid, map_labels, task = self._precalc_queue.get(timeout=30.0)
 
-            logger.info(f"Successfully retrieved args from queue, remaining in queue: {self._precalc_queue.qsize()}")
+            logger.info("Successfully retrieved args from queue")
             self._map_labels = map_labels
             self._task = task  # Update task from precalculation
 
@@ -197,8 +191,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             return config_dict, grid, task
 
         except queue.Empty:
-            # No precalculated args available, calculate synchronously
-            logger.info("Queue empty, calculating synchronously")
+            # Timeout reached - fall back to synchronous calculation
+            logger.warning("Queue timeout after 30s, falling back to synchronous calculation")
             start_time = datetime.datetime.now()
             config_dict, grid, map_labels, task = self._calculate_c_env_args()
             calc_time = (datetime.datetime.now() - start_time).total_seconds()
@@ -207,8 +201,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._map_labels = map_labels
             self._task = task  # Update task from calculation
 
-            # Ensure the precalculation thread is running for next time
-            self._start_precalculation()
+            # Restart precalculation thread if it died
+            if self._precalc_thread and not self._precalc_thread.is_alive():
+                logger.warning("Precalculation thread died, restarting")
+                self._start_precalculation()
 
             return config_dict, grid, task
 
