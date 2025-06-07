@@ -2,37 +2,36 @@ from __future__ import annotations
 
 import datetime
 import logging
+import queue
+import threading
 import uuid
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional, Tuple, cast
 
 import gymnasium as gym
 import numpy as np
 import pufferlib
+from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from pufferlib import unroll_nested_dict
 from pydantic import validate_call
 from typing_extensions import override
 
-from mettagrid.curriculum import Curriculum
+from mettagrid.curriculum import Curriculum, Task
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.diversity import calculate_diversity_bonus
-from mettagrid.util.hydra import simple_instantiate
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
 # Important:
 #
-# In PufferLib's class Multiprocessing, the data type for actions will be set to int32
-# whenever the action space is Discrete or Multidiscrete. If we do not match the data type
-# here in our child class, then we will experience extra data conversions in the background.
-
-# Additionally the actions that are sent to the C environment will be int32 (because PufferEnv
-# controls the type of self.actions) -- creating an opportunity for type confusion.
-
-#
+# In PufferLib's class Multiprocessing, the data type for actions will be set to int32 whenever the
+# action space is Discrete or Multidiscrete. If we do not match the data type here in our child class,
+# then we will experience extra data conversions in the background. The actions that are sent to the
+# C environment will be int32 (because PufferEnv controls the type of self.actions) -- creating an
+# opportunity for type confusion.
 dtype_observations = np.dtype(np.uint8)
 dtype_terminals = np.dtype(bool)
 dtype_truncations = np.dtype(bool)
@@ -68,6 +67,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        self._uuid = self._get_uuid()
+        self._log(f"Initializing MettaGridEnv with render_mode={render_mode}")
         self._render_mode = render_mode
         self._curriculum = curriculum
         self._task = self._curriculum.get_task()
@@ -83,7 +84,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
 
-        self._reset_env()
+        # Initialize the precalculation system
+        self._precalc_queue = queue.Queue(maxsize=1)
+        self._precalc_thread = None
+        self._stop_precalc = threading.Event()
+
+        self._log("Starting initial precalculation")
+        # Start precalculation for the first environment
+        self._start_precalculation()
+
+        self._initialize_c_env()
+
         super().__init__(buf)
 
         if self._render_mode is not None:
@@ -96,32 +107,119 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
 
-    def _make_episode_id(self):
+    def _log(self, s: str):
+        logger.info(f"[{self._uuid}]: {s}")
+
+    def _get_uuid(self):
         return str(uuid.uuid4())
 
-    def _reset_env(self):
-        # Prepare the level
-        self._task = self._curriculum.get_task()
+    def _precalculation_worker(self):
+        """Worker thread that precalculates C environment construction arguments."""
+        self._log("Precalculation worker thread started")
+        calculation_count = 0
+
+        while not self._stop_precalc.is_set():
+            try:
+                # Queue has space, do the calculation
+                start_time = datetime.datetime.now()
+                config_dict, grid, map_labels, task = self._calculate_c_env_args()
+                calc_time = (datetime.datetime.now() - start_time).total_seconds()
+                calculation_count += 1
+
+                self._log(f"Precalc worker: calculation #{calculation_count} took {calc_time:.3f}s")
+
+                # Put the result in the queue (will block if queue is full)
+                # This ensures we only calculate when needed
+                self._precalc_queue.put((config_dict, grid, map_labels, task))
+                self._log(f"Precalc worker: successfully queued calculation #{calculation_count}")
+
+            except Exception as e:
+                # Log error but continue running
+                logger.error(f"Error in precalculation worker: {e}", exc_info=True)
+                # Wait a bit before retrying on error
+                self._stop_precalc.wait(0.5)
+
+        self._log("Precalculation worker thread stopping")
+
+    def _start_precalculation(self):
+        """Start the precalculation thread if not already running."""
+        if self._precalc_thread is None or not self._precalc_thread.is_alive():
+            self._log("Starting precalculation thread")
+            self._stop_precalc.clear()
+            self._precalc_thread = threading.Thread(target=self._precalculation_worker, daemon=True)
+            self._precalc_thread.start()
+            self._log(f"Precalculation thread started, is_alive: {self._precalc_thread.is_alive()}")
+        else:
+            self._log(f"Precalculation thread already running, is_alive: {self._precalc_thread.is_alive()}")
+
+    def _calculate_c_env_args(self) -> Tuple[Dict[str, Any], np.ndarray, list, Task]:
+        """Calculate C environment construction arguments (can be called from thread)."""
+        # Get the current task (this might change between calculations)
+        task = self._curriculum.get_task()
+
+        # Use provided level or build a new one
         level = self._level
         if level is None:
-            map_builder = simple_instantiate(self._task.env_cfg().game.map_builder, recursive=True)
+            map_builder = instantiate(task.env_cfg().game.map_builder, _recursive_=True, _convert_="all")
             level = map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert self._task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {self._task.env_cfg().game.num_agents} "
-            f"does not match number of agents in map {level_agents}"
+        assert task.env_cfg().game.num_agents == level_agents, (
+            f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        # Convert to container for C++ code with explicit casting to Dict[str, Any]
-        config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))
+        # Convert to container for C++ code
+        config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
 
-        self._map_labels = level.labels
+        return config_dict, level.grid, level.labels, task
+
+    def _get_c_env_construction_args(self) -> Tuple[Dict[str, Any], np.ndarray, Task]:
+        """Get precalculated construction args or calculate them on demand."""
+        self._log(
+            f"Getting C env args - queue size: {self._precalc_queue.qsize()}, "
+            f"thread alive: {self._precalc_thread.is_alive() if self._precalc_thread else False}"
+        )
+
+        try:
+            # Try to get precalculated args, blocking with timeout
+            # This ensures we wait for the precalculation to complete
+            config_dict, grid, map_labels, task = self._precalc_queue.get(timeout=300.0)
+
+            self._log("Successfully retrieved args from queue")
+            self._map_labels = map_labels
+            self._task = task  # Update task from precalculation
+
+            # Ensure the precalculation thread is running for next time
+            self._start_precalculation()
+
+            return config_dict, grid, task
+
+        except queue.Empty:
+            # Timeout reached - fall back to synchronous calculation
+            logger.warning("Queue timeout after 30s, falling back to synchronous calculation")
+            start_time = datetime.datetime.now()
+            config_dict, grid, map_labels, task = self._calculate_c_env_args()
+            calc_time = (datetime.datetime.now() - start_time).total_seconds()
+            self._log(f"Synchronous calculation took {calc_time:.3f}s")
+
+            self._map_labels = map_labels
+            self._task = task  # Update task from calculation
+
+            # Restart precalculation thread if it died
+            if self._precalc_thread and not self._precalc_thread.is_alive():
+                logger.warning("Precalculation thread died, restarting")
+                self._start_precalculation()
+
+            return config_dict, grid, task
+
+    def _initialize_c_env(self) -> None:
+        """Initialize the C++ environment."""
+        config_dict, grid, task = self._get_c_env_construction_args()
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        self._c_env = MettaGrid(config_dict, level.grid.tolist())
+        self._c_env = MettaGrid(config_dict, grid.tolist())
 
         self._grid_env = self._c_env
 
@@ -131,7 +229,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         This method overrides the reset method from PufferEnv.
         """
 
-        self._reset_env()
+        self._initialize_c_env()
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -140,7 +238,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
-        self._episode_id = self._make_episode_id()
+        self._episode_id = self._get_uuid()
         self._current_seed = seed or 0
         self._reset_at = datetime.datetime.now()
         if self._replay_writer:
@@ -198,7 +296,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override
     def close(self):
-        pass
+        """Clean up resources including the precalculation thread."""
+        if self._precalc_thread is not None:
+            self._stop_precalc.set()
+            self._precalc_thread.join(timeout=1.0)
+            self._precalc_thread = None
 
     def process_episode_stats(self, infos: Dict[str, Any]):
         episode_rewards = self._c_env.get_episode_rewards()
@@ -277,6 +379,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             )
         self._episode_id = None
 
+    def __del__(self):
+        """Ensure cleanup on deletion."""
+        self.close()
+
     @property
     def max_steps(self) -> int:
         return self._c_env.max_steps
@@ -312,7 +418,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def num_agents(self) -> int:
         return self._c_env.num_agents
 
-    def render(self):
+    def render(self) -> str | None:
         if self._renderer is None:
             return None
 
