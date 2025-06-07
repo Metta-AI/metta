@@ -59,19 +59,6 @@ class TestNethackRenderer:
         assert basic_renderer._object_type_names is not None
         assert basic_renderer._bounds_set is False
         assert basic_renderer._last_buffer is None
-        assert "wall" in basic_renderer.SYMBOLS
-        assert basic_renderer.SYMBOLS["wall"] == "🧱"
-
-    def test_symbol_mapping_reverse(self, basic_renderer):
-        """Test that SYMBOLS mapping is correctly reversed from MAP_SYMBOLS."""
-        # The renderer maintains the original SYMBOLS mapping for compatibility
-        # but applies NetHack conversion during rendering
-        assert "wall" in basic_renderer.SYMBOLS
-        assert basic_renderer.SYMBOLS["wall"] == "🧱"
-
-        # The conversion happens in _convert_to_nethack_style
-        wall_converted = basic_renderer._convert_to_nethack_style("🧱")
-        assert wall_converted == "#"
 
     def test_agent_symbol_generation(self, basic_renderer):
         """Test agent symbol generation for different IDs."""
@@ -140,65 +127,6 @@ class TestNethackRenderer:
             # These should be ASCII single-width
             assert ord(char[0]) <= 127, f"Expected {char} to be ASCII"
 
-    def test_nethack_style_conversion(self, basic_renderer):
-        """Test NetHack-style symbol conversion."""
-        # Test that renderer converts symbols to NetHack equivalents
-
-        test_cases = [
-            ("generator", "G"),  # Should convert ⚙ → G
-            ("altar", "_"),  # Should convert ⛩ → _
-            ("factory", "F"),  # Should convert 🏭 → F
-            ("lab", "L"),  # Should convert 🔬 → L
-            ("temple", "T"),  # Should convert 🏰 → T
-            ("wall", "#"),  # Should convert 🧱 → # (NetHack style)
-        ]
-
-        # Test the actual conversion behavior
-        for obj_type, expected_symbol in test_cases:
-            if obj_type in basic_renderer.SYMBOLS:
-                # Create a mock object to test symbol conversion
-
-                # Test the internal conversion
-                original_symbol = basic_renderer.SYMBOLS[obj_type]
-                converted_symbol = basic_renderer._convert_to_nethack_style(original_symbol)
-                assert converted_symbol == expected_symbol, (
-                    f"Expected {obj_type} to convert to {expected_symbol}, got {converted_symbol}"
-                )
-
-    def test_nethack_conversion_mapping(self, basic_renderer):
-        """Test the NetHack conversion mapping."""
-        # Test direct conversions
-        conversions = [
-            ("🧱", "#"),  # wall emoji → NetHack wall
-            ("⚙", "G"),  # gear emoji → Generator
-            ("⛩", "_"),  # torii emoji → Altar
-            ("🏭", "F"),  # factory emoji → Factory
-            ("🔬", "L"),  # microscope emoji → Lab
-            ("🏰", "T"),  # castle emoji → Temple
-            ("🧱", "#"),  # block character → NetHack wall
-            (" ", "."),  # space → NetHack empty
-        ]
-
-        for original, expected in conversions:
-            result = basic_renderer._convert_to_nethack_style(original)
-            assert result == expected, f"Expected {original} → {expected}, got {result}"
-
-    def test_double_width_detection(self, basic_renderer):
-        """Test double-width character detection."""
-        # Single-width characters
-        single_width = ["A", "0", "#", "@", ".", " "]
-        for char in single_width:
-            assert not basic_renderer._is_double_width_char(char), f"{char} should be single-width"
-
-        # Test emoji detection (some may not be detected as double-width by unicodedata)
-        # but they will be converted by our mapping
-        problem_chars = ["🧱", "⚙", "⛩", "🏭", "🔬", "🏰"]
-        for char in problem_chars:
-            # Even if not detected as double-width, they should be in our conversion mapping
-            converted = basic_renderer._convert_to_nethack_style(char)
-            assert converted != char, f"{char} should be converted to a different character"
-            assert ord(converted[0]) <= 127, f"Converted character {converted} should be ASCII"
-
     def test_empty_space_conversion(self, basic_renderer):
         """Test that empty spaces are converted to dots."""
         # Create a grid with empty spaces
@@ -230,7 +158,7 @@ class TestNethackRenderer:
         assert len(set(lengths)) == 1, f"All lines should have consistent length, got {lengths}"
 
         # Check that emoji symbols were converted
-        assert "G" in result, "Generator should appear as G"
+        assert "n" in result, "Generator should appear as n"
         assert "_" in result, "Altar should appear as _"
         assert "F" in result, "Factory should appear as F"
         assert "L" in result, "Lab should appear as L"

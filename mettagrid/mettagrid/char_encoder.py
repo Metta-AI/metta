@@ -1,4 +1,4 @@
-# first element is the primary character, rest are aliases
+# first element is the primary character, rest are aliases for backwards compatibility
 NAME_TO_CHAR: dict[str, list[str]] = {
     # agents
     "agent.agent": ["@", "A"],
@@ -6,27 +6,28 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "agent.team_2": ["2"],
     "agent.team_3": ["3"],
     "agent.team_4": ["4"],
-    # generators
-    "generator": ["n", "⚙"],
-    "generator.red": ["R"],
-    "generator.blue": ["B"],
-    "generator.green": ["G"],
+    # terrain
+    "wall": ["#", "W"],
+    "empty": [".", " "],
+    "block": ["s"],
     # mines
     "mine": ["m"],
     "mine.red": ["r"],
     "mine.blue": ["b"],
     "mine.green": ["g"],
+    # generators
+    "generator": ["n"],
+    "generator.red": ["R"],
+    "generator.blue": ["B"],
+    "generator.green": ["G"],
     # other objects
-    "altar": ["a", "⛩"],
-    "converter": ["c"],
-    "wall": ["#", "W", "🧱"],
-    "empty": [".", " "],
-    "block": ["s"],
-    "lasery": ["L"],
+    "altar": ["_", "a"],
     "armory": ["o"],
-    "factory": ["🏭"],
-    "lab": ["🔬"],
-    "temple": ["🏰"],
+    "lasery": ["S"],
+    "lab": ["L"],
+    "factory": ["F"],
+    "temple": ["T"],
+    "converter": ["c"],
 }
 
 CHAR_TO_NAME: dict[str, str] = {}
