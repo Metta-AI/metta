@@ -4,6 +4,7 @@ from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
 
+
 class ObsTokenToBoxShaper(LayerBase):
     """
     This class consumes token observations and outputs a box observation.
@@ -14,6 +15,7 @@ class ObsTokenToBoxShaper(LayerBase):
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent is instantiated
     and never again. I.e., not when it is reloaded from a saved policy.
     """
+
     def __init__(self, obs_shape, obs_width, obs_height, feature_normalizations, **cfg):
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
@@ -53,8 +55,13 @@ class ObsTokenToBoxShaper(LayerBase):
         )
         batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
 
-        valid_tokens = coords_byte != 0xff
-        box_obs[batch_indices[valid_tokens], atr_indices[valid_tokens], x_coord_indices[valid_tokens], y_coord_indices[valid_tokens]] = atr_values[valid_tokens]
+        valid_tokens = coords_byte != 0xFF
+        box_obs[
+            batch_indices[valid_tokens],
+            atr_indices[valid_tokens],
+            x_coord_indices[valid_tokens],
+            y_coord_indices[valid_tokens],
+        ] = atr_values[valid_tokens]
 
         td["_TT_"] = TT
         td["_batch_size_"] = B
