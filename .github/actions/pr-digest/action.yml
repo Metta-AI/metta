@@ -1,0 +1,95 @@
+name: "GitHub PR Digest"
+description: "Fetches merged PRs with smart incremental caching"
+author: "Metta-AI"
+
+inputs:
+  github-token:
+    description: "GitHub token for API access"
+    required: true
+  repository:
+    description: "Repository to scan (owner/repo format)"
+    required: false
+    default: ${{ github.repository }}
+  days:
+    description: "Number of days to look back"
+    required: false
+    default: "7"
+  diff-limit:
+    description: "Maximum diff size in characters"
+    required: false
+    default: "20000"
+  force-refresh:
+    description: "Force full refresh (ignore cache)"
+    required: false
+    default: "false"
+
+outputs:
+  digest-file:
+    description: "Path to JSON file containing PR digests"
+    value: ${{ steps.digest.outputs.file }}
+  pr-count:
+    description: "Number of PRs found"
+    value: ${{ steps.digest.outputs.count }}
+  cache-stats:
+    description: "Cache hit/miss statistics"
+    value: ${{ steps.digest.outputs.cache_stats }}
+  date-range:
+    description: "Date range scanned (start to end)"
+    value: ${{ steps.digest.outputs.date_range }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: pip-${{ hashFiles('**/uv.lock') }}
+
+    - name: Set cache key
+      id: cache-key
+      shell: bash
+      run: |
+        # Use week number for weekly summaries, or rolling cache
+        WEEK=$(date +%V-%Y)
+        echo "week=${WEEK}" >> $GITHUB_OUTPUT
+        echo "cache_key=pr-digest-${{ inputs.repository }}-week-${WEEK}" >> $GITHUB_OUTPUT
+
+    - name: Restore PR cache
+      id: cache-restore
+      uses: actions/cache/restore@v3
+      with:
+        path: .pr-digest-cache/
+        key: ${{ steps.cache-key.outputs.cache_key }}-${{ github.run_id }}
+        restore-keys: |
+          ${{ steps.cache-key.outputs.cache_key }}-
+          pr-digest-${{ inputs.repository }}-
+
+    - name: Create cache directory
+      shell: bash
+      run: mkdir -p .pr-digest-cache
+
+    - name: Fetch PR digest
+      id: digest
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        REPOSITORY: ${{ inputs.repository }}
+        DAYS_TO_SCAN: ${{ inputs.days }}
+        DIFF_LIMIT: ${{ inputs.diff-limit }}
+        FORCE_REFRESH: ${{ inputs.force-refresh }}
+        CACHE_FILE: .pr-digest-cache/{repository}-cache.json
+      run: |
+        python ${{ github.action_path }}/fetch_pr_digest.py
+
+    - name: Save PR cache
+      uses: actions/cache/save@v3
+      if: always()
+      with:
+        path: .pr-digest-cache/
+        key: ${{ steps.cache-key.outputs.cache_key }}-${{ github.run_id }}

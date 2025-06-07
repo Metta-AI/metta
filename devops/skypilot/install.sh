@@ -8,8 +8,4 @@ if [ -z "$SERVER" ]; then
   exit 1
 fi
 
-# Install SkyPilot directly into the .venv
-# This is not in requirements_pinned.txt because want to make sure that users are using our remote API server
-uv pip install skypilot==0.9.2 --prerelease=allow
-
-sky api login -e "$SERVER"
+uv run sky api login -e "$SERVER"

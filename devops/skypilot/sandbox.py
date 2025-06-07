@@ -1,13 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 import argparse
 import os
 import subprocess
-import sys
 
 import sky
 import sky.cli
-
-sys.path.insert(0, ".")
 
 from metta.util.colorama import blue, green, yellow
 

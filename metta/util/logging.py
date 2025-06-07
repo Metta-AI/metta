@@ -3,7 +3,6 @@ import os
 import sys
 from datetime import datetime
 
-from loguru import logger
 from rich.logging import RichHandler
 
 
@@ -15,7 +14,10 @@ def remap_io(logs_path: str):
     stderr = open(stderr_log_path, "a")
     sys.stderr = stderr
     sys.stdout = stdout
-    logger.remove()
+    # Remove all handlers from root logger when remapping IO
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
 
 
 def restore_io():
@@ -82,5 +84,9 @@ def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
 
     # Set the level
     root_logger.setLevel(getattr(logging, log_level))
+
+    # set env COLUMNS if we are on AWS
+    if os.environ.get("AWS_BATCH_JOB_ID"):
+        os.environ["COLUMNS"] = "200"
 
     return logging.getLogger(name)

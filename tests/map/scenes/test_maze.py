@@ -1,13 +1,12 @@
 from metta.map.scenes.maze import MazeKruskal
-from tests.map.scenes.utils import assert_connected, scene_to_node
+from tests.map.scenes.utils import assert_connected, render_scene
 
 
 def test_basic():
-    scene = MazeKruskal()
-    node = scene_to_node(scene, (9, 9))
+    scene = render_scene(MazeKruskal, {}, (9, 9))
 
-    assert_connected(node.grid)
+    assert_connected(scene.grid)
 
     # The number of walls is fixed for a given size.
     # For height 9, the simplest maze has 4 continuous horizontal walls, each with length 8.
-    assert (node.grid == "wall").sum() == 4 * 8
+    assert (scene.grid == "wall").sum() == 4 * 8

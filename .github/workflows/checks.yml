@@ -30,8 +30,6 @@ permissions:
   checks: write
   pull-requests: write
 
-# We should switch to using uv projects rather than requirements.txt
-# but for now, this installs in the global venv
 env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
@@ -84,7 +82,7 @@ jobs:
         uses: ./.github/actions/file-changes
         with:
           patterns: "**/*.py,**/*.pyx,**/*.pxd,**/*.cpp,**/*.hpp"
-          specific_files: "requirements.txt,requirements_pinned.txt,setup.py"
+          specific_files: "uv.lock"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine which tasks to run
@@ -130,7 +128,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python and uv
-        uses: ./.github/actions/setup-python-uv
+        uses: ./.github/actions/setup-uv
 
       - name: Run Ruff linter
         run: |
@@ -158,17 +156,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python and uv
-        uses: ./.github/actions/setup-python-uv
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Run Pytest on core tests
         run: |
-          uv run --active pytest --maxfail=1 --disable-warnings -q
+          pytest --maxfail=1 --disable-warnings -q
 
       - name: Run Pytest on MettaGrid tests
         working-directory: mettagrid
         run: |
-          uv run --active pytest --maxfail=1 --disable-warnings -q
+          pytest --maxfail=1 --disable-warnings -q
 
       - name: Run MettaGrid C++ tests
         run: |
@@ -192,8 +190,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python and uv
-        uses: ./.github/actions/setup-python-uv
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Training smoke test
         id: train
@@ -204,7 +202,7 @@ jobs:
         run: |
           mkdir -p train_dir
           source .github/scripts/benchmark.sh
-          benchmark "train" "uv run --active python -m tools.train +hardware=github wandb=off"
+          benchmark "train" "./tools/train.py +hardware=github wandb=off"
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
@@ -250,7 +248,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           source .github/scripts/benchmark.sh
-          benchmark "replay" "uv run --active python -m tools.replay +hardware=github wandb=off"
+          benchmark "replay" "./tools/replay.py +hardware=github wandb=off"
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
@@ -280,11 +278,52 @@ jobs:
         # extremely rare.
         run: |
           source .github/scripts/benchmark.sh
-          for i in {1..4}; do
-            if benchmark "evals_try$i" "./run_evals.sh smoke_test"; then
+
+          # Smoke test configuration
+          EVAL_SMOKE_TEST_POLICY="b.rwalters.0605.nav.pr811.00"
+          SMOKE_TEST_MIN_REWARD=0.15
+          MAX_ATTEMPTS=4
+
+          # Create a wrapper script for the eval command
+          cat > run_eval_smoke_test.sh << 'EOF'
+          #!/bin/bash
+          python3 -m tools.sim \
+              sim=navigation \
+              run=navigation_smoke_$1 \
+              policy_uri=wandb://run/$2 \
+              +eval_db_uri=wandb://artifacts/navigation_db \
+              seed=31415 \
+              torch_deterministic=True \
+              device=cpu
+          EOF
+          chmod +x run_eval_smoke_test.sh
+
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            echo "Running smoke test attempt $i/$MAX_ATTEMPTS..."
+
+            # Run with benchmark and capture output
+            FULL_OUTPUT=$(benchmark "evals_try$i" "./run_eval_smoke_test.sh $i $EVAL_SMOKE_TEST_POLICY" 2>&1)
+
+            # Extract JSON output
+            JSON_OUTPUT=$(echo "$FULL_OUTPUT" | sed -n '/===JSON_OUTPUT_START===/,/===JSON_OUTPUT_END===/p' | sed '1d;$d')
+
+            # Extract reward value
+            REWARD=$(echo "$JSON_OUTPUT" | jq -r '.policies[0].checkpoints[0].metrics.reward_avg // "ERROR"' 2>/dev/null)
+
+            echo "JSON output:"
+            echo "$JSON_OUTPUT"
+            echo "Achieved reward: $REWARD"
+
+            # Check if reward meets threshold
+            if [ "$REWARD" != "ERROR" ] && python3 -c "exit(0 if float('$REWARD') >= $SMOKE_TEST_MIN_REWARD else 1)" 2>/dev/null; then
+              echo "✓ Smoke test passed"
               exit 0
             fi
+
+            echo "✗ Attempt $i failed"
           done
+
+          echo "✗ All attempts failed"
           exit 1
 
       - name: Save evals benchmark
@@ -316,17 +355,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python and uv
-        uses: ./.github/actions/setup-python-uv
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Run Python benchmarks
+        env:
+          PYTHONOPTIMIZE: 1 # Disable __debug__ blocks and asserts for accurate benchmarks
         run: |
           # Main benchmarks
-          uv run --active pytest --benchmark-only --benchmark-json=main_benchmark_results.json
+          pytest --benchmark-only --benchmark-json=main_benchmark_results.json
 
-          # Mettagrid benchmarks  
+          # Mettagrid benchmarks
           cd mettagrid
-          uv run --active pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
+          pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
 
       - name: Upload Python benchmark artifacts
         uses: actions/upload-artifact@v4
@@ -349,8 +390,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python and uv
-        uses: ./.github/actions/setup-python-uv
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
 
       - name: Build and run C++ benchmarks
         run: |
