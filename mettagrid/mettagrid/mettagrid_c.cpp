@@ -22,6 +22,7 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
+#include "types.hpp"
 
 namespace py = pybind11;
 
@@ -341,7 +342,9 @@ void MettaGrid::_step(py::array_t<int> actions) {
         continue;
       }
 
-      _action_success[idx] = handler->handle_action(agent->id, arg);
+      // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
+      bool success = handler->handle_action(agent->id, arg);
+      _action_success[idx] = success;
     }
   }
 
@@ -621,8 +624,10 @@ py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  return spaces.attr("MultiDiscrete")(py::make_tuple(py::len(action_names()), _max_action_arg + 1),
-                                      py::arg("dtype") = py::module_::import("numpy").attr("int32"));
+  size_t number_of_actions = py::len(action_names());
+  size_t number_of_action_args = _max_action_arg + 1;
+  return spaces.attr("MultiDiscrete")(py::make_tuple(number_of_actions, number_of_action_args),
+                                      py::arg("dtype") = dtype_actions());
 }
 
 py::object MettaGrid::observation_space() {
@@ -636,9 +641,12 @@ py::object MettaGrid::observation_space() {
     space_shape[i] = shape[i + 1];
   }
 
+  ObservationType min_value = std::numeric_limits<ObservationType>::min();  // 0
+  ObservationType max_value = std::numeric_limits<ObservationType>::max();  // 255
+
   // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
   // that matters to us.
-  return spaces.attr("Box")(0, 255, space_shape, py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  return spaces.attr("Box")(min_value, max_value, space_shape, py::arg("dtype") = dtype_observations());
 }
 
 py::list MettaGrid::action_success() {
