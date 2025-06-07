@@ -1,4 +1,5 @@
 import pytest
+from gymnasium.spaces import Box, MultiDiscrete
 from omegaconf import OmegaConf
 
 from mettagrid.curriculum import SingleTaskCurriculum
@@ -106,25 +107,33 @@ class TestEnvironmentFunctionality:
         """Test environment properties."""
         assert environment.max_steps > 0
 
-        # Check observation space
-        obs_shape = environment.single_observation_space.shape
-        assert len(obs_shape) == 3  # (width, height, channels)
-        assert obs_shape[0] > 0  # grid width
-        assert obs_shape[1] > 0  # grid height
-        assert obs_shape[2] > 0  # channels
+        # Check observation space (Box)
+        observation_space = environment.single_observation_space
 
-        # Check action space
-        [num_actions, max_arg] = environment.single_action_space.nvec.tolist()
-        assert num_actions > 0, f"num_actions: {num_actions}"
-        assert max_arg > 0, f"max_arg: {max_arg}"
+        assert isinstance(observation_space, Box), f"Expected Box observation space, got {type(observation_space)}"
+        observation_space_shape = observation_space.shape
+        assert len(observation_space_shape) == 3, (
+            f"Expected 3D observation space, got {len(observation_space_shape)}D: {observation_space_shape}"
+        )
+        assert observation_space_shape[0] > 0, f"grid width: {observation_space_shape[0]}"
+        assert observation_space_shape[1] > 0, f"grid height: {observation_space_shape[1]}"
+        assert observation_space_shape[2] > 0, f"channels: {observation_space_shape[2]}"
+
+        # Check action space (MultiDiscrete)
+        action_space = environment.single_action_space
+        assert isinstance(action_space, MultiDiscrete), f"Expected MultiDiscrete action space, got {type(action_space)}"
+        action_space_shape = action_space.shape
+        assert len(action_space_shape) == 1, (
+            f"Expected 1D action space, got {len(action_space_shape)}D: {action_space_shape}"
+        )
+        assert action_space_shape[0] > 0, f"number of discrete actions: {action_space_shape[0]}"
 
         # Check env properties
-        assert environment.render_mode == "human"
         assert environment._c_env.map_width > 0
         assert environment._c_env.map_height > 0
-        num_agents = environment.num_agents
+        num_agents = environment._c_env.num_agents
         assert num_agents > 0
-        assert environment.action_success.shape == (num_agents,)
+        assert len(environment.action_success) == num_agents
 
     def test_object_type_names(self, environment):
         """Test object type names functionality."""

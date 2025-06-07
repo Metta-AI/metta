@@ -129,6 +129,7 @@
     "pybind",
     "Pylance",
     "pynvml",
+    "pyproject",
     "pyright",
     "pytest",
     "PYTHONHOME",
