@@ -2,7 +2,7 @@
 import argparse
 from pathlib import Path
 
-from mettagrid.char_encoder import CHAR_TO_NAME, NAME_TO_CHAR
+from mettagrid.char_encoder import normalize_grid_char
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
     normalized_lines = []
     lines = content.splitlines()
     for line in lines:
-        normalized_line = "".join(NAME_TO_CHAR[CHAR_TO_NAME[c]][0] for c in line)
+        normalized_line = "".join(normalize_grid_char(c) for c in line)
         normalized_lines.append(normalized_line)
 
     if args.in_place:

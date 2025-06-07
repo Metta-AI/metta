@@ -11,10 +11,10 @@ from unittest.mock import patch
 import pytest
 from omegaconf import OmegaConf
 
+from mettagrid.char_encoder import CHAR_TO_NAME
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.renderer.nethack import NethackRenderer
-from mettagrid.room.ascii import CHAR_TO_NAME
 from mettagrid.util.hydra import get_cfg
 
 

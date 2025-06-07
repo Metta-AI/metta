@@ -2,7 +2,7 @@ import numpy as np
 
 from metta.map.scene import Scene
 from metta.util.config import Config
-from mettagrid.char_encoder import CHAR_TO_NAME
+from mettagrid.char_encoder import char_to_grid_object
 
 
 class InlineAsciiParams(Config):
@@ -17,7 +17,7 @@ class InlineAscii(Scene[InlineAsciiParams]):
 
         lines = params.data.strip().splitlines()
         self.ascii_grid = np.array([list(line) for line in lines], dtype="U6")
-        self.ascii_grid = np.vectorize(CHAR_TO_NAME.get)(self.ascii_grid)
+        self.ascii_grid = np.vectorize(char_to_grid_object)(self.ascii_grid)
 
     def render(self):
         params = self.params

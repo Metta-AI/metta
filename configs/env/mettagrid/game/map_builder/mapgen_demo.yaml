@@ -93,9 +93,9 @@ root:
         type: metta.map.scenes.inline_ascii.InlineAscii
         params:
           data: |
-            WWWWWWWWWW
-                A     
-            WWWWWWWWWW
+            ##########
+            ....@.....
+            ##########
           # Indenting in YAML is not easy, so we can specify row and column explicitly.
           # If not set, the map will be drawn in the top-left corner of the area.
           row: 2

@@ -23,6 +23,7 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "empty": [".", " "],
     "block": ["s"],
     "lasery": ["L"],
+    "armory": ["o"],
     "factory": ["🏭"],
     "lab": ["🔬"],
     "temple": ["🏰"],
@@ -33,3 +34,21 @@ CHAR_TO_NAME: dict[str, str] = {}
 for k, v in NAME_TO_CHAR.items():
     for c in v:
         CHAR_TO_NAME[c] = k
+
+
+def grid_object_to_char(name: str) -> str:
+    if name in NAME_TO_CHAR:
+        return NAME_TO_CHAR[name][0]
+
+    raise ValueError(f"Unknown object type: {name}")
+
+
+def char_to_grid_object(char: str) -> str:
+    if char in CHAR_TO_NAME:
+        return CHAR_TO_NAME[char]
+
+    raise ValueError(f"Unknown character: {char}")
+
+
+def normalize_grid_char(char: str) -> str:
+    return grid_object_to_char(char_to_grid_object(char))
