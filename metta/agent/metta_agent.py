@@ -32,6 +32,8 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
     return hydra.utils.instantiate(
         cfg.agent,
         obs_space=obs_space,
+        obs_width=env.obs_width,
+        obs_height=env.obs_height,
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
         global_features=env.global_features,
@@ -58,6 +60,8 @@ class MettaAgent(nn.Module):
     def __init__(
         self,
         obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
+        obs_width: int,
+        obs_height: int,
         action_space: gym.spaces.Space,
         feature_normalizations: list[float],
         device: str,
@@ -85,6 +89,8 @@ class MettaAgent(nn.Module):
             "clip_range": self.clip_range,
             "action_space": action_space,
             "feature_normalizations": feature_normalizations,
+            "obs_width": obs_width,
+            "obs_height": obs_height,
             "obs_key": cfg.observations.obs_key,
             "obs_shape": obs_shape,
             "hidden_size": self.hidden_size,

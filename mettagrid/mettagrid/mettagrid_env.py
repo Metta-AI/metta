@@ -303,6 +303,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         """
         return self._c_env.action_space
 
+    # obs_width and obs_height correspond to the view window size, and should indicate the grid from which
+    # tokens are being computed.
+    @property
+    def obs_width(self):
+        return self._c_env.obs_width
+
+    @property
+    def obs_height(self):
+        return self._c_env.obs_height
+
     @property
     def action_names(self):
         return self._c_env.action_names()
