@@ -115,8 +115,8 @@ private:
                             unsigned short obs_width,
                             unsigned short obs_height,
                             size_t agent_idx);
-  void _compute_observations(py::array_t<int32_t, py::array::c_style> actions);
-  void _step(py::array_t<int32_t, py::array::c_style> actions);
+  void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
+  void _step(py::array_t<ActionType, py::array::c_style> actions);
 };
 
 #endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_
