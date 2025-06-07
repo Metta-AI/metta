@@ -84,7 +84,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
 
         # Initialize the precalculation system
-        self._precalc_queue = queue.Queue(maxsize=1)
+        # Increase queue size to hold more precalculated environments
+        self._precalc_queue = queue.Queue(maxsize=3)
         self._precalc_thread = None
         self._stop_precalc = threading.Event()
 
@@ -116,6 +117,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         while not self._stop_precalc.is_set():
             try:
+                # Check if queue is full before doing expensive calculation
+                if self._precalc_queue.full():
+                    # Queue is full, wait a bit before checking again
+                    logger.debug("Precalc worker: queue full, waiting...")
+                    self._stop_precalc.wait(0.1)
+                    continue
+
+                # Queue has space, do the calculation
                 start_time = datetime.datetime.now()
                 config_dict, grid, map_labels, task = self._calculate_c_env_args()
                 calc_time = (datetime.datetime.now() - start_time).total_seconds()
@@ -123,21 +132,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
                 logger.info(f"Precalc worker: calculation #{calculation_count} took {calc_time:.3f}s")
 
-                # Try to put the result in the queue (will block if queue is full)
-                try:
-                    self._precalc_queue.put((config_dict, grid, map_labels, task), timeout=0.1)
-                    logger.info(f"Precalc worker: successfully queued calculation #{calculation_count}")
-                except queue.Full:
-                    # Queue is full, skip this calculation
-                    logger.info(f"Precalc worker: queue full, skipping calculation #{calculation_count}")
+                # Put the result in the queue (should always succeed since we checked it wasn't full)
+                self._precalc_queue.put((config_dict, grid, map_labels, task))
+                logger.info(
+                    f"Precalc worker: successfully queued calculation #{calculation_count}, queue size now: {self._precalc_queue.qsize()}"
+                )
 
             except Exception as e:
                 # Log error but continue running
                 logger.error(f"Error in precalculation worker: {e}", exc_info=True)
-
-            # Small sleep to prevent busy waiting
-            if not self._stop_precalc.is_set():
-                self._stop_precalc.wait(0.001)
 
         logger.info("Precalculation worker thread stopping")
 
@@ -184,7 +187,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             # Try to get precalculated args (non-blocking)
             config_dict, grid, map_labels, task = self._precalc_queue.get_nowait()
 
-            logger.info("Successfully retrieved args from queue")
+            logger.info(f"Successfully retrieved args from queue, remaining in queue: {self._precalc_queue.qsize()}")
             self._map_labels = map_labels
             self._task = task  # Update task from precalculation
 
