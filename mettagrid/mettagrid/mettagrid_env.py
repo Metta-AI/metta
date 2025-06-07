@@ -67,6 +67,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        logger.info(f"Initializing MettaGridEnv with render_mode={render_mode}")
         self._render_mode = render_mode
         self._curriculum = curriculum
         self._task = self._curriculum.get_task()
@@ -87,6 +88,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._precalc_thread = None
         self._stop_precalc = threading.Event()
 
+        logger.info("Starting initial precalculation")
         # Start precalculation for the first environment
         self._start_precalculation()
 
@@ -109,31 +111,46 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def _precalculation_worker(self):
         """Worker thread that precalculates C environment construction arguments."""
+        logger.info("Precalculation worker thread started")
+        calculation_count = 0
+
         while not self._stop_precalc.is_set():
             try:
+                start_time = datetime.datetime.now()
                 config_dict, grid, map_labels, task = self._calculate_c_env_args()
+                calc_time = (datetime.datetime.now() - start_time).total_seconds()
+                calculation_count += 1
+
+                logger.info(f"Precalc worker: calculation #{calculation_count} took {calc_time:.3f}s")
 
                 # Try to put the result in the queue (will block if queue is full)
                 try:
                     self._precalc_queue.put((config_dict, grid, map_labels, task), timeout=0.1)
+                    logger.info(f"Precalc worker: successfully queued calculation #{calculation_count}")
                 except queue.Full:
                     # Queue is full, skip this calculation
-                    pass
+                    logger.info(f"Precalc worker: queue full, skipping calculation #{calculation_count}")
 
             except Exception as e:
                 # Log error but continue running
-                print(f"Error in precalculation worker: {e}")
+                logger.error(f"Error in precalculation worker: {e}", exc_info=True)
 
             # Small sleep to prevent busy waiting
             if not self._stop_precalc.is_set():
                 self._stop_precalc.wait(0.001)
 
+        logger.info("Precalculation worker thread stopping")
+
     def _start_precalculation(self):
         """Start the precalculation thread if not already running."""
         if self._precalc_thread is None or not self._precalc_thread.is_alive():
+            logger.info("Starting precalculation thread")
             self._stop_precalc.clear()
             self._precalc_thread = threading.Thread(target=self._precalculation_worker, daemon=True)
             self._precalc_thread.start()
+            logger.info(f"Precalculation thread started, is_alive: {self._precalc_thread.is_alive()}")
+        else:
+            logger.info(f"Precalculation thread already running, is_alive: {self._precalc_thread.is_alive()}")
 
     def _calculate_c_env_args(self) -> Tuple[Dict[str, Any], np.ndarray, list, Task]:
         """Calculate C environment construction arguments (can be called from thread)."""
@@ -159,12 +176,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def _get_c_env_construction_args(self) -> Tuple[Dict[str, Any], np.ndarray, Task]:
         """Get precalculated construction args or calculate them on demand."""
-        logging.info("collecting args")
+        logger.info(
+            f"Getting C env args - queue size: {self._precalc_queue.qsize()}, thread alive: {self._precalc_thread.is_alive() if self._precalc_thread else False}"
+        )
+
         try:
             # Try to get precalculated args (non-blocking)
             config_dict, grid, map_labels, task = self._precalc_queue.get_nowait()
 
-            logging.info("collected args from queue")
+            logger.info("Successfully retrieved args from queue")
             self._map_labels = map_labels
             self._task = task  # Update task from precalculation
 
@@ -175,9 +195,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         except queue.Empty:
             # No precalculated args available, calculate synchronously
-            logging.info("queue was empty!")
+            logger.info("Queue empty, calculating synchronously")
+            start_time = datetime.datetime.now()
             config_dict, grid, map_labels, task = self._calculate_c_env_args()
-            logging.info("calculated new args")
+            calc_time = (datetime.datetime.now() - start_time).total_seconds()
+            logger.info(f"Synchronous calculation took {calc_time:.3f}s")
+
             self._map_labels = map_labels
             self._task = task  # Update task from calculation
 
