@@ -22,6 +22,11 @@ components:
     _target_: metta.agent.lib.obs_enc.ObsCrossAttn
     out_dim: 128
     use_mask: true
+    num_query_tokens: 1
+    query_token_dim: 32
+    qk_dim: 32
+    v_dim: 64
+    mlp_out_hidden_dim: 256
     sources:
       - name: _obs_
 

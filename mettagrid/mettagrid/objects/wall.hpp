@@ -21,8 +21,10 @@ public:
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.push_back({ObservationFeature::TypeId, _type_id});
-    features.push_back({ObservationFeature::Hp, hp});
-    features.push_back({ObservationFeature::Swappable, _swappable});
+    if (_swappable) {
+      // Only emit the token if it's swappable, to reduce the number of tokens.
+      features.push_back({ObservationFeature::Swappable, 1});
+    }
     return features;
   }
 

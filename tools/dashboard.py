@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 """Generate dashboard data."""
 
 import hydra

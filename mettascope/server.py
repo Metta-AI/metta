@@ -97,6 +97,9 @@ def make_app(cfg: DictConfig):
             if message["type"] == "action":
                 action_message = message
 
+            if message["type"] == "advance":
+                action_message = None
+
             if current_step < 1000:
                 await send_message(type="message", message="Step!")
 

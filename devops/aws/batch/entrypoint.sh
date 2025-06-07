@@ -204,8 +204,7 @@ else
 fi
 
 # Install packages and requirements
-uv pip install -r requirements.txt
-uv pip install -e .
+uv sync
 
 export NUM_NODES=${AWS_BATCH_JOB_NUM_NODES:-1}
 export MASTER_ADDR=${AWS_BATCH_JOB_MAIN_NODE_PRIVATE_IPV4_ADDRESS:-localhost}

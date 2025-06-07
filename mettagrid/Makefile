@@ -34,8 +34,8 @@ clean:
 # Install package in editable mode
 install:
 	@echo "Installing package in editable mode..."
-	uv pip install -e .
+	uv sync --inexact
 
 pytest: install
 	@echo "Running Python tests..."
-	pytest
+	uv run pytest

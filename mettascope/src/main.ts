@@ -6,6 +6,8 @@ import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.j
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
+import { initAgentTable, updateAgentTable } from './agentpanel.js';
+import { localStorageSetNumber } from './htmlutils.js';
 
 // Handle resize events.
 export function onResize() {
@@ -18,6 +20,7 @@ export function onResize() {
   // Make sure traceSplit and infoSplit are not too small or too large.
   const a = 0.025;
   ui.traceSplit = Math.max(a, Math.min(ui.traceSplit, 1 - a));
+  ui.agentPanelSplit = Math.max(a, Math.min(ui.agentPanelSplit, 1 - a));
 
   ui.mapPanel.x = 0;
   ui.mapPanel.y = Common.HEADER_HEIGHT;
@@ -46,12 +49,19 @@ export function onResize() {
   ui.tracePanel.width = screenWidth;
   ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
 
+  // Agent panel is always on the top of the screen.
+  ui.agentPanel.x = 0;
+  ui.agentPanel.y = Common.HEADER_HEIGHT;
+  ui.agentPanel.width = screenWidth;
+  ui.agentPanel.height = ui.agentPanelSplit * screenHeight;
+
   html.actionButtons.style.top = (ui.tracePanel.y - 148) + 'px';
 
   ui.mapPanel.updateDiv();
   ui.miniMapPanel.updateDiv();
   ui.infoPanel.updateDiv();
   ui.tracePanel.updateDiv();
+  ui.agentPanel.updateDiv();
 
   // Redraw the square after resizing.
   requestFrame();
@@ -64,7 +74,13 @@ function onMouseDown() {
   ui.mouseClick = true;
 
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
-    ui.traceDragging = true
+    ui.dragging = "trace-panel";
+  } else {
+    ui.mouseDown = true;
+  }
+
+  if (Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD) {
+    ui.dragging = "agent-panel";
   } else {
     ui.mouseDown = true;
   }
@@ -76,7 +92,7 @@ function onMouseDown() {
 function onMouseUp() {
   ui.mouseUp = true;
   ui.mouseDown = false;
-  ui.traceDragging = false;
+  ui.dragging = "";
 
   // Due to how we select objects on mouse-up (mouse-down is drag/pan),
   // we need to check for double-click on mouse-up as well.
@@ -91,7 +107,7 @@ function onMouseUp() {
 function onMouseMove(event: MouseEvent) {
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
   var target = event.target as HTMLElement;
-  while (target.id === "") {
+  while (target.id === "" && target.parentElement != null) {
     target = target.parentElement as HTMLElement;
   }
   ui.mouseTarget = target.id;
@@ -101,12 +117,23 @@ function onMouseMove(event: MouseEvent) {
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ns-resize";
   }
+  if (Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD) {
+    document.body.style.cursor = "ns-resize";
+  }
 
   // Drag the trace panel up or down.
-  if (ui.traceDragging) {
+  if (ui.dragging == "trace-panel") {
     ui.traceSplit = ui.mousePos.y() / window.innerHeight
+    localStorageSetNumber("traceSplit", ui.traceSplit);
     onResize();
   }
+
+  if (ui.dragging == "agent-panel") {
+    ui.agentPanelSplit = (ui.mousePos.y() - ui.agentPanel.y) / window.innerHeight
+    localStorageSetNumber("agentPanelSplit", ui.agentPanelSplit);
+    onResize();
+  }
+
   requestFrame();
 }
 
@@ -173,11 +200,18 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
   if (!skipScrubberUpdate) {
     html.scrubber.value = state.step.toString();
   }
+  updateAgentTable();
+  requestFrame();
+}
 
-  // Update trace panel position
-  // ui.tracePanel.panPos.setX(-state.step * 32);
-
-  // Request a new frame
+// Centralized function to select an object.
+export function updateSelection(object: any, setFollow = false) {
+  state.selectedGridObject = object;
+  if (setFollow) {
+    setFollowSelection(true);
+  }
+  console.info("Selected object:", state.selectedGridObject);
+  updateAgentTable();
   requestFrame();
 }
 
@@ -188,8 +222,9 @@ function onScrubberChange() {
 
 // Handle key down events.
 function onKeyDown(event: KeyboardEvent) {
+
   if (event.key == "Escape") {
-    state.selectedGridObject = null;
+    updateSelection(null);
     setFollowSelection(false);
   }
   // '[' and ']' to scrub forward and backward.
@@ -232,44 +267,40 @@ export function onFrame() {
 
   ctx.clear();
 
-  var fullUpdate = true;
-  if (ui.mapPanel.inside(ui.mousePos)) {
-    if (ui.mapPanel.updatePanAndZoom()) {
-      fullUpdate = false;
-    }
-  }
-
-  if (ui.tracePanel.inside(ui.mousePos)) {
-    if (ui.tracePanel.updatePanAndZoom()) {
-      fullUpdate = false;
-    }
-  }
+  ui.mapPanel.updatePanAndZoom();
+  ui.tracePanel.updatePanAndZoom();
 
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
 
   if (state.showMiniMap) {
-    ui.miniMapPanel.div.style.display = "block";
+    ui.miniMapPanel.div.classList.remove("hidden");
     ctx.useMesh("mini-map");
     drawMiniMap(ui.miniMapPanel);
   } else {
-    ui.miniMapPanel.div.style.display = "none";
+    ui.miniMapPanel.div.classList.add("hidden");
   }
 
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
 
   if (state.showInfo) {
-    ui.infoPanel.div.style.display = "block";
+    ui.infoPanel.div.classList.remove("hidden");
     updateReadout();
   } else {
-    ui.infoPanel.div.style.display = "none";
+    ui.infoPanel.div.classList.add("hidden");
   }
 
   if (state.showControls) {
-    html.actionButtons.style.display = "block";
+    html.actionButtons.classList.remove("hidden");
   } else {
-    html.actionButtons.style.display = "none";
+    html.actionButtons.classList.add("hidden");
+  }
+
+  if (state.showAgentPanel) {
+    ui.agentPanel.div.classList.remove("hidden");
+  } else {
+    ui.agentPanel.div.classList.add("hidden");
   }
 
   ctx.flush();
@@ -282,7 +313,11 @@ export function onFrame() {
     if (state.partialStep >= 1) {
       const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.max_steps;
       state.partialStep -= Math.floor(state.partialStep);
-      updateStep(nextStep);
+      if (state.ws !== null) {
+        state.ws.send(JSON.stringify({ type: "advance" }));
+      } else {
+        updateStep(nextStep);
+      }
     }
     requestFrame();
   }
@@ -352,8 +387,7 @@ async function parseUrlParams() {
     if (urlParams.get('selectedObjectId') !== null) {
       const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
       if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
-        state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
-        setFollowSelection(true);
+        updateSelection(state.replay.grid_objects[selectedObjectId], true);
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
         ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
         console.info("Selected object via query parameter:", state.selectedGridObject);
@@ -418,6 +452,8 @@ onResize();
 html.modal.classList.add("hidden");
 html.toast.classList.add("hiding");
 html.actionButtons.classList.add("hidden");
+ui.infoPanel.div.classList.add("hidden");
+ui.agentPanel.div.classList.add("hidden");
 
 // Each panel has a div we use for event handling.
 // But rendering happens bellow on global canvas.
@@ -462,7 +498,11 @@ html.playButton.addEventListener('click', () =>
 );
 html.stepForwardButton.addEventListener('click', () => {
   setIsPlaying(false);
-  updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+  if (state.ws !== null) {
+    state.ws.send(JSON.stringify({ type: "advance" }));
+  } else {
+    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+  }
 });
 html.rewindToEndButton.addEventListener('click', () => {
   setIsPlaying(false);
@@ -559,7 +599,19 @@ if (localStorage.hasOwnProperty("showInfo")) {
 }
 toggleOpacity(html.infoToggle, state.showInfo);
 
+html.agentPanelToggle.addEventListener('click', () => {
+  state.showAgentPanel = !state.showAgentPanel;
+  localStorage.setItem("showAgentPanel", state.showAgentPanel.toString());
+  toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showAgentPanel")) {
+  state.showAgentPanel = localStorage.getItem("showAgentPanel") === "true";
+}
+toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
+
 initActionButtons();
+initAgentTable();
 
 window.addEventListener('load', async () => {
   // Use local atlas texture.
