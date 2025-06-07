@@ -7,7 +7,7 @@ import numpy as np
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.mettagrid_env import (
     MettaGridEnv,
-    np_actions_type,
+    dtype_actions,
 )
 
 
@@ -82,7 +82,7 @@ def generate_valid_random_actions(
     max_args = env._c_env.max_action_args()
 
     # Initialize actions array with correct dtype
-    actions = np.zeros((num_agents, 2), dtype=np_actions_type)
+    actions = np.zeros((num_agents, 2), dtype=dtype_actions)
 
     for i in range(num_agents):
         # Determine action type
@@ -167,7 +167,7 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
         print(f"  Before: pos={result['position_before']}, orient={result['orientation_before']}")
 
         # Step 1: Rotate to face target direction
-        rotate_action = np.zeros((env.num_agents, 2), dtype=np_actions_type)
+        rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
         rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
 
         env.step(rotate_action)
@@ -187,7 +187,7 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
         print(f"  Rotated to face {direction_name}")
 
         # Step 2: Move forward
-        move_action = np.zeros((env.num_agents, 2), dtype=np_actions_type)
+        move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
         move_action[agent_idx] = [move_action_idx, 0]  # Move forward
 
         obs_after, rewards, terminals, truncations, info = env.step(move_action)
@@ -298,7 +298,7 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict
         print(f"  Before: {result['orientation_before']}")
 
         # Perform rotation
-        rotate_action = np.zeros((env.num_agents, 2), dtype=np_actions_type)
+        rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
         rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
 
         env.step(rotate_action)
@@ -340,7 +340,7 @@ def get_current_observation(env: MettaGrid, agent_idx: int):
         action_names = env.action_names()
         if "noop" in action_names:
             noop_idx = action_names.index("noop")
-            noop_action = np.zeros((env.num_agents, 2), dtype=np_actions_type)
+            noop_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
             noop_action[agent_idx] = [noop_idx, 0]
             obs, _, _, _, _ = env.step(noop_action)
             return obs.copy()
@@ -453,7 +453,7 @@ def validate_actions(env: MettaGridEnv, actions: np.ndarray, logger: Optional[lo
         max_args = env._c_env.max_action_args()
 
         # Check dtype - only warn if mismatch
-        expected_dtype = np_actions_type
+        expected_dtype = dtype_actions
         if actions.dtype != expected_dtype:
             result["warnings"].append(f"Actions dtype is {actions.dtype}, expected {expected_dtype}")
             if logger:
