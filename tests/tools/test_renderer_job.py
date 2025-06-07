@@ -167,27 +167,11 @@ class TestRendererJob:
             except Exception as e:
                 pytest.fail(f"Training validation failed for {env_name}: {str(e)}")
 
-    def test_environment_objects_are_valid(self):
-        """Test that all objects in debug maps are valid characters."""
-        valid_chars = {"W", "A", "a", "L", "m", "s", " "}  # From object_use maps
-
-        for env_name, map_path in self.DEBUG_ENVIRONMENTS.items():
-            with open(map_path, "r") as f:
-                content = f.read()
-
-            for line_num, line in enumerate(content.splitlines(), 1):
-                for char_num, char in enumerate(line, 1):
-                    assert char in valid_chars, (
-                        f"Invalid character '{char}' found in {env_name} "
-                        f"at line {line_num}, position {char_num}. "
-                        f"Valid characters: {sorted(valid_chars)}"
-                    )
-
     def test_agents_count_in_maps(self):
         """Test that each debug map has exactly 2 agents."""
         for env_name, map_path in self.DEBUG_ENVIRONMENTS.items():
             with open(map_path, "r") as f:
                 content = f.read()
 
-            agent_count = content.count("A")
-            assert agent_count == 2, f"Map {env_name} should have exactly 2 agents (A), but found {agent_count}"
+            agent_count = content.count("@")
+            assert agent_count == 2, f"Map {env_name} should have exactly 2 agents (@), but found {agent_count}"

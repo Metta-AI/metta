@@ -1,31 +1,9 @@
 import numpy as np
 
 from metta.map.scene import Scene
+from metta.map.utils.ascii_grid import char_grid_to_lines
 from metta.util.config import Config
-
-SYMBOLS = {
-    "A": "agent.agent",
-    "Ap": "agent.prey",
-    "AP": "agent.predator",
-    "a": "altar",
-    "c": "converter",
-    "g": "generator",
-    "m": "mine",
-    "W": "wall",
-    " ": "empty",
-    "b": "block",
-    "L": "lasery",
-    "Q": "agent.team_1",
-    "E": "agent.team_2",
-    "R": "agent.team_3",
-    "T": "agent.team_4",
-    "🧱": "wall",
-    "⚙": "generator",
-    "⛩": "altar",
-    "🏭": "factory",
-    "🔬": "lab",
-    "🏰": "temple",
-}
+from mettagrid.char_encoder import char_to_grid_object
 
 
 class InlineAsciiParams(Config):
@@ -38,9 +16,9 @@ class InlineAscii(Scene[InlineAsciiParams]):
     def post_init(self):
         params = self.params
 
-        lines = params.data.strip().splitlines()
+        lines, _, _ = char_grid_to_lines(params.data)
         self.ascii_grid = np.array([list(line) for line in lines], dtype="U6")
-        self.ascii_grid = np.vectorize(SYMBOLS.get)(self.ascii_grid)
+        self.ascii_grid = np.vectorize(char_to_grid_object)(self.ascii_grid)
 
     def render(self):
         params = self.params

@@ -34,7 +34,7 @@ def process_map_source(ascii_source):
     # replace all symbols that are not `x` with spaces; replace `x` with `#`
     for i in range(len(lines)):
         original_line = lines[i]
-        new_line = "".join(["#" if char == "x" else " " for char in original_line])
+        new_line = "".join(["#" if char == "x" else "." for char in original_line])
         lines[i] = new_line
 
     return "\n".join(lines)

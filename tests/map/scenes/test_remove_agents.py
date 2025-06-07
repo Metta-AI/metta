@@ -12,7 +12,16 @@ def test_basic():
         (3, 3),
         children=[
             ChildrenAction(
-                scene=lambda grid: InlineAscii(grid=grid, params={"data": "WWW\n" + "AA \n" + "WWW\n"}),
+                scene=lambda grid: InlineAscii(
+                    grid=grid,
+                    params={
+                        "data": """
+                    ###
+                    @@.
+                    ###
+                        """
+                    },
+                ),
                 where="full",
             ),
             ChildrenAction(
@@ -25,8 +34,8 @@ def test_basic():
     assert_grid(
         scene,
         """
-            |###|
-            |   |
-            |###|
+            ###
+            ...
+            ###
         """,
     )

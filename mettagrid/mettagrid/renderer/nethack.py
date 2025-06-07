@@ -1,28 +1,10 @@
-from __future__ import annotations
-
-import unicodedata
-from typing import Dict, List
-
-from mettagrid.room.ascii import SYMBOLS as MAP_SYMBOLS
+from mettagrid.char_encoder import grid_object_to_char
 
 
 class NethackRenderer:
     """Simple NetHack-style renderer for ``MettaGridEnv`` with perfect alignment."""
 
-    SYMBOLS = {v: k for k, v in MAP_SYMBOLS.items()}
-
-    # NetHack-style conversion mapping for perfect alignment
-    NETHACK_CONVERSION = {
-        "🧱": "#",  # wall emoji → NetHack wall
-        "⚙": "G",  # gear emoji → Generator
-        "⛩": "_",  # torii emoji → Altar
-        "🏭": "F",  # factory emoji → Factory
-        "🔬": "L",  # microscope emoji → Lab
-        "🏰": "T",  # castle emoji → Temple
-        " ": ".",  # space → NetHack empty
-    }
-
-    def __init__(self, object_type_names: List[str]):
+    def __init__(self, object_type_names: list[str]):
         self._object_type_names = object_type_names
         self._bounds_set = False
         self._min_row = 0
@@ -39,34 +21,6 @@ class NethackRenderer:
         # Show cursor when renderer is destroyed
         print("\033[?25h", end="")
 
-    def _is_double_width_char(self, char: str) -> bool:
-        """Check if a character is double-width (like emojis)."""
-        if not char:
-            return False
-
-        # Check Unicode category and width
-        code_point = ord(char[0])
-
-        # ASCII characters are always single-width
-        if code_point <= 127:
-            return False
-
-        # Use unicodedata to check East Asian width
-        east_asian_width = unicodedata.east_asian_width(char[0])
-        return east_asian_width in ("F", "W")  # Fullwidth or Wide
-
-    def _convert_to_nethack_style(self, char: str) -> str:
-        """Convert double-width characters to NetHack-style single-width equivalents."""
-        # Direct conversion mapping
-        if char in self.NETHACK_CONVERSION:
-            return self.NETHACK_CONVERSION[char]
-
-        # If it's a double-width character without specific mapping, use a fallback
-        if self._is_double_width_char(char):
-            return "?"  # Fallback for unknown double-width chars
-
-        return char
-
     def _symbol_for(self, obj: dict) -> str:
         """Get the symbol for an object, with NetHack-style conversion."""
         type_name = self._object_type_names[obj["type"]]
@@ -80,13 +34,9 @@ class NethackRenderer:
                 idx = (agent_id - 10) % 26
                 return chr(ord("a") + idx)
 
-        # Get the original symbol
-        original_symbol = self.SYMBOLS.get(base, "?")
+        return grid_object_to_char(base)
 
-        # Convert to NetHack-style for consistent alignment
-        return self._convert_to_nethack_style(original_symbol)
-
-    def _compute_bounds(self, grid_objects: Dict[int, dict]):
+    def _compute_bounds(self, grid_objects: dict[int, dict]):
         rows = []
         cols = []
         for obj in grid_objects.values():
@@ -113,7 +63,7 @@ class NethackRenderer:
 
         self._bounds_set = True
 
-    def render(self, step: int, grid_objects: Dict[int, dict]) -> str:
+    def render(self, step: int, grid_objects: dict[int, dict]) -> str:
         if not self._bounds_set:
             self._compute_bounds(grid_objects)
 
@@ -125,9 +75,6 @@ class NethackRenderer:
             c = obj["c"] - self._min_col
             if 0 <= r < self._height and 0 <= c < self._width:
                 symbol = self._symbol_for(obj)
-                # Ensure the symbol is single-width
-                if self._is_double_width_char(symbol):
-                    symbol = self._convert_to_nethack_style(symbol)
                 grid[r][c] = symbol
 
         lines = ["".join(row) for row in grid]
@@ -138,7 +85,7 @@ class NethackRenderer:
         # Validate alignment (all lines should have same length)
         line_lengths = [len(line) for line in lines]
         if len(set(line_lengths)) > 1:
-            # This should not happen with NetHack-style conversion, but log if it does
+            # This should not happen if we're not using emojis
             print(f"Warning: Inconsistent line lengths detected: {line_lengths}", flush=True)
 
         # Build the complete frame in memory first to eliminate flashing

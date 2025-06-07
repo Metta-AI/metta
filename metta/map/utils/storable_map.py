@@ -10,7 +10,7 @@ from typing_extensions import TypedDict
 
 import mettagrid.util.file
 from metta.map.types import MapGrid
-from metta.map.utils.ascii_grid import ascii_to_grid, grid_to_ascii
+from metta.map.utils.ascii_grid import grid_to_lines, lines_to_grid
 from metta.map.utils.s3utils import list_objects
 from mettagrid.util import file as file_utils
 
@@ -45,7 +45,7 @@ class StorableMap:
                 "config": self.config,
             }
         )
-        content = frontmatter + "\n---\n" + "\n".join(grid_to_ascii(self.grid)) + "\n"
+        content = frontmatter + "\n---\n" + "\n".join(grid_to_lines(self.grid)) + "\n"
         return content
 
     def width(self) -> int:
@@ -70,7 +70,7 @@ class StorableMap:
         # make sure we didn't add extra lines because of newlines in the content
         lines = [line for line in lines if line]
 
-        return StorableMap(ascii_to_grid(lines), metadata=metadata, config=config)
+        return StorableMap(lines_to_grid(lines), metadata=metadata, config=config)
 
     def save(self, uri: str):
         file_utils.write_data(uri, str(self), content_type="text/plain")
@@ -85,7 +85,7 @@ class StorableMap:
                 "metadata": self.metadata,
                 "config": config_dict,
             },
-            "data": "\n".join(grid_to_ascii(self.grid)),
+            "data": "\n".join(grid_to_lines(self.grid)),
         }
 
 

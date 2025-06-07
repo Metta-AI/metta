@@ -3,8 +3,7 @@ params:
   pattern_size: 3
   iterations: 10
   temperature: 1
-  pattern: '|###|
-
-    |   |
-
-    |###|'
+  pattern: |-
+    #
+    .
+    #

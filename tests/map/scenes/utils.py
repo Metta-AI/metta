@@ -3,8 +3,8 @@ import pytest
 
 from metta.map.scene import Scene
 from metta.map.types import ChildrenAction, MapGrid
-from metta.map.utils.ascii_grid import add_pretty_border, bordered_text_to_lines
-from metta.map.utils.storable_map import grid_to_ascii
+from metta.map.utils.ascii_grid import add_pretty_border, char_grid_to_lines
+from metta.map.utils.storable_map import grid_to_lines
 
 
 def render_scene(cls: type[Scene], params: dict, shape: tuple[int, int], children: list[ChildrenAction] | None = None):
@@ -15,8 +15,8 @@ def render_scene(cls: type[Scene], params: dict, shape: tuple[int, int], childre
 
 
 def assert_grid(scene: Scene, ascii_grid: str):
-    grid_lines = grid_to_ascii(scene.grid)
-    expected_lines, _, _ = bordered_text_to_lines(ascii_grid)
+    grid_lines = grid_to_lines(scene.grid)
+    expected_lines, _, _ = char_grid_to_lines(ascii_grid)
 
     if grid_lines != expected_lines:
         expected_grid = "\n".join(add_pretty_border(expected_lines))
@@ -62,4 +62,4 @@ def is_connected(grid: MapGrid):
 
 def assert_connected(grid: MapGrid):
     if not is_connected(grid):
-        pytest.fail("Grid is not connected:\n" + "\n".join(grid_to_ascii(grid, border=True)))
+        pytest.fail("Grid is not connected:\n" + "\n".join(grid_to_lines(grid, border=True)))
