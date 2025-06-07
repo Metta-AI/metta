@@ -67,6 +67,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        self._uuid = self._get_uuid()
         self._log(f"Initializing MettaGridEnv with render_mode={render_mode}")
         self._render_mode = render_mode
         self._curriculum = curriculum
@@ -87,8 +88,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._precalc_queue = queue.Queue(maxsize=1)
         self._precalc_thread = None
         self._stop_precalc = threading.Event()
-
-        self._uuid = self._get_uuid()
 
         self._log("Starting initial precalculation")
         # Start precalculation for the first environment
