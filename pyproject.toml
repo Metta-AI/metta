@@ -94,3 +94,6 @@ pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "d3cde3f4
 carbs = { git = "https://github.com/imbue-ai/carbs.git" }
 wandb_carbs = { workspace = true }
 mettagrid = { workspace = true }
+
+[tool.pyright]
+reportMissingModuleSource = false
