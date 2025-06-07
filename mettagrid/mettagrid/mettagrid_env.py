@@ -295,7 +295,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 self._reset_at,
             )
 
-            self._episode_id = None
+        self._episode_id = None
 
     @property
     def max_steps(self) -> int:
