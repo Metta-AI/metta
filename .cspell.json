@@ -142,6 +142,7 @@
     "raylib",
     "relu",
     "repr",
+    "representer",
     "richcmp",
     "Roguelike",
     "scanline",

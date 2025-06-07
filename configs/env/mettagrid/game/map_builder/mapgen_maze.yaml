@@ -27,4 +27,4 @@ root:
             scene:
               type: metta.map.scenes.inline_ascii.InlineAscii
               params:
-                data: 'a' # altar
+                data: '_' # altar

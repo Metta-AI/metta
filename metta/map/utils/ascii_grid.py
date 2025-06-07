@@ -14,7 +14,7 @@ def add_pretty_border(lines: list[str]) -> list[str]:
     return lines
 
 
-def grid_to_ascii(grid: MapGrid, border: bool = False) -> list[str]:
+def grid_to_lines(grid: MapGrid, border: bool = False) -> list[str]:
     lines: list[str] = []
     for r in range(grid.shape[0]):
         row = []
@@ -28,7 +28,7 @@ def grid_to_ascii(grid: MapGrid, border: bool = False) -> list[str]:
     return lines
 
 
-def ascii_to_grid(lines: list[str]) -> MapGrid:
+def lines_to_grid(lines: list[str]) -> MapGrid:
     grid = np.full((len(lines), len(lines[0])), "empty", dtype="<U50")
     for r, line in enumerate(lines):
         for c, char in enumerate(line):
@@ -36,13 +36,10 @@ def ascii_to_grid(lines: list[str]) -> MapGrid:
     return grid
 
 
-def bordered_text_to_lines(text: str) -> tuple[list[str], int, int]:
+def char_grid_to_lines(text: str) -> tuple[list[str], int, int]:
     lines = []
     for line in text.strip().split("\n"):
         line = line.strip()
-        if line[0] != "|" or line[-1] != "|":
-            raise ValueError("Text must be enclosed in | characters")
-        line = line[1:-1]
         lines.append(line)
 
     height = len(lines)

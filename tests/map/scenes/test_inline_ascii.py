@@ -9,8 +9,8 @@ def test_basic():
         InlineAscii,
         {
             "data": """
-W A W
-W   W
+#.@.#
+#...#
 """
         },
         (3, 7),
@@ -19,9 +19,9 @@ W   W
     assert_grid(
         scene,
         """
-|#.@.#..|
-|#...#..|
-|.......|
+#.@.#..
+#...#..
+.......
 """,
     )
 
@@ -30,7 +30,7 @@ def test_row_column():
     scene = render_scene(
         InlineAscii,
         {
-            "data": "W A W",
+            "data": "#.@.#",
             "row": 1,
             "column": 2,
         },
@@ -40,9 +40,9 @@ def test_row_column():
     assert_grid(
         scene,
         """
-|.......|
-|..#.@.#|
-|.......|
+.......
+..#.@.#
+.......
 """,
     )
 
@@ -52,7 +52,7 @@ def test_overflow():
         render_scene(
             InlineAscii,
             {
-                "data": "WWWW",
+                "data": "####",
                 "row": 1,
                 "column": 2,
             },
