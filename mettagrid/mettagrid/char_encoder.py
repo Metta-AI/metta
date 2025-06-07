@@ -2,8 +2,6 @@
 NAME_TO_CHAR: dict[str, list[str]] = {
     # agents
     "agent.agent": ["@", "A"],
-    "agent.prey": ["Ap"],
-    "agent.predator": ["AP"],
     "agent.team_1": ["1"],
     "agent.team_2": ["2"],
     "agent.team_3": ["3"],
@@ -21,7 +19,7 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     # other objects
     "altar": ["a", "⛩"],
     "converter": ["c"],
-    "wall": ["W", "#", "🧱"],
+    "wall": ["#", "W", "🧱"],
     "empty": [".", " "],
     "block": ["s"],
     "lasery": ["L"],
