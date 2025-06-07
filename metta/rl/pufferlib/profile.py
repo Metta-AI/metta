@@ -1,5 +1,6 @@
 import functools
 import time
+from typing import Literal, overload
 
 from pufferlib.pufferl import Profile as PufferProfile
 
@@ -57,6 +58,16 @@ class Profile:
         self.uptime = 0
         self.remaining = 0
 
+    # Type overloads for context managers
+    @overload
+    def __getattr__(
+        self, name: Literal["env", "eval_forward", "eval_misc", "train_forward", "learn", "train_misc"]
+    ) -> ProfileTimer: ...
+
+    # Type overload for timing data
+    @overload
+    def __getattr__(self, name: str) -> float: ...
+
     def __getattr__(self, name):
         # Create context managers for profile sections
         if name in ["env", "eval_forward", "eval_misc", "train_forward", "learn", "train_misc"]:
@@ -81,7 +92,7 @@ class Profile:
         return self._profile.profiles.get(name, {}).get("elapsed", 0)
 
     @property
-    def epoch_time(self):
+    def epoch_time(self) -> float:
         """Total time for the epoch (train + eval)."""
         return self.train_time + self.eval_time
 
