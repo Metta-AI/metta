@@ -1,6 +1,7 @@
 import numpy as np
 
 from mettagrid.mettagrid_c import MettaGrid
+from mettagrid.mettagrid_env import dtype_actions
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
@@ -64,14 +65,14 @@ def test_truncation_at_max_steps():
     """Test that environments properly truncate at max_steps."""
     max_steps = 5
     c_env = create_minimal_mettagrid_c_env(max_steps=max_steps)
-    obs, info = c_env.reset()
+    _obs, _info = c_env.reset()
 
     # Noop until time runs out
     noop_action_idx = c_env.action_names().index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
     for step_num in range(1, max_steps + 1):
-        obs, rewards, terminals, truncations, info = c_env.step(actions)
+        _obs, _rewards, terminals, truncations, _info = c_env.step(actions)
         if step_num < max_steps:
             assert not np.any(truncations), f"Truncations should be False before max_steps at step {step_num}"
             assert not np.any(terminals), f"Terminals should be False before max_steps at step {step_num}"
@@ -90,7 +91,7 @@ class TestObservations:
         # These come from constants in the C++ code, and are fragile.
         TYPE_ID_FEATURE = 0
         WALL_TYPE_ID = 1
-        obs, info = c_env.reset()
+        obs, _info = c_env.reset()
         # Agent 0 starts at (1,1) and should see walls above and to the left
         # for now we treat the walls as "something non-empty"
         for x, y in [(0, 1), (1, 0)]:
@@ -105,7 +106,7 @@ class TestObservations:
     def test_observation_token_order(self):
         """Test observation token order."""
         c_env = create_minimal_mettagrid_c_env()
-        obs, info = c_env.reset()
+        obs, _info = c_env.reset()
         distances = []
         for location in obs[0, :, 0]:
             # cast as ints to avoid numpy uint8 underflow
@@ -176,7 +177,7 @@ def test_action_interface():
 
     # Test basic action execution
     noop_action_idx = action_names.index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
     obs, rewards, terminals, truncations, info = c_env.step(actions)
 
@@ -203,7 +204,7 @@ def test_environment_state_consistency():
 
     # Take a noop action (should not change world state significantly)
     noop_action_idx = c_env.action_names().index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
     _obs2, _rewards, _terminals, _truncations, _info2 = c_env.step(actions)
     post_step_objects = c_env.grid_objects()
