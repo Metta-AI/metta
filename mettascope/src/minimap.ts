@@ -11,7 +11,7 @@ export function drawMiniMap(panel: PanelInfo) {
   }
 
   if (ui.mouseDown && panel.inside(ui.mousePos)) {
-    const localMousePos = panel.transformPoint(ui.mousePos);
+    const localMousePos = panel.transformOuter(ui.mousePos);
     // Pan the main map to the mini map's mouse position.
     const miniMapMousePos = new Vec2f(
       Math.round(localMousePos.x() / Common.MINI_MAP_TILE_SIZE),
