@@ -157,7 +157,6 @@ public:
   virtual vector<PartialObservationToken> obs_features() const override {
     vector<PartialObservationToken> features;
     features.push_back({ObservationFeature::TypeId, _type_id});
-    features.push_back({ObservationFeature::Hp, hp});
     features.push_back({ObservationFeature::Color, color});
     features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
     for (uint8_t i = 0; i < InventoryItem::InventoryItemCount; i++) {

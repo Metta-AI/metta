@@ -30,7 +30,7 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.timing import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
-from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 
 torch.set_float32_matmul_precision("high")
 
@@ -387,7 +387,8 @@ class PufferTrainer:
                 actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
 
                 if __debug__:
-                    assert_shape(selected_action_log_probs, ("BT",), "collected_log_probs")
+                    assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
+                    assert_shape(actions, ("BT", 2), "actions")
 
                 lstm_h[:, training_env_id] = (
                     state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
@@ -410,8 +411,8 @@ class PufferTrainer:
                         infos[k].append(v)
 
             with profile.env:
-                actions = actions.cpu().numpy()
-                self.vecenv.send(actions)
+                actions_np = actions.cpu().numpy().astype(dtype_actions)
+                self.vecenv.send(actions_np)
 
         with profile.eval_misc:
             for k, v in infos.items():
@@ -859,7 +860,11 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
 
-        self.vecenv.async_reset(self.cfg.seed)
+        # Use rank-specific seed for environment reset to ensure different
+        # processes generate uncorrelated environments in distributed training
+        rank = int(os.environ.get("RANK", 0))
+        rank_specific_env_seed = self.cfg.seed + rank if self.cfg.seed is not None else rank
+        self.vecenv.async_reset(rank_specific_env_seed)
 
 
 class AbortingTrainer(PufferTrainer):
