@@ -182,7 +182,7 @@ class TestRewards:
 
         # Take a step with noop actions
         noop_action_idx = env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
         obs, step_rewards, terminals, truncations, info = env.step(actions)
 
@@ -279,7 +279,7 @@ class TestRewards:
 
         # Take first step
         noop_action_idx = env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
         obs, step_rewards_1, terminals, truncations, info = env.step(actions)
         episode_rewards_1 = env.get_episode_rewards()
@@ -312,7 +312,7 @@ class TestRewards:
 
         # Take steps
         noop_action_idx = env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
         obs, step_rewards_1, terminals, truncations, info = env.step(actions)
         episode_rewards_1 = env.get_episode_rewards()
