@@ -5,7 +5,7 @@ This avoids the need for commits when updating the policy.
 
 Usage:
     # Update to policy for current commit (auto-generated name)
-    python3 devops/recipes/update_eval_smoke_test.py
+    python3 devops/github/update_eval_smoke_test.py
 
     # Update to a specific policy
     python3 devops/recipes/update_eval_smoke_test.py sasmith_20250529_ablate_1_hot_types.3
