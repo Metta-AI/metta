@@ -1,12 +1,9 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 import argparse
 import copy
 import subprocess
-import sys
 
 import sky
-
-sys.path.insert(0, ".")
 
 from devops.skypilot.utils import launch_task
 

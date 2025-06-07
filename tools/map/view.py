@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 import argparse
 import logging
 from typing import get_args

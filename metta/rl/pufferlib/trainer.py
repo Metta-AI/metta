@@ -163,6 +163,7 @@ class PufferTrainer:
             lr=self.trainer_cfg.optimizer.learning_rate,
             betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
             eps=self.trainer_cfg.optimizer.eps,
+            weight_decay=self.trainer_cfg.optimizer.weight_decay,
         )
 
         # validate that policy matches environment
@@ -859,7 +860,11 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
 
-        self.vecenv.async_reset(self.cfg.seed)
+        # Use rank-specific seed for environment reset to ensure different
+        # processes generate uncorrelated environments in distributed training
+        rank = int(os.environ.get("RANK", 0))
+        rank_specific_env_seed = self.cfg.seed + rank if self.cfg.seed is not None else rank
+        self.vecenv.async_reset(rank_specific_env_seed)
 
 
 class AbortingTrainer(PufferTrainer):

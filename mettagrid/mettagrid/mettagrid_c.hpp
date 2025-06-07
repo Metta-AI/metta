@@ -51,7 +51,6 @@ public:
 
   unsigned int map_width();
   unsigned int map_height();
-  py::list grid_features();
   py::list feature_normalizations();
   unsigned int num_agents();
   py::array_t<float> get_episode_rewards();
@@ -102,7 +101,6 @@ private:
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 
-  std::vector<std::string> _grid_features;
   std::vector<float> _feature_normalizations;
 
   std::vector<bool> _action_success;

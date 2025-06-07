@@ -22,11 +22,22 @@ from mettagrid.util.diversity import calculate_diversity_bonus
 from mettagrid.util.hydra import simple_instantiate
 
 # These data types must match PufferLib -- see pufferlib/vector.py
+#
+# Important:
+#
+# In PufferLib's class Multiprocessing, the data type for actions will be set to int32
+# whenever the action space is Discrete or Multidiscrete. If we do not match the data type
+# here in our child class, then we will experience extra data conversions in the background.
+
+# Additionally the actions that are sent to the C environment will be int32 (because PufferEnv
+# controls the type of self.actions) -- creating an opportunity for type confusion.
+
+#
 dtype_observations = np.dtype(np.uint8)
 dtype_terminals = np.dtype(bool)
 dtype_truncations = np.dtype(bool)
 dtype_rewards = np.dtype(np.float32)
-dtype_actions = np.dtype(np.int32)  # forced to int32 when actions are Discrete or MultiDiscrete
+dtype_actions = np.dtype(np.int32)  # must be int32!
 dtype_masks = np.dtype(bool)
 dtype_success = np.dtype(bool)
 
@@ -65,7 +76,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._map_labels = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
-        self._episode_id: str = ""
+        self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
@@ -76,9 +87,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         super().__init__(buf)
 
         if self._render_mode is not None:
-            from .renderer.renderer import AsciiRenderer
+            if self._render_mode == "human":
+                from .renderer.nethack import NethackRenderer
 
-            self._renderer = AsciiRenderer(self.object_type_names)
+                self._renderer = NethackRenderer(self.object_type_names)
+            elif self._render_mode == "miniscope":
+                from .renderer.miniscope import MiniscopeRenderer
+
+                self._renderer = MiniscopeRenderer(self.object_type_names)
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -111,12 +127,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+        """
+        This method overrides the reset method from PufferEnv.
+        """
+
         self._reset_env()
 
-        self.observations = self.observations.astype(dtype_observations, copy=False)
-        self.terminals = self.terminals.astype(dtype_terminals, copy=False)
-        self.truncations = self.truncations.astype(dtype_truncations, copy=False)
-        self.rewards = self.rewards.astype(dtype_rewards, copy=False)
+        assert self.observations.dtype == dtype_observations
+        assert self.terminals.dtype == dtype_terminals
+        assert self.truncations.dtype == dtype_truncations
+        assert self.rewards.dtype == dtype_rewards
 
         self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
@@ -132,18 +152,32 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
+        """
+        Execute one timestep of the environment dynamics with the given actions.
+
+        IMPORTANT: In training mode, the `actions` parameter and `self.actions` may be the same
+        object, but in simulation mode they are independent. Always use the passed-in `actions`
+        parameter to ensure correct behavior in all contexts.
+
+        Args:
+            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
+
+        Returns:
+            Tuple of (observations, rewards, terminals, truncations, infos)
+
+        """
+
         if __debug__:
-            # Validate actions BEFORE type conversion to catch issues early
             from mettagrid.util.actions import validate_actions
 
             validate_actions(self, actions, logger)
 
-        if self._replay_writer:
-            self._replay_writer.log_pre_step(self._episode_id, self.actions)
+        if self._replay_writer and self._episode_id:
+            self._replay_writer.log_pre_step(self._episode_id, actions)
 
-        self._c_env.step(self.actions)
+        self._c_env.step(actions)
 
-        if self._replay_writer:
+        if self._replay_writer and self._episode_id:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
 
         infos = {}
@@ -261,7 +295,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 self._reset_at,
             )
 
-            self._episode_id = ""
+            self._episode_id = None
 
     @property
     def max_steps(self) -> int:
@@ -307,10 +341,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     def done(self):
         return self._should_reset
-
-    @property
-    def grid_features(self) -> list[str]:
-        return self._c_env.grid_features()
 
     @property
     def feature_normalizations(self):

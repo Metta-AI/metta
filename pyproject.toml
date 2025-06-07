@@ -57,6 +57,9 @@ dependencies = [
     "wandb-core==0.17.0b11",
 ]
 
+[project.optional-dependencies]
+dev = ["skypilot==0.9.2"]
+
 [project.scripts]
 skypilot = "devops.skypilot.launch:main"
 skypilot-sandbox = "devops.skypilot.sandbox:main"
@@ -76,11 +79,14 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
 
+[tool.uv]
+cache-keys = [{ file = "pyproject.toml" }, { file = "CMakeLists.txt" }, { file = "metta/**/*.{cpp,hpp}" }]
+
 [tool.uv.workspace]
 members = ["mettagrid", "wandb_carbs"]
 
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/relh/PufferLib.git", rev = "3.0" }
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "3.0" }
 carbs = { git = "https://github.com/imbue-ai/carbs.git" }
 wandb_carbs = { workspace = true }
 mettagrid = { workspace = true }

@@ -5,11 +5,7 @@
 
 Wandb Carbs is a Python package that integrates the [CARBS](https://github.com/imbue-ai/carbs) (Cost-Aware Bayesian Search) hyperparameter optimization library with [Weights & Biases](https://wandb.ai/) (W&B) sweeps. It enables cost-aware Bayesian parameter search using W&B's sweep functionality, allowing for efficient hyperparameter optimization across multiple parallel agents while storing all state within W&B.
 
-> **Note:** This project is now compatible with [uv](https://github.com/astral-sh/uv) for fast Python package management. You can install it in editable mode with:
->
-> ```bash
-> uv pip install -e .
-> ```
+> **Note:** This project is using [uv](https://github.com/astral-sh/uv) for fast Python package management. Refer to the top-level README for instructions.
 
 ## Table of Contents
 
@@ -40,11 +36,7 @@ You can install Wandb Carbs via pip:
 pip install wandb_carbs
 ```
 
-Or, for local development using [uv](https://github.com/astral-sh/uv):
-
-```bash
-uv pip install -e .
-```
+For local development, refer to the top-level [README.md](../README.md) in this repository.
 
 ## Usage
 
