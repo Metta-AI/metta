@@ -6,10 +6,11 @@
 #include <vector>
 
 #include "grid_object.hpp"
+#include "objects/constants.hpp"
 
-using std::vector;
-using std::unique_ptr;
 using std::max;
+using std::unique_ptr;
+using std::vector;
 typedef vector<vector<vector<GridObjectId>>> GridType;
 
 class Grid {
@@ -24,9 +25,16 @@ public:
 
   inline Grid(unsigned int width, unsigned int height, vector<Layer> layer_for_type_id)
       : width(width), height(height), layer_for_type_id(layer_for_type_id) {
-    num_layers = *max_element(layer_for_type_id.begin(), layer_for_type_id.end()) + 1;
-    grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(this->num_layers, 0)));
+    num_layers = GridLayer::GridLayerCount;
 
+    for (const auto& layer : layer_for_type_id) {
+      if (layer < 0 || layer >= num_layers) {
+        throw std::invalid_argument("Layer ID " + std::to_string(layer) + " is out of bounds [0, " +
+                                    std::to_string(num_layers) + ")");
+      }
+    }
+
+    grid.resize(height, vector<vector<GridObjectId>>(width, vector<GridObjectId>(this->num_layers, 0)));
     // 0 is reserved for empty space
     objects.push_back(nullptr);
   }

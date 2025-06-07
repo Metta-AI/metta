@@ -43,6 +43,8 @@ dtype_success = np.dtype(bool)
 
 logger = logging.getLogger("MettaGridEnv")
 
+logger = logging.getLogger("MettaGridEnv")
+
 
 def required(func):
     """Marks methods that PufferEnv requires but does not implement for override."""
@@ -68,6 +70,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        self._debug = False
         self._render_mode = render_mode
         self._curriculum = curriculum
         self._task = self._curriculum.get_task()
@@ -83,9 +86,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
 
-        self._reset_env()
-        super().__init__(buf)
-
         if self._render_mode is not None:
             if self._render_mode == "human":
                 from .renderer.nethack import NethackRenderer
@@ -95,6 +95,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 from .renderer.miniscope import MiniscopeRenderer
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
+
+        self._reset_env()
+        super().__init__(buf)
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -122,7 +125,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         self._c_env = MettaGrid(config_dict, level.grid.tolist())
-
         self._grid_env = self._c_env
 
     @override
@@ -244,10 +246,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._stats_writer:
             assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-            attributes = {
-                "seed": self._current_seed,
-                "map_w": self.map_width,
-                "map_h": self.map_height,
+            attributes: Dict[str, str] = {
+                "seed": str(self._current_seed),
+                "map_w": str(self.map_width),
+                "map_h": str(self.map_height),
             }
 
             for k, v in unroll_nested_dict(OmegaConf.to_container(self._task.env_cfg(), resolve=False)):
@@ -275,7 +277,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 replay_url,
                 self._reset_at,
             )
-        self._episode_id = None
+        self._episode_id = ""
 
     @property
     def max_steps(self) -> int:
@@ -302,10 +304,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             MultiDiscrete: A MultiDiscrete space with shape (num_actions, max_action_arg + 1)
         """
         return self._c_env.action_space
-
-    @property
-    def action_names(self):
-        return self._c_env.action_names()
 
     @property
     @required
