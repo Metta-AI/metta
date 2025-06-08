@@ -857,9 +857,14 @@ class PufferTrainer:
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
+        if torch.distributed.is_initialized():
+            world_size = torch.distributed.get_world_size()
+        else:
+            world_size = 1
+
         # self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
         self.batch_size = int(self.target_batch_size)
-        self.batch_size = 256 // 8
+        self.batch_size = 1024 // world_size
         print(f"self.batch_size: {self.batch_size}")  # 512
 
         # if torch.distributed.is_initialized():
@@ -867,7 +872,7 @@ class PufferTrainer:
         #     num_envs = (self.batch_size * self.trainer_cfg.async_factor) // 4
         # else:
         #     num_envs = self.batch_size * self.trainer_cfg.async_factor
-        num_envs = 256 // 8
+        num_envs = 1024 // world_size
 
         print(f"self.num_envs: {num_envs}")
 
