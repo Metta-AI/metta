@@ -367,8 +367,8 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       }
 
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
-      bool success = handler->handle_action(agent->id, arg);
-      _action_success[idx] = success;
+      bool success = handler->handle_action(agent->id, action_arg);
+      _action_success[agent_idx] = success;
     }
   }
 
