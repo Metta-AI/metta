@@ -77,6 +77,7 @@ def simulate_policy(
             stats_dir=sim_job.stats_dir,
             device=cfg.device,
             vectorization=cfg.vectorization,
+            mind_reader_config=cfg.get("mind_reader", None),
         )
         sim_results = sim.simulate()
 

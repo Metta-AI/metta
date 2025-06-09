@@ -27,6 +27,7 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.rl.pufferlib.policy import PufferAgent
+from metta.sim.mind_reader import MindReaderLogger
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
@@ -60,6 +61,7 @@ class Simulation:
         suite=None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
+        mind_reader_config: dict | None = None,
     ):
         self._name = name
         self._suite = suite
@@ -158,6 +160,11 @@ class Simulation:
             else torch.tensor([], device=self._device)
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
+
+        # ---------------- mind reader setup ---------------------------- #
+        if mind_reader_config is None:
+            mind_reader_config = {"enabled": False, "output_dir": "./mind_reader_data/"}
+        self._mind_reader_logger = MindReaderLogger(mind_reader_config, self._id)
 
     def start_simulation(self) -> None:
         """
@@ -271,9 +278,27 @@ class Simulation:
             elif not done_now[e] and self._env_done_flags[e]:
                 self._env_done_flags[e] = False
 
+        # ---------------- mind reader logging -------------------- #
+        if self._mind_reader_logger.enabled:
+            try:
+                # Get grid objects from the underlying MettaGridEnv
+                metta_grid_env = self._vecenv.driver_env
+                assert isinstance(metta_grid_env, MettaGridEnv)
+                grid_objects = metta_grid_env.grid_objects
+                self._mind_reader_logger.log_timestep(
+                    self._policy_state, self._npc_state, self._policy_idxs, self._npc_idxs, grid_objects
+                )
+            except Exception as e:
+                logger.warning(f"Mind reader logging failed: {e}")
+
     def end_simulation(self) -> SimulationResults:
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
+
+        # Save mind reader data
+        if self._mind_reader_logger.enabled:
+            self._mind_reader_logger.save_data()
+
         db = self._from_shards_and_context()
 
         logger.info(

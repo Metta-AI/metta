@@ -13,3 +13,7 @@ torch_deterministic: true
 vectorization: multiprocessing
 seed: 0
 device: cuda
+
+mind_reader:
+  enabled: false
+  output_dir: ./mind_reader_data/

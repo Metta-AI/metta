@@ -4,3 +4,10 @@ trainer:
   env: /env/mettagrid/diversity/multi_left_or_right
 
 run: diversity-train-test-1
+policy_uri: wandb://run/b.georgedeane.george_sequence_no_increment
+
+
+# Mind reader configuration for collecting LSTM memory and position data
+# mind_reader:
+#   enabled: true
+#   output_dir: ./mind_reader_data/
