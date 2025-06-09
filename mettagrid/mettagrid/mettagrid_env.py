@@ -78,6 +78,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.timer = Stopwatch(logger)
         self.timer.start()
         self._steps = 0
+        self._cache_hits = 0
+        self._cache_misses = 0
 
         self._render_mode = render_mode
         self._curriculum = curriculum
@@ -119,10 +121,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 if cache_ctx.hit:
                     with self.timer("cache_hit"):
                         level = cache_ctx.get()
+                        self._cache_hits += 1
                 else:
                     with self.timer("cache_miss"):
                         map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
                         level = map_builder.build()
+                        self._cache_misses += 1
                     with self.timer("cache_set"):
                         cache_ctx.set(level)
 
@@ -279,6 +283,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         }
 
         infos["timing"] = timing_logs
+
+        infos["cache/hits"] = self._cache_hits
+        infos["cache/misses"] = self._cache_misses
 
         infos["episode_rewards"] = episode_rewards
         # infos["agent_raw"] = stats["agent"]

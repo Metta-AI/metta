@@ -6,7 +6,7 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/simple
+  env: /env/mettagrid/curriculum/navigation
   evaluate_interval: 200
 
 policy_uri: puffer:///tmp/puffer_metta.pt
@@ -32,9 +32,9 @@ sweep:
 
 wandb:
   enabled: true
-  checkpoint_interval: 10
+  # checkpoint_interval: 10
 
-run_id: 6
+run_id: 0
 run: ${oc.env:USER}.local.${now:MMDD}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
