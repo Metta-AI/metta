@@ -1,5 +1,5 @@
-import torch
 import einops
+import torch
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
