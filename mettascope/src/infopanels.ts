@@ -112,7 +112,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
 
   for (const key in object) {
     let value = getAttr(object, key);
-    if (key.startsWith("inv:") && value > 0) {
+    if ((key.startsWith("inv:") || key.startsWith("agent:inv:")) && value > 0) {
       var item = itemTemplate.cloneNode(true) as HTMLElement;
       item.querySelector(".amount")!.textContent = value;
       let resource = key.replace("inv:", "").replace("agent:", "");
