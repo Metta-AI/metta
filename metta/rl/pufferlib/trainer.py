@@ -27,7 +27,7 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.timing import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
-from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 
 try:
     from pufferlib import _C
@@ -442,69 +442,32 @@ class PufferTrainer:
                 logprob = selected_action_log_probs
 
                 if __debug__:
-                    assert_shape(selected_action_log_probs, ("BT",), "collected_log_probs")
+                    assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
+                    assert_shape(actions, ("BT", 2), "actions")
 
-                r = torch.clamp(r, -1, 1)
+                lstm_h[:, training_env_id] = (
+                    state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
+                )
+                lstm_c[:, training_env_id] = (
+                    state.lstm_c if state.lstm_c is not None else torch.zeros_like(lstm_c[:, training_env_id])
+                )
+
+                if self.device == "cuda":
+                    torch.cuda.synchronize()
 
             with profile.eval_misc:
-                if config.get("use_rnn", True) and hasattr(self, "lstm_h"):
-                    # Update LSTM states from PolicyState
-                    if state.lstm_h is not None and state.lstm_c is not None:
-                        # Find the key for this batch of environments
-                        batch_key = (env_id.start // self.vecenv.agents_per_batch) * self.vecenv.agents_per_batch
+                value = value.flatten()
+                mask = torch.as_tensor(mask)  # * policy.mask)
+                o = o if self.trainer_cfg.cpu_offload else o_device
+                self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
-                        if batch_key in self.lstm_h:
-                            # Get the environment indices within the batch
-                            env_indices = list(
-                                range(
-                                    env_id.start % self.vecenv.agents_per_batch,
-                                    (env_id.stop - 1) % self.vecenv.agents_per_batch + 1,
-                                )
-                            )
-
-                            # Update the batch of LSTM states with the new values
-                            self.lstm_h[batch_key][:, env_indices, :] = state.lstm_h  # [num_layers, batch_size, hidden]
-                            self.lstm_c[batch_key][:, env_indices, :] = state.lstm_c  # [num_layers, batch_size, hidden]
-
-                # Store experience
-                # Get the batch of environments
-                batch_size = env_id.stop - env_id.start
-
-                for i, env_idx in enumerate(range(env_id.start, env_id.stop)):
-                    l = self.ep_lengths[env_idx].item()
-                    row_idx = self.ep_indices[env_idx].item()
-
-                    if config.cpu_offload:
-                        self.observations[row_idx, l] = o[i]
-                    else:
-                        self.observations[row_idx, l] = o_device[i]
-
-                    self.actions[row_idx, l] = action[i]
-                    self.logprobs[row_idx, l] = logprob[i]
-                    self.rewards[row_idx, l] = r[i]
-                    self.terminals[row_idx, l] = d[i].float()
-                    self.values[row_idx, l] = value[i].item()
-
-                # Update episode tracking
-                self.ep_lengths[env_id] += 1
-                # Check if any episodes have completed their horizon
-                for env_idx in range(env_id.start, env_id.stop):
-                    if self.ep_lengths[env_idx] >= config.bptt_horizon:
-                        # Wrap around to reuse buffer slots
-                        self.ep_indices[env_idx] = self.free_idx % self.segments
-                        self.ep_lengths[env_idx] = 0
-                        self.free_idx = (self.free_idx + 1) % self.segments
-                        self.full_rows += 1
-
-                action = action.cpu().numpy()
-
-            # Collect stats
-            for i in info:
-                for k, v in unroll_nested_dict(i):
-                    infos[k].append(v)
+                for i in info:
+                    for k, v in unroll_nested_dict(i):
+                        infos[k].append(v)
 
             with profile.env:
-                self.vecenv.send(action)
+                actions_np = actions.cpu().numpy().astype(dtype_actions)
+                self.vecenv.send(actions_np)
 
         with profile.eval_misc:
             for k, v in infos.items():
@@ -1006,7 +969,23 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
 
-        self.vecenv.async_reset(self.cfg.seed)
+        # Use rank-specific seed for environment reset to ensure different
+        # processes generate uncorrelated environments in distributed training
+        rank = int(os.environ.get("RANK", 0))
+        rank_specific_env_seed = self.cfg.seed + rank if self.cfg.seed is not None else rank
+        self.vecenv.async_reset(rank_specific_env_seed)
+
+    def close(self):
+        self.vecenv.close()
+
+    def initial_pr_uri(self):
+        return self._initial_pr.uri
+
+    def last_pr_uri(self):
+        return self.last_pr.uri
+
+    def _on_train_step(self):
+        pass
 
     def close(self):
         self.vecenv.close()

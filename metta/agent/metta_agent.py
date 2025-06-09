@@ -93,9 +93,6 @@ class MettaAgent(nn.Module):
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
 
-        # self.observation_space = obs_space # for use with FeatureSetEncoder
-        # self.global_features = global_features # for use with FeatureSetEncoder
-
         self.components = nn.ModuleDict()
         component_cfgs = convert_to_dict(cfg.components)
 
