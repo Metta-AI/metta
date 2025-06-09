@@ -1,6 +1,30 @@
 # Demo sweep configuration for testing the Protein optimizer
+method: bayes  # Required by WandB (but Protein will override)
+metric:
+  name: reward
+  goal: maximize
+
+parameters:
+  # Learning rate - log-normal distribution
+  trainer.learning_rate:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-2
+
+  # Batch size - integer uniform distribution
+  trainer.batch_size:
+    distribution: int_uniform
+    min: 32
+    max: 128
+
+  # PPO gamma parameter - uniform distribution
+  trainer.gamma:
+    distribution: uniform
+    min: 0.9
+    max: 0.999
+
+# Protein-specific config (will be read by MettaProtein)
 sweep:
-  # Optimization settings
   metric: reward
   goal: maximize
   num_random_samples: 3  # Small number for quick testing
