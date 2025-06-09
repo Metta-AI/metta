@@ -75,6 +75,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        self.timer = Stopwatch(logger)
+        self.timer.start()
+        self._steps = 0
+
         self._render_mode = render_mode
         self._curriculum = curriculum
         self._task = self._curriculum.get_task()
@@ -88,9 +92,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._current_seed = 0
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
-
-        self.timer = Stopwatch(logger)
-        self.timer.start()
 
         self._initialize_c_env(self._task)
         super().__init__(buf)
@@ -156,9 +157,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         """
 
         # Get a new task
-        self._task = self._curriculum.get_task()
+        with self.timer("reset.get_task"):
+            self._task = self._curriculum.get_task()
 
-        self._initialize_c_env(self._task)
+        with self.timer("reset._initialize_c_env"):
+            self._initialize_c_env(self._task)
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -173,7 +176,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._replay_writer:
             self._replay_writer.start_episode(self._episode_id, self)
 
-        obs, infos = self._c_env.reset()
+        with self.timer("_c_env.reset"):
+            obs, infos = self._c_env.reset()
+
         self._should_reset = False
         return obs, infos
 
@@ -202,7 +207,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_pre_step(self._episode_id, actions)
 
-        self._c_env.step(actions)
+        with self.timer("_c_env.step"):
+            self._c_env.step(actions)
+            self._steps += 1
 
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
@@ -250,7 +257,28 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             for label in self.labels:
                 infos[f"rewards/env:{label}"] = episode_rewards_mean
 
-        stats = self._c_env.get_episode_stats()
+        with self.timer("_c_env.get_episode_stats"):
+            stats = self._c_env.get_episode_stats()
+
+        timer_data = {}
+        wall_time = self.timer.get_elapsed()  # global timer
+        timer_data = self.timer.get_all_elapsed()
+
+        steps_per_sec = self._steps / wall_time if wall_time > 0 else 0
+
+        timing_logs = {
+            # Key performance indicators
+            "timing/steps_per_second": steps_per_sec,
+            # Breakdown by operation (as a single structured metric)
+            "timing/breakdown": {
+                op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
+                for op, elapsed in timer_data.items()
+            },
+            # Total time for reference
+            "timing/total_seconds": wall_time,
+        }
+
+        infos["timing"] = timing_logs
 
         infos["episode_rewards"] = episode_rewards
         # infos["agent_raw"] = stats["agent"]
