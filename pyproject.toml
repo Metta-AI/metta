@@ -80,13 +80,17 @@ python_classes = ["Test*"]
 filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
 
 [tool.uv]
-cache-keys = [{ file = "pyproject.toml" }, { file = "CMakeLists.txt" }, { file = "metta/**/*.{cpp,hpp}" }]
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "CMakeLists.txt" },
+    { file = "metta/**/*.{cpp,hpp}" },
+]
 
 [tool.uv.workspace]
 members = ["mettagrid", "wandb_carbs"]
 
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "3.0" }
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }
 carbs = { git = "https://github.com/imbue-ai/carbs.git" }
 wandb_carbs = { workspace = true }
 mettagrid = { workspace = true }
