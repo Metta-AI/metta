@@ -160,7 +160,6 @@ def sync_versions(mettagrid_deps: List[Dependency], metta_deps: List[Dependency]
                 # Keep as-is
                 updated_deps.append(dep)
         else:
-            # Dependency not in metta, keep as-is
             updated_deps.append(dep)
 
     return updated_deps, changes
@@ -172,7 +171,6 @@ def recreate_dependencies_section(content_without_deps: str, dependencies: List[
     """
     lines = content_without_deps.split("\n")
 
-    # Create the new dependencies section
     comment_lines = [
         "# NOTE: Versions synced with metta pyproject.toml for compatibility.",
         "# Dependencies list maintained manually, versions updated automatically.",
@@ -181,7 +179,6 @@ def recreate_dependencies_section(content_without_deps: str, dependencies: List[
 
     deps_lines = ["dependencies = ["]
 
-    # Add each dependency with proper formatting
     for dep in dependencies:
         deps_lines.append(f'    "{dep}",')
 
