@@ -8,18 +8,19 @@ from typing import Any, Dict, Optional, cast
 import gymnasium as gym
 import numpy as np
 import pufferlib
+from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from pufferlib import unroll_nested_dict
 from pydantic import validate_call
 from typing_extensions import override
 
-from mettagrid.curriculum import Curriculum
+from metta.util.s3_cache import S3CacheManager
+from mettagrid.curriculum import Curriculum, Task
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.diversity import calculate_diversity_bonus
-from mettagrid.util.hydra import simple_instantiate
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
@@ -28,11 +29,9 @@ from mettagrid.util.hydra import simple_instantiate
 # In PufferLib's class Multiprocessing, the data type for actions will be set to int32
 # whenever the action space is Discrete or Multidiscrete. If we do not match the data type
 # here in our child class, then we will experience extra data conversions in the background.
-
 # Additionally the actions that are sent to the C environment will be int32 (because PufferEnv
 # controls the type of self.actions) -- creating an opportunity for type confusion.
 
-#
 dtype_observations = np.dtype(np.uint8)
 dtype_terminals = np.dtype(bool)
 dtype_truncations = np.dtype(bool)
@@ -47,6 +46,12 @@ logger = logging.getLogger("MettaGridEnv")
 def required(func):
     """Marks methods that PufferEnv requires but does not implement for override."""
     return func
+
+
+# Cache manager for expensive map building operations
+map_cache = S3CacheManager(
+    bucket_name="softmax-level-cache", prefix="map_builder_cache/", compression_level=6, aws_region="us-east-1"
+)
 
 
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
@@ -79,11 +84,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
-
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
 
-        self._reset_env()
+        self._initialize_c_env(self._task)
         super().__init__(buf)
 
         if self._render_mode is not None:
@@ -99,23 +103,30 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
-    def _reset_env(self):
-        # Prepare the level
-        self._task = self._curriculum.get_task()
+    def _initialize_c_env(self, task: Task) -> None:
+        """Initialize the C++ environment."""
+
         level = self._level
         if level is None:
-            map_builder = simple_instantiate(self._task.env_cfg().game.map_builder, recursive=True)
-            level = map_builder.build()
+            map_builder_config = task.env_cfg().game.map_builder
+            with map_cache(map_builder_config) as cache_ctx:
+                if cache_ctx.hit:
+                    # Cache hit - use cached level
+                    level = cache_ctx.get()
+                else:
+                    # Cache miss - do the expensive map building
+                    map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
+                    level = map_builder.build()
+                    cache_ctx.set(level)
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert self._task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {self._task.env_cfg().game.num_agents} "
-            f"does not match number of agents in map {level_agents}"
+        assert task.env_cfg().game.num_agents == level_agents, (
+            f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        # Convert to container for C++ code with explicit casting to Dict[str, Any]
-        config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))
+        # Convert to container for C++ code
+        config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
 
         self._map_labels = level.labels
 
@@ -131,7 +142,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         This method overrides the reset method from PufferEnv.
         """
 
-        self._reset_env()
+        # Get a new task
+        self._task = self._curriculum.get_task()
+
+        self._initialize_c_env(self._task)
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
