@@ -1,9 +1,10 @@
+import numpy as np
 import pytest
 from gymnasium.spaces import Box, MultiDiscrete
 from omegaconf import OmegaConf
 
 from mettagrid.curriculum import SingleTaskCurriculum
-from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.util.hydra import get_cfg
 
 
@@ -79,7 +80,8 @@ class TestEnvironmentFunctionality:
 
         num_agents = environment._c_env.num_agents
         # Take a step with NoOp actions for all agents
-        (obs, rewards, terminated, truncated, infos) = environment.step([[0, 0]] * num_agents)
+        actions = np.array([[0, 0]] * num_agents, dtype=dtype_actions)
+        (obs, rewards, terminated, truncated, infos) = environment.step(actions)
 
         # Check timestep increased
         assert environment._c_env.current_step == 1
