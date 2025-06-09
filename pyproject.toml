@@ -26,7 +26,7 @@ dependencies = [
     "mettagrid",
     "numpy==2.2.6",
     "omegaconf==2.4.0.dev3",
-    "pandas==2.2.3",
+    "pandas==2.3.0",
     "pettingzoo==1.25.0",
     "pixie-python==4.3.0",
     "plotly==6.1.1",
