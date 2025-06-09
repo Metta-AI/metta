@@ -6,7 +6,7 @@ import { getAttr, sendAction } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame, updateSelection } from './main.js';
 import { parseHtmlColor, find } from './htmlutils.js';
-import { updateHoverPanel, updateReadout } from './infopanels.js';
+import { updateHoverPanel, updateReadout, InfoPanel } from './infopanels.js';
 
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
@@ -723,6 +723,30 @@ function drawAttackMode() {
   }
 }
 
+function drawInfoLine(panel: InfoPanel) {
+  // Draw selection dotted circle around the object.
+  const x = getAttr(panel.object, "c");
+  const y = getAttr(panel.object, "r");
+  ctx.drawSprite("info.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+
+  // Compute the panel position in the world map coordinates.
+  const panelBounds = panel.div.getBoundingClientRect();
+  const panelScreenPos = new Vec2f(panelBounds.left + 20, panelBounds.top + 20);
+  const panelWorldPos = ui.mapPanel.transformOuter(panelScreenPos);
+
+  // Draw a line from the object to the panel.
+  ctx.drawSpriteLine(
+    "dash.png",
+    x * Common.TILE_SIZE,
+    y * Common.TILE_SIZE,
+    panelWorldPos.x(),
+    panelWorldPos.y(),
+    60,
+    [1, 1, 1, 1],
+    2
+  );
+}
+
 export function drawMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -782,7 +806,7 @@ export function drawMap(panel: PanelInfo) {
         ui.delayedHoverObject = ui.hoverObject;
         updateHoverPanel(ui.delayedHoverObject)
       }
-    }, 1000);
+    }, Common.INFO_PANEL_POP_TIME);
 
   }
 
@@ -820,6 +844,7 @@ export function drawMap(panel: PanelInfo) {
   updateReadout()
   for (const panel of ui.infoPanels) {
     panel.update();
+    drawInfoLine(panel);
   }
 
   ctx.restore();

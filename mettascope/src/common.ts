@@ -31,6 +31,9 @@ export const DEFAULT_VISION_SIZE = 11;
 export const TRACE_HEIGHT = 512;
 export const TRACE_WIDTH = 54;
 
+// Info panel constants
+export const INFO_PANEL_POP_TIME = 300; // ms
+
 // Colors for resources
 export const COLORS: [string, [number, number, number, number]][] = [
   ["red", parseHtmlColor("#E4433A")],
