@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - agent: simple
+  - agent: simple_to_box
   - sim: sweep_eval
   - trainer: puffer
   - _self_
