@@ -300,7 +300,8 @@ class TwoRoomsCoord(Room):
         elif self._num_total_agents > num_agents_to_attempt_placement:
             print(
                 f"Warning: Placed {agents_placed_count} agents. "
-                f"Initial request for {self._num_total_agents} total agents, but only {num_agents_to_attempt_placement} were validly specified."
+                f"Initial request for {self._num_total_agents} total agents, "
+                f"but only {num_agents_to_attempt_placement} were validly specified."
             )
 
         return grid
