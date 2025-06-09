@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 16 
+  num_agents: 24
 
   agent:
     default_item_max: 50
@@ -20,7 +20,7 @@ game:
       height: 25
       border_width: 0
 
-      agents: 4
+      agents: 6
 
       objects:
         mine: 10
