@@ -19,7 +19,9 @@ from metta.agent.util.debug import assert_shape
 from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.pufferlib.kickstarter import Kickstarter
+from metta.rl.pufferlib.policy import PufferAgent
 from metta.rl.pufferlib.profile import Profile
+from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
@@ -58,7 +60,7 @@ class PufferTrainer:
         self.trainer_cfg = cfg.trainer
         self.sim_suite_config = sim_suite_config
 
-        # Backend perf optimization
+        # Backend optimization
         torch.backends.cudnn.deterministic = self.trainer_cfg.get("torch_deterministic", True)
         torch.backends.cudnn.benchmark = True
 
@@ -106,30 +108,7 @@ class PufferTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
 
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
-
-        policy_record = None
-        load_policy_attempts = 10
-        while policy_record is None and load_policy_attempts > 0:
-            if checkpoint.policy_path:
-                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                policy_record = policy_store.policy(checkpoint.policy_path)
-                if "average_reward" in checkpoint.extra_args:
-                    self.average_reward = checkpoint.extra_args["average_reward"]
-            elif cfg.trainer.initial_policy.uri is not None:
-                logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
-                policy_record = policy_store.policy(cfg.trainer.initial_policy)
-            else:
-                policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    policy_record = policy_store.policy(policy_path)
-                elif self._master:
-                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                    policy_record = policy_store.create(metta_grid_env)
-            if policy_record is not None:
-                break
-            load_policy_attempts -= 1
-            time.sleep(5)
+        policy_record = self._load_policy(checkpoint)
 
         assert policy_record is not None, "No policy found"
 
@@ -161,7 +140,6 @@ class PufferTrainer:
             self._original_policy = self.policy
             self.policy = DistributedMettaAgent(self.policy, self.device)
 
-        # Experience buffer setup
         self._make_experience_buffer()
 
         # Training state
@@ -172,7 +150,7 @@ class PufferTrainer:
         self.last_log_time = time.time()
         self.start_time = time.time()
 
-        # Optimizer setup
+        # Optimizer
         assert self.trainer_cfg.optimizer.type in ("adam", "muon"), (
             f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
         )
@@ -195,53 +173,106 @@ class PufferTrainer:
                 self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
             )
 
-        # Automatic mixed precision
+        # Mixed precision
         precision = self.trainer_cfg.get("precision", "float32")
         self.amp_context = torch.amp.autocast(device_type="cuda", dtype=getattr(torch, precision))
 
         # Monitoring
-        self.profile = Profile(frequency=1)  # Use frequency=1 to profile every epoch
+        self.profile = Profile(frequency=1)
+        self.torch_profiler = None
+        if cfg.trainer.get("profiler_interval_epochs", 0) > 0 and wandb_run is not None:
+            self.torch_profiler = TorchProfiler(
+                self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run
+            )
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        # Model info
+        # Policy validation
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
+        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
+        _env_shape = metta_grid_env.single_observation_space.shape
+        environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
+
+        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
+            found_match = False
+            for component_name, component in self.metta_agent.components.items():
+                if hasattr(component, "_obs_shape"):
+                    found_match = True
+                    component_shape = (
+                        tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
+                    )
+                    if component_shape != environment_shape:
+                        raise ValueError(
+                            f"Observation space mismatch error:\n"
+                            f"component_name: {component_name}\n"
+                            f"component_shape: {component_shape}\n"
+                            f"environment_shape: {environment_shape}\n"
+                        )
+
+            if not found_match:
+                raise ValueError(
+                    "No component with observation shape found in policy. "
+                    f"Environment observation shape: {environment_shape}"
+                )
+
         self.model_size = sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
+        self.experience = None  # For compatibility
 
-        # Create experience property for old-style code compatibility
-        # The new trainer doesn't use Experience class but tracks segments directly
-        self.experience = None
-
-        # Replay simulation config
+        # Replay config
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
             num_episodes=1,
             env_overrides=self._curriculum.get_task().env_cfg(),
         )
 
-        # ... existing code ...
+        # Define wandb metrics
+        if wandb_run and self._master:
+            wandb_run.define_metric("train/agent_step")
+            for k in ["overview", "env", "losses", "performance", "train"]:
+                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
+    def _load_policy(self, checkpoint):
+        """Load policy from checkpoint or create new one."""
+        load_policy_attempts = 10
+        while load_policy_attempts > 0:
+            if checkpoint.policy_path:
+                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+                policy_record = self.policy_store.policy(checkpoint.policy_path)
+                if "average_reward" in checkpoint.extra_args:
+                    self.average_reward = checkpoint.extra_args["average_reward"]
+                return policy_record
+            elif self.cfg.trainer.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy URI: {self.cfg.trainer.initial_policy.uri}")
+                return self.policy_store.policy(self.cfg.trainer.initial_policy)
+            else:
+                policy_path = os.path.join(self.cfg.trainer.checkpoint_dir, self.policy_store.make_model_name(0))
+                if os.path.exists(policy_path):
+                    logger.info(f"Loading policy from checkpoint: {policy_path}")
+                    return self.policy_store.policy(policy_path)
+                elif self._master:
+                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
+                    metta_grid_env: MettaGridEnv = self.vecenv.driver_env
+                    return self.policy_store.create(metta_grid_env)
+            load_policy_attempts -= 1
+            time.sleep(5)
+        return None
+
     def _make_experience_buffer(self):
-        """Create experience buffer with new tensor-based storage for prioritized sampling."""
+        """Create experience buffer with tensor-based storage for prioritized sampling."""
         vecenv = self.vecenv
         device = self.device
 
-        # Get environment info
         obs_space = vecenv.single_observation_space
         atn_space = vecenv.single_action_space
         total_agents = vecenv.num_agents
         self.total_agents = total_agents
 
-        # Determine batch and segment sizes
         batch_size = self.trainer_cfg.batch_size
         horizon = self.trainer_cfg.bptt_horizon
         segments = batch_size // horizon
         self.segments = segments
-
-        # Note: total_agents can be larger than segments since we use a circular buffer
-        # We just need to ensure we don't try to collect more than segments at once
 
         # Create tensor storage
         self.observations = torch.zeros(
@@ -268,21 +299,18 @@ class PufferTrainer:
         self.ratio = torch.ones(segments, horizon, device=device)
         self.importance = torch.ones(segments, horizon, device=device)
         self.ep_lengths = torch.zeros(total_agents, device=device, dtype=torch.int32)
-        # Ensure initial indices are within buffer bounds
         self.ep_indices = torch.arange(total_agents, device=device, dtype=torch.int32) % segments
         self.free_idx = total_agents % segments
 
-        # LSTM states if using RNN
+        # LSTM states
         if self.trainer_cfg.get("use_rnn", True):
             n = vecenv.agents_per_batch
             h = getattr(self.policy, "hidden_size", 256)
-            # Get number of LSTM layers from the policy
-            num_layers = 2  # Default for MettaAgent LSTM
+            num_layers = 2
             if hasattr(self.policy, "components") and "_core_" in self.policy.components:
                 lstm_module = self.policy.components["_core_"]
                 if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
                     num_layers = lstm_module._net.num_layers
-            # Initialize LSTM states with shape [num_layers, batch_size, hidden_size]
             self.lstm_h = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
             self.lstm_c = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
 
@@ -303,12 +331,9 @@ class PufferTrainer:
 
         self.full_rows = 0
 
-    # ... existing code ...
-
     def train(self):
         logger.info("Starting training")
 
-        # Validate evaluation interval
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
@@ -317,20 +342,34 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
-            with self.timer("_rollout"):
-                self._rollout()
+            if self.torch_profiler:
+                with self.torch_profiler:
+                    with self.timer("_rollout"):
+                        self._rollout()
 
-            with self.timer("_train"):
-                self._train()
+                    with self.timer("_train"):
+                        self._train()
+            else:
+                with self.timer("_rollout"):
+                    self._rollout()
 
-            # Processing stats
+                with self.timer("_train"):
+                    self._train()
+
             with self.timer("_process_stats"):
                 self._process_stats()
 
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
             stats_time = self.timer.get_last_elapsed("_process_stats")
-            steps_per_sec = self.agent_step / (train_time + rollout_time) if (train_time + rollout_time) > 0 else 0
+
+            # Calculate steps per second for this epoch (incremental)
+            current_step = self.agent_step
+            steps_this_epoch = current_step - self.last_log_step
+            epoch_time = rollout_time + train_time
+            steps_per_sec = steps_this_epoch / epoch_time if epoch_time > 0 else 0
+            self.last_log_step = current_step
+            self.last_log_time = time.time()
 
             logger.info(
                 f"Epoch {self.epoch} - "
@@ -350,22 +389,20 @@ class PufferTrainer:
                 with self.timer("_evaluate_policy", log=logging.INFO):
                     self._evaluate_policy()
 
-            # Weights analysis
             self._weights_helper.on_epoch_end(self.epoch, self.policy)
+            if self.torch_profiler:
+                self.torch_profiler.on_epoch_end(self.epoch)
 
-            # Wandb checkpoint
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 with self.timer("_save_policy_to_wandb"):
                     self._save_policy_to_wandb()
 
-            # L2 init weight update
             if (
                 self.cfg.agent.l2_init_weight_update_interval != 0
                 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0
             ):
                 self._update_l2_init_weight_copy()
 
-            # Replay generation
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 with self.timer("_generate_and_upload_replay", log=logging.INFO):
                     self._generate_and_upload_replay()
@@ -396,11 +433,14 @@ class PufferTrainer:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
-            with profile.eval_misc:
-                # Handle env_id for slicing
-                env_id = slice(env_id[0], env_id[-1] + 1)
+                if self.trainer_cfg.get("require_contiguous_env_ids", False):
+                    raise ValueError(
+                        "We are assuming contiguous env id is always False. async_factor == num_workers = "
+                        f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
+                    )
 
-                # Track steps
+            with profile.eval_misc:
+                env_id = slice(env_id[0], env_id[-1] + 1)
                 num_steps = sum(mask)
                 self.agent_step += num_steps * self._world_size
                 self.global_step = self.agent_step
@@ -410,22 +450,17 @@ class PufferTrainer:
                 o_device = o.to(device, non_blocking=True)
                 r = torch.as_tensor(r).to(device, non_blocking=True)
                 d = torch.as_tensor(d).to(device, non_blocking=True)
-                # r = torch.clamp(r, -1, 1)
 
             with profile.eval_forward, torch.no_grad(), self.amp_context:
-                state = PolicyState()  # Create PolicyState for MettaAgent
+                state = PolicyState()
 
                 if config.get("use_rnn", True) and hasattr(self, "lstm_h"):
-                    # Get LSTM states for this batch
                     batch_key = env_id.start
                     if batch_key in self.lstm_h:
                         state.lstm_h = self.lstm_h[batch_key]
                         state.lstm_c = self.lstm_c[batch_key]
 
-                # Forward pass through MettaAgent
                 actions, selected_action_log_probs, _, value, _ = self.policy(o_device, state)
-
-                # Convert to numpy for compatibility
                 logprob = selected_action_log_probs
 
                 if __debug__:
@@ -434,7 +469,6 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 if config.get("use_rnn", True) and hasattr(self, "lstm_h"):
-                    # Update LSTM states from PolicyState
                     if state.lstm_h is not None and state.lstm_c is not None:
                         batch_key = env_id.start
                         if batch_key in self.lstm_h:
@@ -445,10 +479,7 @@ class PufferTrainer:
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
-                # Fast path for fully vectorized envs
                 episode_length = self.ep_lengths[env_id.start].item()
-
-                # Get the indices for this batch - handle wrap-around in circular buffer
                 indices = self.ep_indices[env_id]
 
                 if self.trainer_cfg.cpu_offload:
@@ -456,7 +487,6 @@ class PufferTrainer:
                 else:
                     self.observations[indices, episode_length] = o_device
 
-                # Convert actions to the correct dtype before storing
                 if self.actions.dtype == torch.int32:
                     self.actions[indices, episode_length] = actions.int()
                 elif self.actions.dtype == torch.int64:
@@ -469,19 +499,15 @@ class PufferTrainer:
                 self.terminals[indices, episode_length] = d.float()
                 self.values[indices, episode_length] = value.flatten()
 
-                # Handle episode length tracking
                 self.ep_lengths[env_id] += 1
                 if episode_length + 1 >= self.trainer_cfg.bptt_horizon:
                     num_full = env_id.stop - env_id.start
-                    # Wrap indices around to stay within buffer bounds
                     self.ep_indices[env_id] = (
                         self.free_idx + torch.arange(num_full, device=device).int()
                     ) % self.segments
                     self.ep_lengths[env_id] = 0
                     self.free_idx = (self.free_idx + num_full) % self.segments
                     self.full_rows += num_full
-
-                actions.cpu().numpy()
 
             with profile.eval_misc:
                 for i in info:
@@ -494,7 +520,6 @@ class PufferTrainer:
 
         with profile.eval_misc:
             for k, v in infos.items():
-                # Convert numpy arrays to lists
                 if isinstance(v, np.ndarray):
                     processed_v = v.tolist()
                 else:
@@ -511,9 +536,8 @@ class PufferTrainer:
                         try:
                             self.stats[k] += processed_v
                         except TypeError:
-                            self.stats[k] = [self.stats[k], processed_v]  # fallback: bundle as list
+                            self.stats[k] = [self.stats[k], processed_v]
 
-            # Reset for next collection
             self.free_idx = self.total_agents % self.segments
             self.ep_indices = torch.arange(self.total_agents, device=self.device, dtype=torch.int32) % self.segments
             self.ep_lengths.zero_()
@@ -536,7 +560,6 @@ class PufferTrainer:
             a = config.get("prio_alpha", 0.6)
             clip_coef = config.clip_coef
             vf_clip = config.vf_clip_coef if hasattr(config, "vf_clip_coef") else config.get("vf_clip_coef", 0.1)
-            # Avoid division by zero
             total_epochs = max(1, self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
             anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
             self.ratio[:] = 1
@@ -544,19 +567,17 @@ class PufferTrainer:
             shape = self.values.shape
             advantages = torch.zeros(shape, device=device)
 
-            # Average reward adjustment if enabled
+            # Average reward adjustment
             if config.average_reward:
-                # Update average reward estimate
                 alpha = config.average_reward_alpha
                 self.average_reward = (1 - alpha) * self.average_reward + alpha * self.rewards.mean().item()
-                # Adjust rewards by subtracting average reward
                 rewards_adjusted = self.rewards - self.average_reward
                 effective_gamma = 1.0
             else:
                 rewards_adjusted = self.rewards
                 effective_gamma = config.gamma
 
-            # Compute advantages using new pufferlib kernel
+            # Compute advantages using pufferlib kernel
             torch.ops.pufferlib.compute_puff_advantage(
                 self.values,
                 rewards_adjusted,
@@ -580,16 +601,13 @@ class PufferTrainer:
                 idx = torch.multinomial(prio_probs, self.minibatch_segments)
                 mb_prio = (self.segments * prio_probs[idx, None]) ** -anneal_beta
 
-            # Copy minibatch data
+            # Minibatch data
             mb_obs = self.observations[idx]
             mb_actions = self.actions[idx]
             mb_logprobs = self.logprobs[idx]
-            self.rewards[idx]
             mb_terminals = self.terminals[idx]
-            self.ratio[idx]
             mb_values = self.values[idx]
             mb_returns = advantages[idx] + mb_values
-            advantages[idx]
 
             with profile.train_forward:
                 if not config.get("use_rnn", True):
@@ -599,14 +617,12 @@ class PufferTrainer:
                 if hasattr(self.policy, "forward_train"):
                     logits, newvalue = self.policy.forward_train(mb_obs, dict(action=mb_actions))
                 else:
-                    # Standard forward with action for log prob calculation
-                    state = PolicyState()  # Empty state for non-RNN
+                    state = PolicyState()
                     _, newlogprob, entropy, newvalue, full_log_probs = self.policy(
                         mb_obs.to(device), state, action=mb_actions.to(device)
                     )
 
             with profile.train_misc:
-                # Reshape for consistency
                 if hasattr(newlogprob, "reshape"):
                     newlogprob = newlogprob.reshape(mb_logprobs.shape)
 
@@ -637,12 +653,11 @@ class PufferTrainer:
                 # Normalize advantages with prioritized weights
                 adv = mb_prio * (adv - adv.mean()) / (adv.std() + 1e-8)
 
-                # Policy loss
+                # Losses
                 pg_loss1 = -adv * ratio
                 pg_loss2 = -adv * torch.clamp(ratio, 1 - clip_coef, 1 + clip_coef)
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
-                # Value loss
                 newvalue = newvalue.view(mb_returns.shape)
                 if config.clip_vloss:
                     v_clipped = mb_values + torch.clamp(newvalue - mb_values, -vf_clip, vf_clip)
@@ -654,7 +669,7 @@ class PufferTrainer:
 
                 # Entropy loss
                 if hasattr(self.policy, "forward_train"):
-                    entropy_loss = torch.tensor(0.0, device=device)  # Not available in forward_train
+                    entropy_loss = torch.tensor(0.0, device=device)
                 else:
                     entropy_loss = entropy.mean()
 
@@ -664,7 +679,7 @@ class PufferTrainer:
                         ks_action_loss = torch.tensor(0.0, device=device)
                         ks_value_loss = torch.tensor(0.0, device=device)
                     else:
-                        teacher_lstm_state = []  # TODO: Implement teacher state tracking
+                        teacher_lstm_state = []
                         ks_action_loss, ks_value_loss = self.kickstarter.loss(
                             self.agent_step, full_log_probs, newvalue, mb_obs, teacher_lstm_state
                         )
@@ -718,7 +733,6 @@ class PufferTrainer:
                     self.optimizer.step()
                     self.optimizer.zero_grad()
 
-                    # Clip weights if needed
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
@@ -754,7 +768,6 @@ class PufferTrainer:
             except (TypeError, ValueError):
                 del self.stats[k]
 
-        # Synchronize stats across processes
         agent_steps = self.agent_step
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
@@ -773,11 +786,9 @@ class PufferTrainer:
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        # Add timing metrics
         if self.wandb_run and self._master:
-            timer_data = {}
-            wall_time = self.timer.get_elapsed()
             timer_data = self.timer.get_all_elapsed()
+            wall_time = self.timer.get_elapsed()
 
             training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
             overhead_time = wall_time - training_time
@@ -794,7 +805,6 @@ class PufferTrainer:
                 "timing/total_seconds": wall_time,
             }
 
-            # Log to wandb
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
@@ -814,7 +824,6 @@ class PufferTrainer:
         self._eval_grouped_scores = {}
         self._weights_helper.reset()
         self.stats.clear()
-        # Profile is handled by the old Profile class which manages its own state
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -881,7 +890,6 @@ class PufferTrainer:
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-
         logger.info("Simulation complete")
 
         self._eval_categories = set()
@@ -893,10 +901,7 @@ class PufferTrainer:
         for category in self._eval_categories:
             score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
-            if score is not None:
-                self._eval_suite_avgs[f"{category}_score"] = score
-            else:
-                self._eval_suite_avgs[f"{category}_score"] = 0.0
+            self._eval_suite_avgs[f"{category}_score"] = score if score is not None else 0.0
 
         # Get overall score
         overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
@@ -996,8 +1001,6 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
 
-        # Use rank-specific seed for environment reset to ensure different
-        # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
         rank_specific_env_seed = self.cfg.seed + rank if self.cfg.seed is not None else rank
         self.vecenv.async_reset(rank_specific_env_seed)
