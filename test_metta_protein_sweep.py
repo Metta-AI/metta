@@ -37,7 +37,7 @@ def main():
     protein = MettaProtein(cfg, wandb_run=None)
     print("✅ Constructor works with wandb_run parameter")
 
-    params = protein.suggest()
+    params, info = protein.suggest()
     print("✅ suggest() method works")
     print("Suggested params:", params)
 
