@@ -50,7 +50,6 @@ dependencies = [
 # See `./README.md` for more details.
 cmake.args = ["--preset", "release-no-tests"]
 
-
 # Note: if you decide to use `editable.rebuild` here, consider that it's not
 # compatible with isolated builds.
 #
