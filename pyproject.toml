@@ -14,7 +14,7 @@ dependencies = [
     "carbs",
     "colorama==0.4.6",
     "cpplint==2.0.2",
-    "duckdb==1.2.0",
+    "duckdb==1.3.0",
     "einops==0.8.1",
     "fastapi==0.115.5",
     "gymnasium==1.1.1",
