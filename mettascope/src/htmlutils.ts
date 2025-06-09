@@ -89,7 +89,7 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
           target = target.parentElement as HTMLElement;
         }
       }
-    })
+    }, { passive: false })
     globalHandlers.set(event, []);
   }
   globalHandlers.get(event)?.push(handler);
