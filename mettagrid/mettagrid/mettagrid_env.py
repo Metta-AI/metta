@@ -5,11 +5,11 @@ import logging
 import uuid
 from typing import Any, Dict, Optional, cast
 
-import gymnasium as gym
 import numpy as np
-import pufferlib
+from gymnasium import Env as GymEnv
+from gymnasium import spaces
 from omegaconf import OmegaConf
-from pufferlib import unroll_nested_dict
+from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
 
@@ -18,6 +18,7 @@ from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from mettagrid.util.dict_utils import unroll_nested_dict
 from mettagrid.util.diversity import calculate_diversity_bonus
 from mettagrid.util.hydra import simple_instantiate
 
@@ -49,7 +50,7 @@ def required(func):
     return func
 
 
-class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
+class MettaGridEnv(PufferEnv, GymEnv):
     # Type hints for attributes defined in the C++ extension to help Pylance
     observations: np.ndarray
     terminals: np.ndarray
@@ -223,49 +224,67 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             for label in self.labels:
                 infos[f"rewards/env:{label}"] = episode_rewards_mean
 
-        stats = self._c_env.get_episode_stats()
+        episode_stats = self._c_env.get_episode_stats()
 
-        infos["episode_rewards"] = episode_rewards
-        # infos["agent_raw"] = stats["agent"]
-        infos["game"] = stats["game"]
-        infos["agent"] = {}
-        for agent_stats in stats["agent"]:
-            for n, v in agent_stats.items():
-                infos["agent"][n] = infos["agent"].get(n, 0) + v
-        for n, v in infos["agent"].items():
-            infos["agent"][n] = v / self._c_env.num_agents
+        stat_aggregates = {"converter": {}, "agent": {}}
 
+        for stat_type in ["converter", "agent"]:
+            if stat_type in episode_stats:
+                for idx, item_stats in enumerate(episode_stats[stat_type]):
+                    for stat_name, stat_value in item_stats.items():
+                        # Write raw stats
+                        infos[f"{stat_type}_raw/{idx}/{stat_name}"] = stat_value
+
+                        # Collect for aggregation
+                        if stat_name not in stat_aggregates[stat_type]:
+                            stat_aggregates[stat_type][stat_name] = []
+                        stat_aggregates[stat_type][stat_name].append(stat_value)
+
+        for stat_type, stat_lists in stat_aggregates.items():
+            for name, values in stat_lists.items():
+                if values:  # Only if we have values
+                    infos[f"{stat_type}/{name}"] = sum(values) / len(values)
+
+        # Flatten game stats
+        if "game" in episode_stats:
+            for k, v in unroll_nested_dict(episode_stats["game"]):
+                infos[f"game/{k}"] = v
+
+        # Handle replay writer
         replay_url = None
         if self._replay_writer:
             assert self._episode_id is not None, "Episode ID must be set before writing a replay"
             replay_url = self._replay_writer.write_replay(self._episode_id)
             infos["replay_url"] = replay_url
 
+        # Handle stats writer
         if self._stats_writer:
             assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-            attributes = {
-                "seed": self._current_seed,
-                "map_w": self.map_width,
-                "map_h": self.map_height,
+            attributes: dict[str, str] = {
+                "seed": str(self._current_seed),
+                "map_w": str(self.map_width),
+                "map_h": str(self.map_height),
             }
 
-            for k, v in unroll_nested_dict(OmegaConf.to_container(self._task.env_cfg(), resolve=False)):
-                attributes[f"config.{k.replace('/', '.')}"] = str(v)
+            # Add configuration attributes
+            config_container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
+            for k, v in unroll_nested_dict(config_container):
+                attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
 
+            # Build agent metrics
             agent_metrics = {}
-            for agent_idx, agent_stats in enumerate(stats["agent"]):
-                agent_metrics[agent_idx] = {}
-                agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
-                for k, v in agent_stats.items():
-                    agent_metrics[agent_idx][k] = float(v)
+            if "agent" in episode_stats:
+                for agent_idx, agent_stats in enumerate(episode_stats["agent"]):
+                    agent_metrics[agent_idx] = {"reward": float(episode_rewards[agent_idx])}
+                    for k, v in agent_stats.items():
+                        agent_metrics[agent_idx][k] = float(v)
 
-            grid_objects: Dict[int, Any] = self._c_env.grid_objects()
-            # iterate over grid_object values
-            agent_groups: Dict[int, int] = {
-                v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
-            }
+            # Get agent groups from grid objects
+            grid_objects = self._c_env.grid_objects()
+            agent_groups = {v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0}
 
+            # Record the episode
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,
@@ -275,6 +294,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 replay_url,
                 self._reset_at,
             )
+
         self._episode_id = None
 
     @property
@@ -283,7 +303,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     @required
-    def single_observation_space(self) -> gym.spaces.Box:
+    def single_observation_space(self) -> spaces.Box:
         """
         Return the observation space for a single agent.
         Returns:
@@ -295,7 +315,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     @required
-    def single_action_space(self) -> gym.spaces.MultiDiscrete:
+    def single_action_space(self) -> spaces.MultiDiscrete:
         """
         Return the action space for a single agent.
         Returns:
