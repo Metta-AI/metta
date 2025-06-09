@@ -3,7 +3,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-#include "action_handler.hpp"
+#include "actions/action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
 #include "actions/change_color.hpp"
@@ -13,15 +13,20 @@
 #include "actions/put_recipe_items.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
-#include "event.hpp"
+#include "constants.hpp"
+#include "event_handlers.hpp"
 #include "grid.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
 #include "objects/converter.hpp"
-#include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
-#include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
+
+// Used for utf32 -> utf8 conversion, which is needed for reading the map.
+// Hopefully this is temporary.
+#include <codecvt>
+#include <locale>
+#include <memory>
+
 #include "types.hpp"
 
 namespace py = pybind11;
@@ -90,8 +95,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
     _action_handlers.push_back(std::make_unique<Swap>(cfg["actions"]["swap"].cast<ActionConfig>()));
   }
   if (cfg["actions"]["change_color"]["enabled"].cast<bool>()) {
-    _action_handlers.push_back(
-        std::make_unique<ChangeColorAction>(cfg["actions"]["change_color"].cast<ActionConfig>()));
+    _action_handlers.push_back(std::make_unique<ChangeColor>(cfg["actions"]["change_color"].cast<ActionConfig>()));
   }
   init_action_handlers();
 
@@ -330,7 +334,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
         continue;
       }
 
-      ActionArg arg = actions_view(idx, 1);
+      int arg = actions_view(idx, 1);
       auto& agent = _agents[idx];
       auto& handler = _action_handlers[action];
 
@@ -530,7 +534,7 @@ py::dict MettaGrid::grid_objects() {
     unsigned char obj_data[type_features.size()];
 
     // Encode object features
-    _obs_encoder->encode(obj, obj_data, offsets);
+    obj->encode(obj_data_view.mutable_data(0), offsets);
 
     // Add features to object dict
     for (size_t i = 0; i < type_features.size(); i++) {

@@ -30,6 +30,7 @@ from metta.rl.pufferlib.policy import PufferAgent
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
+from metta.util.config import config_from_path
 from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.replay_writer import ReplayWriter
@@ -70,8 +71,12 @@ class Simulation:
         logger.info(f"config.env {config.env}")
         logger.info(f"config.env_overrides {config.env_overrides}")
 
-        env_overrides = OmegaConf.create(config.env_overrides)
+        if config.env_overrides is not None:
+            env_overrides = OmegaConf.create(config.env_overrides)
+        else:
+            env_overrides = None
 
+        self._env_cfg = config_from_path(config.env, env_overrides)
         self._env_name = config.env
 
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
