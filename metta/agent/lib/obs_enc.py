@@ -299,6 +299,7 @@ class ObsCrossAttn(LayerBase):
                 nn.Linear(self._v_dim, self._mlp_out_hidden_dim),
                 nn.ReLU(),
                 nn.Linear(self._mlp_out_hidden_dim, self._out_dim),
+                nn.ReLU(),
             )
 
         return None
