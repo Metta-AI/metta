@@ -6,7 +6,7 @@ import { getAttr, sendAction } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame, updateSelection } from './main.js';
 import { parseHtmlColor, find } from './htmlutils.js';
-
+import { updateHoverPanel, updateReadout, InfoPanel } from './infopanels.js';
 
 // Flag to prevent multiple calls to requestAnimationFrame
 let frameRequested = false;
@@ -671,17 +671,17 @@ function attackGrid(orientation: number, idx: number) {
   const i = idx - 1;
   let dx, dy;
   if (orientation === 0) {
-      dx = mod(i, 3) - 1;
-      dy = -div(i, 3) - 1;
+    dx = mod(i, 3) - 1;
+    dy = -div(i, 3) - 1;
   } else if (orientation === 1) {
-      dx = -mod(i, 3) + 1;
-      dy = div(i, 3) + 1;
+    dx = -mod(i, 3) + 1;
+    dy = div(i, 3) + 1;
   } else if (orientation === 2) {
-      dx = -div(i, 3) - 1;
-      dy = -mod(i, 3) + 1;
+    dx = -div(i, 3) - 1;
+    dy = -mod(i, 3) + 1;
   } else if (orientation === 3) {
-      dx = div(i, 3) + 1;
-      dy = mod(i, 3) - 1;
+    dx = div(i, 3) + 1;
+    dy = mod(i, 3) - 1;
   }
   return [dx, dy];
 }
@@ -693,7 +693,7 @@ function drawAttackMode() {
   var gridMousePos: Vec2f | null = null;
   if (ui.mouseUp && ui.mouseTarget == "worldmap-panel" && state.showAttackMode) {
     state.showAttackMode = false;
-    const localMousePos = ui.mapPanel.transformPoint(ui.mousePos);
+    const localMousePos = ui.mapPanel.transformOuter(ui.mousePos);
     if (localMousePos != null) {
       gridMousePos = new Vec2f(
         Math.round(localMousePos.x() / Common.TILE_SIZE),
@@ -709,18 +709,42 @@ function drawAttackMode() {
     const orientation = getAttr(state.selectedGridObject, "agent:orientation");
 
     // Draw a 3x3 grid of targets in the direction of the selected agent.
-    for(let attackIndex = 1; attackIndex <= 9; attackIndex++) {
-        const [dx, dy] = attackGrid(orientation, attackIndex);
-        const targetX = x + dx;
-        const targetY = y + dy;
-        ctx.drawSprite('target.png', targetX * Common.TILE_SIZE, targetY * Common.TILE_SIZE);
-        if (gridMousePos != null && targetX == gridMousePos.x() && targetY == gridMousePos.y()) {
-          // Check if we are clicking this specific tile.
-          console.log("Attack mode clicked on:", targetX, targetY);
-          sendAction("attack", attackIndex)
-        }
+    for (let attackIndex = 1; attackIndex <= 9; attackIndex++) {
+      const [dx, dy] = attackGrid(orientation, attackIndex);
+      const targetX = x + dx;
+      const targetY = y + dy;
+      ctx.drawSprite('target.png', targetX * Common.TILE_SIZE, targetY * Common.TILE_SIZE);
+      if (gridMousePos != null && targetX == gridMousePos.x() && targetY == gridMousePos.y()) {
+        // Check if we are clicking this specific tile.
+        console.log("Attack mode clicked on:", targetX, targetY);
+        sendAction("attack", attackIndex)
+      }
     }
   }
+}
+
+function drawInfoLine(panel: InfoPanel) {
+  // Draw selection dotted circle around the object.
+  const x = getAttr(panel.object, "c");
+  const y = getAttr(panel.object, "r");
+  ctx.drawSprite("info.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+
+  // Compute the panel position in the world map coordinates.
+  const panelBounds = panel.div.getBoundingClientRect();
+  const panelScreenPos = new Vec2f(panelBounds.left + 20, panelBounds.top + 20);
+  const panelWorldPos = ui.mapPanel.transformOuter(panelScreenPos);
+
+  // Draw a line from the object to the panel.
+  ctx.drawSpriteLine(
+    "dash.png",
+    x * Common.TILE_SIZE,
+    y * Common.TILE_SIZE,
+    panelWorldPos.x(),
+    panelWorldPos.y(),
+    60,
+    [1, 1, 1, 1],
+    2
+  );
 }
 
 export function drawMap(panel: PanelInfo) {
@@ -730,47 +754,60 @@ export function drawMap(panel: PanelInfo) {
 
   // Handle mouse events for the map panel.
   if (ui.mouseTarget == "worldmap-panel" && ui.dragging == "" && !state.showAttackMode) {
-    if (ui.mouseDoubleClick) {
-      // Toggle followSelection on double-click
-      console.log("Map double click - following selection");
-      setFollowSelection(true);
-      panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
-      ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
-    } else if (ui.mouseClick) {
-      // Map click - likely a drag/pan
-      console.log("Map click - clearing follow selection");
-      setFollowSelection(false);
-    } else if (ui.mouseUp &&
-      ui.mouseDownPos.sub(ui.mousePos).length() < 10
-    ) {
-      // Check if we are clicking on an object.
-      console.log("Map up without dragging - selecting object");
-      const localMousePos = panel.transformPoint(ui.mousePos);
-      if (localMousePos != null) {
-        const gridMousePos = new Vec2f(
-          Math.round(localMousePos.x() / Common.TILE_SIZE),
-          Math.round(localMousePos.y() / Common.TILE_SIZE)
-        );
-        const gridObject = state.replay.grid_objects.find((obj: any) => {
-          const x: number = getAttr(obj, "c");
-          const y: number = getAttr(obj, "r");
-          return x === gridMousePos.x() && y === gridMousePos.y();
-        });
-        if (gridObject !== undefined) {
-          updateSelection(gridObject)
-          console.log("Selected object on the map:", state.selectedGridObject);
-          if (state.selectedGridObject.agent_id !== undefined) {
-            // If selecting an agent, focus the trace panel on the agent.
-            ui.tracePanel.focusPos(
-              state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-              getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
-              Common.DEFAULT_TRACE_ZOOM_LEVEL
-            );
-          }
-        }
-      }
+    // Find object under the mouse:
+    var objectUnderMouse = null;
+    const localMousePos = panel.transformOuter(ui.mousePos);
+    if (localMousePos != null) {
+      const gridMousePos = new Vec2f(
+        Math.round(localMousePos.x() / Common.TILE_SIZE),
+        Math.round(localMousePos.y() / Common.TILE_SIZE)
+      );
+      objectUnderMouse = state.replay.grid_objects.find((obj: any) => {
+        const x: number = getAttr(obj, "c");
+        const y: number = getAttr(obj, "r");
+        return x === gridMousePos.x() && y === gridMousePos.y();
+      });
     }
   }
+
+  if (ui.mouseDoubleClick) {
+    // Toggle followSelection on double-click
+    console.log("Map double click - following selection");
+    setFollowSelection(true);
+    panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
+    ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
+  } else if (ui.mouseClick) {
+    // Map click - likely a drag/pan
+    console.log("Map click - clearing follow selection");
+    setFollowSelection(false);
+  } else if (ui.mouseUp &&
+    ui.mouseDownPos.sub(ui.mousePos).length() < 10
+  ) {
+    // Check if we are clicking on an object.
+    if (objectUnderMouse !== undefined) {
+      updateSelection(objectUnderMouse)
+      console.log("Selected object on the map:", state.selectedGridObject);
+      if (state.selectedGridObject.agent_id !== undefined) {
+        // If selecting an agent, focus the trace panel on the agent.
+        ui.tracePanel.focusPos(
+          state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+          getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+          Common.DEFAULT_TRACE_ZOOM_LEVEL
+        );
+      }
+    }
+  } else {
+    ui.hoverObject = objectUnderMouse;
+    clearTimeout(ui.hoverTimer);
+    ui.hoverTimer = setTimeout(() => {
+      if (ui.mouseTarget == "worldmap-panel") {
+        ui.delayedHoverObject = ui.hoverObject;
+        updateHoverPanel(ui.delayedHoverObject)
+      }
+    }, Common.INFO_PANEL_POP_TIME);
+
+  }
+
 
   // If we're following a selection, center the map on it
   if (state.followSelection && state.selectedGridObject !== null) {
@@ -801,43 +838,12 @@ export function drawMap(panel: PanelInfo) {
     drawAttackMode();
   }
 
+  updateHoverPanel(ui.delayedHoverObject)
+  updateReadout()
+  for (const panel of ui.infoPanels) {
+    panel.update();
+    drawInfoLine(panel);
+  }
+
   ctx.restore();
-}
-
-// Updates the readout of the selected object or replay info.
-export function updateReadout() {
-  var readout = ""
-  if (state.selectedGridObject !== null) {
-    if (state.followSelection) {
-      readout += "FOLLOWING SELECTION (double-click to unfollow)\n\n";
-    }
-    for (const key in state.selectedGridObject) {
-      var value = getAttr(state.selectedGridObject, key);
-      if (key == "type") {
-        value = state.replay.object_types[value] + " (" + value + ")";
-      } else if (key == "color" && value >= 0 && value < Common.COLORS.length) {
-        value = Common.COLORS[value][0] + " (" + value + ")";
-      }
-      readout += key + ": " + value + "\n";
-    }
-  } else {
-    readout += "Step: " + state.step + "\n";
-    readout += "Map size: " + state.replay.map_size[0] + "x" + state.replay.map_size[1] + "\n";
-    readout += "Num agents: " + state.replay.num_agents + "\n";
-    readout += "Max steps: " + state.replay.max_steps + "\n";
-
-    var objectTypeCounts = new Map<string, number>();
-    for (const gridObject of state.replay.grid_objects) {
-      const type = getAttr(gridObject, "type");
-      const typeName = state.replay.object_types[type];
-      objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1);
-    }
-    for (const [key, value] of objectTypeCounts.entries()) {
-      readout += key + " count: " + value + "\n";
-    }
-  }
-  let info = find("#info-panel .info")
-  if (info !== null) {
-    info.innerHTML = readout;
-  }
 }

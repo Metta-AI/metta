@@ -30,7 +30,7 @@ class ObsTokenShaper(LayerBase):
     def _make_net(self) -> None:
         self._out_tensor_shape = [self.M, self._feat_dim]
 
-        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=0)
+        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
         nn.init.uniform_(self._atr_embeds.weight, -0.1, 0.1)
 
         # Coord byte supports up to 16x16, so 256 possible coord values

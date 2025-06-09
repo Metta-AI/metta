@@ -8,15 +8,20 @@ export function parseHtmlColor(color: string): [number, number, number, number] 
   ];
 }
 
-// Find an element by css selector.
-export function find(selector: string): HTMLElement {
-  const elements = document.querySelectorAll(selector);
+// Find an element by css selector in a parent element.
+export function findIn(parent: HTMLElement, selector: string): HTMLElement {
+  const elements = parent.querySelectorAll(selector);
   if (elements.length === 0) {
     throw new Error(`Element with selector "${selector}" not found`);
   } else if (elements.length > 1) {
     throw new Error(`Multiple elements with selector "${selector}" found`);
   }
   return elements[0] as HTMLElement;
+}
+
+// Find an element by css selector.
+export function find(selector: string): HTMLElement {
+  return findIn(window.document.body, selector);
 }
 
 // Find multiple elements by css selector.
