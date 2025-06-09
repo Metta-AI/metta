@@ -15,7 +15,7 @@ defaults:
 trainer:
   env: /env/mettagrid/curriculum/navigation_bucketed
 
-policy_uri: wandb://run/b.georgedeane.george_sequence_no_increment
+policy_uri: wandb://run/daphne_navigation_bucketed
 
 run_id: 6
 run: ${oc.env:USER}.local.${run_id}
