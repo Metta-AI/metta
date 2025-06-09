@@ -1,0 +1,12 @@
+# @package __global__
+
+defaults:
+  - override /agent: simple_with_memory
+  - _self_
+
+trainer:
+  curriculum: /env/mettagrid/curriculum/navigation
+  wandb.enabled: true
+  wandb.track: true
+
+run: mrazo_memory-traces_navigation_v01
