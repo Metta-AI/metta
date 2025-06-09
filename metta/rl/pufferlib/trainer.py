@@ -487,24 +487,39 @@ class PufferTrainer:
             with profile.eval_misc:
                 for i in info:
                     for k, v in unroll_nested_dict(i):
-                        if isinstance(v, np.ndarray):
-                            v = v.tolist()
-                        elif isinstance(v, (list, tuple)):
-                            self.stats[k].extend(v)
-                        else:
-                            self.stats[k].append(v)
+                        infos[k].append(v)
 
             with profile.env:
                 actions_np = actions.cpu().numpy().astype(dtype_actions)
                 self.vecenv.send(actions_np)
 
         with profile.eval_misc:
+            for k, v in infos.items():
+                # Convert numpy arrays to lists
+                if isinstance(v, np.ndarray):
+                    processed_v = v.tolist()
+                else:
+                    processed_v = v
+
+                if isinstance(processed_v, list):
+                    if k not in self.stats:
+                        self.stats[k] = []
+                    self.stats[k].extend(processed_v)
+                else:
+                    if k not in self.stats:
+                        self.stats[k] = processed_v
+                    else:
+                        try:
+                            self.stats[k] += processed_v
+                        except TypeError:
+                            self.stats[k] = [self.stats[k], processed_v]  # fallback: bundle as list
+
             # Reset for next collection
             self.free_idx = self.total_agents % self.segments
             self.ep_indices = torch.arange(self.total_agents, device=self.device, dtype=torch.int32) % self.segments
             self.ep_lengths.zero_()
 
-        return self.stats
+        return self.stats, infos
 
     def _train(self):
         """Train phase with prioritized experience replay and new advantage computation."""
