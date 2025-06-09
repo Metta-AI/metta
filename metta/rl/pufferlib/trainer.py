@@ -410,8 +410,7 @@ class PufferTrainer:
                 o_device = o.to(device, non_blocking=True)
                 r = torch.as_tensor(r).to(device, non_blocking=True)
                 d = torch.as_tensor(d).to(device, non_blocking=True)
-
-                r = torch.clamp(r, -1, 1)
+                # r = torch.clamp(r, -1, 1)
 
             with profile.eval_forward, torch.no_grad(), self.amp_context:
                 state = PolicyState()  # Create PolicyState for MettaAgent
