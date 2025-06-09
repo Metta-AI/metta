@@ -239,7 +239,7 @@ class Mesh {
   }
 }
 
-class Context3d {
+export class Context3d {
   // Canvas and WebGPU state
   public canvas: HTMLCanvasElement;
   public device: GPUDevice | null;
@@ -1004,6 +1004,41 @@ class Context3d {
 
     this.device.queue.submit([commandEncoder.finish()]);
   }
-}
 
-export { Context3d };
+  // Draws a line of sprites.
+  // The line is drawn from (x0, y0) to (x1, y1).
+  // The spacing is the distance between the centers of the sprites.
+  // The color is the color of the sprites.
+  // The skipStart and skipEnd are the number of sprites to skip at the start
+  // and end of the line.
+  drawSpriteLine(
+    imageName: string,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    spacing: number,
+    color: number[],
+    skipStart: number = 0,
+    skipEnd: number = 0
+  ): void {
+    // Compute the angle of the line.
+    const angle = Math.atan2(y1 - y0, x1 - x0);
+    // Compute the length of the line.
+    const x = x1 - x0;
+    const y = y1 - y0;
+    const length = Math.sqrt(x ** 2 + y ** 2);
+    // Compute the number of dashes.
+    const numDashes = Math.floor(length / spacing) + 1;
+    // Compute the delta of each dash.
+    const dx = x / numDashes;
+    const dy = y / numDashes;
+    // Draw the dashes.
+    for (let i = 0; i < numDashes; i++) {
+      if (i < skipStart || i >= numDashes - skipEnd) {
+        continue;
+      }
+      this.drawSprite(imageName, x0 + i * dx, y0 + i * dy, color, 1, -angle);
+    }
+  }
+}
