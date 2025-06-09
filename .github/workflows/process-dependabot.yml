@@ -54,7 +54,6 @@ jobs:
         run: |
           echo "Processing specific PR #$PR_NUMBER"
 
-          # Check out the PR branch
           gh pr checkout "$PR_NUMBER"
 
           # Sync dependencies if requested
