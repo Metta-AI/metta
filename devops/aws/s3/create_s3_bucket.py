@@ -22,7 +22,6 @@ def create_bucket(bucket_name: str) -> bool:
     try:
         s3_client = boto3.client("s3", region_name="us-east-1")
 
-        # Create bucket (us-east-1 doesn't need LocationConstraint)
         s3_client.create_bucket(Bucket=bucket_name)
 
         print(green(f"✓ Created bucket: {bucket_name}"))
@@ -121,7 +120,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Check AWS credentials first
     if not check_aws_credentials():
         sys.exit(1)
 
@@ -144,7 +142,6 @@ def main():
     if setup_bucket_policy(bucket_name):
         success_count += 1
 
-    # Summary
     print("\n" + "=" * 50)
     print(bold("SUMMARY"))
     print("=" * 50)

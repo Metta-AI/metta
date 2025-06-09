@@ -44,10 +44,8 @@ class S3CacheManager:
         self.compression_level = compression_level
         self.s3_client: Optional[BaseClient] = None
 
-        # Initialize S3 client
         try:
             self.s3_client = boto3.client("s3", region_name=aws_region)
-            # Test S3 connectivity
             self.s3_client.head_bucket(Bucket=bucket_name)
             self.s3_available = True
             logger.info(f"S3 cache initialized: s3://{bucket_name}/{self.prefix}")
@@ -69,7 +67,6 @@ class S3CacheManager:
         """
         hasher = hashlib.sha256()
 
-        # Hash positional arguments
         for arg in args:
             arg_bytes = self._serialize_for_hash(arg)
             hasher.update(arg_bytes)
@@ -110,10 +107,8 @@ class S3CacheManager:
         Returns:
             Compressed bytes
         """
-        # First serialize with pickle
         serialized = pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
 
-        # Then compress with gzip
         buffer = BytesIO()
         with gzip.GzipFile(fileobj=buffer, mode="wb", compresslevel=self.compression_level) as f:
             f.write(serialized)
@@ -130,11 +125,9 @@ class S3CacheManager:
         Returns:
             Deserialized object
         """
-        # First decompress
         with gzip.GzipFile(fileobj=BytesIO(compressed_data), mode="rb") as f:
             serialized = f.read()
 
-        # Then deserialize
         return pickle.loads(serialized)
 
     def _get_s3_key(self, cache_key: str) -> str:

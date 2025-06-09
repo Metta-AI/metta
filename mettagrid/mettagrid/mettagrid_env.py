@@ -111,10 +111,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             map_builder_config = task.env_cfg().game.map_builder
             with map_cache(map_builder_config) as cache_ctx:
                 if cache_ctx.hit:
-                    # Cache hit - use cached level
                     level = cache_ctx.get()
                 else:
-                    # Cache miss - do the expensive map building
                     map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
                     level = map_builder.build()
                     cache_ctx.set(level)
