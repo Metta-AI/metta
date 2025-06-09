@@ -256,8 +256,9 @@ class PufferTrainer:
             horizon,
             *atn_space.shape,
             device=device,
-            dtype=torch.int64 if atn_space.dtype == np.int64 else torch.float32,
+            dtype=torch.int32 if atn_space.dtype in (np.int32, np.int64) else torch.float32,
         )
+
         self.values = torch.zeros(segments, horizon, device=device)
         self.logprobs = torch.zeros(segments, horizon, device=device)
         self.rewards = torch.zeros(segments, horizon, device=device)
@@ -275,13 +276,12 @@ class PufferTrainer:
             n = vecenv.agents_per_batch
             h = getattr(self.policy, "hidden_size", 256)
             # Get number of LSTM layers from the policy
-            num_layers = 2  # Default, should match the LSTM config
+            num_layers = 2  # Default for MettaAgent LSTM
             if hasattr(self.policy, "components") and "_core_" in self.policy.components:
-                lstm_module = self.policy.components["_core_"]._net
-                if hasattr(lstm_module, "num_layers"):
-                    num_layers = lstm_module.num_layers
-
-            # Initialize LSTM states with proper shape [num_layers, batch_size, hidden_size]
+                lstm_module = self.policy.components["_core_"]
+                if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
+                    num_layers = lstm_module._net.num_layers
+            # Initialize LSTM states with shape [num_layers, batch_size, hidden_size]
             self.lstm_h = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
             self.lstm_c = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
 
@@ -410,29 +410,17 @@ class PufferTrainer:
                 r = torch.as_tensor(r).to(device, non_blocking=True)
                 d = torch.as_tensor(d).to(device, non_blocking=True)
 
+                r = torch.clamp(r, -1, 1)
+
             with profile.eval_forward, torch.no_grad(), self.amp_context:
                 state = PolicyState()  # Create PolicyState for MettaAgent
 
                 if config.get("use_rnn", True) and hasattr(self, "lstm_h"):
-                    # Gather LSTM states for all environments in the batch
-                    # Find the key for this batch of environments
-                    batch_key = (env_id.start // self.vecenv.agents_per_batch) * self.vecenv.agents_per_batch
-
+                    # Get LSTM states for this batch
+                    batch_key = env_id.start
                     if batch_key in self.lstm_h:
-                        # Get the batch of LSTM states
-                        batch_h = self.lstm_h[batch_key]  # [num_layers, agents_per_batch, hidden]
-                        batch_c = self.lstm_c[batch_key]  # [num_layers, agents_per_batch, hidden]
-
-                        # Extract states for the specific environments in this batch
-                        env_indices = list(
-                            range(
-                                env_id.start % self.vecenv.agents_per_batch,
-                                (env_id.stop - 1) % self.vecenv.agents_per_batch + 1,
-                            )
-                        )
-
-                        state.lstm_h = batch_h[:, env_indices, :]  # [num_layers, batch_size, hidden]
-                        state.lstm_c = batch_c[:, env_indices, :]  # [num_layers, batch_size, hidden]
+                        state.lstm_h = self.lstm_h[batch_key]
+                        state.lstm_c = self.lstm_c[batch_key]
 
                 # Forward pass through MettaAgent
                 actions, selected_action_log_probs, _, value, _ = self.policy(o_device, state)
@@ -445,52 +433,77 @@ class PufferTrainer:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
                     assert_shape(actions, ("BT", 2), "actions")
 
-                lstm_h[:, training_env_id] = (
-                    state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
-                )
-                lstm_c[:, training_env_id] = (
-                    state.lstm_c if state.lstm_c is not None else torch.zeros_like(lstm_c[:, training_env_id])
-                )
+            with profile.eval_misc:
+                if config.get("use_rnn", True) and hasattr(self, "lstm_h"):
+                    # Update LSTM states from PolicyState
+                    if state.lstm_h is not None and state.lstm_c is not None:
+                        batch_key = env_id.start
+                        if batch_key in self.lstm_h:
+                            self.lstm_h[batch_key] = state.lstm_h
+                            self.lstm_c[batch_key] = state.lstm_c
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
-                value = value.flatten()
-                mask = torch.as_tensor(mask)  # * policy.mask)
-                o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
+                # Fast path for fully vectorized envs
+                l = self.ep_lengths[env_id.start].item()
 
+                # Get the indices for this batch - handle wrap-around in circular buffer
+                indices = self.ep_indices[env_id]
+
+                if self.trainer_cfg.cpu_offload:
+                    self.observations[indices, l] = o
+                else:
+                    self.observations[indices, l] = o_device
+
+                # Convert actions to the correct dtype before storing
+                if self.actions.dtype == torch.int32:
+                    self.actions[indices, l] = actions.int()
+                elif self.actions.dtype == torch.int64:
+                    self.actions[indices, l] = actions.long()
+                else:
+                    self.actions[indices, l] = actions
+
+                self.logprobs[indices, l] = logprob
+                self.rewards[indices, l] = r
+                self.terminals[indices, l] = d.float()
+                self.values[indices, l] = value.flatten()
+
+                # Handle episode length tracking
+                self.ep_lengths[env_id] += 1
+                if l + 1 >= self.trainer_cfg.bptt_horizon:
+                    num_full = env_id.stop - env_id.start
+                    # Wrap indices around to stay within buffer bounds
+                    self.ep_indices[env_id] = (
+                        self.free_idx + torch.arange(num_full, device=device).int()
+                    ) % self.segments
+                    self.ep_lengths[env_id] = 0
+                    self.free_idx = (self.free_idx + num_full) % self.segments
+                    self.full_rows += num_full
+
+                action = actions.cpu().numpy()
+
+            with profile.eval_misc:
                 for i in info:
                     for k, v in unroll_nested_dict(i):
-                        infos[k].append(v)
+                        if isinstance(v, np.ndarray):
+                            v = v.tolist()
+                        elif isinstance(v, (list, tuple)):
+                            self.stats[k].extend(v)
+                        else:
+                            self.stats[k].append(v)
 
             with profile.env:
                 actions_np = actions.cpu().numpy().astype(dtype_actions)
                 self.vecenv.send(actions_np)
 
         with profile.eval_misc:
-            for k, v in infos.items():
-                if isinstance(v, np.ndarray):
-                    v = v.tolist()
+            # Reset for next collection
+            self.free_idx = self.total_agents % self.segments
+            self.ep_indices = torch.arange(self.total_agents, device=self.device, dtype=torch.int32) % self.segments
+            self.ep_lengths.zero_()
 
-                if isinstance(v, list):
-                    if k not in self.stats:
-                        self.stats[k] = []
-                    self.stats[k].extend(v)
-                else:
-                    if k not in self.stats:
-                        self.stats[k] = v
-                    else:
-                        try:
-                            self.stats[k] += v
-                        except TypeError:
-                            self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
-
-        # Reset for next collection
-        self.free_idx = self.total_agents % self.segments
-        self.ep_indices = torch.arange(self.total_agents, device=device, dtype=torch.int32) % self.segments
-        self.ep_lengths.zero_()
         return self.stats
 
     def _train(self):
@@ -553,16 +566,16 @@ class PufferTrainer:
                 idx = torch.multinomial(prio_probs, self.minibatch_segments)
                 mb_prio = (self.segments * prio_probs[idx, None]) ** -anneal_beta
 
-            with profile.train_misc:
-                mb_obs = self.observations[idx]
-                mb_actions = self.actions[idx]
-                mb_logprobs = self.logprobs[idx]
-                mb_rewards = self.rewards[idx]
-                mb_terminals = self.terminals[idx]
-                mb_ratio = self.ratio[idx]
-                mb_values = self.values[idx]
-                mb_returns = advantages[idx] + mb_values
-                mb_advantages = advantages[idx]
+            # Copy minibatch data
+            mb_obs = self.observations[idx]
+            mb_actions = self.actions[idx]
+            mb_logprobs = self.logprobs[idx]
+            mb_rewards = self.rewards[idx]
+            mb_terminals = self.terminals[idx]
+            mb_ratio = self.ratio[idx]
+            mb_values = self.values[idx]
+            mb_returns = advantages[idx] + mb_values
+            mb_advantages = advantages[idx]
 
             with profile.train_forward:
                 if not config.get("use_rnn", True):
@@ -716,7 +729,6 @@ class PufferTrainer:
             self.epoch += 1
 
             profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
-            profile.end_epoch()
 
     def _process_stats(self):
         """Process and log training statistics."""
@@ -892,7 +904,8 @@ class PufferTrainer:
             return
 
         pr = self._checkpoint_policy()
-        self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+        if pr is not None:
+            self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _generate_and_upload_replay(self):
         if self._master:
@@ -917,7 +930,7 @@ class PufferTrainer:
                     replay_url = replay_urls[0]
                     player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
                     link_summary = {
-                        "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                        "replays/link": wandb.html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
                     }
                     self.wandb_run.log(link_summary)
 
@@ -975,15 +988,6 @@ class PufferTrainer:
         rank_specific_env_seed = self.cfg.seed + rank if self.cfg.seed is not None else rank
         self.vecenv.async_reset(rank_specific_env_seed)
 
-    def close(self):
-        self.vecenv.close()
-
-    def initial_pr_uri(self):
-        return self._initial_pr.uri
-
-    def last_pr_uri(self):
-        return self.last_pr.uri
-
     def _on_train_step(self):
         pass
 
@@ -995,9 +999,6 @@ class PufferTrainer:
 
     def last_pr_uri(self):
         return self.last_pr.uri
-
-    def _on_train_step(self):
-        pass
 
 
 class AbortingTrainer(PufferTrainer):
