@@ -228,7 +228,8 @@ class ConfinedRoomCoord(Room):
 
         if agents_placed_count < len(agent_symbols_to_place):
             print(
-                f"Warning: Not enough empty floor cells. Placed {agents_placed_count}/{len(agent_symbols_to_place)} agents."
+                f"Warning: Not enough empty floor cells. "
+                f"Placed {agents_placed_count}/{len(agent_symbols_to_place)} agents."
             )
 
         return grid

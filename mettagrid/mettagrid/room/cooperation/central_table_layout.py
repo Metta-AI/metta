@@ -57,8 +57,10 @@ class CentralTableLayout(Room):
         if width < min_core_dimension or height < min_core_dimension:
             raise ValueError(
                 f"Core dimensions ({width}x{height}) are too small for the specified "
-                f"lane_width ({effective_lane_width_for_validation}). Minimum core dimension required is {min_core_dimension}x{min_core_dimension} "
-                f"(this is for the functional border, lane, and a 1x1 central table, excluding the pure wall border_width)."
+                f"lane_width ({effective_lane_width_for_validation}). "
+                f"Minimum core dimension required is {min_core_dimension}x{min_core_dimension} "
+                f"(this is for the functional border, lane, and a 1x1 central table, "
+                f"excluding the pure wall border_width)."
             )
 
         # Actual grid dimensions for internal use and for `super().__init__`
@@ -298,7 +300,8 @@ class CentralTableLayout(Room):
 
         if len(agent_symbols_to_place) > len(lane_cells_list):
             print(
-                f"Warning: Not enough empty lane cells to place all agents. Placed {len(lane_cells_list)}/{len(agent_symbols_to_place)}."
+                f"Warning: Not enough empty lane cells to place all agents. "
+                f"Placed {len(lane_cells_list)}/{len(agent_symbols_to_place)}."
             )
         return grid
 
