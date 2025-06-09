@@ -135,7 +135,6 @@ def sync_versions(mettagrid_deps: List[Dependency], metta_deps: List[Dependency]
     Stage 3: Apply metta versions to mettagrid dependencies.
     Returns (updated_dependencies, list_of_changes).
     """
-    # Create lookup map of metta dependencies
     metta_map = {dep.name: dep for dep in metta_deps}
 
     updated_deps = []
@@ -157,7 +156,6 @@ def sync_versions(mettagrid_deps: List[Dependency], metta_deps: List[Dependency]
                 updated_deps.append(updated_dep)
                 changes.append(f"  {dep.name}: {dep.version or 'unpinned'} → {metta_dep.version}")
             else:
-                # Keep as-is
                 updated_deps.append(dep)
         else:
             updated_deps.append(dep)
@@ -184,7 +182,6 @@ def recreate_dependencies_section(content_without_deps: str, dependencies: List[
 
     deps_lines.append("]")
 
-    # Insert the new section
     new_content_lines = lines[:insert_line] + comment_lines + deps_lines + lines[insert_line:]
 
     return "\n".join(new_content_lines)
