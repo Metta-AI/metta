@@ -1,7 +1,7 @@
 import logging
 import os
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import numpy as np
 import pufferlib
@@ -487,6 +487,57 @@ class PufferTrainer:
 
             experience.flatten_batch(advantages_np)
 
+        # Compute trajectory length and per-environment step statistics
+        if len(dones_np) > 0:  # Iterate if the batch (represented by dones_np) has data
+            env_ids_this_batch = experience.sort_keys[idxs, 1]
+
+            total_steps_per_env = defaultdict(int)
+            current_segment_lengths_map = defaultdict(int)
+            all_segment_lengths_list = []
+
+            for i in range(len(dones_np)):  # Loop over all collected steps in the batch
+                env_id_val = env_ids_this_batch[i]
+                # Ensure env_id is a primitive type (e.g., int) for dict keys
+                if hasattr(env_id_val, "item"):
+                    env_id = env_id_val.item()
+                else:
+                    env_id = env_id_val
+
+                done_flag = dones_np[i]  # Use dones_np from outer scope (already sorted)
+
+                total_steps_per_env[env_id] += 1
+                current_segment_lengths_map[env_id] += 1
+
+                if done_flag:
+                    all_segment_lengths_list.append(current_segment_lengths_map[env_id])
+                    current_segment_lengths_map[env_id] = 0
+
+            # Add any remaining incomplete segments from the end of the batch
+            for env_id, length in current_segment_lengths_map.items():
+                if length > 0:
+                    all_segment_lengths_list.append(length)
+
+            if all_segment_lengths_list:
+                self.stats["batch_trajectory/length_mean"] = [float(np.mean(all_segment_lengths_list))]
+                self.stats["batch_trajectory/length_median"] = [float(np.median(all_segment_lengths_list))]
+                self.stats["batch_trajectory/length_min"] = [float(np.min(all_segment_lengths_list))]
+                self.stats["batch_trajectory/length_max"] = [float(np.max(all_segment_lengths_list))]
+                self.stats["batch_trajectory/count"] = [float(len(all_segment_lengths_list))]
+
+                # Compute and store the distribution of trajectory lengths
+                length_counts = Counter(all_segment_lengths_list)
+                for length, count in length_counts.items():
+                    self.stats[f"batch_trajectory_dist/len_{length}"] = [float(count)]
+            else:
+                self.stats["batch_trajectory/length_mean"] = [0.0]
+                self.stats["batch_trajectory/length_median"] = [0.0]
+                self.stats["batch_trajectory/length_min"] = [0.0]
+                self.stats["batch_trajectory/length_max"] = [0.0]
+                self.stats["batch_trajectory/count"] = [0.0]
+
+            for env_id, count in total_steps_per_env.items():
+                self.stats[f"batch_env_contrib/env_{env_id}_steps"] = [float(count)]
+
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
@@ -733,6 +784,27 @@ class PufferTrainer:
             except (TypeError, ValueError):
                 del self.stats[k]
 
+        # Print trajectory length distribution to console if master
+        if self._master:
+            trajectory_dist_to_print = {}
+            for k, v_val in list(self.stats.items()):  # Iterate over a copy if modifying or for safety
+                if k.startswith("batch_trajectory_dist/len_"):
+                    try:
+                        length_str = k.replace("batch_trajectory_dist/len_", "")
+                        length = int(length_str)
+                        # v_val is already processed by np.mean, so it's the count as a float
+                        trajectory_dist_to_print[length] = int(v_val)
+                    except ValueError:
+                        logger.warning(f"Could not parse trajectory length from stat key: {k}")
+
+            if trajectory_dist_to_print:
+                logger.info("Trajectory Length Distribution (current batch):")
+                logger.info("  Length | Count")
+                logger.info("  -------|-------")
+                for length in sorted(trajectory_dist_to_print.keys()):
+                    count = trajectory_dist_to_print[length]
+                    logger.info(f"  {length:<6} | {count}")
+
         # Now synchronize and aggregate stats across processes
         sps = self.profile.SPS
         agent_steps = self.agent_step
@@ -904,6 +976,10 @@ class PufferTrainer:
             )  # make sure that the envs are not perfectly correlated
         else:
             self.vecenv.async_reset(self.cfg.seed)
+
+        # let's take a look at the shape of the data that we receive from the vecenv
+        ret = self.vecenv.recv()
+        print(f"ret: {ret}")
 
 
 class AbortingTrainer(PufferTrainer):
