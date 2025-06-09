@@ -3,6 +3,7 @@ import * as Common from './common.js';
 import { ui } from './common.js';
 import { find } from './htmlutils.js'
 
+/** A main UI panel. */
 export class PanelInfo {
   public x: number = 0;
   public y: number = 0;
@@ -19,32 +20,30 @@ export class PanelInfo {
     this.div = find(name)
   }
 
-  // Check if a point is inside the panel.
+  /** Check if a point is inside the panel. */
   inside(point: Vec2f): boolean {
     return point.x() >= this.x && point.x() < this.x + this.width &&
       point.y() >= this.y && point.y() < this.y + this.height;
   }
 
-  // Gets the transformation matrix for the panel.
+  /** Gets the transformation matrix for the panel. */
   transform(): Mat3f {
     return Mat3f.translate(this.x + this.width / 2, this.y + this.height / 2)
       .mul(Mat3f.scale(this.zoomLevel, this.zoomLevel))
       .mul(Mat3f.translate(this.panPos.x(), this.panPos.y()));
   }
 
-  // Transform a point from the outer coordinate system
-  // to the panel's inner coordinate system.
+  /** Transform a point from the outer coordinate system to the panel's inner coordinate system. */
   transformOuter(point: Vec2f): Vec2f {
     return this.transform().inverse().transform(point);
   }
 
-  // Transform a point from the panel's inner coordinate system
-  // to the outer coordinate system.
+  /** Transform a point from the panel's inner coordinate system to the outer coordinate system. */
   transformInner(point: Vec2f): Vec2f {
     return this.transform().transform(point);
   }
 
-  // Make the panel focus on a specific position in the panel.
+  /** Make the panel focus on a specific position in the panel. */
   focusPos(x: number, y: number, zoomLevel: number) {
     this.panPos = new Vec2f(
       -x,
@@ -53,7 +52,7 @@ export class PanelInfo {
     this.zoomLevel = zoomLevel;
   }
 
-  // Update the pan and zoom level based on the mouse position and scroll delta.
+  /** Update the pan and zoom level based on the mouse position and scroll delta. */
   updatePanAndZoom(): boolean {
 
     if ("#" + ui.mouseTarget != this.name || ui.dragging != "") {
@@ -89,7 +88,7 @@ export class PanelInfo {
     return false;
   }
 
-  // Update the div position and size.
+  /** Update the div position and size. */
   updateDiv() {
     this.div.style.top = this.y + 'px';
     this.div.style.left = this.x + 'px';

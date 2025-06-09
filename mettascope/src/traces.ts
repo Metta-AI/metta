@@ -6,6 +6,7 @@ import { PanelInfo } from './panels.js';
 import { updateStep, updateSelection } from './main.js';
 import { parseHtmlColor } from './htmlutils.js';
 
+/** Draw the trace panel. */
 export function drawTrace(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;

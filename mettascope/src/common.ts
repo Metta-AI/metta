@@ -149,7 +149,7 @@ export const html = {
   toast: find('#toast') as HTMLDivElement,
 }
 
-// Set the follow selection state, you can pass null to leave a state unchanged.
+/** Set the follow selection state, you can pass null to leave a state unchanged. */
 export function setFollowSelection(map: boolean | null) {
   if (map != null) {
     state.followSelection = map;
@@ -161,7 +161,7 @@ export function setFollowSelection(map: boolean | null) {
   }
 }
 
-// Show the modal
+/** Show the modal. */
 export function showModal(type: string, title: string, message: string) {
   html.modal.classList.remove('hidden');
   html.modal.classList.add(type);
@@ -176,7 +176,7 @@ export function showModal(type: string, title: string, message: string) {
   console.log("showing modal", html.modal, type, title, message);
 }
 
-// Close the modal
+/** Close the modal. */
 export function closeModal() {
   // Remove error class from modal.
   html.modal.classList.remove('error');
@@ -184,7 +184,7 @@ export function closeModal() {
   html.modal.classList.add('hidden');
 }
 
-// Functions to show and hide toast notifications
+/** Functions to show and hide toast notifications. */
 export function showToast(message: string, duration = 3000) {
   // Set the message
   let msg = html.toast.querySelector('.message')
@@ -201,7 +201,7 @@ export function showToast(message: string, duration = 3000) {
   }, duration);
 }
 
-// Hides the currently visible toast with an upward animation
+/** Hides the currently visible toast with an upward animation. */
 export function hideToast() {
   // Add the hiding class for the upward animation
   html.toast.classList.add('hiding');
