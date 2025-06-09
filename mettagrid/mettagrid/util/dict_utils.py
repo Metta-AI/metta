@@ -1,4 +1,6 @@
-def unroll_nested_dict(d):
+from typing import Any, Generator
+
+def unroll_nested_dict(d: Any) -> Generator[tuple[str, Any], None, None]:
     if not isinstance(d, dict):
         return d
 
