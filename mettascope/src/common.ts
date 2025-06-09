@@ -2,6 +2,7 @@ import { Vec2f } from './vector_math.js';
 import { Context3d } from './context3d.js';
 import { find, parseHtmlColor, localStorageGetNumber } from './htmlutils.js';
 import { PanelInfo } from './panels.js';
+import { InfoPanel } from './infopanels.js';
 
 // The 3d context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement);
@@ -30,6 +31,9 @@ export const DEFAULT_VISION_SIZE = 11;
 export const TRACE_HEIGHT = 512;
 export const TRACE_WIDTH = 54;
 
+// Info panel constants
+export const INFO_PANEL_POP_TIME = 300; // ms
+
 // Colors for resources
 export const COLORS: [string, [number, number, number, number]][] = [
   ["red", parseHtmlColor("#E4433A")],
@@ -46,6 +50,8 @@ export const ui = {
   mousePos: new Vec2f(0, 0),
   mouseTarget: "",
   dragging: "",
+  dragHtml: null as HTMLElement | null,
+  dragOffset: new Vec2f(0, 0),
   lastMousePos: new Vec2f(0, 0),
   mouseDownPos: new Vec2f(0, 0),
   scrollDelta: 0,
@@ -61,6 +67,11 @@ export const ui = {
   tracePanel: new PanelInfo("#trace-panel"),
   infoPanel: new PanelInfo("#info-panel"),
   agentPanel: new PanelInfo("#agent-panel"),
+
+  infoPanels: [] as InfoPanel[],
+  hoverObject: null as any,
+  hoverTimer: null as any,
+  delayedHoverObject: null as any,
 };
 
 export const state = {

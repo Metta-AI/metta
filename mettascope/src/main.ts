@@ -2,12 +2,13 @@ import { Vec2f, Mat3f } from './vector_math.js';
 import * as Common from './common.js';
 import { ui, state, html, ctx, setFollowSelection } from './common.js';
 import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js';
-import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
+import { focusFullMap, drawMap, requestFrame } from './worldmap.js';
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
 import { initAgentTable, updateAgentTable } from './agentpanel.js';
-import { localStorageSetNumber } from './htmlutils.js';
+import { localStorageSetNumber, onEvent } from './htmlutils.js';
+import { updateReadout } from './infopanels.js';
 
 // Handle resize events.
 export function onResize() {
@@ -39,9 +40,9 @@ export function onResize() {
   }
 
   ui.infoPanel.x = screenWidth - 400;
-  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 200;
+  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300;
   ui.infoPanel.width = 400;
-  ui.infoPanel.height = 200;
+  ui.infoPanel.height = 300;
 
   // Trace panel is always on the bottom of the screen.
   ui.tracePanel.x = 0;
@@ -68,7 +69,7 @@ export function onResize() {
 }
 
 // Handle mouse down events.
-function onMouseDown() {
+onEvent("mousedown", "body", () => {
   ui.lastMousePos = ui.mousePos;
   ui.mouseDownPos = ui.mousePos;
   ui.mouseClick = true;
@@ -86,13 +87,15 @@ function onMouseDown() {
   }
 
   requestFrame();
-}
+})
 
 // Handle mouse up events.
-function onMouseUp() {
+onEvent("mouseup", "body", () => {
   ui.mouseUp = true;
   ui.mouseDown = false;
   ui.dragging = "";
+  ui.dragHtml = null;
+  ui.dragOffset = new Vec2f(0, 0);
 
   // Due to how we select objects on mouse-up (mouse-down is drag/pan),
   // we need to check for double-click on mouse-up as well.
@@ -101,10 +104,11 @@ function onMouseUp() {
   ui.lastClickTime = currentTime;
 
   requestFrame();
-}
+})
 
 // Handle mouse move events.
-function onMouseMove(event: MouseEvent) {
+onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
+  let event = e as MouseEvent;
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
   var target = event.target as HTMLElement;
   while (target.id === "" && target.parentElement != null) {
@@ -134,14 +138,29 @@ function onMouseMove(event: MouseEvent) {
     onResize();
   }
 
+  if (ui.dragHtml != null) {
+    ui.dragHtml.style.left = (ui.mousePos.x() - ui.dragOffset.x()) + "px";
+    ui.dragHtml.style.top = (ui.mousePos.y() - ui.dragOffset.y()) + "px";
+  }
+
   requestFrame();
-}
+})
+
+onEvent("mousedown", ".draggable", (target: HTMLElement, e: Event) => {
+  let event = e as MouseEvent;
+  ui.dragHtml = target;
+  let rect = target.getBoundingClientRect();
+  ui.dragOffset = new Vec2f(event.clientX - rect.left, event.clientY - rect.top);
+  ui.dragging = "draggable";
+  requestFrame();
+})
 
 // Handle scroll events.
-function onScroll(event: WheelEvent) {
+onEvent("wheel", "body", (target: HTMLElement, e: Event) => {
+  let event = e as WheelEvent;
   ui.scrollDelta = event.deltaY;
   requestFrame();
-}
+})
 
 // Update all URL parameters without creating browser history entries
 function updateUrlParams() {
@@ -221,8 +240,8 @@ function onScrubberChange() {
 }
 
 // Handle key down events.
-function onKeyDown(event: KeyboardEvent) {
-
+onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
+  let event = e as KeyboardEvent;
   if (event.key == "Escape") {
     updateSelection(null);
     setFollowSelection(false);
@@ -253,7 +272,7 @@ function onKeyDown(event: KeyboardEvent) {
   processActions(event);
 
   requestFrame();
-}
+})
 
 // Draw a frame.
 export function onFrame() {
@@ -464,19 +483,16 @@ ui.miniMapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 
 // Add event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize);
-window.addEventListener('keydown', onKeyDown);
-window.addEventListener('mousedown', onMouseDown);
-window.addEventListener('mouseup', onMouseUp);
-window.addEventListener('mousemove', onMouseMove);
-window.addEventListener('wheel', onScroll);
 window.addEventListener('dragenter', preventDefaults, false);
 window.addEventListener('dragleave', preventDefaults, false);
 window.addEventListener('dragover', preventDefaults, false);
 window.addEventListener('drop', handleDrop, false);
 
 // Header area
-html.shareButton.addEventListener('click', onShareButtonClick);
-html.helpButton.addEventListener('click', () => {
+onEvent("click", "#share-button", () => {
+  onShareButtonClick();
+});
+onEvent("click", "#help-button", () => {
   window.open("mettascope_info.html", "_blank");
 });
 
@@ -485,18 +501,18 @@ html.scrubber.addEventListener('input', onScrubberChange);
 html.scrubber.setAttribute("type", "range");
 html.scrubber.setAttribute("value", "0");
 
-html.rewindToStartButton.addEventListener('click', () => {
+onEvent("click", "#rewind-to-start", () => {
   setIsPlaying(false);
   updateStep(0)
 });
-html.stepBackButton.addEventListener('click', () => {
+onEvent("click", "#step-back", () => {
   setIsPlaying(false);
   updateStep(Math.max(state.step - 1, 0))
 });
-html.playButton.addEventListener('click', () =>
+onEvent("click", "#play", () => {
   setIsPlaying(!state.isPlaying)
-);
-html.stepForwardButton.addEventListener('click', () => {
+});
+onEvent("click", "#step-forward", () => {
   setIsPlaying(false);
   if (state.ws !== null) {
     state.ws.send(JSON.stringify({ type: "advance" }));
@@ -504,7 +520,7 @@ html.stepForwardButton.addEventListener('click', () => {
     updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
   }
 });
-html.rewindToEndButton.addEventListener('click', () => {
+onEvent("click", "#rewind-to-end", () => {
   setIsPlaying(false);
   updateStep(state.replay.max_steps - 1)
 });
@@ -516,7 +532,7 @@ for (let i = 0; i < html.speedButtons.length; i++) {
   );
 }
 
-html.resourcesToggle.addEventListener('click', () => {
+onEvent("click", "#resources-toggle", () => {
   state.showResources = !state.showResources;
   localStorage.setItem("showResources", state.showResources.toString());
   toggleOpacity(html.resourcesToggle, state.showResources);
@@ -528,12 +544,12 @@ if (localStorage.hasOwnProperty("showResources")) {
 toggleOpacity(html.resourcesToggle, state.showResources);
 
 // Toggle follow selection state.
-html.focusToggle.addEventListener('click', () => {
+onEvent("click", "#focus-toggle", () => {
   setFollowSelection(!state.followSelection);
 });
 toggleOpacity(html.focusToggle, state.followSelection);
 
-html.gridToggle.addEventListener('click', () => {
+onEvent("click", "#grid-toggle", () => {
   state.showGrid = !state.showGrid;
   localStorage.setItem("showGrid", state.showGrid.toString());
   toggleOpacity(html.gridToggle, state.showGrid);
@@ -544,7 +560,7 @@ if (localStorage.hasOwnProperty("showGrid")) {
 }
 toggleOpacity(html.gridToggle, state.showGrid);
 
-html.visualRangeToggle.addEventListener('click', () => {
+onEvent("click", "#visual-range-toggle", () => {
   state.showVisualRanges = !state.showVisualRanges;
   localStorage.setItem("showVisualRanges", state.showVisualRanges.toString());
   toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
@@ -555,7 +571,7 @@ if (localStorage.hasOwnProperty("showVisualRanges")) {
 }
 toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
 
-html.fogOfWarToggle.addEventListener('click', () => {
+onEvent("click", "#fog-of-war-toggle", () => {
   state.showFogOfWar = !state.showFogOfWar;
   localStorage.setItem("showFogOfWar", state.showFogOfWar.toString());
   toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
@@ -566,7 +582,7 @@ if (localStorage.hasOwnProperty("showFogOfWar")) {
 }
 toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
 
-html.minimapToggle.addEventListener('click', () => {
+onEvent("click", "#minimap-toggle", () => {
   state.showMiniMap = !state.showMiniMap;
   localStorage.setItem("showMiniMap", state.showMiniMap.toString());
   toggleOpacity(html.minimapToggle, state.showMiniMap);
@@ -577,7 +593,7 @@ if (localStorage.hasOwnProperty("showMiniMap")) {
 }
 toggleOpacity(html.minimapToggle, state.showMiniMap);
 
-html.controlsToggle.addEventListener('click', () => {
+onEvent("click", "#controls-toggle", () => {
   state.showControls = !state.showControls;
   localStorage.setItem("showControls", state.showControls.toString());
   toggleOpacity(html.controlsToggle, state.showControls);
@@ -588,7 +604,7 @@ if (localStorage.hasOwnProperty("showControls")) {
 }
 toggleOpacity(html.controlsToggle, state.showControls);
 
-html.infoToggle.addEventListener('click', () => {
+onEvent("click", "#info-toggle", () => {
   state.showInfo = !state.showInfo;
   localStorage.setItem("showInfo", state.showInfo.toString());
   toggleOpacity(html.infoToggle, state.showInfo);
@@ -599,7 +615,7 @@ if (localStorage.hasOwnProperty("showInfo")) {
 }
 toggleOpacity(html.infoToggle, state.showInfo);
 
-html.agentPanelToggle.addEventListener('click', () => {
+onEvent("click", "#agent-panel-toggle", () => {
   state.showAgentPanel = !state.showAgentPanel;
   localStorage.setItem("showAgentPanel", state.showAgentPanel.toString());
   toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
