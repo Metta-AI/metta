@@ -527,7 +527,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-#info-panel ..info {
+#info-panel .info {
     position: relative;
     display: inline-block;
     width: fit-content;
@@ -1793,7 +1793,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.top ..pin-info-panel.hover-icon {
+.top .pin-info-panel.hover-icon {
     position: relative;
     display: block;
     width: 32px;
