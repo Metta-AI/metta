@@ -872,7 +872,7 @@ class PufferTrainer:
         #     num_envs = (self.batch_size * self.trainer_cfg.async_factor) // 4
         # else:
         #     num_envs = self.batch_size * self.trainer_cfg.async_factor
-        num_envs = 1024 // world_size
+        num_envs = self.batch_size * self.trainer_cfg.async_factor
 
         print(f"self.num_envs: {num_envs}")
 
