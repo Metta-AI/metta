@@ -2,7 +2,7 @@ defaults:
   - sim_suite
   - _self_
 
-name: navsequence
+name: nav_sequence
 
 simulations:
   navigation_sequence/cylinder:
