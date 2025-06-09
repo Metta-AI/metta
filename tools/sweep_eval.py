@@ -10,7 +10,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.carbs.metta_protein import MettaProtein
+from metta.rl.protein_opt.metta_protein import MettaProtein
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.util.logging import setup_mettagrid_logger

@@ -321,7 +321,7 @@ print(OmegaConf.to_yaml(cfg))
 
 # Test Protein initialization
 python -c "
-from metta.rl.carbs.metta_protein import MettaProtein
+from metta.rl.protein_opt.metta_protein import MettaProtein
 from omegaconf import OmegaConf
 cfg = OmegaConf.load('configs/sweep/my_sweep.yaml')
 protein = MettaProtein(cfg)
