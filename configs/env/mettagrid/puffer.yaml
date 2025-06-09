@@ -7,18 +7,21 @@ game:
 
   agent:
     default_item_max: 50
-    freeze_duration: 0
+    freeze_duration: 10
 
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${div:${..num_agents},4}
+    num_rooms: 4
     border_width: 6
+
     room:
       _target_: mettagrid.room.random.Random
       width: 25
       height: 25
       border_width: 0
-      agents: 4
+
+      agents: 16
+
       objects:
         mine: 10
         generator: 2
