@@ -37,8 +37,7 @@ onEvent("click", ".infopanel .close", (target: HTMLElement, e: Event) => {
 })
 
 var infoPanelTemplate = find(".infopanel") as HTMLElement;
-
-infoPanelTemplate.remove();
+infoPanelTemplate.classList.add("hidden")
 
 var hoverPanel = infoPanelTemplate.cloneNode(true) as HTMLElement;
 document.body.appendChild(hoverPanel);
