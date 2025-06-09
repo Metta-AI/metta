@@ -4,28 +4,21 @@ import { FC, useCallback, useEffect, useRef, useState } from "react";
 import { usePanZoom } from "@/hooks/use-pan-and-zoom";
 import { Drawer } from "@/lib/draw/Drawer";
 import { drawGrid } from "@/lib/draw/drawGrid";
-import { MettaGrid } from "@/lib/MettaGrid";
+import { Cell, MettaGrid } from "@/lib/MettaGrid";
 
-export type Cell = { x: number; y: number };
 type CellHandler = (cell: Cell | undefined) => void;
 
 type Props = {
   grid: MettaGrid;
   onCellHover?: CellHandler;
-  selectedCell?: { x: number; y: number };
+  selectedCell?: Cell;
   onCellSelect?: CellHandler;
 };
 
 const Overlay: FC<{
   cellSize: number;
-  hoveredCell?: {
-    x: number;
-    y: number;
-  };
-  selectedCell?: {
-    x: number;
-    y: number;
-  };
+  hoveredCell?: Cell;
+  selectedCell?: Cell;
 }> = ({ cellSize, hoveredCell, selectedCell }) => {
   return (
     <>
@@ -33,8 +26,8 @@ const Overlay: FC<{
         <div
           className="absolute border border-blue-500"
           style={{
-            left: hoveredCell?.x * cellSize,
-            top: hoveredCell?.y * cellSize,
+            left: hoveredCell?.c * cellSize,
+            top: hoveredCell?.r * cellSize,
             width: cellSize + 2,
             height: cellSize + 2,
           }}
@@ -44,8 +37,8 @@ const Overlay: FC<{
         <div
           className="absolute border border-red-500"
           style={{
-            left: selectedCell?.x * cellSize,
-            top: selectedCell?.y * cellSize,
+            left: selectedCell?.c * cellSize,
+            top: selectedCell?.r * cellSize,
             width: cellSize + 2,
             height: cellSize + 2,
           }}
@@ -80,13 +73,7 @@ export const MapViewer: FC<Props> = ({
   // This is in internal canvas pixels, not pixels on the screen. (canvas.width, not clientWidth)
   const [cellSize, setCellSize] = useState(0);
 
-  const [hoveredCell, setHoveredCell] = useState<
-    | {
-        x: number;
-        y: number;
-      }
-    | undefined
-  >();
+  const [hoveredCell, setHoveredCell] = useState<Cell | undefined>();
 
   const measureCellSize = useCallback(() => {
     if (!canvasRef.current || !containerRef.current) return;
@@ -138,7 +125,7 @@ export const MapViewer: FC<Props> = ({
   // useStressTest(draw, canvasRef.current);
 
   const cellFromMouseEvent = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
+    (e: React.MouseEvent<HTMLCanvasElement>): Cell | null => {
       if (!canvasRef.current) return null;
 
       // 1. Grab the bounding box AFTER CSS transforms:
@@ -148,10 +135,10 @@ export const MapViewer: FC<Props> = ({
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
 
-      const x = sx * (grid.width / rect.width);
-      const y = sy * (grid.height / rect.height);
+      const c = sx * (grid.width / rect.width);
+      const r = sy * (grid.height / rect.height);
 
-      return { x: Math.floor(x), y: Math.floor(y) };
+      return { r: Math.floor(r), c: Math.floor(c) };
     },
     [grid]
   );
@@ -174,7 +161,7 @@ export const MapViewer: FC<Props> = ({
       const cell = cellFromMouseEvent(e);
       if (!cell) return;
 
-      if (grid.object(cell.x, cell.y)) {
+      if (grid.object(cell)) {
         onCellSelect(cell);
       } else {
         onCellSelect(undefined);

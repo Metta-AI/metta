@@ -31,6 +31,12 @@ const objectNameToTypeId: Record<ObjectName, number> = Object.fromEntries(
 
 export type ItemObjectName = Exclude<ObjectName, "wall" | "agent" | "empty">;
 
+export type Cell = {
+  // these are intentionally `r` and `c` instead of `x` and `y` so that we don't confuse them with screen coordinates
+  r: number;
+  c: number;
+};
+
 export class MettaObject {
   readonly type: number;
   readonly r: number;
@@ -143,8 +149,8 @@ export class MettaGrid {
       .join("\n");
   }
 
-  object(x: number, y: number): MettaObject | null {
-    return this.grid[y][x];
+  object(cell: Cell): MettaObject | null {
+    return this.grid[cell.r][cell.c];
   }
 
   get width(): number {

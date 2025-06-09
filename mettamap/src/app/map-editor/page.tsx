@@ -8,7 +8,7 @@ import { MapViewer } from "@/components/MapViewer";
 import { NumberInput } from "@/components/NumberInput";
 import { loadMettaTileSets } from "@/lib/draw/mettaTileSets";
 import { TileSetCollection } from "@/lib/draw/TileSet";
-import { MettaGrid, ObjectName } from "@/lib/MettaGrid";
+import { Cell, MettaGrid, ObjectName } from "@/lib/MettaGrid";
 
 const AsciiPreview: FC<{ ascii: string }> = ({ ascii }) => {
   return (
@@ -76,13 +76,12 @@ export default function MapEditorPage() {
   );
 
   const [selectedEntity, setSelectedEntity] = useState<ObjectName>("wall");
-  const [asciiEditMode, setAsciiEditMode] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
 
-  const drawCell = (cell: { x: number; y: number } | undefined) => {
+  const drawCell = (cell: Cell | undefined) => {
     if (!cell) return;
     setGrid((g) => {
-      const newG = g.replaceCellByName(cell.y, cell.x, selectedEntity);
+      const newG = g.replaceCellByName(cell.r, cell.c, selectedEntity);
       return newG;
     });
   };
