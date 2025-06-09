@@ -25,12 +25,23 @@ export class PanelInfo {
       point.y() >= this.y && point.y() < this.y + this.height;
   }
 
-  // Transform a point from the canvas to the map coordinate system.
-  transformPoint(point: Vec2f): Vec2f {
-    const m = Mat3f.translate(this.x + this.width / 2, this.y + this.height / 2)
+  // Gets the transformation matrix for the panel.
+  transform(): Mat3f {
+    return Mat3f.translate(this.x + this.width / 2, this.y + this.height / 2)
       .mul(Mat3f.scale(this.zoomLevel, this.zoomLevel))
       .mul(Mat3f.translate(this.panPos.x(), this.panPos.y()));
-    return m.inverse().transform(point);
+  }
+
+  // Transform a point from the outer coordinate system
+  // to the panel's inner coordinate system.
+  transformOuter(point: Vec2f): Vec2f {
+    return this.transform().inverse().transform(point);
+  }
+
+  // Transform a point from the panel's inner coordinate system
+  // to the outer coordinate system.
+  transformInner(point: Vec2f): Vec2f {
+    return this.transform().transform(point);
   }
 
   // Make the panel focus on a specific position in the panel.
@@ -57,18 +68,18 @@ export class PanelInfo {
     }
 
     if (this.isPanning && ui.mousePos.sub(ui.lastMousePos).length() > 1) {
-      const lastMousePoint = this.transformPoint(ui.lastMousePos);
-      const newMousePoint = this.transformPoint(ui.mousePos);
+      const lastMousePoint = this.transformOuter(ui.lastMousePos);
+      const newMousePoint = this.transformOuter(ui.mousePos);
       this.panPos = this.panPos.add(newMousePoint.sub(lastMousePoint));
       ui.lastMousePos = ui.mousePos;
       return true;
     }
 
     if (ui.scrollDelta !== 0) {
-      const oldMousePoint = this.transformPoint(ui.mousePos);
+      const oldMousePoint = this.transformOuter(ui.mousePos);
       this.zoomLevel = this.zoomLevel + ui.scrollDelta / Common.SCROLL_ZOOM_FACTOR;
       this.zoomLevel = Math.max(Math.min(this.zoomLevel, Common.MAX_ZOOM_LEVEL), Common.MIN_ZOOM_LEVEL);
-      const newMousePoint = this.transformPoint(ui.mousePos);
+      const newMousePoint = this.transformOuter(ui.mousePos);
       if (oldMousePoint != null && newMousePoint != null) {
         this.panPos = this.panPos.add(newMousePoint.sub(oldMousePoint));
       }
