@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import time
 import uuid
 from typing import Any, Dict, Optional, cast
 
@@ -15,6 +16,7 @@ from pydantic import validate_call
 from typing_extensions import override
 
 from metta.util.s3_cache import S3CacheManager
+from metta.util.timing import Stopwatch
 from mettagrid.curriculum import Curriculum, Task
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
@@ -87,6 +89,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
 
+        self.timer = Stopwatch(logger)
+        self.timer.start()
+
         self._initialize_c_env(self._task)
         super().__init__(buf)
 
@@ -111,26 +116,36 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             map_builder_config = task.env_cfg().game.map_builder
             with map_cache(map_builder_config) as cache_ctx:
                 if cache_ctx.hit:
-                    level = cache_ctx.get()
+                    with self.timer("cache_hit"):
+                        level = cache_ctx.get()
                 else:
-                    map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
-                    level = map_builder.build()
-                    cache_ctx.set(level)
+                    with self.timer("cache_miss"):
+                        map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
+                        level = map_builder.build()
+                    with self.timer("cache_set"):
+                        cache_ctx.set(level)
 
         # Validate the level
+        validation_start = time.perf_counter()
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
         assert task.env_cfg().game.num_agents == level_agents, (
             f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
+        validation_time = time.perf_counter() - validation_start
+        logging.debug(f"Level validation required {validation_time:.4f} sec")
 
         # Convert to container for C++ code
+        config_conversion_start = time.perf_counter()
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
+        config_conversion_time = time.perf_counter() - config_conversion_start
+        logging.debug(f"Config conversion required {config_conversion_time:.4f} sec")
 
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        self._c_env = MettaGrid(config_dict, level.grid.tolist())
+        with self.timer("mettagrid_init"):
+            self._c_env = MettaGrid(config_dict, level.grid.tolist())
 
         self._grid_env = self._c_env
 
