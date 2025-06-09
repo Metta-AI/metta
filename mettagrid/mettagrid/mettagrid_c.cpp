@@ -337,12 +337,10 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
         continue;
       }
 
-      // Extract action data
       int action_id = actions_view(agent_idx, 0);
       ActionArg action_arg = static_cast<ActionArg>(actions_view(agent_idx, 1));
       Agent* agent = _agents[agent_idx];
 
-      // Validate action ID
       if (action_id < 0 || action_id >= _num_action_handlers) {
         throw std::runtime_error("Invalid action ID " + std::to_string(action_id) + " for agent " +
                                  std::to_string(agent_idx) + ". Valid range: 0 to " +
@@ -356,7 +354,6 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
         continue;
       }
 
-      // Validate action argument
       if (action_arg > _max_action_args[action_id]) {
         throw std::runtime_error("Action argument " + std::to_string(action_arg) + " exceeds maximum " +
                                  std::to_string(_max_action_args[action_id]) + " for action " +
