@@ -36,6 +36,8 @@ class ObsTokenToBoxShaper(LayerBase):
             token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
         td["_BxTT_"] = B * TT
 
+        assert token_observations.shape[-1] == 3, "Expected 3 channels per token"
+
         # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
         coords_byte = token_observations[..., 0].to(torch.uint8)
 
