@@ -5,7 +5,7 @@ defaults:
 sampling: 1
 
 game:
-  num_agents: ${..num_agents}
+  num_agents: 4
   agent:
     default_item_max: 100
     rewards:
@@ -23,7 +23,7 @@ game:
       heart_max: 1000
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
+    num_rooms: 4
     border_width: 6
     room:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain

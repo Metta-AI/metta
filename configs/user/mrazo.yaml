@@ -9,4 +9,4 @@ trainer:
   wandb.enabled: true
   wandb.track: true
 
-run: mrazo_memory-traces_objectuse_v01
+run: mrazo_memory-traces_objectuse_v02
