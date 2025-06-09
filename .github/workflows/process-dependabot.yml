@@ -1,0 +1,183 @@
+name: "Process Dependabot PRs"
+
+on:
+  # Schedule to run 1 hour after Dependabot's weekly run on Monday
+  schedule:
+    # Run Monday-Friday at 10:00 UTC (1 hours after Dependabot runs at 09:00 UTC)
+    - cron: "0 10 * * 1-5"
+
+  # Keep manual trigger option
+  workflow_dispatch:
+    inputs:
+      process-all:
+        description: "Process all open Dependabot PRs"
+        type: boolean
+        default: true
+      specific-pr:
+        description: "Process specific PR number (leave empty to process all)"
+        required: false
+        type: string
+      sync-dependencies:
+        description: "Sync mettagrid dependencies"
+        type: boolean
+        default: true
+
+jobs:
+  process-dependabot-prs:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+      issues: write # For label creation
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Configure Git
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+      - name: Process specific PR if provided
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.specific-pr != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.inputs.specific-pr }}
+          SYNC_DEPS: ${{ github.event.inputs.sync-dependencies }}
+        run: |
+          echo "Processing specific PR #$PR_NUMBER"
+
+          # Check out the PR branch
+          gh pr checkout "$PR_NUMBER"
+
+          # Sync dependencies if requested
+          if [ "$SYNC_DEPS" = "true" ]; then
+            echo "🔄 Syncing mettagrid dependencies..."
+            python .github/scripts/sync_dependencies.py
+
+            # Check if sync made changes
+            if ! git diff --quiet mettagrid/pyproject.toml; then
+              git add mettagrid/pyproject.toml
+              git commit -m "🔄 Sync mettagrid dependencies with metta
+
+              Auto-synced shared dependency versions for compatibility.
+
+              Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>"
+              git push
+              echo "✅ Pushed dependency sync changes"
+            else
+              echo "ℹ️  No dependency sync changes needed"
+            fi
+          fi
+
+          # Assign reviewers/assignees
+          python3 ./.github/actions/pr-assignment/run.py \
+            "$PR_NUMBER" \
+            "${{ vars.DEPENDABOT_ASSIGNEES || '' }}" \
+            "${{ vars.DEPENDABOT_REVIEWERS || '' }}" \
+            "${{ vars.DEPENDABOT_FORCED_ASSIGNEES || '' }}" \
+            "${{ vars.DEPENDABOT_FORCED_REVIEWERS || '' }}" \
+            "" \
+            "true" \
+            "true" \
+            "true"
+
+      - name: Process all open Dependabot PRs
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.specific-pr == '')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          POSSIBLE_ASSIGNEES: ${{ vars.DEPENDABOT_ASSIGNEES || '' }}
+          POSSIBLE_REVIEWERS: ${{ vars.DEPENDABOT_REVIEWERS || '' }}
+          FORCED_ASSIGNEES: ${{ vars.DEPENDABOT_FORCED_ASSIGNEES || '' }}
+          FORCED_REVIEWERS: ${{ vars.DEPENDABOT_FORCED_REVIEWERS || '' }}
+          FORCED_LABELS: ""
+          CLEAR_ASSIGNEES: "true"
+          CLEAR_REVIEWERS: "true"
+          CLEAR_LABELS: "true"
+        run: |
+          echo "Finding all open Dependabot PRs..."
+          # Get all open PRs created by Dependabot
+          DEPENDABOT_PRS=$(gh pr list --repo "$REPO" --author "dependabot[bot]" --state open --json number --jq '.[].number')
+
+          if [ -z "$DEPENDABOT_PRS" ]; then
+            echo "No open Dependabot PRs found."
+            exit 0
+          fi
+
+          echo "Found open Dependabot PRs: $DEPENDABOT_PRS"
+
+          for PR_NUMBER in $DEPENDABOT_PRS; do
+            echo "🔍 Checking PR #$PR_NUMBER"
+
+            # Check if PR already has assignees
+            ASSIGNEE_COUNT=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json assignees --jq '.assignees | length')
+
+            # Check if we've already synced dependencies for this PR
+            COMMITS=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json commits --jq '.commits[].messageHeadline')
+            ALREADY_SYNCED=$(echo "$COMMITS" | grep -c "Sync mettagrid dependencies" || true)
+
+            if [ "$ASSIGNEE_COUNT" -gt 0 ] && [ "$ALREADY_SYNCED" -gt 0 ]; then
+              echo "ℹ️  Skipping PR #$PR_NUMBER (already processed)"
+              continue
+            fi
+
+            echo "🔄 Processing Dependabot PR #$PR_NUMBER"
+
+            # Check out the PR branch
+            gh pr checkout "$PR_NUMBER"
+
+            # Sync dependencies
+            echo "🔄 Syncing mettagrid dependencies..."
+            python .github/scripts/sync_dependencies.py
+
+            # Check if sync made changes
+            if ! git diff --quiet mettagrid/pyproject.toml; then
+              git add mettagrid/pyproject.toml
+              git commit -m "🔄 Sync mettagrid dependencies with metta
+
+              Auto-synced shared dependency versions for compatibility.
+
+              Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>"
+              git push
+              echo "✅ Pushed dependency sync changes for PR #$PR_NUMBER"
+            else
+              echo "ℹ️  No dependency sync changes needed for PR #$PR_NUMBER"
+            fi
+
+            # Assign reviewers/assignees if not already assigned
+            if [ "$ASSIGNEE_COUNT" -eq 0 ]; then
+              echo "👥 Assigning reviewers for PR #$PR_NUMBER"
+
+              # Make the script executable if it isn't already
+              chmod +x ./.github/actions/pr-assignment/run.py
+
+              # Run the Python script
+              python3 ./.github/actions/pr-assignment/run.py \
+                "$PR_NUMBER" \
+                "$POSSIBLE_ASSIGNEES" \
+                "$POSSIBLE_REVIEWERS" \
+                "$FORCED_ASSIGNEES" \
+                "$FORCED_REVIEWERS" \
+                "$FORCED_LABELS" \
+                "$CLEAR_ASSIGNEES" \
+                "$CLEAR_REVIEWERS" \
+                "$CLEAR_LABELS"
+            fi
+
+            # Switch back to main branch for next iteration
+            git checkout main
+
+            sleep 2
+          done
+
+          echo "✅ All eligible Dependabot PRs processed."
