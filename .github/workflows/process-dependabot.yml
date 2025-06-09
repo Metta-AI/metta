@@ -119,7 +119,6 @@ jobs:
           for PR_NUMBER in $DEPENDABOT_PRS; do
             echo "🔍 Checking PR #$PR_NUMBER"
 
-            # Check if PR already has assignees
             ASSIGNEE_COUNT=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json assignees --jq '.assignees | length')
 
             # Check if we've already synced dependencies for this PR
@@ -161,7 +160,6 @@ jobs:
               # Make the script executable if it isn't already
               chmod +x ./.github/actions/pr-assignment/run.py
 
-              # Run the Python script
               python3 ./.github/actions/pr-assignment/run.py \
                 "$PR_NUMBER" \
                 "$POSSIBLE_ASSIGNEES" \
