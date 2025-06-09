@@ -93,6 +93,10 @@ class Experience:
         self.lstm_h: torch.Tensor = torch.zeros(shape).to(device, non_blocking=True)
         self.lstm_c: torch.Tensor = torch.zeros(shape).to(device, non_blocking=True)
 
+        # Memory traces storage (optional - only if using memory traces)
+        # This will be initialized if memory traces are detected in the agent
+        self.memory_traces: Optional[torch.Tensor] = None
+
         num_minibatches = batch_size / minibatch_size
         self.num_minibatches: int = int(num_minibatches)
         if self.num_minibatches != num_minibatches:
