@@ -977,10 +977,6 @@ class PufferTrainer:
         else:
             self.vecenv.async_reset(self.cfg.seed)
 
-        # let's take a look at the shape of the data that we receive from the vecenv
-        ret = self.vecenv.recv()
-        print(f"ret: {ret}")
-
 
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):
