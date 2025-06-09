@@ -1,0 +1,31 @@
+# Demo sweep configuration for testing the Protein optimizer
+sweep:
+  # Optimization settings
+  metric: reward
+  goal: maximize
+  num_random_samples: 3  # Small number for quick testing
+
+  parameters:
+    # Learning rate - log-normal distribution
+    trainer.learning_rate:
+      min: 1e-5
+      max: 1e-2
+      mean: 1e-3
+      scale: 1
+      distribution: log_normal
+
+    # Batch size - integer uniform distribution
+    trainer.batch_size:
+      min: 32
+      max: 128
+      mean: 64
+      scale: 1
+      distribution: int_uniform
+
+    # PPO gamma parameter - uniform distribution (normal not supported)
+    trainer.gamma:
+      min: 0.9
+      max: 0.999
+      mean: 0.99
+      scale: 0.02
+      distribution: uniform
