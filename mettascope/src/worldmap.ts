@@ -797,8 +797,6 @@ export function drawMap(panel: PanelInfo) {
       }
     }
   } else {
-    // if (ui.hoverObject !== objectUnderMouse) {
-    //   console.log("Hovering over object:", objectUnderMouse);
     ui.hoverObject = objectUnderMouse;
     clearTimeout(ui.hoverTimer);
     ui.hoverTimer = setTimeout(() => {
