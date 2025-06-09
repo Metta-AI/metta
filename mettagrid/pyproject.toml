@@ -1,5 +1,10 @@
 [build-system]
-requires = ["scikit-build-core", "wheel", "numpy==2.2.5", "pybind11==2.10.4"]
+requires = [
+    "scikit-build-core>=0.11",
+    "wheel",
+    "numpy>=2.2.6,<2.3",
+    "pybind11>=2.10,<3.0",
+]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -70,7 +75,11 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 
 [tool.uv]
-cache-keys = [{ file = "pyproject.toml" }, { file = "CMakeLists.txt" }, { file = "mettagrid/**/*.{cpp,hpp}" }]
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "CMakeLists.txt" },
+    { file = "mettagrid/**/*.{cpp,hpp}" },
+]
 
 [tool.uv.sources]
 pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }
