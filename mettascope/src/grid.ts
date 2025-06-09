@@ -1,7 +1,8 @@
+/** A grid of booleans. */
 export class Grid {
   private width: number;
   private height: number;
-  private data: Uint8Array;  // or Uint32Array if you want to pack 32 bools per int
+  private data: Uint8Array;
 
   constructor(width: number, height: number) {
     this.width = width;
@@ -9,7 +10,7 @@ export class Grid {
     this.data = new Uint8Array(width * height);
   }
 
-  // Fast index calculation - no string creation or hash lookups
+  /** Set the value of a cell. */
   set(x: number, y: number, value: boolean) {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
       return;
@@ -17,6 +18,7 @@ export class Grid {
     this.data[y * this.width + x] = value ? 1 : 0;
   }
 
+  /** Get the value of a cell. */
   get(x: number, y: number): boolean {
     if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
       return false;
@@ -24,6 +26,7 @@ export class Grid {
     return this.data[y * this.width + x] === 1;
   }
 
+  /** Clear the grid. */
   clear() {
     this.data.fill(0);
   }
