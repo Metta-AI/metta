@@ -167,10 +167,6 @@ class PufferTrainer:
             eps=self.trainer_cfg.optimizer.eps,
         )
 
-        self.use_amp: bool = getattr(self.trainer_cfg, "use_amp", False)
-        self.autocast_enabled = self.use_amp and str(self.device).startswith("cuda")
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.autocast_enabled)
-
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
@@ -506,20 +502,13 @@ class PufferTrainer:
                     adv = experience.b_advantages[mb]
                     ret = experience.b_returns[mb]
 
-                autocast_enabled = self.autocast_enabled
-                with torch.cuda.amp.autocast(enabled=autocast_enabled):
-                    with profile.train_forward:
-                        # Forward pass returns:
-                        # (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
-                        (
-                            _,
-                            new_action_log_probs,
-                            entropy,
-                            newvalue,
-                            full_log_probs_distribution,
-                        ) = self.policy(obs, lstm_state, action=atn)
-                        if self.device == "cuda":
-                            torch.cuda.synchronize()
+                with profile.train_forward:
+                    # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
+                    _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
+                        obs, lstm_state, action=atn
+                    )
+                    if self.device == "cuda":
+                        torch.cuda.synchronize()
 
                 with profile.train_misc:
                     if __debug__:
@@ -604,16 +593,9 @@ class PufferTrainer:
 
                 with profile.learn:
                     self.optimizer.zero_grad()
-                    if self.autocast_enabled:
-                        self.scaler.scale(loss).backward()
-                        self.scaler.unscale_(self.optimizer)
-                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                        self.scaler.step(self.optimizer)
-                        self.scaler.update()
-                    else:
-                        loss.backward()
-                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                        self.optimizer.step()
+                    loss.backward()
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                    self.optimizer.step()
 
                     if self.wandb_run and self._master:
                         self.wandb_run.log(
