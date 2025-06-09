@@ -1,8 +1,6 @@
 # @package __global__
 
 defaults:
-  - /hardware: mac_parallel
-  - /agent: simple
   - _self_
 
 run_id: 1

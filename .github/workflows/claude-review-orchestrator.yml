@@ -103,7 +103,6 @@ jobs:
           if [ "${{ steps.consolidate.outputs.has_any_issues }}" = "true" ]; then
             echo "**Status**: ✅ Review completed with suggestions" >> $GITHUB_STEP_SUMMARY
             echo "**Total suggestions**: ${{ steps.consolidate.outputs.total_suggestions }}" >> $GITHUB_STEP_SUMMARY
-            echo "**Total compliments**: ${{ steps.consolidate.outputs.total_compliments }}" >> $GITHUB_STEP_SUMMARY
           else
             echo "**Status**: ✅ All checks passed - no issues found" >> $GITHUB_STEP_SUMMARY
           fi
