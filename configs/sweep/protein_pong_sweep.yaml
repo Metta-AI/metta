@@ -1,0 +1,99 @@
+sweep:
+  # Sweep configuration
+  metric: action.use.altar
+  goal: maximize  # Required for Protein
+  num_random_samples: 10
+
+  parameters:
+    # Environment parameters
+    env.sampling:
+      min: 0.0
+      max: 1.0
+      mean: 0.001
+      scale: 1
+      distribution: normal
+
+    # Trainer parameters
+    trainer.learning_rate:
+      min: 1e-5
+      max: 1e-1
+      mean: 1e-3
+      scale: 1
+      distribution: log_normal
+
+    trainer.gamma:
+      min: 0.0
+      max: 1.0
+      mean: 0.99
+      scale: 0.1
+      distribution: normal
+
+    trainer.gae_lambda:
+      min: 0.0
+      max: 1.0
+      mean: 0.95
+      scale: 0.1
+      distribution: normal
+
+    trainer.update_epochs:
+      min: 1
+      max: 16
+      mean: 4
+      scale: 1
+      distribution: int_uniform
+
+    trainer.clip_coef:
+      min: 0.0
+      max: 1.0
+      mean: 0.2
+      scale: 0.1
+      distribution: normal
+
+    trainer.vf_coef:
+      min: 0.0
+      max: 1.0
+      mean: 0.5
+      scale: 0.1
+      distribution: normal
+
+    trainer.max_grad_norm:
+      min: 0.0
+      max: 1.0
+      mean: 0.5
+      scale: 0.1
+      distribution: normal
+
+    trainer.ent_coef:
+      min: 1e-5
+      max: 1e-1
+      mean: 1e-3
+      scale: 1
+      distribution: log_normal
+
+    trainer.batch_size:
+      min: 65536
+      max: 524288
+      mean: 131072
+      scale: 1
+      distribution: int_log_uniform
+
+    trainer.minibatch_size:
+      min: 512
+      max: 32768
+      mean: 4096
+      scale: 1
+      distribution: int_log_uniform
+
+    trainer.bptt_horizon:
+      min: 1
+      max: 128
+      mean: 32
+      scale: 1
+      distribution: int_log_uniform
+
+    trainer.total_timesteps:
+      min: 1e9
+      max: 1e10
+      mean: 1.1e9
+      scale: 1
+      distribution: log_normal

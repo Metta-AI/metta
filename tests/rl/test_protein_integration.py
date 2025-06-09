@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Integration tests for MettaProtein sweep functionality."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 import yaml
 from omegaconf import OmegaConf
@@ -13,6 +15,48 @@ class MockWandbRun:
 
     def __init__(self, name: str = "test_protein_run"):
         self.name = name
+        self.id = name
+        self.entity = "test_entity"
+        self.project = "test_project"
+        self.sweep_id = "test_sweep"
+        self.summary = MockSummary()
+        self.config = MockConfig()
+
+
+class MockConfig:
+    """Mock WandB config."""
+
+    def __init__(self):
+        self._data = {}
+        self.__dict__["_locked"] = {}
+
+    def update(self, data, allow_val_change=False):
+        self._data.update(data)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __setitem__(self, key, value):
+        self._data[key] = value
+
+
+class MockSummary:
+    """Mock WandB summary."""
+
+    def __init__(self):
+        self._data = {}
+
+    def get(self, key, default=None):
+        return self._data.get(key, default)
+
+    def update(self, data):
+        self._data.update(data)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __setitem__(self, key, value):
+        self._data[key] = value
 
 
 def coerce_numbers(d):
@@ -44,31 +88,51 @@ class TestMettaProteinIntegration:
         )
 
         mock_run = MockWandbRun()
-        protein = MettaProtein(cfg, wandb_run=mock_run)
 
-        # Test suggest method
-        params = protein.suggest()
-        assert isinstance(params, dict)
-        assert "learning_rate" in params
-        assert "batch_size" in params
-        assert 0.001 <= params["learning_rate"] <= 0.01
-        assert 16 <= params["batch_size"] <= 128
+        # Mock the WandB API to avoid real API calls
+        mock_api = MagicMock()
+        mock_runs_collection = MagicMock()
+        mock_runs_collection.__iter__ = lambda self: iter([])
+        mock_api.runs.return_value = mock_runs_collection
 
-        # Test observe method
-        protein.observe(params, score=0.85, cost=120.5)
-        assert len(protein.success_observations) == 1
+        with patch("wandb.Api", return_value=mock_api):
+            protein = MettaProtein(cfg, wandb_run=mock_run)
+
+            # Test suggest method
+            params, info = protein.suggest()
+            assert isinstance(params, dict)
+            assert "learning_rate" in params
+            assert "batch_size" in params
+            assert 0.001 <= params["learning_rate"] <= 0.01
+            assert 16 <= params["batch_size"] <= 128
+
+            # Test observe method
+            protein.observe(params, score=0.85, cost=120.5)
+            assert len(protein.success_observations) == 1
 
     def test_wandb_stubs(self):
         """Test WandB stub functionality."""
         mock_run = MockWandbRun("test_stub_run")
 
+        # Set the state to running for the static method test
+        mock_run.summary.update({"protein.state": "running"})
+
         # Test static method
         MettaProtein._record_observation(mock_run, 0.75, 95.0)
 
-        # Test failure recording
+        # Test failure recording - use a fresh mock run
+        mock_run2 = MockWandbRun("test_stub_run2")
         cfg = OmegaConf.create({"param": {"min": 0, "max": 1, "scale": 1, "mean": 0.5, "distribution": "uniform"}})
-        protein = MettaProtein(cfg, wandb_run=mock_run)
-        protein.record_failure()
+
+        # Mock the WandB API
+        mock_api = MagicMock()
+        mock_runs_collection = MagicMock()
+        mock_runs_collection.__iter__ = lambda self: iter([])
+        mock_api.runs.return_value = mock_runs_collection
+
+        with patch("wandb.Api", return_value=mock_api):
+            protein = MettaProtein(cfg, wandb_run=mock_run2)
+            protein.record_failure()
 
     def test_config_format_compatibility(self):
         """Test that protein config format works correctly."""
@@ -82,7 +146,7 @@ class TestMettaProteinIntegration:
         protein_cfg = OmegaConf.create(protein_cfg)
 
         protein = MettaProtein(protein_cfg)
-        params = protein.suggest()
+        params, info = protein.suggest()
 
         assert isinstance(params, dict)
         assert len(params) > 0
@@ -112,17 +176,24 @@ class TestMettaProteinIntegration:
         """Test protein with multiple observations."""
         cfg = OmegaConf.create({"x": {"min": 0.0, "max": 1.0, "scale": 1, "mean": 0.5, "distribution": "uniform"}})
 
-        protein = MettaProtein(cfg)
+        # Mock the WandB API
+        mock_api = MagicMock()
+        mock_runs_collection = MagicMock()
+        mock_runs_collection.__iter__ = lambda self: iter([])
+        mock_api.runs.return_value = mock_runs_collection
 
-        # Add multiple observations
-        for i in range(5):
-            params = protein.suggest()
-            score = 1.0 - abs(params["x"] - 0.7)  # Target 0.7
-            protein.observe(params, score=score, cost=10.0)
+        with patch("wandb.Api", return_value=mock_api):
+            protein = MettaProtein(cfg)
 
-        assert len(protein.success_observations) == 5
+            # Add multiple observations
+            for i in range(5):
+                params, info = protein.suggest()
+                score = 1.0 - abs(params["x"] - 0.7)  # Target 0.7
+                protein.observe(params, score=score, cost=10.0)
 
-        # Next suggestion should be learning from observations
-        final_params = protein.suggest()
-        assert isinstance(final_params, dict)
-        assert "x" in final_params
+            assert len(protein.success_observations) == 5
+
+            # Next suggestion should be learning from observations
+            final_params, final_info = protein.suggest()
+            assert isinstance(final_params, dict)
+            assert "x" in final_params

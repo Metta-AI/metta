@@ -1,0 +1,24 @@
+# Run configuration
+run: sweep_test
+run_dir: ./train_dir/${run}
+policy_uri: file://${run_dir}/checkpoints
+
+trainer:
+  # Learning rate sweep
+  optimizer:
+    learning_rate: ${ss:log, 1e-5, 1e-3}
+    beta1: ${ss:logit, 0.8, 0.99}
+    beta2: ${ss:logit, 0.9, 0.9999}
+    eps: ${ss:log, 1e-8, 1e-4}
+
+  # PPO hyperparameters
+  gamma: ${ss:logit, 0.9, 0.99}
+  gae_lambda: ${ss:logit, 0.9, 0.99}
+  ent_coef: ${ss:log, 1e-5, 1e-2}
+  vf_coef: ${ss:logit, 0.3, 0.7}
+
+  # Training configuration
+  batch_size: ${ss:pow2, 8192, 32768}
+  minibatch_size: ${ss:pow2, 1024, 8192}
+  update_epochs: ${ss:int, 1, 4}
+  bptt_horizon: ${ss:pow2, 8, 64}
