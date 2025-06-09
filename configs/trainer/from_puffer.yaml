@@ -7,21 +7,19 @@ defaults:
 resume: true
 use_e3b: false
 
+# From [train] section in metta.ini
 total_timesteps: 1_000_000_000_000
-
-clip_coef: 0.1
-ent_coef: 0.0008901028045115906
-gae_lambda: 0.9283720217357007
+learning_rate: 0.0013848535655657842
 gamma: 0.9959746852829785
+gae_lambda: 0.9283720217357007
+ent_coef: 0.0008901028045115906
+max_grad_norm: 1.2453426220454547
+vf_coef: 1.0103141121889738
+anneal_lr: false
+batch_size: 524288
+minibatch_size: 32768
 
-# optimizer:
-#   type: muon
-#   beta1: 0.943
-#   beta2: 0.9997
-#   eps: 1.82e-13
-#   learning_rate: 0.000238167
-#   weight_decay: 0
-
+# Adam optimizer settings from metta.ini
 optimizer:
   type: adam
   beta1: 0.8597471085735918
@@ -30,13 +28,9 @@ optimizer:
   learning_rate: 0.0013848535655657842
   weight_decay: 0
 
-lr_scheduler:
-  enabled: false
-  anneal_lr: false
-
-max_grad_norm: 1.2453426220454547
+# Other settings
+clip_coef: 0.1
 vf_clip_coef: 0.1
-vf_coef: 1.0103141121889738
 l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
 
@@ -48,8 +42,6 @@ zero_copy: true
 require_contiguous_env_ids: false
 verbose: true
 
-batch_size: 524288
-minibatch_size: 32768
 bptt_horizon: 64
 update_epochs: 1
 
@@ -61,6 +53,9 @@ profiler_interval_epochs: 10000
 forward_pass_minibatch_target_size: 2048
 async_factor: 2
 
+lr_scheduler:
+  enabled: false
+
 stats:
   overview:
     episode/reward.mean: episode_reward
@@ -71,10 +66,4 @@ kickstart:
   action_loss_coef: 1
   value_loss_coef: 1
   kickstart_steps: 50_000_000
-  additional_teachers:
-    # - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
-    #   action_loss_coef: 1
-    #   value_loss_coef: 1
-    #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
-    #    action_loss_coef: 1
-    #    value_loss_coef: 1
+  additional_teachers: []
