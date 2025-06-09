@@ -40,7 +40,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
 
-  _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
+  _use_observation_tokens = cfg.contains("use_observation_tokens") ? cfg["use_observation_tokens"].cast<bool>() : true;
   _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
