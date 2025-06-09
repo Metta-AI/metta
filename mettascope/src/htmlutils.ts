@@ -1,4 +1,4 @@
-// Parse a hex color string into a float array.
+/** Parse a hex color string into a float array. */
 export function parseHtmlColor(color: string): [number, number, number, number] {
   return [
     parseInt(color.slice(1, 3), 16) / 255,
@@ -8,7 +8,7 @@ export function parseHtmlColor(color: string): [number, number, number, number] 
   ];
 }
 
-// Find an element by css selector in a parent element.
+/** Find an element by css selector in a parent element. */
 export function findIn(parent: HTMLElement, selector: string): HTMLElement {
   const elements = parent.querySelectorAll(selector);
   if (elements.length === 0) {
@@ -19,24 +19,24 @@ export function findIn(parent: HTMLElement, selector: string): HTMLElement {
   return elements[0] as HTMLElement;
 }
 
-// Find an element by css selector.
+/** Find an element by css selector. */
 export function find(selector: string): HTMLElement {
   return findIn(window.document.body, selector);
 }
 
-// Find multiple elements by css selector.
+/** Find multiple elements by css selector. */
 export function finds(selector: string): HTMLElement[] {
   return Array.from(document.querySelectorAll(selector));
 }
 
-// Remove all children of an element.
+/** Remove all children of an element. */
 export function removeChildren(element: HTMLElement) {
   while (element.firstChild) {
     element.removeChild(element.firstChild);
   }
 }
 
-// Walks up the DOM tree and finds the given attribute.
+/** Walks up the DOM tree and finds the given attribute. */
 export function findAttr(element: HTMLElement, attribute: string): string {
   var e = element;
   while (e != null && e != document.body) {
@@ -49,10 +49,12 @@ export function findAttr(element: HTMLElement, attribute: string): string {
 }
 
 
-// I don't like the way that DOM handles events. I think they should be done
-// via CSS selectors rather then handlers one attaches and detaches all the time.
-// Here we have an onEvent function that attaches to a CSS selector and
-// is called when that event happens.
+/**
+ * I don't like the way that DOM handles events. I think they should be done
+ * via CSS selectors rather then handlers one attaches and detaches all the time.
+ * Here we have an onEvent function that attaches to a CSS selector and
+ * is called when that event happens.
+ */
 
 type Handler = {
   selector: string;
@@ -94,14 +96,16 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
 }
 
 
-// Menus are hidden on any click outside the menu, and are clicked through.
-// Dropdowns are hidden on any click outside the dropdown, and are not clicked
-// through, as they have a scrim.
+/**
+ * Menus are hidden on any click outside the menu, and are clicked through.
+ * Dropdowns are hidden on any click outside the dropdown, and are not clicked
+ * through, as they have a scrim.
+ */
 
 var openMenuTarget: HTMLElement | null = null;
 var openMenu: HTMLElement | null = null;
 
-// Shows a menu and sets the scrim target to the menu.
+/** Shows a menu and sets the scrim target to the menu. */
 export function showMenu(target: HTMLElement, menu: HTMLElement) {
 
   // Hide any other open menu.
@@ -117,7 +121,7 @@ export function showMenu(target: HTMLElement, menu: HTMLElement) {
   openMenu.classList.remove("hidden");
 }
 
-// Hides the menu and the scrim.
+/** Hides the menu and the scrim. */
 export function hideMenu() {
   if (openMenuTarget != null) {
     openMenuTarget.classList.remove("selected");
@@ -140,7 +144,7 @@ onEvent("click", "#scrim", (target: HTMLElement, event: Event) => {
   hideDropdown();
 });
 
-// Shows a dropdown and sets the scrim target to the dropdown.
+/** Shows a dropdown and sets the scrim target to the dropdown. */
 export function showDropdown(target: HTMLElement, dropdown: HTMLElement) {
   hideDropdown();
   openDropdown = dropdown;
@@ -152,7 +156,7 @@ export function showDropdown(target: HTMLElement, dropdown: HTMLElement) {
   scrim.classList.remove("hidden");
 }
 
-// Hides the dropdown and the scrim.
+/** Hides the dropdown and the scrim. */
 export function hideDropdown() {
   if (openDropdownTarget != null) {
     openDropdownTarget.classList.remove("selected");
@@ -166,7 +170,7 @@ export function hideDropdown() {
 }
 
 
-// Get number out of local storage with a default value.
+/** Get number out of local storage with a default value. */
 export function localStorageGetNumber(key: string, defaultValue: number): number {
   let value = localStorage.getItem(key);
   if (value == null) {
@@ -175,12 +179,12 @@ export function localStorageGetNumber(key: string, defaultValue: number): number
   return parseFloat(value);
 }
 
-// Set number in local storage.
+/** Set number in local storage. */
 export function localStorageSetNumber(key: string, value: number) {
   localStorage.setItem(key, value.toString());
 }
 
-// Get a whole data structure from local storage.
+/** Get a whole data structure from local storage. */
 export function localStorageGetObject<T>(key: string, defaultValue: T): T {
   let value = localStorage.getItem(key);
   if (value == null) {
@@ -189,7 +193,7 @@ export function localStorageGetObject<T>(key: string, defaultValue: T): T {
   return JSON.parse(value);
 }
 
-// Set a whole data structure in local storage.
+/** Set a whole data structure in local storage. */
 export function localStorageSetObject<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }

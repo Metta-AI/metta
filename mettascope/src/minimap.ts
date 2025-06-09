@@ -5,6 +5,7 @@ import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { parseHtmlColor } from './htmlutils.js';
 
+/** Draw the mini map. */
 export function drawMiniMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
