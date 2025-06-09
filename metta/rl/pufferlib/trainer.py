@@ -614,13 +614,10 @@ class PufferTrainer:
                     mb_obs = mb_obs.reshape(-1, *self.vecenv.single_observation_space.shape)
 
                 # Use MettaAgent forward method
-                if hasattr(self.policy, "forward_train"):
-                    logits, newvalue = self.policy.forward_train(mb_obs, dict(action=mb_actions))
-                else:
-                    state = PolicyState()
-                    _, newlogprob, entropy, newvalue, full_log_probs = self.policy(
-                        mb_obs.to(device), state, action=mb_actions.to(device)
-                    )
+                state = PolicyState()
+                _, newlogprob, entropy, newvalue, full_log_probs = self.policy(
+                    mb_obs.to(device), state, action=mb_actions.to(device)
+                )
 
             with profile.train_misc:
                 if hasattr(newlogprob, "reshape"):
@@ -668,21 +665,14 @@ class PufferTrainer:
                     v_loss = 0.5 * ((newvalue - mb_returns) ** 2).mean()
 
                 # Entropy loss
-                if hasattr(self.policy, "forward_train"):
-                    entropy_loss = torch.tensor(0.0, device=device)
-                else:
-                    entropy_loss = entropy.mean()
+                entropy_loss = entropy.mean()
 
                 # Kickstarter losses
                 if hasattr(self, "kickstarter"):
-                    if hasattr(self.policy, "forward_train"):
-                        ks_action_loss = torch.tensor(0.0, device=device)
-                        ks_value_loss = torch.tensor(0.0, device=device)
-                    else:
-                        teacher_lstm_state = []
-                        ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                            self.agent_step, full_log_probs, newvalue, mb_obs, teacher_lstm_state
-                        )
+                    teacher_lstm_state = []
+                    ks_action_loss, ks_value_loss = self.kickstarter.loss(
+                        self.agent_step, full_log_probs, newvalue, mb_obs, teacher_lstm_state
+                    )
                 else:
                     ks_action_loss = torch.tensor(0.0, device=device)
                     ks_value_loss = torch.tensor(0.0, device=device)
