@@ -1,28 +1,19 @@
-#ifndef METTA_OBJECT_HPP
-#define METTA_OBJECT_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_METTA_OBJECT_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_METTA_OBJECT_HPP_
 
-#include <cstdint>
 #include <map>
 #include <string>
 
-#include "grid_object.hpp"
+#include "../grid_object.hpp"
 
-typedef std::map<std::string, int32_t> ObjectConfig;
+typedef std::map<std::string, int> ObjectConfig;
 
 class MettaObject : public GridObject {
 public:
-  uint32_t hp;
+  uint8_t hp;
 
-  void set_hp(ObjectConfig cfg) {
+  void init_mo(ObjectConfig cfg) {
     this->hp = cfg["hp"];
-  }
-
-  virtual void obs(c_observations_type* obs) const override {
-    encode(obs, GridFeature::HP, this->hp);
-  }
-
-  virtual bool is_converter() const {
-    return false;
   }
 
   virtual bool swappable() const {
@@ -30,4 +21,4 @@ public:
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_OBJECTS_METTA_OBJECT_HPP_

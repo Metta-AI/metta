@@ -2,6 +2,7 @@ from typing import Any, Dict, Tuple
 
 import torch
 import torch.nn as nn
+from einops import rearrange
 from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase
@@ -108,8 +109,7 @@ class LSTM(LayerBase):
             f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self._in_tensor_shapes[0][0])}"
         )
 
-        # Reshape hidden features for LSTM
-        hidden = hidden.reshape(B, T, self._in_tensor_shapes[0][0])
+        hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
         # Use PackedSequence for variable-length sequences
         if seq_lengths is not None and T > 1:  # Only pack if we have multiple timesteps
@@ -151,7 +151,7 @@ class LSTM(LayerBase):
             hidden, (new_h, new_c) = self._net(hidden, state)
 
         # Reshape output to match expected format
-        hidden = hidden.reshape(B * T, self.hidden_size)
+        hidden = rearrange(hidden, "t b h -> (b t) h")
 
         # Store results
         data[self._name] = hidden

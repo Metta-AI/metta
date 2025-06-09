@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 import json
 import os
 import sys
@@ -7,7 +7,6 @@ import time
 import hydra
 import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from wandb_carbs import WandbCarbs
 
 from metta.agent.policy_store import PolicyStore
 from metta.eval.eval_stats_db import EvalStatsDB
@@ -16,6 +15,7 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
+from wandb_carbs import WandbCarbs
 
 
 def log_file(run_dir, name, data, wandb_run):

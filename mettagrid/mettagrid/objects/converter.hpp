@@ -1,39 +1,86 @@
-#ifndef CONVERTER_HPP
-#define CONVERTER_HPP
+#ifndef METTAGRID_METTAGRID_OBJECTS_CONVERTER_HPP_
+#define METTAGRID_METTAGRID_OBJECTS_CONVERTER_HPP_
 
 #include <cassert>
-#include <cstdint>
 #include <string>
 #include <vector>
 
+#include "../event.hpp"
+#include "../grid_object.hpp"
+#include "../stats_tracker.hpp"
+#include "agent.hpp"
 #include "constants.hpp"
-#include "event_manager.hpp"
-#include "grid_object.hpp"
-#include "objects/agent.hpp"
-#include "objects/metta_object.hpp"
-#include "types.hpp"
+#include "has_inventory.hpp"
+#include "metta_object.hpp"
 
-// Converter class definition
-class Converter : public MettaObject {
+class Converter : public HasInventory {
+private:
+  // This should be called any time the converter could start converting. E.g.,
+  // when things are added to its input, and when it finishes converting.
+  void maybe_start_converting() {
+    // We can't start converting if there's no event manager, since we won't
+    // be able to schedule the finishing event.
+    assert(this->event_manager != nullptr);
+    // We also need to have an id to schedule the finishing event. If our id
+    // is zero, we probably haven't been added to the grid yet.
+    assert(this->id != 0);
+    if (this->converting || this->cooling_down) {
+      return;
+    }
+    // Check if the converter is already at max output.
+    unsigned short total_output = 0;
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      if (this->recipe_output[i] > 0) {
+        total_output += this->inventory[i];
+      }
+    }
+    if (total_output >= this->max_output) {
+      stats.incr("blocked.output_full");
+      return;
+    }
+    // Check if the converter has enough input.
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      if (this->inventory[i] < this->recipe_input[i]) {
+        stats.incr("blocked.insufficient_input");
+        return;
+      }
+    }
+    // produce.
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      this->inventory[i] -= this->recipe_input[i];
+      if (this->recipe_input[i] > 0) {
+        stats.add(InventoryItemNames[i] + ".consumed", this->recipe_input[i]);
+      }
+    }
+    // All the previous returns were "we don't start converting".
+    // This one is us starting to convert.
+    this->converting = true;
+    stats.incr("conversions.started");
+    this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
+  }
+
 public:
-  std::vector<uint8_t> inventory;
-  std::vector<uint8_t> recipe_input;
-  std::vector<uint8_t> recipe_output;
-  uint16_t max_output;
-  uint8_t conversion_ticks;
-  uint8_t cooldown;
-  bool converting;
-  bool cooling_down;
-  uint8_t color;
+  vector<unsigned char> recipe_input;
+  vector<unsigned char> recipe_output;
+  // The converter won't convert if its output already has this many things of
+  // the type it produces. This may be clunky in some cases, but the main usage
+  // is to make Mines (etc) have a maximum output.
+  unsigned short max_output;
+  unsigned char conversion_ticks;  // Time to produce output
+  unsigned char cooldown;          // Time to wait after producing before starting again
+  bool converting;                 // Currently in production phase
+  bool cooling_down;               // Currently in cooldown phase
+  unsigned char color;
   EventManager* event_manager;
+  StatsTracker stats;
 
   Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
     GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
-    MettaObject::set_hp(cfg);
-    this->inventory.resize(InventoryItem::InventoryCount);
-    this->recipe_input.resize(InventoryItem::InventoryCount);
-    this->recipe_output.resize(InventoryItem::InventoryCount);
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
+    MettaObject::init_mo(cfg);
+    HasInventory::init_has_inventory(cfg);
+    this->recipe_input.resize(InventoryItem::InventoryItemCount);
+    this->recipe_output.resize(InventoryItem::InventoryItemCount);
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       this->recipe_input[i] = cfg["input_" + InventoryItemNames[i]];
       this->recipe_output[i] = cfg["output_" + InventoryItemNames[i]];
     }
@@ -45,10 +92,11 @@ public:
     this->cooling_down = false;
 
     // Initialize inventory with initial_items for all output types
-    uint8_t initial_items = cfg["initial_items"];
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
+    // Default to recipe_output values if initial_items is not present
+    unsigned char initial_items = cfg["initial_items"];
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (this->recipe_output[i] > 0) {
-        this->_update_inventory(static_cast<InventoryItem>(i), initial_items);
+        HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items);
       }
     }
   }
@@ -62,150 +110,89 @@ public:
 
   void finish_converting() {
     this->converting = false;
+    stats.incr("conversions.completed");
 
     // Add output to inventory
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (this->recipe_output[i] > 0) {
-        this->_update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i]);
+        HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i]);
+        stats.add(InventoryItemNames[i] + ".produced", this->recipe_output[i]);
       }
     }
 
     if (this->cooldown > 0) {
       // Start cooldown phase
       this->cooling_down = true;
-      this->event_manager->schedule_event(Events::CoolDown, this->cooldown, this->id, 0);
+      stats.incr("cooldown.started");
+      this->event_manager->schedule_event(EventType::CoolDown, this->cooldown, this->id, 0);
     } else if (this->cooldown == 0) {
       // No cooldown, try to start converting again immediately
       this->maybe_start_converting();
     } else if (this->cooldown < 0) {
       // Negative cooldown means never convert again
       this->cooling_down = true;
+      stats.incr("conversions.permanent_stop");
     }
   }
 
   void finish_cooldown() {
     this->cooling_down = false;
+    stats.incr("cooldown.completed");
     this->maybe_start_converting();
   }
 
-  virtual bool is_converter() const override {
-    return true;
-  }
-
-  void update_converter_inventory(InventoryItem item, int16_t amount) {
-    this->_update_inventory(item, amount);
+  int update_inventory(InventoryItem item, short amount) override {
+    int delta = HasInventory::update_inventory(item, amount);
+    if (delta != 0) {
+      if (delta > 0) {
+        stats.add(InventoryItemNames[item] + ".added", delta);
+      } else {
+        stats.add(InventoryItemNames[item] + ".removed", -delta);
+      }
+    }
     this->maybe_start_converting();
+    return delta;
   }
 
-  virtual void obs(c_observations_type* obs) const override {
-    MettaObject::obs(obs);
-
-    // Map object type to corresponding feature
-    GridFeature objectTypeFeature;
-    switch (_type_id) {
-      case ObjectType::AgentT:
-        objectTypeFeature = GridFeature::AGENT;
-        break;
-      case ObjectType::WallT:
-        objectTypeFeature = GridFeature::WALL;
-        break;
-      case ObjectType::MineT:
-        objectTypeFeature = GridFeature::MINE;
-        break;
-      case ObjectType::GeneratorT:
-        objectTypeFeature = GridFeature::GENERATOR;
-        break;
-      case ObjectType::AltarT:
-        objectTypeFeature = GridFeature::ALTAR;
-        break;
-      case ObjectType::ArmoryT:
-        objectTypeFeature = GridFeature::ARMORY;
-        break;
-      case ObjectType::LaseryT:
-        objectTypeFeature = GridFeature::LASERY;
-        break;
-      case ObjectType::LabT:
-        objectTypeFeature = GridFeature::LAB;
-        break;
-      case ObjectType::FactoryT:
-        objectTypeFeature = GridFeature::FACTORY;
-        break;
-      case ObjectType::TempleT:
-        objectTypeFeature = GridFeature::TEMPLE;
-        break;
-      default:
-        throw std::runtime_error("unknown converter _type_id");  // Default case
-    }
-
-    // Converter-specific features
-    encode(obs, objectTypeFeature, 1);
-    encode(obs, GridFeature::COLOR, this->color);
-    encode(obs, GridFeature::CONVERTING, this->converting || this->cooling_down);
-
-    // Map inventory items to their corresponding observation features
-    const GridFeature converterInventoryFeatures[] = {GridFeature::INV_ORE_RED,
-                                                      GridFeature::INV_ORE_BLUE,
-                                                      GridFeature::INV_ORE_GREEN,
-                                                      GridFeature::INV_BATTERY,
-                                                      GridFeature::INV_HEART,
-                                                      GridFeature::INV_ARMOR,
-                                                      GridFeature::INV_LASER,
-                                                      GridFeature::INV_BLUEPRINT};
-
-    // Inventory features
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      encode(obs, converterInventoryFeatures[i], this->inventory[i]);
-    }
-  }
-
-  // Whether the inventory is accessible to an agent.
-  virtual bool inventory_is_accessible() const {
-    return true;
-  }
-
-private:
-  virtual void _update_inventory(InventoryItem item, int16_t amount) {
-    int32_t current = this->inventory[item];
-    int32_t new_value = current + amount;
-
-    // Clamp the result between 0 and UINT8_MAX
-    this->inventory[item] = static_cast<uint8_t>(std::clamp(new_value, 0, static_cast<int32_t>(UINT8_MAX)));
-  }
-
-  // This should be called any time the converter could start converting
-  void maybe_start_converting() {
-    // We can't start converting if there's no event manager, since we won'tbe able to schedule the finishing event.
-    assert(this->event_manager != nullptr);
-    // We also need to have an id to schedule the finishing event. If our id id zero, we probably haven't been added to
-    // the grid yet.
-    assert(this->id != 0);
-    if (this->converting || this->cooling_down) {
-      return;
-    }
-    // Check if the converter is already at max output.
-    uint16_t total_output = 0;
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      if (this->recipe_output[i] > 0) {
-        total_output += this->inventory[i];
+  virtual vector<PartialObservationToken> obs_features() const override {
+    vector<PartialObservationToken> features;
+    features.push_back({ObservationFeature::TypeId, _type_id});
+    features.push_back({ObservationFeature::Color, color});
+    features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
+    for (uint8_t i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      if (inventory[i] > 0) {
+        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
       }
     }
-    if (total_output >= this->max_output) {
-      return;
+    return features;
+  }
+
+  void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
+    obs[offsets[0]] = 1;
+    obs[offsets[1]] = _type_id;
+    obs[offsets[2]] = this->hp;
+    obs[offsets[3]] = this->color;
+    obs[offsets[4]] = this->converting || this->cooling_down;
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      obs[offsets[5 + i]] = this->inventory[i];
     }
-    // Check if the converter has enough input.
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      if (this->inventory[i] < this->recipe_input[i]) {
-        return;
-      }
+  }
+
+  static std::vector<std::string> feature_names() {
+    std::vector<std::string> names;
+    // We use the same feature names for all converters, since this compresses
+    // the observation space. At the moment we don't expose the recipe, since
+    // we expect converters to be hard coded.
+    names.push_back("converter");
+    names.push_back("type_id");
+    names.push_back("hp");
+    names.push_back("color");
+    names.push_back("converting");
+    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      names.push_back("inv:" + InventoryItemNames[i]);
     }
-    // produce.
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
-      this->inventory[i] -= this->recipe_input[i];
-    }
-    // All the previous returns were "we don't start converting". This one is us starting to convert.
-    this->converting = true;
-    this->event_manager->schedule_event(Events::FinishConverting, this->conversion_ticks, this->id, 0);
+    return names;
   }
 };
 
-#endif  // CONVERTER_HPP
+#endif  // METTAGRID_METTAGRID_OBJECTS_CONVERTER_HPP_

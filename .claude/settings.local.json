@@ -12,8 +12,14 @@
       "Bash(pytest:*)",
       "Bash(./devops/test_uv_setup.sh:*)",
       "Bash(rm:*)",
-      "WebFetch(domain:docs.astral.sh)"
+      "WebFetch(domain:docs.astral.sh)",
+      "Bash(ruff check:*)"
     ],
     "deny": []
-  }
+  },
+  "setup_commands": [
+    "export PATH=/opt/homebrew/bin:$PATH",
+    "SHELL=/bin/bash",
+    "source .venv/bin/activate"
+  ]
 }

@@ -1,21 +1,15 @@
-_target_: metta.map.scenes.convchain.ConvChain
-pattern_size: 3
-iterations: 10
-temperature: 1
-pattern: "|            ###      |
-
-  |            # #      |
-
-  |          ### ###    |
-
-  |          #     #    |
-
-  |        ### ### ###  |
-
-  |        #  #   #  #  |
-
-  |      ### ### ### ###|
-
-  |      #  #   #   #  #|
-
-  |      # ### ### ### #|"
+type: metta.map.scenes.convchain.ConvChain
+params:
+  pattern_size: 3
+  iterations: 10
+  temperature: 1
+  pattern: |-
+    ...........###.....
+    ...........#.#.....
+    .........###.###...
+    .........#.....#...
+    .......###.###.###.
+    .......#..#...#..#.
+    .....###.###.###.##
+    .....#..#...#...#..
+    .....#.###.###.###.

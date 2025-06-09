@@ -3,10 +3,8 @@
 ## Initial Setup
 
 1. Configure AWS SSO and credentials:
-```bash
-# Create AWS config directory if it doesn't exist
-mkdir -p ~/.aws
 
+```bash
 # Run the setup script to configure AWS profiles
 ./devops/aws/setup_aws_profiles.sh
 
@@ -157,6 +155,7 @@ cmd.sh ce <compute_env_name> stop
 ## Monitoring Jobs
 
 1. Monitor jobs through command line:
+
 ```bash
 # Using cmd.sh
 cmd.sh jobs [<job_queue>="metta-jq"] [--max=10]
@@ -181,6 +180,7 @@ python -m devops.aws.cluster_info
 ## Troubleshooting
 
 If you encounter issues:
+
 1. Verify your AWS SSO session is active (`aws s3 ls`)
 2. Check the AWS Batch console for job status and logs
 3. Ensure your run name follows the correct format (`b.$USER.your_run_name`)
@@ -206,7 +206,7 @@ The `batch_setup.py` script creates all the necessary AWS Batch resources:
 
 #### Prerequisites
 
-- AWS CLI installed and configured with the `stem-root` profile
+- AWS CLI installed and configured with the `softmax-root` profile
 - Required IAM roles already created:
   - `AWSBatchServiceRole`: Service role for AWS Batch
   - `ecsInstanceRole`: Instance role for EC2 instances
@@ -267,7 +267,7 @@ aws batch submit-job \
   --job-name test-job \
   --job-queue metta-jq-prod \
   --job-definition metta-batch-dist-train \
-  --profile stem-root
+  --profile softmax-root
 ```
 
 ### Advanced Troubleshooting
@@ -281,12 +281,11 @@ If jobs get stuck in the RUNNABLE state, check:
 
 ```bash
 # Check job status
-aws batch describe-jobs --jobs YOUR_JOB_ID --profile stem-root
+aws batch describe-jobs --jobs YOUR_JOB_ID --profile softmax-root
 
 # Check compute environment status
-aws batch describe-compute-environments --compute-environments YOUR_COMPUTE_ENV --profile stem-root
+aws batch describe-compute-environments --compute-environments YOUR_COMPUTE_ENV --profile softmax-root
 
 # Check ECS container instances
-aws ecs list-container-instances --cluster YOUR_ECS_CLUSTER --profile stem-root
+aws ecs list-container-instances --cluster YOUR_ECS_CLUSTER --profile softmax-root
 ```
-

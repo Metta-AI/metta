@@ -12,13 +12,33 @@ from rich import traceback
 logger = logging.getLogger("runtime_configuration")
 
 
-def seed_everything(seed, torch_deterministic):
-    random.seed(seed)
-    np.random.seed(seed)
+def seed_everything(seed, torch_deterministic, rank: int = 0):
+    # Despite these efforts, we still don't get deterministic behavior. But presumably
+    # this is better than nothing.
+    # https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
+
+    # Add rank offset to base seed for distributed training to ensure different
+    # processes generate uncorrelated random sequences
     if seed is not None:
-        torch.manual_seed(seed)
+        rank_specific_seed = seed + rank
+    else:
+        rank_specific_seed = rank
+
+    random.seed(rank_specific_seed)
+    np.random.seed(rank_specific_seed)
+    if seed is not None:
+        torch.manual_seed(rank_specific_seed)
+        torch.cuda.manual_seed_all(rank_specific_seed)
     torch.backends.cudnn.deterministic = torch_deterministic
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = not torch_deterministic
+    torch.use_deterministic_algorithms(torch_deterministic)
+
+    if torch_deterministic:
+        # Set CuBLAS workspace config for deterministic behavior on CUDA >= 10.2
+        # https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
+        import os
+
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 
 def setup_mettagrid_environment(cfg):
@@ -44,6 +64,10 @@ def setup_mettagrid_environment(cfg):
 
     # print(OmegaConf.to_yaml(cfg))
     traceback.install(show_locals=False)
-    seed_everything(cfg.seed, cfg.torch_deterministic)
+
+    # Get rank for distributed training seeding
+    rank = int(os.environ.get("RANK", 0))
+    seed_everything(cfg.seed, cfg.torch_deterministic, rank)
+
     os.makedirs(cfg.run_dir, exist_ok=True)
     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))

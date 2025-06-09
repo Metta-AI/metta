@@ -1,60 +1,32 @@
-#ifndef GET_OUTPUT_HPP
-#define GET_OUTPUT_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_
 
-#include <cstdint>
 #include <string>
 
-#include "actions/action_handler.hpp"
+#include "action_handler.hpp"
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/converter.hpp"
-namespace Actions {
+
 class GetOutput : public ActionHandler {
 public:
-  GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
+  explicit GetOutput(const ActionConfig& cfg) : ActionHandler(cfg, "get_output") {}
 
-  uint8_t max_arg() const override {
+  unsigned char max_arg() const override {
     return 0;
   }
 
-  ActionHandler* clone() const override {
-    return new GetOutput(*this);
-  }
-
 protected:
-  bool _handle_action(uint32_t actor_id, Agent* actor, c_actions_type arg) override {
-    // Validate orientation
-    validate_orientation(actor);
-
-    // Get target location
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
-
-    // Check if target location is within grid bounds
-    if (!is_valid_location(target_loc)) {
-      return false;
-    }
-
     target_loc.layer = GridLayer::Object_Layer;
-
-    GridObject* obj = safe_object_at(target_loc);
-    if (obj == nullptr) {
-      return false;
-    }
-
-    // Use dynamic_cast for type safety
-    MettaObject* target = dynamic_cast<MettaObject*>(obj);
-    if (target == nullptr) {
-      throw std::runtime_error("Object at target location is not a MettaObject");
-    }
-
-    if (!target->is_converter()) {
-      return false;
-    }
-
-    Converter* converter = dynamic_cast<Converter*>(target);
+    // get_output only works on Converters, since only Converters have an output.
+    // Once we generalize this to `get`, we should be able to get from any HasInventory object, which
+    // should include agents. That's (e.g.) why we're checking inventory_is_accessible.
+    Converter* converter = dynamic_cast<Converter*>(_grid->object_at(target_loc));
     if (converter == nullptr) {
-      throw std::runtime_error("Object with is_converter() is not a Converter");
+      return false;
     }
 
     if (!converter->inventory_is_accessible()) {
@@ -64,25 +36,18 @@ protected:
     // Actions is only successful if we take at least one item.
     bool items_taken = false;
 
-    for (uint32_t i = 0; i < InventoryItem::InventoryCount; i++) {
+    for (size_t i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (converter->recipe_output[i] == 0) {
         // We only want to take things the converter can produce. Otherwise it's a pain to
         // collect resources from a converter that's in the middle of processing a queue.
         continue;
       }
 
-      // Only take resources if the converter has some.
-      if (converter->inventory[i] > 0) {
-        // Validate the inventory item index
-        if (i >= InventoryItemNames.size()) {
-          throw std::runtime_error("Invalid inventory item index: " + std::to_string(i));
-        }
+      int taken = actor->update_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
 
-        // The actor will destroy anything it can't hold. That's not intentional, so feel free
-        // to fix it.
-        actor->stats.add(InventoryItemNames[i], "get", converter->inventory[i]);
-        actor->update_agent_inventory(static_cast<InventoryItem>(i), converter->inventory[i]);
-        converter->update_converter_inventory(static_cast<InventoryItem>(i), -converter->inventory[i]);
+      if (taken > 0) {
+        actor->stats.add(InventoryItemNames[i] + ".get", taken);
+        converter->update_inventory(static_cast<InventoryItem>(i), -taken);
         items_taken = true;
       }
     }
@@ -90,6 +55,5 @@ protected:
     return items_taken;
   }
 };
-}  // namespace Actions
 
-#endif  // GET_OUTPUT_HPP
+#endif  // METTAGRID_METTAGRID_ACTIONS_GET_OUTPUT_HPP_

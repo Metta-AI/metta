@@ -1,12 +1,15 @@
-from typing import Any, Literal, cast
+from typing import Literal
 
 import hydra
 import numpy as np
+from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
 
 import mettascope.server
-from metta.map.utils.storable_map import StorableMap, grid_to_ascii
+from metta.map.utils.storable_map import StorableMap, grid_to_lines
 from metta.sim.map_preview import write_local_map_preview
+from mettagrid.curriculum import SingleTaskCurriculum
+from mettagrid.level_builder import Level
 from mettagrid.mettagrid_env import MettaGridEnv
 
 ShowMode = Literal["mettascope", "ascii", "ascii_border", "none"]
@@ -20,9 +23,12 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
         num_agents = np.count_nonzero(np.char.startswith(storable_map.grid, "agent"))
 
         env_cfg = OmegaConf.load("./configs/env/mettagrid/mettagrid.yaml")
-        env_cfg.game.num_agents = num_agents
+        env_cfg.game.num_agents = int(num_agents)
+        OmegaConf.resolve(env_cfg)
+        assert isinstance(env_cfg, DictConfig)
 
-        env = MettaGridEnv(cast(Any, env_cfg), env_map=storable_map.grid, render_mode="none")
+        level = Level(storable_map.grid, [])
+        env = MettaGridEnv(SingleTaskCurriculum("show_map", env_cfg), level=level, render_mode="none")
 
         file_path = write_local_map_preview(env)
         url_path = file_path.split("mettascope/")[-1]
@@ -32,11 +38,11 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
             mettascope.server.run(cfg, open_url=f"?replayUrl={url_path}")
 
     elif mode == "ascii":
-        ascii_lines = grid_to_ascii(storable_map.grid)
+        ascii_lines = grid_to_lines(storable_map.grid)
         print("\n".join(ascii_lines))
 
     elif mode == "ascii_border":
-        ascii_lines = grid_to_ascii(storable_map.grid, border=True)
+        ascii_lines = grid_to_lines(storable_map.grid, border=True)
         print("\n".join(ascii_lines))
 
     else:

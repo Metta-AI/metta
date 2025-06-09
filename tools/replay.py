@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 # Generate a replay file that can be used in MettaScope to visualize a single run.
 
 import platform
@@ -18,6 +19,7 @@ from mettagrid.util.file import http_url
 
 # TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayJob(Config):
+    __init__ = Config.__init__
     sim: SingleEnvSimulationConfig
     policy_uri: str
     selector_type: str

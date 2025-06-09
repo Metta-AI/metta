@@ -1,9 +1,65 @@
-import { state} from './common.js';
-import { getAttr,sendAction } from './replay.js';
+import { state } from './common.js';
+import { getAttr, sendAction } from './replay.js';
+import { find } from './htmlutils.js';
 
+/** Initialize the action buttons. */
+export function initActionButtons() {
+  find("#action-buttons .north").addEventListener('click', () => {
+    sendAction("rotate", 0)
+  })
 
+  find("#action-buttons .west").addEventListener('click', () => {
+    sendAction("rotate", 2)
+  })
+
+  find("#action-buttons .south").addEventListener('click', () => {
+    sendAction("rotate", 1)
+  })
+
+  find("#action-buttons .east").addEventListener('click', () => {
+    sendAction("rotate", 3)
+  })
+
+  find("#action-buttons .forward").addEventListener('click', () => {
+    sendAction("move", 0)
+  })
+
+  find("#action-buttons .backward").addEventListener('click', () => {
+    sendAction("move", 1)
+  })
+
+  find("#action-buttons .put-recipe-items").addEventListener('click', () => {
+    sendAction("put_recipe_items", 0)
+  })
+
+  find("#action-buttons .get-output").addEventListener('click', () => {
+    sendAction("get_output", 0)
+  })
+
+  find("#action-buttons .noop").addEventListener('click', () => {
+    sendAction("noop", 0)
+  })
+
+  find("#action-buttons .attack").addEventListener('click', () => {
+    state.showAttackMode = !state.showAttackMode;
+  })
+
+  find("#action-buttons .attack-nearest").addEventListener('click', () => {
+    sendAction("attack_nearest", 0)
+  })
+
+  find("#action-buttons .change-color").addEventListener('click', () => {
+    sendAction("change_color", 0)
+  })
+
+  find("#action-buttons .swap").addEventListener('click', () => {
+    sendAction("swap", 0)
+  })
+}
+
+/** Process keyboard actions. */
 export function processActions(event: KeyboardEvent) {
-    // Smart navigation, where pressing key rotations the agent in the
+  // Smart navigation, where pressing key rotations the agent in the
   // direction of the key, but if the agent is already facing in that
   // direction, it moves forward.
   if (state.ws != null && state.selectedGridObject != null) {
@@ -68,6 +124,10 @@ export function processActions(event: KeyboardEvent) {
     if (event.key >= "1" && event.key <= "9") {
       // Keys 1-9 is the attack matrix.
       sendAction("attack", parseInt(event.key))
+    }
+    if (event.key == "Z") {
+      // Attack nearest.
+      state.showAttackMode = !state.showAttackMode;
     }
     if (event.key == "z") {
       // Attack nearest.

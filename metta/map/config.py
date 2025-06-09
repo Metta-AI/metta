@@ -1,4 +1,4 @@
 from pathlib import Path
 
-# dir with scenes files
-scenes_root = Path(__file__).parent.parent.parent.resolve() / "./scenes"
+# assume we're running from the root of the repo
+scenes_root = Path("./scenes").resolve()

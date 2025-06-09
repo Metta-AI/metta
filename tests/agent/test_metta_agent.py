@@ -3,11 +3,9 @@ import numpy as np
 import pytest
 import torch
 
-from metta.agent.lib.action import ActionEmbedding
-
 # Import the actual class
 from metta.agent.metta_agent import MettaAgent
-from metta.agent.util.distribution_utils import sample_logits
+from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 
 
 @pytest.fixture
@@ -26,7 +24,7 @@ def create_metta_agent():
     )
 
     action_space = gym.spaces.MultiDiscrete([3, 2])
-    grid_features = ["agent", "hp", "wall"]
+    feature_normalizations = [1.0, 30.0, 10.0]
 
     config_dict = {
         "clip_range": 0.1,
@@ -36,23 +34,22 @@ def create_metta_agent():
                 "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
                 "sources": None,
             },
-            "_obs_normalizer_": {
+            "obs_normalizer": {
                 "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
                 "sources": [{"name": "_obs_"}],
-                "grid_features": grid_features,
             },
-            "_obs_flattener_": {
+            "obs_flattener": {
                 "_target_": "metta.agent.lib.nn_layer_library.Flatten",
-                "sources": [{"name": "_obs_normalizer_"}],
+                "sources": [{"name": "obs_normalizer"}],
             },
-            "_encoded_obs_": {
+            "encoded_obs": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "_obs_flattener_"}],
+                "sources": [{"name": "obs_flattener"}],
                 "nn_params": {"out_features": 64},
             },
             "_core_": {
                 "_target_": "metta.agent.lib.lstm.LSTM",
-                "sources": [{"name": "_encoded_obs_"}],
+                "sources": [{"name": "encoded_obs"}],
                 "output_size": 64,
                 "nn_params": {"num_layers": 1},
             },
@@ -61,18 +58,18 @@ def create_metta_agent():
                 "sources": None,
                 "nn_params": {"num_embeddings": 50, "embedding_dim": 8},
             },
-            "_actor_layer_": {
+            "actor_layer": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
                 "sources": [{"name": "_core_"}],
                 "nn_params": {"out_features": 128},
             },
             "_action_": {
                 "_target_": "metta.agent.lib.actor.MettaActorBig",
-                "sources": [{"name": "_actor_layer_"}, {"name": "_action_embeds_"}],
+                "sources": [{"name": "actor_layer"}, {"name": "_action_embeds_"}],
                 "bilinear_output_dim": 32,
                 "mlp_hidden_dim": 128,
             },
-            "_critic_layer_": {
+            "critic_layer": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
                 "sources": [{"name": "_core_"}],
                 "nn_params": {"out_features": 64},
@@ -80,7 +77,7 @@ def create_metta_agent():
             },
             "_value_": {
                 "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "_critic_layer_"}],
+                "sources": [{"name": "critic_layer"}],
                 "nn_params": {"out_features": 1},
                 "nonlinearity": None,
             },
@@ -91,8 +88,10 @@ def create_metta_agent():
     agent = MettaAgent(
         obs_space=obs_space,
         action_space=action_space,
-        grid_features=grid_features,
         device="cpu",
+        feature_normalizations=feature_normalizations,
+        obs_width=5,
+        obs_height=5,
         **config_dict,
     )
 
@@ -117,15 +116,14 @@ def create_metta_agent():
             return x
 
     # Create a mock ActionEmbedding component that has the activate_actions method
-    class MockActionEmbeds(ActionEmbedding):
+    class MockActionEmbeds(torch.nn.Module):
         def __init__(self):
-            super().__init__(name="_action_embeds_", sources=None, nn_params={"num_embeddings": 50, "embedding_dim": 8})
+            super().__init__()
             self.embedding = torch.nn.Embedding(50, 8)  # Matches config
-            self.setup(None)
-            self._sources = []
+            self.ready = True
+            self._sources = None
             self.clipped = False
-            self.action_names = {}
-            self.action_to_idx = {}
+            self.action_names = None
             self.device = None
 
         def setup(self, source_components):
@@ -158,6 +156,15 @@ def create_metta_agent():
     agent.components = torch.nn.ModuleDict({"_core_": comp1, "_action_": comp2, "_action_embeds_": action_embeds})
 
     return agent, comp1, comp2
+
+
+@pytest.fixture
+def metta_agent_with_actions(create_metta_agent):
+    agent, _, _ = create_metta_agent
+    action_names = ["action0", "action1", "action2"]
+    action_max_params = [1, 2, 0]
+    agent.activate_actions(action_names, action_max_params, "cpu")
+    return agent
 
 
 def test_clip_weights_calls_components(create_metta_agent):
@@ -208,12 +215,12 @@ def test_clip_weights_raises_attribute_error(create_metta_agent):
     agent.components["bad_comp"] = IncompleteComponent()
 
     # Verify that an AttributeError is raised
-    with pytest.raises(AttributeError) as exception:
+    with pytest.raises(AttributeError) as excinfo:
         agent.clip_weights()
 
     # Check the error message
-    assert "bad_comp" in str(exception.value)
-    assert "clip_weights" in str(exception.value)
+    assert "bad_comp" in str(excinfo.value)
+    assert "clip_weights" in str(excinfo.value)
 
 
 def test_clip_weights_with_non_callable(create_metta_agent):
@@ -223,11 +230,11 @@ def test_clip_weights_with_non_callable(create_metta_agent):
     comp1.clip_weights = "Not a function"
 
     # Verify a TypeError is raised
-    with pytest.raises(TypeError) as exception:
+    with pytest.raises(TypeError) as excinfo:
         agent.clip_weights()
 
     # Check the error message
-    assert "not callable" in str(exception.value)
+    assert "not callable" in str(excinfo.value)
 
 
 def test_l2_reg_loss_sums_component_losses(create_metta_agent):
@@ -268,12 +275,12 @@ def test_l2_reg_loss_raises_attribute_error(create_metta_agent):
     agent.components["_core_"] = IncompleteComponent()
 
     # Verify that an AttributeError is raised
-    with pytest.raises(AttributeError) as exception:
+    with pytest.raises(AttributeError) as excinfo:
         agent.l2_reg_loss()
 
     # Check the error message mentions the missing method
     # Don't rely on a specific component name in the error message
-    error_msg = str(exception.value)
+    error_msg = str(excinfo.value)
     assert "does not have method 'l2_reg_loss'" in error_msg
 
 
@@ -285,11 +292,11 @@ def test_l2_reg_loss_raises_error_for_different_shapes(create_metta_agent):
     comp2.l2_reg_loss = lambda: torch.tensor(0.5)  # scalar tensor
 
     # Verify that a RuntimeError is raised due to different tensor shapes
-    with pytest.raises(RuntimeError) as exception:
+    with pytest.raises(RuntimeError) as excinfo:
         agent.l2_reg_loss()
 
     # Check that the error message mentions the tensor shape mismatch
-    assert "expects each tensor to be equal size" in str(exception.value)
+    assert "expects each tensor to be equal size" in str(excinfo.value)
 
 
 def test_l2_init_loss_raises_error_for_different_shapes(create_metta_agent):
@@ -300,11 +307,11 @@ def test_l2_init_loss_raises_error_for_different_shapes(create_metta_agent):
     comp2.l2_init_loss = lambda: torch.tensor(0.5)  # scalar tensor
 
     # Verify that a RuntimeError is raised due to different tensor shapes
-    with pytest.raises(RuntimeError) as exception:
+    with pytest.raises(RuntimeError) as excinfo:
         agent.l2_init_loss()
 
     # Check that the error message mentions the tensor shape mismatch
-    assert "expects each tensor to be equal size" in str(exception.value)
+    assert "expects each tensor to be equal size" in str(excinfo.value)
 
 
 def test_l2_reg_loss_with_non_callable(create_metta_agent):
@@ -314,11 +321,11 @@ def test_l2_reg_loss_with_non_callable(create_metta_agent):
     comp1.l2_reg_loss = "Not a function"
 
     # Verify a TypeError is raised
-    with pytest.raises(TypeError) as exception:
+    with pytest.raises(TypeError) as excinfo:
         agent.l2_reg_loss()
 
     # Check the error message
-    assert "not callable" in str(exception.value)
+    assert "not callable" in str(excinfo.value)
 
 
 def test_l2_reg_loss_empty_components(create_metta_agent):
@@ -328,11 +335,11 @@ def test_l2_reg_loss_empty_components(create_metta_agent):
     agent.components = torch.nn.ModuleDict({})
 
     # Verify an assertion error is raised when no components exist
-    with pytest.raises(AssertionError) as exception:
+    with pytest.raises(AssertionError) as excinfo:
         agent.l2_reg_loss()
 
     # Check the error message
-    assert "No components available" in str(exception.value)
+    assert "No components available" in str(excinfo.value)
 
 
 def test_convert_action_to_logit_index(create_metta_agent):
@@ -447,7 +454,7 @@ def test_action_conversion_edge_cases(create_metta_agent):
     # Test with empty tensor - should raise a ValueError about invalid size
     empty_actions = torch.zeros((0, 2), dtype=torch.long)
     with pytest.raises(
-        ValueError, match=r"'action' dimension 0 \('BT'\) has invalid size 0, expected a positive value"
+        ValueError, match=r"'flattened_action' dimension 0 \('BT'\) has invalid size 0, expected a positive value"
     ):
         agent._convert_action_to_logit_index(empty_actions)
 
@@ -463,8 +470,16 @@ def test_action_conversion_edge_cases(create_metta_agent):
 
     # Convert back
     logit_indices = torch.tensor([9])
+
     result = agent._convert_logit_index_to_action(logit_indices)
     assert torch.all(result == torch.tensor([0, 9]))
+
+
+def test_convert_logit_index_to_action_invalid(metta_agent_with_actions):
+    agent = metta_agent_with_actions
+    invalid_index = agent.action_index_tensor.shape[0]
+    with pytest.raises((IndexError, RuntimeError)):
+        agent._convert_logit_index_to_action(torch.tensor([invalid_index]))
 
 
 def test_action_use(create_metta_agent):
@@ -517,7 +532,7 @@ def test_action_use(create_metta_agent):
     reconstructed_actions = agent._convert_logit_index_to_action(expected_indices)
     assert torch.all(reconstructed_actions == actions)
 
-    # Now let's test sample_logits with our converted actions
+    # Now let's test the distribution utils with our converted actions
     batch_size = 5
     num_total_actions = sum([param + 1 for param in action_max_params])
 
@@ -529,26 +544,28 @@ def test_action_use(create_metta_agent):
     for i in range(batch_size):
         logits[i, expected_indices[i]] = 10.0
 
-    # Test sample_logits with provided actions (action_logit_index)
-    sampled_indices, logprobs, entropy, log_softmax = sample_logits(logits, expected_indices)
+    # Test sample_actions (inference mode)
+    sampled_indices, logprobs, entropy, log_softmax = sample_actions(logits)
 
-    # Verify indices match what we provided
+    # With our strongly biased logits, sampling should return the expected indices
     assert torch.all(sampled_indices == expected_indices)
 
-    # Verify logprobs and entropy have the expected shapes
+    # Verify output shapes
     assert logprobs.shape == expected_indices.shape
     assert entropy.shape == (batch_size,)
     assert log_softmax.shape == logits.shape
 
-    # Test sample_logits without provided actions (sampling mode)
-    sampled_indices2, logprobs2, entropy2, log_softmax2 = sample_logits(logits)
-
-    # With our strongly biased logits, sampling should return the same indices
-    assert torch.all(sampled_indices2 == expected_indices)
-
     # Convert sampled indices back to actions
-    sampled_actions = agent._convert_logit_index_to_action(sampled_indices2)
+    sampled_actions = agent._convert_logit_index_to_action(sampled_indices)
     assert torch.all(sampled_actions == actions)
+
+    # Test evaluate_actions (training mode)
+    eval_logprobs, eval_entropy, eval_log_softmax = evaluate_actions(logits, expected_indices)
+
+    # Results should be identical to sampling since we provided the same indices
+    assert torch.allclose(logprobs, eval_logprobs)
+    assert torch.allclose(entropy, eval_entropy)
+    assert torch.allclose(log_softmax, eval_log_softmax)
 
     # Test with a different batch
     batch_size2 = 3
@@ -571,7 +588,7 @@ def test_action_use(create_metta_agent):
         logits2[i, expected_indices2[i]] = 10.0
 
     # Test sampling without providing indices
-    sampled_indices3, logprobs3, entropy3, log_softmax3 = sample_logits(logits2)
+    sampled_indices3, logprobs3, entropy3, log_softmax3 = sample_actions(logits2)
 
     # Again, with biased logits, we should get deterministic results
     assert torch.all(sampled_indices3 == expected_indices2)
@@ -580,13 +597,20 @@ def test_action_use(create_metta_agent):
     sampled_actions2 = agent._convert_logit_index_to_action(sampled_indices3)
     assert torch.all(sampled_actions2 == test_actions2)
 
-    # Finally, test the whole flow as it would happen in forward:
+    # Test evaluate_actions on the same data
+    eval_logprobs2, eval_entropy2, eval_log_softmax2 = evaluate_actions(logits2, expected_indices2)
+
+    # Results should match sampling results
+    assert torch.allclose(logprobs3, eval_logprobs2)
+    assert torch.allclose(entropy3, eval_entropy2)
+    assert torch.allclose(log_softmax3, eval_log_softmax2)
+
+    # Finally, test the complete forward pass integration:
     # 1. Convert actions to logit indices
-    # 2. Pass to sample_logits
+    # 2. Pass to sample_actions or evaluate_actions
     # 3. Convert sampled indices back to actions
 
     test_actions3 = torch.tensor([[0, 0], [1, 1]], device="cpu")
-
     logit_indices = agent._convert_action_to_logit_index(test_actions3)
 
     # Create logits for deterministic sampling
@@ -594,8 +618,8 @@ def test_action_use(create_metta_agent):
     for i in range(2):
         logits3[i, logit_indices[i]] = 10.0
 
-    # Sample with provided indices (like in forward when action is provided)
-    sampled_indices4, logprobs4, entropy4, log_softmax4 = sample_logits(logits3, logit_indices)
+    # Sample with inference (like in forward when action is None)
+    sampled_indices4, logprobs4, entropy4, log_softmax4 = sample_actions(logits3)
 
     # Verify indices match
     assert torch.all(sampled_indices4 == logit_indices)
@@ -605,3 +629,100 @@ def test_action_use(create_metta_agent):
 
     # Verify round-trip conversion
     assert torch.all(reconstructed_actions4 == test_actions3)
+
+    # Test evaluation (like in forward when action is provided)
+    eval_logprobs4, eval_entropy4, eval_log_softmax4 = evaluate_actions(logits3, logit_indices)
+
+    # Should match sampling results
+    assert torch.allclose(logprobs4, eval_logprobs4)
+    assert torch.allclose(entropy4, eval_entropy4)
+    assert torch.allclose(log_softmax4, eval_log_softmax4)
+
+
+def test_distribution_utils_compatibility(create_metta_agent):
+    """Test that sample_actions and evaluate_actions are compatible with each other."""
+    agent, _, _ = create_metta_agent
+
+    # Set up action space
+    action_names = ["action0", "action1"]
+    action_max_params = [2, 1]  # action0: [0,1,2], action1: [0,1]
+    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    num_total_actions = sum([param + 1 for param in action_max_params])
+    batch_size = 4
+
+    # Create random logits
+    torch.manual_seed(42)  # For reproducible tests
+    logits = torch.randn(batch_size, num_total_actions)
+
+    # Sample actions using sample_actions
+    sampled_indices, sampled_logprobs, sampled_entropy, sampled_log_softmax = sample_actions(logits)
+
+    # Evaluate the same actions using evaluate_actions
+    eval_logprobs, eval_entropy, eval_log_softmax = evaluate_actions(logits, sampled_indices)
+
+    # Results should be identical
+    assert torch.allclose(sampled_logprobs, eval_logprobs, atol=1e-6)
+    assert torch.allclose(sampled_entropy, eval_entropy, atol=1e-6)
+    assert torch.allclose(sampled_log_softmax, eval_log_softmax, atol=1e-6)
+
+    # Convert sampled indices to actions and back
+    sampled_actions = agent._convert_logit_index_to_action(sampled_indices)
+    reconstructed_indices = agent._convert_action_to_logit_index(sampled_actions)
+
+    # Should get the same indices back
+    assert torch.all(sampled_indices == reconstructed_indices)
+
+
+def test_forward_training_integration(create_metta_agent):
+    """Test that the forward_training method works with the new distribution utils."""
+    agent, _, _ = create_metta_agent
+
+    # Set up action space
+    action_names = ["move", "use_item"]
+    action_max_params = [2, 3]  # move: [0,1,2], use_item: [0,1,2,3]
+    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    B, T = 2, 3
+    num_total_actions = sum([param + 1 for param in action_max_params])  # 3 + 4 = 7
+
+    # Create mock tensors
+    value = torch.randn(B * T, 1)
+    logits = torch.randn(B * T, num_total_actions)
+
+    # Action space: move (type 0): [0,1,2], use_item (type 1): [0,1,2,3]
+    action = torch.tensor(
+        [
+            [[0, 1], [1, 2], [0, 0]],  # batch 1
+            [[1, 0], [1, 3], [0, 1]],  # batch 2
+        ]
+    )
+
+    # Call forward_training
+    returned_action, action_log_prob, entropy, returned_value, log_probs = agent.forward_training(value, logits, action)
+
+    # Check output shapes
+    assert returned_action.shape == (B, T, 2)
+    assert action_log_prob.shape == (B * T,)
+    assert entropy.shape == (B * T,)
+    assert returned_value.shape == (B * T, 1)
+    assert log_probs.shape == (B * T, num_total_actions)
+
+    # Check that returned action and value are the same as input
+    assert torch.all(returned_action == action)
+    assert torch.all(returned_value == value)
+
+    # Additional validation: verify all actions are actually valid
+    flattened_action = action.view(B * T, 2)
+    for i in range(B * T):
+        action_type = flattened_action[i, 0].item()
+        action_param = flattened_action[i, 1].item()
+
+        # Check action type is valid (0=move, 1=use_item)
+        assert 0 <= action_type < len(action_max_params), f"Invalid action type {action_type}"
+
+        # Check action parameter is valid for this action type
+        max_param = action_max_params[action_type]
+        assert 0 <= action_param <= max_param, (
+            f"Invalid param {action_param} for action type {action_type}, max is {max_param}"
+        )

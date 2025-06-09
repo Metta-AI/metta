@@ -1,5 +1,36 @@
 #!/bin/bash -e
 
+# Parse command line arguments
+RESET_CONFIG=false
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --reset)
+      RESET_CONFIG=true
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: $0 [--reset]"
+      exit 1
+      ;;
+  esac
+done
+
+# Function to completely clear AWS configuration and cache
+clear_aws_completely() {
+  echo "Completely clearing AWS configuration and cache..."
+
+  # Remove entire AWS directory
+  echo "Removing entire ~/.aws directory..."
+  rm -rf ~/.aws/
+
+  # Recreate the directory
+  mkdir -p ~/.aws
+
+  echo "AWS configuration completely cleared and reset."
+}
+
 # Function to check if a valid SSO token exists
 check_sso_token() {
   # Path to the SSO cache directory
@@ -39,7 +70,7 @@ initialize_aws_config() {
   echo "Initializing AWS configuration..."
 
   # Check if the SSO session already exists
-  if ! grep -q "\[sso-session softmax-sso\]" ~/.aws/config; then
+  if ! grep -q "\[sso-session softmax-sso\]" ~/.aws/config 2> /dev/null; then
     echo "Adding SSO session configuration..."
     mkdir -p ~/.aws
     # Create a temporary file with the new config
@@ -83,7 +114,7 @@ EOF
   aws configure set profile.softmax-admin.region us-east-1
 
   echo "AWS profiles have been configured successfully."
-  grep -q '^export AWS_PROFILE=' ~/.zshrc || echo -e '\nexport AWS_PROFILE=softmax' >> ~/.zshrc
+  grep -q '^export AWS_PROFILE=' ~/.zshrc 2> /dev/null || echo -e '\nexport AWS_PROFILE=softmax' >> ~/.zshrc
 }
 
 # Check if we're in CI or Docker
@@ -95,23 +126,33 @@ fi
 
 # Main execution logic
 if [ -z "$CI" ] && [ "$IS_DOCKER" = "false" ]; then
-  # Check if we already have a valid token
-  if check_sso_token; then
-    echo "Valid SSO token already exists for softmax-sso"
-    echo "Skip initialization as token is valid."
-  else
-    echo "No valid SSO token found, initializing AWS config..."
+
+  # Handle reset if requested
+  if [ "$RESET_CONFIG" = true ]; then
+    clear_aws_completely
+    echo "Proceeding with fresh AWS SSO setup..."
     initialize_aws_config
-
-    echo "Running AWS SSO login..."
-    aws sso login --profile softmax
-
-    # Verify token was created successfully
+  else
+    # Check if we already have a valid token
     if check_sso_token; then
-      echo "SSO login successful! Token created for softmax-sso."
+      echo "Valid SSO token already exists for softmax-sso"
+      echo "Skip initialization as token is valid."
+      echo "Use --reset if you need to completely reset your AWS configuration."
+      exit 0
     else
-      echo "WARNING: SSO login completed but valid token not found. There might be an issue."
+      echo "No valid SSO token found, initializing AWS config..."
+      initialize_aws_config
     fi
+  fi
+
+  echo "Running AWS SSO login..."
+  aws sso login --profile softmax
+
+  # Verify token was created successfully
+  if check_sso_token; then
+    echo "SSO login successful! Token created for softmax-sso."
+  else
+    echo "WARNING: SSO login completed but valid token not found. There might be an issue."
   fi
 else
   # Always initialize in CI/Docker environments, but don't attempt login

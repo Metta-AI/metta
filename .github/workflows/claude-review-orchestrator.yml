@@ -1,0 +1,146 @@
+name: "Claude Review: Orchestrator"
+on:
+  pull_request:
+    types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request number to review"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  # Validate PR context and check if we should skip
+  validate-pr:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.validate.outputs.pr_number }}
+      should_skip: ${{ steps.check-author.outputs.should_skip }}
+    steps:
+      - name: Validate PR Number
+        id: validate
+        run: |
+          PR_NUMBER="${{ inputs.pr_number || github.event.pull_request.number }}"
+
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "0" ]; then
+            echo "❌ Error: No valid PR number found"
+            echo "For workflow_dispatch, you must provide a pr_number input"
+            echo "For pull_request events, this should be automatic"
+            exit 1
+          fi
+
+          echo "✅ Valid PR number: $PR_NUMBER"
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+
+      - name: Check if PR is from Dependabot
+        id: check-author
+        run: |
+          PR_AUTHOR="${{ github.event.pull_request.user.login || 'unknown' }}"
+          echo "PR Author: $PR_AUTHOR"
+
+          if [[ "$PR_AUTHOR" == "dependabot[bot]" ]] || [[ "$PR_AUTHOR" == "dependabot" ]]; then
+            echo "🤖 Skipping Claude review for Dependabot PR"
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "👤 Running Claude review for user PR"
+            echo "should_skip=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Run all review types in parallel (only if not skipping)
+  review-readme:
+    needs: validate-pr
+    if: needs.validate-pr.outputs.should_skip != 'true'
+    secrets: inherit
+    uses: ./.github/workflows/claude-review-readme.yml
+    with:
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
+
+  review-comments:
+    needs: validate-pr
+    if: needs.validate-pr.outputs.should_skip != 'true'
+    secrets: inherit
+    uses: ./.github/workflows/claude-review-comments.yml
+    with:
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
+
+  review-types:
+    needs: validate-pr
+    if: needs.validate-pr.outputs.should_skip != 'true'
+    secrets: inherit
+    uses: ./.github/workflows/claude-review-typing.yml
+    with:
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
+
+  review-einops:
+    needs: validate-pr
+    if: needs.validate-pr.outputs.should_skip != 'true'
+    secrets: inherit
+    uses: ./.github/workflows/claude-review-einops.yml
+    with:
+      pr_number: ${{ needs.validate-pr.outputs.pr_number }}
+
+  # Consolidate all results and create a single review
+  consolidate-review:
+    needs: [validate-pr, review-readme, review-comments, review-types, review-einops]
+    runs-on: ubuntu-latest
+    if: always() && needs.validate-pr.outputs.should_skip != 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: |
+          pip install -r .github/scripts/requirements-claude-review.txt
+
+      - name: Consolidate Reviews and Create GitHub Review
+        id: consolidate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ needs.validate-pr.outputs.pr_number }}
+        run: |
+          python .github/scripts/claude_review.py
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "# 🤖 Claude Unified Review Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.consolidate.outputs.has_any_issues }}" = "true" ]; then
+            echo "**Status**: ✅ Review completed with suggestions" >> $GITHUB_STEP_SUMMARY
+            echo "**Total suggestions**: ${{ steps.consolidate.outputs.total_suggestions }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status**: ✅ All checks passed - no issues found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Review Types Run" >> $GITHUB_STEP_SUMMARY
+          echo "- README Accuracy: ${{ needs.review-readme.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Code Comments: ${{ needs.review-comments.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Type Annotations: ${{ needs.review-types.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Einops Suggestions: ${{ needs.review-einops.result }}" >> $GITHUB_STEP_SUMMARY
+
+  skip-summary:
+    needs: validate-pr
+    runs-on: ubuntu-latest
+    if: needs.validate-pr.outputs.should_skip == 'true'
+    steps:
+      - name: Skip Summary
+        run: |
+          echo "# 🤖 Claude Review Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Reason**: This PR was opened by Dependabot" >> $GITHUB_STEP_SUMMARY
+          echo "**Action**: Skipping Claude review for automated dependency updates" >> $GITHUB_STEP_SUMMARY

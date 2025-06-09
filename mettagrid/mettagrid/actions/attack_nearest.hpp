@@ -1,69 +1,42 @@
-#ifndef ATTACK_NEAREST_HPP
-#define ATTACK_NEAREST_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_ATTACK_NEAREST_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_ATTACK_NEAREST_HPP_
 
-#include <cstdint>
 #include <string>
 
 #include "attack.hpp"
-#include "constants.hpp"
+#include "grid_object.hpp"
 #include "objects/agent.hpp"
-
-namespace Actions {
+#include "objects/constants.hpp"
 
 class AttackNearest : public Attack {
 public:
-  AttackNearest(const ActionConfig& cfg) : Attack(cfg, "attack_nearest") {}
+  explicit AttackNearest(const ActionConfig& cfg) : Attack(cfg, "attack_nearest") {}
 
-  uint8_t max_arg() const override {
+  unsigned char max_arg() const override {
     return 0;
   }
 
-  ActionHandler* clone() const override {
-    return new AttackNearest(*this);
-  }
-
 protected:
-  bool _handle_action(uint32_t actor_id, Agent* actor, c_actions_type arg) override {
-    // Check if agent has lasers
-    if (actor->inventory[InventoryItem::laser] == 0) {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
+    if (actor->update_inventory(InventoryItem::laser, -1) == 0) {
       return false;
     }
 
-    actor->update_agent_inventory(InventoryItem::laser, -1);
-
-    // Use the validate_orientation utility method
-    validate_orientation(actor);
-
     // Scan the space to find the nearest agent. Prefer the middle (offset 0) before the edges (offset -1, 1).
-    for (int32_t distance = 1; distance < 4; distance++) {
-      for (int32_t i = 0; i < 3; i++) {
-        int32_t offset = i;
+    for (int distance = 1; distance < 4; distance++) {
+      for (int i = 0; i < 3; i++) {
+        int offset = i;
         if (offset == 2) {
           // Sort of a mod 3 operation.
           offset = -1;
         }
-
-        GridLocation target_loc = _grid->relative_location(
-            actor->location, static_cast<Orientation>(actor->orientation), static_cast<int16_t>(distance), offset);
-
-        // Use is_valid_location utility method
-        if (!is_valid_location(target_loc)) {
-          continue;  // Skip this location and try the next one
-        }
+        GridLocation target_loc =
+            _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
 
         target_loc.layer = GridLayer::Agent_Layer;
-        GridObject* obj = safe_object_at(target_loc);
-
-        Agent* agent_target = nullptr;
-        if (obj != nullptr) {
-          agent_target = dynamic_cast<Agent*>(obj);
-          if (obj != nullptr && agent_target == nullptr) {
-            throw std::runtime_error("Object at target location is not an Agent");
-          }
-        }
-
+        Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
         if (agent_target) {
-          return _handle_target(actor_id, actor, target_loc);
+          return _handle_target(actor, target_loc);
         }
       }
     }
@@ -71,5 +44,5 @@ protected:
     return false;
   }
 };
-}  // namespace Actions
-#endif  // ATTACK_NEAREST_HPP
+
+#endif  // METTAGRID_METTAGRID_ACTIONS_ATTACK_NEAREST_HPP_

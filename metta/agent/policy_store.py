@@ -23,7 +23,7 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
-from metta.rl.pufferlib.policy import load_policy
+from metta.rl.pufferlib.policy import PufferAgent, load_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
@@ -73,17 +73,25 @@ class PolicyRecord:
 
         return self._policy
 
-    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
+    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent, PufferAgent]:
         """Get the policy as a MettaAgent or DistributedMettaAgent."""
         policy = self.policy()
-        if not isinstance(policy, (MettaAgent, DistributedMettaAgent)):
+        if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PufferAgent)):
             raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
         return policy
 
-    def num_params(self):
+    def expected_observation_channels(self) -> Optional[int]:
+        policy = self.policy()
+        try:
+            cnn1_weight = policy.get_parameter("components.cnn1._net.0.weight")
+            return cnn1_weight.shape[1]
+        except AttributeError:
+            return None
+
+    def num_params(self) -> int:
         return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
 
-    def local_path(self):
+    def local_path(self) -> str | None:
         return self._local_path
 
     def __repr__(self):
@@ -565,7 +573,7 @@ class PolicyStore:
                     modules_queue.append(submodule_name)
 
     def _load_from_puffer(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        policy = load_policy(path, self._device)
+        policy = load_policy(path, self._device, puffer=self._cfg.puffer)
         name = os.path.basename(path)
         pr = PolicyRecord(
             self,
@@ -595,6 +603,7 @@ class PolicyStore:
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
+
             pr = torch.load(
                 path,
                 map_location=self._device,

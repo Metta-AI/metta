@@ -1,4 +1,4 @@
-# tools/sim.py
+#!/usr/bin/env -S uv run
 """
 Simulation driver for evaluating policies in the Metta environment.
 
@@ -10,8 +10,9 @@ Simulation driver for evaluating policies in the Metta environment.
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import List
+from typing import Any, Dict, List
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -23,23 +24,19 @@ from metta.util.config import Config
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 
-SMOKE_TEST_NUM_SIMS = 1
-SMOKE_TEST_MIN_SCORE = 0.9
-
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
 # --------------------------------------------------------------------------- #
 
 
 class SimJob(Config):
+    __init__ = Config.__init__
     simulation_suite: SimulationSuiteConfig
     policy_uris: List[str]
     selector_type: str = "top"
     stats_db_uri: str
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
-    smoke_test: bool = False
-    smoke_test_min_reward: float | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -52,12 +49,16 @@ def simulate_policy(
     policy_uri: str,
     cfg: DictConfig,
     logger: logging.Logger,
-) -> None:
+) -> Dict[str, Any]:
     """
     Evaluate **one** policy URI (may expand to several checkpoints).
     All simulations belonging to a single checkpoint are merged into one
     *StatsDB* which is optionally exported.
+
+    Returns:
+        Dictionary containing simulation results and metrics
     """
+    results = {"policy_uri": policy_uri, "checkpoints": []}
 
     policy_store = PolicyStore(cfg, None)
     # TODO: institutionalize this better?
@@ -77,24 +78,27 @@ def simulate_policy(
             device=cfg.device,
             vectorization=cfg.vectorization,
         )
-        results = sim.simulate()
+        sim_results = sim.simulate()
 
-        if sim_job.smoke_test:
-            rewards_df = results.stats_db.query(
-                "SELECT AVG(value) AS avg_reward FROM agent_metrics WHERE metric = 'reward'"
-            )
-            assert len(rewards_df) == 1, f"Expected 1 reward during a smoke test, got {len(rewards_df)}"
-            reward = rewards_df.iloc[0]["avg_reward"]
-            logger.info("Reward is %s", reward)
-            assert reward >= SMOKE_TEST_MIN_SCORE, f"Reward is {reward}, expected at least {SMOKE_TEST_MIN_SCORE}"
-            return
-        # ------------------------------------------------------------------ #
-        # Export                                                             #
-        # ------------------------------------------------------------------ #
+        # Collect metrics from the results
+        checkpoint_data = {"name": pr.name, "uri": pr.uri, "metrics": {}}
+
+        # Get average reward
+        rewards_df = sim_results.stats_db.query(
+            "SELECT AVG(value) AS reward_avg FROM agent_metrics WHERE metric = 'reward'"
+        )
+        if len(rewards_df) > 0 and rewards_df.iloc[0]["reward_avg"] is not None:
+            checkpoint_data["metrics"]["reward_avg"] = float(rewards_df.iloc[0]["reward_avg"])
+
+        results["checkpoints"].append(checkpoint_data)
+
+        # Export the stats DB
         logger.info("Exporting merged stats DB → %s", sim_job.stats_db_uri)
-        results.stats_db.export(sim_job.stats_db_uri)
+        sim_results.stats_db.export(sim_job.stats_db_uri)
 
         logger.info("Evaluation complete for policy %s", pr.uri)
+
+    return results
 
 
 # --------------------------------------------------------------------------- #
@@ -110,18 +114,24 @@ def main(cfg: DictConfig) -> None:
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
 
     sim_job = SimJob(cfg.sim_job)
-    assert isinstance(sim_job, SimJob), f"Expected SimJob instance, got {type(sim_job).__name__}"
 
-    if sim_job.smoke_test:
-        logger.info("Limiting simulations to %d", SMOKE_TEST_NUM_SIMS)
-        sim_job.simulation_suite.simulations = {
-            k: v
-            for i, (k, v) in enumerate(sim_job.simulation_suite.simulations.items())
-            if i in range(SMOKE_TEST_NUM_SIMS)
-        }
+    all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
 
     for policy_uri in sim_job.policy_uris:
-        simulate_policy(sim_job, policy_uri, cfg, logger)
+        policy_results = simulate_policy(sim_job, policy_uri, cfg, logger)
+        all_results["policies"].append(policy_results)
+
+    # Always output JSON results to stdout
+    # Ensure all logging is flushed before printing JSON
+    import sys
+
+    sys.stderr.flush()
+    sys.stdout.flush()
+
+    # Print JSON with a marker for easier extraction
+    print("===JSON_OUTPUT_START===")
+    print(json.dumps(all_results, indent=2))
+    print("===JSON_OUTPUT_END===")
 
 
 if __name__ == "__main__":

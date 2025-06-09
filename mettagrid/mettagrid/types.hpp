@@ -1,121 +1,53 @@
-#ifndef TYPES_HPP
-#define TYPES_HPP
+#ifndef METTAGRID_METTAGRID_TYPES_HPP_
+#define METTAGRID_METTAGRID_TYPES_HPP_
 
-#include <cstdint>
-#include <cstring>
-#include <map>
-#include <string>
+#include <pybind11/pybind11.h>
 
-// ============================================================================
-// FUNDAMENTAL TYPE DEFINITIONS
-// ============================================================================
+namespace py = pybind11;
 
-// Grid object identifier - unique ID for each object in the grid
-typedef uint32_t GridObjectId;
+// PufferLib expects particular datatypes
 
-// Layer within the grid - used to stack objects
-typedef uint16_t Layer;
-
-// Type identifier for grid objects - corresponds to ObjectType enum
-typedef uint16_t TypeId;
-
-// Grid coordinate - position in the grid
-typedef uint32_t GridCoord;
-
-// Event identifier for the event system
-typedef uint16_t EventId;
-
-// Event argument - parameter data passed with events
-typedef int32_t EventArg;
-
-// ============================================================================
-// NUMPY-COMPATIBLE TYPE DEFINITIONS
-// ============================================================================
-
-// Define core types used for numpy arrays
-typedef uint8_t numpy_bool_t;
-typedef uint8_t c_observations_type;
-typedef numpy_bool_t c_terminals_type;
-typedef numpy_bool_t c_truncations_type;
-typedef float c_rewards_type;
-typedef uint8_t c_actions_type;
-typedef numpy_bool_t c_masks_type;
-typedef numpy_bool_t c_success_type;
-
-// ============================================================================
-// NUMPY TYPE NAME MACROS
-// ============================================================================
-
-// Type names to use in Python - these must match the C++ types above
-#define NUMPY_OBSERVATIONS_TYPE "uint8"  // match c_observations_type
-#define NUMPY_TERMINALS_TYPE "uint8"     // match c_terminals_type
-#define NUMPY_TRUNCATIONS_TYPE "uint8"   // match c_truncations_type
-#define NUMPY_REWARDS_TYPE "float32"     // match c_rewards_type
-#define NUMPY_ACTIONS_TYPE "uint8"       // match c_actions_type
-#define NUMPY_MASKS_TYPE "uint8"         // match c_masks_type
-#define NUMPY_SUCCESS_TYPE "uint8"       // match c_success_type
-
-// ============================================================================
-// TYPE MAPPING FUNCTION
-// ============================================================================
-
-// Function to provide NumPy type information to Python
-inline const char* get_numpy_type_name(const char* type_id) {
-  if (strcmp(type_id, "observations") == 0) return NUMPY_OBSERVATIONS_TYPE;
-  if (strcmp(type_id, "terminals") == 0) return NUMPY_TERMINALS_TYPE;
-  if (strcmp(type_id, "truncations") == 0) return NUMPY_TRUNCATIONS_TYPE;
-  if (strcmp(type_id, "rewards") == 0) return NUMPY_REWARDS_TYPE;
-  if (strcmp(type_id, "actions") == 0) return NUMPY_ACTIONS_TYPE;
-  if (strcmp(type_id, "masks") == 0) return NUMPY_MASKS_TYPE;
-  if (strcmp(type_id, "success") == 0) return NUMPY_SUCCESS_TYPE;
-  return "unknown";
+inline py::object dtype_observations() {
+  auto np = py::module_::import("numpy");
+  return np.attr("dtype")(np.attr("uint8"));
 }
 
-// ============================================================================
-// COMPOUND TYPES
-// ============================================================================
+inline py::object dtype_terminals() {
+  auto np = py::module_::import("numpy");
+  return np.attr("dtype")(np.attr("bool_"));
+}
 
-// Configuration for action handlers
-typedef std::map<std::string, c_actions_type> ActionConfig;
+inline py::object dtype_truncations() {
+  auto np = py::module_::import("numpy");
+  return np.attr("dtype")(np.attr("bool_"));
+}
 
-// Event structure
-struct Event {
-  uint32_t timestamp;
-  EventId event_id;
-  GridObjectId object_id;
-  EventArg arg;
+inline py::object dtype_rewards() {
+  auto np = py::module_::import("numpy");
+  return np.attr("dtype")(np.attr("float32"));
+}
 
-  bool operator<(const Event& other) const {
-    return timestamp > other.timestamp;
-  }
-};
+inline py::object dtype_actions() {
+  auto np = py::module_::import("numpy");
+  return np.attr("dtype")(np.attr("int32"));
+}
 
-class GridLocation {
-public:
-  GridCoord r;
-  GridCoord c;
-  Layer layer;
+inline py::object dtype_masks() {
+  auto np = py::module_::import("numpy");
+  return np.attr("dtype")(np.attr("bool_"));
+}
 
-  inline GridLocation(GridCoord r, GridCoord c, Layer layer) : r(r), c(c), layer(layer) {}
-  inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c), layer(0) {}
-  inline GridLocation() : r(0), c(0), layer(0) {}
-};
+inline py::object dtype_success() {
+  auto np = py::module_::import("numpy");
+  return np.attr("dtype")(np.attr("bool_"));
+}
 
-// ============================================================================
-// FORWARD DECLARATIONS
-// ============================================================================
+typedef uint8_t ObservationType;
+typedef bool TerminalType;
+typedef bool TruncationType;
+typedef float RewardType;
+typedef int32_t ActionType;
+typedef bool MaskType;
+typedef bool SuccessType;
 
-// Forward declarations for all relevant classes
-class Grid;
-class StatsTracker;
-class EventManager;
-class EventHandler;
-class Converter;
-class GridObject;
-class Agent;
-class ActionHandler;
-class ProductionHandler;
-class CoolDownHandler;
-class CppMettaGrid;
-
-#endif  // TYPES_HPP
+#endif  // METTAGRID_METTAGRID_TYPES_HPP_

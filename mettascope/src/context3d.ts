@@ -2,19 +2,17 @@
 
 import { Vec2f, Mat3f } from './vector_math.js';
 
-// Type definition for atlas data
+/** Type definition for atlas data. */
 interface AtlasData {
   [key: string]: [number, number, number, number]; // [x, y, width, height]
 }
 
-// Clamp a value between a minimum and maximum.
+/** Clamp a value between a minimum and maximum. */
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
 }
 
-/**
- * Mesh class responsible for managing vertex data
- */
+/** Mesh class responsible for managing vertex data. */
 class Mesh {
   private name: string;
   private device: GPUDevice;
@@ -51,7 +49,7 @@ class Mesh {
     this.setupIndexPattern();
   }
 
-  // Set up the index buffer pattern once
+  /** Set up the index buffer pattern once. */
   setupIndexPattern(): void {
     // For each quad: triangles are formed by indices
     // 0-1-2 (top-left, bottom-left, top-right)
@@ -68,7 +66,7 @@ class Mesh {
     }
   }
 
-  // Create GPU buffers
+  /** Create GPU buffers. */
   createBuffers(): void {
     if (!this.device) return;
 
@@ -98,7 +96,7 @@ class Mesh {
     );
   }
 
-  // Resize the maximum number of quads the mesh can hold.
+  /** Resize the maximum number of quads the mesh can hold. */
   resizeMaxQuads(newMaxQuads: number): void {
     console.info("Resizing max ", this.name, " quads from", this.maxQuads, "to", newMaxQuads);
 
@@ -148,7 +146,7 @@ class Mesh {
     }
   }
 
-  // Clear the mesh for a new frame
+  /** Clear the mesh for a new frame. */
   clear(): void {
     // Reset counters instead of recreating arrays
     this.currentQuad = 0;
@@ -159,7 +157,7 @@ class Mesh {
     this.scissorRect = [0, 0, 0, 0];
   }
 
-  // Draws a pre-transformed textured rectangle
+  /** Draws a pre-transformed textured rectangle. */
   drawRectWithTransform(
     topLeft: Vec2f,
     bottomLeft: Vec2f,
@@ -213,39 +211,40 @@ class Mesh {
     this.currentQuad += 1;
   }
 
-  // Get the current number of quads
+  /** Get the number of quads in the mesh. */
   getQuadCount(): number {
     return this.currentQuad;
   }
 
-  // Get the vertex data for upload to GPU
+  /** Get the vertex data. */
   getVertexData(): Float32Array {
     return this.vertexData;
   }
 
-  // Get the number of vertices currently in use
+  /** Get the current vertex count. */
   getCurrentVertexCount(): number {
     return this.currentVertex;
   }
 
-  // Get the vertex buffer
+  /** Get the vertex buffer. */
   getVertexBuffer(): GPUBuffer | null {
     return this.vertexBuffer;
   }
 
-  // Get the index buffer
+  /** Get the index buffer. */
   getIndexBuffer(): GPUBuffer | null {
     return this.indexBuffer;
   }
 
-  // Reset counters after rendering
+  /** Reset the counters. */
   resetCounters(): void {
     this.currentQuad = 0;
     this.currentVertex = 0;
   }
 }
 
-class Context3d {
+/** Context3d class responsible for managing the WebGPU context. */
+export class Context3d {
   // Canvas and WebGPU state
   public canvas: HTMLCanvasElement;
   public device: GPUDevice | null;
@@ -294,7 +293,7 @@ class Context3d {
     this.ready = false;
   }
 
-  // Create or switch to a mesh with the given name
+  /** Create or switch to a mesh with the given name. */
   useMesh(name: string): void {
     if (!this.device || !this.ready) {
       throw new Error("Cannot use mesh before initialization");
@@ -315,7 +314,7 @@ class Context3d {
     this.currentMeshName = name;
   }
 
-  // Sets the scissor rect for the current mesh
+  /** Sets the scissor rect for the current mesh. */
   setScissorRect(x: number, y: number, width: number, height: number): void {
     this.ensureMeshSelected();
 
@@ -323,20 +322,20 @@ class Context3d {
     this.currentMesh!.scissorRect = [x, y, width, height];
   }
 
-  // Disable scissoring for the current mesh
+  /** Disable scissoring for the current mesh. */
   disableScissor(): void {
     this.ensureMeshSelected();
     this.currentMesh!.scissorEnabled = false;
   }
 
-  // Helper method to ensure a mesh is selected before drawing
+  /** Helper method to ensure a mesh is selected before drawing. */
   private ensureMeshSelected(): void {
     if (!this.currentMesh) {
       throw new Error("No mesh selected. Call useMesh() before drawing.");
     }
   }
 
-  // Transform manipulation methods
+  /** Save the current transform. */
   save(): void {
     // Push a copy of the current transform onto the stack
     this.transformStack.push(new Mat3f(
@@ -346,6 +345,7 @@ class Context3d {
     ));
   }
 
+  /** Restore the last transform. */
   restore(): void {
     // Pop the last transform from the stack
     if (this.transformStack.length > 0) {
@@ -355,29 +355,30 @@ class Context3d {
     }
   }
 
+  /** Translate the current transform. */
   translate(x: number, y: number): void {
-    // Create a translation matrix and multiply current transform by it
     const translateMatrix = Mat3f.translate(x, y);
     this.currentTransform = this.currentTransform.mul(translateMatrix);
   }
 
+  /** Rotate the current transform. */
   rotate(angle: number): void {
-    // Create a rotation matrix and multiply current transform by it
     const rotateMatrix = Mat3f.rotate(angle);
     this.currentTransform = this.currentTransform.mul(rotateMatrix);
   }
 
+  /** Scale the current transform. */
   scale(x: number, y: number): void {
-    // Create a scaling matrix and multiply current transform by it
     const scaleMatrix = Mat3f.scale(x, y);
     this.currentTransform = this.currentTransform.mul(scaleMatrix);
   }
 
-  // Reset transform to identity
+  /** Reset the current transform. */
   resetTransform(): void {
     this.currentTransform = Mat3f.identity();
   }
 
+  /** Initialize the context. */
   async init(atlasJsonUrl: string, atlasImageUrl: string): Promise<boolean> {
     // Initialize WebGPU device.
     const adapter = await navigator.gpu?.requestAdapter();
@@ -564,6 +565,7 @@ class Context3d {
     return true;
   }
 
+  /** Fail the context. */
   fail(msg: string): void {
     console.error(msg);
     const failDiv = document.createElement('div');
@@ -573,6 +575,7 @@ class Context3d {
     document.body.appendChild(failDiv);
   }
 
+  /** Load the atlas image. */
   async loadAtlasImage(url: string): Promise<ImageBitmap | null> {
     try {
       const res = await fetch(url);
@@ -591,6 +594,7 @@ class Context3d {
     }
   }
 
+  /** Load the atlas JSON. */
   async loadAtlasJson(url: string): Promise<AtlasData | null> {
     try {
       const res = await fetch(url);
@@ -604,7 +608,7 @@ class Context3d {
     }
   }
 
-  // Clears all meshes for a new frame
+  /** Clears all meshes for a new frame. */
   clear(): void {
     if (!this.ready) return;
 
@@ -618,7 +622,7 @@ class Context3d {
     this.transformStack = [];
   }
 
-  // Draws a textured rectangle with the given coordinates and UV mapping.
+  /** Draws a textured rectangle with the given coordinates and UV mapping. */
   drawRect(
     x: number,
     y: number,
@@ -658,11 +662,12 @@ class Context3d {
     );
   }
 
+  /** Check if the image is in the atlas. */
   hasImage(imageName: string): boolean {
     return this.atlasData?.[imageName] !== undefined;
   }
 
-  // Draws an image from the atlas with its top-right corner at (x, y).
+  /** Draws an image from the atlas with its top-right corner at (x, y). */
   drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]): void {
     if (!this.ready) {
       throw new Error("Drawer not initialized");
@@ -671,7 +676,8 @@ class Context3d {
     this.ensureMeshSelected();
 
     if (!this.atlasData?.[imageName]) {
-      throw new Error(`Image "${imageName}" not found in atlas`);
+      console.error(`Image "${imageName}" not found in atlas`);
+      return;
     }
 
     const [sx, sy, sw, sh] = this.atlasData[imageName];
@@ -695,7 +701,7 @@ class Context3d {
     );
   }
 
-  // Draws an image from the atlas centered at (x, y).
+  /** Draws an image from the atlas centered at (x, y). */
   drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0): void {
     if (!this.ready) {
       throw new Error("Drawer not initialized");
@@ -704,10 +710,11 @@ class Context3d {
     this.ensureMeshSelected();
 
     if (!this.atlasData?.[imageName]) {
-      throw new Error(`Image "${imageName}" not found in atlas`);
+      console.error(`Image "${imageName}" not found in atlas`);
+      return;
     }
 
-    const [sx, sy, sw, sh] = this.atlasData[imageName]; // Source x, y, width, height from atlas.
+    const [sx, sy, sw, sh] = this.atlasData[imageName];
     const m = this.atlasMargin;
 
     // Calculate UV coordinates (normalized 0.0 to 1.0).
@@ -743,7 +750,7 @@ class Context3d {
     }
   }
 
-  // Draws a solid filled rectangle.
+  /** Draws a solid filled rectangle. */
   drawSolidRect(
     x: number,
     y: number,
@@ -779,7 +786,7 @@ class Context3d {
     )
   }
 
-  // Draws a stroked rectangle with set stroke width.
+  /** Draws a stroked rectangle with set stroke width. */
   drawStrokeRect(
     x: number,
     y: number,
@@ -799,7 +806,7 @@ class Context3d {
     this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color);
   }
 
-  // Flushes all non-empty meshes to the screen
+  /** Flushes all non-empty meshes to the screen. */
   flush(): void {
     if (!this.ready || !this.device) {
       return;
@@ -893,12 +900,7 @@ class Context3d {
     }
   }
 
-  // Alias for flush (for backward compatibility)
-  flushMesh(): void {
-    this.flush();
-  }
-
-  // Helper method to generate mipmaps for a texture.
+  /** Helper method to generate mipmaps for a texture. */
   generateMipmaps(texture: GPUTexture, width: number, height: number): void {
     // Don't try to generate mipmaps if the device doesn't support it.
     if (!this.device || !texture) return;
@@ -1018,6 +1020,43 @@ class Context3d {
 
     this.device.queue.submit([commandEncoder.finish()]);
   }
-}
 
-export { Context3d };
+  /**
+   * Draws a line of sprites.
+   * The line is drawn from (x0, y0) to (x1, y1).
+   * The spacing is the distance between the centers of the sprites.
+   * The color is the color of the sprites.
+   * The skipStart and skipEnd are the number of sprites to skip at the start
+   * and end of the line.
+   */
+  drawSpriteLine(
+    imageName: string,
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    spacing: number,
+    color: number[],
+    skipStart: number = 0,
+    skipEnd: number = 0
+  ): void {
+    // Compute the angle of the line.
+    const angle = Math.atan2(y1 - y0, x1 - x0);
+    // Compute the length of the line.
+    const x = x1 - x0;
+    const y = y1 - y0;
+    const length = Math.sqrt(x ** 2 + y ** 2);
+    // Compute the number of dashes.
+    const numDashes = Math.floor(length / spacing) + 1;
+    // Compute the delta of each dash.
+    const dx = x / numDashes;
+    const dy = y / numDashes;
+    // Draw the dashes.
+    for (let i = 0; i < numDashes; i++) {
+      if (i < skipStart || i >= numDashes - skipEnd) {
+        continue;
+      }
+      this.drawSprite(imageName, x0 + i * dx, y0 + i * dy, color, 1, -angle);
+    }
+  }
+}

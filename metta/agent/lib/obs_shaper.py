@@ -1,5 +1,6 @@
 from typing import Any, Dict
 
+from einops import rearrange
 from typing_extensions import override
 
 from metta.agent.lib.metta_layer import LayerBase
@@ -17,11 +18,10 @@ class ObsShaper(LayerBase):
     and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, obs_shape, num_objects, **cfg):
+    def __init__(self, obs_shape, **cfg):
         super().__init__(**cfg)
         self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
         self._out_tensor_shape = [self._obs_shape[2], self._obs_shape[0], self._obs_shape[1]]
-        self._output_size = num_objects
 
     @override
     def _forward(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -57,7 +57,6 @@ class ObsShaper(LayerBase):
         x = x.reshape(B * T, *space_shape)
         x = x.float()
 
-        # conv expects [batch, channel, w, h]. Below is hardcoded for [batch, w, h, channel]
         x = self._permute(x)
 
         data["_T_"] = T
@@ -70,7 +69,7 @@ class ObsShaper(LayerBase):
         if x.device.type == "mps":
             x = self._mps_permute(x)
         else:
-            x = x.permute(0, 3, 1, 2)
+            x = rearrange(x, "b h w c -> b c h w")
         return x
 
     def _mps_permute(self, x):

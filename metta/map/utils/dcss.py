@@ -1,5 +1,8 @@
 import logging
+import os
 import urllib.request
+from dataclasses import dataclass
+from multiprocessing import Pool
 
 from omegaconf import OmegaConf
 
@@ -12,6 +15,7 @@ from metta.map.utils.make_scene_config import (
 # This script extracts maps from Dungeon Crawl Stone Soup into individual yaml scene files.
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 def fetch_simple():
@@ -30,7 +34,7 @@ def process_map_source(ascii_source):
     # replace all symbols that are not `x` with spaces; replace `x` with `#`
     for i in range(len(lines)):
         original_line = lines[i]
-        new_line = "".join(["#" if char == "x" else " " for char in original_line])
+        new_line = "".join(["#" if char == "x" else "." for char in original_line])
         lines[i] = new_line
 
     return "\n".join(lines)
@@ -44,7 +48,13 @@ def is_trivial(ascii_map):
     return False
 
 
-def get_maps():
+@dataclass
+class DCSSMap:
+    name: str
+    pattern: str
+
+
+def get_maps() -> list[DCSSMap]:
     simple = fetch_simple()
     import re
 
@@ -52,7 +62,7 @@ def get_maps():
     # If the string starts with 'NAME:', the first part will be an empty string.
     parts = re.split(r"(?=NAME:)", simple)
 
-    maps = []
+    maps: list[DCSSMap] = []
     for part in parts:
         if "NAME:" not in part:
             continue  # preamble before the first map
@@ -69,32 +79,43 @@ def get_maps():
             ascii_map = process_map_source(ascii_source)
             if is_trivial(ascii_map):
                 continue
-            maps.append({"name": name, "map": ascii_map})
+            maps.append(DCSSMap(name=name, pattern=ascii_map))
 
     return maps
 
 
+dir = scenes_root / "dcss"
+wfc_dir = dir / "wfc"
+
+
+def process_map_entry(map_entry: DCSSMap):
+    name = map_entry.name
+    pattern = map_entry.pattern
+    logger.info(f"Processing map: {name}")
+
+    # convchain
+    convchain_config = make_convchain_config_from_pattern(pattern)
+    convchain_dir = dir / "convchain"
+    convchain_dir.mkdir(parents=True, exist_ok=True)
+    OmegaConf.save(convchain_config, convchain_dir / f"{name}.yaml")
+
+    # wfc
+    wfc_config = make_wfc_config_from_pattern(map_entry.pattern)
+    if wfc_config is None:
+        logger.warning(f"Invalid pattern for WFC: {map_entry.name}")
+        return
+
+    wfc_dir.mkdir(parents=True, exist_ok=True)
+    OmegaConf.save(wfc_config, wfc_dir / f"{name}.yaml")
+
+
 def generate_scenes_from_dcss_maps():
     maps = get_maps()
-    dir = scenes_root / "dcss"
-    for map_entry in maps:
-        name = map_entry["name"]
-        pattern = map_entry["map"]
-        logger.info(f"Processing map: {map_entry['name']}")
 
-        convchain_config = make_convchain_config_from_pattern(pattern)
-        convchain_dir = dir / "convchain"
-        convchain_dir.mkdir(parents=True, exist_ok=True)
-        OmegaConf.save(convchain_config, convchain_dir / f"{name}.yaml")
+    cpus = os.cpu_count() or 1
 
-        wfc_config = make_wfc_config_from_pattern(pattern)
-        if wfc_config is None:
-            logger.warning(f"Invalid pattern for WFC: {name}")
-            continue
-
-        wfc_dir = dir / "wfc"
-        wfc_dir.mkdir(parents=True, exist_ok=True)
-        OmegaConf.save(wfc_config, wfc_dir / f"{name}.yaml")
+    with Pool(cpus) as pool:
+        pool.map(process_map_entry, maps)
 
 
 if __name__ == "__main__":

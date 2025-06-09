@@ -303,17 +303,29 @@ class ParamLayer(LayerBase):
                 typed_weight_net.weight.data = typed_weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
 
     def l2_reg_loss(self) -> torch.Tensor:
-        typed_weight_net = cast(LinearWeightModule, self._weight_net)
-        l2_reg_loss = torch.tensor(0.0, device=typed_weight_net.weight.data.device)
-        if self.l2_norm_scale != 0 and self.l2_norm_scale is not None:
-            l2_reg_loss = (torch.sum(typed_weight_net.weight.data**2)) * self.l2_norm_scale
+        """
+        Computes L2 regularization loss (weight decay).
+
+        Returns:
+            torch.Tensor: The L2 regularization loss scaled by l2_norm_scale,
+                          or zero if regularization is disabled.
+        """
+        l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
+        l2_reg_loss = torch.sum(self.weight_net.weight.data**2) * self.l2_norm_scale
         return l2_reg_loss
 
     def l2_init_loss(self) -> torch.Tensor:
-        typed_weight_net = cast(LinearWeightModule, self._weight_net)
-        l2_init_loss = torch.tensor(0.0, device=typed_weight_net.weight.data.device)
-        if self.l2_init_scale != 0 and self.l2_init_scale is not None and self.initial_weights is not None:
-            l2_init_loss = torch.sum((typed_weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
+        """
+        Computes L2-init regularization loss (delta regularization).
+
+        Penalizes deviation from initial weights to help prevent catastrophic forgetting.
+
+        Returns:
+            torch.Tensor: The L2-init regularization loss scaled by l2_init_scale,
+                          or zero if regularization is disabled.
+        """
+        l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device)
+        l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
 
     def update_l2_init_weight_copy(self, alpha: float = 0.9):

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from mettagrid.mettagrid_env import MettaGridEnv
+
 import json
 import zlib
 
@@ -15,7 +20,7 @@ class ReplayWriter:
         self.replay_dir = replay_dir
         self.episodes = {}
 
-    def start_episode(self, episode_id: str, env):
+    def start_episode(self, episode_id: str, env: MettaGridEnv):
         self.episodes[episode_id] = EpisodeReplay(env)
 
     def log_pre_step(self, episode_id: str, actions: np.ndarray):
@@ -36,9 +41,8 @@ class ReplayWriter:
         return http_url(replay_path)
 
 
-# Helper for managing state of individual episode's replay
 class EpisodeReplay:
-    def __init__(self, env):
+    def __init__(self, env: MettaGridEnv):
         self.env = env
         self.step = 0
         self.grid_objects = []

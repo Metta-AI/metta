@@ -24,12 +24,12 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 1. Launch a training run with default parameters:
 ```bash
-./launch.sh train my_experiment_001
+./launch.py train my_experiment_001
 ```
 
 2. Launch a training run with specific arguments:
 ```bash
-./launch.sh train my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
+./launch.py train my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
 ```
 
 ## Job Management
@@ -59,6 +59,32 @@ Cancel all jobs:
 sky jobs cancel --all
 ```
 
+## Sandboxes
+
+Sandboxes are often easier for quick experimentation.
+
+### Deployment
+
+The following command creates a new EC2 instance with specifications as defined in `sandbox.yaml`.
+The script also runs a setup job to compile a metta repo on the machine, defaulting to main, but specific git commits can be specified.
+```bash
+./devops/skypilot/sandbox.py [--git-ref <GIT_REF>] [--new]
+```
+
+- `--git-ref <GIT_REF>`: Optional. Specify a git reference (branch, tag, or commit hash) to check out in the sandbox.
+- `--new`: Optional. Force the creation of a new sandbox even if existing ones are found.
+
+### Connecting
+
+Connect to the sandbox using ssh (e.g., `ssh <cluster_name>`). The hostname will be printed by the deployment script. Authentication will be magically handled by SkyPilot.
+
+### Shutting Down
+
+To shut down a sandbox, use the following command:
+```bash
+sky down <CLUSTER_NAME>
+```
+
 ## Notes
 
 - The script automatically:
@@ -66,7 +92,7 @@ sky jobs cancel --all
   - Sets up environment variables
   - Uses the current git commit hash
   - Launches jobs in detached mode
-  - Uses the configuration from `./devops/skypilot/config/train.yaml`
+  - Uses the configuration from `./devops/skypilot/config/sk_train.yaml`
 
 - Jobs are launched asynchronously and will run in the background
 - Monitor job status using SkyPilot CLI or AWS console

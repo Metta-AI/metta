@@ -1,26 +1,20 @@
-#!/usr/bin/env python3
-
+#!/usr/bin/env -S uv run
 import argparse
 import copy
-import re
 import subprocess
-import sys
 
 import sky
 
-
-def blue(text: str):
-    BLUE = "\033[1;34m"
-    RESET = "\033[0;0m"
-
-    return f"{BLUE}{text}{RESET}"
+from devops.skypilot.utils import launch_task
 
 
-def print_tip(text: str):
-    print(blue(text), file=sys.stderr)
-
-
-def patch_task(task: sky.Task, cpus: int | None, gpus: int | None, nodes: int | None) -> sky.Task:
+def patch_task(
+    task: sky.Task,
+    cpus: int | None,
+    gpus: int | None,
+    nodes: int | None,
+    no_spot: bool = False,
+) -> sky.Task:
     overrides = {}
     if cpus:
         overrides["cpus"] = cpus
@@ -28,6 +22,8 @@ def patch_task(task: sky.Task, cpus: int | None, gpus: int | None, nodes: int | 
         task.set_resources_override(overrides)
     if nodes:
         task.num_nodes = nodes
+
+    new_resources_list = list(task.resources)
 
     if gpus:
         new_resources_list = []
@@ -41,6 +37,10 @@ def patch_task(task: sky.Task, cpus: int | None, gpus: int | None, nodes: int | 
             new_resources = res.copy(accelerators=patched_accelerators)
             new_resources_list.append(new_resources)
 
+    if no_spot:
+        new_resources_list = [res.copy(use_spot=False) for res in new_resources_list]
+
+    if gpus or no_spot:
         task.set_resources(type(task.resources)(new_resources_list))
 
     return task
@@ -55,6 +55,8 @@ def main():
     parser.add_argument("--nodes", type=int, default=None)
     parser.add_argument("--cpus", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--no-spot", action="store_true", help="Disable spot instances")
+    parser.add_argument("--copies", type=int, default=1, help="Number of identical job copies to launch")
     (args, cmd_args) = parser.parse_known_args()
 
     git_ref = args.git_ref
@@ -73,27 +75,18 @@ def main():
     task.name = args.run
     task.validate_name()
 
-    task = patch_task(task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes)
+    task = patch_task(task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes, no_spot=args.no_spot)
 
-    if args.dry_run:
-        print_tip("DRY RUN.")
-        print_tip("Tip: Pipe this command to `| yq -P .` to get the pretty yaml config.\n")
-        print(task.to_yaml_config())
-        return
-
-    request_id = sky.jobs.launch(task)
-    (job_id, _) = sky.get(request_id)
-
-    server_url = sky.server.common.get_server_url()
-    # strip username and password from server_url
-    server_url = re.sub("https://.*@", "https://", server_url)
-    job_url = f"{server_url}/dashboard/jobs/{job_id}"
-    print("\nJob submitted successfully!")
-
-    # Note: direct urls don't work in skypilot dashboard yet, this always opens clusters list.
-    # Hopefully this will be fixed soon.
-    print(f"Open {blue(job_url)} to track your job.")
-    print("To sign in, use credentials from your ~/.skypilot/config.yaml file.")
+    if args.copies == 1:
+        launch_task(task, dry_run=args.dry_run)
+    else:
+        for _ in range(1, args.copies + 1):
+            copy_task = copy.deepcopy(task)
+            run_id = args.run
+            copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
+            copy_task.name = run_id
+            copy_task.validate_name()
+            launch_task(copy_task, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

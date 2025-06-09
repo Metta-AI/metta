@@ -1,19 +1,34 @@
 {
-  // ruff format on save is configured in metta.code-workspace
+  // Global Editor Settings
+  "editor.formatOnSave": true,
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // C/C++ Configuration
+  "[cpp]": {
+    "editor.rulers": [120]
+  },
+  "C_Cpp.default.cppStandard": "c++20",
+  "C_Cpp.default.compilerPath": "/usr/bin/clang++",
+  "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4 }",
+  "C_Cpp.errorSquiggles": "enabled",
+  "C_Cpp.intelliSenseEngine": "default",
+
+  // Python Configuration
   "[python]": {
-    "editor.rulers": [
-      120
-    ],
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    },
+    "editor.rulers": [120],
     "editor.renderWhitespace": "trailing"
   },
-  "files.exclude": {
-    "**/*.egg-info": true,
-    "**/__pycache__": true,
-    "replays": true,
-    "train_dir": true,
-    "outputs": true,
-    ".pytest_cache": true
-  },
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.extraPaths": ["mettagrid"],
+  "python.autoComplete.extraPaths": ["mettagrid"],
+  "python.testing.unittestEnabled": true,
+  "python.testing.pytestEnabled": false,
   "python.testing.unittestArgs": [
     "-v",
     "-s",
@@ -21,17 +36,30 @@
     "-p",
     "test_*.py"
   ],
-  "python.analysis.typeCheckingMode": "basic",
-  "python.testing.pytestEnabled": false,
-  "python.testing.unittestEnabled": true,
+
+  // YAML Configuration
   "[yaml]": {
     "editor.insertSpaces": true,
     "editor.tabSize": 2,
+    "editor.autoIndent": "keep",
     "editor.quickSuggestions": {
       "other": true,
       "comments": false,
       "strings": true
-    },
-    "editor.autoIndent": "keep"
+    }
+  },
+
+  // Terminal Configuration
+  "terminal.integrated.cwd": "${workspaceFolder}",
+
+  // File Explorer Configuration
+  "files.exclude": {
+    "**/*.egg-info": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true,
+    "**/wandb": true,
+    "replays": true,
+    "train_dir": true,
+    "outputs": true
   }
 }

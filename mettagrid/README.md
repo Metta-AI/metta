@@ -31,7 +31,7 @@ The `Altar` object allows agents to spend energy to gain rewards. Agents can pow
 - After the heart altar is used, it is unable to be used for altar.cooldown timesteps.
 - A single use of the heart altar gives you a single unit of reward:
   if `target._type_id == ObjectType.AltarT:
-  self.env._rewards[actor_id] += 1`
+self.env._rewards[actor_id] += 1`
 
 ### Converter
 
@@ -123,3 +123,32 @@ The MettaGrid environment is highly configurable through the use of YAML configu
 - HP — hitpoints, the number of times something can be hit before destruction.
 - Cooldown between uses (varies by building)
 - Can be damaged and destroyed by attacks
+
+## Building and testing
+
+For local development, refer to the top-level [README.md](../README.md) in this repository.
+
+### CMake
+
+By default, `uv sync` will run the CMake build in an isolated environment, so if you need to run C++ tests and benchmarks, you'll need to invoke `cmake` directly.
+
+Build C++ tests and benchmarks in debug mode:
+
+```sh
+# Generate `./build-debug` dir. Presets are described in `./CMakePresets.json`.
+cmake --preset debug
+# Build `./build-debug` dir
+cmake --build build-debug
+# Run all tests
+ctest --test-dir build-debug
+```
+
+For benchmarks you might prefer to use the release build:
+
+```sh
+cmake --preset release
+cmake --build build-release
+
+# Run some benchmark
+./build-release/benchmarks/grid_object_benchmark
+```

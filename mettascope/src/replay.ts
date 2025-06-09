@@ -1,9 +1,10 @@
 import * as Common from './common.js';
 import { ui, state, html, ctx } from './common.js';
 import { focusFullMap, requestFrame } from './worldmap.js';
-import { onResize } from './main.js';
+import { onResize, updateStep } from './main.js';
+import { updateAgentTable } from './agentpanel.js';
 
-// Gets an attribute from a grid object respecting the current step.
+/** Gets an attribute from a grid object respecting the current step. */
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
   if (atStep == -1) {
     // When step is not defined, use global step.
@@ -19,8 +20,7 @@ export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): 
   }
 }
 
-
-// Decompress a stream, used for compressed JSON from fetch or drag and drop.
+/** Decompress a stream, used for compressed JSON from fetch or drag and drop. */
 async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<string> {
   const decompressionStream = new DecompressionStream('deflate');
   const decompressedStream = stream.pipeThrough(decompressionStream);
@@ -45,7 +45,7 @@ async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<str
   return decoder.decode(flattenedChunks);
 }
 
-// Load the replay from a URL.
+/** Load the replay from a URL. */
 export async function fetchReplay(replayUrl: string) {
 
   // If its an S3 url, we can convert it to a http url.
@@ -83,7 +83,7 @@ export async function fetchReplay(replayUrl: string) {
   }
 }
 
-// Read a file from drag and drop.
+/** Read a file from drag and drop. */
 export async function readFile(file: File) {
   try {
     const contentType = file.type;
@@ -102,7 +102,10 @@ export async function readFile(file: File) {
   }
 }
 
-// Expand a sequence of values
+/**
+ * Expand a sequence of values.
+ * Example: [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
+ */
 // [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
 function expandSequence(sequence: any[], numSteps: number): any[] {
   var expanded: any[] = [];
@@ -134,6 +137,10 @@ async function loadReplayText(url: string, replayData: string) {
   loadReplayJson(url, JSON.parse(replayData));
 }
 
+// Replays can be in many different formats, with stuff missing or broken.
+// This function fixes the replay to be in a consistent format.
+// Adding missing keys, recomputing invalid values. etc...
+// It also creates some internal data structures for faster access to images.
 function fixReplay() {
   // Create action image mappings for faster access.
   state.replay.action_images = [];
@@ -220,14 +227,17 @@ function fixReplay() {
   }
   if (oldMapSize[0] != state.replay.map_size[0] || oldMapSize[1] != state.replay.map_size[1]) {
     // Map size changed, update the map.
-    console.info("Map size changed");
+    console.info("Map size changed to: ", state.replay.map_size[0], "x", state.replay.map_size[1]);
     focusFullMap(ui.mapPanel);
+    // Force a resize to update the minimap panel.
+    onResize();
   }
 
   console.info("replay: ", state.replay);
 
 }
 
+/** Load a replay from a JSON object. */
 async function loadReplayJson(url: string, replayData: any) {
   state.replay = replayData;
 
@@ -265,18 +275,20 @@ async function loadReplayJson(url: string, replayData: any) {
 
   Common.closeModal();
   focusFullMap(ui.mapPanel);
+  updateAgentTable();
   onResize();
   requestFrame();
 }
 
+/** Load a single step of a replay. */
 export function loadReplayStep(replayStep: any) {
   // This gets us a simple replay step that we can overwrite.
 
   // Update the grid objects.
   const step = replayStep.step;
 
-  state.replay.max_steps = Math.max(state.replay.max_steps, step);
-  state.step = step; // Rewind to the current step.
+  state.replay.max_steps = Math.max(state.replay.max_steps, step + 1);
+
 
   for (const gridObject of replayStep.grid_objects) {
     // Grid objects are 1-indexed.
@@ -309,9 +321,12 @@ export function loadReplayStep(replayStep: any) {
 
   fixReplay()
 
+  updateStep(step)
+
   requestFrame();
 }
 
+/** Initialize the WebSocket connection. */
 export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl);
   state.ws.onmessage = (event) => {
@@ -320,6 +335,7 @@ export function initWebSocket(wsUrl: string) {
     if (data.type === "replay") {
       loadReplayJson(wsUrl, data.replay);
       Common.closeModal();
+      html.actionButtons.classList.remove("hidden");
     } else if (data.type === "replay_step") {
       loadReplayStep(data.replay_step);
     } else if (data.type === "message") {
@@ -329,7 +345,7 @@ export function initWebSocket(wsUrl: string) {
   state.ws.onopen = () => {
     Common.showModal("info",
       "Starting environment",
-      "Please wait while live environment is starting for playing..."
+      "Please wait while live environment is starting..."
     );
   };
   state.ws.onclose = () => {
@@ -346,6 +362,7 @@ export function initWebSocket(wsUrl: string) {
   };
 }
 
+/** Send an action to the server. */
 export function sendAction(actionName: string, actionParam: number) {
   if (state.ws === null) {
     console.error("WebSocket is not connected");

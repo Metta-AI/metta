@@ -1,0 +1,75 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 32
+  agent:
+    max_inventory: 10
+    rewards:
+      action_failure_penalty: 0
+      ore.red: ${sampling:0.005,0.1, 0.01}
+      ore.blue: ${sampling:0.005,0.1, 0.01}
+      ore.green: ${sampling:0.005,0.1, 0.01}
+      ore.green_max: 3
+      ore.blue_max: 3
+      ore.red_max: 3
+      battery: ${sampling:0.01,0.5, 0.1}
+      battery_max: 3
+      laser: ${sampling:0.005,0.1, 0.01}
+      laser_max: 1
+      blueprint: ${sampling:0.005,0.1, 0.01}
+      blueprint_max: 1
+      armor: ${sampling:0.005,0.1, 0.01}
+      armor_max: 1
+      heart: 1
+      heart_max: 1000
+  map_builder:
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+    room:
+      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: ${sampling:1,6,3}
+      agents: 8
+      objects:
+        mine.red: ${sampling:1,20,10}
+        # mine.blue: ${sampling:0,5,10}
+        # mine.green: ${sampling:0,5,10}
+        generator.red: ${sampling:1,20,10}
+        # generator.blue: ${sampling:0,5,10}
+        # generator.green: ${sampling:0,5,10}
+        altar: ${sampling:0,5,10}
+        armory: ${sampling:0,5,10}
+        lasery: ${sampling:0,5,10}
+        lab: ${sampling:0,5,10}
+        factory: ${sampling:0,5,10}
+        temple: ${sampling:1,5,1}
+        block: ${sampling:5,50,20}
+        wall: ${sampling:5,50,20}
+  objects:
+      altar:
+        # initial_items: ${choose:0,1}
+        cooldown: ${sampling:5, 50, 10}
+        input_battery: 1
+
+      generator.red:
+        # initial_items: ${choose:0,1}
+        cooldown: ${sampling:5, 50, 10}
+
+      # generator.blue:
+      #   cooldown: ${sampling:3, 20, 10}
+
+      # generator.green:
+      #   cooldown: ${sampling:3, 20, 10}
+
+      mine.red:
+        cooldown: ${sampling:15, 50, 10}
+
+      # mine.blue:
+      #   cooldown: ${sampling:15, 50, 10}
+
+      # mine.green:
+      #   cooldown: ${sampling:15, 50, 10}

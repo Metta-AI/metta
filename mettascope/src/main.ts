@@ -2,11 +2,15 @@ import { Vec2f, Mat3f } from './vector_math.js';
 import * as Common from './common.js';
 import { ui, state, html, ctx, setFollowSelection } from './common.js';
 import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js';
-import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
+import { focusFullMap, drawMap, requestFrame } from './worldmap.js';
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
-import { processActions } from './actions.js';
-// Handle resize events.
+import { processActions, initActionButtons } from './actions.js';
+import { initAgentTable, updateAgentTable } from './agentpanel.js';
+import { localStorageSetNumber, onEvent } from './htmlutils.js';
+import { updateReadout } from './infopanels.js';
+
+/** Handles resize events. */
 export function onResize() {
   // Adjust for high DPI displays.
   const dpr = window.devicePixelRatio || 1;
@@ -17,6 +21,7 @@ export function onResize() {
   // Make sure traceSplit and infoSplit are not too small or too large.
   const a = 0.025;
   ui.traceSplit = Math.max(a, Math.min(ui.traceSplit, 1 - a));
+  ui.agentPanelSplit = Math.max(a, Math.min(ui.agentPanelSplit, 1 - a));
 
   ui.mapPanel.x = 0;
   ui.mapPanel.y = Common.HEADER_HEIGHT;
@@ -32,26 +37,12 @@ export function onResize() {
     ui.miniMapPanel.y = ui.mapPanel.y + ui.mapPanel.height - miniMapHeight;
     ui.miniMapPanel.width = miniMapWidth;
     ui.miniMapPanel.height = miniMapHeight;
-    console.log("miniMap:", ui.miniMapPanel.x, ui.miniMapPanel.y, ui.miniMapPanel.width, ui.miniMapPanel.height);
   }
 
   ui.infoPanel.x = screenWidth - 400;
-  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 200;
+  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300;
   ui.infoPanel.width = 400;
-  ui.infoPanel.height = 200;
-  if (ui.infoPanel.div === null) {
-    ui.infoPanel.div = document.createElement("div");
-    ui.infoPanel.div.id = ui.infoPanel.name + "-div";
-    document.body.appendChild(ui.infoPanel.div);
-  }
-  if (ui.infoPanel.div !== null) {
-    const div = ui.infoPanel.div;
-    div.style.position = 'absolute';
-    div.style.top = ui.infoPanel.y + 'px';
-    div.style.left = ui.infoPanel.x + 'px';
-    div.style.width = ui.infoPanel.width + 'px';
-    div.style.height = ui.infoPanel.height + 'px';
-  }
+  ui.infoPanel.height = 300;
 
   // Trace panel is always on the bottom of the screen.
   ui.tracePanel.x = 0;
@@ -59,30 +50,52 @@ export function onResize() {
   ui.tracePanel.width = screenWidth;
   ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
 
+  // Agent panel is always on the top of the screen.
+  ui.agentPanel.x = 0;
+  ui.agentPanel.y = Common.HEADER_HEIGHT;
+  ui.agentPanel.width = screenWidth;
+  ui.agentPanel.height = ui.agentPanelSplit * screenHeight;
+
+  html.actionButtons.style.top = (ui.tracePanel.y - 148) + 'px';
+
+  ui.mapPanel.updateDiv();
+  ui.miniMapPanel.updateDiv();
+  ui.infoPanel.updateDiv();
+  ui.tracePanel.updateDiv();
+  ui.agentPanel.updateDiv();
+
   // Redraw the square after resizing.
   requestFrame();
 }
 
-// Handle mouse down events.
-function onMouseDown() {
+/** Handle mouse down events. */
+onEvent("mousedown", "body", () => {
   ui.lastMousePos = ui.mousePos;
   ui.mouseDownPos = ui.mousePos;
   ui.mouseClick = true;
 
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
-    ui.traceDragging = true
+    ui.dragging = "trace-panel";
+  } else {
+    ui.mouseDown = true;
+  }
+
+  if (Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD) {
+    ui.dragging = "agent-panel";
   } else {
     ui.mouseDown = true;
   }
 
   requestFrame();
-}
+})
 
-// Handle mouse up events.
-function onMouseUp() {
+/** Handle mouse up events. */
+onEvent("mouseup", "body", () => {
   ui.mouseUp = true;
   ui.mouseDown = false;
-  ui.traceDragging = false;
+  ui.dragging = "";
+  ui.dragHtml = null;
+  ui.dragOffset = new Vec2f(0, 0);
 
   // Due to how we select objects on mouse-up (mouse-down is drag/pan),
   // we need to check for double-click on mouse-up as well.
@@ -91,33 +104,66 @@ function onMouseUp() {
   ui.lastClickTime = currentTime;
 
   requestFrame();
-}
+})
 
-// Handle mouse move events.
-function onMouseMove(event: MouseEvent) {
+/** Handle mouse move events. */
+onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
+  let event = e as MouseEvent;
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
+  var target = event.target as HTMLElement;
+  while (target.id === "" && target.parentElement != null) {
+    target = target.parentElement as HTMLElement;
+  }
+  ui.mouseTarget = target.id;
 
   // If mouse is close to a panels edge change cursor to edge changer.
   document.body.style.cursor = "default";
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ns-resize";
   }
+  if (Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD) {
+    document.body.style.cursor = "ns-resize";
+  }
 
   // Drag the trace panel up or down.
-  if (ui.traceDragging) {
+  if (ui.dragging == "trace-panel") {
     ui.traceSplit = ui.mousePos.y() / window.innerHeight
+    localStorageSetNumber("traceSplit", ui.traceSplit);
     onResize();
   }
-  requestFrame();
-}
 
-// Handle scroll events.
-function onScroll(event: WheelEvent) {
+  if (ui.dragging == "agent-panel") {
+    ui.agentPanelSplit = (ui.mousePos.y() - ui.agentPanel.y) / window.innerHeight
+    localStorageSetNumber("agentPanelSplit", ui.agentPanelSplit);
+    onResize();
+  }
+
+  if (ui.dragHtml != null) {
+    ui.dragHtml.style.left = (ui.mousePos.x() - ui.dragOffset.x()) + "px";
+    ui.dragHtml.style.top = (ui.mousePos.y() - ui.dragOffset.y()) + "px";
+  }
+
+  requestFrame();
+})
+
+/** Handle dragging draggable elements. */
+onEvent("mousedown", ".draggable", (target: HTMLElement, e: Event) => {
+  let event = e as MouseEvent;
+  ui.dragHtml = target;
+  let rect = target.getBoundingClientRect();
+  ui.dragOffset = new Vec2f(event.clientX - rect.left, event.clientY - rect.top);
+  ui.dragging = "draggable";
+  requestFrame();
+})
+
+/** Handles scroll events. */
+onEvent("wheel", "body", (target: HTMLElement, e: Event) => {
+  let event = e as WheelEvent;
   ui.scrollDelta = event.deltaY;
   requestFrame();
-}
+})
 
-// Update all URL parameters without creating browser history entries
+/** Update all URL parameters without creating browser history entries. */
 function updateUrlParams() {
   // Get current URL params
   const urlParams = new URLSearchParams(window.location.search);
@@ -165,7 +211,7 @@ function updateUrlParams() {
   history.replaceState(null, '', newUrl);
 }
 
-// Centralized function to update the step and handle all related updates
+/** Centralized function to update the step and handle all related updates. */
 export function updateStep(newStep: number, skipScrubberUpdate = false) {
   // Update the step variable
   state.step = newStep;
@@ -174,23 +220,31 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
   if (!skipScrubberUpdate) {
     html.scrubber.value = state.step.toString();
   }
-
-  // Update trace panel position
-  // ui.tracePanel.panPos.setX(-state.step * 32);
-
-  // Request a new frame
+  updateAgentTable();
   requestFrame();
 }
 
-// Handle scrubber change events.
+/** Centralized function to select an object. */
+export function updateSelection(object: any, setFollow = false) {
+  state.selectedGridObject = object;
+  if (setFollow) {
+    setFollowSelection(true);
+  }
+  console.info("Selected object:", state.selectedGridObject);
+  updateAgentTable();
+  requestFrame();
+}
+
+/** Handle scrubber change events. */
 function onScrubberChange() {
   updateStep(parseInt(html.scrubber.value), true);
 }
 
-// Handle key down events.
-function onKeyDown(event: KeyboardEvent) {
+/** Handle key down events. */
+onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
+  let event = e as KeyboardEvent;
   if (event.key == "Escape") {
-    state.selectedGridObject = null;
+    updateSelection(null);
     setFollowSelection(false);
   }
   // '[' and ']' to scrub forward and backward.
@@ -219,9 +273,9 @@ function onKeyDown(event: KeyboardEvent) {
   processActions(event);
 
   requestFrame();
-}
+})
 
-// Draw a frame.
+/** Draw a frame. */
 export function onFrame() {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -233,29 +287,43 @@ export function onFrame() {
 
   ctx.clear();
 
-  var fullUpdate = true;
-  if (ui.mapPanel.inside(ui.mousePos)) {
-    if (ui.mapPanel.updatePanAndZoom()) {
-      fullUpdate = false;
-    }
-  }
-
-  if (ui.tracePanel.inside(ui.mousePos)) {
-    if (ui.tracePanel.updatePanAndZoom()) {
-      fullUpdate = false;
-    }
-  }
+  ui.mapPanel.updatePanAndZoom();
+  ui.tracePanel.updatePanAndZoom();
 
   ctx.useMesh("map");
   drawMap(ui.mapPanel);
-  ctx.useMesh("mini-map");
-  drawMiniMap(ui.miniMapPanel);
+
+  if (state.showMiniMap) {
+    ui.miniMapPanel.div.classList.remove("hidden");
+    ctx.useMesh("mini-map");
+    drawMiniMap(ui.miniMapPanel);
+  } else {
+    ui.miniMapPanel.div.classList.add("hidden");
+  }
+
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
-  updateReadout();
+
+  if (state.showInfo) {
+    ui.infoPanel.div.classList.remove("hidden");
+    updateReadout();
+  } else {
+    ui.infoPanel.div.classList.add("hidden");
+  }
+
+  if (state.showControls) {
+    html.actionButtons.classList.remove("hidden");
+  } else {
+    html.actionButtons.classList.add("hidden");
+  }
+
+  if (state.showAgentPanel) {
+    ui.agentPanel.div.classList.remove("hidden");
+  } else {
+    ui.agentPanel.div.classList.add("hidden");
+  }
 
   ctx.flush();
-  console.log("Flushed ctx.");
 
   // Update URL parameters with current state once per frame
   updateUrlParams();
@@ -265,7 +333,11 @@ export function onFrame() {
     if (state.partialStep >= 1) {
       const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.max_steps;
       state.partialStep -= Math.floor(state.partialStep);
-      updateStep(nextStep);
+      if (state.ws !== null) {
+        state.ws.send(JSON.stringify({ type: "advance" }));
+      } else {
+        updateStep(nextStep);
+      }
     }
     requestFrame();
   }
@@ -275,11 +347,13 @@ export function onFrame() {
   ui.mouseDoubleClick = false;
 }
 
+/** Prevent default event handling. */
 function preventDefaults(event: Event) {
   event.preventDefault();
   event.stopPropagation();
 }
 
+/** Handle file drop events. */
 function handleDrop(event: DragEvent) {
   event.preventDefault();
   event.stopPropagation();
@@ -290,7 +364,7 @@ function handleDrop(event: DragEvent) {
   }
 }
 
-// Parse URL parameters, and modify the map and trace panels accordingly.
+/** Parse URL parameters, and modify the map and trace panels accordingly. */
 async function parseUrlParams() {
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -303,7 +377,11 @@ async function parseUrlParams() {
     await fetchReplay(replayUrl);
     focusFullMap(ui.mapPanel);
   } else if (wsUrl) {
-    console.log("Connecting to a websocket: ", wsUrl);
+    Common.showModal(
+      "info",
+      "Connecting to a websocket",
+      "Please wait a few seconds for the environment to load."
+    );
     initWebSocket(wsUrl);
   } else {
     Common.showModal(
@@ -331,8 +409,7 @@ async function parseUrlParams() {
     if (urlParams.get('selectedObjectId') !== null) {
       const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
       if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
-        state.selectedGridObject = state.replay.grid_objects[selectedObjectId];
-        setFollowSelection(true);
+        updateSelection(state.replay.grid_objects[selectedObjectId], true);
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
         ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
         console.info("Selected object via query parameter:", state.selectedGridObject);
@@ -356,7 +433,7 @@ async function parseUrlParams() {
   requestFrame();
 }
 
-// Handle share button click
+/** Handle share button click. */
 function onShareButtonClick() {
   // Copy the current URL to the clipboard
   navigator.clipboard.writeText(window.location.href);
@@ -364,6 +441,7 @@ function onShareButtonClick() {
   Common.showToast("URL copied to clipboard");
 }
 
+/** Set the playing state and update the play button icon. */
 function setIsPlaying(isPlaying: boolean) {
   state.isPlaying = isPlaying;
   if (state.isPlaying) {
@@ -374,6 +452,7 @@ function setIsPlaying(isPlaying: boolean) {
   requestFrame();
 }
 
+/** Toggle the opacity of a button. */
 function toggleOpacity(button: HTMLImageElement, show: boolean) {
   if (show) {
     button.style.opacity = "1";
@@ -382,7 +461,7 @@ function toggleOpacity(button: HTMLImageElement, show: boolean) {
   }
 }
 
-// Set the playback speed and update the speed buttons.
+/** Set the playback speed and update the speed buttons. */
 function setPlaybackSpeed(speed: number) {
   state.playbackSpeed = speed;
   // Update the speed buttons to show the current speed.
@@ -394,41 +473,59 @@ function setPlaybackSpeed(speed: number) {
 // Initial resize.
 onResize();
 
+html.modal.classList.add("hidden");
+html.toast.classList.add("hiding");
+html.actionButtons.classList.add("hidden");
+ui.infoPanel.div.classList.add("hidden");
+ui.agentPanel.div.classList.add("hidden");
+
+// Each panel has a div we use for event handling.
+// But rendering happens bellow on global canvas.
+// We make divs transparent to see through them.
+ui.mapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
+ui.tracePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
+ui.miniMapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
+
 // Add event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize);
-window.addEventListener('keydown', onKeyDown);
-window.addEventListener('mousedown', onMouseDown);
-window.addEventListener('mouseup', onMouseUp);
-window.addEventListener('mousemove', onMouseMove);
-window.addEventListener('wheel', onScroll);
 window.addEventListener('dragenter', preventDefaults, false);
 window.addEventListener('dragleave', preventDefaults, false);
 window.addEventListener('dragover', preventDefaults, false);
 window.addEventListener('drop', handleDrop, false);
 
 // Header area
-html.shareButton.addEventListener('click', onShareButtonClick);
-html.mainFilter.style.display = "none"; // Hide the main filter for now.
+onEvent("click", "#share-button", () => {
+  onShareButtonClick();
+});
+onEvent("click", "#help-button", () => {
+  window.open("mettascope_info.html", "_blank");
+});
 
 // Bottom area
 html.scrubber.addEventListener('input', onScrubberChange);
+html.scrubber.setAttribute("type", "range");
+html.scrubber.setAttribute("value", "0");
 
-html.rewindToStartButton.addEventListener('click', () => {
+onEvent("click", "#rewind-to-start", () => {
   setIsPlaying(false);
   updateStep(0)
 });
-html.stepBackButton.addEventListener('click', () => {
+onEvent("click", "#step-back", () => {
   setIsPlaying(false);
   updateStep(Math.max(state.step - 1, 0))
 });
-html.playButton.addEventListener('click', () =>
+onEvent("click", "#play", () => {
   setIsPlaying(!state.isPlaying)
-);
-html.stepForwardButton.addEventListener('click', () => {
-  setIsPlaying(false);
-  updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
 });
-html.rewindToEndButton.addEventListener('click', () => {
+onEvent("click", "#step-forward", () => {
+  setIsPlaying(false);
+  if (state.ws !== null) {
+    state.ws.send(JSON.stringify({ type: "advance" }));
+  } else {
+    updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
+  }
+});
+onEvent("click", "#rewind-to-end", () => {
   setIsPlaying(false);
   updateStep(state.replay.max_steps - 1)
 });
@@ -440,47 +537,102 @@ for (let i = 0; i < html.speedButtons.length; i++) {
   );
 }
 
-// Toggle follow selection state.
-html.sortButton.addEventListener('click', () => {
-  state.sortTraces = !state.sortTraces;
-  toggleOpacity(html.sortButton, state.sortTraces);
-  requestFrame();
-});
-toggleOpacity(html.sortButton, state.sortTraces);
-html.sortButton.style.display = "none";
-
-html.resourcesButton.addEventListener('click', () => {
+onEvent("click", "#resources-toggle", () => {
   state.showResources = !state.showResources;
-  toggleOpacity(html.resourcesButton, state.showResources);
+  localStorage.setItem("showResources", state.showResources.toString());
+  toggleOpacity(html.resourcesToggle, state.showResources);
   requestFrame();
 });
-toggleOpacity(html.resourcesButton, state.showResources);
+if (localStorage.hasOwnProperty("showResources")) {
+  state.showResources = localStorage.getItem("showResources") === "true";
+}
+toggleOpacity(html.resourcesToggle, state.showResources);
 
-html.focusButton.addEventListener('click', () => {
+// Toggle follow selection state.
+onEvent("click", "#focus-toggle", () => {
   setFollowSelection(!state.followSelection);
 });
-toggleOpacity(html.focusButton, state.followSelection);
+toggleOpacity(html.focusToggle, state.followSelection);
 
-html.gridButton.addEventListener('click', () => {
+onEvent("click", "#grid-toggle", () => {
   state.showGrid = !state.showGrid;
-  toggleOpacity(html.gridButton, state.showGrid);
+  localStorage.setItem("showGrid", state.showGrid.toString());
+  toggleOpacity(html.gridToggle, state.showGrid);
   requestFrame();
 });
-toggleOpacity(html.gridButton, state.showGrid);
+if (localStorage.hasOwnProperty("showGrid")) {
+  state.showGrid = localStorage.getItem("showGrid") === "true";
+}
+toggleOpacity(html.gridToggle, state.showGrid);
 
-html.showViewButton.addEventListener('click', () => {
-  state.showViewRanges = !state.showViewRanges;
-  toggleOpacity(html.showViewButton, state.showViewRanges);
+onEvent("click", "#visual-range-toggle", () => {
+  state.showVisualRanges = !state.showVisualRanges;
+  localStorage.setItem("showVisualRanges", state.showVisualRanges.toString());
+  toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
   requestFrame();
 });
-toggleOpacity(html.showViewButton, state.showViewRanges);
+if (localStorage.hasOwnProperty("showVisualRanges")) {
+  state.showVisualRanges = localStorage.getItem("showVisualRanges") === "true";
+}
+toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
 
-html.showFogOfWarButton.addEventListener('click', () => {
+onEvent("click", "#fog-of-war-toggle", () => {
   state.showFogOfWar = !state.showFogOfWar;
-  toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+  localStorage.setItem("showFogOfWar", state.showFogOfWar.toString());
+  toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
   requestFrame();
 });
-toggleOpacity(html.showFogOfWarButton, state.showFogOfWar);
+if (localStorage.hasOwnProperty("showFogOfWar")) {
+  state.showFogOfWar = localStorage.getItem("showFogOfWar") === "true";
+}
+toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
+
+onEvent("click", "#minimap-toggle", () => {
+  state.showMiniMap = !state.showMiniMap;
+  localStorage.setItem("showMiniMap", state.showMiniMap.toString());
+  toggleOpacity(html.minimapToggle, state.showMiniMap);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showMiniMap")) {
+  state.showMiniMap = localStorage.getItem("showMiniMap") === "true";
+}
+toggleOpacity(html.minimapToggle, state.showMiniMap);
+
+onEvent("click", "#controls-toggle", () => {
+  state.showControls = !state.showControls;
+  localStorage.setItem("showControls", state.showControls.toString());
+  toggleOpacity(html.controlsToggle, state.showControls);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showControls")) {
+  state.showControls = localStorage.getItem("showControls") === "true";
+}
+toggleOpacity(html.controlsToggle, state.showControls);
+
+onEvent("click", "#info-toggle", () => {
+  state.showInfo = !state.showInfo;
+  localStorage.setItem("showInfo", state.showInfo.toString());
+  toggleOpacity(html.infoToggle, state.showInfo);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showInfo")) {
+  state.showInfo = localStorage.getItem("showInfo") === "true";
+}
+toggleOpacity(html.infoToggle, state.showInfo);
+
+onEvent("click", "#agent-panel-toggle", () => {
+  state.showAgentPanel = !state.showAgentPanel;
+  localStorage.setItem("showAgentPanel", state.showAgentPanel.toString());
+  toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
+  requestFrame();
+});
+if (localStorage.hasOwnProperty("showAgentPanel")) {
+  state.showAgentPanel = localStorage.getItem("showAgentPanel") === "true";
+}
+toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
+
+initActionButtons();
+initAgentTable();
 
 window.addEventListener('load', async () => {
   // Use local atlas texture.

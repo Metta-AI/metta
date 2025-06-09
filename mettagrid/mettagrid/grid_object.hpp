@@ -1,21 +1,59 @@
-#ifndef GRID_OBJECT_HPP
-#define GRID_OBJECT_HPP
+#ifndef METTAGRID_METTAGRID_GRID_OBJECT_HPP_
+#define METTAGRID_METTAGRID_GRID_OBJECT_HPP_
 
+#include <span>
 #include <cstdint>
-#include <iostream>
-#include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
-#include "constants.hpp"
-#include "types.hpp"
+// using namespace std;  // Removed per cpplint
+
+typedef unsigned short Layer;
+typedef uint8_t TypeId;
+typedef unsigned int GridCoord;
+using ObsType = uint8_t;
+
+// These may make more sense in observation_encoder.hpp, but we need to include that
+// header in a lot of places, and it's nice to have these types defined in one place.
+struct alignas(1) ObservationToken {
+  uint8_t location;
+  uint8_t feature_id;
+  uint8_t value;
+};
+
+// The alignas should make sure of this, but let's be explicit.
+// We're going to be reinterpret_casting things to this type, so
+// it'll be bad if the compiler pads this type.
+static_assert(sizeof(ObservationToken) == 3, "ObservationToken must be 3 bytes");
+
+using ObservationTokens = std::span<ObservationToken>;
+
+struct PartialObservationToken {
+  uint8_t feature_id;
+  uint8_t value;
+};
+
+class GridLocation {
+public:
+  GridCoord r;
+  GridCoord c;
+  Layer layer;
+
+  inline GridLocation(GridCoord r, GridCoord c, Layer layer) : r(r), c(c), layer(layer) {}
+  inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c), layer(0) {}
+  inline GridLocation() : r(0), c(0), layer(0) {}
+};
+
+enum Orientation {
+  Up = 0,
+  Down = 1,
+  Left = 2,
+  Right = 3
+};
+
+typedef unsigned int GridObjectId;
 
 class GridObject {
-private:
-  inline static std::unordered_map<std::string, int> _feature_map{};
-  inline static int _next_feature_index = 0;
-
 public:
   GridObjectId id;
   GridLocation location;
@@ -36,30 +74,19 @@ public:
     init(type_id, GridLocation(r, c, layer));
   }
 
-  // Pure virtual method to be implemented by derived classes
-  virtual void obs(c_observations_type* obs) const = 0;
+  virtual std::vector<PartialObservationToken> obs_features() const = 0;
 
-  // Get the observation size (total number of features)
-  static size_t get_observation_size() {
-    return static_cast<size_t>(GridFeature::COUNT);
+  size_t obs_tokens(ObservationTokens tokens) const {
+    std::vector<PartialObservationToken> features = this->obs_features();
+    size_t tokens_to_write = std::min(tokens.size(), features.size());
+    for (size_t i = 0; i < tokens_to_write; i++) {
+      tokens[i].feature_id = features[i].feature_id;
+      tokens[i].value = features[i].value;
+    }
+    return tokens_to_write;
   }
 
-  // Get all feature names
-  static const std::vector<std::string>& get_feature_names() {
-    return GridFeatureNames;
-  }
-
-protected:
-  template <typename T>
-  void encode(c_observations_type* obs, GridFeature feature, T value) const {
-    // Set the value in the observation array at the specified feature index
-    obs[static_cast<size_t>(feature)] = static_cast<c_observations_type>(value);
-  }
-
-  // Special handling for boolean values
-  void encode(c_observations_type* obs, GridFeature feature, bool value) const {
-    encode(obs, feature, value ? 1 : 0);
-  }
+  virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const = 0;
 };
 
-#endif  // GRID_OBJECT_HPP
+#endif  // METTAGRID_METTAGRID_GRID_OBJECT_HPP_

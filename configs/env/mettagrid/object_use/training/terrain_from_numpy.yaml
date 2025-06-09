@@ -7,7 +7,7 @@ sampling: 1
 game:
   num_agents: 4
   agent:
-    max_inventory: 100
+    default_item_max: 100
 
     rewards:
       # action_failure_penalty: 0.00001
@@ -15,13 +15,17 @@ game:
       ore.red: ${sampling:0.005,0.1, 0.01}
       ore.blue: ${sampling:0.005,0.1, 0.01}
       ore.green: ${sampling:0.005,0.1, 0.01}
-      battery: ${sampling:0.01,1, 0.1}
-      battery_max: 5
+      battery.red: ${sampling:0.01,1, 0.1}
+      battery.red_max: 5
+      battery.blue: ${sampling:0.01,1, 0.1}
+      battery.blue_max: 5
+      battery.green: ${sampling:0.01,1, 0.1}
+      battery.green_max: 5
       heart: 1
       heart_max: 1000
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
+    num_rooms: ${..num_agents}
     border_width: 6
 
     room:

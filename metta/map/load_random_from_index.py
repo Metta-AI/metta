@@ -1,9 +1,9 @@
 import random
 
 from metta.map.load import Load
-from metta.map.utils import storage
+from mettagrid.util import file as file_utils
 
-from .scene import SceneCfg
+from .types import SceneCfg
 
 
 class LoadRandomFromIndex(Load):
@@ -21,7 +21,7 @@ class LoadRandomFromIndex(Load):
 
         # For 10k maps in a directory we'd have to fetch 100Kb of index data.
         # (Can we optimize this further by caching?)
-        index = storage.load_from_uri(self._index_uri)
+        index = file_utils.read(self._index_uri).decode()
         index = index.split("\n")
         random_map_uri = random.choice(index)
 

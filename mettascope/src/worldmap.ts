@@ -2,14 +2,16 @@ import { Vec2f } from './vector_math.js';
 import { Grid } from './grid.js';
 import * as Common from './common.js';
 import { ui, state, ctx, setFollowSelection } from './common.js';
-import { getAttr } from './replay.js';
+import { getAttr, sendAction } from './replay.js';
 import { PanelInfo } from './panels.js';
-import { onFrame } from './main.js';
-import { parseHtmlColor } from './htmlutils.js';
-// Flag to prevent multiple calls to requestAnimationFrame
+import { onFrame, updateSelection } from './main.js';
+import { parseHtmlColor, find } from './htmlutils.js';
+import { updateHoverPanel, updateReadout, InfoPanel } from './infopanels.js';
+
+/** Flag to prevent multiple calls to requestAnimationFrame */
 let frameRequested = false;
 
-// Function to safely request animation frame
+/** Function to safely request animation frame */
 export function requestFrame() {
   if (!frameRequested) {
     frameRequested = true;
@@ -20,7 +22,7 @@ export function requestFrame() {
   }
 }
 
-// Generate a color from an agent id.
+/** Generate a color from an agent id. */
 function colorFromId(agentId: number) {
   let n = agentId + Math.PI + Math.E + Math.SQRT2;
   return [
@@ -31,7 +33,7 @@ function colorFromId(agentId: number) {
   ]
 }
 
-// Checks to see of object has any inventory.
+/** Checks to see of object has any inventory. */
 function hasInventory(obj: any) {
   for (const [key, [icon, color]] of state.replay.resource_inventory) {
     if (getAttr(obj, key) > 0) {
@@ -41,7 +43,7 @@ function hasInventory(obj: any) {
   return false;
 }
 
-// Make the panel focus on the full map, used at the start of the replay.
+/** Make the panel focus on the full map, used at the start of the replay. */
 export function focusFullMap(panel: PanelInfo) {
   if (state.replay === null) {
     return;
@@ -51,7 +53,7 @@ export function focusFullMap(panel: PanelInfo) {
   panel.focusPos(width / 2, height / 2, Math.min(panel.width / width, panel.height / height));
 }
 
-// Draw the the floor.
+/** Draw the floor. */
 function drawFloor() {
   const floorColor = parseHtmlColor("#CFA970");
   ctx.drawSolidRect(
@@ -63,7 +65,7 @@ function drawFloor() {
   );
 }
 
-// Draw the walls, based on the adjacency map, and fill any holes.
+/** Draw the walls, based on the adjacency map, and fill any holes. */
 function drawWalls() {
   // Construct wall adjacency map.
   var wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
@@ -137,7 +139,7 @@ function drawWalls() {
   }
 }
 
-// Draw all objects on the map (that are not walls).
+/** Draw all objects on the map (that are not walls). */
 function drawObjects() {
   for (const gridObject of state.replay.grid_objects) {
     const type: number = getAttr(gridObject, "type");
@@ -204,7 +206,7 @@ function drawObjects() {
   }
 }
 
-// Draw actions above the objects.
+/** Draw actions above the objects. */
 function drawActions() {
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
@@ -301,8 +303,13 @@ function drawActions() {
   }
 }
 
-// Draw the object's inventory.
+/** Draw the object's inventory. */
 function drawInventory() {
+
+  if (!state.showResources) {
+    return;
+  }
+
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
@@ -333,7 +340,7 @@ function drawInventory() {
   }
 }
 
-// Draw the rewards on the bottom of the object.
+/** Draw the rewards on the bottom of the object. */
 function drawRewards() {
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
@@ -357,7 +364,7 @@ function drawRewards() {
   }
 }
 
-// Draw the selection of the selected object.
+/** Draw the selection of the selected object. */
 function drawSelection() {
   if (state.selectedGridObject === null) {
     return;
@@ -368,7 +375,7 @@ function drawSelection() {
   ctx.drawSprite("selection.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
 }
 
-// Draw the trajectory of the selected object, footprints or future arrow.
+/** Draw the trajectory of the selected object, footprints or future arrow. */
 function drawTrajectory() {
   if (state.selectedGridObject === null) {
     return;
@@ -447,7 +454,7 @@ function drawTrajectory() {
   }
 }
 
-// Draw the thought bubbles of the selected agent.
+/** Draw the thought bubbles of the selected agent. */
 function drawThoughtBubbles() {
   // The idea behind thought bubbles is to show what the agent is thinking.
   // We don't have this directly from the policy yet,
@@ -458,7 +465,8 @@ function drawThoughtBubbles() {
     // A key action is a successful action that is not a noop, rotate or move.
     // Must not be more then 20 steps in the future.
     var keyAction = null;
-    for(var actionStep = state.step; actionStep < state.replay.max_steps && actionStep < state.step + 20; actionStep++) {
+    var keyActionStep = null;
+    for (var actionStep = state.step; actionStep < state.replay.max_steps && actionStep < state.step + 20; actionStep++) {
       const action = getAttr(state.selectedGridObject, "action", actionStep);
       if (action == null || action[0] == null || action[1] == null) {
         continue;
@@ -470,6 +478,7 @@ function drawThoughtBubbles() {
       }
       if (actionSuccess) {
         keyAction = action;
+        keyActionStep = actionStep;
         break;
       }
     }
@@ -479,11 +488,19 @@ function drawThoughtBubbles() {
       // Draw the key action icon with gained or lost resources.
       const x = getAttr(state.selectedGridObject, "c");
       const y = getAttr(state.selectedGridObject, "r");
-      ctx.drawSprite(
-        "actions/thoughts.png",
-        x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-        y * Common.TILE_SIZE - Common.TILE_SIZE / 2
-      );
+      if (state.step == keyActionStep) {
+        ctx.drawSprite(
+          "actions/thoughts_lightning.png",
+          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
+          y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+        );
+      } else {
+        ctx.drawSprite(
+          "actions/thoughts.png",
+          x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
+          y * Common.TILE_SIZE - Common.TILE_SIZE / 2
+        );
+      }
       // Draw the action icon.
       var iconName = "actions/icons/" + state.replay.action_names[keyAction[0]] + ".png";
       if (ctx.hasImage(iconName)) {
@@ -492,7 +509,7 @@ function drawThoughtBubbles() {
           x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
           y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
           [1, 1, 1, 1],
-          1/4,
+          1 / 4,
           0
         );
       } else {
@@ -501,15 +518,15 @@ function drawThoughtBubbles() {
           x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
           y * Common.TILE_SIZE - Common.TILE_SIZE / 2,
           [1, 1, 1, 1],
-          1/4,
+          1 / 4,
           0
         );
       }
 
       // Draw resources lost on the left and gained on the right.
       for (const [key, [image, color]] of state.replay.resource_inventory) {
-        const prevResources = getAttr(state.selectedGridObject, key, actionStep);
-        const nextResources = getAttr(state.selectedGridObject, key, actionStep + 1);
+        const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1);
+        const nextResources = getAttr(state.selectedGridObject, key, actionStep);
         const gained = nextResources - prevResources;
         var resourceX = x * Common.TILE_SIZE + Common.TILE_SIZE / 2;
         var resourceY = y * Common.TILE_SIZE - Common.TILE_SIZE / 2;
@@ -524,7 +541,7 @@ function drawThoughtBubbles() {
             resourceX,
             resourceY,
             color,
-            1/8,
+            1 / 8,
             0
           );
           if (gained > 0) {
@@ -538,10 +555,10 @@ function drawThoughtBubbles() {
   }
 }
 
-// Draw the visibility map either agent view ranges or fog of war.
+/** Draw the visibility map either agent view ranges or fog of war. */
 function drawVisibility() {
 
-  if (state.showViewRanges || state.showFogOfWar) {
+  if (state.showVisualRanges || state.showFogOfWar) {
     // Compute the visibility map, each agent contributes to the visibility map.
     const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
 
@@ -600,7 +617,7 @@ function drawVisibility() {
   }
 }
 
-// Draw the grid.
+/** Draw the grid. */
 function drawGrid() {
   if (state.showGrid) {
     for (let x = 0; x < state.replay.map_size[0]; x++) {
@@ -611,59 +628,184 @@ function drawGrid() {
   }
 }
 
+/** Given an orientation and an index, return the grid position. */
+function attackGrid(orientation: number, idx: number) {
+  //                           North\0
+  //                       +---+---+---+
+  //                       | 7 | 8 | 9 |
+  //                       +---+---+---+
+  //                       | 4 | 5 | 6 |
+  //                       +---+---+---+
+  //                       | 1 | 2 | 3 |
+  //                       +---+---+---+
+  //                             ●
+  //        +---+---+---+                 +---+---+---+
+  //        | 9 | 6 | 3 |                 | 1 | 4 | 7 |
+  //        +---+---+---+                 +---+---+---+
+  // West\2 | 8 | 5 | 2 | ●             ● | 2 | 5 | 8 | East/3
+  //        +---+---+---+                 +---+---+---+
+  //        | 7 | 4 | 1 |                 | 3 | 6 | 9 |
+  //        +---+---+---+                 +---+---+---+
+  //                             ●
+  //                       +---+---+---+
+  //                       | 3 | 2 | 1 |
+  //                       +---+---+---+
+  //                       | 6 | 5 | 4 |
+  //                       +---+---+---+
+  //                       | 9 | 8 | 7 |
+  //                       +---+---+---+
+  //                           South/1
+  //
+
+  // Modulo operation.
+  function mod(a: number, b: number) {
+    return ((a % b) + b) % b;
+  }
+
+  // Integer division.
+  function div(a: number, b: number) {
+    return Math.floor(a / b);
+  }
+  const i = idx - 1;
+  let dx, dy;
+  if (orientation === 0) {
+    dx = mod(i, 3) - 1;
+    dy = -div(i, 3) - 1;
+  } else if (orientation === 1) {
+    dx = -mod(i, 3) + 1;
+    dy = div(i, 3) + 1;
+  } else if (orientation === 2) {
+    dx = -div(i, 3) - 1;
+    dy = -mod(i, 3) + 1;
+  } else if (orientation === 3) {
+    dx = div(i, 3) + 1;
+    dy = mod(i, 3) - 1;
+  }
+  return [dx, dy];
+}
+
+/** Draw the attack mode. */
+function drawAttackMode() {
+  // We might be clicking on the map to attack something.
+  var gridMousePos: Vec2f | null = null;
+  if (ui.mouseUp && ui.mouseTarget == "worldmap-panel" && state.showAttackMode) {
+    state.showAttackMode = false;
+    const localMousePos = ui.mapPanel.transformOuter(ui.mousePos);
+    if (localMousePos != null) {
+      gridMousePos = new Vec2f(
+        Math.round(localMousePos.x() / Common.TILE_SIZE),
+        Math.round(localMousePos.y() / Common.TILE_SIZE)
+      );
+    }
+  }
+
+  // Draw a selection of 3x3 grid of targets in the direction of the selected agent.
+  if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
+    const x = getAttr(state.selectedGridObject, "c");
+    const y = getAttr(state.selectedGridObject, "r");
+    const orientation = getAttr(state.selectedGridObject, "agent:orientation");
+
+    // Draw a 3x3 grid of targets in the direction of the selected agent.
+    for (let attackIndex = 1; attackIndex <= 9; attackIndex++) {
+      const [dx, dy] = attackGrid(orientation, attackIndex);
+      const targetX = x + dx;
+      const targetY = y + dy;
+      ctx.drawSprite('target.png', targetX * Common.TILE_SIZE, targetY * Common.TILE_SIZE);
+      if (gridMousePos != null && targetX == gridMousePos.x() && targetY == gridMousePos.y()) {
+        // Check if we are clicking this specific tile.
+        console.log("Attack mode clicked on:", targetX, targetY);
+        sendAction("attack", attackIndex)
+      }
+    }
+  }
+}
+
+/** Draw the info line from the object to the info panel. */
+function drawInfoLine(panel: InfoPanel) {
+  const x = getAttr(panel.object, "c");
+  const y = getAttr(panel.object, "r");
+  ctx.drawSprite("info.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
+
+  // Compute the panel position in the world map coordinates.
+  const panelBounds = panel.div.getBoundingClientRect();
+  const panelScreenPos = new Vec2f(panelBounds.left + 20, panelBounds.top + 20);
+  const panelWorldPos = ui.mapPanel.transformOuter(panelScreenPos);
+
+  // Draw a line from the object to the panel.
+  ctx.drawSpriteLine(
+    "dash.png",
+    x * Common.TILE_SIZE,
+    y * Common.TILE_SIZE,
+    panelWorldPos.x(),
+    panelWorldPos.y(),
+    60,
+    [1, 1, 1, 1],
+    2
+  );
+}
+
+/** Draw the world map. */
 export function drawMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
   }
 
   // Handle mouse events for the map panel.
-  if (
-    ui.mapPanel.inside(ui.mousePos) &&
-    !ui.miniMapPanel.inside(ui.mousePos) &&
-    !ui.tracePanel.inside(ui.mousePos) &&
-    !ui.infoPanel.inside(ui.mousePos)
-  ) {
-    if (ui.mouseDoubleClick) {
-      // Toggle followSelection on double-click
-      console.log("Map double click - following selection");
-      setFollowSelection(true);
-      panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
-      ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
-    } else if (ui.mouseClick) {
-      // Map click - likely a drag/pan
-      console.log("Map click - clearing follow selection");
-      setFollowSelection(false);
-    } else if (ui.mouseUp &&
-      ui.mouseDownPos.sub(ui.mousePos).length() < 10
-    ) {
-      // Check if we are clicking on an object.
-      console.log("Map up without dragging - selecting object");
-      const localMousePos = panel.transformPoint(ui.mousePos);
-      if (localMousePos != null) {
-        const gridMousePos = new Vec2f(
-          Math.round(localMousePos.x() / Common.TILE_SIZE),
-          Math.round(localMousePos.y() / Common.TILE_SIZE)
-        );
-        const gridObject = state.replay.grid_objects.find((obj: any) => {
-          const x: number = getAttr(obj, "c");
-          const y: number = getAttr(obj, "r");
-          return x === gridMousePos.x() && y === gridMousePos.y();
-        });
-        if (gridObject !== undefined) {
-          state.selectedGridObject = gridObject;
-          console.log("Selected object on the map:", state.selectedGridObject);
-          if (state.selectedGridObject.agent_id !== undefined) {
-            // If selecting an agent, focus the trace panel on the agent.
-            ui.tracePanel.focusPos(
-              state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-              getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
-              Common.DEFAULT_TRACE_ZOOM_LEVEL
-            );
-          }
-        }
-      }
+  if (ui.mouseTarget == "worldmap-panel" && ui.dragging == "" && !state.showAttackMode) {
+    // Find object under the mouse:
+    var objectUnderMouse = null;
+    const localMousePos = panel.transformOuter(ui.mousePos);
+    if (localMousePos != null) {
+      const gridMousePos = new Vec2f(
+        Math.round(localMousePos.x() / Common.TILE_SIZE),
+        Math.round(localMousePos.y() / Common.TILE_SIZE)
+      );
+      objectUnderMouse = state.replay.grid_objects.find((obj: any) => {
+        const x: number = getAttr(obj, "c");
+        const y: number = getAttr(obj, "r");
+        return x === gridMousePos.x() && y === gridMousePos.y();
+      });
     }
   }
+
+  if (ui.mouseDoubleClick) {
+    // Toggle followSelection on double-click
+    console.log("Map double click - following selection");
+    setFollowSelection(true);
+    panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
+    ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
+  } else if (ui.mouseClick) {
+    // Map click - likely a drag/pan
+    console.log("Map click - clearing follow selection");
+    setFollowSelection(false);
+  } else if (ui.mouseUp &&
+    ui.mouseDownPos.sub(ui.mousePos).length() < 10
+  ) {
+    // Check if we are clicking on an object.
+    if (objectUnderMouse !== undefined) {
+      updateSelection(objectUnderMouse)
+      console.log("Selected object on the map:", state.selectedGridObject);
+      if (state.selectedGridObject.agent_id !== undefined) {
+        // If selecting an agent, focus the trace panel on the agent.
+        ui.tracePanel.focusPos(
+          state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+          getAttr(state.selectedGridObject, "agent_id") * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+          Common.DEFAULT_TRACE_ZOOM_LEVEL
+        );
+      }
+    }
+  } else {
+    ui.hoverObject = objectUnderMouse;
+    clearTimeout(ui.hoverTimer);
+    ui.hoverTimer = setTimeout(() => {
+      if (ui.mouseTarget == "worldmap-panel") {
+        ui.delayedHoverObject = ui.hoverObject;
+        updateHoverPanel(ui.delayedHoverObject)
+      }
+    }, Common.INFO_PANEL_POP_TIME);
+
+  }
+
 
   // If we're following a selection, center the map on it
   if (state.followSelection && state.selectedGridObject !== null) {
@@ -690,43 +832,16 @@ export function drawMap(panel: PanelInfo) {
   drawVisibility();
   drawGrid();
   drawThoughtBubbles();
+  if (state.showAttackMode) {
+    drawAttackMode();
+  }
+
+  updateHoverPanel(ui.delayedHoverObject)
+  updateReadout()
+  for (const panel of ui.infoPanels) {
+    panel.update();
+    drawInfoLine(panel);
+  }
 
   ctx.restore();
-}
-
-// Updates the readout of the selected object or replay info.
-export function updateReadout() {
-  var readout = ""
-  if (state.selectedGridObject !== null) {
-    if (state.followSelection) {
-      readout += "FOLLOWING SELECTION (double-click to unfollow)\n\n";
-    }
-    for (const key in state.selectedGridObject) {
-      var value = getAttr(state.selectedGridObject, key);
-      if (key == "type") {
-        value = state.replay.object_types[value] + " (" + value + ")";
-      } else if (key == "color" && value >= 0 && value < Common.COLORS.length) {
-        value = Common.COLORS[value][0] + " (" + value + ")";
-      }
-      readout += key + ": " + value + "\n";
-    }
-  } else {
-    readout += "Step: " + state.step + "\n";
-    readout += "Map size: " + state.replay.map_size[0] + "x" + state.replay.map_size[1] + "\n";
-    readout += "Num agents: " + state.replay.num_agents + "\n";
-    readout += "Max steps: " + state.replay.max_steps + "\n";
-
-    var objectTypeCounts = new Map<string, number>();
-    for (const gridObject of state.replay.grid_objects) {
-      const type = getAttr(gridObject, "type");
-      const typeName = state.replay.object_types[type];
-      objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1);
-    }
-    for (const [key, value] of objectTypeCounts.entries()) {
-      readout += key + " count: " + value + "\n";
-    }
-  }
-  if (ui.infoPanel.div !== null) {
-    ui.infoPanel.div.innerHTML = readout;
-  }
 }

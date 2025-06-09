@@ -1,287 +1,195 @@
-#ifndef STATS_TRACKER_HPP
-#define STATS_TRACKER_HPP
+#ifndef METTAGRID_METTAGRID_STATS_TRACKER_HPP_
+#define METTAGRID_METTAGRID_STATS_TRACKER_HPP_
 
-#include <initializer_list>
 #include <map>
-#include <mutex>
 #include <stdexcept>
 #include <string>
-#include <string_view>
-#include <vector>
+#include <variant>
 
-// Custom exception class for stats-related errors
-class StatsException : public std::runtime_error {
-public:
-  explicit StatsException(const std::string& message) : std::runtime_error(message) {}
-};
+// Forward declaration
+class MettaGrid;
 
-/**
- * @brief A thread-safe statistics tracking class that maintains counts using hierarchical keys
- *
- * StatsTracker allows incrementing, adding, and setting of statistical values
- * using dot-separated hierarchical keys, e.g., "category.subcategory.action"
- */
+// Type alias for stat values - supports int and float
+using StatValue = std::variant<int, float>;
+
 class StatsTracker {
 private:
-  std::map<std::string, int> _stats;
-  mutable std::mutex _mutex;  // For thread safety
+  std::map<std::string, StatValue> _stats;
+  std::map<std::string, int> _first_seen_at;
+  std::map<std::string, int> _last_seen_at;
+  std::map<std::string, float> _min_value;
+  std::map<std::string, float> _max_value;
+  std::map<std::string, int> _update_count;
+  MettaGrid* _env;
 
-  /**
-   * @brief Builds a combined key from multiple key segments
-   *
-   * @param keys A list of key segments to join with dots
-   * @return std::string The combined hierarchical key
-   */
-  inline std::string buildKey(const std::vector<std::string_view>& keys) const noexcept {
-    if (keys.empty() || keys[0].empty()) {
-      return "";
-    }
-
-    std::string result;
-    size_t totalLength = 0;
-
-    // Calculate required space to avoid reallocations
-    for (const auto& key : keys) {
-      totalLength += key.length();
-    }
-    // Add space for the dots
-    totalLength += keys.size() - 1;
-
-    result.reserve(totalLength);
-
-    // Add first key (always required)
-    result.append(keys[0]);
-
-    // Add any subsequent non-empty keys with dot separators
-    for (size_t i = 1; i < keys.size(); ++i) {
-      if (keys[i].empty()) {
-        continue;
+  // Track timing for any update
+  void track_timing(const std::string& key) {
+    if (_env) {
+      unsigned int step = get_current_step();
+      if (_first_seen_at.find(key) == _first_seen_at.end()) {
+        _first_seen_at[key] = step;
       }
-      result.append(".");
-      result.append(keys[i]);
+      _last_seen_at[key] = step;
+      _update_count[key]++;
     }
-
-    return result;
   }
+
+  // Helper to get current step - implemented where MettaGrid is complete
+  unsigned int get_current_step() const;
+
+  // Track min/max values automatically
+  void track_bounds(const std::string& key, float value) {
+    if (_min_value.find(key) == _min_value.end()) {
+      _min_value[key] = value;
+      _max_value[key] = value;
+    } else {
+      if (value < _min_value[key]) _min_value[key] = value;
+      if (value > _max_value[key]) _max_value[key] = value;
+    }
+  }
+
+  // MettaGrid needs access to implement get_current_step
+  friend class MettaGrid;
+
+  // Test class needs access for testing
+  friend class StatsTrackerTest;
 
 public:
-  // Default constructor
-  StatsTracker() = default;
+  StatsTracker() : _env(nullptr) {}
 
-  // Copy operations are expensive for large maps, so delete them
-  // to prevent accidental copies
-  StatsTracker(const StatsTracker&) = delete;
-  StatsTracker& operator=(const StatsTracker&) = delete;
-
-  // Move operations
-  StatsTracker(StatsTracker&& other) noexcept {
-    std::lock_guard<std::mutex> lock(other._mutex);
-    _stats = std::move(other._stats);
+  // Set the environment reference
+  void set_environment(MettaGrid* env) {
+    _env = env;
   }
 
-  StatsTracker& operator=(StatsTracker&& other) noexcept {
-    if (this != &other) {
-      std::lock_guard<std::mutex> lock1(_mutex);
-      std::lock_guard<std::mutex> lock2(other._mutex);
-      _stats = std::move(other._stats);
-    }
-    return *this;
-  }
-
-  // Default destructor is sufficient since no manual resource management
-  ~StatsTracker() = default;
-
-  /**
-   * @brief Get a copy of all current statistics
-   *
-   * @return std::map<std::string, int> A copy of the statistics map
-   */
-  inline std::map<std::string, int> stats() const {
-    std::lock_guard<std::mutex> lock(_mutex);
-    return _stats;  // Return a copy for thread safety
-  }
-
-  /**
-   * @brief Get a const reference to all current statistics (more efficient but not thread-safe)
-   *
-   * @return const std::map<std::string, int>& A reference to the statistics map
-   * @warning Only use this method if you're already handling thread safety externally
-   */
-  inline const std::map<std::string, int>& stats_unsafe_ref() const noexcept {
-    return _stats;
-  }
-
-  /**
-   * @brief Increment a stat by 1
-   *
-   * @param keys A list of key segments to form the hierarchical key
-   * @throws StatsException if the primary key is empty
-   */
-  inline void incr(std::initializer_list<std::string_view> keys) {
-    add(keys, 1);
-  }
-
-  /**
-   * @brief Add a value to a stat
-   *
-   * @param keys A list of key segments to form the hierarchical key
-   * @param value The value to add
-   * @throws StatsException if the primary key is empty
-   */
-  inline void add(std::initializer_list<std::string_view> keys, int value) {
-    std::vector<std::string_view> keyVector(keys);
-    if (keyVector.empty() || keyVector[0].empty()) {
-      throw StatsException("Cannot add with empty primary key");
+  // Add operations (accumulate values)
+  void add(const std::string& key, int amount = 1) {
+    if (_stats.find(key) == _stats.end()) {
+      _stats[key] = 0;
     }
 
-    try {
-      std::string combinedKey = buildKey(keyVector);
+    std::visit([amount](auto& value) { value += amount; }, _stats[key]);
 
-      std::lock_guard<std::mutex> lock(_mutex);
-      _stats[combinedKey] += value;
-    } catch (const std::exception& e) {
-      throw StatsException(std::string("Failed to add to multi-key stat: ") + e.what());
-    }
+    track_timing(key);
+    float current_value = std::visit([](const auto& v) -> float { return static_cast<float>(v); }, _stats[key]);
+    track_bounds(key, current_value);
   }
 
-  /**
-   * @brief Set a value once if the key doesn't exist yet
-   *
-   * @param keys A list of key segments to form the hierarchical key
-   * @param value The value to set
-   * @throws StatsException if the primary key is empty
-   */
-  inline void set_once(std::initializer_list<std::string_view> keys, int value) {
-    std::vector<std::string_view> keyVector(keys);
-    if (keyVector.empty() || keyVector[0].empty()) {
-      throw StatsException("Cannot set_once with empty primary key");
+  void add(const std::string& key, float amount) {
+    if (_stats.find(key) == _stats.end()) {
+      _stats[key] = 0.0f;
     }
 
-    try {
-      std::string combinedKey = buildKey(keyVector);
+    std::visit(
+        [amount](auto& value) {
+          using T = std::decay_t<decltype(value)>;
+          if constexpr (std::is_same_v<T, int>) {
+            value += static_cast<int>(amount);
+          } else {
+            value += amount;
+          }
+        },
+        _stats[key]);
 
-      std::lock_guard<std::mutex> lock(_mutex);
-      // Just call try_emplace without capturing the return value
-      // try_emplace only inserts if the key doesn't exist
-      _stats.try_emplace(combinedKey, value);
-    } catch (const std::exception& e) {
-      throw StatsException(std::string("Failed in set_once for multi-key stat: ") + e.what());
+    track_timing(key);
+    float current_value = std::visit([](const auto& v) -> float { return static_cast<float>(v); }, _stats[key]);
+    track_bounds(key, current_value);
+  }
+
+  // Increment by 1 (convenience method)
+  void incr(const std::string& key) {
+    if (_stats.find(key) != _stats.end() && std::holds_alternative<float>(_stats[key])) {
+      throw std::runtime_error("Cannot increment float stat '" + key + "' - use add() instead");
     }
+    add(key, 1);
   }
 
-  /**
-   * @brief Clear all statistics
-   */
-  inline void clear() noexcept {
-    std::lock_guard<std::mutex> lock(_mutex);
-    _stats.clear();
+  // Set operations
+  void set(const std::string& key, int value) {
+    _stats[key] = value;
+    track_timing(key);
+    track_bounds(key, static_cast<float>(value));
   }
 
-  /**
-   * @brief Get a specific stat value
-   *
-   * @param keys A list of key segments to form the hierarchical key
-   * @return int The value (0 if not found)
-   */
-  inline int get(std::initializer_list<std::string_view> keys) const {
-    std::vector<std::string_view> keyVector(keys);
-    if (keyVector.empty()) {
-      return 0;
-    }
-
-    std::string combinedKey = buildKey(keyVector);
-
-    std::lock_guard<std::mutex> lock(_mutex);
-    auto it = _stats.find(combinedKey);
-    return (it != _stats.end()) ? it->second : 0;
+  void set(const std::string& key, float value) {
+    _stats[key] = value;
+    track_timing(key);
+    track_bounds(key, value);
   }
 
-  /**
-   * @brief Check if a specific stat exists
-   *
-   * @param keys A list of key segments to form the hierarchical key
-   * @return bool True if the stat exists
-   */
-  inline bool has(std::initializer_list<std::string_view> keys) const {
-    std::vector<std::string_view> keyVector(keys);
-    if (keyVector.empty()) {
-      return false;
-    }
+  // Calculate rate (updates per step)
+  float rate(const std::string& key) const {
+    if (!_env) return 0.0f;
 
-    std::string combinedKey = buildKey(keyVector);
+    auto it = _update_count.find(key);
+    if (it == _update_count.end()) return 0.0f;
 
-    std::lock_guard<std::mutex> lock(_mutex);
-    return _stats.find(combinedKey) != _stats.end();
+    unsigned int steps = get_current_step();
+    return (steps > 0) ? static_cast<float>(it->second) / steps : 0.0f;
   }
 
-  /**
-   * @brief Generate a string representation of all stats
-   *
-   * @return std::string Formatted string with all stat keys and values
-   */
-  std::string dump_stats() const {
-    std::lock_guard<std::mutex> lock(_mutex);
+  // Convert to map for Python API (all values as floats)
+  std::map<std::string, float> to_dict() const {
+    std::map<std::string, float> result;
 
-    std::string result = "StatsTracker state:\n";
+    // Add all stats
     for (const auto& [key, value] : _stats) {
-      result += "  " + key + ": " + std::to_string(value) + "\n";
+      float val = std::visit([](const auto& v) -> float { return static_cast<float>(v); }, value);
+      result[key] = val;
     }
+
+    // Add timing metadata and calculated stats
+    for (const auto& [key, step] : _first_seen_at) {
+      result[key + ".first_step"] = static_cast<float>(step);
+
+      // Calculate average value (total / updates)
+      if (_update_count.count(key) && _stats.count(key)) {
+        float total = result[key];
+        float updates = static_cast<float>(_update_count.at(key));
+        result[key + ".avg"] = total / updates;
+      }
+    }
+
+    for (const auto& [key, step] : _last_seen_at) {
+      result[key + ".last_step"] = static_cast<float>(step);
+    }
+
+    for (const auto& [key, count] : _update_count) {
+      result[key + ".updates"] = static_cast<float>(count);
+      result[key + ".rate"] = rate(key);
+
+      // Also calculate activity rate if there's a time span
+      auto first_it = _first_seen_at.find(key);
+      auto last_it = _last_seen_at.find(key);
+      if (first_it != _first_seen_at.end() && last_it != _last_seen_at.end()) {
+        int duration = last_it->second - first_it->second;
+        if (duration > 0 && count > 1) {
+          result[key + ".activity_rate"] = static_cast<float>(count - 1) / static_cast<float>(duration);
+        }
+      }
+    }
+
+    // Add min/max values
+    for (const auto& [key, min_val] : _min_value) {
+      result[key + ".min"] = min_val;
+    }
+
+    for (const auto& [key, max_val] : _max_value) {
+      result[key + ".max"] = max_val;
+    }
+
     return result;
   }
 
-  // Backward compatibility methods for transition
-  inline void incr(const std::string_view& key) {
-    incr({key});
-  }
-  inline void incr(const std::string_view& key1, const std::string_view& key2) {
-    incr({key1, key2});
-  }
-  inline void incr(const std::string_view& key1, const std::string_view& key2, const std::string_view& key3) {
-    incr({key1, key2, key3});
-  }
-  inline void incr(const std::string_view& key1,
-                   const std::string_view& key2,
-                   const std::string_view& key3,
-                   const std::string_view& key4) {
-    incr({key1, key2, key3, key4});
-  }
-
-  inline void add(const std::string_view& key, int value) {
-    add({key}, value);
-  }
-  inline void add(const std::string_view& key1, const std::string_view& key2, int value) {
-    add({key1, key2}, value);
-  }
-  inline void add(const std::string_view& key1, const std::string_view& key2, const std::string_view& key3, int value) {
-    add({key1, key2, key3}, value);
-  }
-  inline void add(const std::string_view& key1,
-                  const std::string_view& key2,
-                  const std::string_view& key3,
-                  const std::string_view& key4,
-                  int value) {
-    add({key1, key2, key3, key4}, value);
-  }
-
-  inline void set_once(const std::string_view& key, int value) {
-    set_once({key}, value);
-  }
-  inline void set_once(const std::string_view& key1, const std::string_view& key2, int value) {
-    set_once({key1, key2}, value);
-  }
-  inline void set_once(const std::string_view& key1,
-                       const std::string_view& key2,
-                       const std::string_view& key3,
-                       int value) {
-    set_once({key1, key2, key3}, value);
-  }
-  inline void set_once(const std::string_view& key1,
-                       const std::string_view& key2,
-                       const std::string_view& key3,
-                       const std::string_view& key4,
-                       int value) {
-    set_once({key1, key2, key3, key4}, value);
+  // Reset all statistics
+  void reset() {
+    _stats.clear();
+    _first_seen_at.clear();
+    _last_seen_at.clear();
+    _min_value.clear();
+    _max_value.clear();
+    _update_count.clear();
   }
 };
 
-#endif
+#endif  // METTAGRID_METTAGRID_STATS_TRACKER_HPP_

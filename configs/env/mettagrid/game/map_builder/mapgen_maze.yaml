@@ -4,24 +4,27 @@ width: ${sampling:20,80,40}
 height: ${sampling:20,80,40}
 
 root:
-  _target_: metta.map.scenes.room_grid.RoomGrid
-  rows: 2
-  columns: 2
+  type: metta.map.scenes.room_grid.RoomGrid
+  params:
+    rows: 2
+    columns: 2
 
   children:
     - scene:
-        _target_: metta.map.scenes.maze.MazeKruskal
+        type: metta.map.scenes.maze.MazeKruskal
 
         children:
           - where:
               tags:
                 - top-left
             scene:
-              _target_: metta.map.scenes.inline_ascii.InlineAscii
-              data: A
+              type: metta.map.scenes.inline_ascii.InlineAscii
+              params:
+                data: '@' # agent
           - where:
               tags:
                 - bottom-right
             scene:
-              _target_: metta.map.scenes.inline_ascii.InlineAscii
-              data: a
+              type: metta.map.scenes.inline_ascii.InlineAscii
+              params:
+                data: '_' # altar

@@ -1,117 +1,96 @@
-#ifndef ATTACK_HPP
-#define ATTACK_HPP
+#ifndef METTAGRID_METTAGRID_ACTIONS_ATTACK_HPP_
+#define METTAGRID_METTAGRID_ACTIONS_ATTACK_HPP_
 
-#include <cstdint>
 #include <string>
 
-#include "actions/action_handler.hpp"
-#include "constants.hpp"
+#include "action_handler.hpp"
+#include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "objects/constants.hpp"
 #include "objects/metta_object.hpp"
-namespace Actions {
+
 class Attack : public ActionHandler {
 public:
-  Attack(const ActionConfig& cfg, const std::string& action_name = "attack") : ActionHandler(cfg, action_name) {
+  explicit Attack(const ActionConfig& cfg, const std::string& action_name = "attack")
+      : ActionHandler(cfg, action_name) {
     priority = 1;
   }
 
-  uint8_t max_arg() const override {
+  unsigned char max_arg() const override {
     return 9;
   }
 
-  ActionHandler* clone() const override {
-    return new Attack(*this);
-  }
-
 protected:
-  bool _handle_action(uint32_t actor_id, Agent* actor, c_actions_type arg) override {
-    // Validate action argument
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg > 9 || arg < 1) {
-      return false;  // Invalid arg is a normal gameplay situation
+      return false;
     }
 
-    // Check if agent has lasers
-    if (actor->inventory[InventoryItem::laser] == 0) {
-      return false;  // No lasers is a normal gameplay situation
+    if (actor->update_inventory(InventoryItem::laser, -1) == 0) {
+      return false;
     }
 
-    // Consume a laser
-    actor->update_agent_inventory(InventoryItem::laser, -1);
-
-    // Calculate target location
-    int16_t distance = 1 + (arg - 1) / 3;
-    int16_t offset = -((arg - 1) % 3 - 1);
-
-    // Use utility method from base class
-    validate_orientation(actor);
+    short distance = 1 + (arg - 1) / 3;
+    short offset = -((arg - 1) % 3 - 1);
 
     GridLocation target_loc =
         _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation), distance, offset);
 
-    return _handle_target(actor_id, actor, target_loc);
+    return _handle_target(actor, target_loc);
   }
 
-  bool _handle_target(uint32_t actor_id, Agent* actor, GridLocation target_loc) {
-    // Check if target location is within grid bounds using base class utility
-    if (!is_valid_location(target_loc)) {
-      return false;  // Out of bounds is a normal gameplay situation
-    }
-
-    // Try to find an agent at the target location using safe_object_at
+  bool _handle_target(Agent* actor, GridLocation target_loc) {
     target_loc.layer = GridLayer::Agent_Layer;
-    GridObject* obj = safe_object_at(target_loc);
-
-    // If we find an object, make sure it's an agent
-    Agent* agent_target = nullptr;
-    if (obj != nullptr) {
-      agent_target = dynamic_cast<Agent*>(obj);
-      if (obj != nullptr && agent_target == nullptr) {
-        throw std::runtime_error("Object at target location is not an Agent");
-      }
-    }
+    Agent* agent_target = static_cast<Agent*>(_grid->object_at(target_loc));
 
     bool was_frozen = false;
     if (agent_target) {
-      actor->stats.incr(_stats.target[agent_target->_type_id]);
-      actor->stats.incr(_stats.target[agent_target->_type_id], actor->group_name);
-      actor->stats.incr(_stats.target[agent_target->_type_id], actor->group_name, agent_target->group_name);
+      // Track attack targets
+      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[agent_target->_type_id]);
+      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[agent_target->_type_id] + "." +
+                        actor->group_name);
+      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[agent_target->_type_id] + "." +
+                        actor->group_name + "." + agent_target->group_name);
 
       if (agent_target->group_name == actor->group_name) {
-        actor->stats.incr("attack.own_team", actor->group_name);
+        actor->stats.incr("attack.own_team." + actor->group_name);
       } else {
-        actor->stats.incr("attack.other_team", actor->group_name);
+        actor->stats.incr("attack.other_team." + actor->group_name);
       }
 
       was_frozen = agent_target->frozen > 0;
 
-      if (agent_target->inventory[InventoryItem::armor] > 0) {
-        agent_target->update_agent_inventory(InventoryItem::armor, -1);
-        actor->stats.incr("attack.blocked", agent_target->group_name);
-        actor->stats.incr("attack.blocked", agent_target->group_name, actor->group_name);
+      if (agent_target->update_inventory(InventoryItem::armor, -1)) {
+        actor->stats.incr("attack.blocked." + agent_target->group_name);
+        actor->stats.incr("attack.blocked." + agent_target->group_name + "." + actor->group_name);
       } else {
         agent_target->frozen = agent_target->freeze_duration;
 
         if (!was_frozen) {
-          actor->stats.incr("attack.win", actor->group_name);
-          actor->stats.incr("attack.win", actor->group_name, agent_target->group_name);
-          actor->stats.incr("attack.loss", agent_target->group_name);
-          actor->stats.incr("attack.loss", agent_target->group_name, actor->group_name);
+          // Actor (attacker) stats
+          actor->stats.incr("attack.win." + actor->group_name);
+          actor->stats.incr("attack.win." + actor->group_name + "." + agent_target->group_name);
+
+          // Target (victim) stats - these should be on agent_target, not actor
+          agent_target->stats.incr("attack.loss." + agent_target->group_name);
+          agent_target->stats.incr("attack.loss." + agent_target->group_name + "." + actor->group_name);
 
           if (agent_target->group_name == actor->group_name) {
-            actor->stats.incr("attack.win.own_team", actor->group_name);
+            actor->stats.incr("attack.win.own_team." + actor->group_name);
+            agent_target->stats.incr("attack.loss.from_own_team." + agent_target->group_name);
           } else {
-            actor->stats.incr("attack.win.other_team", actor->group_name);
+            actor->stats.incr("attack.win.other_team." + actor->group_name);
+            agent_target->stats.incr("attack.loss.from_other_team." + agent_target->group_name);
           }
 
-          for (size_t item = 0; item < InventoryItem::InventoryCount; item++) {
-            // Validate inventory item index before accessing
-            if (item >= InventoryItemNames.size()) {
-              throw std::runtime_error("Invalid inventory item index: " + std::to_string(item));
+          for (int item = 0; item < InventoryItem::InventoryItemCount; item++) {
+            int stolen = actor->update_inventory(static_cast<InventoryItem>(item), agent_target->inventory[item]);
+            agent_target->update_inventory(static_cast<InventoryItem>(item), -stolen);
+            if (stolen > 0) {
+              actor->stats.add(InventoryItemNames[item] + ".stolen." + actor->group_name, stolen);
+              // Also track what was stolen from the victim's perspective
+              agent_target->stats.add(InventoryItemNames[item] + ".stolen_from." + agent_target->group_name, stolen);
             }
-
-            actor->stats.add(InventoryItemNames[item], "stolen", actor->group_name, agent_target->inventory[item]);
-            actor->update_agent_inventory(static_cast<InventoryItem>(item), agent_target->inventory[item]);
-            agent_target->update_agent_inventory(static_cast<InventoryItem>(item), -agent_target->inventory[item]);
           }
         }
 
@@ -119,26 +98,17 @@ protected:
       }
     }
 
-    // Check for objects if no agent was found or armor blocked
     target_loc.layer = GridLayer::Object_Layer;
-    GridObject* obj_at_location = safe_object_at(target_loc);
-
-    MettaObject* object_target = nullptr;
-    if (obj_at_location != nullptr) {
-      object_target = dynamic_cast<MettaObject*>(obj_at_location);
-      if (obj_at_location != nullptr && object_target == nullptr) {
-        throw std::runtime_error("Object at target location is not a MettaObject");
-      }
-    }
-
+    MettaObject* object_target = static_cast<MettaObject*>(_grid->object_at(target_loc));
     if (object_target) {
-      actor->stats.incr(_stats.target[object_target->_type_id]);
-      actor->stats.incr(_stats.target[object_target->_type_id], actor->group_name);
+      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[object_target->_type_id]);
+      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[object_target->_type_id] + "." +
+                        actor->group_name);
       object_target->hp -= 1;
-      actor->stats.incr("damage", ObjectTypeNames[object_target->_type_id]);
+      actor->stats.incr("damage." + ObjectTypeNames[object_target->_type_id]);
       if (object_target->hp <= 0) {
-        _grid->remove_object(object_target);
-        actor->stats.incr("destroyed", ObjectTypeNames[object_target->_type_id]);
+        actor->stats.incr("destroyed." + ObjectTypeNames[object_target->_type_id]);
+        _grid->remove_object(object_target);  // This will invalidate the pointer
       }
       return true;
     }
@@ -146,5 +116,5 @@ protected:
     return false;
   }
 };
-}  // namespace Actions
-#endif  // ATTACK_HPP
+
+#endif  // METTAGRID_METTAGRID_ACTIONS_ATTACK_HPP_

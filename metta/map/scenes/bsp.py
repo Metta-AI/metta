@@ -1,93 +1,82 @@
 import logging
-from typing import Any, List, Literal, Optional, Tuple
+from typing import Literal, Tuple
 
 import numpy as np
 
-from metta.map.mapgen import MapGrid
-from metta.map.node import Node
 from metta.map.scene import Scene
-from metta.map.utils.random import MaybeSeed
+from metta.map.types import MapGrid
+from metta.util.config import Config
 
 logger = logging.getLogger(__name__)
 
 Direction = Literal["horizontal", "vertical"]
 
 
-class BSPLayout(Scene):
+class BSPLayoutParams(Config):
+    area_count: int
+
+
+class BSPLayout(Scene[BSPLayoutParams]):
     """
     This scene doesn't render anything, it just creates areas that can be used by other scenes.
     """
 
-    def __init__(self, area_count: int, children: list[Any], seed: MaybeSeed = None):
-        super().__init__(children=children)
-        self._area_count = area_count
-        self._rng = np.random.default_rng(seed)
-
-    def _render(self, node: Node):
-        grid = node.grid
+    def render(self):
+        grid = self.grid
 
         tree = BSPTree(
             width=grid.shape[1],
             height=grid.shape[0],
-            leaf_zone_count=self._area_count,
-            rng=self._rng,
+            leaf_zone_count=self.params.area_count,
+            rng=self.rng,
         )
         for zone in tree.get_leaf_zones():
-            node.make_area(zone.x, zone.y, zone.width, zone.height, tags=["zone"])
+            self.make_area(zone.x, zone.y, zone.width, zone.height, tags=["zone"])
 
 
-class BSP(Scene):
+class BSPParams(Config):
+    rooms: int
+    min_room_size: int
+    min_room_size_ratio: float
+    max_room_size_ratio: float
+    skip_corridors: bool = False
+
+
+class BSP(Scene[BSPParams]):
     """
     Binary Space Partitioning. (Roguelike dungeon generator)
 
     This scene creates a grid of rooms, and then connects them with corridors.
     """
 
-    def __init__(
-        self,
-        rooms: int,
-        min_room_size: int,
-        min_room_size_ratio: float,
-        max_room_size_ratio: float,
-        skip_corridors: bool = False,
-        seed: MaybeSeed = None,
-        children: Optional[List[Any]] = None,
-    ):
-        super().__init__(children=children)
-        self._rooms = rooms
-        self._min_room_size = min_room_size
-        self._min_room_size_ratio = min_room_size_ratio
-        self._max_room_size_ratio = max_room_size_ratio
-        self._skip_corridors = skip_corridors
-        self._rng = np.random.default_rng(seed)
-
-    def _render(self, node: Node):
-        grid = node.grid
+    def render(self):
+        grid = self.grid
+        params = self.params
 
         grid[:] = "wall"
 
         bsp_tree = BSPTree(
             width=grid.shape[1],
             height=grid.shape[0],
-            leaf_zone_count=self._rooms,
-            rng=self._rng,
+            leaf_zone_count=params.rooms,
+            rng=self.rng,
         )
 
         # Make rooms
         rooms: list[Zone] = []
         for zone in bsp_tree.get_leaf_zones():
             room = zone.make_room(
-                min_size=self._min_room_size,
-                min_size_ratio=self._min_room_size_ratio,
-                max_size_ratio=self._max_room_size_ratio,
+                min_size=params.min_room_size,
+                min_size_ratio=params.min_room_size_ratio,
+                max_size_ratio=params.max_room_size_ratio,
             )
             rooms.append(room)
 
             grid[room.y : room.y + room.height, room.x : room.x + room.width] = "empty"
-            node.make_area(room.x, room.y, room.width, room.height, tags=["room"])
+            self.make_area(room.x, room.y, room.width, room.height, tags=["room"])
 
         # Make corridors
-        if self._skip_corridors:
+        if params.skip_corridors:
             logger.info("Skipping corridors")
             return
 
@@ -144,7 +133,7 @@ class Zone:
 
     def random_divide(self, size: int):
         min_size = size // 3  # TODO - configurable proportion
-        return self.rng.integers(min_size, size - min_size + 1)
+        return self.rng.integers(min_size, size - min_size + 1, dtype=int)
 
     def horizontal_split(self) -> Tuple["Zone", "Zone"]:
         first_height = self.random_divide(self.height)
@@ -174,6 +163,7 @@ class Zone:
             return self.rng.integers(
                 max(min_size, int(n * min_size_ratio)),
                 max(min_size, int(n * max_size_ratio)) + 1,
+                dtype=int,
             )
 
         room_width = random_size(self.width)
@@ -181,8 +171,8 @@ class Zone:
 
         # Randomly position the room within the zone; always leave a 1 cell border on bottom-right, otherwise the
         # rooms could touch each other.
-        shift_x = self.rng.integers(1, max(1, self.width - room_width) + 1)
-        shift_y = self.rng.integers(1, max(1, self.height - room_height) + 1)
+        shift_x = self.rng.integers(1, max(1, self.width - room_width) + 1, dtype=int)
+        shift_y = self.rng.integers(1, max(1, self.height - room_height) + 1, dtype=int)
         return Zone(self.x + shift_x, self.y + shift_y, room_width, room_height, self.rng)
 
     def transpose(self) -> "Zone":
@@ -361,7 +351,7 @@ def connect_surfaces(surface1: Surface, surface2: Surface):
     start = surface1.random_position()
     end = surface2.random_position()
 
-    turn_y = surface1.rng.integers(surface1.max_y, surface2.min_y + 1)
+    turn_y = surface1.rng.integers(surface1.max_y, surface2.min_y + 1, dtype=int)
 
     lines = [
         # Note: off-by-one errors here were quite annoying, be careful.
@@ -381,7 +371,7 @@ class BSPTree:
     2) BSPLayout scene that just creates a grid of zones, without rooms or corridors.
     """
 
-    zones: list["Zone"]
+    zones: list[Zone]
 
     def __init__(
         self,
