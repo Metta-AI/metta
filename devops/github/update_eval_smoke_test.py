@@ -8,10 +8,10 @@ Usage:
     python3 devops/github/update_eval_smoke_test.py
 
     # Update to a specific policy
-    python3 devops/recipes/update_eval_smoke_test.py sasmith_20250529_ablate_1_hot_types.3
+    python3 devops/github/update_eval_smoke_test.py sasmith_20250529_ablate_1_hot_types.3
 
     # Update to a specific policy (alternative syntax)
-    python3 devops/recipes/update_eval_smoke_test.py --policy sasmith_20250529_ablate_1_hot_types.3
+    python3 devops/github/update_eval_smoke_test.py --policy sasmith_20250529_ablate_1_hot_types.3
 
 The script will:
 1. Check if the policy exists on wandb
