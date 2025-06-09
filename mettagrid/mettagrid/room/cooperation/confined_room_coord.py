@@ -7,9 +7,12 @@ on the 1-cell thick border surrounding this floor space, excluding the corners.
 The layout is designed to encourage agent coordination in a confined area.
 An optional additional pure wall border can be added around the entire room.
 """
-from typing import List, Optional, Tuple, Dict, Union
+
+from typing import List, Optional, Tuple, Union
+
 import numpy as np
 from omegaconf import DictConfig
+
 from mettagrid.room.room import Room
 
 
@@ -32,8 +35,7 @@ class ConfinedRoomCoord(Room):
 
         # User-provided width/height are for the *floor* area.
         if not (width >= 1 and height >= 1):
-            raise ValueError(
-                f"Floor dimensions (width/height) must be at least 1x1, got {width}x{height}")
+            raise ValueError(f"Floor dimensions (width/height) must be at least 1x1, got {width}x{height}")
 
         # Store configuration parameters
         self._floor_width = width
@@ -49,10 +51,10 @@ class ConfinedRoomCoord(Room):
             for agent_name, count_val in agents.items():
                 if not isinstance(count_val, int) or count_val < 0:
                     raise ValueError(
-                        f"Agent count for '{str(agent_name)}' must be a non-negative integer, got {count_val}")
+                        f"Agent count for '{str(agent_name)}' must be a non-negative integer, got {count_val}"
+                    )
         else:
-            raise TypeError(
-                f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
+            raise TypeError(f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
         self._agents_spec = agents
 
         # Calculate room dimensions:
@@ -65,8 +67,7 @@ class ConfinedRoomCoord(Room):
         actual_grid_height = core_height + 2 * self._border_width
 
         # Initialize parent Room class with wall border and room label
-        super().__init__(border_width=self._border_width, border_object="wall",
-                         labels=["confined_room_coord"])
+        super().__init__(border_width=self._border_width, border_object="wall", labels=["confined_room_coord"])
 
         # Set final grid dimensions
         self._width = actual_grid_width
@@ -108,10 +109,14 @@ class ConfinedRoomCoord(Room):
         fb_corners = []
         if fb_top_row <= fb_bottom_row and fb_left_col <= fb_right_col:  # Check if functional area has any size
             # Add all four corners of the functional border
-            fb_corners.extend([
-                (fb_top_row, fb_left_col), (fb_top_row, fb_right_col),
-                (fb_bottom_row, fb_left_col), (fb_bottom_row, fb_right_col)
-            ])
+            fb_corners.extend(
+                [
+                    (fb_top_row, fb_left_col),
+                    (fb_top_row, fb_right_col),
+                    (fb_bottom_row, fb_left_col),
+                    (fb_bottom_row, fb_right_col),
+                ]
+            )
             fb_corners = sorted(list(set(fb_corners)))  # Unique corners
 
             # Collect non-corner functional border cells
@@ -130,14 +135,12 @@ class ConfinedRoomCoord(Room):
                 for r in range(fb_top_row + 1, fb_bottom_row):
                     functional_border_cells.append((r, fb_right_col))
 
-        functional_border_cells = sorted(
-            list(set(functional_border_cells)))  # Unique non-corner cells
+        functional_border_cells = sorted(list(set(functional_border_cells)))  # Unique non-corner cells
         # Shuffle for random object placement
         self._rng.shuffle(functional_border_cells)
 
         # 2a. Check if enough space for all objects on non-corner border
-        total_objects_to_place = self._num_mines + \
-            self._num_generators + self._num_altars
+        total_objects_to_place = self._num_mines + self._num_generators + self._num_altars
         available_non_corner_slots = len(functional_border_cells)
         if total_objects_to_place > available_non_corner_slots:
             print(
@@ -147,12 +150,11 @@ class ConfinedRoomCoord(Room):
             )
 
         # 3. Place game objects (mines, generators, altars) on the non-corner functional border
-        objects_to_place = ([("mine", self._num_mines)] +
-                            [("generator", self._num_generators)] +
-                            [("altar", self._num_altars)])
+        objects_to_place = (
+            [("mine", self._num_mines)] + [("generator", self._num_generators)] + [("altar", self._num_altars)]
+        )
 
-        temp_available_non_corner_fb_cells = list(
-            functional_border_cells)  # Copy for modification
+        temp_available_non_corner_fb_cells = list(functional_border_cells)  # Copy for modification
 
         cells_used_for_objects = []
 
@@ -167,8 +169,7 @@ class ConfinedRoomCoord(Room):
                 placed_count += 1
                 cells_used_for_objects.append(pos)
             if placed_count < count:
-                print(
-                    f"Warning: Could only place {placed_count}/{count} of '{obj_name}' on non-corner border.")
+                print(f"Warning: Could only place {placed_count}/{count} of '{obj_name}' on non-corner border.")
 
         # 4. Fill functional border corners and remaining non-corner cells with "wall"
         # Place walls in the identified corners
@@ -227,6 +228,7 @@ class ConfinedRoomCoord(Room):
 
         if agents_placed_count < len(agent_symbols_to_place):
             print(
-                f"Warning: Not enough empty floor cells. Placed {agents_placed_count}/{len(agent_symbols_to_place)} agents.")
+                f"Warning: Not enough empty floor cells. Placed {agents_placed_count}/{len(agent_symbols_to_place)} agents."
+            )
 
         return grid

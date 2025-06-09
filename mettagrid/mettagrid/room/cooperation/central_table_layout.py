@@ -6,9 +6,11 @@ surrounded by a lane where agents can move and interact with objects.
 Objects like mines, generators, and altars are placed within this lane.
 """
 
-from typing import List, Optional, Tuple, Dict, Union
+from typing import List, Optional, Tuple, Union
+
 import numpy as np
 from omegaconf import DictConfig
+
 from mettagrid.room.room import Room
 
 
@@ -43,8 +45,7 @@ class CentralTableLayout(Room):
         effective_lane_width_for_validation = lane_width
         if style != "default" and style in self.STYLE_PARAMETERS:
             params = self.STYLE_PARAMETERS[style]
-            effective_lane_width_for_validation = params.get(
-                "lane_width", lane_width)
+            effective_lane_width_for_validation = params.get("lane_width", lane_width)
 
         # Minimum dimension for the core structure:
         # It needs space for:
@@ -66,9 +67,7 @@ class CentralTableLayout(Room):
         actual_grid_height = height + 2 * self._border_width
 
         # CORRECTED CALL TO SUPER: Removed width and height arguments
-        super().__init__(border_width=self._border_width,
-                         border_object="wall",
-                         labels=["central_table", style])
+        super().__init__(border_width=self._border_width, border_object="wall", labels=["central_table", style])
 
         # Store the *actual total* dimensions for the grid generation
         self._width = actual_grid_width
@@ -82,10 +81,10 @@ class CentralTableLayout(Room):
             for agent_name, count_val in agents.items():
                 if not isinstance(count_val, int) or count_val < 0:
                     raise ValueError(
-                        f"Agent count for '{str(agent_name)}' must be a non-negative integer, got {count_val}")
+                        f"Agent count for '{str(agent_name)}' must be a non-negative integer, got {count_val}"
+                    )
         else:
-            raise TypeError(
-                f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
+            raise TypeError(f"Agents parameter must be an int or a DictConfig, got {type(agents)}")
         self._agents_spec = agents
 
         # Initialize and apply style parameters for items and the final self._lane_width
@@ -96,8 +95,7 @@ class CentralTableLayout(Room):
 
         if style != "default" and style in self.STYLE_PARAMETERS:
             params = self.STYLE_PARAMETERS[style]
-            self._lane_width = params.get(
-                "lane_width", lane_width)  # Final lane_width
+            self._lane_width = params.get("lane_width", lane_width)  # Final lane_width
             self._num_mines = params.get("num_mines", num_mines)
             self._num_generators = params.get("num_generators", num_generators)
             self._num_altars = params.get("num_altars", num_altars)
@@ -152,9 +150,8 @@ class CentralTableLayout(Room):
                 f"Table TL:({table_tl_r},{table_tl_c}), BR:({table_br_r},{table_br_c}). "
                 f"Functional Area TL:({func_area_tl_r},{func_area_tl_c}), BR:({func_area_br_r},{func_area_br_c})"
             )
-        grid[table_tl_r: table_br_r + 1, table_tl_c: table_br_c + 1] = "wall"
-        self._occ[table_tl_r: table_br_r + 1,
-                  table_tl_c: table_br_c + 1] = True
+        grid[table_tl_r : table_br_r + 1, table_tl_c : table_br_c + 1] = "wall"
+        self._occ[table_tl_r : table_br_r + 1, table_tl_c : table_br_c + 1] = True
 
         # 2. Identify Object Placement Slots (on the 'functional' outer border)
         # This is the layer immediately inside the pure wall border (if any)
@@ -167,11 +164,14 @@ class CentralTableLayout(Room):
         fb_right_col = func_area_br_c
 
         border_cells_map = {
-            "top": [], "bottom": [], "left": [], "right": [],
+            "top": [],
+            "bottom": [],
+            "left": [],
+            "right": [],
             "top_left_corner": (fb_top_row, fb_left_col),
             "top_right_corner": (fb_top_row, fb_right_col),
             "bottom_left_corner": (fb_bottom_row, fb_left_col),
-            "bottom_right_corner": (fb_bottom_row, fb_right_col)
+            "bottom_right_corner": (fb_bottom_row, fb_right_col),
         }
 
         # Populate functional border segments (excluding corners initially)
@@ -190,10 +190,18 @@ class CentralTableLayout(Room):
             for r_idx in range(fb_top_row + 1, fb_bottom_row):
                 border_cells_map["right"].append((r_idx, fb_right_col))
 
-        outer_corners_list = sorted(list(set([
-            border_cells_map["top_left_corner"], border_cells_map["top_right_corner"],
-            border_cells_map["bottom_left_corner"], border_cells_map["bottom_right_corner"]
-        ])))
+        outer_corners_list = sorted(
+            list(
+                set(
+                    [
+                        border_cells_map["top_left_corner"],
+                        border_cells_map["top_right_corner"],
+                        border_cells_map["bottom_left_corner"],
+                        border_cells_map["bottom_right_corner"],
+                    ]
+                )
+            )
+        )
 
         # Ensure corners are valid (not overlapping if dimensions are too small)
         # This might occur if func_area is very small, e.g., 1xN or Nx1.
@@ -204,23 +212,18 @@ class CentralTableLayout(Room):
         for seg_key in ["top", "bottom", "left", "right"]:
             all_potential_border_slots.extend(border_cells_map[seg_key])
         all_potential_border_slots.extend(outer_corners_list)
-        all_potential_border_slots = sorted(
-            list(set(all_potential_border_slots)))
+        all_potential_border_slots = sorted(list(set(all_potential_border_slots)))
 
         # Determine preferred border segments based on table dimensions
         table_actual_width = table_br_c - table_tl_c + 1
         table_actual_height = table_br_r - table_tl_r + 1
 
         if table_actual_width >= table_actual_height:  # Table is wider or square
-            generator_preferred_border_segments = border_cells_map["top"] + \
-                border_cells_map["bottom"]
-            mine_altar_preferred_border_segments = border_cells_map["left"] + \
-                border_cells_map["right"]
+            generator_preferred_border_segments = border_cells_map["top"] + border_cells_map["bottom"]
+            mine_altar_preferred_border_segments = border_cells_map["left"] + border_cells_map["right"]
         else:  # Table is taller
-            generator_preferred_border_segments = border_cells_map["left"] + \
-                border_cells_map["right"]
-            mine_altar_preferred_border_segments = border_cells_map["top"] + \
-                border_cells_map["bottom"]
+            generator_preferred_border_segments = border_cells_map["left"] + border_cells_map["right"]
+            mine_altar_preferred_border_segments = border_cells_map["top"] + border_cells_map["bottom"]
 
         # Helper to place items on the functional border
         def _place_item_on_border(item_name: str, count: int, preferred_segments: List[Tuple[int, int]]):
@@ -229,12 +232,10 @@ class CentralTableLayout(Room):
             current_preferred_slots = list(set(preferred_segments))
             self._rng.shuffle(current_preferred_slots)
             candidate_slots.extend(current_preferred_slots)
-            current_corner_slots = [
-                c for c in outer_corners_list if c not in candidate_slots]
+            current_corner_slots = [c for c in outer_corners_list if c not in candidate_slots]
             self._rng.shuffle(current_corner_slots)
             candidate_slots.extend(current_corner_slots)
-            other_border_slots = [
-                s for s in all_potential_border_slots if s not in candidate_slots]
+            other_border_slots = [s for s in all_potential_border_slots if s not in candidate_slots]
             self._rng.shuffle(other_border_slots)
             candidate_slots.extend(other_border_slots)
 
@@ -246,15 +247,11 @@ class CentralTableLayout(Room):
                     self._occ[pos] = True
                     placed_count += 1
             if placed_count < count:
-                print(
-                    f"Warning: Could only place {placed_count}/{count} of '{item_name}' on functional border.")
+                print(f"Warning: Could only place {placed_count}/{count} of '{item_name}' on functional border.")
 
-        _place_item_on_border("generator", self._num_generators,
-                              generator_preferred_border_segments)
-        _place_item_on_border("mine", self._num_mines,
-                              mine_altar_preferred_border_segments)
-        _place_item_on_border("altar", self._num_altars,
-                              mine_altar_preferred_border_segments)
+        _place_item_on_border("generator", self._num_generators, generator_preferred_border_segments)
+        _place_item_on_border("mine", self._num_mines, mine_altar_preferred_border_segments)
+        _place_item_on_border("altar", self._num_altars, mine_altar_preferred_border_segments)
 
         # 4. Fill remaining "empty" functional border cells with "wall"
         for pos in all_potential_border_slots:
@@ -301,7 +298,8 @@ class CentralTableLayout(Room):
 
         if len(agent_symbols_to_place) > len(lane_cells_list):
             print(
-                f"Warning: Not enough empty lane cells to place all agents. Placed {len(lane_cells_list)}/{len(agent_symbols_to_place)}.")
+                f"Warning: Not enough empty lane cells to place all agents. Placed {len(lane_cells_list)}/{len(agent_symbols_to_place)}."
+            )
         return grid
 
     # Example of how to use it later:
