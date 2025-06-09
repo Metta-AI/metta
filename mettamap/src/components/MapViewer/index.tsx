@@ -2,10 +2,9 @@
 import { FC, useCallback, useEffect, useRef, useState } from "react";
 
 import { usePanZoom } from "@/hooks/use-pan-and-zoom";
+import { Drawer } from "@/lib/draw/Drawer";
+import { drawGrid } from "@/lib/draw/drawGrid";
 import { MettaGrid } from "@/lib/MettaGrid";
-
-import { drawGrid } from "./drawMap";
-import { loadSprites, Sprites } from "./sprites";
 
 export type Cell = { x: number; y: number };
 type CellHandler = (cell: Cell | undefined) => void;
@@ -71,7 +70,7 @@ export const MapViewer: FC<Props> = ({
       maxZoom: 10,
       zoomSensitivity: 0.007,
     });
-  const [sprites, setSprites] = useState<Sprites | null>(null);
+  const [drawer, setDrawer] = useState<Drawer | null>(null);
 
   // Cell size used for drawing the grid.
   // This is in internal canvas pixels, not pixels on the screen. (canvas.width, not clientWidth)
@@ -111,15 +110,15 @@ export const MapViewer: FC<Props> = ({
   }, [measureCellSize, containerRef.current, canvasRef.current]);
 
   const draw = useCallback(() => {
-    if (!sprites || !canvasRef.current || !cellSize) return;
+    if (!drawer || !canvasRef.current || !cellSize) return;
 
     drawGrid({
       grid,
       canvas: canvasRef.current,
-      sprites,
+      drawer: drawer,
       cellSize,
     });
-  }, [sprites, grid, cellSize]);
+  }, [drawer, grid, cellSize]);
 
   // Handle window resize
   useEffect(() => {
@@ -132,7 +131,7 @@ export const MapViewer: FC<Props> = ({
   useEffect(draw, [draw]);
 
   useEffect(() => {
-    loadSprites().then(setSprites);
+    Drawer.load().then(setDrawer);
   }, []);
 
   // Benchmark: uncomment to redraw 60 frames per second when the canvas is visible on screen

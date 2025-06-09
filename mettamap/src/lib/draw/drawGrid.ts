@@ -1,17 +1,17 @@
 import { MettaGrid } from "@/lib/MettaGrid";
 
-import { Sprites } from "./sprites";
+import { Drawer } from "../../lib/draw/Drawer";
 
 export async function drawGrid({
   grid,
   canvas,
-  sprites,
+  drawer,
   cellSize,
   // selectedCell,
 }: {
   grid: MettaGrid;
   canvas: HTMLCanvasElement;
-  sprites: Sprites;
+  drawer: Drawer;
   cellSize: number;
 }) {
   const ctx = canvas.getContext("2d");
@@ -43,7 +43,7 @@ export async function drawGrid({
 
   // Draw the map
   for (const object of grid.objects) {
-    sprites.draw(
+    drawer.drawObject(
       object,
       ctx,
       object.c * cellSize,
