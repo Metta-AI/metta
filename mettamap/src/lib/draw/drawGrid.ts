@@ -2,6 +2,8 @@ import { MettaGrid } from "@/lib/MettaGrid";
 
 import { Drawer } from "../../lib/draw/Drawer";
 
+const BACKGROUND_COLOR = "#cfa970";
+
 export async function drawGrid({
   grid,
   canvas,
@@ -18,7 +20,7 @@ export async function drawGrid({
   if (!ctx) return;
 
   // Clear canvas
-  ctx.fillStyle = "rgb(6, 24, 24)";
+  ctx.fillStyle = BACKGROUND_COLOR;
   ctx.fillRect(0, 0, cellSize * grid.width, cellSize * grid.height);
 
   // Draw grid lines

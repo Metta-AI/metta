@@ -70,7 +70,11 @@ export const MapViewer: FC<Props> = ({
       maxZoom: 10,
       zoomSensitivity: 0.007,
     });
+
   const [drawer, setDrawer] = useState<Drawer | null>(null);
+  useEffect(() => {
+    Drawer.load().then(setDrawer);
+  }, []);
 
   // Cell size used for drawing the grid.
   // This is in internal canvas pixels, not pixels on the screen. (canvas.width, not clientWidth)
@@ -130,10 +134,6 @@ export const MapViewer: FC<Props> = ({
   // TODO - avoid rendering if not visible
   useEffect(draw, [draw]);
 
-  useEffect(() => {
-    Drawer.load().then(setDrawer);
-  }, []);
-
   // Benchmark: uncomment to redraw 60 frames per second when the canvas is visible on screen
   // useStressTest(draw, canvasRef.current);
 
@@ -147,10 +147,6 @@ export const MapViewer: FC<Props> = ({
       // 2. Compute screen‑relative coords inside that box
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
-
-      // // 3. Un‑scale to get your logical canvas coords:
-      // const canvasX = sx / zoom;
-      // const canvasY = sy / zoom;
 
       const x = sx * (grid.width / rect.width);
       const y = sy * (grid.height / rect.height);
