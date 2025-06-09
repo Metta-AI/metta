@@ -20,7 +20,7 @@ game:
       height: 25
       border_width: 0
 
-      agents: 16
+      agents: 4
 
       objects:
         mine: 10
