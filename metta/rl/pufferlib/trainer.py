@@ -183,8 +183,8 @@ class PufferTrainer:
                     if component_shape != environment_shape:
                         raise ValueError(
                             f"Observation space mismatch error:\n"
-                            f"component_name: {component_name}\n"
-                            f"component_shape: {component_shape}\n"
+                            f"[policy] component_name: {component_name}\n"
+                            f"[policy] component_shape: {component_shape}\n"
                             f"environment_shape: {environment_shape}\n"
                         )
 
