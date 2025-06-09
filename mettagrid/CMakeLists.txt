@@ -40,6 +40,13 @@ pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
 
 install(TARGETS mettagrid_c DESTINATION "mettagrid")
 
+install(
+    FILES
+        "${CMAKE_SOURCE_DIR}/mettagrid/__init__.py"
+        "${CMAKE_SOURCE_DIR}/mettagrid/mettagrid_c.pyi"
+    DESTINATION "mettagrid"
+)
+
 # ========================= TESTS =========================
 
 if(BUILD_TESTS)

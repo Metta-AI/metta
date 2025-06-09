@@ -50,8 +50,6 @@ dependencies = [
 # See `./README.md` for more details.
 cmake.args = ["--preset", "release-no-tests"]
 
-# Configure wheel building to include Python package files
-wheel.packages = ["mettagrid"]
 
 # Note: if you decide to use `editable.rebuild` here, consider that it's not
 # compatible with isolated builds.
