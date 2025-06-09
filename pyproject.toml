@@ -58,7 +58,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["skypilot==0.9.2"]
+dev = ["skypilot==0.9.3"]
 
 [project.scripts]
 skypilot = "devops.skypilot.launch:main"
