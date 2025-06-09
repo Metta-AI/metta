@@ -15,6 +15,15 @@ type Props = {
   onCellSelect?: CellHandler;
 };
 
+function useDrawer(): Drawer | undefined {
+  const [drawer, setDrawer] = useState<Drawer | undefined>();
+  useEffect(() => {
+    Drawer.load().then(setDrawer);
+  }, []);
+
+  return drawer;
+}
+
 const Overlay: FC<{
   cellSize: number;
   hoveredCell?: Cell;
@@ -64,10 +73,7 @@ export const MapViewer: FC<Props> = ({
       zoomSensitivity: 0.007,
     });
 
-  const [drawer, setDrawer] = useState<Drawer | null>(null);
-  useEffect(() => {
-    Drawer.load().then(setDrawer);
-  }, []);
+  const drawer = useDrawer();
 
   // Cell size used for drawing the grid.
   // This is in internal canvas pixels, not pixels on the screen. (canvas.width, not clientWidth)
@@ -98,7 +104,7 @@ export const MapViewer: FC<Props> = ({
 
   useEffect(() => {
     measureCellSize();
-  }, [measureCellSize, containerRef.current, canvasRef.current]);
+  }, [measureCellSize]);
 
   const draw = useCallback(() => {
     if (!drawer || !canvasRef.current || !cellSize) return;
