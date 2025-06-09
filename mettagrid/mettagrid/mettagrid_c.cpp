@@ -3,8 +3,6 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
-#include <limits>
-
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/attack_nearest.hpp"
@@ -647,6 +645,7 @@ py::dict MettaGrid::get_episode_stats() {
 py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
+
   size_t number_of_actions = py::len(action_names());
   size_t number_of_action_args = _max_action_arg + 1;
   return spaces.attr("MultiDiscrete")(py::make_tuple(number_of_actions, number_of_action_args),
