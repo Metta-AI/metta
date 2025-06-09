@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 16
+  num_agents: 16 
 
   agent:
     default_item_max: 50
@@ -11,7 +11,7 @@ game:
 
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${div:${..num_agents},4}
+    num_rooms: 4
     border_width: 6
     room:
       _target_: mettagrid.room.random.Random
