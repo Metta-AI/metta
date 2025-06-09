@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from mettagrid.mettagrid_c import MettaGrid
+from mettagrid.mettagrid_env import dtype_actions, dtype_observations, dtype_rewards, dtype_terminals, dtype_truncations
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
@@ -89,7 +90,7 @@ class TestBuffers:
         c_env.reset()
 
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
         obs, rewards, terminals, truncations, info = c_env.step(actions)
         episode_rewards = c_env.get_episode_rewards()
 
@@ -161,28 +162,32 @@ class TestBuffers:
         c_env = create_minimal_mettagrid_c_env()
 
         # Correct buffers for comparison
-        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
-        terminals = np.zeros(NUM_AGENTS, dtype=bool)
-        truncations = np.zeros(NUM_AGENTS, dtype=bool)
-        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
+        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
+        terminals = np.zeros(NUM_AGENTS, dtype=dtype_terminals)
+        truncations = np.zeros(NUM_AGENTS, dtype=dtype_truncations)
+        rewards = np.zeros(NUM_AGENTS, dtype=dtype_rewards)
 
         # Wrong observation dtype
         wrong_obs = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.float32)
+        assert wrong_obs.dtype != dtype_observations
         with pytest.raises(TypeError):
             c_env.set_buffers(wrong_obs, terminals, truncations, rewards)
 
         # Wrong terminals dtype
         wrong_terminals = np.zeros(NUM_AGENTS, dtype=np.int32)
+        assert wrong_terminals.dtype != dtype_terminals
         with pytest.raises(TypeError):
             c_env.set_buffers(observations, wrong_terminals, truncations, rewards)
 
         # Wrong truncations dtype
         wrong_truncations = np.zeros(NUM_AGENTS, dtype=np.int32)
+        assert wrong_truncations.dtype != dtype_truncations
         with pytest.raises(TypeError):
             c_env.set_buffers(observations, terminals, wrong_truncations, rewards)
 
         # Wrong rewards dtype
         wrong_rewards = np.zeros(NUM_AGENTS, dtype=np.float64)
+        assert wrong_rewards.dtype != dtype_rewards
         with pytest.raises(TypeError):
             c_env.set_buffers(observations, terminals, truncations, wrong_rewards)
 
@@ -255,7 +260,7 @@ class TestBuffers:
 
         # Take a step - this should overwrite our manual values
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
         obs_returned, rewards_returned, terminals_returned, truncations_returned, info = c_env.step(actions)
 
@@ -294,7 +299,7 @@ class TestBuffers:
 
         # Take one step to reach max_steps
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
         c_env.step(actions)  # current_step = 1, should trigger truncations
 
         # Now truncations should all be True
@@ -314,7 +319,7 @@ class TestBuffers:
 
         # Take a step to get valid baseline values
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
         c_env.step(actions)
 
         # Store initial values
@@ -405,7 +410,7 @@ class TestBuffers:
 
         # Take first step
         noop_action_idx = c_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
         obs, step_rewards_1, terminals_ret, truncations_ret, _info = c_env.step(actions)
         episode_rewards_1 = c_env.get_episode_rewards()
@@ -435,7 +440,7 @@ class TestBuffers:
         gym_obs, gym_info = gym_env.reset()
 
         noop_action_idx = gym_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
         gym_obs_step, gym_rewards, gym_terminals, gym_truncations, gym_info_step = gym_env.step(actions)
         gym_episode_rewards = gym_env.get_episode_rewards()
