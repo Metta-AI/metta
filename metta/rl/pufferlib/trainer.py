@@ -30,11 +30,12 @@ from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 
 try:
-    from pufferlib import _C
+    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
 except ImportError:
     raise ImportError(
-        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, try installing with --no-build-isolation"
-    )
+        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
+        "try installing with --no-build-isolation"
+    ) from None
 
 torch.set_float32_matmul_precision("high")
 
@@ -426,7 +427,6 @@ class PufferTrainer:
                 actions, selected_action_log_probs, _, value, _ = self.policy(o_device, state)
 
                 # Convert to numpy for compatibility
-                action = actions
                 logprob = selected_action_log_probs
 
                 if __debug__:
@@ -447,32 +447,32 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 # Fast path for fully vectorized envs
-                l = self.ep_lengths[env_id.start].item()
+                episode_length = self.ep_lengths[env_id.start].item()
 
                 # Get the indices for this batch - handle wrap-around in circular buffer
                 indices = self.ep_indices[env_id]
 
                 if self.trainer_cfg.cpu_offload:
-                    self.observations[indices, l] = o
+                    self.observations[indices, episode_length] = o
                 else:
-                    self.observations[indices, l] = o_device
+                    self.observations[indices, episode_length] = o_device
 
                 # Convert actions to the correct dtype before storing
                 if self.actions.dtype == torch.int32:
-                    self.actions[indices, l] = actions.int()
+                    self.actions[indices, episode_length] = actions.int()
                 elif self.actions.dtype == torch.int64:
-                    self.actions[indices, l] = actions.long()
+                    self.actions[indices, episode_length] = actions.long()
                 else:
-                    self.actions[indices, l] = actions
+                    self.actions[indices, episode_length] = actions
 
-                self.logprobs[indices, l] = logprob
-                self.rewards[indices, l] = r
-                self.terminals[indices, l] = d.float()
-                self.values[indices, l] = value.flatten()
+                self.logprobs[indices, episode_length] = logprob
+                self.rewards[indices, episode_length] = r
+                self.terminals[indices, episode_length] = d.float()
+                self.values[indices, episode_length] = value.flatten()
 
                 # Handle episode length tracking
                 self.ep_lengths[env_id] += 1
-                if l + 1 >= self.trainer_cfg.bptt_horizon:
+                if episode_length + 1 >= self.trainer_cfg.bptt_horizon:
                     num_full = env_id.stop - env_id.start
                     # Wrap indices around to stay within buffer bounds
                     self.ep_indices[env_id] = (
@@ -482,7 +482,7 @@ class PufferTrainer:
                     self.free_idx = (self.free_idx + num_full) % self.segments
                     self.full_rows += num_full
 
-                action = actions.cpu().numpy()
+                actions.cpu().numpy()
 
             with profile.eval_misc:
                 for i in info:
@@ -570,12 +570,12 @@ class PufferTrainer:
             mb_obs = self.observations[idx]
             mb_actions = self.actions[idx]
             mb_logprobs = self.logprobs[idx]
-            mb_rewards = self.rewards[idx]
+            self.rewards[idx]
             mb_terminals = self.terminals[idx]
-            mb_ratio = self.ratio[idx]
+            self.ratio[idx]
             mb_values = self.values[idx]
             mb_returns = advantages[idx] + mb_values
-            mb_advantages = advantages[idx]
+            advantages[idx]
 
             with profile.train_forward:
                 if not config.get("use_rnn", True):
@@ -930,7 +930,7 @@ class PufferTrainer:
                     replay_url = replay_urls[0]
                     player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
                     link_summary = {
-                        "replays/link": wandb.html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                        "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
                     }
                     self.wandb_run.log(link_summary)
 
