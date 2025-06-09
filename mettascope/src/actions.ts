@@ -2,7 +2,7 @@ import { state } from './common.js';
 import { getAttr, sendAction } from './replay.js';
 import { find } from './htmlutils.js';
 
-
+/** Initialize the action buttons. */
 export function initActionButtons() {
   find("#action-buttons .north").addEventListener('click', () => {
     sendAction("rotate", 0)
@@ -57,6 +57,7 @@ export function initActionButtons() {
   })
 }
 
+/** Process keyboard actions. */
 export function processActions(event: KeyboardEvent) {
   // Smart navigation, where pressing key rotations the agent in the
   // direction of the key, but if the agent is already facing in that
