@@ -86,7 +86,7 @@ cache-keys = [{ file = "pyproject.toml" }, { file = "CMakeLists.txt" }, { file =
 members = ["mettagrid", "wandb_carbs"]
 
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "3.0" }
+pufferlib = { git = "https://github.com/relh/PufferLib.git", rev = "3.0" }
 carbs = { git = "https://github.com/imbue-ai/carbs.git" }
 wandb_carbs = { workspace = true }
 mettagrid = { workspace = true }
