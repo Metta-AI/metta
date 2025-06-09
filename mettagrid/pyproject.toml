@@ -50,6 +50,9 @@ dependencies = [
 # See `./README.md` for more details.
 cmake.args = ["--preset", "release-no-tests"]
 
+# Configure wheel building to include Python package files
+wheel.packages = ["mettagrid"]
+
 # Note: if you decide to use `editable.rebuild` here, consider that it's not
 # compatible with isolated builds.
 #
@@ -70,7 +73,11 @@ python_functions = ["test_*"]
 python_classes = ["Test*"]
 
 [tool.uv]
-cache-keys = [{ file = "pyproject.toml" }, { file = "CMakeLists.txt" }, { file = "mettagrid/**/*.{cpp,hpp}" }]
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "CMakeLists.txt" },
+    { file = "mettagrid/**/*.{cpp,hpp}" },
+]
 
 [tool.uv.sources]
 pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }

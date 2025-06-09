@@ -1,18 +1,18 @@
 {
   // Global Editor Settings
   "editor.formatOnSave": true,
+  "editor.rulers": [120],
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
+  "terminal.integrated.cwd": "${workspaceFolder}",
 
   // C/C++ Configuration
   "[cpp]": {
-    "editor.rulers": [120]
+    "editor.defaultFormatter": "ms-vscode.cpptools"
   },
   "C_Cpp.default.cppStandard": "c++20",
   "C_Cpp.default.compilerPath": "/usr/bin/clang++",
   "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4 }",
-  "C_Cpp.errorSquiggles": "enabled",
-  "C_Cpp.intelliSenseEngine": "default",
 
   // Python Configuration
   "[python]": {
@@ -21,12 +21,9 @@
       "source.fixAll.ruff": "explicit",
       "source.organizeImports.ruff": "explicit"
     },
-    "editor.rulers": [120],
     "editor.renderWhitespace": "trailing"
   },
   "python.analysis.typeCheckingMode": "basic",
-  "python.analysis.extraPaths": ["mettagrid"],
-  "python.autoComplete.extraPaths": ["mettagrid"],
   "python.testing.unittestEnabled": true,
   "python.testing.pytestEnabled": false,
   "python.testing.unittestArgs": [
@@ -48,9 +45,6 @@
       "strings": true
     }
   },
-
-  // Terminal Configuration
-  "terminal.integrated.cwd": "${workspaceFolder}",
 
   // File Explorer Configuration
   "files.exclude": {
