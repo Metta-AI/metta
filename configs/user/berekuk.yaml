@@ -9,7 +9,7 @@ run: ${oc.env:USER}.local.${run_id}
 policy_uri: wandb://run/${run}
 
 trainer:
-  env: /env/mettagrid/mapgen_auto
+  curriculum: /env/mettagrid/mapgen_auto
 
   # env_overrides:
   #   sampling: 0.7
