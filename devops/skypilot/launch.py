@@ -14,6 +14,7 @@ def patch_task(
     gpus: int | None,
     nodes: int | None,
     no_spot: bool = False,
+    timeout_hours: float | None = None,
 ) -> sky.Task:
     overrides = {}
     if cpus:
@@ -43,6 +44,15 @@ def patch_task(
     if gpus or no_spot:
         task.set_resources(type(task.resources)(new_resources_list))
 
+    # Add timeout configuration if specified
+    if timeout_hours is not None:
+        timeout_seconds = int(timeout_hours * 3600)
+        # Update the task's run command to include timeout
+        current_run = task.run or ""
+        # Wrap the existing run command with timeout
+        timeout_run = f"timeout {timeout_seconds}s bash -c '{current_run}'"
+        task.run = timeout_run
+
     return task
 
 
@@ -57,6 +67,12 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--no-spot", action="store_true", help="Disable spot instances")
     parser.add_argument("--copies", type=int, default=1, help="Number of identical job copies to launch")
+    parser.add_argument(
+        "--timeout-hours",
+        type=float,
+        default=None,
+        help="Automatically terminate the job after this many hours (supports decimals, e.g., 1.5 for 90 minutes)",
+    )
     (args, cmd_args) = parser.parse_known_args()
 
     git_ref = args.git_ref
@@ -75,7 +91,9 @@ def main():
     task.name = args.run
     task.validate_name()
 
-    task = patch_task(task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes, no_spot=args.no_spot)
+    task = patch_task(
+        task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes, no_spot=args.no_spot, timeout_hours=args.timeout_hours
+    )
 
     if args.copies == 1:
         launch_task(task, dry_run=args.dry_run)
