@@ -13,9 +13,8 @@ components:
   #necessary input_source: _obs_
 
   _obs_:
-    _target_: metta.agent.lib.obs_enc.ObsTokenCatFourier
-    atr_embed_dim: 379
-    num_freqs: 4
+    _target_: metta.agent.lib.obs_enc.ObsTokenShaperValueEmbed
+    atr_embed_dim: 32
     sources:
       null
 
