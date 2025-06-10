@@ -11,4 +11,4 @@ trainer:
 
 # policy_uri: wandb://run/mrazo_memory-traces_navigation_v01
 
-run: mrazo_t-maze_simple_v01
+run: mrazo_t-maze_simple_v02
