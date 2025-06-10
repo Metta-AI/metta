@@ -472,7 +472,6 @@ class PufferTrainer:
                         self._checkpoint_avg_reward if self._checkpoint_avg_reward is not None else 0.0
                     )
 
-                # Calculate current batch mean
                 current_batch_mean = self._get_experience_buffer_mean_reward()
 
                 # Apply IIR filter (exponential moving average)
