@@ -575,7 +575,7 @@ class PufferTrainer:
                         + ks_value_loss
                     )
 
-                with profile.learn:
+                with self.timer("_train.learn"):
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
@@ -587,7 +587,7 @@ class PufferTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-                with profile.train_misc:
+                with self.timer("_train.misc"):
                     if self.losses is None:
                         raise ValueError("self.losses is None")
 
@@ -606,7 +606,7 @@ class PufferTrainer:
                 if approx_kl > self.trainer_cfg.target_kl:
                     break
 
-        with profile.train_misc:
+        with self.timer("_train.misc"):
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
@@ -616,8 +616,6 @@ class PufferTrainer:
             explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
             self.losses.explained_variance = explained_var
             self.epoch += 1
-
-            profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
 
     def _checkpoint_trainer(self):
         if not self._master:
