@@ -338,19 +338,16 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       }
 
       ActionType action = actions_view(agent_idx, 0);
-      ActionType arg = static_cast<ActionType>(actions_view(agent_idx, 1));
+      ActionType arg = actions_view(agent_idx, 1);
 
       if (action < 0 || action >= _num_action_handlers) {
         throw std::runtime_error("Invalid action type " + std::to_string(action) + ". Valid range: 0 to " +
                                  std::to_string(_num_action_handlers - 1));
       }
+
       if (arg > _max_action_args[action]) {
         throw std::runtime_error("Invalid action argument " + std::to_string(arg) + " exceeds maximum " +
                                  std::to_string(_max_action_args[action]) + " for action " + std::to_string(action));
-      }
-      if (action < 0 || action >= _num_action_handlers) {
-        throw std::runtime_error("Invalid action type " + std::to_string(action) + ". Valid range: 0 to " +
-                                 std::to_string(_num_action_handlers - 1));
       }
 
       auto& agent = _agents[agent_idx];
