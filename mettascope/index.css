@@ -1779,7 +1779,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.panel-body .top {
+.panel-body .params {
     position: relative;
     display: flex;
     width: fit-content;
@@ -1793,7 +1793,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.top .pin-info-panel.hover-icon {
+.params .pin-info-panel.hover-icon {
     position: relative;
     display: block;
     width: 32px;
@@ -1802,7 +1802,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.top .param {
+.params .param {
     position: relative;
     display: flex;
     width: fit-content;
@@ -1844,7 +1844,7 @@ button#help-button.hover-icon .icon {
     line-height: 28.60px;
 }
 
-.panel-body .bottom {
+.panel-body .inventory-area {
     position: relative;
     display: flex;
     width: 100%;
@@ -1858,7 +1858,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.bottom .label {
+.inventory-area .label {
     position: relative;
     display: inline-block;
     width: 100%;
@@ -1875,7 +1875,7 @@ button#help-button.hover-icon .icon {
     line-height: 20.80px;
 }
 
-.bottom .inventory {
+.inventory-area .inventory {
     position: relative;
     display: flex;
     width: 100%;
@@ -1928,6 +1928,115 @@ button#help-button.hover-icon .icon {
     height: 32px;
     left: 4px;
     top: 4px;
+}
+
+.panel-body .actions {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 1px 2px 1px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.actions button.mem-0 {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 8px 4px 8px 4px;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    overflow: hidden;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+button.mem-0 .amount {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 26px;
+}
+
+.actions button.mem-1 {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 8px 4px 8px 4px;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    overflow: hidden;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+button.mem-1 .amount {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 26px;
+}
+
+.actions button.mem-r {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    padding: 8px 4px 8px 4px;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    overflow: hidden;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+button.mem-r .amount {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 26px;
 }
 
 .infopanel .tip {

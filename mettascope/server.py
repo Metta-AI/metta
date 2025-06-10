@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def clear_memory(sim: replays.Simulation):
+def clear_memory(sim: replays.Simulation, what: str, agent_id: int):
     """Clear the memory of the policy."""
     policy_state = sim.get_policy_state()
     print("Policy state: ", policy_state)
@@ -31,9 +31,15 @@ def clear_memory(sim: replays.Simulation):
     print(policy_state.lstm_h)
 
     # Clear the memory of the policy.
-    policy_state.lstm_c.zero_()
-    policy_state.lstm_h.zero_()
-
+    if what == "0":
+        policy_state.lstm_c[:, agent_id, :].zero_()
+        policy_state.lstm_h[:, agent_id, :].zero_()
+    elif what == "1":
+        policy_state.lstm_c[:, agent_id, :].fill_(1)
+        policy_state.lstm_h[:, agent_id, :].fill_(1)
+    elif what == "random":
+        policy_state.lstm_c[:, agent_id, :].normal_(mean=0, std=1)
+        policy_state.lstm_h[:, agent_id, :].normal_(mean=0, std=1)
     print("After: ")
     print(policy_state.lstm_c)
     print(policy_state.lstm_h)
@@ -124,7 +130,7 @@ def make_app(cfg: DictConfig):
                 action_message = None
 
             elif message["type"] == "clear_memory":
-                clear_memory(sim)
+                clear_memory(sim, message["what"], message["agent_id"])
                 continue
 
             else:

@@ -8,7 +8,7 @@
 //   * It will be only closed by clicking on the X.
 //   * It will loose its hover stem on the bottom when it detached mode.
 
-import { find, findIn, onEvent, removeChildren } from "./htmlutils.js";
+import { find, findIn, onEvent, removeChildren, findAttr } from "./htmlutils.js";
 import { state, ui } from "./common.js";
 import { getAttr } from "./replay.js";
 import * as Common from "./common.js";
@@ -34,6 +34,39 @@ onEvent("click", ".infopanel .close", (target: HTMLElement, e: Event) => {
   let panel = target.parentElement as HTMLElement;
   panel.remove();
   ui.infoPanels = ui.infoPanels.filter(p => p.div !== panel);
+})
+
+onEvent("click", ".infopanel .mem-0", (target: HTMLElement, e: Event) => {
+  if (state.ws == null) return;
+  let agentId = parseInt(findAttr(target, "data-agent-id"));
+  console.log("Clearing memory to 0");
+  state.ws.send(JSON.stringify({
+    type: "clear_memory",
+    what: "0",
+    agent_id: agentId
+  }));
+})
+
+onEvent("click", ".infopanel .mem-1", (target: HTMLElement, e: Event) => {
+  if (state.ws == null) return;
+  let agentId = parseInt(findAttr(target, "data-agent-id"));
+  console.log("Clearing memory to 1");
+  state.ws.send(JSON.stringify({
+    type: "clear_memory",
+    what: "1",
+    agent_id: agentId
+  }));
+})
+
+onEvent("click", ".infopanel .mem-r", (target: HTMLElement, e: Event) => {
+  if (state.ws == null) return;
+  let agentId = parseInt(findAttr(target, "data-agent-id"));
+  console.log("Clearing memory to random");
+  state.ws.send(JSON.stringify({
+    type: "clear_memory",
+    what: "random",
+    agent_id: agentId
+  }));
 })
 
 var infoPanelTemplate = find(".infopanel") as HTMLElement;
@@ -100,12 +133,22 @@ export function updateHoverPanel(object: any) {
 /** Update the dom tree of the info panel. */
 function updateDom(htmlPanel: HTMLElement, object: any) {
   // Update the readout.
-  var top = findIn(htmlPanel, ".top");
+  htmlPanel.setAttribute("data-object-id", getAttr(object, "id"));
+  htmlPanel.setAttribute("data-agent-id", getAttr(object, "agent_id"));
+
+  var params = findIn(htmlPanel, ".params");
   var paramTemplate = findIn(infoPanelTemplate, ".param");
   var inventory = findIn(htmlPanel, ".inventory");
   var itemTemplate = findIn(infoPanelTemplate, ".item");
+  var actions = findIn(htmlPanel, ".actions");
 
-  removeChildren(top);
+  if (object.hasOwnProperty("agent_id")) {
+    actions.classList.remove("hidden");
+  } else {
+    actions.classList.add("hidden");
+  }
+
+  removeChildren(params);
   //top.appendChild(pin);
   removeChildren(inventory);
 
@@ -133,7 +176,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
       var param = paramTemplate.cloneNode(true) as HTMLElement;
       param.querySelector(".name")!.textContent = key;
       param.querySelector(".value")!.textContent = value;
-      top.appendChild(param);
+      params.appendChild(param);
     }
   }
 }
