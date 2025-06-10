@@ -270,7 +270,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
 
-        timer_data = {}
         wall_time = self.timer.get_elapsed()  # global timer
         timer_data = self.timer.get_all_elapsed()
 
