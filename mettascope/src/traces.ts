@@ -3,9 +3,10 @@ import * as Common from './common.js';
 import { ui, state, ctx, setFollowSelection } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
-import { updateStep } from './main.js';
+import { updateStep, updateSelection } from './main.js';
 import { parseHtmlColor } from './htmlutils.js';
 
+/** Draw the trace panel. */
 export function drawTrace(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -28,7 +29,7 @@ export function drawTrace(panel: PanelInfo) {
     ) {
       // Check if we are clicking on an action/step.
       console.log("Trace up without dragging - selecting trace object");
-      const localMousePos = panel.transformPoint(ui.mousePos);
+      const localMousePos = panel.transformOuter(ui.mousePos);
       if (localMousePos != null) {
         const mapX = localMousePos.x();
         const selectedStep = Math.floor(mapX / Common.TRACE_WIDTH);
@@ -38,7 +39,7 @@ export function drawTrace(panel: PanelInfo) {
           selectedStep >= 0 && selectedStep < state.replay.max_steps &&
           agentId >= 0 && agentId < state.replay.num_agents
         ) {
-          state.selectedGridObject = state.replay.agents[agentId];
+          updateSelection(state.replay.agents[agentId]);
           console.log("Selected an agent on a trace:", state.selectedGridObject);
           ui.mapPanel.focusPos(
             getAttr(state.selectedGridObject, "c") * Common.TILE_SIZE,

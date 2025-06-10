@@ -158,35 +158,6 @@ simulations:
     env: env/mettagrid/memory/evals/tease_small
   memory/you_shall_not_pass:
     env: env/mettagrid/memory/evals/you_shall_not_pass
-  multiagent/be_polite:
-    env: env/mettagrid/multiagent/evals/be_polite
-  multiagent/be_polite_team:
-    env: env/mettagrid/multiagent/evals/be_polite_team
-  multiagent/choose_an_altar:
-    env: env/mettagrid/multiagent/evals/choose_an_altar
-  multiagent/circambulate:
-    env: env/mettagrid/multiagent/evals/circambulate
-  multiagent/corridor:
-    env: env/mettagrid/multiagent/evals/corridor
-  multiagent/corridor_team:
-    env: env/mettagrid/multiagent/evals/corridor_team
-  multiagent/fork:
-    env: env/mettagrid/multiagent/evals/fork
-  multiagent/fork_team:
-    env: env/mettagrid/multiagent/evals/fork_team
-  multiagent/grab_the_other_first:
-    env: env/mettagrid/multiagent/evals/grab_the_other_first
-  multiagent/protect_the_resources:
-    env: env/mettagrid/multiagent/evals/protect_the_resources
-  multiagent/spine_maze_extended:
-    env: env/mettagrid/multiagent/evals/spine_maze_extended
-  multiagent/stay_put:
-    env: env/mettagrid/multiagent/evals/stay_put
-  multiagent/stealing:
-    env: env/mettagrid/multiagent/evals/stealing
-  multiagent/team_up:
-    env: env/mettagrid/multiagent/evals/team_up
-  multiagent/wallblocker:
-    env: env/mettagrid/multiagent/evals/wallblocker
-  multiagent/wallblocker_team:
-    env: env/mettagrid/multiagent/evals/wallblocker_team
+# env_overrides:
+#   game:
+#     use_observation_tokens: true

@@ -1,13 +1,16 @@
 import numpy as np
 
 from mettagrid.mettagrid_c import MettaGrid
+from mettagrid.mettagrid_env import dtype_actions
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
 OBS_WIDTH = 3
+NUM_OBS_TOKENS = 100
+OBS_TOKEN_SIZE = 3
 
 
-def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, use_observation_tokens=False):
+def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
     """Helper function to create a MettaGrid environment with minimal config."""
     # Define a simple map: empty with walls around perimeter
     game_map = np.full((height, width), "empty", dtype="<U50")
@@ -30,8 +33,8 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, use_observat
             "num_agents": NUM_AGENTS,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": use_observation_tokens,
-            "num_observation_tokens": 100,
+            "use_observation_tokens": True,
+            "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
                 # don't really care about the actions for this test
                 "noop": {"enabled": True},
@@ -62,14 +65,14 @@ def test_truncation_at_max_steps():
     """Test that environments properly truncate at max_steps."""
     max_steps = 5
     c_env = create_minimal_mettagrid_c_env(max_steps=max_steps)
-    obs, info = c_env.reset()
+    _obs, _info = c_env.reset()
 
     # Noop until time runs out
     noop_action_idx = c_env.action_names().index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
     for step_num in range(1, max_steps + 1):
-        obs, rewards, terminals, truncations, info = c_env.step(actions)
+        _obs, _rewards, terminals, truncations, _info = c_env.step(actions)
         if step_num < max_steps:
             assert not np.any(truncations), f"Truncations should be False before max_steps at step {step_num}"
             assert not np.any(terminals), f"Terminals should be False before max_steps at step {step_num}"
@@ -84,11 +87,11 @@ class TestObservations:
 
     def test_observation_tokens(self):
         """Test observation token format and content."""
-        c_env = create_minimal_mettagrid_c_env(use_observation_tokens=True)
+        c_env = create_minimal_mettagrid_c_env()
         # These come from constants in the C++ code, and are fragile.
-        TYPE_ID_FEATURE = 1
+        TYPE_ID_FEATURE = 0
         WALL_TYPE_ID = 1
-        obs, info = c_env.reset()
+        obs, _info = c_env.reset()
         # Agent 0 starts at (1,1) and should see walls above and to the left
         # for now we treat the walls as "something non-empty"
         for x, y in [(0, 1), (1, 0)]:
@@ -100,25 +103,17 @@ class TestObservations:
             token_matches = obs[0, :, 0] == location
             assert not token_matches.any(), f"Expected no tokens at location {x}, {y}"
 
-    def test_observations(self):
-        """Test standard observation format and content."""
+    def test_observation_token_order(self):
+        """Test observation token order."""
         c_env = create_minimal_mettagrid_c_env()
-        type_id_feature_idx = c_env.grid_features().index("type_id")
-        agent_feature_idx = c_env.grid_features().index("agent")
-        converter_feature_idx = c_env.grid_features().index("converter")
-        obs, info = c_env.reset()
-        # Agent 0 starts at (1,1) and should see walls above and to the left. Walls have a type_id and aren't
-        # agents or converters.
-        assert obs[0, 0, 1, type_id_feature_idx] > 0, "Expected wall above agent 0"
-        assert not obs[0, 0, 1, agent_feature_idx].any(), "Expected no agent above agent 0"
-        assert not obs[0, 0, 1, converter_feature_idx].any(), "Expected no converter above agent 0"
-
-        assert obs[0, 1, 0, type_id_feature_idx] > 0, "Expected wall to left of agent 0"
-        assert not obs[0, 1, 0, agent_feature_idx].any(), "Expected no agent to left of agent 0"
-        assert not obs[0, 1, 0, converter_feature_idx].any(), "Expected no converter to left of agent 0"
-
-        assert not obs[0, 2, 1, :].any(), "Expected empty space below agent 0"
-        assert not obs[0, 1, 2, :].any(), "Expected empty space to right of agent 0"
+        obs, _info = c_env.reset()
+        distances = []
+        for location in obs[0, :, 0]:
+            # cast as ints to avoid numpy uint8 underflow
+            x = int(location >> 4)
+            y = int(location & 0xF)
+            distances.append(abs(x - 1) + abs(y - 1))  # 1,1 is the agent's location
+        assert distances == sorted(distances), f"Distances should be increasing: {distances}"
 
 
 def test_grid_objects():
@@ -159,11 +154,11 @@ def test_environment_initialization():
     assert c_env.map_width == 5, "Map width should be 5"
     assert c_env.map_height == 5, "Map height should be 5"
     assert len(c_env.action_names()) > 0, "Should have available actions"
-    assert len(c_env.grid_features()) > 0, "Should have grid features"
+    assert len(c_env.feature_normalizations()) > 0, "Should have feature normalizations"
 
     # Test reset functionality
     obs, info = c_env.reset()
-    assert obs.shape == (NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, len(c_env.grid_features())), (
+    assert obs.shape == (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), (
         "Observation shape should match expected dimensions"
     )
     assert isinstance(info, dict), "Info should be a dictionary"
@@ -182,14 +177,12 @@ def test_action_interface():
 
     # Test basic action execution
     noop_action_idx = action_names.index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
     obs, rewards, terminals, truncations, info = c_env.step(actions)
 
     # Verify return types and shapes
-    assert obs.shape == (NUM_AGENTS, OBS_HEIGHT, OBS_WIDTH, len(c_env.grid_features())), (
-        "Step observation shape should be correct"
-    )
+    assert obs.shape == (NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), "Step observation shape should be correct"
     assert rewards.shape == (NUM_AGENTS,), "Rewards shape should match number of agents"
     assert terminals.shape == (NUM_AGENTS,), "Terminals shape should match number of agents"
     assert truncations.shape == (NUM_AGENTS,), "Truncations shape should match number of agents"
@@ -211,7 +204,7 @@ def test_environment_state_consistency():
 
     # Take a noop action (should not change world state significantly)
     noop_action_idx = c_env.action_names().index("noop")
-    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=np.int64)
+    actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
 
     _obs2, _rewards, _terminals, _truncations, _info2 = c_env.step(actions)
     post_step_objects = c_env.grid_objects()
@@ -223,15 +216,12 @@ def test_environment_state_consistency():
     assert c_env.map_width == 5, "Map width should remain consistent"
     assert c_env.map_height == 5, "Map height should remain consistent"
 
-    # Feature and action lists should remain consistent
-    features1 = c_env.grid_features()
+    # Action lists should remain consistent
     actions1 = c_env.action_names()
 
     # Take another step
     c_env.step(actions)
 
-    features2 = c_env.grid_features()
     actions2 = c_env.action_names()
 
-    assert features1 == features2, "Grid features should remain consistent"
     assert actions1 == actions2, "Action names should remain consistent"

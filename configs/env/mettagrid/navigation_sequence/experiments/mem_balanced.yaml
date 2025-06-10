@@ -1,6 +1,9 @@
+<<<<<<< HEAD
 # 'mem' environments are small environments with few objects, the objects have relatively short cooldowns, so the agent needs to remember where objects are located as they need to revisit objects multiple times. the all have the full sequence mine-generator-altar
 
 
+=======
+>>>>>>> ea4b6ddcd78d1df1692f1a167fe05529446babc7
 defaults:
   - /env/mettagrid/navigation_sequence/training/mem_defaults@
   - _self_

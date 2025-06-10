@@ -320,6 +320,6 @@ Potential improvements being considered:
 
 1. **Batch Operations**: Multiple file changes in one request
 2. **Test Generation**: Automatic test creation for changes
-3. **Dependency Updates**: Handling package.json, requirements.txt
+3. **Dependency Updates**: Handling package.json, uv.lock
 4. **Cross-PR Context**: Understanding related PRs
 5. **Approval Workflow**: Require approval before PR creation

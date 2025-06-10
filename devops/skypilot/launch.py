@@ -1,17 +1,20 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 import argparse
 import copy
 import subprocess
-import sys
 
 import sky
-
-sys.path.insert(0, ".")
 
 from devops.skypilot.utils import launch_task
 
 
-def patch_task(task: sky.Task, cpus: int | None, gpus: int | None, nodes: int | None) -> sky.Task:
+def patch_task(
+    task: sky.Task,
+    cpus: int | None,
+    gpus: int | None,
+    nodes: int | None,
+    no_spot: bool = False,
+) -> sky.Task:
     overrides = {}
     if cpus:
         overrides["cpus"] = cpus
@@ -19,6 +22,8 @@ def patch_task(task: sky.Task, cpus: int | None, gpus: int | None, nodes: int | 
         task.set_resources_override(overrides)
     if nodes:
         task.num_nodes = nodes
+
+    new_resources_list = list(task.resources)
 
     if gpus:
         new_resources_list = []
@@ -32,6 +37,10 @@ def patch_task(task: sky.Task, cpus: int | None, gpus: int | None, nodes: int | 
             new_resources = res.copy(accelerators=patched_accelerators)
             new_resources_list.append(new_resources)
 
+    if no_spot:
+        new_resources_list = [res.copy(use_spot=False) for res in new_resources_list]
+
+    if gpus or no_spot:
         task.set_resources(type(task.resources)(new_resources_list))
 
     return task
@@ -46,6 +55,7 @@ def main():
     parser.add_argument("--nodes", type=int, default=None)
     parser.add_argument("--cpus", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--no-spot", action="store_true", help="Disable spot instances")
     parser.add_argument("--copies", type=int, default=1, help="Number of identical job copies to launch")
     (args, cmd_args) = parser.parse_known_args()
 
@@ -65,7 +75,7 @@ def main():
     task.name = args.run
     task.validate_name()
 
-    task = patch_task(task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes)
+    task = patch_task(task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes, no_spot=args.no_spot)
 
     if args.copies == 1:
         launch_task(task, dry_run=args.dry_run)

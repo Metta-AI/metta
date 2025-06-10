@@ -20,6 +20,7 @@ from typing import Any, Dict
 
 import numpy as np
 import torch
+from einops import rearrange
 from omegaconf import OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
@@ -30,7 +31,7 @@ from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
 from mettagrid.curriculum import SamplingCurriculum
-from mettagrid.mettagrid_env import MettaGridEnv
+from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
@@ -107,27 +108,6 @@ class Simulation:
         self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
 
-        policy_expected_channels = self._policy_pr.expected_observation_channels()
-        npc_policy_expected_channels = self._npc_pr.expected_observation_channels() if self._npc_pr else None
-        env_expected_channels = self._vecenv.observation_space.shape[-1]
-
-        if policy_expected_channels is not None and policy_expected_channels != env_expected_channels:
-            error_msg = (
-                f"Main policy expects {policy_expected_channels} observation channels, "
-                f"but current environment provides {env_expected_channels}."
-            )
-            logger.error(error_msg)
-            raise SimulationCompatibilityError(error_msg)
-
-        # Check NPC policy compatibility (if it exists)
-        if npc_policy_expected_channels is not None and npc_policy_expected_channels != env_expected_channels:
-            error_msg = (
-                f"NPC policy expects {npc_policy_expected_channels} observation channels, "
-                f"but current environment provides {env_expected_channels}."
-            )
-            logger.error(error_msg)
-            raise SimulationCompatibilityError(error_msg)
-
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
 
@@ -142,7 +122,13 @@ class Simulation:
         if self._npc_pr is not None:
             npc_agent: MettaAgent | DistributedMettaAgent = self._npc_pr.policy_as_metta_agent()
             assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent)), npc_agent
-            npc_agent.activate_actions(action_names, max_args, self._device)
+            try:
+                npc_agent.activate_actions(action_names, max_args, self._device)
+            except Exception as e:
+                logger.error(f"Error activating NPC actions: {e}")
+                raise SimulationCompatibilityError(
+                    f"[{self._name}] Error activating NPC actions for {self._npc_pr.name}: {e}"
+                ) from e
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -183,35 +169,83 @@ class Simulation:
         """
         Generate actions for the simulation.
         """
+        if __debug__:
+            # Debug assertion: verify indices are correctly ordered
+            # Policy indices should be 0 to N-1
+            # NPC indices should be N to M-1
+            num_policy = len(self._policy_idxs)
+            num_npc = len(self._npc_idxs)
+
+            if num_policy > 0:
+                assert self._policy_idxs[0] == 0, f"Policy indices should start at 0, got {self._policy_idxs[0]}"
+                assert self._policy_idxs[-1] == num_policy - 1, (
+                    f"Policy indices should be continuous 0 to {num_policy - 1}, last index is {self._policy_idxs[-1]}"
+                )
+                assert list(self._policy_idxs) == list(range(num_policy)), (
+                    "Policy indices should be continuous sequence starting from 0"
+                )
+
+            if self._npc_pr is not None and num_npc > 0:
+                expected_npc_start = num_policy
+                assert self._npc_idxs[0] == expected_npc_start, (
+                    f"NPC indices should start at {expected_npc_start}, got {self._npc_idxs[0]}"
+                )
+                assert self._npc_idxs[-1] == expected_npc_start + num_npc - 1, (
+                    f"NPC indices should end at {expected_npc_start + num_npc - 1}, got {self._npc_idxs[-1]}"
+                )
+                assert list(self._npc_idxs) == list(range(expected_npc_start, expected_npc_start + num_npc)), (
+                    f"NPC indices should be continuous sequence from {expected_npc_start}"
+                )
+
+            # Verify no overlap between policy and NPC indices
+            if num_policy > 0 and num_npc > 0:
+                policy_set = set(self._policy_idxs)
+                npc_set = set(self._npc_idxs)
+                assert policy_set.isdisjoint(npc_set), (
+                    f"Policy and NPC indices should not overlap. Overlap: {policy_set.intersection(npc_set)}"
+                )
+
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
             obs_t = torch.as_tensor(self._obs, device=self._device)
-
             # Candidate-policy agents
             my_obs = obs_t[self._policy_idxs]
             policy = self._policy_pr.policy()
             policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
-
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
                 npc_policy = self._npc_pr.policy()
-                npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)
+                try:
+                    npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)
+                except Exception as e:
+                    logger.error(f"Error generating NPC actions: {e}")
+                    raise SimulationCompatibilityError(
+                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.name}: {e}"
+                    ) from e
 
         # ---------------- action stitching ----------------------- #
         actions = policy_actions
         if self._npc_agents_per_env:
-            actions = torch.cat(
-                [
-                    policy_actions.view(self._num_envs, self._policy_agents_per_env, -1),
-                    npc_actions.view(self._num_envs, self._npc_agents_per_env, -1),
-                ],
-                dim=1,
+            # Reshape policy and npc actions to (num_envs, agents_per_env, action_dim)
+            policy_actions = rearrange(
+                policy_actions,
+                "(envs policy_agents) act -> envs policy_agents act",
+                envs=self._num_envs,
+                policy_agents=self._policy_agents_per_env,
             )
+            npc_actions = rearrange(
+                npc_actions,
+                "(envs npc_agents) act -> envs npc_agents act",
+                envs=self._num_envs,
+                npc_agents=self._npc_agents_per_env,
+            )
+            # Concatenate along agents dimension
+            actions = torch.cat([policy_actions, npc_actions], dim=1)
+            # Flatten back to (total_agents, action_dim)
+            actions = rearrange(actions, "envs agents act -> (envs agents) act")
 
-        actions = actions.view(self._num_envs * self._agents_per_env, -1)
-        actions_np = actions.cpu().numpy()
-
+        actions_np = actions.cpu().numpy().astype(dtype_actions)
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
@@ -250,8 +284,8 @@ class Simulation:
         self.start_simulation()
 
         while (self._episode_counters < self._min_episodes).any() and (time.time() - self._t0) < self._max_time_s:
-            action = self.generate_actions()
-            self.step_simulation(action)
+            actions_np = self.generate_actions()
+            self.step_simulation(actions_np)
 
         return self.end_simulation()
 

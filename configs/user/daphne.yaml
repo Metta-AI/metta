@@ -10,22 +10,23 @@
 #navigation_poisson_sparser_pretrained.r.6
 
 defaults:
+  - override /agent: robust_cross
   # - override /agent: robust_cross
   - _self_
 
 trainer:
-  env: /env/mettagrid/curriculum/all
-  # evaluate_interval: 3
-  # env_overrides:
-  #   game:
-  #     use_observation_tokens: true
-  # evals:
-  #   env_overrides:
-  #     game:
-  #       use_observation_tokens: true
+  env: /env/mettagrid/curriculum/navigation
+  evaluate_interval: 3
+  env_overrides:
+    game:
+      use_observation_tokens: true
+  evals:
+    env_overrides:
+      game:
+        use_observation_tokens: true
 
 policy_uri: wandb://run/b.georgedeane.george_sequence_no_increment
 
-run_id: 7
+run_id: 5
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

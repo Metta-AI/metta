@@ -16,6 +16,8 @@
 #include <string>
 #include <vector>
 
+#include "types.hpp"
+
 // Forward declarations of existing C++ classes
 class Grid;
 class EventManager;
@@ -40,18 +42,19 @@ public:
 
   // Python API methods
   py::tuple reset();
-  py::tuple step(py::array_t<int> actions);
-  void set_buffers(const py::array_t<unsigned char, py::array::c_style>& observations,
-                   const py::array_t<bool, py::array::c_style>& terminals,
-                   const py::array_t<bool, py::array::c_style>& truncations,
-                   const py::array_t<float, py::array::c_style>& rewards);
+  // In general, these types need to match what puffer wants to use.
+  py::tuple step(py::array_t<ActionType, py::array::c_style> actions);
+  void set_buffers(const py::array_t<ObservationType, py::array::c_style>& observations,
+                   const py::array_t<TerminalType, py::array::c_style>& terminals,
+                   const py::array_t<TruncationType, py::array::c_style>& truncations,
+                   const py::array_t<RewardType, py::array::c_style>& rewards);
   void validate_buffers();
   py::dict grid_objects();
   py::list action_names();
 
   unsigned int map_width();
   unsigned int map_height();
-  py::list grid_features();
+  py::list feature_normalizations();
   unsigned int num_agents();
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
@@ -87,6 +90,7 @@ private:
   std::unique_ptr<StatsTracker> _stats;
 
   bool _use_observation_tokens;
+  unsigned int _num_observation_tokens;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
@@ -100,7 +104,7 @@ private:
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 
-  std::vector<std::string> _grid_features;
+  std::vector<float> _feature_normalizations;
 
   std::vector<bool> _action_success;
 
@@ -111,8 +115,8 @@ private:
                             unsigned short obs_width,
                             unsigned short obs_height,
                             size_t agent_idx);
-  void _compute_observations(py::array_t<int> actions);
-  void _step(py::array_t<int> actions);
+  void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
+  void _step(py::array_t<ActionType, py::array::c_style> actions);
 };
 
 #endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_
