@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/mettagrid_deterministic@
   - _self_
 
 sampling: 1
@@ -14,12 +14,12 @@ game:
 
     room:
       _target_: mettagrid.room.random.Random
-      width: ${sampling:75,120,60}
-      height: ${sampling:75,120,60}
-      border_width: ${sampling:1,6,3}
+      width: 60
+      height: 60
+      border_width: 1
       agents: 1
       objects:
-        altar: ${sampling:5,50,20}
+        altar: 15
 
   objects:
     altar:
