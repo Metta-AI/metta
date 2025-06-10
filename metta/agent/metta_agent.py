@@ -279,9 +279,12 @@ class MettaAgent(nn.Module):
             hidden_size = self.model.hidden_size
             if isinstance(hidden_size, int):
                 return hidden_size
-            else:
+            elif torch.is_tensor(hidden_size):
                 # For properties that might return tensors, get the scalar value
                 return int(hidden_size.item())
+            else:
+                # Try to convert to int directly
+                return int(hidden_size)
         raise AttributeError(f"{self.model_type} model does not have hidden_size attribute")
 
     @property
@@ -438,26 +441,3 @@ class MettaAgent(nn.Module):
             logger.warning("No model found in checkpoint")
 
         return agent
-
-    def l2_reg_loss(self) -> torch.Tensor:
-        if self.model and hasattr(self.model, "l2_reg_loss"):
-            return self.model.l2_reg_loss()
-        return torch.zeros(1)
-
-    def l2_init_loss(self) -> torch.Tensor:
-        if self.model and hasattr(self.model, "l2_init_loss"):
-            return self.model.l2_init_loss()
-        return torch.zeros(1)
-
-    def update_l2_init_weight_copy(self):
-        if self.model and hasattr(self.model, "update_l2_init_weight_copy"):
-            self.model.update_l2_init_weight_copy()
-
-    def clip_weights(self):
-        if self.model and hasattr(self.model, "clip_weights"):
-            self.model.clip_weights()
-
-    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        if self.model and hasattr(self.model, "compute_weight_metrics"):
-            return self.model.compute_weight_metrics(delta)
-        return []
