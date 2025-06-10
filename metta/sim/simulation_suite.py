@@ -4,7 +4,8 @@ from pathlib import Path
 
 import torch
 
-from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.metta_agent import MettaAgent
+from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -19,7 +20,7 @@ class SimulationSuite:
     def __init__(
         self,
         config: SimulationSuiteConfig,
-        policy_pr: PolicyRecord,
+        policy_pr: MettaAgent,
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,

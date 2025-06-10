@@ -121,11 +121,11 @@ class PufferTrainer:
         assert policy_record is not None, "No policy found"
 
         if self._master:
-            logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
+            logger.info(f"PufferTrainer loaded: {policy_record.model}")
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
-        self.policy = policy_record.policy().to(self.device)
+        self.policy = policy_record.to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 

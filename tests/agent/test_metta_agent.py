@@ -3,8 +3,8 @@ import numpy as np
 import pytest
 import torch
 
-# Import the actual class
-from metta.agent.metta_agent import MettaAgent
+# Import the actual class - now we need BrainPolicy
+from metta.agent.brain_policy import BrainPolicy
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 
 
@@ -85,7 +85,7 @@ def create_metta_agent():
     }
 
     # Create the agent with minimal config needed for the tests
-    agent = MettaAgent(
+    agent = BrainPolicy(
         obs_space=obs_space,
         action_space=action_space,
         device="cpu",

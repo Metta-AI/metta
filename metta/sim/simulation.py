@@ -25,7 +25,7 @@ from omegaconf import OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.policy_store import PolicyStore
 from metta.rl.pufferlib.policy import PufferAgent
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -53,7 +53,7 @@ class Simulation:
         self,
         name: str,
         config: SingleEnvSimulationConfig,
-        policy_pr: PolicyRecord,
+        policy_pr: MettaAgent,
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
@@ -291,7 +291,7 @@ class Simulation:
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
         # Make sure we're creating a dictionary of the right type
-        agent_map: Dict[int, PolicyRecord] = {}
+        agent_map: Dict[int, MettaAgent] = {}
 
         # Add policy agents to the map
         for idx in self._policy_idxs:

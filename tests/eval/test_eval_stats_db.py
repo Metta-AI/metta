@@ -18,14 +18,23 @@ import pytest
 from metta.eval.eval_stats_db import EvalStatsDB
 
 
-# -------- Mock PolicyRecord ----------------------------------------------- #
-class MockPolicyRecord:
+# -------- Mock MettaAgent ----------------------------------------------- #
+class MockMettaAgent:
     def __init__(self, policy_key: str, policy_version: int):
         self._policy_key = policy_key
         self._policy_version = policy_version
+        self.name = f"{policy_key}_v{policy_version}"
+        self.uri = f"{policy_key}:v{policy_version}"
+        self.metadata = {}
 
     def key_and_version(self) -> Tuple[str, int]:
         return self._policy_key, self._policy_version
+
+    def key(self) -> str:
+        return self._policy_key
+
+    def version(self) -> int:
+        return self._policy_version
 
 
 # -------- Helpers --------------------------------------------------------- #
@@ -93,22 +102,22 @@ def test_db():
 
 @pytest.fixture(autouse=True)
 def _patch_policyrecord(monkeypatch):
-    monkeypatch.setattr("metta.eval.eval_stats_db.PolicyRecord", MockPolicyRecord)
+    monkeypatch.setattr("metta.eval.eval_stats_db.MettaAgent", MockMettaAgent)
 
 
 # -------- Tests ------------------------------------------------------------ #
 def test_metrics_normalisation(test_db):
     db, _, _ = test_db
-    policy = MockPolicyRecord("test_policy", 1)
+    policy = MockMettaAgent("test_policy", 1)
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
     avg_hearts = db.get_average_metric_by_filter("hearts_collected", policy)
     assert 1.15 <= avg_hearts <= 1.25, f"expected ≈1.2 got {avg_hearts}"
 
-    potential = db.potential_samples_for_metric(policy._policy_key, policy._policy_version)
+    potential = db.potential_samples_for_metric(policy.key(), policy.version())
     assert potential == 5
 
-    recorded = db.count_metric_agents(policy._policy_key, policy._policy_version, "hearts_collected")
+    recorded = db.count_metric_agents(policy.key(), policy.version(), "hearts_collected")
     assert recorded == 2
 
     # reward recorded for every sample → mean unaffected
@@ -125,7 +134,7 @@ def test_metrics_normalisation(test_db):
 
 def test_simulation_scores_normalisation(test_db):
     db, _, _ = test_db
-    policy = MockPolicyRecord("test_policy", 1)
+    policy = MockMettaAgent("test_policy", 1)
 
     scores = db.simulation_scores(policy, "hearts_collected")
     assert len(scores) == 1
@@ -145,7 +154,7 @@ def test_simulation_scores_normalisation(test_db):
 
 def test_sum_metric_normalisation(test_db):
     db, _, _ = test_db
-    policy = MockPolicyRecord("test_policy", 1)
+    policy = MockMettaAgent("test_policy", 1)
 
     sum_norm = db.get_sum_metric_by_filter("hearts_collected", policy)
     assert 1.15 <= sum_norm <= 1.25  # (6 / 5) ≈ 1.2
@@ -153,18 +162,18 @@ def test_sum_metric_normalisation(test_db):
 
 def test_no_metrics(test_db):
     db, _, _ = test_db
-    policy = MockPolicyRecord("test_policy", 1)
+    policy = MockMettaAgent("test_policy", 1)
 
     assert db.get_average_metric_by_filter("nonexistent", policy) == 0.0
 
-    bad_policy = MockPolicyRecord("none", 99)
+    bad_policy = MockMettaAgent("none", 99)
     assert db.get_average_metric_by_filter("hearts_collected", bad_policy) is None
 
 
 def test_empty_database():
     with tempfile.TemporaryDirectory() as tmp:
         db = EvalStatsDB(Path(tmp) / "empty.duckdb")
-        policy = MockPolicyRecord("test", 1)
+        policy = MockMettaAgent("test", 1)
 
         assert db.get_average_metric_by_filter("reward", policy) is None
         assert db.potential_samples_for_metric("test", 1) == 0
@@ -175,7 +184,7 @@ def test_metric_by_policy_eval(test_db):
     """metric_by_policy_eval should return a normalised mean per policy and eval."""
     db, _, _ = test_db
 
-    policy = MockPolicyRecord("test_policy", 1)
+    policy = MockMettaAgent("test_policy", 1)
     df = db.metric_by_policy_eval("hearts_collected", policy)
 
     # Expect one row (env_test) with ≈1.2
