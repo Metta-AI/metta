@@ -63,6 +63,8 @@ public:
     }
   }
 
+  // Returns the number of tokens that were available to write. This will be the number of tokens actually
+  // written if there was enough space -- or a greater number if there was not enough space.
   size_t encode_tokens(const GridObject* obj, ObservationTokens tokens) {
     return obj->obs_tokens(tokens);
   }
