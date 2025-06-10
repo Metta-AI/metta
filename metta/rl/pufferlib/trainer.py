@@ -77,7 +77,7 @@ class PufferTrainer:
         self._eval_suite_avgs = {}
         self._eval_categories = set()
         self._weights_helper = WeightsMetricsHelper(cfg)
-        self._make_vecenv()  # this sets self.batch_size
+        self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), (
@@ -862,14 +862,12 @@ class PufferTrainer:
         else:
             world_size = 1
 
-        # self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
         self.batch_size = int(self.target_batch_size)
         self.batch_size = self.batch_size // world_size
-        print(f"vecenv_batch_size: {self.batch_size}")
+        logger.info(f"vecenv_batch_size: {self.batch_size}")
 
         num_envs = self.batch_size * self.trainer_cfg.async_factor
-
-        print(f"self.num_envs: {num_envs}")
+        logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
             logger.error(
@@ -889,16 +887,8 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
 
-        if torch.distributed.is_initialized():
-            print("Resetting seeds the proper way")
-            print(
-                f"Resetting envs with seed (RANK {os.environ['RANK']}) {self.cfg.seed * (int(os.environ['RANK']) + 1)}"
-            )
-            self.vecenv.async_reset(
-                self.cfg.seed * (int(os.environ["RANK"]) + 1)
-            )  # make sure that the envs are not perfectly correlated
-        else:
-            self.vecenv.async_reset(self.cfg.seed)
+        rank = int(os.environ.get("RANK", 0))
+        self.vecenv.async_reset(self.cfg.seed + rank)
 
 
 class AbortingTrainer(PufferTrainer):
