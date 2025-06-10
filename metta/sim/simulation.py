@@ -127,7 +127,7 @@ class Simulation:
                 logger.error(f"Error activating NPC actions: {e}")
                 raise SimulationCompatibilityError(
                     f"[{self._name}] Error activating NPC actions for {self._npc_pr.name}: {e}"
-                )
+                ) from e
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -221,7 +221,8 @@ class Simulation:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
                         f"[{self._name}] Error generating NPC actions for {self._npc_pr.name}: {e}"
-                    )
+                    ) from e
+
         # ---------------- action stitching ----------------------- #
         actions = policy_actions
         if self._npc_agents_per_env:
