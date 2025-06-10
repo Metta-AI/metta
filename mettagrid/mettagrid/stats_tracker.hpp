@@ -59,10 +59,6 @@ public:
   }
 
   void add(const std::string& key, float amount) {
-    if (_stats.find(key) == _stats.end()) {
-      _stats[key] = 0.0f;
-    }
-
     _stats[key] += amount;
     track_timing(key);
     track_bounds(key, _stats[key]);
