@@ -13,7 +13,6 @@ from pufferlib import unroll_nested_dict
 from pydantic import validate_call
 from typing_extensions import override
 
-from metta.util.timing import Stopwatch  # ignore
 from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
@@ -21,6 +20,7 @@ from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.diversity import calculate_diversity_bonus
 from mettagrid.util.hydra import simple_instantiate
+from mettagrid.util.stopwatch import Stopwatch
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
