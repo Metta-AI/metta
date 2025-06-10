@@ -232,6 +232,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
   if (_use_observation_tokens) {
+    size_t attempted_tokens_written = 0;
     size_t tokens_written = 0;
     auto observation_view = _observations.mutable_unchecked<3>();
     // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
@@ -260,16 +261,21 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
             ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
             ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
-            size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+            size_t attempted_obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+            size_t obj_tokens_written = std::min(attempted_obj_tokens_written, agent_obs_tokens.size());
 
             uint8_t location = obs_r << 4 | obs_c;
             for (size_t i = 0; i < obj_tokens_written; i++) {
               agent_obs_tokens[i].location = location;
             }
+            attempted_tokens_written += attempted_obj_tokens_written;
             tokens_written += obj_tokens_written;
           }
         }
       }
+      _stats->add("tokens_written", static_cast<float>(tokens_written));
+      _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
+      _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
     }
   } else {
     auto observation_view = _observations.mutable_unchecked<4>();
