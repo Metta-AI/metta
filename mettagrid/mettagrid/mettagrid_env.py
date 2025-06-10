@@ -50,13 +50,16 @@ def required(func):
     return func
 
 
+cache_logger = logging.getLogger("CACHE_DEBUG")
+cache_logger.setLevel(logging.INFO)
+
 # Cache manager for expensive map building operations
 map_cache = S3CacheManager(
     bucket_name="softmax-level-cache",
     prefix="map_builder_cache/",
     compression_level=6,
     aws_region="us-east-1",
-    logger=logger,
+    logger=cache_logger,
 )
 
 
