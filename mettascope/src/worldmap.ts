@@ -8,10 +8,10 @@ import { onFrame, updateSelection } from './main.js';
 import { parseHtmlColor, find } from './htmlutils.js';
 import { updateHoverPanel, updateReadout, InfoPanel } from './infopanels.js';
 
-// Flag to prevent multiple calls to requestAnimationFrame
+/** Flag to prevent multiple calls to requestAnimationFrame */
 let frameRequested = false;
 
-// Function to safely request animation frame
+/** Function to safely request animation frame */
 export function requestFrame() {
   if (!frameRequested) {
     frameRequested = true;
@@ -22,7 +22,7 @@ export function requestFrame() {
   }
 }
 
-// Generate a color from an agent id.
+/** Generate a color from an agent id. */
 function colorFromId(agentId: number) {
   let n = agentId + Math.PI + Math.E + Math.SQRT2;
   return [
@@ -33,7 +33,7 @@ function colorFromId(agentId: number) {
   ]
 }
 
-// Checks to see of object has any inventory.
+/** Checks to see of object has any inventory. */
 function hasInventory(obj: any) {
   for (const [key, [icon, color]] of state.replay.resource_inventory) {
     if (getAttr(obj, key) > 0) {
@@ -43,7 +43,7 @@ function hasInventory(obj: any) {
   return false;
 }
 
-// Make the panel focus on the full map, used at the start of the replay.
+/** Make the panel focus on the full map, used at the start of the replay. */
 export function focusFullMap(panel: PanelInfo) {
   if (state.replay === null) {
     return;
@@ -53,7 +53,7 @@ export function focusFullMap(panel: PanelInfo) {
   panel.focusPos(width / 2, height / 2, Math.min(panel.width / width, panel.height / height));
 }
 
-// Draw the floor.
+/** Draw the floor. */
 function drawFloor() {
   const floorColor = parseHtmlColor("#CFA970");
   ctx.drawSolidRect(
@@ -65,7 +65,7 @@ function drawFloor() {
   );
 }
 
-// Draw the walls, based on the adjacency map, and fill any holes.
+/** Draw the walls, based on the adjacency map, and fill any holes. */
 function drawWalls() {
   // Construct wall adjacency map.
   var wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
@@ -139,7 +139,7 @@ function drawWalls() {
   }
 }
 
-// Draw all objects on the map (that are not walls).
+/** Draw all objects on the map (that are not walls). */
 function drawObjects() {
   for (const gridObject of state.replay.grid_objects) {
     const type: number = getAttr(gridObject, "type");
@@ -206,7 +206,7 @@ function drawObjects() {
   }
 }
 
-// Draw actions above the objects.
+/** Draw actions above the objects. */
 function drawActions() {
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
@@ -303,7 +303,7 @@ function drawActions() {
   }
 }
 
-// Draw the object's inventory.
+/** Draw the object's inventory. */
 function drawInventory() {
 
   if (!state.showResources) {
@@ -340,7 +340,7 @@ function drawInventory() {
   }
 }
 
-// Draw the rewards on the bottom of the object.
+/** Draw the rewards on the bottom of the object. */
 function drawRewards() {
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
@@ -364,7 +364,7 @@ function drawRewards() {
   }
 }
 
-// Draw the selection of the selected object.
+/** Draw the selection of the selected object. */
 function drawSelection() {
   if (state.selectedGridObject === null) {
     return;
@@ -375,7 +375,7 @@ function drawSelection() {
   ctx.drawSprite("selection.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
 }
 
-// Draw the trajectory of the selected object, footprints or future arrow.
+/** Draw the trajectory of the selected object, footprints or future arrow. */
 function drawTrajectory() {
   if (state.selectedGridObject === null) {
     return;
@@ -454,7 +454,7 @@ function drawTrajectory() {
   }
 }
 
-// Draw the thought bubbles of the selected agent.
+/** Draw the thought bubbles of the selected agent. */
 function drawThoughtBubbles() {
   // The idea behind thought bubbles is to show what the agent is thinking.
   // We don't have this directly from the policy yet,
@@ -555,7 +555,7 @@ function drawThoughtBubbles() {
   }
 }
 
-// Draw the visibility map either agent view ranges or fog of war.
+/** Draw the visibility map either agent view ranges or fog of war. */
 function drawVisibility() {
 
   if (state.showVisualRanges || state.showFogOfWar) {
@@ -617,7 +617,7 @@ function drawVisibility() {
   }
 }
 
-// Draw the grid.
+/** Draw the grid. */
 function drawGrid() {
   if (state.showGrid) {
     for (let x = 0; x < state.replay.map_size[0]; x++) {
@@ -628,10 +628,8 @@ function drawGrid() {
   }
 }
 
-
+/** Given an orientation and an index, return the grid position. */
 function attackGrid(orientation: number, idx: number) {
-  // Given an orientation and an index, return the grid position.
-
   //                           North\0
   //                       +---+---+---+
   //                       | 7 | 8 | 9 |
@@ -686,9 +684,8 @@ function attackGrid(orientation: number, idx: number) {
   return [dx, dy];
 }
 
+/** Draw the attack mode. */
 function drawAttackMode() {
-  // Draw the attack mode.
-
   // We might be clicking on the map to attack something.
   var gridMousePos: Vec2f | null = null;
   if (ui.mouseUp && ui.mouseTarget == "worldmap-panel" && state.showAttackMode) {
@@ -723,8 +720,8 @@ function drawAttackMode() {
   }
 }
 
+/** Draw the info line from the object to the info panel. */
 function drawInfoLine(panel: InfoPanel) {
-  // Draw selection dotted circle around the object.
   const x = getAttr(panel.object, "c");
   const y = getAttr(panel.object, "r");
   ctx.drawSprite("info.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
@@ -747,6 +744,7 @@ function drawInfoLine(panel: InfoPanel) {
   );
 }
 
+/** Draw the world map. */
 export function drawMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
