@@ -150,7 +150,7 @@ public:
     for (const auto& [key, count] : _update_count) {
       result[key + ".updates"] = static_cast<float>(count);
       result[key + ".rate"] = rate(key);
-      result[key + ".avg"] = result[key] / updates;
+      result[key + ".avg"] = result[key] / count;
 
       // Also calculate activity rate if there's a time span
       auto first_it = _first_seen_at.find(key);
