@@ -176,8 +176,8 @@ class MettaTrainer:
                     if component_shape != environment_shape:
                         raise ValueError(
                             f"Observation space mismatch error:\n"
-                            f"component_name: {component_name}\n"
-                            f"component_shape: {component_shape}\n"
+                            f"[policy] component_name: {component_name}\n"
+                            f"[policy] component_shape: {component_shape}\n"
                             f"environment_shape: {environment_shape}\n"
                         )
 
@@ -223,6 +223,8 @@ class MettaTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
+            steps_before = self.agent_step
+
             with self.timer("_rollout"):
                 self._rollout()
 
@@ -232,7 +234,8 @@ class MettaTrainer:
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
             stats_time = self.timer.get_last_elapsed("_process_stats")
-            steps_per_sec = self.agent_step / (train_time + rollout_time)
+            steps_calculated = self.agent_step - steps_before
+            steps_per_sec = steps_calculated / (train_time + rollout_time)
 
             logger.info(
                 f"Epoch {self.epoch} - "

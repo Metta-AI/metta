@@ -1,14 +1,13 @@
-# Dungeon spaces with right angles. No guarantees that it will be connected.
 type: metta.map.scenes.wfc.WFC
 params:
   pattern_size: 3
-  pattern: |
-    |####     #####|
-    |####     #####|
-    |####     #####|
-    |            ##|
-    |            ##|
-    |            ##|
-    |####     #####|
-    |####     #####|
-    |####     #####|
+  pattern: |-
+    ###.....####
+    ###.....####
+    ###.....####
+    ...........#
+    ...........#
+    ...........#
+    ###.....####
+    ###.....####
+    ###.....####

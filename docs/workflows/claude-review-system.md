@@ -70,7 +70,7 @@ Four specialized review types, each a thin wrapper around the base:
 
 Single Python script that:
 - Downloads all review artifacts
-- Merges suggestions and compliments
+- Merges suggestions
 - Creates unified GitHub review with inline comments
 - Falls back to PR comment if review API fails
 
@@ -216,13 +216,6 @@ When issues are found, Claude creates:
       "reason": "Why this change improves the code",
       "original_code": "current code",
       "suggested_code": "improved code"
-    }
-  ],
-  "compliments": [
-    {
-      "file": "path/to/file.py",
-      "line": 45,
-      "comment": "Positive feedback"
     }
   ],
   "tldr": [
