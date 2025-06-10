@@ -9,8 +9,8 @@
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
+#include "types.hpp"
 
-typedef unsigned char ActionArg;
 typedef std::map<std::string, int> ActionConfig;
 
 class ActionHandler {
@@ -26,7 +26,7 @@ public:
     this->_grid = grid;
   }
 
-  bool handle_action(GridObjectId actor_object_id, ActionArg arg) {
+  bool handle_action(GridObjectId actor_object_id, ActionType arg) {
     Agent* actor = static_cast<Agent*>(_grid->object(actor_object_id));
 
     // Handle frozen status
@@ -61,7 +61,7 @@ public:
   }
 
 protected:
-  virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
+  virtual bool _handle_action(Agent* actor, ActionType arg) = 0;
 
   std::string _action_name;
 };

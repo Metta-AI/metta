@@ -330,15 +330,15 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   _event_manager->process_events(current_step);
 
   // Process actions by priority levels (highest to lowest)
-  for (unsigned char current_priority = max_action_priority; p != 255; p--) {  // 255 wraps to max when p=0 decrements
+  for (unsigned char p = _max_action_priority; p != 255; p--) {  // 255 wraps to max when p=0 decrements
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       // Skip agents who already successfully performed an action this step
       if (_action_success[agent_idx]) {
         continue;
       }
 
-      int action_id = actions_view(agent_idx, 0);
-      ActionArg action_arg = static_cast<ActionArg>(actions_view(agent_idx, 1));
+      ActionType action_id = actions_view(agent_idx, 0);
+      ActionType action_arg = static_cast<ActionType>(actions_view(agent_idx, 1));
 
       if (action_arg > _max_action_args[action_id]) {
         throw std::runtime_error("Invalid action argument " + std::to_string(action_arg) + " exceeds maximum " +
@@ -351,11 +351,11 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
                                  std::to_string(_num_action_handlers - 1));
       }
 
-      Agent* agent = _agents[agent_idx];
+      auto& agent = _agents[agent_idx];
       auto& handler = _action_handlers[action_id];
 
       // Skip if this handler doesn't match current priority level
-      if (handler->priority != current_priority) {
+      if (handler->priority != p) {
         continue;
       }
 

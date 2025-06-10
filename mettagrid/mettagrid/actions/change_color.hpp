@@ -15,7 +15,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionType arg) override {
     if (arg == 0) {  // Increment
       if (actor->color < 255) {
         actor->color += 1;

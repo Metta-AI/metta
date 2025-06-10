@@ -8,6 +8,7 @@
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/converter.hpp"
+#include "types.hpp"
 
 class GetOutput : public ActionHandler {
 public:
@@ -18,7 +19,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionType arg) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     target_loc.layer = GridLayer::Object_Layer;
     // get_output only works on Converters, since only Converters have an output.

@@ -8,6 +8,7 @@
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/metta_object.hpp"
+#include "types.hpp"
 
 class Attack : public ActionHandler {
 public:
@@ -21,7 +22,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionArg arg) override {
+  bool _handle_action(Agent* actor, ActionType arg) override {
     if (arg > 9 || arg < 1) {
       return false;
     }
