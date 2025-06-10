@@ -2,15 +2,7 @@ from pathlib import Path
 from typing import Optional, cast
 
 import hydra
-from omegaconf.dictconfig import DictConfig
-from omegaconf.listconfig import ListConfig
-from omegaconf.omegaconf import OmegaConf
-
-
-# proxy to hydra.utils.instantiate
-# mettagrid doesn't load configs through hydra anymore, but it still needs this function
-def simple_instantiate(cfg: DictConfig, recursive: bool = False):
-    return hydra.utils.instantiate(cfg, _recursive_=recursive)
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 
 def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConfig] = None) -> DictConfig | ListConfig:
