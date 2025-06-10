@@ -886,7 +886,6 @@ class PufferTrainer:
         world_size = self._world_size if torch.distributed.is_initialized() else 1
 
         batch_size = int(self.target_batch_size)
-        batch_size = batch_size // world_size
         logger.info(f"vecenv_batch_size: {batch_size}")
 
         num_envs = batch_size * self.trainer_cfg.async_factor
