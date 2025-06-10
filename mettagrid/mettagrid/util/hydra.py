@@ -40,11 +40,11 @@ def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConf
     return cast(DictConfig, cfg)
 
 
-def get_test_basic_cfg():
+def get_test_basic_cfg() -> DictConfig:
     return get_cfg("test_basic")
 
 
-def get_cfg(config_name: str):
+def get_cfg(config_name: str) -> DictConfig:
     # Get the directory containing the current file
     config_dir = Path(__file__).parent
 

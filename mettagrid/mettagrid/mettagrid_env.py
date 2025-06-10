@@ -310,7 +310,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._c_env.obs_height
 
     @property
-    def action_names(self):
+    def action_names(self) -> list[str]:
         return self._c_env.action_names()
 
     @property
@@ -318,18 +318,19 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def num_agents(self) -> int:
         return self._c_env.num_agents
 
-    def render(self):
+    def render(self) -> str | None:
         if self._renderer is None:
             return None
 
         return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
 
     @property
+    @override
     def done(self):
         return self._should_reset
 
     @property
-    def feature_normalizations(self):
+    def feature_normalizations(self) -> list[float]:
         return self._c_env.feature_normalizations()
 
     @property
@@ -337,6 +338,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return []
 
     @property
+    @override
     def render_mode(self):
         return self._render_mode
 
