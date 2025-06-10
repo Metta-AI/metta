@@ -13,10 +13,10 @@
 
 # ./devops/skypilot/launch.py train gd_backchain3 trainer.curriculum=env/mettagrid/curriculum/backchain \
 
-python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_backchain_mem  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain_mem --skip-validation \
+# python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_backchain_mem  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain_mem --skip-validation \
 
-python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_backchain  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain --skip-validation \
+# python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_backchain  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain --skip-validation \
 
-python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_mem_pretrained  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/gd_backchain_mem_pretrained:v18 --skip-validation \
+python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_mem_pretrained  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence trainer.initial_policy.uri=gd_backchain_mem_pretrained:v18 --skip-validation \
 
-python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_navsequence_backchain  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_navsequence_backchain --skip-validation \
+# python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_navsequence_backchain  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_navsequence_backchain --skip-validation \
