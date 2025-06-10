@@ -59,6 +59,12 @@ class PufferTrainer:
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
+
+            # some config parameters have to be interpreted differently for distributed training
+            # i.e. as global parameters, that have to be divided across all ranks
+            self.trainer_cfg.batch_size = self.trainer_cfg.batch_size // self._world_size
+            self.trainer_cfg.minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
+
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
