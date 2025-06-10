@@ -337,22 +337,21 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
         continue;
       }
 
-      ActionType action_id = actions_view(agent_idx, 0);
-      ActionType action_arg = static_cast<ActionType>(actions_view(agent_idx, 1));
+      ActionType action = actions_view(agent_idx, 0);
+      ActionType arg = static_cast<ActionType>(actions_view(agent_idx, 1));
 
-      if (action_arg > _max_action_args[action_id]) {
-        throw std::runtime_error("Invalid action argument " + std::to_string(action_arg) + " exceeds maximum " +
-                                 std::to_string(_max_action_args[action_id]) + " for action " +
-                                 std::to_string(action_id));
+      if (arg > _max_action_args[action]) {
+        throw std::runtime_error("Invalid action argument " + std::to_string(arg) + " exceeds maximum " +
+                                 std::to_string(_max_action_args[action]) + " for action " + std::to_string(action));
       }
 
-      if (action_id < 0 || action_id >= _num_action_handlers) {
-        throw std::runtime_error("Invalid action type " + std::to_string(action_id) + ". Valid range: 0 to " +
+      if (action < 0 || action >= _num_action_handlers) {
+        throw std::runtime_error("Invalid action type " + std::to_string(action) + ". Valid range: 0 to " +
                                  std::to_string(_num_action_handlers - 1));
       }
 
       auto& agent = _agents[agent_idx];
-      auto& handler = _action_handlers[action_id];
+      auto& handler = _action_handlers[action];
 
       // Skip if this handler doesn't match current priority level
       if (handler->priority != p) {
@@ -360,7 +359,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       }
 
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
-      _action_success[agent_idx] = handler->handle_action(agent->id, action_arg);
+      _action_success[agent_idx] = handler->handle_action(agent->id, arg);
     }
   }
 
