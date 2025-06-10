@@ -107,30 +107,6 @@ class Simulation:
         self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
 
-<<<<<<< HEAD
-=======
-        # policy_expected_channels = self._policy_pr.expected_observation_channels()
-        # npc_policy_expected_channels = self._npc_pr.expected_observation_channels() if self._npc_pr else None
-        # env_expected_channels = self._vecenv.observation_space.shape[-1]
-
-        # if policy_expected_channels is not None and policy_expected_channels != env_expected_channels:
-        #     error_msg = (
-        #         f"Main policy expects {policy_expected_channels} observation channels, "
-        #         f"but current environment provides {env_expected_channels}."
-        #     )
-        #     logger.error(error_msg)
-        #     raise SimulationCompatibilityError(error_msg)
-
-        # # Check NPC policy compatibility (if it exists)
-        # if npc_policy_expected_channels is not None and npc_policy_expected_channels != env_expected_channels:
-        #     error_msg = (
-        #         f"NPC policy expects {npc_policy_expected_channels} observation channels, "
-        #         f"but current environment provides {env_expected_channels}."
-        #     )
-        #     logger.error(error_msg)
-        #     raise SimulationCompatibilityError(error_msg)
-
->>>>>>> a7de66a80 (test files)
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
 

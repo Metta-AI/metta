@@ -5,9 +5,5 @@ defaults:
   - override /agent: simple_token_to_box
 
 seed: null
-<<<<<<< HEAD
 run_id: 20250609.16
-=======
-run_id: 20250609.11
->>>>>>> a7de66a80 (test files)
 run: ${oc.env:USER}.local.${run_id}
