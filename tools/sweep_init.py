@@ -40,6 +40,45 @@ def main(cfg: DictConfig | ListConfig) -> int:
     return 0
 
 
+def _convert_protein_params_to_wandb(sweep_config: DictConfig | ListConfig) -> dict:
+    """Convert Protein parameter space format to WandB sweep parameters format."""
+    wandb_params = {}
+
+    # Handle nested sweep structure
+    if hasattr(sweep_config, "sweep"):
+        if hasattr(sweep_config.sweep, "parameters"):
+            # Structure: sweep.parameters.param_name
+            params = sweep_config.sweep.parameters
+        else:
+            # Structure: sweep.param_name (direct parameters under sweep)
+            params = sweep_config.sweep
+    elif hasattr(sweep_config, "parameters"):
+        # Structure: parameters.param_name
+        params = sweep_config.parameters
+    else:
+        # Direct parameter definitions
+        params = sweep_config
+
+    for param_name, param_config in params.items():
+        if isinstance(param_config, (DictConfig, dict)):
+            # Access using dict-style notation
+            distribution = param_config.get("distribution", "uniform")
+            min_val = param_config.get("min")
+            max_val = param_config.get("max")
+
+            if distribution == "log_normal":
+                wandb_params[param_name] = {"distribution": "log_uniform_values", "min": min_val, "max": max_val}
+            elif distribution == "uniform":
+                wandb_params[param_name] = {"min": min_val, "max": max_val}
+            elif distribution == "int_uniform":
+                wandb_params[param_name] = {
+                    "min": int(min_val) if min_val is not None else 0,
+                    "max": int(max_val) if max_val is not None else 1,
+                }
+
+    return wandb_params
+
+
 def create_sweep(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) -> None:
     """
     Create a new sweep with the given name.
@@ -52,17 +91,17 @@ def create_sweep(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) 
     logger.info(f"Creating new sweep: {cfg.sweep_dir}")
     os.makedirs(cfg.runs_dir, exist_ok=True)
 
-    # Convert Protein parameter space to WandB format
-    logger.info(f"Sweep config: {cfg.sweep}")
-    wandb_parameters = _convert_protein_params_to_wandb(cfg.sweep)
-    logger.info(f"Converted parameters: {wandb_parameters}")
+    # Create WandB sweep with dummy parameter - Protein will override with real suggestions
+    logger.info("Creating WandB sweep with dummy parameters for Protein control")
 
     sweep_id = wandb.sweep(
         sweep={
             "name": sweep_name,
-            "method": "bayes",
-            "metric": {"name": "score", "goal": "maximize"},
-            "parameters": wandb_parameters,
+            "method": "bayes",  # This won't actually be used since Protein overrides suggestions
+            "metric": {"name": "protein.objective", "goal": "maximize"},
+            "parameters": {
+                "_protein_dummy": {"values": [1]}  # Dummy parameter - Protein will override all suggestions
+            },
         },
         project=cfg.wandb.project,
         entity=cfg.wandb.entity,
@@ -106,7 +145,7 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
                 wandb_run.tags = ()
             wandb_run.tags += (f"sweep_id:{sweep_cfg.wandb_sweep_id}", f"sweep_name:{sweep_cfg.sweep}")
 
-            protein = MettaProtein(cfg, wandb_run)
+            protein = MettaProtein(cfg.sweep, wandb_run)
             logger.info("Config:")
             logger.info(OmegaConf.to_yaml(cfg))
             _log_file(
@@ -114,18 +153,54 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
                 wandb_run,
                 "protein_state.yaml",
                 {
-                    "observations": len(protein.success_observations),
-                    "failures": len(protein.failure_observations),
+                    "observations": protein._num_observations,
+                    "failures": protein._num_failures,
+                    "running": protein._num_running,
                 },
             )
 
-            suggestion, _ = protein.suggest()
+            suggestion_tuple = protein.suggest()
+            # Extract the actual suggestion from the tuple (suggestion, metadata)
+            if isinstance(suggestion_tuple, tuple) and len(suggestion_tuple) >= 1:
+                suggestion = suggestion_tuple[0]
+            else:
+                suggestion = suggestion_tuple
+
             logger.info("Generated Protein suggestion: ")
             logger.info(f"\n{'-' * 10}\n{yaml.dump(suggestion, default_flow_style=False)}\n{'-' * 10}")
             _log_file(run_dir, wandb_run, "protein_suggestion.yaml", suggestion)
 
-            train_cfg = OmegaConf.create({key: cfg[key] for key in cfg.sweep.keys()})
-            apply_protein_suggestion(train_cfg, suggestion)
+            # Create complete training config from the FULL loaded config (original working architecture)
+            # Include all sections, not just the swept ones, to maintain full config structure
+            train_cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+
+            # Remove sweep-specific fields that don't belong in training config
+            if isinstance(train_cfg_dict, dict):
+                sweep_fields_to_remove = [
+                    "sweep",
+                    "sweep_name",
+                    "sweep_params",
+                    "sweep_params_override",
+                    "sweep_dir",
+                    "runs_dir",
+                    "sweep_job",
+                    "metric",
+                    "num_random_samples",
+                    "dist_cfg_path",
+                    "cmd",
+                ]
+                for field in sweep_fields_to_remove:
+                    train_cfg_dict.pop(field, None)
+
+            # Convert back to DictConfig
+            train_cfg = OmegaConf.create(train_cfg_dict)
+            # Convert numpy types to Python native types for OmegaConf compatibility
+            import json
+
+            suggestion_clean = json.loads(
+                json.dumps(suggestion, default=lambda x: float(x) if hasattr(x, "item") else str(x))
+            )
+            apply_protein_suggestion(train_cfg, suggestion_clean)
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             OmegaConf.save(train_cfg, save_path)
             logger.info(f"Saved train config overrides to {save_path}")
@@ -162,30 +237,13 @@ def wait_for_run(sweep_name: str, cfg: DictConfig | ListConfig, path: str, logge
     logger.info(f"Run ID: {run} ready")
 
 
-def apply_protein_suggestion(config: DictConfig | ListConfig, suggestion: dict):
+def apply_protein_suggestion(config: DictConfig | ListConfig, suggestion: DictConfig):
     """Apply suggestions to a configuration object using dotted path notation.
 
     Args:
         config: The configuration object to modify
         suggestion: The suggestions to apply
     """
-    import numpy as np
-
-    def convert_numpy_scalars(obj):
-        """Recursively convert numpy scalars to Python primitives."""
-        if isinstance(obj, np.number):
-            return obj.item()
-        elif hasattr(obj, "item") and callable(obj.item):
-            try:
-                return obj.item()
-            except:
-                pass
-        elif isinstance(obj, dict):
-            return {k: convert_numpy_scalars(v) for k, v in obj.items()}
-        elif isinstance(obj, (list, tuple)):
-            return type(obj)(convert_numpy_scalars(item) for item in obj)
-        return obj
-
     for key, value in suggestion.items():
         if key == "suggestion_uuid":
             continue
@@ -193,59 +251,8 @@ def apply_protein_suggestion(config: DictConfig | ListConfig, suggestion: dict):
         # Convert key to string if it's not already
         str_key = str(key) if not isinstance(key, str) else key
 
-        # Recursively convert numpy scalars to Python primitives
-        value = convert_numpy_scalars(value)
-
         # Use OmegaConf.update with the string key
         OmegaConf.update(config, str_key, value)
-
-
-def _convert_protein_params_to_wandb(sweep_config: DictConfig | ListConfig) -> dict:
-    """Convert Protein parameter space format to WandB sweep parameters format."""
-    wandb_params = {}
-
-    # Handle nested sweep structure
-    if hasattr(sweep_config, "sweep"):
-        if hasattr(sweep_config.sweep, "parameters"):
-            # Structure: sweep.parameters.param_name
-            params = sweep_config.sweep.parameters
-        else:
-            # Structure: sweep.param_name (direct parameters under sweep)
-            params = sweep_config.sweep
-    elif hasattr(sweep_config, "parameters"):
-        # Structure: parameters.param_name
-        params = sweep_config.parameters
-    else:
-        # Direct parameter definitions
-        params = sweep_config
-
-    for param_name, param_config in params.items():
-        if isinstance(param_config, (DictConfig, dict)):
-            # Access using dict-style notation for safety
-            min_val = param_config.get("min")
-            max_val = param_config.get("max")
-            distribution = param_config.get("distribution", "uniform")
-
-            if min_val is not None and max_val is not None:
-                # Convert string values to numbers if needed
-                if isinstance(min_val, str):
-                    min_val = float(min_val)
-                if isinstance(max_val, str):
-                    max_val = float(max_val)
-
-                wandb_param = {"min": min_val, "max": max_val}
-
-                # Convert distribution format
-                if distribution == "log_normal":
-                    wandb_param["distribution"] = "log_uniform_values"
-                elif distribution == "int_uniform":
-                    wandb_param["distribution"] = "int_uniform"
-                else:
-                    wandb_param["distribution"] = "uniform"
-
-                wandb_params[param_name] = wandb_param
-
-    return wandb_params
 
 
 def _log_file(run_dir: str, wandb_run, name: str, data):

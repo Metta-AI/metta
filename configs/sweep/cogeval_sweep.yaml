@@ -1,4 +1,10 @@
+program: python
+method: protein
+project: metta
+entity: metta-research
+
 metric: action.use.altar
+goal: maximize
 test: raw # glicko, elo, raw
 
 rollout_count: 100000
@@ -16,48 +22,80 @@ generation:
   regen_pct: 0.25
 
 parameters:
-  env:
-    game:
-      max_steps:
-        space: linear
-        min: 500
-        max: 3000
+  env.game.max_steps:
+    min: 500
+    max: 3000
+    mean: 1750
+    scale: 1
+    distribution: uniform
 
-  trainer:
-    learning_rate:
-      space: log
-      min: 1e-5
-      max: 1e-1
-    gamma:
-      space: logit
-      min: 0.0
-      max: 1.0
-    gae_lambda:
-      space: logit
-      min: 0.0
-      max: 1.0
-    vf_coef:
-      space: logit
-      min: 0.0
-      max: 1.0
-    ent_coef:
-      space: log
-      min: 1e-4
-      max: 1e-1
-    batch_size:
-      space: pow2
-      min: 131072
-      max: 524288
-    minibatch_size:
-      space: pow2
-      min: 1024
-      max: 131072
-    bptt_horizon:
-      space: pow2
-      min: 1
-      max: 128
-    total_timesteps:
-      space: log
-      search_center: 1.1e9
-      min: 1e9
-      max: 6e9
+  trainer.learning_rate:
+    min: 1e-5
+    max: 1e-1
+    mean: 1e-3
+    scale: 1
+    distribution: log_normal
+
+  trainer.gamma:
+    min: 0.9
+    max: 0.999
+    mean: 0.99
+    scale: 1
+    distribution: uniform
+
+  trainer.gae_lambda:
+    min: 0.9
+    max: 0.999
+    mean: 0.95
+    scale: 1
+    distribution: uniform
+
+  trainer.vf_coef:
+    min: 0.1
+    max: 2.0
+    mean: 0.5
+    scale: 1
+    distribution: uniform
+
+  trainer.ent_coef:
+    min: 1e-4
+    max: 1e-1
+    mean: 1e-2
+    scale: 1
+    distribution: log_normal
+
+  trainer.batch_size:
+    min: 131072
+    max: 524288
+    mean: 262144
+    scale: 1
+    distribution: int_uniform
+
+  trainer.minibatch_size:
+    min: 1024
+    max: 131072
+    mean: 16384
+    scale: 1
+    distribution: int_uniform
+
+  trainer.bptt_horizon:
+    min: 1
+    max: 128
+    mean: 16
+    scale: 1
+    distribution: int_uniform
+
+  trainer.total_timesteps:
+    min: 1e9
+    max: 6e9
+    mean: 1.1e9
+    scale: 1
+    distribution: log_normal
+
+command:
+  - python
+  - -m
+  - metta.rl.pufferlib.train
+  - config/user/cogeval.yaml
+  - ++wandb_enabled=True
+  - ++wandb_resume=True

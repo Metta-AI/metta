@@ -36,29 +36,37 @@ class MettaProtein(WandbProtein):
         if not isinstance(sweep_config, dict) or sweep_config is None:
             raise ValueError("Sweep config must be a dict.")
 
-        # Add metric and goal if not present
-        if isinstance(sweep_config, dict):
-            if "metric" not in sweep_config:
-                sweep_config["metric"] = "reward"
-            if "goal" not in sweep_config:
-                sweep_config["goal"] = "maximize"
+        # Extract metadata from protein namespace if it exists
+        protein_metadata = {}
+        if "protein" in sweep_config:
+            protein_metadata = sweep_config["protein"]
+            # Remove protein metadata from sweep_config to avoid conflicts
+            sweep_config = {k: v for k, v in sweep_config.items() if k != "protein"}
 
-        # Extract parameters and create a clean config for Protein
+        # Add default metadata if not provided
+        if "metric" not in protein_metadata:
+            protein_metadata["metric"] = "reward"
+        if "goal" not in protein_metadata:
+            protein_metadata["goal"] = "maximize"
+
+        # Override num_random_samples if specified in protein metadata
+        if "num_random_samples" in protein_metadata:
+            num_random_samples = protein_metadata["num_random_samples"]
+
+        # Extract parameters from nested structure if present
         if "parameters" in sweep_config:
-            # Create a clean config with only parameter definitions + required metadata
-            clean_config = dict(sweep_config["parameters"])
-            clean_config["metric"] = sweep_config["metric"]
-            clean_config["goal"] = sweep_config["goal"]
+            # Structure: parameters.param_name (extract parameters from nested structure)
+            parameters = sweep_config["parameters"]
         else:
-            # For flat parameter configs, create clean config with just parameters + metadata
-            clean_config = {}
-            for key, value in sweep_config.items():
-                # Include parameters (dicts with distribution info) and required metadata
-                if key in ("metric", "goal"):
-                    clean_config[key] = value
-                elif isinstance(value, dict) and "distribution" in value:
-                    clean_config[key] = value
-                # Skip other metadata fields like num_random_samples, method, etc.
+            # Structure: param_name (parameters at top level)
+            # Filter out metadata keys
+            metadata_keys = {"metric", "goal", "protein"}
+            parameters = {k: v for k, v in sweep_config.items() if k not in metadata_keys}
+
+        # Create clean config for Protein with parameters + metadata
+        clean_config = dict(parameters)  # Copy actual parameters only
+        clean_config["metric"] = protein_metadata["metric"]
+        clean_config["goal"] = protein_metadata["goal"]
 
         sweep_config = clean_config
 

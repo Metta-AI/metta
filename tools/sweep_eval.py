@@ -131,7 +131,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
         # Add policy to wandb sweep
         policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
 
-        # Record observation in CARBS if enabled
+        # Record observation in Protein optimizer
         total_time = train_time + eval_time
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
