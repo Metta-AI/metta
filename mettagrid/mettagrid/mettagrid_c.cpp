@@ -273,10 +273,10 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
           }
         }
       }
-      _stats->add("tokens_written", static_cast<float>(tokens_written));
-      _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
-      _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
     }
+    _stats->add("tokens_written", static_cast<float>(tokens_written));
+    _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
+    _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
   } else {
     auto observation_view = _observations.mutable_unchecked<4>();
     for (unsigned int r = r_start; r < r_end; r++) {
