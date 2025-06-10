@@ -1,0 +1,50 @@
+# @package _global_
+# Quick sweep configuration designed to complete in ~30 minutes
+# Optimized for rapid iteration and testing with minimal parameters
+
+sweep:
+  trainer:
+    # Core learning parameter - most impact on performance
+    optimizer:
+      learning_rate:
+        distribution: log_normal
+        min: 5e-4
+        max: 5e-3
+        mean: 1e-3
+        scale: 1.0
+
+    # Discount factor - narrow range for quick convergence
+    gamma:
+      distribution: uniform
+      min: 0.95
+      max: 0.995
+      mean: 0.99
+      scale: 1.0
+
+    # Batch size - small range to minimize combinations
+    batch_size:
+      distribution: int_uniform
+      min: 64
+      max: 128
+      mean: 96
+      scale: 1.0
+
+# Quick training settings - override defaults for speed
+trainer:
+  total_timesteps: 50000          # Very low for quick completion (~5-10 mins per run)
+  evaluate_interval: 5000         # Frequent evaluation for quick feedback
+  checkpoint_interval: 10000      # Less frequent checkpointing
+
+  # Fast convergence settings
+  update_epochs: 2               # Fewer update epochs
+  num_steps: 64                  # Shorter rollout steps
+  bptt_horizon: 4                # Minimal BPTT for speed
+
+  # Small minibatch for faster iteration
+  minibatch_size: 64
+  forward_pass_minibatch_target_size: 64
+
+# Environment optimizations for speed
+env:
+  game:
+    max_steps: 50                # Short episodes for fast completion

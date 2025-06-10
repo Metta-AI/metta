@@ -1,0 +1,33 @@
+# @package _global_
+# Ultra-quick sweep for immediate testing (~5-10 minutes total)
+# Perfect for validating sweep infrastructure and debugging
+
+sweep:
+  trainer:
+    # Single most important parameter
+    optimizer:
+      learning_rate:
+        distribution: log_normal
+        min: 1e-3
+        max: 5e-3
+        mean: 2e-3
+        scale: 1.0
+
+# Ultra-fast training settings
+trainer:
+  total_timesteps: 10000          # Minimal timesteps (~2-3 mins per run)
+  evaluate_interval: 2000         # Very frequent evaluation
+  checkpoint_interval: 5000       # Minimal checkpointing
+
+  # Speed optimizations
+  update_epochs: 1               # Single update epoch
+  num_steps: 32                  # Very short rollouts
+  bptt_horizon: 2                # Minimal BPTT
+  batch_size: 64                 # Small batch
+  minibatch_size: 64
+  forward_pass_minibatch_target_size: 32
+
+# Minimal environment for speed
+env:
+  game:
+    max_steps: 25                # Very short episodes
