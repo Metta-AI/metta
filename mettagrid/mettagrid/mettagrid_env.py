@@ -226,24 +226,26 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         episode_stats = self._c_env.get_episode_stats()
 
-        stat_aggregates = {"converter": {}, "agent": {}}
+        # Process agent stats only
+        agent_stats_list = []
+        if "agent" in episode_stats:
+            for idx, item_stats in enumerate(episode_stats["agent"]):
+                for stat_name, stat_value in item_stats.items():
+                    # Write raw stats
+                    infos[f"agent_raw/{idx}/{stat_name}"] = stat_value
+                    # Collect for aggregation
+                    agent_stats_list.append((stat_name, stat_value))
 
-        for stat_type in ["converter", "agent"]:
-            if stat_type in episode_stats:
-                for idx, item_stats in enumerate(episode_stats[stat_type]):
-                    for stat_name, stat_value in item_stats.items():
-                        # Write raw stats
-                        infos[f"{stat_type}_raw/{idx}/{stat_name}"] = stat_value
+        # Aggregate agent stats
+        agent_aggregates = {}
+        for stat_name, stat_value in agent_stats_list:
+            if stat_name not in agent_aggregates:
+                agent_aggregates[stat_name] = []
+            agent_aggregates[stat_name].append(stat_value)
 
-                        # Collect for aggregation
-                        if stat_name not in stat_aggregates[stat_type]:
-                            stat_aggregates[stat_type][stat_name] = []
-                        stat_aggregates[stat_type][stat_name].append(stat_value)
-
-        for stat_type, stat_lists in stat_aggregates.items():
-            for name, values in stat_lists.items():
-                if values:  # Only if we have values
-                    infos[f"{stat_type}/{name}"] = sum(values) / len(values)
+        for name, values in agent_aggregates.items():
+            if values:
+                infos[f"agent/{name}"] = sum(values) / len(values)
 
         # Flatten game stats
         if "game" in episode_stats:
