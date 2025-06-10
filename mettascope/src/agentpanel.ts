@@ -9,6 +9,7 @@ enum SortDirection {
   Ascending = -1
 }
 
+/** A column definition for the agent table. */
 class ColumnDefinition {
   field: string;
   isFinal: boolean;
@@ -76,13 +77,15 @@ var columns = [
 var mainSort: ColumnDefinition = columns[1];
 var typeaheadValue = "";
 
-// Capitalize the first letter of every word in a string.
-// Example: "hello world" -> "Hello World"
+/**
+ * Capitalize the first letter of every word in a string.
+ * Example: "hello world" -> "Hello World"
+ */
 function capitalize(str: string) {
   return str.split(" ").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
 }
 
-// Swaps the element 1 position to the right.
+/** Swaps the element 1 position to the right. */
 function swapRight(list: any[], element: any) {
   let index = list.indexOf(element);
   if (index == -1) {
@@ -93,7 +96,7 @@ function swapRight(list: any[], element: any) {
   list[index + 1] = tmp;
 }
 
-// Swaps the element 1 position to the left.
+/** Swaps the element 1 position to the left. */
 function swapLeft(list: any[], element: any) {
   let index = list.indexOf(element);
   if (index == -1) {
@@ -104,10 +107,12 @@ function swapLeft(list: any[], element: any) {
   list[index - 1] = tmp;
 }
 
+/** Save the agent table to local storage. */
 function saveAgentTable() {
   localStorageSetObject("agentPanelColumns", columns);
 }
 
+/** Initialize the agent table. */
 export function initAgentTable() {
   // Load the columns from local storage.
   let plainColumns = localStorageGetObject("agentPanelColumns", columns);
@@ -125,14 +130,14 @@ export function initAgentTable() {
   removeChildren(newColumnTemplate);
 }
 
-// Given an element, get the field and isFinal information thats up the DOM tree.
+/** Given an element, get the field and isFinal information thats up the DOM tree. */
 function getFieldInfo(target: HTMLElement): { columnField: string, columnIsFinal: boolean } {
   let columnField = findAttr(target, "data-column-field");
   let columnIsFinal = findAttr(target, "data-column-is-final") == "true";
   return { columnField, columnIsFinal };
 }
 
-// Clicking on the column menu button should show the column menu.
+/** Clicking on the column menu button should show the column menu. */
 onEvent("click", "#agent-panel .header-cell .dropdown", (target: HTMLElement, e: Event) => {
   let { columnField, columnIsFinal } = getFieldInfo(target);
   let columnMenu = find("#column-menu");
@@ -141,6 +146,7 @@ onEvent("click", "#agent-panel .header-cell .dropdown", (target: HTMLElement, e:
   showMenu(target, columnMenu);
 });
 
+/** Toggle the sort direction of the column. */
 function toggleSortDirection(columnField: string, columnIsFinal: boolean) {
   for (let i = 0; i < columns.length; i++) {
     if (columns[i].field == columnField && columns[i].isFinal == columnIsFinal) {
@@ -155,18 +161,19 @@ function toggleSortDirection(columnField: string, columnIsFinal: boolean) {
   hideMenu();
 }
 
-// Clicking on the sort up button should sort the column in ascending order.
+/** Clicking on the sort up button should sort the column in ascending order. */
 onEvent("click", "#column-menu .sort-up", (target: HTMLElement, e: Event) => {
   let { columnField, columnIsFinal } = getFieldInfo(target);
   toggleSortDirection(columnField, columnIsFinal);
 });
 
-// Clicking on the sort down button should sort the column in descending order.
+/** Clicking on the sort down button should sort the column in descending order. */
 onEvent("click", "#column-menu .sort-down", (target: HTMLElement, e: Event) => {
   let { columnField, columnIsFinal } = getFieldInfo(target);
   toggleSortDirection(columnField, columnIsFinal);
 });
 
+/** Clicking on the move left button should move the column to the left. */
 onEvent("click", "#column-menu .move-left", (target: HTMLElement, e: Event) => {
   let { columnField, columnIsFinal } = getFieldInfo(target);
   let column = columns.find(column => column.field == columnField && column.isFinal == columnIsFinal);
@@ -178,7 +185,7 @@ onEvent("click", "#column-menu .move-left", (target: HTMLElement, e: Event) => {
   hideMenu();
 });
 
-// Clicking on the move right button should move the column to the right.
+/** Clicking on the move right button should move the column to the right. */
 onEvent("click", "#column-menu .move-right", (target: HTMLElement, e: Event) => {
   let { columnField, columnIsFinal } = getFieldInfo(target);
   let column = columns.find(column => column.field == columnField && column.isFinal == columnIsFinal);
@@ -190,7 +197,7 @@ onEvent("click", "#column-menu .move-right", (target: HTMLElement, e: Event) => 
   hideMenu();
 });
 
-// Clicking on the hide column button should remove the column from the columns array.
+/** Clicking on the hide column button should remove the column from the columns array. */
 onEvent("click", "#column-menu .hide-column", (target: HTMLElement, e: Event) => {
   let { columnField, columnIsFinal } = getFieldInfo(target);
   columns = columns.filter(column => !(column.field == columnField && column.isFinal == columnIsFinal));
@@ -199,7 +206,7 @@ onEvent("click", "#column-menu .hide-column", (target: HTMLElement, e: Event) =>
   hideMenu();
 });
 
-// Clicking on the table directly should set is as main sort column or cycle the sort direction.
+/** Clicking on the table directly should set is as main sort column or cycle the sort direction. */
 onEvent("click", "#agent-panel .header-cell", (target: HTMLElement, e: Event) => {
   let { columnField, columnIsFinal } = getFieldInfo(target);
   if (columnField != "") {
@@ -225,7 +232,7 @@ onEvent("click", "#agent-panel .header-cell", (target: HTMLElement, e: Event) =>
   }
 });
 
-// Clicking on a data cell should select the agent.
+/** Clicking on a data cell should select the agent. */
 onEvent("click", "#agent-panel .data-cell", (target: HTMLElement, e: Event) => {
   let agentId = findAttr(target, "data-agent-id");
   if (agentId != "") {
@@ -239,20 +246,22 @@ onEvent("click", "#agent-panel .data-cell", (target: HTMLElement, e: Event) => {
   }
 });
 
-// Clicking on the new column input should show the new column dropdown and
-// allow you to type-ahead to select or search for the column.
+/**
+ * Clicking on the new column input should show the new column dropdown and
+ * allow you to type-ahead to select or search for the column.
+ */
 onEvent("click", "#new-column-input", (target: HTMLElement, e: Event) => {
   let newColumnDropdown = find("#new-column-dropdown");
   updateAvailableColumns()
   showDropdown(target, newColumnDropdown);
 });
 
-// When the user types in the typeahead, filter the available columns.
+/** When the user types in the typeahead, filter the available columns. */
 onEvent("input", "#new-column-input", (target: HTMLElement, e: Event) => {
   updateAvailableColumns()
 });
 
-// Toggles the column in the columns array based on the field and isFinal.
+/** Toggles the column in the columns array based on the field and isFinal. */
 function toggleColumn(columnField: string, columnIsFinal: boolean) {
   let found = -1;
   if (columnField != "") {
@@ -274,18 +283,23 @@ function toggleColumn(columnField: string, columnIsFinal: boolean) {
   saveAgentTable();
 }
 
-// Clicking on the step check should add or remove the "current step" column
-// from the columns array.
+/**
+ * Clicking on the step check should add or remove the "current step" column
+ * from the columns array.
+ */
 onEvent("click", "#new-column-dropdown .step-check", (target: HTMLElement, e: Event) => {
   toggleColumn(findAttr(target, "data-column-field"), false);
 });
 
-// Clicking on the final check should add or remove the "final step" column
-// from the columns array.
+/**
+ * Clicking on the final check should add or remove the "final step" column
+ * from the columns array.
+ */
 onEvent("click", "#new-column-dropdown .final-check", (target: HTMLElement, e: Event) => {
   toggleColumn(findAttr(target, "data-column-field"), true);
 });
 
+/** Update the available columns. */
 export function updateAvailableColumns() {
   // The columns might change due to changes in:
   //   * The replay format.
@@ -345,6 +359,7 @@ export function updateAvailableColumns() {
   }
 }
 
+/** Update the agent table. */
 export function updateAgentTable() {
   // The agent table might change due to changes in:
   //   * The columns array.
