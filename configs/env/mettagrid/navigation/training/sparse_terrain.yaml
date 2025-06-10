@@ -19,7 +19,7 @@ game:
       border_width: ${sampling:1,6,3}
       agents: 1
       objects:
-        altar: ${sampling:20,75,50}
+        altar: ${sampling:5,50,20}
 
   objects:
     altar:
