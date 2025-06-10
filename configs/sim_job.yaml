@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: all
+  - sim: simple
   - _self_
 
 run: ???
@@ -14,5 +14,9 @@ sim_job:
   stats_dir: ${run_dir}/stats
   stats_db_uri: ${run_dir}/stats.db
   replay_dir: s3://softmax-public/replays/local
+<<<<<<< HEAD
+=======
+  env_overrides: {}
+>>>>>>> 503a50cc714faecdb3128473a523fbc27ad5eb9f
 
 cmd: sim

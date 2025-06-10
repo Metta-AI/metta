@@ -80,6 +80,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
+        self.label_visits = {}
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
 
@@ -225,6 +226,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         stats = self._c_env.get_episode_stats()
 
+        infos["label_visits"] = self.label_visits
+
         infos["episode_rewards"] = episode_rewards
         # infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
@@ -302,6 +305,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             MultiDiscrete: A MultiDiscrete space with shape (num_actions, max_action_arg + 1)
         """
         return self._c_env.action_space
+
+    # obs_width and obs_height correspond to the view window size, and should indicate the grid from which
+    # tokens are being computed.
+    @property
+    def obs_width(self):
+        return self._c_env.obs_width
+
+    @property
+    def obs_height(self):
+        return self._c_env.obs_height
 
     @property
     def action_names(self):

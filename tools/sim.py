@@ -37,6 +37,12 @@ class SimJob(Config):
     stats_db_uri: str
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
+<<<<<<< HEAD
+    smoke_test: bool = False
+    smoke_test_min_reward: float | None = None
+    env_overrides: Dict[str, Any] = {}
+=======
+>>>>>>> ea4b6ddcd78d1df1692f1a167fe05529446babc7
 
 
 # --------------------------------------------------------------------------- #
@@ -77,6 +83,7 @@ def simulate_policy(
             stats_dir=sim_job.stats_dir,
             device=cfg.device,
             vectorization=cfg.vectorization,
+            env_overrides=sim_job.env_overrides,
         )
         sim_results = sim.simulate()
 

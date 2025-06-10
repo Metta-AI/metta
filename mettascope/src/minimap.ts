@@ -5,13 +5,14 @@ import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { parseHtmlColor } from './htmlutils.js';
 
+/** Draw the mini map. */
 export function drawMiniMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
   }
 
   if (ui.mouseDown && panel.inside(ui.mousePos)) {
-    const localMousePos = panel.transformPoint(ui.mousePos);
+    const localMousePos = panel.transformOuter(ui.mousePos);
     // Pan the main map to the mini map's mouse position.
     const miniMapMousePos = new Vec2f(
       Math.round(localMousePos.x() / Common.MINI_MAP_TILE_SIZE),

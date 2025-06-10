@@ -10,13 +10,33 @@
 #navigation_poisson_sparser_pretrained.r.6
 
 defaults:
+<<<<<<< HEAD
   - _self_
 
 trainer:
   env: /env/mettagrid/curriculum/navigation_bucketed
+=======
+  # - override /agent: robust_cross
+  - _self_
+
+trainer:
+  env: /env/mettagrid/curriculum/all
+  # evaluate_interval: 3
+  # env_overrides:
+  #   game:
+  #     use_observation_tokens: true
+  # evals:
+  #   env_overrides:
+  #     game:
+  #       use_observation_tokens: true
+>>>>>>> 503a50cc714faecdb3128473a523fbc27ad5eb9f
 
 policy_uri: wandb://run/daphne_navigation_bucketed
 
+<<<<<<< HEAD
 run_id: 6
+=======
+run_id: 7
+>>>>>>> 503a50cc714faecdb3128473a523fbc27ad5eb9f
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

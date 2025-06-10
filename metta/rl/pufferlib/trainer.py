@@ -183,8 +183,8 @@ class PufferTrainer:
                     if component_shape != environment_shape:
                         raise ValueError(
                             f"Observation space mismatch error:\n"
-                            f"component_name: {component_name}\n"
-                            f"component_shape: {component_shape}\n"
+                            f"[policy] component_name: {component_name}\n"
+                            f"[policy] component_shape: {component_shape}\n"
                             f"environment_shape: {environment_shape}\n"
                         )
 
@@ -662,6 +662,11 @@ class PufferTrainer:
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _generate_and_upload_replay(self):
+        self.replay_sim_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
         if self._master:
             replay_sim_config = SingleEnvSimulationConfig(
                 env="/env/mettagrid/mettagrid",
