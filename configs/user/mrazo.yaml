@@ -1,7 +1,7 @@
 # @package __global__
 
 defaults:
-  # - override /agent: simple_with_memory
+  - override /agent: simple_with_memory
   - _self_
 
 trainer:
@@ -11,4 +11,4 @@ trainer:
 
 # policy_uri: wandb://run/mrazo_memory-traces_navigation_v01
 
-run: mrazo_t-maze_simple_v02
+run: mrazo_t-maze_simple-with-memory_v01
