@@ -2,9 +2,8 @@ from pathlib import Path
 from typing import Optional, cast
 
 import hydra
-from omegaconf.dictconfig import DictConfig
-from omegaconf.listconfig import ListConfig
-from omegaconf.omegaconf import OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
+
 
 def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConfig] = None) -> DictConfig | ListConfig:
     """
