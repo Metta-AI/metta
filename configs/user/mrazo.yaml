@@ -10,5 +10,3 @@ trainer:
   wandb.track: true
 
 # policy_uri: wandb://run/mrazo_memory-traces_navigation_v01
-
-run: mrazo_t-maze_simple-with-memory_v01
