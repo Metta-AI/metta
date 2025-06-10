@@ -14,26 +14,27 @@ components:
 
   _obs_:
     _target_: metta.agent.lib.obs_enc.ObsTokenCatFourier
-    atr_embed_dim: 32
+    atr_embed_dim: 8
+    num_freqs: 4
     sources:
       null
 
   obs_latent_query_attn:
     _target_: metta.agent.lib.obs_enc.ObsCrossAttn
-    out_dim: 32
+    out_dim: 24
     use_mask: true
     num_query_tokens: 50
-    query_token_dim: 32
-    qk_dim: 32
-    v_dim: 32
-    mlp_out_hidden_dim: 32
+    query_token_dim: 24
+    qk_dim: 24
+    v_dim: 24
+    mlp_out_hidden_dim: 64
     sources:
       - name: _obs_
 
   obs_latent_self_attn:
     _target_: metta.agent.lib.obs_enc.ObsVanillaAttn
-    out_dim: 32
-    num_layers: 6
+    out_dim: 24
+    num_layers: 3
     use_mask: false
     sources:
       - name: obs_latent_query_attn
@@ -43,7 +44,7 @@ components:
     out_dim: 128
     use_mask: false
     num_query_tokens: 1
-    qk_dim: 32
+    qk_dim: 24
     v_dim: 32
     mlp_out_hidden_dim: 32
     sources:
