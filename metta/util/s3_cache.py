@@ -47,11 +47,23 @@ class S3CacheManager:
 
         try:
             self.s3_client = boto3.client("s3", region_name=aws_region)
+            self.log(f"S3 client created for region: {aws_region}")
+
             self.s3_client.head_bucket(Bucket=bucket_name)
             self.s3_available = True
             self.log(f"S3 cache initialized: s3://{bucket_name}/{self.prefix}")
-        except (NoCredentialsError, ClientError) as e:
-            self.log(f"S3 unavailable, cache will be disabled: {e}")
+        except NoCredentialsError as e:
+            self.log(f"S3 unavailable - no AWS credentials found: {e}")
+            self.s3_available = False
+            self.s3_client = None
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
+            error_message = e.response.get("Error", {}).get("Message", str(e))
+            self.log(f"S3 unavailable - ClientError {error_code}: {error_message}")
+            self.s3_available = False
+            self.s3_client = None
+        except Exception as e:
+            self.log(f"S3 unavailable - unexpected error: {type(e).__name__}: {e}")
             self.s3_available = False
             self.s3_client = None
 
