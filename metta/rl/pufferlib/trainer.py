@@ -665,12 +665,22 @@ class PufferTrainer:
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _generate_and_upload_replay(self):
+        self.replay_sim_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
         if self._master:
+            replay_sim_config = SingleEnvSimulationConfig(
+                env="/env/mettagrid/mettagrid",
+                num_episodes=1,
+                env_overrides=self._curriculum.get_task().env_cfg(),
+            )
             logger.info("Generating and saving a replay to wandb and S3.")
 
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
-                config=self.replay_sim_config,
+                config=replay_sim_config,
                 policy_pr=self.last_pr,
                 policy_store=self.policy_store,
                 device=self.device,

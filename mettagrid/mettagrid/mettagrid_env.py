@@ -80,6 +80,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
+        self.label_visits = {}
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
 
@@ -224,6 +225,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 infos[f"rewards/env:{label}"] = episode_rewards_mean
 
         stats = self._c_env.get_episode_stats()
+
+        infos["label_visits"] = self.label_visits
 
         infos["episode_rewards"] = episode_rewards
         # infos["agent_raw"] = stats["agent"]

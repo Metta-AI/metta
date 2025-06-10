@@ -1,0 +1,11 @@
+defaults:
+  - /env/mettagrid/multiagent/training/rs_defaults@
+  - _self_
+
+game:
+  map_builder:
+    _target_: mettagrid.room.multi_agent.boxshare.BoxShare
+    objects:
+      altar: ${sampling:7,14,10}
+      mine.red: ${sampling:7,14,10}
+      generator.red: ${sampling:8,16,12}

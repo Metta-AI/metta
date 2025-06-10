@@ -1,6 +1,18 @@
 _target_: mettagrid.curriculum.LowRewardCurriculum
 
 tasks:
+<<<<<<< HEAD
+  /env/mettagrid/multiagent/training/boxshare: 1
+  /env/mettagrid/multiagent/training/boxy: 1
+  /env/mettagrid/multiagent/training/cylinder_world: 1
+  /env/mettagrid/multiagent/training/manhatten: 1
+  /env/mettagrid/multiagent/training/narrow_world: 1
+  /env/mettagrid/multiagent/training/varied_terrain_sparse: 1
+  /env/mettagrid/multiagent/training/varied_terrain_balanced: 1
+  /env/mettagrid/multiagent/training/varied_terrain_maze: 1
+  /env/mettagrid/multiagent/training/varied_terrain_dense: 1
+  /env/mettagrid/multiagent/training/terrain_from_numpy: 1
+=======
   /env/mettagrid/multiagent/experiments/boxshare: 1
   /env/mettagrid/multiagent/experiments/boxy: 1
   /env/mettagrid/multiagent/experiments/cylinder_world: 1
@@ -10,3 +22,4 @@ tasks:
   /env/mettagrid/multiagent/experiments/varied_terrain_balanced: 1
   /env/mettagrid/multiagent/experiments/varied_terrain_maze: 1
   /env/mettagrid/multiagent/experiments/varied_terrain_dense: 1
+>>>>>>> ea4b6ddcd78d1df1692f1a167fe05529446babc7
