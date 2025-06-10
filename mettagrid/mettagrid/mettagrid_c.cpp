@@ -329,16 +329,8 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   current_step++;
   _event_manager->process_events(current_step);
 
-  // Collect unique priority levels from action handlers
-  std::set<unsigned char> priority_levels;
-  for (const auto& handler : _action_handlers) {
-    priority_levels.insert(handler->priority);
-  }
-
   // Process actions by priority levels (highest to lowest)
-  for (auto it = priority_levels.rbegin(); it != priority_levels.rend(); ++it) {
-    unsigned char current_priority = *it;
-
+  for (unsigned char current_priority = max_action_priority; p != 255; p--) {  // 255 wraps to max when p=0 decrements
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       // Skip agents who already successfully performed an action this step
       if (_action_success[agent_idx]) {
@@ -347,14 +339,19 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
       int action_id = actions_view(agent_idx, 0);
       ActionArg action_arg = static_cast<ActionArg>(actions_view(agent_idx, 1));
-      Agent* agent = _agents[agent_idx];
+
+      if (action_arg > _max_action_args[action_id]) {
+        throw std::runtime_error("Invalid action argument " + std::to_string(action_arg) + " exceeds maximum " +
+                                 std::to_string(_max_action_args[action_id]) + " for action " +
+                                 std::to_string(action_id));
+      }
 
       if (action_id < 0 || action_id >= _num_action_handlers) {
-        throw std::runtime_error("Invalid action ID " + std::to_string(action_id) + " for agent " +
-                                 std::to_string(agent_idx) + ". Valid range: 0 to " +
+        throw std::runtime_error("Invalid action type " + std::to_string(action_id) + ". Valid range: 0 to " +
                                  std::to_string(_num_action_handlers - 1));
       }
 
+      Agent* agent = _agents[agent_idx];
       auto& handler = _action_handlers[action_id];
 
       // Skip if this handler doesn't match current priority level
@@ -362,16 +359,8 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
         continue;
       }
 
-      if (action_arg > _max_action_args[action_id]) {
-        throw std::runtime_error("Action argument " + std::to_string(action_arg) + " exceeds maximum " +
-                                 std::to_string(_max_action_args[action_id]) + " for action " +
-                                 std::to_string(action_id) + " (" + handler->action_name() + ")" + " on agent " +
-                                 std::to_string(agent_idx));
-      }
-
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
-      bool success = handler->handle_action(agent->id, action_arg);
-      _action_success[agent_idx] = success;
+      _action_success[agent_idx] = handler->handle_action(agent->id, action_arg);
     }
   }
 
