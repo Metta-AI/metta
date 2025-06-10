@@ -37,7 +37,8 @@ class TMaze(Room):
         generator_color_left: str = "red",  # Color of the left/up generator
         generator_color_right: str = "blue",  # Color of the right/down generator
         agents: Union[int, DictConfig] = 1,  # Number or config of agents to place
-        border_width: int = 0,  # Width of wall border around maze
+        border_width: int = 6,  # Width of wall border around maze (increased for better room separation)
+        border_object: str = "wall",  # Object type for border (configurable for multi-room scenarios)
         seed: Optional[int] = None,  # Random seed for reproducibility
     ):
         # Initialize random number generator with optional seed
@@ -95,7 +96,7 @@ class TMaze(Room):
         # Initialize parent Room class with border and labels
         super().__init__(
             border_width=self._border_width,
-            border_object="wall",
+            border_object=border_object,
             labels=[
                 "t_maze",
                 orientation,
