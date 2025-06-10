@@ -57,6 +57,25 @@ class PufferTrainer:
         self._master = True
         self._world_size = 1
         self.device: torch.device = cfg.device
+
+        # Validate device and handle MPS properly
+        device_str = str(self.device) if not isinstance(self.device, str) else self.device
+        if device_str == "cuda" and not torch.cuda.is_available():
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                logger.warning(
+                    "CUDA requested but not available, falling back to CPU instead of MPS (MPS support is incomplete)"
+                )
+                device_str = "cpu"
+            else:
+                logger.warning("CUDA requested but not available, falling back to CPU")
+                device_str = "cpu"
+        elif device_str == "mps":
+            logger.warning("MPS device requested but is not fully supported, falling back to CPU")
+            device_str = "cpu"
+
+        # Convert to torch.device
+        self.device = torch.device(device_str)
+
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
@@ -134,6 +153,7 @@ class PufferTrainer:
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
 
+        # Activate actions for the current environment, regardless of model type
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if self.trainer_cfg.compile:
@@ -172,7 +192,7 @@ class PufferTrainer:
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
+        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)) and self.metta_agent.model_type == "brain":
             found_match = False
             for component_name, component in self.metta_agent.components.items():
                 if hasattr(component, "_obs_shape"):
@@ -615,7 +635,7 @@ class PufferTrainer:
             self.agent_step,
             self.epoch,
             self.optimizer.state_dict(),
-            pr.local_path(),
+            pr.local_path,
             average_reward=self.average_reward,  # Save average reward state
         ).save(self.cfg.run_dir)
 

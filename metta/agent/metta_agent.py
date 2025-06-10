@@ -136,8 +136,14 @@ class MettaAgent(nn.Module):
         }
 
         # Save model-specific config for reconstruction
-        if self.model_type == "brain" and self.model is not None and hasattr(self.model, "agent_attributes"):
-            save_data["agent_attributes"] = self.model.agent_attributes
+        if self.model_type == "brain" and self.model is not None:
+            # For BrainPolicy, save all initialization parameters
+            if hasattr(self.model, "agent_attributes"):
+                save_data["agent_attributes"] = self.model.agent_attributes
+
+            # Also save the component configuration if available
+            if hasattr(self.model, "_component_config"):
+                save_data["component_config"] = self.model._component_config
 
         torch.save(save_data, path)
         logger.info(f"Saved {self.model_type} agent to {path}")
@@ -147,7 +153,7 @@ class MettaAgent(nn.Module):
         """Load an agent from disk."""
         logger.info(f"Loading agent from {path}")
 
-        checkpoint = torch.load(path, map_location=device)
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
 
         # Create MettaAgent instance
         agent = cls(
@@ -164,9 +170,58 @@ class MettaAgent(nn.Module):
         agent.action_space_version = checkpoint.get("action_space_version")
         agent.layer_version = checkpoint.get("layer_version")
 
-        # For now, we don't reconstruct the model from saved data
-        # This is where versioning/thunking would happen in the future
-        logger.warning("Model reconstruction not yet implemented. Model will be None.")
+        # Reconstruct the model
+        model_state_dict = checkpoint.get("model_state_dict")
+        if model_state_dict is not None and agent.model_type == "brain":
+            # For BrainPolicy, we need the agent_attributes to reconstruct
+            agent_attributes = checkpoint.get("agent_attributes")
+            if agent_attributes and "components" in agent_attributes:
+                try:
+                    # Import and create BrainPolicy with saved attributes
+                    from metta.agent.brain_policy import BrainPolicy
+
+                    # Extract necessary attributes
+                    obs_space = agent.metadata.get("observation_space")
+                    action_space = agent.metadata.get("action_space")
+
+                    if obs_space and action_space:
+                        # Create a copy of agent_attributes to avoid modifying the original
+                        brain_attrs = agent_attributes.copy()
+
+                        # Ensure we don't duplicate arguments
+                        brain_attrs["obs_space"] = obs_space
+                        brain_attrs["action_space"] = action_space
+                        brain_attrs["device"] = device
+
+                        # Remove any keys that might conflict
+                        for key in ["obs_space", "action_space", "device"]:
+                            if key in brain_attrs and key != key:  # Don't remove the ones we just set
+                                del brain_attrs[key]
+
+                        # Reconstruct the BrainPolicy
+                        brain_policy = BrainPolicy(**brain_attrs)
+
+                        # Load the state dict
+                        brain_policy.load_state_dict(model_state_dict)
+                        brain_policy.to(device)
+                        agent.model = brain_policy
+
+                        logger.info(f"Successfully loaded BrainPolicy model from {path}")
+                    else:
+                        logger.warning("Missing observation_space or action_space in metadata")
+                except Exception as e:
+                    logger.error(f"Failed to reconstruct BrainPolicy: {e}")
+                    logger.warning("Model will be None - this checkpoint may need migration")
+            else:
+                logger.warning("Checkpoint does not contain component configuration needed for full reconstruction")
+                logger.info(
+                    "For evaluation purposes, you can use the checkpoint with the same code version that created it"
+                )
+        else:
+            if model_state_dict is None:
+                logger.warning("No model state dict found in checkpoint")
+            else:
+                logger.warning(f"Model reconstruction for type '{agent.model_type}' not implemented")
 
         return agent
 
@@ -311,3 +366,56 @@ class MettaAgent(nn.Module):
         if self.model and hasattr(self.model, "components"):
             return self.model.components
         raise AttributeError(f"{self.model_type} model does not have components attribute")
+
+    def save_for_training(self, path: str) -> None:
+        """
+        Save the agent for training resumption.
+        This saves the complete model object, allowing training to resume without reconstruction.
+        """
+        save_data = {
+            "model": self.model,  # Save the full model object
+            "model_type": self.model_type,
+            "name": self.name,
+            "uri": self.uri,
+            "metadata": self.metadata,
+            "observation_space_version": self.observation_space_version,
+            "action_space_version": self.action_space_version,
+            "layer_version": self.layer_version,
+        }
+
+        torch.save(save_data, path)
+        logger.info(f"Saved complete {self.model_type} agent for training to {path}")
+
+    @classmethod
+    def load_for_training(cls, path: str, device: str = "cpu") -> "MettaAgent":
+        """
+        Load an agent for training resumption.
+        This loads the complete model object without needing reconstruction.
+        """
+        logger.info(f"Loading agent for training from {path}")
+
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
+
+        # Create MettaAgent instance with the loaded model
+        model = checkpoint.get("model")
+        if model is not None:
+            model = model.to(device)
+
+        agent = cls(
+            model=model,
+            model_type=checkpoint.get("model_type", "brain"),
+            name=checkpoint.get("name", os.path.basename(path)),
+            uri=checkpoint.get("uri", f"file://{path}"),
+            metadata=checkpoint.get("metadata", {}),
+            local_path=path,
+        )
+
+        # Set version info
+        agent.observation_space_version = checkpoint.get("observation_space_version")
+        agent.action_space_version = checkpoint.get("action_space_version")
+        agent.layer_version = checkpoint.get("layer_version")
+
+        if model is None:
+            logger.warning("No model found in checkpoint")
+
+        return agent

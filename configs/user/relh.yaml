@@ -1,6 +1,7 @@
 # @package __global__
 
 seed: null
+device: cpu  # Use CPU to avoid MPS issues on macOS
 
 defaults:
   # - override /env/mettagrid@env: simple
@@ -28,7 +29,6 @@ trainer:
     #env: /env/mettagrid/navigation/training/multienv
   #initial_policy:
   #  uri: puffer://checkpoints/metta-example/model_019074.pt
-  #  #uri: puffer://checkpoints/metta-example/model_019074.pt
   #env: /env/mettagrid//training/multienv_nc
 
 replay_job:

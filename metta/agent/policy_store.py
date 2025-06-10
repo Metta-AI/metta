@@ -190,8 +190,8 @@ class PolicyStore:
         policy.local_path = path
         policy.metadata.update(metadata)
 
-        # Save using the MettaAgent's save method
-        policy.save(path)
+        # Use save_for_training to save complete model for training resumption
+        policy.save_for_training(path)
 
         # Cache the agent
         self._cached_agents[path] = policy
@@ -357,7 +357,18 @@ class PolicyStore:
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
 
-        # Try loading with the new MettaAgent format
+        # Try loading with the new training format (complete model)
+        try:
+            agent = MettaAgent.load_for_training(path, device=self._device)
+            if agent.model is not None:
+                self._cached_agents[path] = agent
+                return agent
+            else:
+                logger.info("No model in training checkpoint, trying other formats")
+        except Exception as e:
+            logger.info(f"Failed to load as training format: {e}")
+
+        # Try loading with the new MettaAgent format (for evaluation)
         try:
             agent = MettaAgent.load(path, device=self._device)
             self._cached_agents[path] = agent
@@ -371,10 +382,10 @@ class PolicyStore:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
 
-            # Load the old PolicyRecord format
+            # Load the checkpoint
             loaded_data = torch.load(path, map_location=self._device, weights_only=False)
 
-            # Check if it's an old PolicyRecord
+            # Check if it's an old PolicyRecord object
             if hasattr(loaded_data, "_policy") and hasattr(loaded_data, "metadata"):
                 # Convert old PolicyRecord to new MettaAgent
                 agent = MettaAgent(
@@ -387,8 +398,55 @@ class PolicyStore:
                 )
                 self._cached_agents[path] = agent
                 return agent
+
+            # Check if it's a raw model state dict or model object
+            elif isinstance(loaded_data, dict) and any(key.startswith("components.") for key in loaded_data.keys()):
+                # This looks like a raw state dict from the old MettaAgent/BrainPolicy
+                logger.warning(f"Loading raw state dict from {path} - creating new agent wrapper")
+                # Create a minimal agent wrapper
+                agent = MettaAgent(
+                    model=None,  # Can't reconstruct the model from just state dict
+                    model_type="brain",
+                    name=os.path.basename(path),
+                    uri=f"file://{path}",
+                    metadata={
+                        "epoch": int(os.path.basename(path).split("_")[1].split(".")[0])
+                        if "model_" in os.path.basename(path)
+                        else 0,
+                        "warning": "Loaded from raw state dict - model reconstruction not available",
+                    },
+                    local_path=path,
+                )
+                self._cached_agents[path] = agent
+                return agent
+
+            # Check if it's a torch model object directly
+            elif isinstance(loaded_data, torch.nn.Module):
+                logger.warning(f"Loading raw model from {path} - creating new agent wrapper")
+                # Try to determine if it's BrainPolicy or generic model
+                from metta.agent.brain_policy import BrainPolicy
+
+                if isinstance(loaded_data, BrainPolicy):
+                    model = loaded_data
+                else:
+                    # For generic models, we can't use them directly
+                    logger.warning("Generic torch model found - cannot use as MettaAgent model")
+                    model = None
+
+                agent = MettaAgent(
+                    model=model,
+                    model_type="brain",
+                    name=os.path.basename(path),
+                    uri=f"file://{path}",
+                    metadata={"epoch": 0, "warning": "Loaded from raw model - metadata unavailable"},
+                    local_path=path,
+                )
+                self._cached_agents[path] = agent
+                return agent
             else:
-                raise ValueError(f"Unrecognized file format in {path}")
+                raise ValueError(
+                    f"Unrecognized file format in {path}. Expected MettaAgent checkpoint, PolicyRecord, state dict, or model object."
+                )
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")
