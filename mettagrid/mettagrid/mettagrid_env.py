@@ -44,6 +44,15 @@ dtype_success = np.dtype(bool)
 
 logger = logging.getLogger("MettaGridEnv")
 
+# Cache manager for expensive map building operations
+map_cache = S3CacheManager(
+    bucket_name="softmax-level-cache",
+    prefix="map_builder_cache/",
+    compression_level=6,
+    aws_region="us-east-1",
+    logger=None,
+)
+
 
 def required(func):
     """Marks methods that PufferEnv requires but does not implement for override."""
@@ -74,18 +83,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._steps = 0
         self._cache_hits = 0
         self._cache_misses = 0
-
-        cache_logger = logging.getLogger("cache_debug")
-        cache_logger.setLevel(logging.INFO)
-
-        # Cache manager for expensive map building operations
-        self.map_cache = S3CacheManager(
-            bucket_name="softmax-level-cache",
-            prefix="map_builder_cache/",
-            compression_level=6,
-            aws_region="us-east-1",
-            logger=cache_logger,
-        )
 
         self._render_mode = render_mode
         self._curriculum = curriculum
@@ -123,7 +120,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         level = self._level
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
-            with self.map_cache(map_builder_config) as cache_ctx:
+            with map_cache(map_builder_config) as cache_ctx:
                 if cache_ctx.hit:
                     with self.timer("cache_hit"):
                         level = cache_ctx.get()
@@ -251,14 +248,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos.update(
             {
-                "episode/reward.sum": episode_rewards_sum,
-                "episode/reward.mean": episode_rewards_mean,
-                "episode/reward.min": episode_rewards.min(),
-                "episode/reward.max": episode_rewards.max(),
-                "episode/length": self._c_env.current_step,
-                f"task/{self._task.name()}/reward": episode_rewards_mean,
+                "rewards/sum": episode_rewards_sum,
+                "rewards/mean": episode_rewards_mean,
+                "rewards/min": episode_rewards.min(),
+                "rewards/max": episode_rewards.max(),
+                f"rewards/{self._task.name()}/sum": episode_rewards_sum,
+                f"rewards/{self._task.name()}/mean": episode_rewards_mean,
+                f"rewards/{self._task.name()}/min": episode_rewards.min(),
+                f"rewards/{self._task.name()}/max": episode_rewards.max(),
             }
         )
+        infos["rewards/raw"] = episode_rewards
 
         for label in self._map_labels:
             infos[f"rewards/map:{label}"] = episode_rewards_mean
@@ -286,14 +286,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             },
             # Total time for reference
             "timing/total_seconds": wall_time,
+            "timing/total_steps": self._c_env.current_step,
         }
-
         infos["timing"] = timing_logs
 
         infos["cache/hits"] = self._cache_hits
         infos["cache/misses"] = self._cache_misses
 
-        infos["episode_rewards"] = episode_rewards
         # infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
         infos["agent"] = {}
