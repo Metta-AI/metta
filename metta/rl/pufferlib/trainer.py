@@ -635,11 +635,7 @@ class PufferTrainer:
             extra_args["average_reward"] = self._average_reward_estimate
 
         self.checkpoint = TrainerCheckpoint(
-            self.agent_step,
-            self.epoch,
-            self.optimizer.state_dict(),
-            pr.local_path(),
-            average_reward=self.average_reward,  # Save average reward state
+            self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
