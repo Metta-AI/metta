@@ -50,19 +50,6 @@ def required(func):
     return func
 
 
-cache_logger = logging.getLogger("cache_debug")
-cache_logger.setLevel(logging.INFO)
-
-# Cache manager for expensive map building operations
-map_cache = S3CacheManager(
-    bucket_name="softmax-level-cache",
-    prefix="map_builder_cache/",
-    compression_level=6,
-    aws_region="us-east-1",
-    logger=cache_logger,
-)
-
-
 class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     # Type hints for attributes defined in the C++ extension to help Pylance
     observations: np.ndarray
@@ -87,6 +74,18 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._steps = 0
         self._cache_hits = 0
         self._cache_misses = 0
+
+        cache_logger = logging.getLogger("cache_debug")
+        cache_logger.setLevel(logging.INFO)
+
+        # Cache manager for expensive map building operations
+        self.map_cache = S3CacheManager(
+            bucket_name="softmax-level-cache",
+            prefix="map_builder_cache/",
+            compression_level=6,
+            aws_region="us-east-1",
+            logger=cache_logger,
+        )
 
         self._render_mode = render_mode
         self._curriculum = curriculum
@@ -124,7 +123,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         level = self._level
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
-            with map_cache(map_builder_config) as cache_ctx:
+            with self.map_cache(map_builder_config) as cache_ctx:
                 if cache_ctx.hit:
                     with self.timer("cache_hit"):
                         level = cache_ctx.get()
@@ -256,7 +255,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 "episode/reward.mean": episode_rewards_mean,
                 "episode/reward.min": episode_rewards.min(),
                 "episode/reward.max": episode_rewards.max(),
-                "episode_length": self._c_env.current_step,
+                "episode/length": self._c_env.current_step,
                 f"task/{self._task.name()}/reward": episode_rewards_mean,
             }
         )
