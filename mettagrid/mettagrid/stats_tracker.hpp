@@ -9,12 +9,9 @@
 // Forward declaration
 class MettaGrid;
 
-// Type alias for stat values - supports int and float
-using StatValue = std::variant<int, float>;
-
 class StatsTracker {
 private:
-  std::map<std::string, StatValue> _stats;
+  std::map<std::string, float> _stats;
   std::map<std::string, int> _first_seen_at;
   std::map<std::string, int> _last_seen_at;
   std::map<std::string, float> _min_value;
@@ -57,22 +54,8 @@ private:
 public:
   StatsTracker() : _env(nullptr) {}
 
-  // Set the environment reference
   void set_environment(MettaGrid* env) {
     _env = env;
-  }
-
-  // Add operations (accumulate values)
-  void add(const std::string& key, int amount = 1) {
-    if (_stats.find(key) == _stats.end()) {
-      _stats[key] = 0;
-    }
-
-    std::visit([amount](auto& value) { value += amount; }, _stats[key]);
-
-    track_timing(key);
-    float current_value = std::visit([](const auto& v) -> float { return static_cast<float>(v); }, _stats[key]);
-    track_bounds(key, current_value);
   }
 
   void add(const std::string& key, float amount) {
@@ -80,35 +63,14 @@ public:
       _stats[key] = 0.0f;
     }
 
-    std::visit(
-        [amount](auto& value) {
-          using T = std::decay_t<decltype(value)>;
-          if constexpr (std::is_same_v<T, int>) {
-            value += static_cast<int>(amount);
-          } else {
-            value += amount;
-          }
-        },
-        _stats[key]);
-
+    _stats[key] += amount;
     track_timing(key);
-    float current_value = std::visit([](const auto& v) -> float { return static_cast<float>(v); }, _stats[key]);
-    track_bounds(key, current_value);
+    track_bounds(key, _stats[key]);
   }
 
   // Increment by 1 (convenience method)
   void incr(const std::string& key) {
-    if (_stats.find(key) != _stats.end() && std::holds_alternative<float>(_stats[key])) {
-      throw std::runtime_error("Cannot increment float stat '" + key + "' - use add() instead");
-    }
     add(key, 1);
-  }
-
-  // Set operations
-  void set(const std::string& key, int value) {
-    _stats[key] = value;
-    track_timing(key);
-    track_bounds(key, static_cast<float>(value));
   }
 
   void set(const std::string& key, float value) {
@@ -134,8 +96,7 @@ public:
 
     // Add all stats
     for (const auto& [key, value] : _stats) {
-      float val = std::visit([](const auto& v) -> float { return static_cast<float>(v); }, value);
-      result[key] = val;
+      result[key] = value;
     }
 
     // Add timing metadata and calculated stats
