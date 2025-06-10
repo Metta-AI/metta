@@ -944,6 +944,7 @@ class PufferTrainer:
         rank = int(os.environ.get("RANK", 0))
         self.vecenv.async_reset(self.cfg.seed + rank)
 
+
 class AbortingTrainer(PufferTrainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
