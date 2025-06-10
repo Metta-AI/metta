@@ -1,6 +1,9 @@
 #include <gtest/gtest.h>
+#include <pybind11/embed.h>
 
 #include "testing_utils.hpp"
+
+namespace py = pybind11;
 
 class RewardDecayTest : public ::testing::Test {
 protected:
@@ -123,31 +126,25 @@ TEST_F(RewardDecayTest, EnableThenDisable) {
 }
 
 // Test changing decay time constant
-TEST_F(RewardDecayTest, ChangeDecayTimeConstant) {
-  // Reset and enable with slow decay
+TEST_F(RewardDecayTest, CompareDecayTimeConstants) {
+  // Test slow decay
   mettagrid->reset();
-  mettagrid->enable_reward_decay(100);  // Slow decay
-
-  // Run some steps with slow decay
+  mettagrid->enable_reward_decay(100);
   auto actions = create_noop_actions();
   for (int i = 0; i < 10; i++) {
     mettagrid->step(actions);
   }
-
-  // Get multiplier after slow decay
   float slow_multiplier = mettagrid->get_reward_decay_multiplier();
 
-  // Reset and enable with fast decay
-  mettagrid->reset();
-  mettagrid->enable_reward_decay(5);  // Fast decay
+  // Create a new grid for fast decay test (since we can't reset after step)
+  auto fast_decay_grid = testing_utils::create_test_mettagrid();
+  fast_decay_grid->reset();
+  fast_decay_grid->enable_reward_decay(5);
 
-  // Run same number of steps with fast decay
   for (int i = 0; i < 10; i++) {
-    mettagrid->step(actions);
+    fast_decay_grid->step(actions);
   }
-
-  // Get multiplier after fast decay
-  float fast_multiplier = mettagrid->get_reward_decay_multiplier();
+  float fast_multiplier = fast_decay_grid->get_reward_decay_multiplier();
 
   // The fast decay should produce a smaller multiplier
   EXPECT_LT(fast_multiplier, slow_multiplier)
@@ -249,6 +246,7 @@ TEST_F(RewardDecayTest, DecayAffectsRewards) {
 }
 
 int main(int argc, char** argv) {
+  py::scoped_interpreter guard{};
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

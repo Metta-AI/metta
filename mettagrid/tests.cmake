@@ -68,7 +68,7 @@ function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/te
 
     if(TEST_TYPE STREQUAL "test")
       add_test(NAME ${output_name} COMMAND ${output_name} --gtest_color=yes)
-      set_tests_properties(${output_name} PROPERTIES 
+      set_tests_properties(${output_name} PROPERTIES
         ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES}"
         LABELS "test")
     elseif(TEST_TYPE STREQUAL "benchmark")
@@ -91,9 +91,9 @@ if(result)
 endif()
 message(\"================================================================================\\n\")
 ")
-      
+
       add_test(NAME ${output_name} COMMAND ${CMAKE_COMMAND} -P ${wrapper_script})
-      set_tests_properties(${output_name} PROPERTIES 
+      set_tests_properties(${output_name} PROPERTIES
         ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES}"
         LABELS "benchmark"
         TIMEOUT 300)
@@ -103,10 +103,10 @@ message(\"======================================================================
   endforeach()
 endfunction()
 
-# Build tests
+# Build tests - FIXED: Use pybind11::embed instead of pybind11::pybind11
 mettagrid_add_tests("${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
-                      "pybind11::pybind11;Python3::Python;GTest::gtest;GTest::gtest_main" "test")
+                      "pybind11::embed;Python3::Python;GTest::gtest;GTest::gtest_main" "test")
 
-# Build benchmarks
+# Build benchmarks - FIXED: Use pybind11::embed instead of pybind11::pybind11
 mettagrid_add_tests("${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.cpp"
-                      "pybind11::pybind11;Python3::Python;benchmark::benchmark;benchmark::benchmark_main" "benchmark")
+                      "pybind11::embed;Python3::Python;benchmark::benchmark;benchmark::benchmark_main" "benchmark")
