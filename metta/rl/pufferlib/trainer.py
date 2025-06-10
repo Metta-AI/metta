@@ -462,9 +462,10 @@ class PufferTrainer:
             values_np = experience.values_np[idxs]
             rewards_np = experience.rewards_np[idxs]
 
-            # Update average reward estimate
             if self.trainer_cfg.average_reward:
-                # Get previous estimate (from checkpoint or last calculation)
+                # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
+                # where ρ is the average reward estimate
+
                 if not hasattr(self, "_average_reward_estimate"):
                     # Initialize from checkpoint or zero
                     self._average_reward_estimate = (
@@ -485,7 +486,7 @@ class PufferTrainer:
                     dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
                 )
             else:
-                # Standard discounted case
+                # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
                 effective_gamma = self.trainer_cfg.gamma
                 advantages_np = compute_gae(
                     dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
