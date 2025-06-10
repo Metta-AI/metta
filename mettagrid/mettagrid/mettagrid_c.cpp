@@ -356,7 +356,6 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   // Compute observations for next step
   _compute_observations(actions);
 
-  // Apply reward decay if enabled
   if (_reward_decay_enabled) {
     _reward_decay_multiplier =
         std::max(_min_reward_multiplier, _reward_decay_multiplier * (1.0f - _reward_decay_factor));
@@ -747,7 +746,6 @@ unsigned int StatsTracker::get_current_step() const {
   return static_cast<MettaGrid*>(_env)->current_step;
 }
 
-// Enable reward decay
 void MettaGrid::enable_reward_decay(int32_t decay_time_steps) {
   _reward_decay_enabled = true;
   _reward_decay_multiplier = 1.0f;  // Reset multiplier to initial value
@@ -760,7 +758,6 @@ void MettaGrid::enable_reward_decay(int32_t decay_time_steps) {
   }
 }
 
-// Disable reward decay
 void MettaGrid::disable_reward_decay() {
   _reward_decay_enabled = false;
   _reward_decay_multiplier = 1.0f;  // Reset multiplier to initial value
