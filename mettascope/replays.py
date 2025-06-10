@@ -23,7 +23,7 @@ def create_simulation(cfg):
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        policy_record = policy_store.policy(cfg.replay_job.policy_uri)
+        agent = policy_store.policy(cfg.replay_job.policy_uri)
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]
@@ -34,7 +34,7 @@ def create_simulation(cfg):
         sim = Simulation(
             sim_name,
             sim_config,
-            policy_record,
+            agent,
             policy_store,
             device=cfg.device,
             vectorization=cfg.vectorization,

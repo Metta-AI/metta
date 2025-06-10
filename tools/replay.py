@@ -38,7 +38,7 @@ def main(cfg):
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         replay_job = ReplayJob(cfg.replay_job)
-        policy_record = policy_store.policy(replay_job.policy_uri)
+        agent = policy_store.policy(replay_job.policy_uri)
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]
@@ -47,7 +47,7 @@ def main(cfg):
         sim = Simulation(
             sim_name,
             sim_config,
-            policy_record,
+            agent,
             policy_store,
             device=cfg.device,
             vectorization=cfg.vectorization,
@@ -55,9 +55,7 @@ def main(cfg):
             replay_dir=replay_dir,
         )
         result = sim.simulate()
-        replay_url = result.stats_db.get_replay_urls(
-            policy_key=policy_record.key(), policy_version=policy_record.version()
-        )[0]
+        replay_url = result.stats_db.get_replay_urls(policy_key=agent.key(), policy_version=agent.version())[0]
 
         # Only on macos open a browser to the replay
         if platform.system() == "Darwin":

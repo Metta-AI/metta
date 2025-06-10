@@ -61,30 +61,18 @@ def simulate_policy(
     results = {"policy_uri": policy_uri, "checkpoints": []}
 
     policy_store = PolicyStore(cfg, None)
-    agent = policy_store.policy(policy_uri)
-
-    simulation = Simulation(
-        name="simulation",
-        config=cfg.sim,
-        policy_agent=agent,
-        policy_store=policy_store,
-        device=cfg.device,
-        vectorization=cfg.vectorization,
-        stats_dir=cfg.sim.stats_dir,
-        replay_dir=cfg.sim.replay_dir,
-    )
 
     # TODO: institutionalize this better?
     metric = sim_job.simulation_suite.name + "_score"
-    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
+    agents = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
 
     # For each checkpoint of the policy, simulate
-    for pr in policy_prs:
-        logger.info(f"Evaluating policy {pr.uri}")
-        replay_dir = f"{sim_job.replay_dir}/{pr.name}"
+    for agent in agents:
+        logger.info(f"Evaluating policy {agent.uri}")
+        replay_dir = f"{sim_job.replay_dir}/{agent.name}"
         sim = SimulationSuite(
             config=sim_job.simulation_suite,
-            policy_pr=pr,
+            policy_agent=agent,
             policy_store=policy_store,
             replay_dir=replay_dir,
             stats_dir=sim_job.stats_dir,
@@ -94,7 +82,7 @@ def simulate_policy(
         sim_results = sim.simulate()
 
         # Collect metrics from the results
-        checkpoint_data = {"name": pr.name, "uri": pr.uri, "metrics": {}}
+        checkpoint_data = {"name": agent.name, "uri": agent.uri, "metrics": {}}
 
         # Get average reward
         rewards_df = sim_results.stats_db.query(
@@ -109,7 +97,7 @@ def simulate_policy(
         logger.info("Exporting merged stats DB → %s", sim_job.stats_db_uri)
         sim_results.stats_db.export(sim_job.stats_db_uri)
 
-        logger.info("Evaluation complete for policy %s", pr.uri)
+        logger.info("Evaluation complete for policy %s", agent.uri)
 
     return results
 

@@ -233,14 +233,14 @@ class EvalStatsDB(SimulationStatsDB):
                 FROM episode_data
                 WHERE policy_key = ? AND policy_version = ? AND sim_name LIKE ?
             """
-            result = self.execute_query(base_query, (pk, pv, f"%{suite_filter}%"))
+            result = self.con.execute(base_query, (pk, pv, f"%{suite_filter}%")).fetchall()
         else:
             base_query = """
                 SELECT COUNT(*)
                 FROM episode_data
                 WHERE policy_key = ? AND policy_version = ?
             """
-            result = self.execute_query(base_query, (pk, pv))
+            result = self.con.execute(base_query, (pk, pv)).fetchall()
 
         return result[0][0] if result and result[0] else 0
 
@@ -257,13 +257,13 @@ class EvalStatsDB(SimulationStatsDB):
             GROUP BY policy_key, sim_name, policy_version
             ORDER BY avg_score DESC
         """
-        result = self.execute_query(query, (pk, pv, metric))
+        result = self.con.execute(query, (pk, pv, metric)).fetchall()
         return {(row[0], row[1], row[2]): row[3] for row in result}
 
     def metric_by_policy_eval(
         self,
         metric: str,
-        policy_record: MettaAgent | None = None,
+        agent: MettaAgent | None = None,
     ) -> pd.DataFrame:
         """
         Return a DataFrame with columns
@@ -273,8 +273,8 @@ class EvalStatsDB(SimulationStatsDB):
         * `eval_name`  →  `sim_env`
         * `value`      →  normalised mean of *metric*
         """
-        if policy_record is not None:
-            policy_key, policy_version = policy_record.key_and_version()
+        if agent is not None:
+            policy_key, policy_version = agent.key_and_version()
             policy_clause = f"policy_key = '{policy_key}' AND policy_version = {policy_version}"
         else:
             # All policies
@@ -329,5 +329,5 @@ class EvalStatsDB(SimulationStatsDB):
 
         query += " ORDER BY replay_url"
 
-        result = self.execute_query(query, params)
+        result = self.con.execute(query, params).fetchall()
         return [row[0] for row in result if row[0]]

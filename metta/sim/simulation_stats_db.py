@@ -84,7 +84,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         agent_map: dict[int, MettaAgent],
         sim_name: str,
         sim_suite: str,
-        env: DictConfig,
+        env: str,
         agent: MettaAgent,
     ) -> "SimulationStatsDB":
         """
@@ -134,8 +134,8 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"Found {len(all_episode_ids)} episodes across all shards")
 
         if all_episode_ids:
-            # Convert agent_map with PolicyRecord to agent_map with (key, version) tuples
-            agent_tuple_map = {agent_id: record.key_and_version() for agent_id, record in agent_map.items()}
+            # Convert agent_map with MettaAgent to agent_map with (key, version) tuples
+            agent_tuple_map = {agent_id: agent.key_and_version() for agent_id, agent in agent_map.items()}
 
             merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
             merged._update_episode_simulations(all_episode_ids, sim_id)
@@ -200,7 +200,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
     def _insert_simulation(
         self, sim_id: str, name: str, suite: str, env: str, policy_key: str, policy_version: int
-    ) -> str:
+    ) -> None:
         self.con.execute(
             """
             INSERT OR REPLACE INTO simulations (id, name, suite, env, policy_key, policy_version)
@@ -259,9 +259,13 @@ class SimulationStatsDB(EpisodeStatsDB):
             return
 
         # Merge
-        logger.debug(f"Before merge: {self.con.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]} episodes")
+        before_count = self.con.execute("SELECT COUNT(*) FROM episodes").fetchone()
+        before_episodes = before_count[0] if before_count else 0
+        logger.debug(f"Before merge: {before_episodes} episodes")
         self._merge_db(other.path)
-        logger.debug(f"After merge: {self.con.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]} episodes")
+        after_count = self.con.execute("SELECT COUNT(*) FROM episodes").fetchone()
+        after_episodes = after_count[0] if after_count else 0
+        logger.debug(f"After merge: {after_episodes} episodes")
         logger.debug(f"Merged {other_path} into {self.path}")
 
     # ------------------------------------------------------------------ #
