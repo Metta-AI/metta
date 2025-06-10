@@ -92,11 +92,15 @@ The action traces visualization shows the history of agent actions. You can:
 
 ### Visualization Controls
 
-- **Pin an Agent**: Toggle agent following mode with the pin icon, keeping the selected agent centered
-- **Grid Toggle**: Show/hide the grid with the grid button
-- **Resource Display**: Toggle visibility of resources (hearts and other items) with the heart icon
-- **Fog of War**: Show/hide fog of war with the cloud icon, revealing what agents can and cannot see
-- **Vision Range**: Toggle agent vision range visualization with the eye icon to see how far each agent can see
+- **Focus on an Agent**: This is useful to control or just follow the agent without having to move the camera around.
+- **Toggle Minimap**: On big maps this is useful to see the whole map and where the camera is in relation to the agents.
+- **Toggle Control for Agents**: This is needed if you don't know the keyboard shortcuts to play the agents with WASD.
+- **Toggle Map Info**: This is useful to show the current step, number of agents and other objects.
+- **Toggle Agent Panel**: There you can see the agent's name, id, and the current inventory as well as other stats. You can add and remove columns as well as see current and final state of the agent.
+- **Toggle Resources**: Some times there are just too many icons on screen and you want a cleaner view.
+- **Grid Toggle**: Some times the grid is just too much and you want to get a clearer view.
+- **Vision Range**: These ranges allow you to see what the agent would see.
+- **Fog of War**: This mode allows you to only see what the agent will see without giving you extra information beyond agent's vision.
 
 ### Navigation
 
@@ -121,6 +125,7 @@ When you select an agent, you can take direct control using these keyboard comma
 - **E**: Put Items
 - **Z**: Nearest Attack
 - **1-9**: Exact Attack
+- **A**: Opens up the attack view so that you don't need to remember the buttons.
 - **G**: Swap Objects
 - **C**: Change Color
 - **X**: Do Nothing
