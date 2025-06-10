@@ -19,6 +19,10 @@ enum GridLayer {
   GridLayerCount
 };
 
+// We want empty tokens to be 0xff, since 0s are very natural numbers to have in the observations, and we want
+// empty to be obviously different.
+const uint8_t EmptyTokenByte = 0xff;
+
 // Changing observation feature ids will break models that have
 // been trained on the old feature ids.
 // In the future, the string -> id mapping should be stored on a
@@ -30,19 +34,19 @@ enum GridLayer {
 // The namespace allows us to use these descriptive names without conflicts.
 namespace ObservationFeature {
 enum ObservationFeatureEnum : uint8_t {
-  TypeId = 1,
-  Group = 2,
-  Hp = 3,
-  Frozen = 4,
-  Orientation = 5,
-  Color = 6,
-  ConvertingOrCoolingDown = 7,
-  Swappable = 8,
+  TypeId = 0,
+  Group = 1,
+  Hp = 2,
+  Frozen = 3,
+  Orientation = 4,
+  Color = 5,
+  ConvertingOrCoolingDown = 6,
+  Swappable = 7,
   ObservationFeatureCount
 };
 }  // namespace ObservationFeature
 
-const uint8_t InventoryFeatureOffset = 100;
+const uint8_t InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
 
 // There should be a one-to-one mapping between ObjectType and ObjectTypeNames.
 // ObjectTypeName is mostly used for human-readability, but may be used as a key

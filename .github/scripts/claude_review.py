@@ -53,7 +53,6 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
         "review_summary": "Consolidated review from multiple Claude analyzers",
         "review_status": "COMMENT",
         "suggestions": [],
-        "compliments": [],
         "tldr": [],
         "review_types": {},
     }
@@ -62,7 +61,6 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
     review_types = ["readme", "comments", "types", "einops"]
 
     total_suggestions = 0
-    total_compliments = 0
     has_any_issues = False
     reviews_with_issues = []
 
@@ -85,7 +83,6 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
                 "summary": "No issues found",
                 "status": "NONE",
                 "suggestion_count": 0,
-                "compliment_count": 0,
             }
             continue
 
@@ -98,7 +95,6 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
                 "summary": "Error downloading artifact",
                 "status": "NONE",
                 "suggestion_count": 0,
-                "compliment_count": 0,
             }
             continue
 
@@ -109,18 +105,14 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
                 "summary": "No issues found",
                 "status": "NONE",
                 "suggestion_count": 0,
-                "compliment_count": 0,
             }
             continue
 
         # Extract data from this review
         suggestions = review_data.get("suggestions", [])
-        compliments = review_data.get("compliments", [])
         suggestion_count = len(suggestions)
-        compliment_count = len(compliments)
 
         total_suggestions += suggestion_count
-        total_compliments += compliment_count
 
         if suggestion_count > 0:
             has_any_issues = True
@@ -131,12 +123,9 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
             "summary": review_data.get("review_summary", ""),
             "status": review_data.get("review_status", "COMMENT"),
             "suggestion_count": suggestion_count,
-            "compliment_count": compliment_count,
         }
 
-        # Merge suggestions and compliments
         consolidated["suggestions"].extend(suggestions)
-        consolidated["compliments"].extend(compliments)
 
         # Add prefixed TLDR items
         tldr_items = review_data.get("tldr", [])
@@ -164,12 +153,10 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
         with open(os.getenv("GITHUB_OUTPUT"), "a") as f:
             f.write(f"has_any_issues={'true' if has_any_issues else 'false'}\n")
             f.write(f"total_suggestions={total_suggestions}\n")
-            f.write(f"total_compliments={total_compliments}\n")
             f.write(f"final_status={final_status}\n")
 
     print("✅ Consolidation complete:")
     print(f"   Total suggestions: {total_suggestions}")
-    print(f"   Total compliments: {total_compliments}")
     print(f"   Has issues: {has_any_issues}")
     print(f"   Final status: {final_status}")
 
@@ -275,16 +262,6 @@ def create_review_comment(suggestion: Dict[str, Any]) -> Dict[str, Any]:
     return comment
 
 
-def create_compliment_comment(compliment: Dict[str, Any]) -> Dict[str, Any]:
-    """Create a review comment from a compliment."""
-    return {
-        "path": compliment["file"],
-        "line": compliment["line"],
-        "side": "RIGHT",
-        "body": f"✨ {compliment['comment']}",
-    }
-
-
 def build_review_body(analysis: Dict[str, Any], skipped_suggestions: List[str]) -> str:
     """Build the review body markdown."""
     sections = []
@@ -298,7 +275,6 @@ def build_review_body(analysis: Dict[str, Any], skipped_suggestions: List[str]) 
     # Overview
     sections.append("### Overview")
     sections.append(f"- **Total suggestions**: {len(analysis['suggestions'])}")
-    sections.append(f"- **Total compliments**: {len(analysis['compliments'])}")
     sections.append(f"- **Review types run**: {len(analysis['review_types'])}")
     sections.append("")
 
@@ -306,15 +282,13 @@ def build_review_body(analysis: Dict[str, Any], skipped_suggestions: List[str]) 
     emoji_map = {"readme": "📝", "comments": "💬", "types": "🏷️", "einops": "🔄"}
 
     for review_type, data in analysis["review_types"].items():
-        if data["suggestion_count"] > 0 or data["compliment_count"] > 0:
+        if data["suggestion_count"] > 0:
             emoji = emoji_map.get(review_type, "📋")
             title = review_type.capitalize()
 
             sections.append(f"### {emoji} {title} Review")
             sections.append(f"- **Status**: {data['status'].replace('_', ' ').lower()}")
             sections.append(f"- **Suggestions**: {data['suggestion_count']}")
-            if data["compliment_count"] > 0:
-                sections.append(f"- **Compliments**: {data['compliment_count']}")
             sections.append("")
 
     # Quick summary
@@ -458,18 +432,6 @@ def create_unified_review(token: str, repo: str, pr_number: int, analysis: Dict[
             skipped_suggestions.append(
                 {"file": suggestion["file"], "reason": f"Error: {str(e)}", "suggestion": suggestion}
             )
-
-    # Process compliments similarly
-    for compliment in analysis.get("compliments", []):
-        if compliment["file"] in pr_filenames:
-            # For compliments, we're more lenient - just check if the line exists in diff
-            line = compliment.get("line", 0)
-            if line in file_diff_lines.get(compliment["file"], {}):
-                try:
-                    comment = create_compliment_comment(compliment)
-                    comments.append(comment)
-                except Exception as e:
-                    print(f"Error creating compliment for {compliment['file']}: {e}")
 
     print(f"   Created {len(comments)} review comments")
     print(f"   Found {len(suggestions_for_future)} suggestions for unchanged code")

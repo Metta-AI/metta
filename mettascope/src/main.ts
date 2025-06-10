@@ -2,14 +2,15 @@ import { Vec2f, Mat3f } from './vector_math.js';
 import * as Common from './common.js';
 import { ui, state, html, ctx, setFollowSelection } from './common.js';
 import { fetchReplay, getAttr, initWebSocket, readFile, sendAction } from './replay.js';
-import { focusFullMap, updateReadout, drawMap, requestFrame } from './worldmap.js';
+import { focusFullMap, drawMap, requestFrame } from './worldmap.js';
 import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
 import { initAgentTable, updateAgentTable } from './agentpanel.js';
-import { localStorageSetNumber } from './htmlutils.js';
+import { localStorageSetNumber, onEvent } from './htmlutils.js';
+import { updateReadout } from './infopanels.js';
 
-// Handle resize events.
+/** Handles resize events. */
 export function onResize() {
   // Adjust for high DPI displays.
   const dpr = window.devicePixelRatio || 1;
@@ -39,9 +40,9 @@ export function onResize() {
   }
 
   ui.infoPanel.x = screenWidth - 400;
-  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 200;
+  ui.infoPanel.y = ui.mapPanel.y + ui.mapPanel.height - 300;
   ui.infoPanel.width = 400;
-  ui.infoPanel.height = 200;
+  ui.infoPanel.height = 300;
 
   // Trace panel is always on the bottom of the screen.
   ui.tracePanel.x = 0;
@@ -67,8 +68,8 @@ export function onResize() {
   requestFrame();
 }
 
-// Handle mouse down events.
-function onMouseDown() {
+/** Handle mouse down events. */
+onEvent("mousedown", "body", () => {
   ui.lastMousePos = ui.mousePos;
   ui.mouseDownPos = ui.mousePos;
   ui.mouseClick = true;
@@ -86,13 +87,15 @@ function onMouseDown() {
   }
 
   requestFrame();
-}
+})
 
-// Handle mouse up events.
-function onMouseUp() {
+/** Handle mouse up events. */
+onEvent("mouseup", "body", () => {
   ui.mouseUp = true;
   ui.mouseDown = false;
   ui.dragging = "";
+  ui.dragHtml = null;
+  ui.dragOffset = new Vec2f(0, 0);
 
   // Due to how we select objects on mouse-up (mouse-down is drag/pan),
   // we need to check for double-click on mouse-up as well.
@@ -101,10 +104,11 @@ function onMouseUp() {
   ui.lastClickTime = currentTime;
 
   requestFrame();
-}
+})
 
-// Handle mouse move events.
-function onMouseMove(event: MouseEvent) {
+/** Handle mouse move events. */
+onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
+  let event = e as MouseEvent;
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
   var target = event.target as HTMLElement;
   while (target.id === "" && target.parentElement != null) {
@@ -134,16 +138,32 @@ function onMouseMove(event: MouseEvent) {
     onResize();
   }
 
-  requestFrame();
-}
+  if (ui.dragHtml != null) {
+    ui.dragHtml.style.left = (ui.mousePos.x() - ui.dragOffset.x()) + "px";
+    ui.dragHtml.style.top = (ui.mousePos.y() - ui.dragOffset.y()) + "px";
+  }
 
-// Handle scroll events.
-function onScroll(event: WheelEvent) {
+  requestFrame();
+})
+
+/** Handle dragging draggable elements. */
+onEvent("mousedown", ".draggable", (target: HTMLElement, e: Event) => {
+  let event = e as MouseEvent;
+  ui.dragHtml = target;
+  let rect = target.getBoundingClientRect();
+  ui.dragOffset = new Vec2f(event.clientX - rect.left, event.clientY - rect.top);
+  ui.dragging = "draggable";
+  requestFrame();
+})
+
+/** Handles scroll events. */
+onEvent("wheel", "body", (target: HTMLElement, e: Event) => {
+  let event = e as WheelEvent;
   ui.scrollDelta = event.deltaY;
   requestFrame();
-}
+})
 
-// Update all URL parameters without creating browser history entries
+/** Update all URL parameters without creating browser history entries. */
 function updateUrlParams() {
   // Get current URL params
   const urlParams = new URLSearchParams(window.location.search);
@@ -191,7 +211,7 @@ function updateUrlParams() {
   history.replaceState(null, '', newUrl);
 }
 
-// Centralized function to update the step and handle all related updates
+/** Centralized function to update the step and handle all related updates. */
 export function updateStep(newStep: number, skipScrubberUpdate = false) {
   // Update the step variable
   state.step = newStep;
@@ -204,7 +224,7 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
   requestFrame();
 }
 
-// Centralized function to select an object.
+/** Centralized function to select an object. */
 export function updateSelection(object: any, setFollow = false) {
   state.selectedGridObject = object;
   if (setFollow) {
@@ -215,14 +235,14 @@ export function updateSelection(object: any, setFollow = false) {
   requestFrame();
 }
 
-// Handle scrubber change events.
+/** Handle scrubber change events. */
 function onScrubberChange() {
   updateStep(parseInt(html.scrubber.value), true);
 }
 
-// Handle key down events.
-function onKeyDown(event: KeyboardEvent) {
-
+/** Handle key down events. */
+onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
+  let event = e as KeyboardEvent;
   if (event.key == "Escape") {
     updateSelection(null);
     setFollowSelection(false);
@@ -253,9 +273,9 @@ function onKeyDown(event: KeyboardEvent) {
   processActions(event);
 
   requestFrame();
-}
+})
 
-// Draw a frame.
+/** Draw a frame. */
 export function onFrame() {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -327,11 +347,13 @@ export function onFrame() {
   ui.mouseDoubleClick = false;
 }
 
+/** Prevent default event handling. */
 function preventDefaults(event: Event) {
   event.preventDefault();
   event.stopPropagation();
 }
 
+/** Handle file drop events. */
 function handleDrop(event: DragEvent) {
   event.preventDefault();
   event.stopPropagation();
@@ -342,7 +364,7 @@ function handleDrop(event: DragEvent) {
   }
 }
 
-// Parse URL parameters, and modify the map and trace panels accordingly.
+/** Parse URL parameters, and modify the map and trace panels accordingly. */
 async function parseUrlParams() {
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -411,7 +433,7 @@ async function parseUrlParams() {
   requestFrame();
 }
 
-// Handle share button click
+/** Handle share button click. */
 function onShareButtonClick() {
   // Copy the current URL to the clipboard
   navigator.clipboard.writeText(window.location.href);
@@ -419,6 +441,7 @@ function onShareButtonClick() {
   Common.showToast("URL copied to clipboard");
 }
 
+/** Set the playing state and update the play button icon. */
 function setIsPlaying(isPlaying: boolean) {
   state.isPlaying = isPlaying;
   if (state.isPlaying) {
@@ -429,6 +452,7 @@ function setIsPlaying(isPlaying: boolean) {
   requestFrame();
 }
 
+/** Toggle the opacity of a button. */
 function toggleOpacity(button: HTMLImageElement, show: boolean) {
   if (show) {
     button.style.opacity = "1";
@@ -437,7 +461,7 @@ function toggleOpacity(button: HTMLImageElement, show: boolean) {
   }
 }
 
-// Set the playback speed and update the speed buttons.
+/** Set the playback speed and update the speed buttons. */
 function setPlaybackSpeed(speed: number) {
   state.playbackSpeed = speed;
   // Update the speed buttons to show the current speed.
@@ -464,20 +488,17 @@ ui.miniMapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 
 // Add event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize);
-window.addEventListener('keydown', onKeyDown);
-window.addEventListener('mousedown', onMouseDown);
-window.addEventListener('mouseup', onMouseUp);
-window.addEventListener('mousemove', onMouseMove);
-window.addEventListener('wheel', onScroll);
 window.addEventListener('dragenter', preventDefaults, false);
 window.addEventListener('dragleave', preventDefaults, false);
 window.addEventListener('dragover', preventDefaults, false);
 window.addEventListener('drop', handleDrop, false);
 
 // Header area
-html.shareButton.addEventListener('click', onShareButtonClick);
-html.helpButton.addEventListener('click', () => {
-  window.open("mettascope_info.html", "_blank");
+onEvent("click", "#share-button", () => {
+  onShareButtonClick();
+});
+onEvent("click", "#help-button", () => {
+  window.open("https://github.com/Metta-AI/metta/blob/main/mettascope/README.md", "_blank");
 });
 
 // Bottom area
@@ -485,18 +506,18 @@ html.scrubber.addEventListener('input', onScrubberChange);
 html.scrubber.setAttribute("type", "range");
 html.scrubber.setAttribute("value", "0");
 
-html.rewindToStartButton.addEventListener('click', () => {
+onEvent("click", "#rewind-to-start", () => {
   setIsPlaying(false);
   updateStep(0)
 });
-html.stepBackButton.addEventListener('click', () => {
+onEvent("click", "#step-back", () => {
   setIsPlaying(false);
   updateStep(Math.max(state.step - 1, 0))
 });
-html.playButton.addEventListener('click', () =>
+onEvent("click", "#play", () => {
   setIsPlaying(!state.isPlaying)
-);
-html.stepForwardButton.addEventListener('click', () => {
+});
+onEvent("click", "#step-forward", () => {
   setIsPlaying(false);
   if (state.ws !== null) {
     state.ws.send(JSON.stringify({ type: "advance" }));
@@ -504,7 +525,7 @@ html.stepForwardButton.addEventListener('click', () => {
     updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
   }
 });
-html.rewindToEndButton.addEventListener('click', () => {
+onEvent("click", "#rewind-to-end", () => {
   setIsPlaying(false);
   updateStep(state.replay.max_steps - 1)
 });
@@ -516,7 +537,7 @@ for (let i = 0; i < html.speedButtons.length; i++) {
   );
 }
 
-html.resourcesToggle.addEventListener('click', () => {
+onEvent("click", "#resources-toggle", () => {
   state.showResources = !state.showResources;
   localStorage.setItem("showResources", state.showResources.toString());
   toggleOpacity(html.resourcesToggle, state.showResources);
@@ -528,12 +549,12 @@ if (localStorage.hasOwnProperty("showResources")) {
 toggleOpacity(html.resourcesToggle, state.showResources);
 
 // Toggle follow selection state.
-html.focusToggle.addEventListener('click', () => {
+onEvent("click", "#focus-toggle", () => {
   setFollowSelection(!state.followSelection);
 });
 toggleOpacity(html.focusToggle, state.followSelection);
 
-html.gridToggle.addEventListener('click', () => {
+onEvent("click", "#grid-toggle", () => {
   state.showGrid = !state.showGrid;
   localStorage.setItem("showGrid", state.showGrid.toString());
   toggleOpacity(html.gridToggle, state.showGrid);
@@ -544,7 +565,7 @@ if (localStorage.hasOwnProperty("showGrid")) {
 }
 toggleOpacity(html.gridToggle, state.showGrid);
 
-html.visualRangeToggle.addEventListener('click', () => {
+onEvent("click", "#visual-range-toggle", () => {
   state.showVisualRanges = !state.showVisualRanges;
   localStorage.setItem("showVisualRanges", state.showVisualRanges.toString());
   toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
@@ -555,7 +576,7 @@ if (localStorage.hasOwnProperty("showVisualRanges")) {
 }
 toggleOpacity(html.visualRangeToggle, state.showVisualRanges);
 
-html.fogOfWarToggle.addEventListener('click', () => {
+onEvent("click", "#fog-of-war-toggle", () => {
   state.showFogOfWar = !state.showFogOfWar;
   localStorage.setItem("showFogOfWar", state.showFogOfWar.toString());
   toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
@@ -566,7 +587,7 @@ if (localStorage.hasOwnProperty("showFogOfWar")) {
 }
 toggleOpacity(html.fogOfWarToggle, state.showFogOfWar);
 
-html.minimapToggle.addEventListener('click', () => {
+onEvent("click", "#minimap-toggle", () => {
   state.showMiniMap = !state.showMiniMap;
   localStorage.setItem("showMiniMap", state.showMiniMap.toString());
   toggleOpacity(html.minimapToggle, state.showMiniMap);
@@ -577,7 +598,7 @@ if (localStorage.hasOwnProperty("showMiniMap")) {
 }
 toggleOpacity(html.minimapToggle, state.showMiniMap);
 
-html.controlsToggle.addEventListener('click', () => {
+onEvent("click", "#controls-toggle", () => {
   state.showControls = !state.showControls;
   localStorage.setItem("showControls", state.showControls.toString());
   toggleOpacity(html.controlsToggle, state.showControls);
@@ -588,7 +609,7 @@ if (localStorage.hasOwnProperty("showControls")) {
 }
 toggleOpacity(html.controlsToggle, state.showControls);
 
-html.infoToggle.addEventListener('click', () => {
+onEvent("click", "#info-toggle", () => {
   state.showInfo = !state.showInfo;
   localStorage.setItem("showInfo", state.showInfo.toString());
   toggleOpacity(html.infoToggle, state.showInfo);
@@ -599,7 +620,7 @@ if (localStorage.hasOwnProperty("showInfo")) {
 }
 toggleOpacity(html.infoToggle, state.showInfo);
 
-html.agentPanelToggle.addEventListener('click', () => {
+onEvent("click", "#agent-panel-toggle", () => {
   state.showAgentPanel = !state.showAgentPanel;
   localStorage.setItem("showAgentPanel", state.showAgentPanel.toString());
   toggleOpacity(html.agentPanelToggle, state.showAgentPanel);

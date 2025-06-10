@@ -22,6 +22,7 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "stats_tracker.hpp"
+#include "types.hpp"
 
 namespace py = pybind11;
 
@@ -231,32 +232,50 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
   if (_use_observation_tokens) {
+    size_t attempted_tokens_written = 0;
     size_t tokens_written = 0;
     auto observation_view = _observations.mutable_unchecked<3>();
-    // TODO: Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
-    for (unsigned int r = r_start; r < r_end; r++) {
-      for (unsigned int c = c_start; c < c_end; c++) {
-        for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
-          GridLocation object_loc(r, c, layer);
-          auto obj = _grid->object_at(object_loc);
-          if (!obj) continue;
+    // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
+    for (unsigned int distance = 0; distance < obs_width_radius + obs_height_radius; distance++) {
+      for (unsigned int r = r_start; r < r_end; r++) {
+        // In this row, there should be one or two columns that have the correct [L1] distance.
+        unsigned int r_dist = std::abs(static_cast<int>(r) - static_cast<int>(observer_row));
+        if (r_dist > distance) continue;
+        int c_dist = distance - r_dist;
+        // This is a set, which should de-dupe c_dist == 0.
+        std::set<int> c_offsets = {-c_dist, c_dist};
+        for (int c_offset : c_offsets) {
+          int c = observer_col + c_offset;
+          // c could still be outside of our bounds.
+          if (c < c_start || c >= c_end) continue;
 
-          int obs_r = object_loc.r + obs_height_radius - observer_row;
-          int obs_c = object_loc.c + obs_width_radius - observer_col;
+          for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
+            GridLocation object_loc(r, c, layer);
+            auto obj = _grid->object_at(object_loc);
+            if (!obj) continue;
 
-          uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
-          ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
-          ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+            int obs_r = object_loc.r + obs_height_radius - observer_row;
+            int obs_c = object_loc.c + obs_width_radius - observer_col;
 
-          size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+            uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
+            ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
+            ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
-          uint8_t location = obs_r << 4 | obs_c;
-          for (size_t i = 0; i < obj_tokens_written; i++) {
-            agent_obs_tokens[i].location = location;
+            size_t attempted_obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+            size_t obj_tokens_written = std::min(attempted_obj_tokens_written, agent_obs_tokens.size());
+
+            uint8_t location = obs_r << 4 | obs_c;
+            for (size_t i = 0; i < obj_tokens_written; i++) {
+              agent_obs_tokens[i].location = location;
+            }
+            attempted_tokens_written += attempted_obj_tokens_written;
+            tokens_written += obj_tokens_written;
           }
-          tokens_written += obj_tokens_written;
         }
       }
+      _stats->add("tokens_written", static_cast<float>(tokens_written));
+      _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
+      _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
     }
   } else {
     auto observation_view = _observations.mutable_unchecked<4>();
@@ -278,14 +297,14 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   }
 }
 
-void MettaGrid::_compute_observations(py::array_t<int> actions) {
+void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx);
   }
 }
 
-void MettaGrid::_step(py::array_t<int> actions) {
+void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
 
   // Reset rewards and observations
@@ -296,7 +315,11 @@ void MettaGrid::_step(py::array_t<int> actions) {
 
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, 0);
+  if (_use_observation_tokens) {
+    std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
+  } else {
+    std::fill(obs_ptr, obs_ptr + obs_size, 0);
+  }
 
   std::fill(_action_success.begin(), _action_success.end(), false);
 
@@ -325,7 +348,9 @@ void MettaGrid::_step(py::array_t<int> actions) {
         continue;
       }
 
-      _action_success[idx] = handler->handle_action(agent->id, arg);
+      // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
+      bool success = handler->handle_action(agent->id, arg);
+      _action_success[idx] = success;
     }
   }
 
@@ -450,7 +475,7 @@ void MettaGrid::set_buffers(const py::array_t<uint8_t, py::array::c_style>& obse
   validate_buffers();
 }
 
-py::tuple MettaGrid::step(py::array_t<int> actions) {
+py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
   _step(actions);
 
   auto rewards_view = _rewards.mutable_unchecked<1>();
@@ -605,8 +630,10 @@ py::object MettaGrid::action_space() {
   auto gym = py::module_::import("gymnasium");
   auto spaces = gym.attr("spaces");
 
-  return spaces.attr("MultiDiscrete")(py::make_tuple(py::len(action_names()), _max_action_arg + 1),
-                                      py::arg("dtype") = py::module_::import("numpy").attr("int32"));
+  size_t number_of_actions = py::len(action_names());
+  size_t number_of_action_args = _max_action_arg + 1;
+  return spaces.attr("MultiDiscrete")(py::make_tuple(number_of_actions, number_of_action_args),
+                                      py::arg("dtype") = dtype_actions());
 }
 
 py::object MettaGrid::observation_space() {
@@ -620,9 +647,12 @@ py::object MettaGrid::observation_space() {
     space_shape[i] = shape[i + 1];
   }
 
+  ObservationType min_value = std::numeric_limits<ObservationType>::min();  // 0
+  ObservationType max_value = std::numeric_limits<ObservationType>::max();  // 255
+
   // TODO: consider spaces other than "Box". They're more correctly descriptive, but I don't know if
   // that matters to us.
-  return spaces.attr("Box")(0, 255, space_shape, py::arg("dtype") = py::module_::import("numpy").attr("uint8"));
+  return spaces.attr("Box")(min_value, max_value, space_shape, py::arg("dtype") = dtype_observations());
 }
 
 py::list MettaGrid::action_success() {
@@ -715,7 +745,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   py::class_<MettaGrid>(m, "MettaGrid")
       .def(py::init<py::dict, py::list>())
       .def("reset", &MettaGrid::reset)
-      .def("step", &MettaGrid::step)
+      .def("step", &MettaGrid::step, py::arg("actions").noconvert())
       .def("set_buffers",
            &MettaGrid::set_buffers,
            py::arg("observations").noconvert(),

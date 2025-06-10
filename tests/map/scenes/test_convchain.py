@@ -7,9 +7,9 @@ def test_basic():
         ConvChain,
         dict(
             pattern="""
-|##  #|
-|#    |
-|#####|
+##..#
+#....
+#####
 """,
             pattern_size=3,
             iterations=10,
