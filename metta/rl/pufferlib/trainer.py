@@ -233,6 +233,8 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
+            steps_before = self.agent_step
+
             with self.torch_profiler:
                 with self.timer("_rollout"):
                     self._rollout()
@@ -247,7 +249,8 @@ class PufferTrainer:
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
             stats_time = self.timer.get_last_elapsed("_process_stats")
-            steps_per_sec = self.agent_step / (train_time + rollout_time)
+            steps_calculated = self.agent_step - steps_before
+            steps_per_sec = steps_calculated / (train_time + rollout_time)
 
             logger.info(
                 f"Epoch {self.epoch} - "
