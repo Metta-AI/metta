@@ -10,48 +10,54 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from mettagrid.util.file import local_copy
 
 
-def analyze(policy_record: MettaAgent, config: AnalysisConfig) -> None:
+def analyze(agent: MettaAgent, config: AnalysisConfig) -> None:
     logger = logging.getLogger(__name__)
-    logger.info(f"Analyzing policy: {policy_record.uri}")
+    logger.info(f"Analyzing policy: {agent.uri}")
     logger.info(f"Using eval DB: {config.eval_db_uri}")
 
     with local_copy(config.eval_db_uri) as local_path:
         stats_db = EvalStatsDB(local_path)
 
-        sample_count = stats_db.sample_count(policy_record, config.suite)
+        # Check if we have any data for this policy
+        suite_filter = f"sim_name LIKE '%{config.suite}%'" if config.suite else None
+
+        sample_count = stats_db.sample_count(agent, config.suite)
         if sample_count == 0:
-            logger.warning(f"No samples found for policy: {policy_record.key}:v{policy_record.version}")
+            logger.warning(f"No samples found for policy: {agent.key}:v{agent.version}")
             return
         logger.info(f"Total sample count for specified policy/suite: {sample_count}")
 
-        available_metrics = get_available_metrics(stats_db, policy_record)
-        logger.info(f"Available metrics: {available_metrics}")
+        # Get available metrics and let user select which ones to analyze
+        available_metrics = get_available_metrics(stats_db, agent)
+        selected_metrics = config.metrics if config.metrics else available_metrics
 
-        selected_metrics = filter_metrics(available_metrics, config.metrics)
-        if not selected_metrics:
-            logger.warning(f"No metrics found matching patterns: {config.metrics}")
-            return
+        logger.info(f"Available metrics: {available_metrics}")
         logger.info(f"Selected metrics: {selected_metrics}")
 
-        metrics_data = get_metrics_data(stats_db, policy_record, selected_metrics, config.suite)
-        print_metrics_table(metrics_data, policy_record)
+        # Get metrics data and print table
+        metrics_data = get_metrics_data(stats_db, agent, selected_metrics, config.suite)
+        print_metrics_table(metrics_data, agent)
 
 
 # --------------------------------------------------------------------------- #
 #   helpers                                                                   #
 # --------------------------------------------------------------------------- #
-def get_available_metrics(stats_db: EvalStatsDB, policy_record: MettaAgent) -> List[str]:
-    policy_key, policy_version = policy_record.key_and_version()
-    result = stats_db.query(
-        f"""
-        SELECT DISTINCT metric
-          FROM policy_simulation_agent_metrics
-         WHERE policy_key     = '{policy_key}'
-           AND policy_version =  {policy_version}
-         ORDER BY metric
-        """
-    )
-    return [] if result.empty else result["metric"].tolist()
+def get_available_metrics(stats_db: EvalStatsDB, agent: MettaAgent) -> List[str]:
+    policy_key, policy_version = agent.key_and_version()
+    try:
+        result = stats_db.execute_query(
+            """
+            SELECT DISTINCT metric
+            FROM episode_data
+            WHERE policy_key = ? AND policy_version = ?
+            ORDER BY metric
+            """,
+            (policy_key, policy_version),
+        )
+        return [row[0] for row in result]
+    except Exception as e:
+        logger.error(f"Error getting available metrics: {e}")
+        return []
 
 
 def filter_metrics(available_metrics: List[str], patterns: List[str]) -> List[str]:
@@ -65,9 +71,9 @@ def filter_metrics(available_metrics: List[str], patterns: List[str]) -> List[st
 
 def get_metrics_data(
     stats_db: EvalStatsDB,
-    policy_record: MettaAgent,
+    agent: MettaAgent,
     metrics: List[str],
-    suite: Optional[str] = None,
+    suite_filter: Optional[str] = None,
 ) -> Dict[str, Dict[str, float]]:
     """
     Return {metric: {"mean": μ, "std": σ,
@@ -77,32 +83,38 @@ def get_metrics_data(
         • K_recorded  – rows in policy_simulation_agent_metrics.
         • N_potential – total agent-episode pairs for that filter.
     """
-    policy_key, policy_version = policy_record.key_and_version()
-    filter_condition = f"sim_suite = '{suite}'" if suite else None
+    policy_key, policy_version = agent.key_and_version()
+    filter_condition = None
+    if suite_filter:
+        filter_condition = f"sim_name LIKE '%{suite_filter}%'"
 
     data: Dict[str, Dict[str, float]] = {}
     for m in metrics:
-        mean = stats_db.get_average_metric_by_filter(m, policy_record, filter_condition)
-        if mean is None:
+        try:
+            mean = stats_db.get_average_metric_by_filter(m, agent, filter_condition)
+            if mean is None:
+                continue
+            std = stats_db.get_std_metric_by_filter(m, agent, filter_condition) or 0.0
+
+            k_recorded = stats_db.count_metric_agents(policy_key, policy_version, m, filter_condition)
+            n_potential = stats_db.potential_samples_for_metric(policy_key, policy_version, filter_condition)
+
+            data[m] = {
+                "mean": mean,
+                "std": std,
+                "count": k_recorded,
+                "samples": n_potential,
+            }
+        except Exception as e:
+            logger.error(f"Error getting data for metric {m}: {e}")
             continue
-        std = stats_db.get_std_metric_by_filter(m, policy_record, filter_condition) or 0.0
-
-        k_recorded = stats_db.count_metric_agents(policy_key, policy_version, m, filter_condition)
-        n_potential = stats_db.potential_samples_for_metric(policy_key, policy_version, filter_condition)
-
-        data[m] = {
-            "mean": mean,
-            "std": std,
-            "count": k_recorded,
-            "samples": n_potential,
-        }
     return data
 
 
-def print_metrics_table(metrics_data: Dict[str, Dict[str, float]], policy_record: MettaAgent) -> None:
+def print_metrics_table(metrics_data: Dict[str, Dict[str, float]], agent: MettaAgent) -> None:
     logger = logging.getLogger(__name__)
     if not metrics_data:
-        logger.warning(f"No metrics data available for {policy_record.key}:v{policy_record.version}")
+        logger.warning(f"No metrics data available for {agent.key}:v{agent.version}")
         return
 
     headers = ["Metric", "Average", "Std Dev", "Metric Samples", "Agent Samples"]
@@ -117,6 +129,6 @@ def print_metrics_table(metrics_data: Dict[str, Dict[str, float]], policy_record
         for metric, stats in metrics_data.items()
     ]
 
-    logger.info(f"\nMetrics for policy: {policy_record.uri}\n")
+    logger.info(f"\nMetrics for policy: {agent.uri}\n")
     print(tabulate(rows, headers=headers, tablefmt="grid"))
     logger.info("")

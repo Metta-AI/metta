@@ -26,14 +26,12 @@ from omegaconf import OmegaConf
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.rl.pufferlib.policy import PufferAgent
+from metta.replays.replay_writer import ReplayWriter
 from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.sim.simulation_stats_db import SimulationStatsDB, StatsWriter
 from metta.sim.vecenv import make_vecenv
 from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from mettagrid.replay_writer import ReplayWriter
-from mettagrid.stats_writer import StatsWriter
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +51,7 @@ class Simulation:
         self,
         name: str,
         config: SingleEnvSimulationConfig,
-        policy_pr: MettaAgent,
+        policy_agent: MettaAgent,
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
@@ -102,10 +100,10 @@ class Simulation:
         self._agents_per_env = env_cfg.game.num_agents
 
         # ---------------- policies ------------------------------------- #
-        self._policy_pr = policy_pr
+        self._policy_agent = policy_agent
         self._policy_store = policy_store
-        self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
-        self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
+        self._npc_agent = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
+        self._policy_agents_pct = config.policy_agents_pct if self._npc_agent is not None else 1.0
 
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
@@ -114,19 +112,19 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent | PufferAgent = self._policy_pr.policy_as_metta_agent()
-        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), metta_agent
+        metta_agent: MettaAgent | DistributedMettaAgent = self._policy_agent.policy_as_metta_agent()
+        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent)), metta_agent
         metta_agent.activate_actions(action_names, max_args, self._device)
 
-        if self._npc_pr is not None:
-            npc_agent: MettaAgent | DistributedMettaAgent = self._npc_pr.policy_as_metta_agent()
+        if self._npc_agent is not None:
+            npc_agent: MettaAgent | DistributedMettaAgent = self._npc_agent.policy_as_metta_agent()
             assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent)), npc_agent
             try:
                 npc_agent.activate_actions(action_names, max_args, self._device)
             except Exception as e:
                 logger.error(f"Error activating NPC actions: {e}")
                 raise SimulationCompatibilityError(
-                    f"[{self._name}] Error activating NPC actions for {self._npc_pr.name}: {e}"
+                    f"[{self._name}] Error activating NPC actions for {self._npc_agent.name}: {e}"
                 ) from e
 
         # ---------------- agent-index bookkeeping ---------------------- #
@@ -184,7 +182,7 @@ class Simulation:
                     "Policy indices should be continuous sequence starting from 0"
                 )
 
-            if self._npc_pr is not None and num_npc > 0:
+            if self._npc_agent is not None and num_npc > 0:
                 expected_npc_start = num_policy
                 assert self._npc_idxs[0] == expected_npc_start, (
                     f"NPC indices should start at {expected_npc_start}, got {self._npc_idxs[0]}"
@@ -209,18 +207,18 @@ class Simulation:
             obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
             my_obs = obs_t[self._policy_idxs]
-            policy = self._policy_pr.policy()
+            policy = self._policy_agent.policy()
             policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
             # NPC agents (if any)
-            if self._npc_pr is not None and len(self._npc_idxs):
+            if self._npc_agent is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
-                npc_policy = self._npc_pr.policy()
+                npc_policy = self._npc_agent.policy()
                 try:
                     npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
-                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.name}: {e}"
+                        f"[{self._name}] Error generating NPC actions for {self._npc_agent.name}: {e}"
                     ) from e
 
         # ---------------- action stitching ----------------------- #
@@ -249,7 +247,7 @@ class Simulation:
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
         # ---------------- env.step ------------------------------- #
-        obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
+        self._obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
 
         # ---------------- episode FSM ---------------------------- #
         done_now = np.logical_or(
@@ -295,16 +293,16 @@ class Simulation:
 
         # Add policy agents to the map
         for idx in self._policy_idxs:
-            agent_map[int(idx.item())] = self._policy_pr
+            agent_map[int(idx.item())] = self._policy_agent
 
         # Add NPC agents to the map if they exist
-        if self._npc_pr is not None:
+        if self._npc_agent is not None:
             for idx in self._npc_idxs:
-                agent_map[int(idx.item())] = self._npc_pr
+                agent_map[int(idx.item())] = self._npc_agent
 
         suite_name = "" if self._suite is None else self._suite.name
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_pr
+            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_agent
         )
         return db
 

@@ -61,6 +61,19 @@ def simulate_policy(
     results = {"policy_uri": policy_uri, "checkpoints": []}
 
     policy_store = PolicyStore(cfg, None)
+    agent = policy_store.policy(policy_uri)
+
+    simulation = Simulation(
+        name="simulation",
+        config=cfg.sim,
+        policy_agent=agent,
+        policy_store=policy_store,
+        device=cfg.device,
+        vectorization=cfg.vectorization,
+        stats_dir=cfg.sim.stats_dir,
+        replay_dir=cfg.sim.replay_dir,
+    )
+
     # TODO: institutionalize this better?
     metric = sim_job.simulation_suite.name + "_score"
     policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)

@@ -1,8 +1,6 @@
-import logging
-import uuid
-from pathlib import Path
+from __future__ import annotations
 
-import torch
+import logging
 
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
@@ -20,38 +18,38 @@ class SimulationSuite:
     def __init__(
         self,
         config: SimulationSuiteConfig,
-        policy_pr: MettaAgent,
+        policy_agent: MettaAgent,
         policy_store: PolicyStore,
-        device: torch.device,
-        vectorization: str,
+        device: str,
+        vectorization,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
     ):
         self._config = config
-        self._policy_pr = policy_pr
+        self._policy_agent = policy_agent
         self._policy_store = policy_store
         self._replay_dir = replay_dir
-        self._stats_dir = stats_dir
         self._device = device
+        self._stats_dir = stats_dir
         self._vectorization = vectorization
         self.name = config.name
 
     def simulate(self) -> SimulationResults:
-        """Run every simulation, merge their DBs/replay dicts, and return a single `SimulationResults`."""
-        logger = logging.getLogger(__name__)
-        # Make a new merged db with a random uuid each time so that we don't copy old stats dbs
-        merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{self._stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
-
+        """
+        Run the simulation suite.
+        Returns a merged StatsDB from all simulations.
+        """
         successful_simulations = 0
-
+        total_simulations = len(self._config.simulations)
+        sim_dbs = []
         for name, sim_config in self._config.simulations.items():
             try:
-                # merge global simulation suite overrides with simulation-specific overrides
-                sim_config.env_overrides = {**self._config.env_overrides, **sim_config.env_overrides}
+                if self._config.env_overrides:
+                    sim_config.env_overrides = {**self._config.env_overrides, **sim_config.env_overrides}
                 sim = Simulation(
                     name,
                     sim_config,
-                    self._policy_pr,
+                    self._policy_agent,
                     self._policy_store,
                     device=self._device,
                     vectorization=self._vectorization,
@@ -59,25 +57,19 @@ class SimulationSuite:
                     stats_dir=self._stats_dir,
                     replay_dir=self._replay_dir,
                 )
-                logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()
-                merged_db.merge_in(sim_result.stats_db)
-                sim_result.stats_db.close()
-                successful_simulations += 1
+                sim_dbs.append(sim_result.stats_db)
+                if sim_result.stats_db.num_episodes == 0:
+                    logging.warning(f"Simulation {name} completed with 0 episodes")
+                else:
+                    sim_result.stats_db.close()
+                    successful_simulations += 1
 
             except SimulationCompatibilityError as e:
-                # Only skip for NPC-related compatibility issues
-                error_msg = str(e).lower()
-                if "npc" in error_msg or "non-player" in error_msg:
-                    logger.warning("Skipping simulation '%s' due to NPC compatibility issue: %s", name, str(e))
-                    continue
-                else:
-                    # Re-raise for non-NPC compatibility issues
-                    logger.error("Critical compatibility error in simulation '%s': %s", name, str(e))
-                    raise
+                logging.warning(f"Skipping simulation '{name}' due to compatibility error: {e}")
 
-        if successful_simulations == 0:
-            raise RuntimeError("No simulations could be run successfully")
+        if successful_simulations < total_simulations:
+            logging.warning(f"Suite finished with {successful_simulations}/{total_simulations} successful simulations")
 
-        logger.info("Completed %d/%d simulations successfully", successful_simulations, len(self._config.simulations))
+        merged_db = SimulationStatsDB.merge(sim_dbs)
         return SimulationResults(merged_db)

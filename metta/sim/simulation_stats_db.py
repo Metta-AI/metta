@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 import duckdb
 
@@ -76,25 +76,43 @@ class SimulationStatsDB(EpisodeStatsDB):
             db = cls(local_path)
             yield db
 
-    @staticmethod
+    @classmethod
     def from_shards_and_context(
+        cls,
         sim_id: str,
-        dir_with_shards: Union[str, Path],
-        agent_map: Dict[int, MettaAgent],
+        stats_dir: str | Path,
+        agent_map: dict[int, MettaAgent],
         sim_name: str,
         sim_suite: str,
-        env: str,
-        policy_record: MettaAgent,
+        env: DictConfig,
+        agent: MettaAgent,
     ) -> "SimulationStatsDB":
-        dir_with_shards = Path(dir_with_shards).expanduser().resolve()
-        merged_path = dir_with_shards / "merged.duckdb"
+        """
+        Merge all DuckDB files in the given directory into a single database.
+        Optionally upload and log to wandb and S3.
+
+        Args:
+            sim_id: Unique simulation identifier
+            stats_dir: Directory containing DuckDB shard files
+            agent_map: Mapping from agent_id to MettaAgent object
+            sim_name: Name of the simulation
+            sim_suite: Name of the simulation suite
+            env: Environment configuration
+            agent: Main policy agent
+
+        Returns:
+            SimulationStatsDB: The merged database
+
+        """
+        stats_dir = Path(stats_dir).expanduser().resolve()
+        merged_path = stats_dir / "merged.duckdb"
 
         # Find shards
-        shards = [s for s in dir_with_shards.glob("*.duckdb") if s.name != merged_path.name]
+        shards = [s for s in stats_dir.glob("*.duckdb") if s.name != merged_path.name]
 
         logger = logging.getLogger(__name__)
         if not shards:
-            logger.warning(f"No shards found in {dir_with_shards}")
+            logger.warning(f"No shards found in {stats_dir}")
             merged = SimulationStatsDB(merged_path)
             return merged
 
@@ -103,7 +121,7 @@ class SimulationStatsDB(EpisodeStatsDB):
 
         merged = SimulationStatsDB(merged_path)
 
-        policy_key, policy_version = policy_record.key_and_version()
+        policy_key, policy_version = agent.key_and_version()
         merged._insert_simulation(sim_id, sim_name, sim_suite, env, policy_key, policy_version)
 
         # Merge each shard

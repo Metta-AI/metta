@@ -82,7 +82,7 @@ class PufferTrainer:
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
-            self.device = f"cuda:{os.environ['LOCAL_RANK']}"
+            self.device = torch.device(f"cuda:{os.environ['LOCAL_RANK']}")
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
@@ -112,40 +112,39 @@ class PufferTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        policy_record = None
+        agent = None
         load_policy_attempts = 10
-        while policy_record is None and load_policy_attempts > 0:
+        while agent is None and load_policy_attempts > 0:
             if checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                policy_record = policy_store.policy(checkpoint.policy_path)
+                agent = policy_store.policy(checkpoint.policy_path)
                 if "average_reward" in checkpoint.extra_args:
                     self.average_reward = checkpoint.extra_args["average_reward"]
             elif cfg.trainer.initial_policy.uri is not None:
                 logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
-                policy_record = policy_store.policy(cfg.trainer.initial_policy)
+                agent = policy_store.policy(cfg.trainer.initial_policy)
             else:
                 policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
 
                 if os.path.exists(policy_path):
                     logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    policy_record = policy_store.policy(policy_path)
+                    agent = policy_store.policy(policy_path)
                 elif self._master:
                     logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                    policy_record = policy_store.create(metta_grid_env)
-            if policy_record is not None:
+                    agent = policy_store.create(metta_grid_env)
+            if agent is not None:
                 break
             load_policy_attempts -= 1
             time.sleep(5)
 
-        assert policy_record is not None, "No policy found"
+        assert agent is not None, "No policy found"
 
         if self._master:
-            logger.info(f"PufferTrainer loaded: {policy_record.model}")
+            logger.info(f"PufferTrainer loaded: {agent.model}")
 
-        self._initial_pr = policy_record
-        self.last_pr = policy_record
-        self.policy = policy_record.to(self.device)
-        self.policy_record = policy_record
+        self._initial_agent = agent
+        self.last_agent = agent
+        self.policy = agent.to(self.device)
         self.uncompiled_policy = self.policy
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
@@ -317,10 +316,10 @@ class PufferTrainer:
         if not self._master:
             return
 
-        logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
+        logger.info(f"Simulating policy: {self.last_agent.uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
             config=self.sim_suite_config,
-            policy_pr=self.last_pr,
+            policy_agent=self.last_agent,
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
@@ -338,7 +337,7 @@ class PufferTrainer:
 
         # Compute scores for each evaluation category
         for category in self._eval_categories:
-            score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
+            score = stats_db.get_average_metric_by_filter("reward", self.last_agent, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
             # Only add the score if we got a non-None result
             if score is not None:
@@ -347,9 +346,9 @@ class PufferTrainer:
                 self._eval_suite_avgs[f"{category}_score"] = 0.0
 
         # Get overall score (average of all rewards)
-        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
+        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_agent)
         self._current_eval_score = overall_score if overall_score is not None else 0.0
-        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
+        all_scores = stats_db.simulation_scores(self.last_agent, "reward")
 
         # Categorize scores by environment type
         self._eval_grouped_scores = {}
@@ -619,8 +618,8 @@ class PufferTrainer:
             y_pred = experience.values_np
             y_true = experience.returns_np
             var_y = np.var(y_true)
-            explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-            self.losses.explained_variance = explained_var
+            var_explained = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
+            self.losses.explained_variance = var_explained
             self.epoch += 1
 
             profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
@@ -629,14 +628,15 @@ class PufferTrainer:
         if not self._master:
             return
 
-        pr = self._checkpoint_policy()
-        self.checkpoint = TrainerCheckpoint(
-            self.agent_step,
-            self.epoch,
-            self.optimizer.state_dict(),
-            pr.local_path,
-            average_reward=self.average_reward,  # Save average reward state
-        ).save(self.cfg.run_dir)
+        agent = self._checkpoint_policy()
+        if agent:
+            self.checkpoint = TrainerCheckpoint(
+                self.agent_step,
+                self.epoch,
+                self.optimizer.state_dict(),
+                agent.local_path,
+                average_reward=self.average_reward,  # Save average reward state
+            ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
         if not self._master:
@@ -648,12 +648,12 @@ class PufferTrainer:
         name = self.policy_store.make_model_name(self.epoch)
 
         generation = 0
-        if self._initial_pr:
-            generation = self._initial_pr.metadata.get("generation", 0) + 1
+        if self._initial_agent:
+            generation = self._initial_agent.metadata.get("generation", 0) + 1
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
-        self.last_pr = self.policy_store.save(
+        self.last_agent = self.policy_store.save(
             name,
             os.path.join(self.cfg.trainer.checkpoint_dir, name),
             self.uncompiled_policy,
@@ -663,15 +663,15 @@ class PufferTrainer:
                 "run": self.cfg.run,
                 "action_names": metta_grid_env.action_names,
                 "generation": generation,
-                "initial_uri": self._initial_pr.uri,
+                "initial_uri": self._initial_agent.uri,
                 "train_time": training_time,
                 "score": self._current_eval_score,
                 "eval_scores": self._eval_suite_avgs,
             },
         )
-        # this is hacky, but otherwise the initial_pr points
-        # at the same policy as the last_pr
-        return self.last_pr
+        # this is hacky, but otherwise the initial_agent points
+        # at the same policy as the last_agent
+        return self.last_agent
 
     def _save_policy_to_wandb(self):
         if not self._master:
@@ -680,9 +680,9 @@ class PufferTrainer:
         if self.wandb_run is None:
             return
 
-        pr = self._checkpoint_policy()
-        if pr is not None:
-            self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+        agent = self._checkpoint_policy()
+        if agent is not None:
+            self.policy_store.add_to_wandb_run(self.wandb_run.name, agent)
 
     def _generate_and_upload_replay(self):
         if self._master:
@@ -691,7 +691,7 @@ class PufferTrainer:
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
                 config=self.replay_sim_config,
-                policy_pr=self.last_pr,
+                policy_agent=self.last_agent,
                 policy_store=self.policy_store,
                 device=self.device,
                 vectorization=self.cfg.vectorization,
@@ -701,7 +701,7 @@ class PufferTrainer:
 
             if self.wandb_run is not None:
                 replay_urls = results.stats_db.get_replay_urls(
-                    policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+                    policy_key=self.last_agent.key(), policy_version=self.last_agent.version()
                 )
                 if len(replay_urls) > 0:
                     replay_url = replay_urls[0]
@@ -788,11 +788,11 @@ class PufferTrainer:
     def close(self):
         self.vecenv.close()
 
-    def initial_pr_uri(self):
-        return self._initial_pr.uri
+    def initial_agent_uri(self):
+        return self._initial_agent.uri
 
-    def last_pr_uri(self):
-        return self.last_pr.uri
+    def last_agent_uri(self):
+        return self.last_agent.uri
 
     def _make_experience_buffer(self):
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore

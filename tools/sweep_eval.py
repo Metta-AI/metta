@@ -58,81 +58,62 @@ def main(cfg: DictConfig | ListConfig) -> int:
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
-            policy_pr = policy_store.policy("wandb://run/" + cfg.run)
+            agent = policy_store.policy("wandb://run/" + cfg.run)
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
             WandbCarbs._record_failure(wandb_run)
             return 1
 
-        eval = SimulationSuite(
+        sim = SimulationSuite(
             simulation_suite_cfg,
-            policy_pr,
-            policy_store,
+            policy_agent=agent,
+            policy_store=policy_store,
             device=cfg.device,
             vectorization=cfg.vectorization,
         )
-        # Start evaluation process
-        sweep_stats = {}
+
+        logger.info(f"Starting simulation for {agent.name}")
         start_time = time.time()
+        sim_results = sim.simulate()
+        end_time = time.time()
 
-        # Update sweep stats with initial information
-        sweep_stats.update(
-            {
-                "score.metric": cfg.metric,
-            }
-        )
-        wandb_run.summary.update(sweep_stats)
+        logger.info(f"Evaluating policy {agent.name}")
+        eval_stats_db = EvalStatsDB.from_sim_stats_db(sim_results.stats_db)
 
-        # Start evaluation
-        eval_start_time = time.time()
+        # Calculate core metrics
+        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.metric, agent)
+        train_time = agent.metadata.get("train_time", 0)
+        agent_step = agent.metadata.get("agent_step", 0)
+        epoch = agent.metadata.get("epoch", 0)
 
-        logger.info(f"Evaluating policy {policy_pr.name}")
-        log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
-
-        results = eval.simulate()
-        eval_time = time.time() - eval_start_time
-        eval_stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
-        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.metric, policy_pr)
-
-        # Get training stats from metadata if available
-        train_time = policy_pr.metadata.get("train_time", 0)
-        agent_step = policy_pr.metadata.get("agent_step", 0)
-        epoch = policy_pr.metadata.get("epoch", 0)
-
-        # Update sweep stats with evaluation results
-        stats_update = {
-            "train.agent_step": agent_step,
-            "train.epoch": epoch,
-            "time.train": train_time,
-            "time.eval": eval_time,
-            "time.total": train_time + eval_time,
-            "uri": policy_pr.uri,
-            "score": eval_metric,
+        # Construct sweep stats with all relevant metrics
+        sweep_stats = {
+            "eval_time": end_time - start_time,
+            "total_envs": 0,  # Legacy field, now unused
+            "train_time": train_time,
+            "agent_step": agent_step,
+            "epoch": epoch,
+            "uri": agent.uri,
+            cfg.metric: eval_metric,
         }
 
-        sweep_stats.update(stats_update)
-
-        # Update lineage stats
+        # Add lineage stats if available
         for stat in ["train.agent_step", "train.epoch", "time.train", "time.eval", "time.total"]:
-            sweep_stats["lineage." + stat] = sweep_stats[stat] + policy_pr.metadata.get("lineage." + stat, 0)
+            sweep_stats["lineage." + stat] = sweep_stats[stat] + agent.metadata.get("lineage." + stat, 0)
 
-        # Update wandb summary
-        wandb_run.summary.update(sweep_stats)
-        logger.info("Sweep Stats: \n" + json.dumps({k: str(v) for k, v in sweep_stats.items()}, indent=4))
-
-        # Update policy metadata
-        policy_pr.metadata.update(
+        # Update the agent metadata with the new eval metric and sweep stats
+        # This enables tracking of evaluation results over time
+        agent.metadata.update(
             {
                 **sweep_stats,
-                "training_run": cfg.run,
+                "eval_scores": {cfg.metric: eval_metric},
             }
         )
 
-        # Add policy to wandb sweep
-        policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
+        policy_store.add_to_wandb_sweep(cfg.sweep_name, agent)
 
         # Record observation in CARBS if enabled
-        total_time = train_time + eval_time
+        total_time = train_time + (end_time - start_time)
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
         WandbCarbs._record_observation(wandb_run, eval_metric, total_time, allow_update=True)

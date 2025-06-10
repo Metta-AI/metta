@@ -161,15 +161,15 @@ class PolicyStore:
         return f"model_{epoch:04d}.pt"
 
     def create(self, env) -> MettaAgent:
-        policy = make_policy(env, self._cfg)
+        agent = make_policy(env, self._cfg)
         name = self.make_model_name(0)
         path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
 
         # Update metadata on the created agent
-        policy.name = name
-        policy.uri = "file://" + path
-        policy.local_path = path
-        policy.metadata.update(
+        agent.name = name
+        agent.uri = "file://" + path
+        agent.local_path = path
+        agent.metadata.update(
             {
                 "action_names": env.action_names,
                 "agent_step": 0,
@@ -179,26 +179,26 @@ class PolicyStore:
             }
         )
 
-        # Save the initial policy
-        self.save(name, path, policy, policy.metadata)
+        # Save the initial agent
+        self.save(name, path, agent, agent.metadata)
 
-        return policy
+        return agent
 
-    def save(self, name: str, path: str, policy: MettaAgent, metadata: dict):
+    def save(self, name: str, path: str, agent: MettaAgent, metadata: dict):
         logger.info(f"Saving policy to {path}")
 
         # Update the agent's metadata and info
-        policy.name = name
-        policy.uri = "file://" + path
-        policy.local_path = path
-        policy.metadata.update(metadata)
+        agent.name = name
+        agent.uri = "file://" + path
+        agent.local_path = path
+        agent.metadata.update(metadata)
 
         # Use save_for_training to save complete model for training resumption
-        policy.save_for_training(path)
+        agent.save_for_training(path)
 
         # Cache the agent
-        self._cached_agents[path] = policy
-        return policy
+        self._cached_agents[path] = agent
+        return agent
 
     def add_to_wandb_run(self, run_id: str, agent: MettaAgent, additional_files=None):
         local_path = agent.local_path

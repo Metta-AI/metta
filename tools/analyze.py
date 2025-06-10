@@ -21,10 +21,9 @@ def main(cfg: DictConfig) -> None:
     config = AnalysisConfig(cfg.analysis)
 
     policy_store = PolicyStore(cfg, None)
-    policy_pr = policy_store.policy(
-        config.policy_uri, config.policy_selector.type, metric=config.policy_selector.metric
-    )
-    analyze(policy_pr, config)
+    agent = policy_store.policy(cfg.analysis.policy_uri if cfg.analysis.policy_uri else cfg.trainer.initial_policy)
+
+    analyze(agent, config)
 
 
 if __name__ == "__main__":
