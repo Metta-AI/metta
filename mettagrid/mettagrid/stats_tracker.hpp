@@ -141,13 +141,6 @@ public:
     // Add timing metadata and calculated stats
     for (const auto& [key, step] : _first_seen_at) {
       result[key + ".first_step"] = static_cast<float>(step);
-
-      // Calculate average value (total / updates)
-      if (_update_count.count(key) && _stats.count(key)) {
-        float total = result[key];
-        float updates = static_cast<float>(_update_count.at(key));
-        result[key + ".avg"] = total / updates;
-      }
     }
 
     for (const auto& [key, step] : _last_seen_at) {
@@ -157,6 +150,7 @@ public:
     for (const auto& [key, count] : _update_count) {
       result[key + ".updates"] = static_cast<float>(count);
       result[key + ".rate"] = rate(key);
+      result[key + ".avg"] = result[key] / count;
 
       // Also calculate activity rate if there's a time span
       auto first_it = _first_seen_at.find(key);
