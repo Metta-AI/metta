@@ -9,7 +9,7 @@ use_e3b: false
 
 total_timesteps: 1_000_000_000_000
 
-clip_coef: 0.1
+clip_coef: 0.2  # Faster learning: increased from 0.1
 ent_coef: 0.0008901028045115906
 gae_lambda: 0.9283720217357007
 gamma: 0.9959746852829785
@@ -35,7 +35,7 @@ lr_scheduler:
   anneal_lr: false
 
 max_grad_norm: 1.2453426220454547
-vf_clip_coef: 0.1
+vf_clip_coef: 1.0  # Faster learning: increased from 0.1
 vf_coef: 1.0103141121889738
 l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
@@ -43,6 +43,10 @@ l2_init_loss_coef: 0
 norm_adv: true
 clip_vloss: true
 target_kl: null
+
+# V-trace clipping parameters (for off-policy corrections)
+vtrace_rho_clip: 1.0  # Default: on-policy (no off-policy correction)
+vtrace_c_clip: 1.0    # Default: on-policy bootstrapping
 
 zero_copy: true
 require_contiguous_env_ids: false
