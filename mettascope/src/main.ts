@@ -160,6 +160,8 @@ onEvent("mousedown", ".draggable", (target: HTMLElement, e: Event) => {
 onEvent("wheel", "body", (target: HTMLElement, e: Event) => {
   let event = e as WheelEvent;
   ui.scrollDelta = event.deltaY;
+  // Prevent pinch to zoom
+  event.preventDefault();
   requestFrame();
 })
 
@@ -473,6 +475,12 @@ function setPlaybackSpeed(speed: number) {
 // Initial resize.
 onResize();
 
+// Disable pinch to zoom
+let meta = document.createElement('meta');
+meta.name = 'viewport';
+meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+document.head.appendChild(meta);
+
 html.modal.classList.add("hidden");
 html.toast.classList.add("hiding");
 html.actionButtons.classList.add("hidden");
@@ -498,7 +506,7 @@ onEvent("click", "#share-button", () => {
   onShareButtonClick();
 });
 onEvent("click", "#help-button", () => {
-  window.open("mettascope_info.html", "_blank");
+  window.open("https://github.com/Metta-AI/metta/blob/main/mettascope/README.md", "_blank");
 });
 
 // Bottom area

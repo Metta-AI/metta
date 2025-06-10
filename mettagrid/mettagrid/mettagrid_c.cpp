@@ -232,18 +232,21 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
   if (_use_observation_tokens) {
+    size_t attempted_tokens_written = 0;
     size_t tokens_written = 0;
     auto observation_view = _observations.mutable_unchecked<3>();
     // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
-    for (unsigned int distance = 0; distance < obs_width_radius + obs_height_radius; distance++) {
+    for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
       for (unsigned int r = r_start; r < r_end; r++) {
         // In this row, there should be one or two columns that have the correct [L1] distance.
         unsigned int r_dist = std::abs(static_cast<int>(r) - static_cast<int>(observer_row));
         if (r_dist > distance) continue;
         int c_dist = distance - r_dist;
-        // This is a set, which should de-dupe c_dist == 0.
-        std::set<int> c_offsets = {-c_dist, c_dist};
-        for (int c_offset : c_offsets) {
+        // This is a bit ugly. We want to run over {c_dist, -c_dist}, but only do it once if c_dist == 0.
+        // Here's how we're trying to do that, and to be performant (e.g., not re-allocating a set).
+        for (int i = 0; i < 2; i++) {
+          if (c_dist == 0 && i == 1) continue;
+          int c_offset = i == 0 ? c_dist : -c_dist;
           int c = observer_col + c_offset;
           // c could still be outside of our bounds.
           if (c < c_start || c >= c_end) continue;
@@ -260,17 +263,22 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
             ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
             ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
-            size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+            size_t attempted_obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+            size_t obj_tokens_written = std::min(attempted_obj_tokens_written, agent_obs_tokens.size());
 
             uint8_t location = obs_r << 4 | obs_c;
             for (size_t i = 0; i < obj_tokens_written; i++) {
               agent_obs_tokens[i].location = location;
             }
+            attempted_tokens_written += attempted_obj_tokens_written;
             tokens_written += obj_tokens_written;
           }
         }
       }
     }
+    _stats->add("tokens_written", static_cast<float>(tokens_written));
+    _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
+    _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
   } else {
     auto observation_view = _observations.mutable_unchecked<4>();
     for (unsigned int r = r_start; r < r_end; r++) {
