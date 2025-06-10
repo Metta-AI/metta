@@ -330,8 +330,8 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   _event_manager->process_events(current_step);
 
   // Process actions by priority levels (highest to lowest)
-  for (unsigned char offset = 0; offset <= max_action_priority; offset++) {
-    unsigned char current_priority = max_action_priority - offset;
+  for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
+    unsigned char current_priority = _max_action_priority - offset;
 
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       // Skip agents who already successfully performed an action this step
