@@ -18,9 +18,8 @@ if [ -n "$(git status --porcelain)" ]; then
   fi
 fi
 
-# Reinstall packages to pick up local changes
-uv pip install -e .
-uv pip --directory mettagrid install -e .
+# Make sure everything is up to date
+uv sync
 
 # Lint and format
 ruff format
@@ -29,7 +28,7 @@ ruff check
 # Run tests for Metta
 uv run pytest
 # Run tests for MettaGrid
-uv run python -m pytest mettagrid/tests
+uv run pytest mettagrid/tests
 
 # Submit the PR
 gt submit

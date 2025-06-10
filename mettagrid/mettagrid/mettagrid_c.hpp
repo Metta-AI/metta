@@ -51,7 +51,7 @@ public:
 
   unsigned int map_width();
   unsigned int map_height();
-  py::list grid_features();
+  py::list feature_normalizations();
   unsigned int num_agents();
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
@@ -61,6 +61,7 @@ public:
   py::list max_action_args();
   py::list object_type_names();
   py::list inventory_item_names();
+  py::array_t<unsigned int> get_agent_groups() const;
   static Agent* create_agent(int r,
                              int c,
                              const std::string& group_name,
@@ -86,6 +87,7 @@ private:
   std::unique_ptr<StatsTracker> _stats;
 
   bool _use_observation_tokens;
+  unsigned int _num_observation_tokens;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
   // probably move ownership here.
@@ -99,7 +101,7 @@ private:
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 
-  std::vector<std::string> _grid_features;
+  std::vector<float> _feature_normalizations;
 
   std::vector<bool> _action_success;
 

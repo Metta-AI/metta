@@ -16,6 +16,8 @@ from mettagrid.util.actions import (
 
 OBS_WIDTH = 3  # should be odd
 OBS_HEIGHT = 3  # should be odd
+NUM_OBS_TOKENS = 100
+OBS_TOKEN_SIZE = 3
 
 
 @pytest.fixture
@@ -26,6 +28,8 @@ def base_config():
         "num_agents": 1,
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
+        "use_observation_tokens": True,
+        "num_observation_tokens": NUM_OBS_TOKENS,
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
@@ -89,8 +93,7 @@ def configured_env(base_config):
         env = MettaGrid(env_config, game_map)
 
         # Set up buffers
-        num_features = len(env.grid_features())
-        observations = np.zeros((1, 3, 3, num_features), dtype=np_observations_type)
+        observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np_observations_type)
         terminals = np.zeros(1, dtype=np_terminals_type)
         truncations = np.zeros(1, dtype=np_truncations_type)
         rewards = np.zeros(1, dtype=np_rewards_type)

@@ -25,10 +25,11 @@ from omegaconf import OmegaConf
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.rl.pufferlib.policy import PufferAgent
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
-from metta.util.config import config_from_path
+from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
@@ -68,12 +69,8 @@ class Simulation:
         logger.info(f"config.env {config.env}")
         logger.info(f"config.env_overrides {config.env_overrides}")
 
-        if config.env_overrides is not None:
-            env_overrides = OmegaConf.create(config.env_overrides)
-        else:
-            env_overrides = None
+        env_overrides = OmegaConf.create(config.env_overrides)
 
-        self._env_cfg = config_from_path(config.env, env_overrides)
         self._env_name = config.env
 
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
@@ -88,8 +85,10 @@ class Simulation:
         # ----------------
         num_envs = min(config.num_episodes, os.cpu_count() or 1)
         logger.info(f"Creating vecenv with {num_envs} environments")
+        curriculum = SamplingCurriculum(config.env, env_overrides)
+        env_cfg = curriculum.get_task().env_cfg()
         self._vecenv = make_vecenv(
-            self._env_cfg,
+            curriculum,
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
@@ -99,7 +98,7 @@ class Simulation:
         self._num_envs = num_envs
         self._min_episodes = config.num_episodes
         self._max_time_s = config.max_time_s
-        self._agents_per_env = self._env_cfg.game.num_agents
+        self._agents_per_env = env_cfg.game.num_agents
 
         # ---------------- policies ------------------------------------- #
         self._policy_pr = policy_pr
@@ -111,7 +110,7 @@ class Simulation:
         npc_policy_expected_channels = self._npc_pr.expected_observation_channels() if self._npc_pr else None
         env_expected_channels = self._vecenv.observation_space.shape[-1]
 
-        if policy_expected_channels != env_expected_channels:
+        if policy_expected_channels is not None and policy_expected_channels != env_expected_channels:
             error_msg = (
                 f"Main policy expects {policy_expected_channels} observation channels, "
                 f"but current environment provides {env_expected_channels}."
@@ -120,7 +119,7 @@ class Simulation:
             raise SimulationCompatibilityError(error_msg)
 
         # Check NPC policy compatibility (if it exists)
-        if npc_policy_expected_channels and npc_policy_expected_channels != env_expected_channels:
+        if npc_policy_expected_channels is not None and npc_policy_expected_channels != env_expected_channels:
             error_msg = (
                 f"NPC policy expects {npc_policy_expected_channels} observation channels, "
                 f"but current environment provides {env_expected_channels}."
@@ -135,8 +134,8 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent = self._policy_pr.policy_as_metta_agent()
-        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent)), metta_agent
+        metta_agent: MettaAgent | DistributedMettaAgent | PufferAgent = self._policy_pr.policy_as_metta_agent()
+        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), metta_agent
         metta_agent.activate_actions(action_names, max_args, self._device)
 
         if self._npc_pr is not None:
@@ -145,7 +144,7 @@ class Simulation:
             npc_agent.activate_actions(action_names, max_args, self._device)
 
         # ---------------- agent-index bookkeeping ---------------------- #
-        idx_matrix = torch.arange(metta_grid_env.num_agents, device=self._device).reshape(
+        idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
             self._num_envs, self._agents_per_env
         )
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))

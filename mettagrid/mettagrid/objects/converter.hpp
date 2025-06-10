@@ -7,6 +7,7 @@
 
 #include "../event.hpp"
 #include "../grid_object.hpp"
+#include "../stats_tracker.hpp"
 #include "agent.hpp"
 #include "constants.hpp"
 #include "has_inventory.hpp"
@@ -34,21 +35,27 @@ private:
       }
     }
     if (total_output >= this->max_output) {
+      stats.incr("blocked.output_full");
       return;
     }
     // Check if the converter has enough input.
     for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (this->inventory[i] < this->recipe_input[i]) {
+        stats.incr("blocked.insufficient_input");
         return;
       }
     }
     // produce.
     for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       this->inventory[i] -= this->recipe_input[i];
+      if (this->recipe_input[i] > 0) {
+        stats.add(InventoryItemNames[i] + ".consumed", this->recipe_input[i]);
+      }
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
     this->converting = true;
+    stats.incr("conversions.started");
     this->event_manager->schedule_event(EventType::FinishConverting, this->conversion_ticks, this->id, 0);
   }
 
@@ -65,6 +72,7 @@ public:
   bool cooling_down;               // Currently in cooldown phase
   unsigned char color;
   EventManager* event_manager;
+  StatsTracker stats;
 
   Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
     GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
@@ -102,17 +110,20 @@ public:
 
   void finish_converting() {
     this->converting = false;
+    stats.incr("conversions.completed");
 
     // Add output to inventory
     for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (this->recipe_output[i] > 0) {
         HasInventory::update_inventory(static_cast<InventoryItem>(i), this->recipe_output[i]);
+        stats.add(InventoryItemNames[i] + ".produced", this->recipe_output[i]);
       }
     }
 
     if (this->cooldown > 0) {
       // Start cooldown phase
       this->cooling_down = true;
+      stats.incr("cooldown.started");
       this->event_manager->schedule_event(EventType::CoolDown, this->cooldown, this->id, 0);
     } else if (this->cooldown == 0) {
       // No cooldown, try to start converting again immediately
@@ -120,16 +131,25 @@ public:
     } else if (this->cooldown < 0) {
       // Negative cooldown means never convert again
       this->cooling_down = true;
+      stats.incr("conversions.permanent_stop");
     }
   }
 
   void finish_cooldown() {
     this->cooling_down = false;
+    stats.incr("cooldown.completed");
     this->maybe_start_converting();
   }
 
   int update_inventory(InventoryItem item, short amount) override {
     int delta = HasInventory::update_inventory(item, amount);
+    if (delta != 0) {
+      if (delta > 0) {
+        stats.add(InventoryItemNames[item] + ".added", delta);
+      } else {
+        stats.add(InventoryItemNames[item] + ".removed", -delta);
+      }
+    }
     this->maybe_start_converting();
     return delta;
   }
@@ -150,20 +170,22 @@ public:
 
   void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
     obs[offsets[0]] = 1;
-    obs[offsets[1]] = this->hp;
-    obs[offsets[2]] = this->color;
-    obs[offsets[3]] = this->converting || this->cooling_down;
+    obs[offsets[1]] = _type_id;
+    obs[offsets[2]] = this->hp;
+    obs[offsets[3]] = this->color;
+    obs[offsets[4]] = this->converting || this->cooling_down;
     for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      obs[offsets[4] + i] = this->inventory[i];
+      obs[offsets[5 + i]] = this->inventory[i];
     }
   }
 
-  static std::vector<std::string> feature_names(TypeId type_id) {
+  static std::vector<std::string> feature_names() {
     std::vector<std::string> names;
     // We use the same feature names for all converters, since this compresses
     // the observation space. At the moment we don't expose the recipe, since
     // we expect converters to be hard coded.
-    names.push_back(ObjectTypeNames[type_id]);
+    names.push_back("converter");
+    names.push_back("type_id");
     names.push_back("hp");
     names.push_back("color");
     names.push_back("converting");

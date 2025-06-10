@@ -5,8 +5,18 @@ defaults:
   - _self_
 
 trainer:
-  env: /env/mettagrid/terrain_from_numpy
+  # env: /env/mettagrid/multienv_mettagrid
+  curriculum: /env/mettagrid/curriculum/all
+
+  env_overrides:
+    sampling: 0.7
+    game:
+      max_steps: 13
+
   evaluate_interval: 200
+  # optimizer:
+  #   type: muon
+
   # optimizer:
   #   type: muon
   # env_overrides:
@@ -15,6 +25,15 @@ trainer:
   #     num_agents: 36
   #     max_steps: 1000
 
+# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
+# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
+
+# policy_uri: wandb://run/b.daveey.t.1.bl
+# policy_uri: wandb://run/b.daveey.t.16.dr0
+
+# policy_uri: wandb://run/b.daveey.dr9.muon.latest
+# policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
+# policy_uri: puffer:///tmp/puffer_metta.pt
 # policy_uri: puffer:///tmp/puffer_metta.pt
 policy_uri: wandb://run/daveey.lasertag.r5.2x4:v12
 # policy_uri: puffer://./train_dir/puffer/puffer_metta.pt
@@ -55,8 +74,7 @@ sim_job:
   #         agents: 4
   #       num_rooms: 4
 
-
-run_id: 22
+run_id: 24
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

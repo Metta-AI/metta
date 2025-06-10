@@ -21,9 +21,8 @@ public:
     _type_feature_names[ObjectType::AgentT] = Agent::feature_names();
     _type_feature_names[ObjectType::WallT] = Wall::feature_names();
 
-    // These are different types of Converters. The only difference in the feature names
-    // is the 1-hot that they use for their type. We're working to simplify this, so we can
-    // remove these types from code.
+    // These are different types of Converters. They all have the same feature names,
+    // so this is somewhat redundant.
     for (auto type_id : {ObjectType::AltarT,
                          ObjectType::ArmoryT,
                          ObjectType::FactoryT,
@@ -32,7 +31,7 @@ public:
                          ObjectType::LaseryT,
                          ObjectType::MineT,
                          ObjectType::TempleT}) {
-      _type_feature_names[type_id] = Converter::feature_names(type_id);
+      _type_feature_names[type_id] = Converter::feature_names();
     }
 
     // Generate an offset for each unique feature name.
@@ -47,7 +46,11 @@ public:
           // use this as a feature_id.
           assert(index < 256);
           features.insert({feature_name, index});
-          _feature_names.push_back(feature_name);
+          if (FeatureNormalizations.count(feature_name) > 0) {
+            _feature_normalizations.push_back(FeatureNormalizations.at(feature_name));
+          } else {
+            _feature_normalizations.push_back(DEFAULT_NORMALIZATION);
+          }
         }
       }
     }
@@ -72,8 +75,8 @@ public:
     obj->obs(obs, offsets);
   }
 
-  const std::vector<std::string>& feature_names() const {
-    return _feature_names;
+  const std::vector<float>& feature_normalizations() const {
+    return _feature_normalizations;
   }
 
   const std::vector<std::vector<std::string>>& type_feature_names() const {
@@ -83,7 +86,7 @@ public:
 private:
   std::vector<std::vector<uint8_t>> _offsets;
   std::vector<std::vector<std::string>> _type_feature_names;
-  std::vector<std::string> _feature_names;
+  std::vector<float> _feature_normalizations;
 };
 
 #endif  // METTAGRID_METTAGRID_OBSERVATION_ENCODER_HPP_

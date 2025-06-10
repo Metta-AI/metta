@@ -32,7 +32,7 @@ protected:
       return false;
     }
 
-    actor->stats.incr("swap", _stats.target[target->_type_id]);
+    actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[target->_type_id]);
 
     _grid->swap_objects(actor->id, target->id);
     return true;

@@ -98,6 +98,7 @@
     "matplotlib",
     "maxcolwidths",
     "maxfail",
+    "mazelike",
     "memcpy",
     "metta",
     "mettabox",
@@ -118,6 +119,7 @@
     "npcs",
     "nthreads",
     "numpy",
+    "nuqs",
     "nvec",
     "omegaconf",
     "pettingzoo",
@@ -127,6 +129,7 @@
     "pybind",
     "Pylance",
     "pynvml",
+    "pyright",
     "pytest",
     "PYTHONHOME",
     "Pythonic",
@@ -136,6 +139,7 @@
     "relu",
     "repr",
     "richcmp",
+    "Roguelike",
     "scanline",
     "scikit",
     "scipy",
@@ -176,7 +180,8 @@
     "vloss",
     "wandb",
     "Werror",
-    "xlarge"
+    "xlarge",
+    "yrange"
   ],
   "ignoreWords": [],
   "ignorePaths": [

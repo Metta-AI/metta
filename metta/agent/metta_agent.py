@@ -27,11 +27,13 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
         }
     )
 
+    # Here's where we create MettaAgent. We're including the term MettaAgent here for better
+    # searchability. Otherwise you might only find yaml files.
     return hydra.utils.instantiate(
         cfg.agent,
         obs_space=obs_space,
         action_space=env.single_action_space,
-        grid_features=env.grid_features,
+        feature_normalizations=env.feature_normalizations,
         global_features=env.global_features,
         device=cfg.device,
         _recursive_=False,
@@ -57,11 +59,13 @@ class MettaAgent(nn.Module):
         self,
         obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
         action_space: gym.spaces.Space,
-        grid_features: list[str],
+        feature_normalizations: list[float],
         device: str,
         **cfg,
     ):
         super().__init__()
+        # Note that this doesn't instantiate the components -- that will happen later once
+        # we've built up the right parameters for them.
         cfg = OmegaConf.create(cfg)
 
         logger.info(f"obs_space: {obs_space} ")
@@ -75,16 +79,14 @@ class MettaAgent(nn.Module):
         )
         obs_key = cfg.observations.obs_key  # typically "grid_obs"
 
-        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")  # obs_w, obs_h, num_objects
-        num_objects = obs_shape[2]
+        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
 
         self.agent_attributes = {
             "clip_range": self.clip_range,
             "action_space": action_space,
-            "grid_features": grid_features,
+            "feature_normalizations": feature_normalizations,
             "obs_key": cfg.observations.obs_key,
             "obs_shape": obs_shape,
-            "num_objects": num_objects,
             "hidden_size": self.hidden_size,
             "core_num_layers": self.core_num_layers,
         }
@@ -129,6 +131,8 @@ class MettaAgent(nn.Module):
         # recursively setup all source components
         if component._sources is not None:
             for source in component._sources:
+                print(f"setting up source {source}")
+                print(f"with name {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
         # setup the current component and pass in the source components
@@ -165,7 +169,7 @@ class MettaAgent(nn.Module):
             for j in range(max_param + 1):
                 action_index.append([action_type_idx, j])
 
-        self.action_index_tensor = torch.tensor(action_index, device=self.device)
+        self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
         logger.info(f"Agent actions activated with: {self.active_actions}")
 
     @property
@@ -285,15 +289,16 @@ class MettaAgent(nn.Module):
                 if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
                     obs_w, obs_h, features = obs_shape
 
+            # TODO: redo this and the above once we converge on token obs space. Commenting out for now.
             if action is None:
                 # Inference: x should have shape (BT, obs_w, obs_h, features)
-                assert_shape(x, ("BT", obs_w, obs_h, features), "inference_input_x")
+                pass
             else:
                 # Training: x should have shape (B, T, obs_w, obs_h, features)
                 B, T, A = action.shape
                 assert A == 2, f"Action dimensionality should be 2, got {A}"
-                assert_shape(x, (B, T, obs_w, obs_h, features), "training_input_x")
-                assert_shape(action, (B, T, 2), "training_input_action")
+                # assert_shape(x, (B, T, obs_w, obs_h, features), "training_input_x")
+                # assert_shape(action, (B, T, 2), "training_input_action")
 
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
@@ -411,7 +416,9 @@ class MettaAgent(nn.Module):
             if not callable(method):
                 raise TypeError(f"Component '{name}' has {method_name} attribute but it's not callable")
 
-            results.append(method(*args, **kwargs))
+            result = method(*args, **kwargs)
+            if result is not None:
+                results.append(result)
 
         return results
 
@@ -420,14 +427,20 @@ class MettaAgent(nn.Module):
         it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
         """
         component_loss_tensors = self._apply_to_components("l2_reg_loss")
-        return torch.sum(torch.stack(component_loss_tensors))
+        if len(component_loss_tensors) > 0:
+            return torch.sum(torch.stack(component_loss_tensors))
+        else:
+            return torch.tensor(0.0, device=self.device)
 
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
         it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.
         """
         component_loss_tensors = self._apply_to_components("l2_init_loss")
-        return torch.sum(torch.stack(component_loss_tensors))
+        if len(component_loss_tensors) > 0:
+            return torch.sum(torch.stack(component_loss_tensors))
+        else:
+            return torch.tensor(0.0, device=self.device)
 
     def update_l2_init_weight_copy(self):
         """Update interval set by l2_init_weight_update_interval. 0 means no updating."""

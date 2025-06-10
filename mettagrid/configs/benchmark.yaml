@@ -1,6 +1,5 @@
 # This is a modified `sample.yaml` config with sampling removed, for benchmark_env_perf.py script.
 report_stats_interval: 100
-normalize_rewards: false
 
 sampling: 0
 
@@ -32,8 +31,6 @@ game:
 
         block: 20
         wall: 20
-
-  recursive_map_builder: true
 
   obs_width: 11
   obs_height: 11
@@ -97,6 +94,11 @@ game:
       id: 6
       sprite: 6
       props: {}
+
+  diversity_bonus:
+    enabled: false
+    similarity_coef: 0.5
+    diversity_coef: 0.5 
 
   objects:
     altar:
