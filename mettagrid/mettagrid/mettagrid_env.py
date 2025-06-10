@@ -8,18 +8,18 @@ from typing import Any, Dict, Optional, cast
 import gymnasium as gym
 import numpy as np
 import pufferlib
+from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from pufferlib import unroll_nested_dict
 from pydantic import validate_call
 from typing_extensions import override
 
-from mettagrid.curriculum import Curriculum
+from mettagrid.curriculum import Curriculum, Task
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.diversity import calculate_diversity_bonus
-from mettagrid.util.hydra import simple_instantiate
 from mettagrid.util.stopwatch import Stopwatch
 
 # These data types must match PufferLib -- see pufferlib/vector.py
@@ -29,11 +29,9 @@ from mettagrid.util.stopwatch import Stopwatch
 # In PufferLib's class Multiprocessing, the data type for actions will be set to int32
 # whenever the action space is Discrete or Multidiscrete. If we do not match the data type
 # here in our child class, then we will experience extra data conversions in the background.
-
 # Additionally the actions that are sent to the C environment will be int32 (because PufferEnv
 # controls the type of self.actions) -- creating an opportunity for type confusion.
 
-#
 dtype_observations = np.dtype(np.uint8)
 dtype_terminals = np.dtype(bool)
 dtype_truncations = np.dtype(bool)
@@ -90,7 +88,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
 
-        self._reset_env()
+        self._initialize_c_env(self._task)
         super().__init__(buf)
 
         if self._render_mode is not None:
@@ -106,15 +104,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
-    def _reset_env(self):
-        # Prepare the level
-        with self.timer("_reset_env._curriculum.get_task"):
-            self._task = self._curriculum.get_task()
+    def _initialize_c_env(self, task: Task) -> None:
+        """Initialize the C++ environment."""
         level = self._level
-        with self.timer("_reset_env.simple_instantiate"):
-            if level is None:
-                map_builder = simple_instantiate(self._task.env_cfg().game.map_builder, recursive=True)
-                level = map_builder.build()
+        if level is None:
+            map_builder_config = task.env_cfg().game.map_builder
+            with self.timer("_initialize_c_env.instantiate"):
+                map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
+            level = map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
@@ -124,24 +121,24 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         )
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
-        config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))
+        config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
 
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        with self.timer("_reset_env.MettaGrid"):
+        with self.timer("_initialize_c_env.MettaGrid"):
             self._c_env = MettaGrid(config_dict, level.grid.tolist())
 
         self._grid_env = self._c_env
 
-    @override
+    @override  # pufferlib.PufferEnv.reset
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
-        """
-        This method overrides the reset method from PufferEnv.
-        """
-        with self.timer("_reset_env"):
-            self._reset_env()
+        with self.timer("_curriculum.get_task"):
+            self._task = self._curriculum.get_task()
+
+        with self.timer("_initialize_c_env"):
+            self._initialize_c_env(self._task)
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -162,26 +159,20 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
         return obs, infos
 
-    @override
+    @override  # pufferlib.PufferEnv.step
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         """
-                Execute one timestep of the environment dynamics with the given actions.
+        Execute one timestep of the environment dynamics with the given actions.
 
-                IMPORTANT: In training mode, the `actions` parameter and `self.actions` may be the same
-                object, but in simulation mode they are independent. Always use the passed-in `actions`
-                parameter to ensure correct behavior in all contexts.
+        IMPORTANT: In training mode, the `actions` parameter and `self.actions` may be the same
+        object, but in simulation mode they are independent. Always use the passed-in `actions`
+        parameter to ensure correct behavior in all contexts.
 
-        <<<<<<< HEAD
-                with self.timer("_c_env.step"):
-                    self._c_env.step(self.actions)
-                    self._steps += 1
-        =======
-                Args:
-                    actions: A numpy array of shape (num_agents, 2) with dtype np.int32
-        >>>>>>> main
+        Args:
+            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
 
-                Returns:
-                    Tuple of (observations, rewards, terminals, truncations, infos)
+        Returns:
+            Tuple of (observations, rewards, terminals, truncations, infos)
 
         """
 
@@ -193,7 +184,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_pre_step(self._episode_id, actions)
 
-        self._c_env.step(actions)
+        with self.timer("_c_env.step"):
+            self._c_env.step(actions)
+            self._steps += 1
 
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
@@ -353,7 +346,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._c_env.obs_height
 
     @property
-    def action_names(self):
+    def action_names(self) -> list[str]:
         return self._c_env.action_names()
 
     @property
@@ -361,18 +354,19 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def num_agents(self) -> int:
         return self._c_env.num_agents
 
-    def render(self):
+    def render(self) -> str | None:
         if self._renderer is None:
             return None
 
         return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
 
     @property
+    @override
     def done(self):
         return self._should_reset
 
     @property
-    def feature_normalizations(self):
+    def feature_normalizations(self) -> list[float]:
         return self._c_env.feature_normalizations()
 
     @property
@@ -380,6 +374,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return []
 
     @property
+    @override
     def render_mode(self):
         return self._render_mode
 
