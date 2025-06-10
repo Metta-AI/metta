@@ -14,12 +14,12 @@ game:
 
     room:
       _target_: mettagrid.room.random.Random
-      width: ${sampling:75,120,60}
-      height: ${sampling:75,120,60}
-      border_width: ${sampling:1,6,3}
+      width: 80
+      height: 80
+      border_width: 3
       agents: 1
       objects:
-        altar: ${sampling:5,50,20}
+        altar: 15
 
   objects:
     altar:
