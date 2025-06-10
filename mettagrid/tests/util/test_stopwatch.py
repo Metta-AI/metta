@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from metta.util.stopwatch import Stopwatch
+from mettagrid.util.stopwatch import Stopwatch
 
 
 @pytest.fixture
