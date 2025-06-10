@@ -87,6 +87,11 @@ class PostgresStatsDB:
             cur.execute(query, params)
             return cur.fetchall()
 
+    def execute(self, query: LiteralString, params: Tuple[Any, ...] = ()) -> None:
+        with self.con.cursor() as cur:
+            cur.execute(query, params)
+            self.con.commit()
+
     def get_policy_ids(self, policy_names: List[str]) -> Dict[str, int]:
         if not policy_names:
             return {}

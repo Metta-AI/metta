@@ -21,18 +21,137 @@ export type GroupDiff = {
 
 export type GroupHeatmapMetric = GroupDiff | string
 
+// API response types to match the server
+export type ApiHeatmapCell = {
+  evalName: string;
+  replayUrl: string | null;
+  value: number;
+}
+
+export type ApiHeatmapData = {
+  evalNames: string[];
+  cells: Record<string, Record<string, ApiHeatmapCell>>;
+  policyAverageScores: Record<string, number>;
+  evalAverageScores: Record<string, number>;
+  evalMaxScores: Record<string, number>;
+}
+
 /**
  * Interface for data fetching.
- * 
+ *
  * Currently the data is loaded from a pre-computed JSON file.
  * In the future, we will fetch the data from an API.
  */
-export interface Repo {  
+export interface Repo {
   getSuites(): Promise<string[]>;
   getMetrics(suite: string): Promise<string[]>;
   getGroupIds(suite: string): Promise<string[]>;
 
   getHeatmapData(metric: string, suite: string, groupMetric: GroupHeatmapMetric): Promise<HeatmapData>;
+}
+
+export class ServerRepo implements Repo {
+  constructor(private baseUrl: string = "http://localhost:8000") {
+  }
+
+  private async apiCall<T>(endpoint: string): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${endpoint}`);
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  private async apiCallWithBody<T>(endpoint: string, body: any): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getSuites(): Promise<string[]> {
+    return this.apiCall<string[]>("/api/suites");
+  }
+
+  async getMetrics(suite: string): Promise<string[]> {
+    return this.apiCall<string[]>(`/api/metrics/${encodeURIComponent(suite)}`);
+  }
+
+  async getGroupIds(suite: string): Promise<string[]> {
+    return this.apiCall<string[]>(`/api/group-ids/${encodeURIComponent(suite)}`);
+  }
+
+  async getHeatmapData(metric: string, suite: string, groupMetric: GroupHeatmapMetric): Promise<HeatmapData> {
+    // Convert the API response to the expected format
+    const convertApiResponse = (apiData: ApiHeatmapData): HeatmapData => {
+      const evalNames = new Set(apiData.evalNames);
+      const cells = new Map<string, Map<string, HeatmapCell>>();
+      const policyAverageScores = new Map<string, number>();
+      const evalAverageScores = new Map<string, number>();
+      const evalMaxScores = new Map<string, number>();
+
+      // Convert cells
+      Object.entries(apiData.cells).forEach(([policyUri, policyCells]) => {
+        const policyMap = new Map<string, HeatmapCell>();
+        Object.entries(policyCells).forEach(([evalName, cell]) => {
+          policyMap.set(evalName, {
+            evalName: cell.evalName,
+            replayUrl: cell.replayUrl,
+            value: cell.value,
+          });
+        });
+        cells.set(policyUri, policyMap);
+      });
+
+      // Convert scores
+      Object.entries(apiData.policyAverageScores).forEach(([policyUri, score]) => {
+        policyAverageScores.set(policyUri, score);
+      });
+
+      Object.entries(apiData.evalAverageScores).forEach(([evalName, score]) => {
+        evalAverageScores.set(evalName, score);
+      });
+
+      Object.entries(apiData.evalMaxScores).forEach(([evalName, score]) => {
+        evalMaxScores.set(evalName, score);
+      });
+
+      return {
+        evalNames,
+        cells,
+        policyAverageScores,
+        evalAverageScores,
+        evalMaxScores,
+      };
+    };
+
+    // Handle different group metric types
+    if (typeof groupMetric === "string") {
+      // Use GET endpoint for string group metrics
+      const params = new URLSearchParams();
+      if (groupMetric !== "") {
+        params.append("group_metric", groupMetric);
+      }
+      const endpoint = `/api/heatmap-data/${encodeURIComponent(suite)}/${encodeURIComponent(metric)}`;
+      const fullEndpoint = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
+      const apiData = await this.apiCall<ApiHeatmapData>(fullEndpoint);
+      return convertApiResponse(apiData);
+    } else {
+      // Use POST endpoint for GroupDiff
+      const apiData = await this.apiCallWithBody<ApiHeatmapData>(
+        `/api/heatmap-data/${encodeURIComponent(suite)}/${encodeURIComponent(metric)}`,
+        { group_metric: groupMetric }
+      );
+      return convertApiResponse(apiData);
+    }
+  }
 }
 
 export class DataRepo implements Repo {
@@ -120,7 +239,7 @@ export class DataRepo implements Repo {
         policyData.set(evalName, cell);
       }
     }
-    
+
     const policyAverageScores = new Map<string, number>();
     cells.forEach((policyCells, policyUri) => {
       const policyAverageScore = Array.from(policyCells.values()).reduce((sum, cell) => sum + cell.value, 0) / evalNames.size;
