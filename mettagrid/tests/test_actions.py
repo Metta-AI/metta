@@ -3,10 +3,10 @@ import pytest
 
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.mettagrid_env import (
-    np_observations_type,
-    np_rewards_type,
-    np_terminals_type,
-    np_truncations_type,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
 )
 from mettagrid.util.actions import (
     Orientation,
@@ -93,10 +93,10 @@ def configured_env(base_config):
         env = MettaGrid(env_config, game_map)
 
         # Set up buffers
-        observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np_observations_type)
-        terminals = np.zeros(1, dtype=np_terminals_type)
-        truncations = np.zeros(1, dtype=np_truncations_type)
-        rewards = np.zeros(1, dtype=np_rewards_type)
+        observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
+        terminals = np.zeros(1, dtype=dtype_terminals)
+        truncations = np.zeros(1, dtype=dtype_truncations)
+        rewards = np.zeros(1, dtype=dtype_rewards)
         env.set_buffers(observations, terminals, truncations, rewards)
 
         env.reset()
