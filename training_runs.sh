@@ -13,22 +13,10 @@
 
 # ./devops/skypilot/launch.py train gd_backchain3 trainer.curriculum=env/mettagrid/curriculum/backchain \
 
- ./devops/skypilot/launch.py train gd_backchain_full_extended trainer.curriculum=env/mettagrid/curriculum/backchain_full_extended \
+python -m devops.aws.batch.launch_task --cmd=train --run=b.$USER.nav_backchain_mem  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain_mem --skip-validation \
 
- ./devops/skypilot/launch.py train gd_backchain_in_context trainer.curriculum=env/mettagrid/curriculum/backchain_in_context \
+python -m devops.aws.batch.launch_task --cmd=train --run=b.$USER.nav_backchain  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain --skip-validation \
 
- ./devops/skypilot/launch.py train gd_backchain_scratch_hard trainer.curriculum=env/mettagrid/curriculum/backchain_scratch_hard \
+python -m devops.aws.batch.launch_task --cmd=train --run=b.$USER.nav_mem_pretrained  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/gd_backchain_mem_pretrained:v18 --skip-validation \
 
- ./devops/skypilot/launch.py train gd_hard_mem_seq_pretrained trainer.curriculum=env/mettagrid/curriculum/hard_mem_seq_pretrained ***this needs to be pretrained on 'gd_backchain_mem_pretrained'***\
-
- ./devops/skypilot/launch.py train gd_pure_mem_backchain trainer.curriculum=env/mettagrid/curriculum/pure_mem_backchain \
-
- ./devops/skypilot/launch.py train gd_pure_seq_backchain trainer.curriculum=env/mettagrid/curriculum/pure_seq_backchain \
-
- ./devops/skypilot/launch.py train gd_kitchen_hard_pretrained trainer.curriculum=env/mettagrid/curriculum/all ***this needs to be pretrained on 'gd_backchain_mem_pretrained'*** \
-
-
-
-
-
-
+python -m devops.aws.batch.launch_task --cmd=train --run=b.$USER.nav_navsequence_backchain  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_navsequence_backchain --skip-validation \
