@@ -1,8 +1,8 @@
 #ifndef METTAGRID_METTAGRID_GRID_OBJECT_HPP_
 #define METTAGRID_METTAGRID_GRID_OBJECT_HPP_
 
-#include <span>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -83,7 +83,7 @@ public:
       tokens[i].feature_id = features[i].feature_id;
       tokens[i].value = features[i].value;
     }
-    return tokens_to_write;
+    return features.size();
   }
 
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const = 0;
