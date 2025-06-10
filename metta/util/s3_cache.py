@@ -46,6 +46,11 @@ class S3CacheManager:
         self.s3_client: Optional[BaseClient] = None
 
         try:
+            # Test AWS credentials first
+            sts_client = boto3.client("sts", region_name=aws_region)
+            identity = sts_client.get_caller_identity()
+            self.log(f"AWS Identity: {identity}")
+
             self.s3_client = boto3.client("s3", region_name=aws_region)
             self.log(f"S3 client created for region: {aws_region}")
 

@@ -6,7 +6,6 @@ import time
 import uuid
 from typing import Any, Dict, Optional, cast
 
-import boto3
 import gymnasium as gym
 import numpy as np
 import pufferlib
@@ -53,20 +52,6 @@ def required(func):
 
 cache_logger = logging.getLogger("cache_debug")
 cache_logger.setLevel(logging.INFO)
-
-try:
-    # Test STS (AWS credentials)
-    sts = boto3.client("sts", region_name="us-east-1")
-    identity = sts.get_caller_identity()
-    cache_logger.info(f"✅ AWS Identity: {identity}")
-
-    # Test S3 access
-    s3 = boto3.client("s3", region_name="us-east-1")
-    s3.head_bucket(Bucket="softmax-level-cache")
-    cache_logger.info("✅ S3 access successful")
-
-except Exception as e:
-    print(f"❌ AWS Error: {type(e).__name__}: {e}")
 
 # Cache manager for expensive map building operations
 map_cache = S3CacheManager(
