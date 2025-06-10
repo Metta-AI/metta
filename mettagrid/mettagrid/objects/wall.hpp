@@ -16,17 +16,14 @@ public:
     GridObject::init(ObjectType::WallT, GridLocation(r, c, GridLayer::Object_Layer));
     MettaObject::init_mo(cfg);
     this->_swappable = cfg["swappable"];
+    _obs_features.push_back({ObservationFeature::TypeId, _type_id});
+    if (_swappable) {
+      _obs_features.push_back({ObservationFeature::Swappable, 1});
+    }
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
-    features.reserve(2);
-    features.push_back({ObservationFeature::TypeId, _type_id});
-    if (_swappable) {
-      // Only emit the token if it's swappable, to reduce the number of tokens.
-      features.push_back({ObservationFeature::Swappable, 1});
-    }
-    return features;
+  virtual const vector<PartialObservationToken>& obs_features() const override {
+    return _obs_features;
   }
 
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
@@ -46,6 +43,9 @@ public:
   virtual bool swappable() const override {
     return this->_swappable;
   }
+
+private:
+  vector<PartialObservationToken> _obs_features;
 };
 
 #endif  // METTAGRID_METTAGRID_OBJECTS_WALL_HPP_

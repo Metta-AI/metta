@@ -65,6 +65,10 @@ public:
     this->color = 0;
     this->current_resource_reward = 0;
     this->reward = nullptr;
+
+    _obs_features.reserve(5 + InventoryItem::InventoryItemCount);
+    _obs_features.push_back({ObservationFeature::TypeId, _type_id});
+    _obs_features.push_back({ObservationFeature::Group, group});
   }
 
   void init(float* reward) {
@@ -111,20 +115,17 @@ public:
     return this->frozen;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
-    features.reserve(5 + InventoryItem::InventoryItemCount);
-    features.push_back({ObservationFeature::TypeId, _type_id});
-    features.push_back({ObservationFeature::Group, group});
-    features.push_back({ObservationFeature::Frozen, frozen});
-    features.push_back({ObservationFeature::Orientation, orientation});
-    features.push_back({ObservationFeature::Color, color});
+  virtual const vector<PartialObservationToken>& obs_features() const override {
+    _obs_features.resize(2);  // truncate, aside from type_id and group
+    _obs_features.push_back({ObservationFeature::Frozen, frozen});
+    _obs_features.push_back({ObservationFeature::Orientation, orientation});
+    _obs_features.push_back({ObservationFeature::Color, color});
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (inventory[i] > 0) {
-        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
+        _obs_features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
       }
     }
-    return features;
+    return _obs_features;
   }
 
   virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
@@ -159,6 +160,7 @@ public:
 
 private:
   std::vector<unsigned char> max_items_per_type;
+  mutable std::vector<PartialObservationToken> _obs_features;
 };
 
 #endif  // METTAGRID_METTAGRID_OBJECTS_AGENT_HPP_

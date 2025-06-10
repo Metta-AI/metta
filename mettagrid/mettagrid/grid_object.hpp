@@ -74,7 +74,7 @@ public:
     init(type_id, GridLocation(r, c, layer));
   }
 
-  virtual std::vector<PartialObservationToken> obs_features() const = 0;
+  virtual const std::vector<PartialObservationToken>& obs_features() const = 0;
 
   size_t obs_tokens(ObservationTokens tokens) const {
     std::vector<PartialObservationToken> features = this->obs_features();
