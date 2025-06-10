@@ -330,7 +330,9 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   _event_manager->process_events(current_step);
 
   // Process actions by priority levels (highest to lowest)
-  for (unsigned char p = _max_action_priority; p != 255; p--) {  // 255 wraps to max when p=0 decrements
+  for (unsigned char offset = 0; offset <= max_action_priority; offset++) {
+    unsigned char current_priority = max_action_priority - offset;
+
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       // Skip agents who already successfully performed an action this step
       if (_action_success[agent_idx]) {
@@ -345,18 +347,19 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
                                  std::to_string(_num_action_handlers - 1));
       }
 
+      auto& handler = _action_handlers[action];
+
+      // Skip if this handler doesn't match current priority level
+      if (handler->priority != current_priority) {
+        continue;
+      }
+
       if (arg > _max_action_args[action]) {
         throw std::runtime_error("Invalid action argument " + std::to_string(arg) + " exceeds maximum " +
                                  std::to_string(_max_action_args[action]) + " for action " + std::to_string(action));
       }
 
       auto& agent = _agents[agent_idx];
-      auto& handler = _action_handlers[action];
-
-      // Skip if this handler doesn't match current priority level
-      if (handler->priority != p) {
-        continue;
-      }
 
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
       _action_success[agent_idx] = handler->handle_action(agent->id, arg);
