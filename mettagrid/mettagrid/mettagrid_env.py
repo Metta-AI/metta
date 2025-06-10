@@ -52,7 +52,11 @@ def required(func):
 
 # Cache manager for expensive map building operations
 map_cache = S3CacheManager(
-    bucket_name="softmax-level-cache", prefix="map_builder_cache/", compression_level=6, aws_region="us-east-1"
+    bucket_name="softmax-level-cache",
+    prefix="map_builder_cache/",
+    compression_level=6,
+    aws_region="us-east-1",
+    logger=logger,
 )
 
 

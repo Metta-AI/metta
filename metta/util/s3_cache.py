@@ -17,8 +17,6 @@ import boto3
 from botocore.client import BaseClient
 from botocore.exceptions import ClientError, NoCredentialsError
 
-logger = logging.getLogger(__name__)
-
 
 class S3CacheManager:
     """Manages S3-backed caching with compression for expensive object creation."""
@@ -29,6 +27,7 @@ class S3CacheManager:
         prefix: str = "cache/",
         compression_level: int = 6,
         aws_region: Optional[str] = None,
+        logger: Optional[logging.Logger] = None,
     ):
         """
         Initialize the S3 cache manager.
@@ -38,21 +37,28 @@ class S3CacheManager:
             prefix: S3 key prefix for cache objects (should end with '/')
             compression_level: Gzip compression level (0-9, higher = more compression)
             aws_region: AWS region for S3 client (uses default if None)
+            logger: Optional logger for detailed cache debugging
         """
         self.bucket_name = bucket_name
         self.prefix = prefix.rstrip("/") + "/" if prefix else ""
         self.compression_level = compression_level
+        self.logger = logger
         self.s3_client: Optional[BaseClient] = None
 
         try:
             self.s3_client = boto3.client("s3", region_name=aws_region)
             self.s3_client.head_bucket(Bucket=bucket_name)
             self.s3_available = True
-            logger.info(f"S3 cache initialized: s3://{bucket_name}/{self.prefix}")
+            self.log(f"S3 cache initialized: s3://{bucket_name}/{self.prefix}")
         except (NoCredentialsError, ClientError) as e:
-            logger.warning(f"S3 unavailable, cache will be disabled: {e}")
+            self.log(f"S3 unavailable, cache will be disabled: {e}")
             self.s3_available = False
             self.s3_client = None
+
+    def log(self, message: str) -> None:
+        """Helper method to log messages if logger is available."""
+        if self.logger:
+            self.logger.info(message)
 
     def create_key(self, *args, **kwargs) -> str:
         """
@@ -67,6 +73,12 @@ class S3CacheManager:
         """
         hasher = hashlib.sha256()
 
+        self.log(f"Creating cache key from {len(args)} args, {len(kwargs)} kwargs")
+        for i, arg in enumerate(args):
+            # Truncate large objects for readability
+            arg_repr = str(arg)[:500] + "..." if len(str(arg)) > 500 else str(arg)
+            self.log(f"arg[{i}] = {arg_repr}")
+
         for arg in args:
             arg_bytes = self._serialize_for_hash(arg)
             hasher.update(arg_bytes)
@@ -78,7 +90,10 @@ class S3CacheManager:
             hasher.update(key_bytes)
             hasher.update(value_bytes)
 
-        return hasher.hexdigest()
+        cache_key = hasher.hexdigest()
+        self.log(f"Generated cache key: {cache_key}")
+
+        return cache_key
 
     def _serialize_for_hash(self, obj) -> bytes:
         """
@@ -94,7 +109,7 @@ class S3CacheManager:
             return pickle.dumps(obj, protocol=pickle.HIGHEST_PROTOCOL)
         except (TypeError, pickle.PickleError) as e:
             # Fallback to string representation for non-pickleable objects
-            logger.warning(f"Could not pickle object {type(obj)}, using string repr: {e}")
+            self.log(f"Could not pickle object {type(obj)}, using string repr: {e}")
             return str(obj).encode("utf-8")
 
     def _compress_object(self, obj: Any) -> bytes:
@@ -145,22 +160,27 @@ class S3CacheManager:
             The cached object if found, None otherwise
         """
         if not self.s3_available or self.s3_client is None:
+            self.log(f"S3 unavailable, returning None for key: {cache_key}")
             return None
 
         try:
             s3_key = self._get_s3_key(cache_key)
+            self.log(f"Looking for S3 object: s3://{self.bucket_name}/{s3_key}")
+
             response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
             compressed_data = response["Body"].read()
             obj = self._decompress_object(compressed_data)
-            logger.debug(f"S3 cache hit for key: {cache_key}")
+
+            self.log(f"✅ CACHE HIT for key: {cache_key} ({len(compressed_data)} bytes)")
             return obj
         except ClientError as e:
-            if e.response["Error"]["Code"] != "NoSuchKey":
-                logger.warning(f"S3 error retrieving {cache_key}: {e}")
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                self.log(f"❌ CACHE MISS for key: {cache_key} (NoSuchKey)")
+            else:
+                self.log(f"❌ S3 error retrieving {cache_key}: {e}")
         except Exception as e:
-            logger.warning(f"Unexpected error retrieving from S3 {cache_key}: {e}")
+            self.log(f"❌ Unexpected error retrieving {cache_key}: {e}")
 
-        logger.debug(f"Cache miss for key: {cache_key}")
         return None
 
     def put(self, cache_key: str, obj: Any) -> bool:
@@ -175,11 +195,15 @@ class S3CacheManager:
             True if successfully cached, False otherwise
         """
         if not self.s3_available or self.s3_client is None:
+            self.log(f"S3 unavailable, cannot cache key: {cache_key}")
             return False
 
         try:
             compressed_data = self._compress_object(obj)
             s3_key = self._get_s3_key(cache_key)
+
+            self.log(f"Storing {len(compressed_data)} bytes to s3://{self.bucket_name}/{s3_key}")
+
             self.s3_client.put_object(
                 Bucket=self.bucket_name,
                 Key=s3_key,
@@ -187,10 +211,11 @@ class S3CacheManager:
                 ContentType="application/octet-stream",
                 ContentEncoding="gzip",
             )
-            logger.debug(f"Cached object to S3 for key: {cache_key}")
+
+            self.log(f"✅ Successfully cached object for key: {cache_key}")
             return True
         except Exception as e:
-            logger.warning(f"Failed to cache to S3 for key {cache_key}: {e}")
+            self.log(f"❌ Failed to cache key {cache_key}: {e}")
             return False
 
     def delete(self, cache_key: str) -> bool:
@@ -209,10 +234,10 @@ class S3CacheManager:
         try:
             s3_key = self._get_s3_key(cache_key)
             self.s3_client.delete_object(Bucket=self.bucket_name, Key=s3_key)
-            logger.debug(f"Deleted object from S3 for key: {cache_key}")
+            self.log(f"Deleted object from S3 for key: {cache_key}")
             return True
         except Exception as e:
-            logger.warning(f"Failed to delete from S3 for key {cache_key}: {e}")
+            self.log(f"Failed to delete from S3 for key {cache_key}: {e}")
             return False
 
     @contextmanager
@@ -229,6 +254,8 @@ class S3CacheManager:
 
         The result will be automatically cached when the context exits.
         """
+        self.log(f"Cache context manager called with {len(args)} args, {len(kwargs)} kwargs")
+
         cache_key = self.create_key(*args, **kwargs)
         cached_result = self.get(cache_key)
 
@@ -239,7 +266,10 @@ class S3CacheManager:
         finally:
             # Auto-save if a result was set and we had a cache miss
             if context.result is not None and cached_result is None:
+                self.log(f"Auto-saving result for cache miss, key: {cache_key}")
                 self.put(cache_key, context.result)
+            elif context.result is None and cached_result is None:
+                self.log(f"No result set and cache miss - nothing to save, key: {cache_key}")
 
 
 class CacheContext:
