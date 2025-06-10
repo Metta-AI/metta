@@ -10,7 +10,7 @@ import { initAgentTable, updateAgentTable } from './agentpanel.js';
 import { localStorageSetNumber, onEvent } from './htmlutils.js';
 import { updateReadout } from './infopanels.js';
 
-// Handle resize events.
+/** Handles resize events. */
 export function onResize() {
   // Adjust for high DPI displays.
   const dpr = window.devicePixelRatio || 1;
@@ -68,7 +68,7 @@ export function onResize() {
   requestFrame();
 }
 
-// Handle mouse down events.
+/** Handle mouse down events. */
 onEvent("mousedown", "body", () => {
   ui.lastMousePos = ui.mousePos;
   ui.mouseDownPos = ui.mousePos;
@@ -89,7 +89,7 @@ onEvent("mousedown", "body", () => {
   requestFrame();
 })
 
-// Handle mouse up events.
+/** Handle mouse up events. */
 onEvent("mouseup", "body", () => {
   ui.mouseUp = true;
   ui.mouseDown = false;
@@ -106,7 +106,7 @@ onEvent("mouseup", "body", () => {
   requestFrame();
 })
 
-// Handle mouse move events.
+/** Handle mouse move events. */
 onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
   let event = e as MouseEvent;
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
@@ -146,6 +146,7 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
   requestFrame();
 })
 
+/** Handle dragging draggable elements. */
 onEvent("mousedown", ".draggable", (target: HTMLElement, e: Event) => {
   let event = e as MouseEvent;
   ui.dragHtml = target;
@@ -155,14 +156,16 @@ onEvent("mousedown", ".draggable", (target: HTMLElement, e: Event) => {
   requestFrame();
 })
 
-// Handle scroll events.
+/** Handles scroll events. */
 onEvent("wheel", "body", (target: HTMLElement, e: Event) => {
   let event = e as WheelEvent;
   ui.scrollDelta = event.deltaY;
+  // Prevent pinch to zoom
+  event.preventDefault();
   requestFrame();
 })
 
-// Update all URL parameters without creating browser history entries
+/** Update all URL parameters without creating browser history entries. */
 function updateUrlParams() {
   // Get current URL params
   const urlParams = new URLSearchParams(window.location.search);
@@ -210,7 +213,7 @@ function updateUrlParams() {
   history.replaceState(null, '', newUrl);
 }
 
-// Centralized function to update the step and handle all related updates
+/** Centralized function to update the step and handle all related updates. */
 export function updateStep(newStep: number, skipScrubberUpdate = false) {
   // Update the step variable
   state.step = newStep;
@@ -223,7 +226,7 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
   requestFrame();
 }
 
-// Centralized function to select an object.
+/** Centralized function to select an object. */
 export function updateSelection(object: any, setFollow = false) {
   state.selectedGridObject = object;
   if (setFollow) {
@@ -234,12 +237,12 @@ export function updateSelection(object: any, setFollow = false) {
   requestFrame();
 }
 
-// Handle scrubber change events.
+/** Handle scrubber change events. */
 function onScrubberChange() {
   updateStep(parseInt(html.scrubber.value), true);
 }
 
-// Handle key down events.
+/** Handle key down events. */
 onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
   let event = e as KeyboardEvent;
   if (event.key == "Escape") {
@@ -274,7 +277,7 @@ onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
   requestFrame();
 })
 
-// Draw a frame.
+/** Draw a frame. */
 export function onFrame() {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -346,11 +349,13 @@ export function onFrame() {
   ui.mouseDoubleClick = false;
 }
 
+/** Prevent default event handling. */
 function preventDefaults(event: Event) {
   event.preventDefault();
   event.stopPropagation();
 }
 
+/** Handle file drop events. */
 function handleDrop(event: DragEvent) {
   event.preventDefault();
   event.stopPropagation();
@@ -361,7 +366,7 @@ function handleDrop(event: DragEvent) {
   }
 }
 
-// Parse URL parameters, and modify the map and trace panels accordingly.
+/** Parse URL parameters, and modify the map and trace panels accordingly. */
 async function parseUrlParams() {
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -430,7 +435,7 @@ async function parseUrlParams() {
   requestFrame();
 }
 
-// Handle share button click
+/** Handle share button click. */
 function onShareButtonClick() {
   // Copy the current URL to the clipboard
   navigator.clipboard.writeText(window.location.href);
@@ -438,6 +443,7 @@ function onShareButtonClick() {
   Common.showToast("URL copied to clipboard");
 }
 
+/** Set the playing state and update the play button icon. */
 function setIsPlaying(isPlaying: boolean) {
   state.isPlaying = isPlaying;
   if (state.isPlaying) {
@@ -448,6 +454,7 @@ function setIsPlaying(isPlaying: boolean) {
   requestFrame();
 }
 
+/** Toggle the opacity of a button. */
 function toggleOpacity(button: HTMLImageElement, show: boolean) {
   if (show) {
     button.style.opacity = "1";
@@ -456,7 +463,7 @@ function toggleOpacity(button: HTMLImageElement, show: boolean) {
   }
 }
 
-// Set the playback speed and update the speed buttons.
+/** Set the playback speed and update the speed buttons. */
 function setPlaybackSpeed(speed: number) {
   state.playbackSpeed = speed;
   // Update the speed buttons to show the current speed.
@@ -467,6 +474,12 @@ function setPlaybackSpeed(speed: number) {
 
 // Initial resize.
 onResize();
+
+// Disable pinch to zoom
+let meta = document.createElement('meta');
+meta.name = 'viewport';
+meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+document.head.appendChild(meta);
 
 html.modal.classList.add("hidden");
 html.toast.classList.add("hiding");
@@ -493,7 +506,7 @@ onEvent("click", "#share-button", () => {
   onShareButtonClick();
 });
 onEvent("click", "#help-button", () => {
-  window.open("mettascope_info.html", "_blank");
+  window.open("https://github.com/Metta-AI/metta/blob/main/mettascope/README.md", "_blank");
 });
 
 // Bottom area

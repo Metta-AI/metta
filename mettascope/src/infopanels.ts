@@ -14,6 +14,7 @@ import { getAttr } from "./replay.js";
 import * as Common from "./common.js";
 import { Vec2f } from "./vector_math.js";
 
+/** An info panel. */
 export class InfoPanel {
   public object: any;
   public div: HTMLElement;
@@ -36,8 +37,7 @@ onEvent("click", ".infopanel .close", (target: HTMLElement, e: Event) => {
 })
 
 var infoPanelTemplate = find(".infopanel") as HTMLElement;
-
-infoPanelTemplate.remove();
+infoPanelTemplate.classList.add("hidden")
 
 var hoverPanel = infoPanelTemplate.cloneNode(true) as HTMLElement;
 document.body.appendChild(hoverPanel);
@@ -72,10 +72,7 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
   e.stopPropagation();
 });
 
-export function showInfoPanel(object: any) {
-  // Show the info panel.
-}
-
+/** Update the hover panel, visibility and position, and dom tree. */
 export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
     updateDom(hoverPanel, object);
@@ -99,6 +96,7 @@ export function updateHoverPanel(object: any) {
   findIn(hoverPanel, ".close").classList.add("hidden");
 }
 
+/** Update the dom tree of the info panel. */
 function updateDom(htmlPanel: HTMLElement, object: any) {
   // Update the readout.
   var top = findIn(htmlPanel, ".top");
@@ -139,7 +137,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   }
 }
 
-// Updates the readout of the selected object or replay info.
+/** Updates the readout of the selected object or replay info. */
 export function updateReadout() {
   var readout = ""
   readout += "Step: " + state.step + "\n";
