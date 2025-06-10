@@ -9,4 +9,6 @@ game:
   map_builder:
     root:
       params:
-        num_agents: 24
+        scene:
+          params:
+            num_agents: 24
