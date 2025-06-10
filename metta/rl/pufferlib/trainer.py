@@ -21,7 +21,7 @@ from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.policy import PufferAgent
-from metta.rl.pufferlib.profile import Profile, profile_section
+from metta.rl.pufferlib.profile import Profile
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
@@ -348,17 +348,14 @@ class PufferTrainer:
     def _on_train_step(self):
         pass
 
-    @profile_section("eval")
     def _rollout(self):
-        experience, profile = self.experience, self.profile
-
-        with profile.eval_misc:
+        with self.timer("_rollout.misc"):
             policy = self.policy
             infos = defaultdict(list)
-            lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
+            lstm_h, lstm_c = self.experience.lstm_h, self.experience.lstm_c
 
-        while not experience.full:
-            with profile.env:
+        while not self.experience.full:
+            with self.timer("_rollout.env"):
                 with self.timer("_rollout.vecenv.recv"):
                     o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
@@ -370,7 +367,7 @@ class PufferTrainer:
 
                 training_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
-            with profile.eval_misc:
+            with self.timer("_rollout.misc"):
                 num_steps = sum(mask)
                 self.agent_step += num_steps * self._world_size
 
@@ -378,7 +375,7 @@ class PufferTrainer:
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
-            with profile.eval_forward, torch.no_grad():
+            with self.timer("_rollout.forward"), torch.no_grad():
                 assert training_env_id is not None and training_env_id.numel() > 0, (
                     "training_env_id must exist and have elements"
                 )
@@ -406,22 +403,36 @@ class PufferTrainer:
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
-            with profile.eval_misc:
+            with self.timer("_rollout.misc"):
                 value = value.flatten()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
                 self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
+                # At this point, infos contains lists of values collected across:
+                # 1. Multiple vectorized environments managed by this GPU's vecenv
+                # 2. Multiple rollout steps (until experience buffer is full)
+                #
+                # For example, if we have 32 environments and collect 128 steps:
+                # - Some stats (like "episode/reward") appear only when episodes complete
+                # - Other stats might appear every step
+                # - infos["episode/reward"] might contain [10.5, 23.1, 15.7, ...]
+                #   from various episodes that completed during this rollout
+                #
+                # These will later be averaged in _process_stats() to get mean values
+                # across all environments on this GPU. Stats from other GPUs (if using
+                # distributed training) are handled separately and not aggregated here.
+
                 for i in info:
                     for k, v in unroll_nested_dict(i):
                         infos[k].append(v)
 
-            with profile.env:
+            with self.timer("_rollout.env"):
                 actions_np = actions.cpu().numpy().astype(dtype_actions)
                 with self.timer("_rollout.vecenv.send"):
                     self.vecenv.send(actions_np)
 
-        with profile.eval_misc:
+        with self.timer("_rollout.misc"):
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
                     v = v.tolist()
@@ -440,20 +451,18 @@ class PufferTrainer:
                             self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         # TODO: Better way to enable multiple collects
-        experience.ptr = 0
-        experience.step = 0
+        self.experience.ptr = 0
+        self.experience.step = 0
         return self.stats, infos
 
-    @profile_section("train")
     def _train(self):
-        experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
 
-        with profile.train_misc:
-            idxs = experience.sort_training_data()
-            dones_np = experience.dones_np[idxs]
-            values_np = experience.values_np[idxs]
-            rewards_np = experience.rewards_np[idxs]
+        with self.timer("_train.misc"):
+            idxs = self.experience.sort_training_data()
+            dones_np = self.experience.dones_np[idxs]
+            values_np = self.experience.values_np[idxs]
+            rewards_np = self.experience.rewards_np[idxs]
 
             # Update average reward estimate
             if self.trainer_cfg.average_reward:
@@ -470,33 +479,33 @@ class PufferTrainer:
                 )
                 # For average reward case, returns are computed differently:
                 # R(s) = Σ(r_t - ρ) represents the bias function
-                experience.returns_np = advantages_np + values_np
+                self.experience.returns_np = advantages_np + values_np
             else:
                 effective_gamma = self.trainer_cfg.gamma
                 # Standard GAE computation for discounted case
                 advantages_np = compute_gae(
                     dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
                 )
-                experience.returns_np = advantages_np + values_np
+                self.experience.returns_np = advantages_np + values_np
 
-            experience.flatten_batch(advantages_np)
+            self.experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
-        total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
+        total_minibatches = self.experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = PolicyState()
             teacher_lstm_state = []
-            for mb in range(experience.num_minibatches):
-                with profile.train_misc:
-                    obs = experience.b_obs[mb]
+            for mb in range(self.experience.num_minibatches):
+                with self.timer("_train.misc"):
+                    obs = self.experience.b_obs[mb]
                     obs = obs.to(self.device, non_blocking=True)
-                    atn = experience.b_actions[mb]
-                    old_action_log_probs = experience.b_logprobs[mb]
-                    val = experience.b_values[mb]
-                    adv = experience.b_advantages[mb]
-                    ret = experience.b_returns[mb]
+                    atn = self.experience.b_actions[mb]
+                    old_action_log_probs = self.experience.b_logprobs[mb]
+                    val = self.experience.b_values[mb]
+                    adv = self.experience.b_advantages[mb]
+                    ret = self.experience.b_returns[mb]
 
-                with profile.train_forward:
+                with self.timer("_train.forward"):
                     # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
                     _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
                         obs, lstm_state, action=atn
@@ -504,7 +513,7 @@ class PufferTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-                with profile.train_misc:
+                with self.timer("_train.misc"):
                     if __debug__:
                         assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
                         assert_shape(old_action_log_probs, ("B", "T"), "old_action_log_probs")
@@ -601,8 +610,8 @@ class PufferTrainer:
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
-            y_pred = experience.values_np
-            y_true = experience.returns_np
+            y_pred = self.experience.values_np
+            y_true = self.experience.returns_np
             var_y = np.var(y_true)
             explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
             self.losses.explained_variance = explained_var
