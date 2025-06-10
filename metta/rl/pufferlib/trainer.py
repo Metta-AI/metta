@@ -711,8 +711,6 @@ class PufferTrainer:
         # Now synchronize and aggregate stats across processes
         sps = self.profile.SPS
         agent_steps = self.agent_step
-        if torch.distributed.is_initialized():
-            agent_steps = agent_steps * self._world_size
         steps_per_update = 0.0
         if self._total_minibatches:
             steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
