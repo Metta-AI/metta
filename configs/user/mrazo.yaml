@@ -1,12 +1,14 @@
 # @package __global__
 
 defaults:
-  - override /agent: simple_with_memory
+  # - override /agent: simple_with_memory
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/object_use
+  curriculum: /env/mettagrid/curriculum/t_maze
   wandb.enabled: true
   wandb.track: true
 
-run: mrazo_memory-traces_objectuse_v02
+# policy_uri: wandb://run/mrazo_memory-traces_navigation_v01
+
+run: mrazo_t-maze_simple_v01
