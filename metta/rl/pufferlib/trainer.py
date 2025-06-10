@@ -10,6 +10,7 @@ import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib import unroll_nested_dict
+from torch.cuda.amp import GradScaler, autocast
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -69,7 +70,7 @@ class PufferTrainer:
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
-            self.device = f"cuda:{os.environ['LOCAL_RANK']}"
+            self.device = torch.device(f"cuda:{os.environ['LOCAL_RANK']}")
             logger.info(f"Setting up distributed training on device {self.device}")
 
         self.profile = Profile()
@@ -178,6 +179,11 @@ class PufferTrainer:
             eps=self.trainer_cfg.optimizer.eps,
             weight_decay=self.trainer_cfg.optimizer.weight_decay,
         )
+
+        # Initialize GradScaler for AMP if on CUDA
+        self.scaler = None
+        if self.device.type == "cuda":
+            self.scaler = GradScaler()
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
@@ -524,10 +530,11 @@ class PufferTrainer:
 
                 with profile.train_forward:
                     # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
-                    _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
-                        obs, lstm_state, action=atn
-                    )
-                    if self.device == "cuda":
+                    with autocast(enabled=(self.scaler is not None)):  # AMP autocast
+                        _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
+                            obs, lstm_state, action=atn
+                        )
+                    if self.device.type == "cuda":  # Use self.device.type
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
@@ -613,9 +620,16 @@ class PufferTrainer:
 
                 with profile.learn:
                     self.optimizer.zero_grad()
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                    self.optimizer.step()
+                    if self.scaler is not None:
+                        self.scaler.scale(loss).backward()
+                        self.scaler.unscale_(self.optimizer)  # Unscale before clipping
+                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                    else:
+                        loss.backward()
+                        torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                        self.optimizer.step()
 
                     if self.wandb_run and self._master:
                         self.wandb_run.log(
@@ -628,7 +642,7 @@ class PufferTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device == "cuda":
+                    if self.device.type == "cuda":  # Use self.device.type
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
