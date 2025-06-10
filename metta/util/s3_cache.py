@@ -193,6 +193,28 @@ class S3CacheManager:
             logger.warning(f"Failed to cache to S3 for key {cache_key}: {e}")
             return False
 
+    def delete(self, cache_key: str) -> bool:
+        """
+        Delete an object from cache.
+
+        Args:
+            cache_key: The cache key to delete
+
+        Returns:
+            True if successfully deleted or object didn't exist, False on error
+        """
+        if not self.s3_available or self.s3_client is None:
+            return False
+
+        try:
+            s3_key = self._get_s3_key(cache_key)
+            self.s3_client.delete_object(Bucket=self.bucket_name, Key=s3_key)
+            logger.debug(f"Deleted object from S3 for key: {cache_key}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to delete from S3 for key {cache_key}: {e}")
+            return False
+
     @contextmanager
     def __call__(self, *args, **kwargs):
         """
