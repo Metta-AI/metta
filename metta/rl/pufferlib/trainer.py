@@ -61,10 +61,11 @@ class PufferTrainer:
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
 
-            # some config parameters have to be interpreted differently for distributed training
-            # i.e. as global parameters, that have to be divided across all ranks
-            self.trainer_cfg.batch_size = self.trainer_cfg.batch_size // self._world_size
-            self.trainer_cfg.minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
+            self._batch_size = self.trainer_cfg.batch_size // self._world_size
+            self._minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
+        else:
+            self._batch_size = self.trainer_cfg.batch_size
+            self._minibatch_size = self.trainer_cfg.minibatch_size
 
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
@@ -141,11 +142,6 @@ class PufferTrainer:
         actions_max_params = metta_grid_env.max_action_args
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
-
-        if torch.distributed.is_initialized():
-            # convert all BatchNorms to SyncBatchNorms
-            logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-            self.policy = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.policy)
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
@@ -468,24 +464,7 @@ class PufferTrainer:
             if self.trainer_cfg.average_reward:
                 # Update average reward estimate using EMA with configured alpha
                 alpha = self.trainer_cfg.average_reward_alpha
-
-                if torch.distributed.is_initialized():
-                    # synchronize average reward among all ranks
-                    local_mean_reward = torch.tensor(rewards_np.mean(), dtype=torch.float32, device=self.device)
-                    torch.distributed.all_reduce(local_mean_reward, op=torch.distributed.ReduceOp.SUM)
-                    global_mean_reward = local_mean_reward / self._world_size
-
-                    # global EMA update
-                    rho = torch.tensor(self.average_reward, dtype=torch.float32, device=self.device)
-                    rho = (1.0 - alpha) * rho + alpha * global_mean_reward
-
-                    # synchronize rho
-                    # (should not be needed and should be deleted!, is already the same on all ranks)
-                    # (maybe we add an assertion to make sure it is really the same on all ranks)
-                    torch.distributed.broadcast(rho, src=0)
-                    self.average_reward = rho.item()
-                else:
-                    self.average_reward = (1 - alpha) * self.average_reward + alpha * np.mean(rewards_np)
+                self.average_reward = (1 - alpha) * self.average_reward + alpha * np.mean(rewards_np)
 
                 # Adjust rewards by subtracting average reward for advantage computation
                 rewards_np_adjusted = rewards_np - self.average_reward
@@ -545,28 +524,7 @@ class PufferTrainer:
                         approx_kl = ((ratio - 1) - logratio).mean()
                         clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
 
-                    adv = adv.reshape(-1)
-                    if self.trainer_cfg.norm_adv:
-                        if torch.distributed.is_initialized():
-                            # in the case of distributed training we have to synchronize the advantage mean
-                            # and standard deviation to get the same normalized advantage on all ranks
-                            local_sum = adv.sum().unsqueeze(0)
-                            local_sq_sum = (adv * adv).sum().unsqueeze(0)
-                            local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
-
-                            stats = torch.stack(
-                                [local_sum, local_sq_sum, local_count]
-                            )  # putting them into one tensor so we only have to do a single all-reduce
-                            torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
-
-                            global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
-                            mu = global_sum / global_count
-                            var = (global_sq_sum / global_count) - (mu * mu)
-                            std = torch.sqrt(var.clamp(min=1e-8))
-
-                            adv = (adv - mu) / (std + 1e-8)
-                        else:
-                            adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+                    adv = self._compute_advantage(adv)
 
                     # Policy loss
                     pg_loss1 = -adv * ratio
@@ -617,14 +575,6 @@ class PufferTrainer:
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
                     self.optimizer.step()
-
-                    if self.wandb_run and self._master:
-                        self.wandb_run.log(
-                            {
-                                "train/agent_step": self.agent_step,
-                                "train/agent_steps_per_update": self._agent_steps_per_update,
-                            }
-                        )
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
@@ -762,9 +712,7 @@ class PufferTrainer:
         sps = self.profile.SPS
         agent_steps = self.agent_step
         if torch.distributed.is_initialized():
-            agent_steps_tensor = torch.tensor(agent_steps, device=self.device)
-            torch.distributed.broadcast(agent_steps_tensor, src=0)
-            agent_steps = agent_steps_tensor.item()
+            agent_steps = agent_steps * self._world_size
         steps_per_update = 0.0
         if self._total_minibatches:
             steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
@@ -832,6 +780,32 @@ class PufferTrainer:
         self._weights_helper.reset()
         self.stats.clear()
 
+    def _compute_advantage(self, adv: torch.Tensor) -> torch.Tensor:
+        """Compute normalized advantages, handling distributed training synchronization."""
+        adv = adv.reshape(-1)
+        if self.trainer_cfg.norm_adv:
+            if torch.distributed.is_initialized():
+                # in the case of distributed training we have to synchronize the advantage mean
+                # and standard deviation to get the same normalized advantage on all ranks
+                local_sum = adv.sum().unsqueeze(0)
+                local_sq_sum = (adv * adv).sum().unsqueeze(0)
+                local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
+
+                stats = torch.stack(
+                    [local_sum, local_sq_sum, local_count]
+                )  # putting them into one tensor so we only have to do a single all-reduce
+                torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
+
+                global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
+                mu = global_sum / global_count
+                var = (global_sq_sum / global_count) - (mu * mu)
+                std = torch.sqrt(var.clamp(min=1e-8))
+
+                adv = (adv - mu) / (std + 1e-8)
+            else:
+                adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+        return adv
+
     def close(self):
         self.vecenv.close()
 
@@ -871,9 +845,9 @@ class PufferTrainer:
 
         # Create the Experience buffer with appropriate parameters
         self.experience = Experience(
-            batch_size=self.trainer_cfg.batch_size,  # Total number of environment steps to collect before updating
+            batch_size=self._batch_size,  # Total number of environment steps to collect before updating
             bptt_horizon=self.trainer_cfg.bptt_horizon,  # Sequence length for BPTT (backpropagation through time)
-            minibatch_size=self.trainer_cfg.minibatch_size,  # Size of minibatches for training
+            minibatch_size=self._minibatch_size,  # Size of minibatches for training
             hidden_size=hidden_size,  # Dimension of the policy's hidden state
             obs_shape=obs_shape,  # Shape of a single observation
             obs_dtype=obs_dtype,  # Data type of observations
@@ -909,21 +883,18 @@ class PufferTrainer:
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
-        if torch.distributed.is_initialized():
-            world_size = torch.distributed.get_world_size()
-        else:
-            world_size = 1
+        world_size = self._world_size if torch.distributed.is_initialized() else 1
 
-        self.batch_size = int(self.target_batch_size)
-        self.batch_size = self.batch_size // world_size
-        logger.info(f"vecenv_batch_size: {self.batch_size}")
+        batch_size = int(self.target_batch_size)
+        batch_size = batch_size // world_size
+        logger.info(f"vecenv_batch_size: {batch_size}")
 
-        num_envs = self.batch_size * self.trainer_cfg.async_factor
+        num_envs = batch_size * self.trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
             logger.error(
-                f"num_envs = batch_size ({self.batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
+                f"num_envs = batch_size ({batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
@@ -931,7 +902,7 @@ class PufferTrainer:
             self._curriculum,
             self.cfg.vectorization,
             num_envs=num_envs,
-            batch_size=self.batch_size,
+            batch_size=batch_size,
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy,
         )
