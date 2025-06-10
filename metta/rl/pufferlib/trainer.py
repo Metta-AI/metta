@@ -628,6 +628,12 @@ class PufferTrainer:
             return
 
         pr = self._checkpoint_policy()
+
+        # Save filtered average reward estimate for restart continuity
+        extra_args = {}
+        if self.trainer_cfg.average_reward and hasattr(self, "_average_reward_estimate"):
+            extra_args["average_reward"] = self._average_reward_estimate
+
         self.checkpoint = TrainerCheckpoint(
             self.agent_step,
             self.epoch,
