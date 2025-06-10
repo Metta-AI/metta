@@ -498,7 +498,7 @@ onEvent("click", "#share-button", () => {
   onShareButtonClick();
 });
 onEvent("click", "#help-button", () => {
-  window.open("mettascope_info.html", "_blank");
+  window.open("https://github.com/Metta-AI/metta/blob/main/mettascope/README.md", "_blank");
 });
 
 // Bottom area
