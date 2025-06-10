@@ -5,7 +5,9 @@ It is used to record the outcomes of episodes in MettaGrid.
 
 from typing import Any, Dict
 
-from mettagrid.postgres_stats_db import PostgresStatsDB
+from sqlalchemy import Engine, create_engine
+
+from mettagrid.stats_repo import StatsRepo
 
 
 class StatsWriter:
@@ -24,10 +26,11 @@ class StatsWriter:
         self.eval_name = eval_name
         self.simulation_suite = simulation_suite
         self.agent_policies: Dict[int, int] = {}
+        self.engine: Engine | None = None
 
-    # TODO: This is hacky, but the reason we set separately instead of in the constructor is that we need to build
-    # mettagrid env to get the agent policies, and we are passing the stats_writer to the vecenv.
-    # We should refactor this to not need to do this.
+    # TODO: This is hacky, but the reason we set these separately instead of in the constructor is that we need to build
+    # mettagrid vecenv to get the agent policies, and we are passing the stats_writer to the vecenv.
+    # We should refactor not need to do this.
     def set_agent_policies(self, agent_policies: Dict[int, int]) -> None:
         self.agent_policies = agent_policies
 
@@ -37,7 +40,12 @@ class StatsWriter:
         replay_url: str | None,
         attributes: Dict[str, Any],
     ) -> None:
-        with PostgresStatsDB(self.db_url) as db:
+        # Initialize engine here instead of in constructor to make sure that the stats writer is serializable across
+        # process boundaries.
+        if self.engine is None:
+            self.engine = create_engine(self.db_url)
+
+        with StatsRepo(self.engine) as db:
             db.record_episode(
                 agent_policies=self.agent_policies,
                 agent_metrics=agent_metrics,

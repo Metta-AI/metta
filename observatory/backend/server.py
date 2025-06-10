@@ -4,8 +4,9 @@ import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sqlalchemy import create_engine
 
-from mettagrid.postgres_stats_db import PostgresStatsDB
+from mettagrid.stats_repo import StatsRepo
 
 app = fastapi.FastAPI()
 
@@ -18,7 +19,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-stats_db_uri = "postgres://postgres:password@127.0.0.1/postgres"
+stats_db_uri = "postgresql+psycopg://postgres:password@127.0.0.1/postgres"
+stats_engine = create_engine(stats_db_uri)
 
 
 # Pydantic models for API responses
@@ -48,7 +50,7 @@ GroupHeatmapMetric = Optional[str] | GroupDiff
 @app.get("/api/suites")
 async def get_suites() -> List[str]:
     """Get all available simulation suites."""
-    with PostgresStatsDB(stats_db_uri) as db:
+    with StatsRepo(stats_engine) as db:
         result = db.query("""
             SELECT DISTINCT simulation_suite
             FROM episodes
@@ -61,16 +63,16 @@ async def get_suites() -> List[str]:
 @app.get("/api/metrics/{suite}")
 async def get_metrics(suite: str) -> List[str]:
     """Get all available metrics for a given suite."""
-    with PostgresStatsDB(stats_db_uri) as db:
+    with StatsRepo(stats_engine) as db:
         result = db.query(
             """
             SELECT DISTINCT eam.metric
             FROM episodes e
             JOIN episode_agent_metrics eam ON e.id = eam.episode_id
-            WHERE e.simulation_suite = %s
+            WHERE e.simulation_suite = :suite
             ORDER BY eam.metric
         """,
-            (suite,),
+            {"suite": suite},
         )
         return [row[0] for row in result]
 
@@ -78,15 +80,15 @@ async def get_metrics(suite: str) -> List[str]:
 @app.get("/api/group-ids/{suite}")
 async def get_group_ids(suite: str) -> List[str]:
     """Get all available group IDs for a given suite."""
-    with PostgresStatsDB(stats_db_uri) as db:
+    with StatsRepo(stats_engine) as db:
         result = db.query(
             """
             SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
             FROM episodes e
-            WHERE e.simulation_suite = %s
+            WHERE e.simulation_suite = :suite
             ORDER BY group_id
         """,
-            (suite,),
+            {"suite": suite},
         )
         return [row[0] for row in result]
 
@@ -95,7 +97,7 @@ async def get_group_ids(suite: str) -> List[str]:
 async def get_heatmap_data(suite: str, metric: str, group_metric: Optional[str] = None) -> HeatmapData:
     """Get heatmap data for a given suite, metric, and group metric."""
 
-    with PostgresStatsDB(stats_db_uri) as db:
+    with StatsRepo(stats_engine) as db:
         # Get all episodes for the suite with their data
         result = db.query(
             """
@@ -111,10 +113,10 @@ async def get_heatmap_data(suite: str, metric: str, group_metric: Optional[str] 
             JOIN episode_agent_policies eap ON e.id = eap.episode_id
             JOIN policies p ON eap.policy_id = p.id
             JOIN episode_agent_metrics eam ON e.id = eam.episode_id
-            WHERE e.simulation_suite = %s AND eam.metric = %s
+            WHERE e.simulation_suite = :suite AND eam.metric = :metric
             ORDER BY p.name, e.eval_name, eam.agent_id
         """,
-            (suite, metric),
+            {"suite": suite, "metric": metric},
         )
 
         # Process the data to match the frontend structure
@@ -253,7 +255,7 @@ def calculate_cell_value_with_group_diff(cell_data: Dict[str, Any], group_metric
 async def get_heatmap_data_post(suite: str, metric: str, group_metric: Optional[GroupDiff] = None) -> HeatmapData:
     """Get heatmap data for a given suite, metric, and group metric (supports GroupDiff)."""
 
-    with PostgresStatsDB(stats_db_uri) as db:
+    with StatsRepo(stats_engine) as db:
         # Get all episodes for the suite with their data
         result = db.query(
             """
@@ -269,10 +271,10 @@ async def get_heatmap_data_post(suite: str, metric: str, group_metric: Optional[
             JOIN episode_agent_policies eap ON e.id = eap.episode_id
             JOIN policies p ON eap.policy_id = p.id
             JOIN episode_agent_metrics eam ON e.id = eam.episode_id
-            WHERE e.simulation_suite = %s AND eam.metric = %s
+            WHERE e.simulation_suite = :suite AND eam.metric = :metric
             ORDER BY p.name, e.eval_name, eam.agent_id
         """,
-            (suite, metric),
+            {"suite": suite, "metric": metric},
         )
 
         # Process the data to match the frontend structure

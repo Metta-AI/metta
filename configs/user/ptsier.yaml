@@ -3,9 +3,8 @@
 defaults:
   - _self_
 
-eval_db_uri: train_dir/pasha_sim/stats.db
 run: pasha_sim
-policy_uri: wandb://run/sasmith.flattened_layers.baseline.2
+policy_uri: wandb://run/dd.navsequencemem.smallinventory:v21
 
-dashboard:
-  output_path: /tmp/dashboard_data.json
+sim_job:
+  stats_db_uri: postgres://postgres:password@127.0.0.1/postgres

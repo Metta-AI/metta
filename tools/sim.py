@@ -16,6 +16,7 @@ from typing import Any, Dict, List
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+from sqlalchemy import create_engine
 
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -23,7 +24,7 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.util.config import Config
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
-from mettagrid.postgres_stats_db import PostgresStatsDB
+from mettagrid.stats_repo import StatsRepo
 
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
@@ -83,7 +84,8 @@ def simulate_policy(
         # Collect metrics from the results
         checkpoint_data = {"name": pr.name, "uri": pr.uri, "metrics": {}}
 
-        with PostgresStatsDB(sim_job.stats_db_uri) as stats_db:
+        engine = create_engine(sim_job.stats_db_uri)
+        with StatsRepo(engine) as stats_db:
             # Get average reward
             rewards_df = stats_db.query(
                 "SELECT AVG(value) AS reward_avg FROM episode_agent_metrics WHERE metric = 'reward'"

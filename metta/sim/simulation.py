@@ -20,6 +20,7 @@ import numpy as np
 import torch
 from einops import rearrange
 from omegaconf import OmegaConf
+from sqlalchemy import create_engine
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -29,7 +30,7 @@ from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.vecenv import make_vecenv
 from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from mettagrid.postgres_stats_db import PostgresStatsDB
+from mettagrid.stats_repo import StatsRepo
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 
@@ -49,7 +50,8 @@ def get_agent_policies(
     policy_pr: PolicyRecord,
     npc_pr: PolicyRecord | None,
 ) -> Dict[int, int]:
-    with PostgresStatsDB(stats_db_url) as db:
+    engine = create_engine(stats_db_url)
+    with StatsRepo(engine) as db:
         policy_names = [policy_pr.name]
         if npc_pr is not None:
             policy_names.append(npc_pr.name)
