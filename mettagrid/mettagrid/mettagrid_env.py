@@ -99,7 +99,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def _initialize_c_env(self, task: Task) -> None:
         """Initialize the C++ environment."""
-        self._task = self._curriculum.get_task()
         level = self._level
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
