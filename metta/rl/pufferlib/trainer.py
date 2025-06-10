@@ -63,15 +63,15 @@ class PufferTrainer:
 
             self._batch_size = self.trainer_cfg.batch_size // self._world_size
             self._minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
-        else:
-            self._batch_size = self.trainer_cfg.batch_size
-            self._minibatch_size = self.trainer_cfg.minibatch_size
 
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
-            self.device = f"cuda:{os.environ['LOCAL_RANK']}"
-            logger.info(f"Setting up distributed training on device {self.device}")
+        else:
+            self._master = True
+            self._world_size = 1
+            self._batch_size = self.trainer_cfg.batch_size
+            self._minibatch_size = self.trainer_cfg.minibatch_size
 
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
