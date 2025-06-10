@@ -64,6 +64,15 @@
 		},
 		"terminal.integrated.cwd": "${workspaceFolder}",
 		"terminal.integrated.splitCwd": "workspaceRoot",
-		"files.autoGuessEncoding": false
+		"files.autoGuessEncoding": false,
+		"files.associations": {
+			"deque": "cpp",
+			"forward_list": "cpp",
+			"list": "cpp",
+			"string": "cpp",
+			"valarray": "cpp",
+			"vector": "cpp",
+			"map": "cpp"
+		}
 	}
 }

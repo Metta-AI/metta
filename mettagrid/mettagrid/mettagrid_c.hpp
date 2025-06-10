@@ -72,6 +72,20 @@ public:
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
 
+  // Support for reward decay
+  void enable_reward_decay(int32_t decay_time_steps = -1);
+  void disable_reward_decay();
+  float get_reward_decay_multiplier() const {
+    return _reward_decay_multiplier;
+  }
+
+protected:
+  // Support for reward decay
+  bool _reward_decay_enabled;
+  float _reward_decay_multiplier;
+  float _reward_decay_factor;
+  const float _min_reward_multiplier = 0.01f;
+
 private:
   // Member variables
   py::dict _cfg;

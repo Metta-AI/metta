@@ -65,6 +65,11 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
 
   _action_success.resize(num_agents);
 
+  // Set up reward decay
+  _reward_decay_enabled = false;
+  _reward_decay_multiplier = 1.0f;
+  _reward_decay_factor = 3.0f / (max_steps > 0 ? max_steps : 100);
+
   // TODO: These conversions to ActionConfig are copying. I don't want to pass python objects down further,
   // but maybe it would be better to just do the conversion once?
   if (cfg["actions"]["put_items"]["enabled"].cast<bool>()) {
@@ -350,6 +355,16 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   // Compute observations for next step
   _compute_observations(actions);
+
+  // Apply reward decay if enabled
+  if (_reward_decay_enabled) {
+    _reward_decay_multiplier =
+        std::max(_min_reward_multiplier, _reward_decay_multiplier * (1.0f - _reward_decay_factor));
+    auto rewards_view = _rewards.mutable_unchecked<1>();
+    for (py::ssize_t i = 0; i < rewards_view.shape(0); i++) {
+      rewards_view(i) *= _reward_decay_multiplier;
+    }
+  }
 
   // Update episode rewards
   auto episode_rewards_view = _episode_rewards.mutable_unchecked<1>();
@@ -732,6 +747,25 @@ unsigned int StatsTracker::get_current_step() const {
   return static_cast<MettaGrid*>(_env)->current_step;
 }
 
+// Enable reward decay
+void MettaGrid::enable_reward_decay(int32_t decay_time_steps) {
+  _reward_decay_enabled = true;
+  _reward_decay_multiplier = 1.0f;  // Reset multiplier to initial value
+
+  // Update decay factor if custom time constant provided
+  if (decay_time_steps > 0) {
+    _reward_decay_factor = 3.0f / decay_time_steps;
+  } else {
+    _reward_decay_factor = 0.01f;
+  }
+}
+
+// Disable reward decay
+void MettaGrid::disable_reward_decay() {
+  _reward_decay_enabled = false;
+  _reward_decay_multiplier = 1.0f;  // Reset multiplier to initial value
+}
+
 // Pybind11 module definition
 PYBIND11_MODULE(mettagrid_c, m) {
   m.doc() = "MettaGrid environment";  // optional module docstring
@@ -764,5 +798,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
       .def("inventory_item_names", &MettaGrid::inventory_item_names)
-      .def("get_agent_groups", &MettaGrid::get_agent_groups);
+      .def("get_agent_groups", &MettaGrid::get_agent_groups)
+      // reward decay functionality
+      .def("enable_reward_decay", &MettaGrid::enable_reward_decay, py::arg("decay_time_steps") = -1)
+      .def("disable_reward_decay", &MettaGrid::disable_reward_decay)
+      .def("get_reward_decay_multiplier", &MettaGrid::get_reward_decay_multiplier);
 }
