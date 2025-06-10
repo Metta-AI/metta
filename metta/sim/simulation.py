@@ -125,7 +125,9 @@ class Simulation:
                 npc_agent.activate_actions(action_names, max_args, self._device)
             except Exception as e:
                 logger.error(f"Error activating NPC actions: {e}")
-                raise SimulationCompatibilityError(f"[{self._name}] Error activating NPC actions for {self._npc_pr.name}: {e}")
+                raise SimulationCompatibilityError(
+                    f"[{self._name}] Error activating NPC actions for {self._npc_pr.name}: {e}"
+                )
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -217,7 +219,9 @@ class Simulation:
                     npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
-                    raise SimulationCompatibilityError(f"[{self._name}] Error generating NPC actions for {self._npc_pr.name}: {e}")
+                    raise SimulationCompatibilityError(
+                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.name}: {e}"
+                    )
         # ---------------- action stitching ----------------------- #
         actions = policy_actions
         if self._npc_agents_per_env:
