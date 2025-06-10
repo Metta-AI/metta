@@ -61,14 +61,6 @@ class PolicyRecord:
             raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
         return policy
 
-    def expected_observation_channels(self) -> Optional[int]:
-        policy = self.policy()
-        try:
-            cnn1_weight = policy.get_parameter("components.cnn1._net.0.weight")
-            return cnn1_weight.shape[1]
-        except AttributeError:
-            return None
-
     def num_params(self) -> int:
         return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
 

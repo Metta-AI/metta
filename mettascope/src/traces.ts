@@ -6,6 +6,7 @@ import { PanelInfo } from './panels.js';
 import { updateStep, updateSelection } from './main.js';
 import { parseHtmlColor } from './htmlutils.js';
 
+/** Draw the trace panel. */
 export function drawTrace(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -28,7 +29,7 @@ export function drawTrace(panel: PanelInfo) {
     ) {
       // Check if we are clicking on an action/step.
       console.log("Trace up without dragging - selecting trace object");
-      const localMousePos = panel.transformPoint(ui.mousePos);
+      const localMousePos = panel.transformOuter(ui.mousePos);
       if (localMousePos != null) {
         const mapX = localMousePos.x();
         const selectedStep = Math.floor(mapX / Common.TRACE_WIDTH);
