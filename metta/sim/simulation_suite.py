@@ -51,7 +51,7 @@ class SimulationSuite:
                     vectorization=self._vectorization,
                     replay_dir=self._replay_dir,
                     stats_db_url=self._stats_db_url,
-                    suite_name=self.name
+                    suite_name=self.name,
                 )
                 logger.info("=== Simulation '%s' ===", name)
                 sim.simulate()

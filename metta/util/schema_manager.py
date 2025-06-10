@@ -5,6 +5,7 @@ from typing import List, LiteralString, Sequence
 from pydantic import BaseModel
 from psycopg import Connection, sql
 
+
 class Migration(abc.ABC):
     @abc.abstractmethod
     def version(self) -> int:
@@ -36,15 +37,18 @@ class SqlMigration(Migration):
             for stmt in self._sql_statements:
                 cursor.execute(sql.SQL(stmt))
 
+
 class MigrationRecord(BaseModel):
     version: int
     description: str
     applied_at: datetime
 
+
 def validate_migrations(migrations: Sequence[Migration]):
     for i, migration in enumerate(migrations):
         if migration.version() != i:
             raise ValueError(f"Migration {i} has version {migration.version()}")
+
 
 migrations_ddl = sql.SQL("""
 CREATE TABLE IF NOT EXISTS migrations (
@@ -53,6 +57,7 @@ CREATE TABLE IF NOT EXISTS migrations (
     applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """)
+
 
 def get_last_applied_migration(conn: Connection) -> MigrationRecord | None:
     with conn.cursor() as cursor:
@@ -63,20 +68,25 @@ def get_last_applied_migration(conn: Connection) -> MigrationRecord | None:
             return MigrationRecord(version=version, description=description, applied_at=applied_at)
         return None
 
+
 def init_migrations_table(conn: Connection):
     with conn.cursor() as cursor:
         cursor.execute(migrations_ddl)
         conn.commit()
+
 
 def run_migrations(conn: Connection, migrations: Sequence[Migration]) -> None:
     validate_migrations(migrations)
     init_migrations_table(conn)
     last_applied_migration = get_last_applied_migration(conn)
     last_applied_migration_version = last_applied_migration.version if last_applied_migration else -1
-    for migration in migrations[last_applied_migration_version + 1:]:
+    for migration in migrations[last_applied_migration_version + 1 :]:
         with conn.transaction():
             migration.up(conn)
             with conn.cursor() as cursor:
-                cursor.execute(sql.SQL("INSERT INTO migrations (version, description, applied_at) VALUES (%s, %s, %s)"), (migration.version(), migration.description(), datetime.now()))
+                cursor.execute(
+                    sql.SQL("INSERT INTO migrations (version, description, applied_at) VALUES (%s, %s, %s)"),
+                    (migration.version(), migration.description(), datetime.now()),
+                )
 
     conn.commit()
