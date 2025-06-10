@@ -883,8 +883,6 @@ class PufferTrainer:
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
-        world_size = self._world_size if torch.distributed.is_initialized() else 1
-
         batch_size = int(self.target_batch_size)
         logger.info(f"vecenv_batch_size: {batch_size}")
 
