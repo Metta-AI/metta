@@ -31,4 +31,5 @@ game:
         lab: 1
         factory: 1
         temple: 1
-        wall: 40
+        block: 20
+        wall: 20
