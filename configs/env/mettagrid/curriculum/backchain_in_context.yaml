@@ -1,0 +1,16 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/extended_sequence_dr/backchain1: 1
+  /env/mettagrid/extended_sequence_dr/backchain2: 1
+  /env/mettagrid/extended_sequence_dr/backchain3: 1
+  /env/mettagrid/extended_sequence_dr/backchain4: 1
+  /env/mettagrid/extended_sequence_dr/backchain5: 1
+  /env/mettagrid/extended_sequence_dr/backchain6: 1
+  /env/mettagrid/extended_sequence_dr/backchain7: 1
+  /env/mettagrid/extended_sequence_dr/blue_backchain2: 1
+  /env/mettagrid/extended_sequence_dr/blue_backchain3: 1
+  /env/mettagrid/extended_sequence_dr/blue_backchain4: 1
+  /env/mettagrid/extended_sequence_dr/blue_backchain5: 1
+  /env/mettagrid/extended_sequence_dr/blue_backchain6: 1
+  /env/mettagrid/extended_sequence_dr/blue_backchain7: 1

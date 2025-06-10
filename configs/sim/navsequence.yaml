@@ -23,8 +23,6 @@ simulations:
     env: env/mettagrid/navigation_sequence/evals/honeypot
   navigation_sequence/knotty:
     env: env/mettagrid/navigation_sequence/evals/knotty
-  navigation_sequence/memory_palace:
-    env: env/mettagrid/navigation_sequence/evals/memory_palace
   navigation_sequence/radial_large:
     env: env/mettagrid/navigation_sequence/evals/radial_large
   navigation_sequence/radial_mini:
@@ -37,3 +35,5 @@ simulations:
     env: env/mettagrid/navigation_sequence/evals/thecube
   navigation_sequence/walkaround:
     env: env/mettagrid/navigation_sequence/evals/walkaround
+  navigation_sequence/wanderout:
+    env: env/mettagrid/navigation_sequence/evals/wanderout

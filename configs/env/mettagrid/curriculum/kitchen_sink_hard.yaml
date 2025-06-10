@@ -14,8 +14,8 @@ tasks:
   /env/mettagrid/navigation_sequence/training/sequence_balanced: 1
   /env/mettagrid/navigation_sequence/training/sequence_maze: 1
   /env/mettagrid/navigation_sequence/training/sequence_dense: 1
-  # /env/mettagrid/navigation_sequence/training/triplets_sparse: 1
-  # /env/mettagrid/navigation_sequence/training/triplets_balanced: 1
-  # /env/mettagrid/navigation_sequence/training/triplets_maze: 1
-  # /env/mettagrid/navigation_sequence/training/triplets_dense: 1
+  /env/mettagrid/navigation_sequence/training/triplets_sparse: 1
+  /env/mettagrid/navigation_sequence/training/triplets_balanced: 1
+  /env/mettagrid/navigation_sequence/training/triplets_maze: 1
+  /env/mettagrid/navigation_sequence/training/triplets_dense: 1
 

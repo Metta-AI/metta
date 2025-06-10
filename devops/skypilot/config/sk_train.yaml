@@ -2,7 +2,7 @@ resources:
   any_of:
     - cloud: aws
       region: us-east-1
-      use_spot: false
+      use_spot: true
       accelerators: "L4:4"
     # - cloud: aws
     #   region: us-east-1
