@@ -17,6 +17,28 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def clear_memory(sim: replays.Simulation):
+    """Clear the memory of the policy."""
+    policy_state = sim.get_policy_state()
+    print("Policy state: ", policy_state)
+
+    if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
+        print("No policy state to clear")
+        return
+
+    print("Before: ")
+    print(policy_state.lstm_c)
+    print(policy_state.lstm_h)
+
+    # Clear the memory of the policy.
+    policy_state.lstm_c.zero_()
+    policy_state.lstm_h.zero_()
+
+    print("After: ")
+    print(policy_state.lstm_c)
+    print(policy_state.lstm_h)
+
+
 def make_app(cfg: DictConfig):
     app = FastAPI()
 
@@ -94,11 +116,19 @@ def make_app(cfg: DictConfig):
             # Main message loop.
 
             message = await websocket.receive_json()
+
             if message["type"] == "action":
                 action_message = message
 
-            if message["type"] == "advance":
+            elif message["type"] == "advance":
                 action_message = None
+
+            elif message["type"] == "clear_memory":
+                clear_memory(sim)
+                continue
+
+            else:
+                raise ValueError(f"Unknown type: {message['type']}")
 
             if current_step < 1000:
                 await send_message(type="message", message="Step!")
