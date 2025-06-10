@@ -3,7 +3,7 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 
-from metta.map.utils.ascii_grid import bordered_text_to_lines
+from metta.map.utils.ascii_grid import char_grid_to_lines
 
 Symmetry = Literal["all", "horizontal", "none"]
 
@@ -12,19 +12,19 @@ def parse_ascii_into_grid(ascii_source: str) -> npt.NDArray[np.bool_]:
     """
     Parse an ascii string into a numpy ndarray of booleans.
 
-    The string must be enclosed in | characters, and must be composed of # and space characters.
+    The string must be composed of `#` and `.` characters.
 
-    # will be treated as walls, and spaces as empty.
+    `#` will be treated as walls, and `.` as empty.
 
     Example source:
-    |# #|
-    |# #|
-    |# #|
+    #.#
+    #.#
+    #.#
     """
-    lines, width, height = bordered_text_to_lines(ascii_source)
+    lines, width, height = char_grid_to_lines(ascii_source)
     for line in lines:
-        if not all(c == "#" or c == " " for c in line):
-            raise ValueError("Pattern must be composed of # and space characters")
+        if not all(c == "#" or c == "." for c in line):
+            raise ValueError("Pattern must be composed of # and . characters")
 
     grid: npt.NDArray[np.bool_] = np.zeros((height, width), dtype=bool)
     for y, line in enumerate(lines):

@@ -90,6 +90,8 @@ def create_metta_agent():
         action_space=action_space,
         device="cpu",
         feature_normalizations=feature_normalizations,
+        obs_width=5,
+        obs_height=5,
         **config_dict,
     )
 

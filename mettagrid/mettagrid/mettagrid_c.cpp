@@ -280,6 +280,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   }
 
   if (_use_observation_tokens) {
+    size_t attempted_tokens_written = 0;
     size_t tokens_written = 0;
     auto observation_view = _observations.mutable_unchecked<3>();
     // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
@@ -308,16 +309,21 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
             ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
             ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
-            size_t obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+            size_t attempted_obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
+            size_t obj_tokens_written = std::min(attempted_obj_tokens_written, agent_obs_tokens.size());
 
             uint8_t location = obs_r << 4 | obs_c;
             for (size_t i = 0; i < obj_tokens_written; i++) {
               agent_obs_tokens[i].location = location;
             }
+            attempted_tokens_written += attempted_obj_tokens_written;
             tokens_written += obj_tokens_written;
           }
         }
       }
+      _stats->add("tokens_written", static_cast<float>(tokens_written));
+      _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
+      _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
     }
   } else {
     // Original grid-based observations
@@ -344,14 +350,14 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   }
 }
 
-void MettaGrid::_compute_observations(py::array_t<int> actions) {
+void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
   for (size_t idx = 0; idx < _agents.size(); idx++) {
     auto& agent = _agents[idx];
     _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx);
   }
 }
 
-void MettaGrid::_step(py::array_t<int> actions) {
+void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
 
   // Reset rewards and observations
@@ -559,7 +565,7 @@ void MettaGrid::set_buffers(py::array_t<c_observations_type, py::array::c_style>
   }
 }
 
-py::tuple MettaGrid::step(py::array_t<int> actions) {
+py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
   _step(actions);
 
   bool share_rewards = false;
@@ -854,7 +860,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
   py::class_<MettaGrid>(m, "MettaGrid")
       .def(py::init<py::dict, py::list>())
       .def("reset", &MettaGrid::reset)
-      .def("step", &MettaGrid::step)
+      .def("step", &MettaGrid::step, py::arg("actions").noconvert())
       .def("set_buffers",
            &MettaGrid::set_buffers,
            py::arg("observations").noconvert(),

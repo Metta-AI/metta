@@ -1,10 +1,9 @@
-# Simple and very fast pattern.
 type: metta.map.scenes.wfc.WFC
 params:
   pattern_size: 2
-  pattern: |
-    | ##  |
-    | ##  |
-    | #   |
-    |     |
-    |     |
+  pattern: |-
+    ##.
+    ##.
+    #..
+    ...
+    ...
