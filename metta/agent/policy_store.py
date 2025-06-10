@@ -84,75 +84,78 @@ class PolicyStore:
 
         logger.info(f"Found {len(agents)} policies at {uri}")
 
-        if selector_type == "all":
-            logger.info(f"Returning all {len(agents)} policies")
-            return agents
-        elif selector_type == "latest":
-            selected = [agents[0]]
-            logger.info(f"Selected latest policy: {selected[0].name}")
-            return selected
-        elif selector_type == "rand":
-            selected = [random.choice(agents)]
-            logger.info(f"Selected random policy: {selected[0].name}")
-            return selected
-        elif selector_type == "top":
-            if (
-                "eval_scores" in agents[0].metadata
-                and agents[0].metadata["eval_scores"] is not None
-                and metric in agents[0].metadata["eval_scores"]
-            ):
-                # Metric is in eval_scores
-                logger.info(f"Found metric '{metric}' in metadata['eval_scores']")
-                policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric, None) for p in agents}
-            elif metric in agents[0].metadata:
-                # Metric is directly in metadata
-                logger.info(f"Found metric '{metric}' directly in metadata")
-                policy_scores = {p: p.metadata.get(metric, None) for p in agents}
-            else:
-                # Metric not found anywhere
-                logger.warning(
-                    f"Metric '{metric}' not found in policy metadata or eval_scores, returning latest policy"
-                )
-                selected = [agents[0]]
-                logger.info(f"Selected latest policy (due to missing metric): {selected[0].name}")
-                return selected
+        selectors = {
+            "all": self._select_all,
+            "latest": self._select_latest,
+            "rand": self._select_rand,
+            "top": self._select_top,
+        }
+        selector = selectors.get(selector_type)
 
-            policies_with_scores = [p for p, s in policy_scores.items() if s is not None]
-
-            # If more than 20% of the policies have no score, return the latest policy
-            if len(policies_with_scores) < len(agents) * 0.8:
-                logger.warning("Too many invalid scores, returning latest policy")
-                selected = [agents[0]]  # return latest if metric not found
-                logger.info(f"Selected latest policy (due to too many invalid scores): {selected[0].name}")
-                return selected
-
-            # Sort by metric score (assuming higher is better)
-            def get_policy_score(policy: MettaAgent) -> float:  # Explicitly return a comparable type
-                score = policy_scores.get(policy)
-                if score is None:
-                    return float("-inf")  # Or another appropriate default
-                return score
-
-            top = sorted(policies_with_scores, key=get_policy_score)[-n:]
-
-            if len(top) < n:
-                logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")
-
-            logger.info(f"Top {len(top)} policies by {metric}:")
-            logger.info(f"{'Policy':<40} | {metric:<20}")
-            logger.info("-" * 62)
-            for agent in top:
-                score = policy_scores[agent]
-                logger.info(f"{agent.name:<40} | {score:<20.4f}")
-
-            selected = top[-n:]
-            logger.info(f"Selected {len(selected)} top policies by {metric}")
-            for i, agent in enumerate(selected):
-                logger.info(f"  {i + 1}. {agent.name} (score: {policy_scores[agent]:.4f})")
-
-            return selected
-        else:
+        if selector is None:
             raise ValueError(f"Invalid selector type {selector_type}")
+
+        return selector(agents, n=n, metric=metric)
+
+    def _select_all(self, agents: List[MettaAgent], **kwargs) -> List[MettaAgent]:
+        logger.info(f"Returning all {len(agents)} policies")
+        return agents
+
+    def _select_latest(self, agents: List[MettaAgent], **kwargs) -> List[MettaAgent]:
+        selected = [agents[0]]
+        logger.info(f"Selected latest policy: {selected[0].name}")
+        return selected
+
+    def _select_rand(self, agents: List[MettaAgent], **kwargs) -> List[MettaAgent]:
+        selected = [random.choice(agents)]
+        logger.info(f"Selected random policy: {selected[0].name}")
+        return selected
+
+    def _select_top(self, agents: List[MettaAgent], n: int = 1, metric: str = "score", **kwargs) -> List[MettaAgent]:
+        if (
+            "eval_scores" in agents[0].metadata
+            and agents[0].metadata["eval_scores"] is not None
+            and metric in agents[0].metadata["eval_scores"]
+        ):
+            # Metric is in eval_scores
+            logger.info(f"Found metric '{metric}' in metadata['eval_scores']")
+            policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric, None) for p in agents}
+        elif metric in agents[0].metadata:
+            # Metric is directly in metadata
+            logger.info(f"Found metric '{metric}' directly in metadata")
+            policy_scores = {p: p.metadata.get(metric, None) for p in agents}
+        else:
+            # Metric not found anywhere
+            logger.warning(f"Metric '{metric}' not found in policy metadata or eval_scores, returning latest policy")
+            return self._select_latest(agents)
+
+        policies_with_scores = [p for p, s in policy_scores.items() if s is not None]
+
+        # If more than 20% of the policies have no score, return the latest policy
+        if len(policies_with_scores) < len(agents) * 0.8:
+            logger.warning("Too many invalid scores, returning latest policy")
+            return self._select_latest(agents)
+
+        # Sort by metric score (assuming higher is better)
+        def get_policy_score(policy: MettaAgent) -> float:  # Explicitly return a comparable type
+            score = policy_scores.get(policy)
+            if score is None:
+                return float("-inf")  # Or another appropriate default
+            return score
+
+        top_agents = sorted(policies_with_scores, key=get_policy_score, reverse=True)[:n]
+
+        if len(top_agents) < n:
+            logger.warning(f"Only found {len(top_agents)} policies matching criteria, requested {n}")
+
+        logger.info(f"Top {len(top_agents)} policies by {metric}:")
+        logger.info(f"{'Policy':<40} | {metric:<20}")
+        logger.info("-" * 62)
+        for agent in top_agents:
+            score = policy_scores[agent]
+            logger.info(f"{agent.name:<40} | {score:<20.4f}")
+
+        return top_agents
 
     def make_model_name(self, epoch: int):
         return f"model_{epoch:04d}.pt"
@@ -229,10 +232,18 @@ class PolicyStore:
 
         if path.endswith(".pt"):
             paths.append(path)
+        elif os.path.isdir(path):
+            pt_files = sorted([f for f in os.listdir(path) if f.endswith(".pt")])
+            if not pt_files:
+                logger.warning(f"No .pt files found in directory: {path}")
+            paths.extend([os.path.join(path, p) for p in pt_files])
         else:
-            paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
+            # Handle glob patterns
+            import glob
 
-        return [self._load_from_file(path) for path in paths]
+            paths = sorted(glob.glob(path))
+
+        return [self._load_from_file(p) for p in paths if p]
 
     def _agents_from_wandb_artifact(self, uri: str, version: Optional[str] = None) -> List[MettaAgent]:
         entity, project, artifact_type, name = uri.split("/")
@@ -351,102 +362,80 @@ class PolicyStore:
         if path in self._cached_agents:
             return self._cached_agents[path]
 
-        if not path.endswith(".pt") and os.path.isdir(path):
-            path = os.path.join(path, os.listdir(path)[-1])
         logger.info(f"Loading policy from {path}")
-
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
 
-        # Try loading with the new training format (complete model)
-        try:
-            agent = MettaAgent.load_for_training(path, device=self._device)
-            if agent.model is not None:
+        # Try loading with modern formats first
+        for loader in [MettaAgent.load_for_training, MettaAgent.load]:
+            try:
+                agent = loader(path, device=self._device)
+                if loader == MettaAgent.load_for_training and agent.model is None:
+                    logger.info("load_for_training resulted in a null model, trying next loader.")
+                    continue
                 self._cached_agents[path] = agent
                 return agent
-            else:
-                logger.info("No model in training checkpoint, trying other formats")
-        except Exception as e:
-            logger.info(f"Failed to load as training format: {e}")
+            except Exception as e:
+                logger.info(f"Failed to load with {loader.__name__}: {e}")
 
-        # Try loading with the new MettaAgent format (for evaluation)
-        try:
-            agent = MettaAgent.load(path, device=self._device)
-            self._cached_agents[path] = agent
-            return agent
-        except Exception as e:
-            logger.info(f"Failed to load as MettaAgent format, trying legacy format: {e}")
-
-        # Try legacy loading for backward compatibility
+        # Fallback to legacy loading
+        logger.info("Modern loaders failed, trying legacy format.")
         self._make_codebase_backwards_compatible()
-
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
-
-            # Load the checkpoint
             loaded_data = torch.load(path, map_location=self._device, weights_only=False)
-
-            # Check if it's an old PolicyRecord object
-            if hasattr(loaded_data, "_policy") and hasattr(loaded_data, "metadata"):
-                # Convert old PolicyRecord to new MettaAgent
-                agent = MettaAgent(
-                    model=loaded_data._policy,
-                    model_type="brain",  # Assume old models are brain models
-                    name=loaded_data.name,
-                    uri=loaded_data.uri,
-                    metadata=loaded_data.metadata,
-                    local_path=path,
-                )
+            agent = self._load_legacy_checkpoint(path, loaded_data)
+            if agent:
                 self._cached_agents[path] = agent
                 return agent
 
-            # Check if it's a raw model state dict or model object
-            elif isinstance(loaded_data, dict) and any(key.startswith("components.") for key in loaded_data.keys()):
-                # This looks like a raw state dict from the old MettaAgent/BrainPolicy
-                logger.warning(f"Loading raw state dict from {path} - creating new agent wrapper")
-                # Create a minimal agent wrapper
-                agent = MettaAgent(
-                    model=None,  # Can't reconstruct the model from just state dict
-                    model_type="brain",
-                    name=os.path.basename(path),
-                    uri=f"file://{path}",
-                    metadata={
-                        "epoch": int(os.path.basename(path).split("_")[1].split(".")[0])
-                        if "model_" in os.path.basename(path)
-                        else 0,
-                        "warning": "Loaded from raw state dict - model reconstruction not available",
-                    },
-                    local_path=path,
-                )
-                self._cached_agents[path] = agent
-                return agent
+        raise ValueError(f"All methods failed to load policy from {path}")
 
-            # Check if it's a torch model object directly
-            elif isinstance(loaded_data, torch.nn.Module):
-                logger.warning(f"Loading raw model from {path} - creating new agent wrapper")
-                # Try to determine if it's BrainPolicy or generic model
-                from metta.agent.brain_policy import BrainPolicy
+    def _load_legacy_checkpoint(self, path: str, loaded_data: object) -> Optional[MettaAgent]:
+        """Attempt to load a policy from a legacy checkpoint object."""
+        agent = None
+        if hasattr(loaded_data, "_policy") and hasattr(loaded_data, "metadata"):
+            logger.info("Loading from legacy PolicyRecord object.")
+            agent = MettaAgent(
+                model=loaded_data._policy,
+                model_type="brain",
+                name=loaded_data.name,
+                uri=loaded_data.uri,
+                metadata=loaded_data.metadata,
+                local_path=path,
+            )
+        elif isinstance(loaded_data, dict) and any(k.startswith("components.") for k in loaded_data.keys()):
+            logger.warning(f"Loading raw state dict from {path}, model cannot be reconstructed.")
+            agent = MettaAgent(
+                model=None,
+                model_type="brain",
+                name=os.path.basename(path),
+                uri=f"file://{path}",
+                metadata={
+                    "epoch": int(os.path.basename(path).split("_")[1].split(".")[0])
+                    if "model_" in os.path.basename(path)
+                    else 0,
+                    "warning": "Loaded from raw state dict; model reconstruction not available.",
+                },
+                local_path=path,
+            )
+        elif isinstance(loaded_data, torch.nn.Module):
+            logger.warning(f"Loading raw model from {path}, some metadata may be missing.")
+            from metta.agent.brain_policy import BrainPolicy
 
-                if isinstance(loaded_data, BrainPolicy):
-                    model = loaded_data
-                else:
-                    # For generic models, we can't use them directly
-                    logger.warning("Generic torch model found - cannot use as MettaAgent model")
-                    model = None
+            model = loaded_data if isinstance(loaded_data, BrainPolicy) else None
+            if model is None:
+                logger.warning("Generic torch.nn.Module loaded, cannot be used as MettaAgent model.")
 
-                agent = MettaAgent(
-                    model=model,
-                    model_type="brain",
-                    name=os.path.basename(path),
-                    uri=f"file://{path}",
-                    metadata={"epoch": 0, "warning": "Loaded from raw model - metadata unavailable"},
-                    local_path=path,
-                )
-                self._cached_agents[path] = agent
-                return agent
-            else:
-                raise ValueError(
-                    f"Unrecognized file format in {path}. Expected MettaAgent checkpoint, PolicyRecord, state dict, or model object."
-                )
+            agent = MettaAgent(
+                model=model,
+                model_type="brain",
+                name=os.path.basename(path),
+                uri=f"file://{path}",
+                metadata={"epoch": 0, "warning": "Loaded from raw model; metadata unavailable."},
+                local_path=path,
+            )
+
+        return agent
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")

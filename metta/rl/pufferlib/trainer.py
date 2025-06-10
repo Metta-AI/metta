@@ -156,17 +156,15 @@ class PufferTrainer:
         # Activate actions for the current environment, regardless of model type
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
+        if torch.distributed.is_initialized():
+            logger.info(f"Initializing DistributedDataParallel on device {self.device}")
+            self.policy = DistributedMettaAgent(self.policy, self.device)
+
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
         self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
-
-        if torch.distributed.is_initialized():
-            logger.info(f"Initializing DistributedDataParallel on device {self.device}")
-            # Store the original policy for cleanup purposes
-            self._original_policy = self.policy
-            self.policy = DistributedMettaAgent(self.policy, self.device)
 
         self._make_experience_buffer()
 
@@ -192,7 +190,8 @@ class PufferTrainer:
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)) and self.metta_agent.model_type == "brain":
+        # For brain models, check that the observation space of a component matches the env
+        if self.metta_agent.model_type == "brain":
             found_match = False
             for component_name, component in self.metta_agent.components.items():
                 if hasattr(component, "_obs_shape"):
@@ -210,7 +209,7 @@ class PufferTrainer:
 
             if not found_match:
                 raise ValueError(
-                    "No component with observation shape found in policy. "
+                    "No component with observation shape found in BrainPolicy. "
                     f"Environment observation shape: {environment_shape}"
                 )
 
@@ -220,7 +219,7 @@ class PufferTrainer:
                 self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
             )
 
-        if checkpoint.agent_step > 0:
+        if checkpoint.agent_step > 0 and checkpoint.optimizer_state_dict is not None:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
         if wandb_run and self._master:
@@ -641,7 +640,7 @@ class PufferTrainer:
 
     def _checkpoint_policy(self):
         if not self._master:
-            return
+            return None
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv for checkpointing"
@@ -682,7 +681,8 @@ class PufferTrainer:
             return
 
         pr = self._checkpoint_policy()
-        self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+        if pr is not None:
+            self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _generate_and_upload_replay(self):
         if self._master:
@@ -709,16 +709,16 @@ class PufferTrainer:
                     link_summary = {
                         "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
                     }
-                    self.wandb_run.log(link_summary)
+                    if self.wandb_run is not None:
+                        self.wandb_run.log(link_summary)
 
     def _process_stats(self):
-        for k in list(self.stats.keys()):
-            v = self.stats[k]
+        processed_stats = {}
+        for k, v in self.stats.items():
             try:
-                v = np.mean(v)
-                self.stats[k] = v
+                processed_stats[k] = np.mean(v)
             except (TypeError, ValueError):
-                del self.stats[k]
+                pass  # Ignore stats that can't be averaged
 
         # Now synchronize and aggregate stats across processes
         sps = self.profile.SPS
@@ -730,15 +730,15 @@ class PufferTrainer:
 
         overview = {"SPS": sps}
         for k, v in self.trainer_cfg.stats.overview.items():
-            if k in self.stats:
-                overview[v] = self.stats[k]
+            if k in processed_stats:
+                overview[v] = processed_stats[k]
 
         for category in self._eval_categories:
             score = self._eval_suite_avgs.get(f"{category}_score", None)
             if score is not None:
                 overview[f"{category}_evals"] = score
 
-        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
+        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in processed_stats.items()}
 
         # Add timing metrics to wandb
         if self.wandb_run and self._master:
@@ -833,7 +833,7 @@ class PufferTrainer:
             atn_shape=atn_shape,  # Shape of a single action
             atn_dtype=atn_dtype,  # Data type of actions
             cpu_offload=self.trainer_cfg.cpu_offload,  # Whether to store data on CPU and transfer to GPU as needed
-            device=self.device,  # Device to store tensors on ("cuda" or "cpu")
+            device=str(self.device),  # Device to store tensors on ("cuda" or "cpu")
             lstm=lstm,  # LSTM module from the policy (needed for dimensions) # type: ignore - Pylance is wrong
             lstm_total_agents=lstm_total_agents,  # Total number of LSTM states to maintain
         )
@@ -903,6 +903,7 @@ class AbortingTrainer(PufferTrainer):
 
         logger.info("Abort tag detected. Stopping the run.")
         self.cfg.trainer.total_timesteps = int(self.agent_step)
-        self.wandb_run.config.update(
-            {"trainer.total_timesteps": self.cfg.trainer.total_timesteps}, allow_val_change=True
-        )
+        if self.wandb_run:
+            self.wandb_run.config.update(
+                {"trainer.total_timesteps": self.cfg.trainer.total_timesteps}, allow_val_change=True
+            )

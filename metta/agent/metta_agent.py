@@ -109,8 +109,7 @@ class MettaAgent(nn.Module):
         """Activate actions on the underlying model."""
         if self.model is None:
             raise RuntimeError("Model not loaded")
-        if hasattr(self.model, "activate_actions"):
-            self.model.activate_actions(action_names, action_max_params, device)
+        self.model.activate_actions(action_names, action_max_params, device)
 
     def parameters(self, recurse: bool = True):
         """Return model parameters."""
@@ -118,9 +117,23 @@ class MettaAgent(nn.Module):
             return iter([])
         return self.model.parameters(recurse)
 
+    def state_dict(self, *args, **kwargs):
+        """Return model state_dict."""
+        if self.model is None:
+            return {}
+        return self.model.state_dict(*args, **kwargs)
+
+    def load_state_dict(self, *args, **kwargs):
+        """Load model state_dict."""
+        if self.model is None:
+            raise RuntimeError("Model not loaded, cannot load state_dict.")
+        return self.model.load_state_dict(*args, **kwargs)
+
     def num_params(self) -> int:
         """Get number of trainable parameters."""
-        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+        if self.model is None:
+            return 0
+        return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
     def save(self, path: str) -> None:
         """Save the agent to disk."""
@@ -223,6 +236,9 @@ class MettaAgent(nn.Module):
             else:
                 logger.warning(f"Model reconstruction for type '{agent.model_type}' not implemented")
 
+        if model_state_dict is None:
+            logger.warning("No model found in checkpoint")
+
         return agent
 
     def __repr__(self):
@@ -265,7 +281,7 @@ class MettaAgent(nn.Module):
                 return hidden_size
             else:
                 # For properties that might return tensors, get the scalar value
-                return int(hidden_size)
+                return int(hidden_size.item())
         raise AttributeError(f"{self.model_type} model does not have hidden_size attribute")
 
     @property
@@ -290,25 +306,25 @@ class MettaAgent(nn.Module):
         return self.num_params()
 
     def l2_reg_loss(self) -> torch.Tensor:
-        if self.model and hasattr(self.model, "l2_reg_loss"):
+        if self.model:
             return self.model.l2_reg_loss()
         return torch.zeros(1)
 
     def l2_init_loss(self) -> torch.Tensor:
-        if self.model and hasattr(self.model, "l2_init_loss"):
+        if self.model:
             return self.model.l2_init_loss()
         return torch.zeros(1)
 
     def update_l2_init_weight_copy(self):
-        if self.model and hasattr(self.model, "update_l2_init_weight_copy"):
+        if self.model:
             self.model.update_l2_init_weight_copy()
 
     def clip_weights(self):
-        if self.model and hasattr(self.model, "clip_weights"):
+        if self.model:
             self.model.clip_weights()
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        if self.model and hasattr(self.model, "compute_weight_metrics"):
+        if self.model:
             return self.model.compute_weight_metrics(delta)
         return []
 
@@ -362,10 +378,13 @@ class MettaAgent(nn.Module):
 
     @property
     def components(self):
-        """Get the components from the underlying model."""
+        """
+        Get the components from the underlying model.
+        Returns an empty dict if the model is not component-based (e.g., PufferAgent).
+        """
         if self.model and hasattr(self.model, "components"):
             return self.model.components
-        raise AttributeError(f"{self.model_type} model does not have components attribute")
+        return {}
 
     def save_for_training(self, path: str) -> None:
         """
@@ -419,3 +438,26 @@ class MettaAgent(nn.Module):
             logger.warning("No model found in checkpoint")
 
         return agent
+
+    def l2_reg_loss(self) -> torch.Tensor:
+        if self.model and hasattr(self.model, "l2_reg_loss"):
+            return self.model.l2_reg_loss()
+        return torch.zeros(1)
+
+    def l2_init_loss(self) -> torch.Tensor:
+        if self.model and hasattr(self.model, "l2_init_loss"):
+            return self.model.l2_init_loss()
+        return torch.zeros(1)
+
+    def update_l2_init_weight_copy(self):
+        if self.model and hasattr(self.model, "update_l2_init_weight_copy"):
+            self.model.update_l2_init_weight_copy()
+
+    def clip_weights(self):
+        if self.model and hasattr(self.model, "clip_weights"):
+            self.model.clip_weights()
+
+    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
+        if self.model and hasattr(self.model, "compute_weight_metrics"):
+            return self.model.compute_weight_metrics(delta)
+        return []
