@@ -71,7 +71,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._curriculum = curriculum
         self._task = self._curriculum.get_task()
         self._level = level
-        self._cached_level = None
+        self._last_level = None
         self._renderer = None
         self._map_labels = []
         self._stats_writer = stats_writer
@@ -102,13 +102,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _initialize_c_env(self, task: Task) -> None:
         """Initialize the C++ environment."""
         level = self._level
-        if level is None and self._cached_level is not None and random.random() < 0.9:
-            level = self._cached_level
+        if level is None and self._last_level is not None and random.random() < 0.9:
+            level = self._last_level
 
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
             map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
             level = map_builder.build()
+
+        self._last_level = level
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
