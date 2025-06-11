@@ -49,7 +49,7 @@ file_mounts:
     source: s3://softmax-public
     mode: MOUNT_CACHED
 
-  /workspace/metta/train_dir:
+  /mnt/s3/train_dir:
     name: softmax-train-dir
     store: s3
     mode: MOUNT_CACHED
@@ -61,6 +61,9 @@ envs:
   METTA_CMD_ARGS: ""
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
+
+  # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
+  DATA_DIR: /mnt/s3/train_dir
 
   # username and password are acquired automatically by our api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""
