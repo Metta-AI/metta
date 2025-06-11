@@ -112,15 +112,21 @@ class PolicyStore:
         return selected
 
     def _select_top(self, agents: List[MettaAgent], n: int = 1, metric: str = "score", **kwargs) -> List[MettaAgent]:
+        if not agents:
+            logger.warning("No agents to select from")
+            return []
+
+        # Check if the metric exists in the first agent's metadata
+        first_agent = agents[0]
         if (
-            "eval_scores" in agents[0].metadata
-            and agents[0].metadata["eval_scores"] is not None
-            and metric in agents[0].metadata["eval_scores"]
+            "eval_scores" in first_agent.metadata
+            and first_agent.metadata.get("eval_scores") is not None
+            and metric in first_agent.metadata["eval_scores"]
         ):
             # Metric is in eval_scores
             logger.info(f"Found metric '{metric}' in metadata['eval_scores']")
             policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric, None) for p in agents}
-        elif metric in agents[0].metadata:
+        elif metric in first_agent.metadata:
             # Metric is directly in metadata
             logger.info(f"Found metric '{metric}' directly in metadata")
             policy_scores = {p: p.metadata.get(metric, None) for p in agents}

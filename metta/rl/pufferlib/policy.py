@@ -70,7 +70,16 @@ class PufferAgent(nn.Module):
         A more thorough check could compare action names and parameter counts if
         that metadata were available on the Puffer model.
         """
-        num_action_heads = len(self.policy.actor)
+        # Check if actor is a ModuleList or similar container
+        if hasattr(self.policy.actor, "__len__"):
+            num_action_heads = len(self.policy.actor)
+        elif hasattr(self.policy, "actor") and isinstance(self.policy.actor, nn.Module):
+            # If it's a single module, assume 1 action head
+            num_action_heads = 1
+        else:
+            logging.warning("Could not determine number of action heads in Puffer model")
+            return
+
         if num_action_heads != len(actions_max_params):
             logging.warning(
                 f"Action space mismatch: Puffer model has {num_action_heads} action heads, "

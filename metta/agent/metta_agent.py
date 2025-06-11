@@ -283,8 +283,11 @@ class MettaAgent(nn.Module):
                 # For properties that might return tensors, get the scalar value
                 return int(hidden_size.item())
             else:
-                # Try to convert to int directly
-                return int(hidden_size)
+                # Try to convert to int directly, handling Module case
+                try:
+                    return int(hidden_size)
+                except (TypeError, ValueError):
+                    raise TypeError(f"Cannot convert hidden_size of type {type(hidden_size)} to int")
         raise AttributeError(f"{self.model_type} model does not have hidden_size attribute")
 
     @property
