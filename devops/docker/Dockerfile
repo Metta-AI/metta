@@ -22,5 +22,8 @@ RUN uv sync
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 
+RUN sed -i '\#cd /puffertank/pufferlib#d' /root/.bashrc \
+ && echo 'cd /workspace/metta' >> /root/.bashrc
+
 WORKDIR /workspace/metta/
 ENTRYPOINT ["/bin/bash", "-c"]
