@@ -6,14 +6,11 @@ set -e
 POLICIES=(
 
   # "b.georgedeane.nav_mem_pretrained"
-  "b.georgedeane.nav_backchain_mem"
-  "b.georgedeane.nav_navsequence_backchain"
-  "b.georgedeane.nav_backchain"
-  "b.daphne.nav_backchain_mem"
-  "george.nav_backchain"
-  "george.nav_backchain_mem"
+  # "georgedeane.nav_backchain_mem"
+  # "georgedeane.nav_backchain"
+  # "b.daphne.nav_backchain_mem"
+  # "george.nav_backchain_mem"
   "georgedeane.nav_navsequence_backchain"
-  "georgedeane.nav_backchain"
   # "georgedeane.nav_mem_pretrained"
   "b.georgedeane.nav_navsequence_backchain2"
   # "b.georgedeane.nav_backchain_mem_pretrained"
@@ -23,7 +20,6 @@ POLICIES=(
   "b.georgedeane.nav_backchain_mem"
   "b.georgedeane.nav_navsequence_backchain"
   "b.daphne.nav_backchain_mem"
-  ""
 
 
 
