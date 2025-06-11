@@ -31,12 +31,8 @@ def get_model_config() -> tuple[str, str]:
 
 def get_pr_summary(pr: Dict[str, Any], model: genai.GenerativeModel) -> str:
     """Generate a summary for a single PR."""
-    # Adjust prompt based on model capabilities
-    model_name = model._model_name
 
-    if "2.5" in model_name:
-        # Models with thinking capabilities
-        prompt = f"""<thinking>
+    prompt = f"""<thinking>
 Analyze this PR to understand:
 1. What problem it solves
 2. How it changes the codebase
@@ -44,29 +40,6 @@ Analyze this PR to understand:
 </thinking>
 
 Analyze this pull request and provide a concise technical summary:
-
-PR #{pr["number"]}: {pr["title"]}
-URL: {pr["html_url"]}
-Author: {pr["author"]}
-Merged: {pr["merged_at"]}
-Labels: {", ".join(pr.get("labels", [])) if pr.get("labels") else "None"}
-
-Description:
-{pr["body"]}
-
-Changes (diff):
-{pr["diff"]}
-
-Please provide:
-1. A one-line summary of what this PR accomplishes
-2. Key technical changes (2-4 bullet points)
-3. Any API changes or breaking changes
-4. Impact on other developers or systems
-
-Keep the summary focused and technical. Maximum 200 words."""
-    else:
-        # Standard prompt for other models
-        prompt = f"""Analyze this pull request and provide a concise technical summary:
 
 PR #{pr["number"]}: {pr["title"]}
 URL: {pr["html_url"]}
