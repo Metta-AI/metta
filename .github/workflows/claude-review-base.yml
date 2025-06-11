@@ -148,7 +148,7 @@ jobs:
         if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.setup_python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.7"
 
       - name: Install Dependencies
         if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.install_packages != ''
