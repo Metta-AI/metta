@@ -1,0 +1,53 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  agent:
+    ore.red_max: 0
+    ore.blue_max: 0
+    ore.green_max: 0
+    rewards:
+      ore.blue: 0
+      ore.green: 0
+      ore.red: 0
+      battery.red: 0
+      battery.blue: 1
+      battery.green: -1
+  num_agents: 4
+  max_steps: 50
+
+  map_builder:
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+    room:
+      _target_: mettagrid.room.cognitive_evals.t_maze.TMaze
+      orientation: "down"
+      main_hall_length: 12
+      side_halls_length: 4
+      hall_width: 2
+      mine_color: "blue"
+      generator_color_left: "blue"
+      generator_color_right: "green"
+
+  objects:
+    generator.blue:
+      cooldown: 255
+      initial_items: 1
+    generator.green:
+      cooldown: 255
+      initial_items: 1
+    mine.blue:
+      cooldown: 255
+      initial_items: 0
+      max_output: 0
+      output_ore.blue: 0
+      conversion_ticks: 255
+    mine.green:
+      cooldown: 255
+      initial_items: 0
+      max_output: 0
+      output_ore.green: 0
+      conversion_ticks: 255
+
