@@ -31,7 +31,6 @@ def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
     print(policy_state.lstm_c)
     print(policy_state.lstm_h)
 
-    # Clear the memory of the policy.
     if what == "0":
         policy_state.lstm_c[:, agent_id, :].zero_()
         policy_state.lstm_h[:, agent_id, :].zero_()
