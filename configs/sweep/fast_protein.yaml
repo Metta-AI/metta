@@ -75,22 +75,22 @@ sweep:
   metric: reward
   goal: maximize
 
-# Fast training settings - log distribution (1e3 to 1e4)
-trainer:
-  total_timesteps: 5000              # Middle of 1e3-1e4 range
-  evaluate_interval: 1000            # Quick evaluation
-  checkpoint_interval: 2500          # Minimal checkpointing
+  # Fast training settings - log distribution (1e3 to 1e4)
+  trainer:
+    total_timesteps: 5000              # Middle of 1e3-1e4 range
+    evaluate_interval: 1000            # Quick evaluation
+    checkpoint_interval: 2500          # Minimal checkpointing
 
-  # Fixed optimizations for speed
-  update_epochs: 1                   # Single update epoch
-  num_steps: 32                      # Short rollouts
-  minibatch_size: 128               # Fixed small minibatch
-  forward_pass_minibatch_target_size: 128
+    # Fixed optimizations for speed
+    update_epochs: 1                   # Single update epoch
+    num_steps: 32                      # Short rollouts
+    minibatch_size: 128               # Fixed small minibatch
+    forward_pass_minibatch_target_size: 128
 
-# Environment overrides
-env:
-  game:
-    max_steps: 32                    # Short episodes for speed
-    objects:
-      altar:
-        hp: 10                       # Fixed HP as in original
+  # Environment overrides
+  env:
+    game:
+      max_steps: 32                    # Short episodes for speed
+      objects:
+        altar:
+          hp: 10                       # Fixed HP as in original
