@@ -1,373 +1,737 @@
 #!/usr/bin/env python3
-"""Generate LLM summary from PR digest data using two-phase approach."""
+"""Enhanced PR summary generator combining comprehensive analysis with caching and concurrency."""
 
 import json
+import logging
 import os
+import re
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import List, Optional
 
 import google.generativeai as genai
+from google.generativeai.types import HarmBlockThreshold, HarmCategory
 
 # Model selection configuration
 MODEL_CONFIG = {
-    "phase1": "gemini-2.5-flash-preview-05-20",
-    "phase2": "gemini-2.5-pro-preview-05-06",
+    "phase1": "gemini-2.5-flash-preview-05-20",  # For individual PR analysis
+    "phase2": "gemini-2.5-pro-preview-06-05",  # For collection summaries
 }
 
 
-def get_model_config() -> tuple[str, str]:
-    """Get model configuration from environment or use defaults."""
-    phase1_model = os.getenv("PHASE1_MODEL", MODEL_CONFIG["phase1"])
-    phase2_model = os.getenv("PHASE2_MODEL", MODEL_CONFIG["phase2"])
+@dataclass
+class PRSummary:
+    """Individual PR summary with essential metadata."""
 
-    print("Model configuration:")
-    print(f"  Phase 1 (PR summaries): {phase1_model}")
-    print(f"  Phase 2 (synthesis): {phase2_model}")
-
-    return phase1_model, phase2_model
-
-
-def get_pr_summary(pr: Dict[str, Any], model: genai.GenerativeModel) -> str:
-    """Generate a summary for a single PR."""
-
-    prompt = f"""<thinking>
-Analyze this PR to understand:
-1. What problem it solves
-2. How it changes the codebase
-3. What impact it has on developers
-</thinking>
-
-Analyze this pull request and provide a concise technical summary:
-
-PR #{pr["number"]}: {pr["title"]}
-URL: {pr["html_url"]}
-Author: {pr["author"]}
-Merged: {pr["merged_at"]}
-Labels: {", ".join(pr.get("labels", [])) if pr.get("labels") else "None"}
-
-Description:
-{pr["body"]}
-
-Changes (diff):
-{pr["diff"]}
-
-Please provide:
-1. A one-line summary of what this PR accomplishes
-2. Key technical changes (2-4 bullet points)
-3. Any API changes or breaking changes
-4. Impact on other developers or systems
-
-Keep the summary focused and technical. Maximum 200 words."""
-
-    try:
-        response = model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
-        print(f"Error summarizing PR #{pr['number']}: {e}")
-        return f"[Error summarizing PR #{pr['number']}]"
+    pr_number: int
+    title: str
+    author: str
+    merged_at: str
+    html_url: str
+    summary: str
+    key_changes: List[str]
+    developer_impact: str
+    technical_notes: str
+    impact_level: str  # "minor", "moderate", "major"
+    category: str  # "feature", "bugfix", "docs", "refactor", etc.
+    artifact_path: str
 
 
-def load_pr_summary_cache() -> dict[str, dict[str, Any]]:
-    """Load cached individual PR summaries."""
-    force_refresh = os.getenv("FORCE_REFRESH", "false").lower() == "true"
-    if force_refresh:
-        print("Force refresh enabled, skipping cache load")
+class GeminiAIClient:
+    """AI client optimized for Gemini 2.5 with rate limiting and retry logic."""
+
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.rate_limit_delay = 0.3  # Fast model, minimal delay
+        self.max_retries = 3
+        self.last_request_time = 0
+
+        # Configure Gemini
+        genai.configure(api_key=api_key)
+
+        # Minimal safety settings for code analysis
+        self.safety_settings = {
+            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+        }
+
+        logging.info("Initialized AI client with Gemini 2.5 models")
+
+    def _get_model(self, phase: str):
+        """Get the appropriate model for the analysis phase."""
+        model_name = MODEL_CONFIG.get(phase, MODEL_CONFIG["phase1"])
+
+        generation_config = genai.GenerationConfig(
+            temperature=0.2,  # Consistent technical analysis
+            top_p=0.8,
+            top_k=40,
+            max_output_tokens=5000 if phase == "phase1" else 10000,
+            response_mime_type="text/plain",
+        )
+
+        return genai.GenerativeModel(
+            model_name=model_name, generation_config=generation_config, safety_settings=self.safety_settings
+        )
+
+    def _wait_for_rate_limit(self):
+        """Simple rate limiting."""
+        elapsed = time.time() - self.last_request_time
+        if elapsed < self.rate_limit_delay:
+            time.sleep(self.rate_limit_delay - elapsed)
+        self.last_request_time = time.time()
+
+    def generate_with_retry(self, prompt: str, phase: str = "phase1") -> Optional[str]:
+        """Generate content with retry logic."""
+        model = self._get_model(phase)
+
+        for attempt in range(self.max_retries):
+            try:
+                self._wait_for_rate_limit()
+                response = model.generate_content(prompt)
+
+                if response.text:
+                    logging.info(f"AI generation successful on attempt {attempt + 1} ({MODEL_CONFIG[phase]})")
+                    return response.text.strip()
+                else:
+                    logging.warning(f"Empty response on attempt {attempt + 1}")
+                    if attempt < self.max_retries - 1:
+                        time.sleep(2**attempt)
+                        continue
+
+            except Exception as e:
+                logging.error(f"AI generation error on attempt {attempt + 1}: {e}")
+                if attempt < self.max_retries - 1:
+                    time.sleep(2**attempt)
+                else:
+                    logging.error("Max retries exceeded for AI generation")
+                    return None
+
+        return None
+
+
+class PRSummaryGenerator:
+    """Enhanced PR summary generator with caching and concurrency."""
+
+    def __init__(self, api_key: str, output_dir: Path = Path("pr-summaries")):
+        self.ai_client = GeminiAIClient(api_key)
+        self.output_dir = output_dir
+        self.output_dir.mkdir(exist_ok=True)
+
+    def categorize_pr(self, pr_data: dict) -> str:
+        """Enhanced PR categorization."""
+        title = pr_data.get("title", "").lower()
+        labels = [label.lower() for label in pr_data.get("labels", [])]
+        body = pr_data.get("body", "").lower()
+
+        # Check labels first (most reliable)
+        if any(label in ["bug", "bugfix", "fix"] for label in labels):
+            return "bugfix"
+        elif any(label in ["feature", "enhancement"] for label in labels):
+            return "feature"
+        elif any(label in ["docs", "documentation"] for label in labels):
+            return "documentation"
+        elif any(label in ["refactor", "cleanup"] for label in labels):
+            return "refactor"
+        elif any(label in ["test", "testing"] for label in labels):
+            return "testing"
+        elif any(label in ["ci", "build", "deployment"] for label in labels):
+            return "infrastructure"
+        elif any(label in ["security"] for label in labels):
+            return "security"
+
+        # Check title patterns
+        if any(word in title for word in ["fix", "bug", "error", "resolve"]):
+            return "bugfix"
+        elif any(word in title for word in ["add", "new", "feature", "implement"]):
+            return "feature"
+        elif any(word in title for word in ["doc", "readme", "guide"]):
+            return "documentation"
+        elif any(word in title for word in ["refactor", "clean", "improve", "optimize"]):
+            return "refactor"
+        elif any(word in title for word in ["test", "spec", "coverage"]):
+            return "testing"
+        elif any(word in title for word in ["bump", "update", "upgrade", "dependency"]):
+            return "dependency"
+        elif any(word in title for word in ["security", "vulnerability", "cve"]):
+            return "security"
+
+        # Check body for additional context
+        if any(word in body for word in ["fixes #", "closes #", "resolves #"]):
+            return "bugfix"
+
+        return "other"
+
+    def estimate_impact_level(self, pr_data: dict) -> str:
+        """Enhanced impact estimation."""
+        diff = pr_data.get("diff", "")
+        title = pr_data.get("title", "").lower()
+        labels = [label.lower() for label in pr_data.get("labels", [])]
+
+        lines_added = diff.count("\n+")
+        lines_removed = diff.count("\n-")
+        total_lines = lines_added + lines_removed
+
+        files_changed = len(re.findall(r"^diff --git", diff, re.MULTILINE))
+
+        # Check for breaking changes indicators
+        breaking_indicators = ["breaking", "major", "api change", "migration"]
+        if any(indicator in title for indicator in breaking_indicators):
+            return "major"
+        if any(indicator in labels for indicator in breaking_indicators):
+            return "major"
+
+        # Check for critical patterns in diff
+        critical_patterns = [
+            r"class\s+\w+.*:",  # New classes
+            r"def\s+__init__",  # Constructor changes
+            r"@api\.|@endpoint",  # API decorators
+            r"DELETE FROM|DROP TABLE|ALTER TABLE",  # Database changes
+        ]
+
+        if any(re.search(pattern, diff, re.IGNORECASE) for pattern in critical_patterns):
+            if total_lines > 100:
+                return "major"
+            else:
+                return "moderate"
+
+        # Size-based classification
+        if total_lines > 500 or files_changed > 10:
+            return "major"
+        elif total_lines > 100 or files_changed > 5:
+            return "moderate"
+        else:
+            return "minor"
+
+    def load_cache(self) -> dict:
+        """Load cached PR summaries."""
+        force_refresh = os.getenv("FORCE_REFRESH", "false").lower() == "true"
+        if force_refresh:
+            logging.info("Force refresh enabled, skipping cache load")
+            return {}
+
+        cache_file = Path(".pr-digest-cache/enhanced_pr_summaries_cache.json")
+        if cache_file.exists():
+            try:
+                with open(cache_file) as f:
+                    cache_data = json.load(f)
+                    if isinstance(cache_data, dict) and "model" in cache_data:
+                        return cache_data
+                return {}
+            except Exception as e:
+                logging.error(f"Error loading cache: {e}")
         return {}
 
-    cache_file = Path(".pr-digest-cache/pr_summaries_cache.json")
-    if cache_file.exists():
+    def save_cache(self, summaries: dict, model_name: str) -> None:
+        """Save PR summaries to cache."""
+        cache_dir = Path(".pr-digest-cache")
+        cache_dir.mkdir(exist_ok=True)
+        cache_file = cache_dir / "enhanced_pr_summaries_cache.json"
+
+        cache_data = {"model": model_name, "generated_at": datetime.now().isoformat(), "summaries": summaries}
+
         try:
-            with open(cache_file) as f:
-                cache_data = json.load(f)
-                # Include model info in cache validation
-                if isinstance(cache_data, dict) and "model" in cache_data:
-                    return cache_data
-                # Old format - return empty to regenerate
-                return {}
+            with open(cache_file, "w") as f:
+                json.dump(cache_data, f, indent=2)
+            logging.info(f"Saved cache with {len(summaries)} entries")
         except Exception as e:
-            print(f"Error loading PR summary cache: {e}")
-    return {}
+            logging.error(f"Error saving cache: {e}")
 
+    def generate_single_pr_summary(self, pr_data: dict) -> Optional[dict]:
+        """Generate comprehensive summary for a single PR."""
+        pr_number = pr_data["number"]
 
-def save_pr_summary_cache(summaries: dict[str, dict[str, Any]], model_name: str) -> None:
-    """Save individual PR summaries to cache with model info."""
-    cache_dir = Path(".pr-digest-cache")
-    cache_dir.mkdir(exist_ok=True)
-    cache_file = cache_dir / "pr_summaries_cache.json"
+        # Use full context with token estimation
+        full_diff = pr_data.get("diff", "")
+        full_description = pr_data.get("body", "No description provided")
 
-    cache_data = {"model": model_name, "summaries": summaries}
+        estimated_tokens = len(full_diff + full_description) // 4
+        logging.info(f"PR #{pr_number}: Using ~{estimated_tokens:,} tokens")
 
-    try:
-        with open(cache_file, "w") as f:
-            json.dump(cache_data, f, indent=2)
-        print(f"  Saved PR summary cache with {len(summaries)} entries")
-    except Exception as e:
-        print(f"Error saving PR summary cache: {e}")
+        prompt = self._create_comprehensive_prompt(pr_data, full_diff, full_description)
 
+        # Generate with phase1 model
+        ai_response = self.ai_client.generate_with_retry(prompt, "phase1")
 
-def summarize_pr_with_cache(
-    pr: dict[str, Any], model: genai.GenerativeModel, cache: dict[str, dict[str, Any]]
-) -> dict[str, Any]:
-    """Summarize a single PR, using cache if available."""
-    cache_key = f"{pr['number']}-{pr['merged_at']}"
+        if not ai_response:
+            logging.error(f"AI generation failed for PR #{pr_number}")
+            return None
 
-    # Check cache first
-    if cache_key in cache:
-        print(f"  Using cached summary for PR #{pr['number']}")
-        return cache[cache_key]
+        # Parse AI response
+        parsed = self._parse_ai_response(ai_response)
 
-    # Generate new summary
-    print(f"  Generating new summary for PR #{pr['number']} - {pr['title'][:60]}...")
-    summary = get_pr_summary(pr, model)
-    summary_data = {"number": pr["number"], "title": pr["title"], "url": pr["html_url"], "summary": summary}
+        # Get metadata
+        category = self.categorize_pr(pr_data)
+        impact_level = self.estimate_impact_level(pr_data)
 
-    # Update cache
-    cache[cache_key] = summary_data
-    return summary_data
+        # Create artifact
+        artifact_path = self._create_artifact(pr_data, parsed, category, impact_level)
 
+        return {
+            "pr_number": pr_number,
+            "title": pr_data["title"],
+            "author": pr_data["author"],
+            "merged_at": pr_data["merged_at"],
+            "html_url": pr_data["html_url"],
+            "summary": parsed["summary"],
+            "key_changes": parsed["key_changes"],
+            "developer_impact": parsed["developer_impact"],
+            "technical_notes": parsed["technical_notes"],
+            "impact_level": impact_level,
+            "category": category,
+            "artifact_path": artifact_path,
+        }
 
-def summarize_prs_parallel(
-    prs: list[dict[str, Any]], model: genai.GenerativeModel, model_name: str, max_workers: int = 5
-) -> list[dict[str, Any]]:
-    """Summarize PRs in parallel with caching."""
-    pr_summaries = []
-    cache_data = load_pr_summary_cache()
+    def _create_comprehensive_prompt(self, pr_data: dict, full_diff: str, full_description: str) -> str:
+        """Create comprehensive prompt for PR analysis."""
 
-    # Check if cache is for the same model
-    if cache_data.get("model") != model_name:
-        print(f"  Cache is for different model ({cache_data.get('model')}), regenerating all summaries")
-        cached_summaries = {}
-    else:
-        cached_summaries = cache_data.get("summaries", {})
+        # Extract file info for context
+        file_changes = re.findall(r"^diff --git a/(.+?) b/(.+?)$", full_diff, re.MULTILINE)
+        file_types = set()
+        for _old_file, new_file in file_changes:
+            if "." in new_file:
+                file_types.add(new_file.split(".")[-1])
 
-    updated_cache = cached_summaries.copy()
+        lines_added = full_diff.count("\n+")
+        lines_removed = full_diff.count("\n-")
 
-    # Separate PRs into cached and uncached
-    cached_results = []
-    prs_to_process = []
+        return f"""Analyze this Pull Request comprehensively using the complete context:
 
-    for pr in prs:
-        cache_key = f"{pr['number']}-{pr['merged_at']}"
-        if cache_key in cached_summaries:
-            print(f"  Using cached summary for PR #{pr['number']}")
-            cached_results.append(cached_summaries[cache_key])
+**PR #{pr_data["number"]}: {pr_data["title"]}**
+- Author: {pr_data["author"]}
+- Labels: {", ".join(pr_data.get("labels", [])) if pr_data.get("labels") else "None"}
+- Files: {len(file_changes)} files, types: {", ".join(sorted(file_types))}
+- Changes: {lines_added} additions, {lines_removed} deletions
+
+**Complete Description:**
+{full_description}
+
+**Complete Code Changes:**
+{full_diff}
+
+**Required Output Format:**
+
+**Summary:** [2-3 clear sentences explaining what this PR accomplishes and why it matters]
+
+**Key Changes:**
+• [Most significant change - be specific about what was modified/added]
+• [Second most important change or architectural impact]
+• [Third change if applicable - focus on developer-visible changes]
+
+**Developer Impact:** [How this affects other developers: new APIs, breaking changes, new dependencies, workflow changes, etc. If minimal impact, state "Minimal developer impact."]
+
+**Technical Notes:** [Any implementation details, trade-offs, or technical decisions worth highlighting]
+
+Guidelines:
+- You have access to the COMPLETE diff and description - use this full context
+- Focus on practical impact for developers working on this codebase
+- Be specific about what actually changed, not just what was intended
+- Highlight any notable technical decisions or trade-offs
+- Maximum 300 words total but be comprehensive within that limit"""
+
+    def _parse_ai_response(self, response: str) -> dict:
+        """Parse AI response into structured data."""
+        parsed = {"summary": "", "key_changes": [], "developer_impact": "", "technical_notes": ""}
+
+        # Extract summary
+        summary_match = re.search(r"\*\*Summary:\*\*\s*(.+?)(?=\*\*|$)", response, re.DOTALL)
+        if summary_match:
+            parsed["summary"] = summary_match.group(1).strip()
+
+        # Extract key changes
+        changes_section = re.search(r"\*\*Key Changes:\*\*\s*((?:•.*?(?:\n|$))+)", response, re.DOTALL)
+        if changes_section:
+            changes_text = changes_section.group(1)
+            parsed["key_changes"] = [
+                change.strip().lstrip("•").strip()
+                for change in changes_text.split("\n")
+                if change.strip() and "•" in change
+            ]
+
+        # Extract developer impact
+        impact_match = re.search(r"\*\*Developer Impact:\*\*\s*(.+?)(?=\*\*|$)", response, re.DOTALL)
+        if impact_match:
+            parsed["developer_impact"] = impact_match.group(1).strip()
+
+        # Extract technical notes
+        notes_match = re.search(r"\*\*Technical Notes:\*\*\s*(.+?)(?=\*\*|$)", response, re.DOTALL)
+        if notes_match:
+            parsed["technical_notes"] = notes_match.group(1).strip()
+
+        return parsed
+
+    def _create_artifact(self, pr_data: dict, parsed_summary: dict, category: str, impact_level: str) -> str:
+        """Create detailed artifact file."""
+        pr_number = pr_data["number"]
+        artifact_filename = f"pr-{pr_number}-summary.md"
+        artifact_path = self.output_dir / artifact_filename
+
+        content = f"""# PR #{pr_number}: {pr_data["title"]}
+
+**Author:** {pr_data["author"]}
+**Merged:** {pr_data["merged_at"]}
+**Category:** {category.title()}
+**Impact Level:** {impact_level.title()}
+**GitHub URL:** {pr_data["html_url"]}
+
+## Summary
+
+{parsed_summary["summary"]}
+
+## Key Changes
+
+{chr(10).join(f"- {change}" for change in parsed_summary["key_changes"])}
+
+## Developer Impact
+
+{parsed_summary["developer_impact"]}
+
+## Technical Notes
+
+{parsed_summary.get("technical_notes", "No additional technical notes")}
+
+## Original Description
+
+{pr_data.get("body", "No description provided")}
+
+## Labels
+
+{", ".join(pr_data.get("labels", [])) if pr_data.get("labels") else "None"}
+
+<details>
+<summary>Complete Code Diff (Click to expand)</summary>
+
+```diff
+{pr_data.get("diff", "No diff available")}
+```
+
+</details>
+
+---
+*Generated using {MODEL_CONFIG["phase1"]} on {datetime.now().isoformat()}*
+"""
+
+        with open(artifact_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        return str(artifact_path)
+
+    def process_prs_with_cache(self, prs: list, use_parallel: bool = True, max_workers: int = 5) -> List[PRSummary]:
+        """Process PRs with caching and optional concurrency."""
+
+        # Load cache
+        cache_data = self.load_cache()
+        model_name = MODEL_CONFIG["phase1"]
+
+        if cache_data.get("model") != model_name:
+            logging.info(f"Cache is for different model ({cache_data.get('model')}), regenerating")
+            cached_summaries = {}
         else:
-            prs_to_process.append(pr)
+            cached_summaries = cache_data.get("summaries", {})
 
-    print(f"  Found {len(cached_results)} cached summaries, need to generate {len(prs_to_process)} new ones")
+        updated_cache = cached_summaries.copy()
+        results = []
+        prs_to_process = []
 
-    # Process uncached PRs in parallel
-    if prs_to_process:
+        # Separate cached and uncached PRs
+        for pr in prs:
+            cache_key = f"{pr['number']}-{pr['merged_at']}"
+            if cache_key in cached_summaries:
+                logging.info(f"Using cached summary for PR #{pr['number']}")
+                results.append(PRSummary(**cached_summaries[cache_key]))
+            else:
+                prs_to_process.append(pr)
+
+        logging.info(f"Found {len(results)} cached summaries, processing {len(prs_to_process)} new ones")
+
+        # Process uncached PRs
+        if prs_to_process:
+            if use_parallel and len(prs_to_process) > 2:
+                logging.info(f"Using parallel processing with {max_workers} workers")
+                new_summaries = self._process_parallel(prs_to_process, max_workers)
+            else:
+                logging.info("Using sequential processing")
+                new_summaries = self._process_sequential(prs_to_process)
+
+            # Add to results and cache
+            for summary_data in new_summaries:
+                if summary_data:
+                    summary = PRSummary(**summary_data)
+                    results.append(summary)
+
+                    cache_key = f"{summary.pr_number}-{summary.merged_at}"
+                    updated_cache[cache_key] = summary_data
+
+            # Save updated cache
+            self.save_cache(updated_cache, model_name)
+
+        # Sort by PR number (newest first)
+        results.sort(key=lambda x: x.pr_number, reverse=True)
+        return results
+
+    def _process_parallel(self, prs: list, max_workers: int) -> list:
+        """Process PRs in parallel."""
+        results = []
+
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all PR summaries
-            future_to_pr = {executor.submit(get_pr_summary, pr, model): pr for pr in prs_to_process}
+            future_to_pr = {executor.submit(self.generate_single_pr_summary, pr): pr for pr in prs}
 
-            # Collect results as they complete
             for future in as_completed(future_to_pr):
                 pr = future_to_pr[future]
                 try:
-                    summary = future.result()
-                    summary_data = {
-                        "number": pr["number"],
-                        "title": pr["title"],
-                        "url": pr["html_url"],
-                        "summary": summary,
-                    }
-                    pr_summaries.append(summary_data)
-
-                    # Update cache
-                    cache_key = f"{pr['number']}-{pr['merged_at']}"
-                    updated_cache[cache_key] = summary_data
-
+                    result = future.result()
+                    if result:
+                        results.append(result)
+                        logging.info(f"Completed PR #{pr['number']}")
+                    else:
+                        logging.error(f"Failed to process PR #{pr['number']}")
                 except Exception as e:
-                    print(f"Error summarizing PR #{pr['number']}: {e}")
-                    pr_summaries.append(
-                        {
-                            "number": pr["number"],
-                            "title": pr["title"],
-                            "url": pr["html_url"],
-                            "summary": f"[Error summarizing PR #{pr['number']}]",
-                        }
-                    )
+                    logging.error(f"Error processing PR #{pr['number']}: {e}")
 
-    # Combine cached and new results
-    all_summaries = cached_results + pr_summaries
+        return results
 
-    # Sort by PR number to maintain order (newest first)
-    all_summaries.sort(key=lambda x: x["number"], reverse=True)
+    def _process_sequential(self, prs: list) -> list:
+        """Process PRs sequentially."""
+        results = []
 
-    # Save updated cache if we processed new PRs
-    if prs_to_process:
-        save_pr_summary_cache(updated_cache, model_name)
+        for i, pr in enumerate(prs):
+            logging.info(f"Processing PR {i + 1}/{len(prs)}: #{pr['number']}")
+            try:
+                result = self.generate_single_pr_summary(pr)
+                if result:
+                    results.append(result)
+                else:
+                    logging.error(f"Failed to process PR #{pr['number']}")
+            except Exception as e:
+                logging.error(f"Error processing PR #{pr['number']}: {e}")
 
-    return all_summaries
+        return results
+
+    def generate_collection_summary(self, pr_summaries: List[PRSummary], date_range: str, repository: str) -> str:
+        """Generate collection summary using Gemini 2.5 Pro."""
+
+        context = self._prepare_collection_context(pr_summaries, date_range, repository)
+
+        prompt = f"""Create an executive summary of development activity based on comprehensive PR analysis:
+
+{context}
+
+**Required Output Format:**
+
+## Summary of changes from {date_range}
+
+**Development Focus:** [What were the main development themes and priorities this period?]
+
+**Key Achievements:** [What significant features, improvements, or fixes were delivered?]
+
+**Technical Health:** [What do the change patterns show about code quality and project evolution?]
+
+**Notable PRs:** [Highlight 3-4 most impactful PRs with brief descriptions and links]
+
+**Internal API Changes:** [List any API changes mentioned, with PR references]
+
+Keep it strategic, outcome-focused, and well-structured for Discord. Maximum 400 words."""
+
+        response = self.ai_client.generate_with_retry(prompt, "phase2")
+
+        if not response:
+            return self._create_fallback_summary(pr_summaries, date_range)
+
+        return response
+
+    def _prepare_collection_context(self, pr_summaries: List[PRSummary], date_range: str, repository: str) -> str:
+        """Prepare comprehensive context for collection summary."""
+
+        stats = {"total_prs": len(pr_summaries), "by_category": {}, "by_impact": {}, "by_author": {}}
+
+        for pr in pr_summaries:
+            stats["by_category"][pr.category] = stats["by_category"].get(pr.category, 0) + 1
+            stats["by_impact"][pr.impact_level] = stats["by_impact"].get(pr.impact_level, 0) + 1
+            stats["by_author"][pr.author] = stats["by_author"].get(pr.author, 0) + 1
+
+        top_authors = sorted(stats["by_author"].items(), key=lambda x: x[1], reverse=True)[:5]
+
+        # Group PRs by category
+        by_category = {}
+        for pr in pr_summaries:
+            if pr.category not in by_category:
+                by_category[pr.category] = []
+            by_category[pr.category].append(pr)
+
+        context_lines = [
+            f"**Repository:** {repository}",
+            f"**Period:** {date_range}",
+            f"**Total PRs:** {stats['total_prs']}",
+            f"**Categories:** {dict(stats['by_category'])}",
+            f"**Impact Levels:** {dict(stats['by_impact'])}",
+            f"**Top Contributors:** {dict(top_authors)}",
+            "",
+            "**Detailed PR Context:**",
+        ]
+
+        for category, prs in by_category.items():
+            context_lines.append(f"\n**{category.upper()} ({len(prs)} PRs):**")
+            for pr in prs[:6]:  # Top 6 per category
+                context_lines.append(f"• #{pr.pr_number}: {pr.title} ({pr.impact_level})")
+                context_lines.append(f"  Summary: {pr.summary[:120]}...")
+                if pr.developer_impact and pr.developer_impact != "Minimal developer impact.":
+                    context_lines.append(f"  Impact: {pr.developer_impact[:80]}...")
+
+        return "\n".join(context_lines)
+
+    def _create_fallback_summary(self, pr_summaries: List[PRSummary], date_range: str) -> str:
+        """Create fallback summary if AI generation fails."""
+        stats = {}
+        for pr in pr_summaries:
+            stats[pr.category] = stats.get(pr.category, 0) + 1
+
+        lines = [
+            f"## Summary of changes from {date_range}",
+            "",
+            f"**Total PRs:** {len(pr_summaries)}",
+            f"**Categories:** {', '.join(f'{k}: {v}' for k, v in stats.items())}",
+            "",
+            "**Major PRs:**",
+        ]
+
+        major_prs = [pr for pr in pr_summaries if pr.impact_level == "major"][:5]
+        for pr in major_prs:
+            lines.append(f"- [#{pr.pr_number}: {pr.title}]({pr.html_url})")
+
+        return "\n".join(lines)
 
 
-def summarize_prs_sequential(
-    prs: list[dict[str, Any]], model: genai.GenerativeModel, model_name: str
-) -> list[dict[str, Any]]:
-    """Summarize PRs sequentially with caching."""
-    pr_summaries = []
-    cache_data = load_pr_summary_cache()
+def create_discord_summary(
+    pr_summaries: List[PRSummary], collection_summary: str, date_range: str, github_run_url: str
+) -> str:
+    """Create Discord-formatted summary with enhanced formatting."""
 
-    # Check if cache is for the same model
-    if cache_data.get("model") != model_name:
-        print(f"  Cache is for different model ({cache_data.get('model')}), regenerating all summaries")
-        cached_summaries = {}
-    else:
-        cached_summaries = cache_data.get("summaries", {})
+    stats = {"by_category": {}, "by_impact": {}}
+    for pr in pr_summaries:
+        stats["by_category"][pr.category] = stats["by_category"].get(pr.category, 0) + 1
+        stats["by_impact"][pr.impact_level] = stats["by_impact"].get(pr.impact_level, 0) + 1
 
-    for _, pr in enumerate(prs):
-        summary_data = summarize_pr_with_cache(pr, model, cached_summaries)
-        pr_summaries.append(summary_data)
+    lines = [
+        f"📊 **Enhanced PR Summary Report** • {date_range}",
+        "",
+        "**📈 Statistics**",
+        f"• Total PRs: {len(pr_summaries)}",
+        f"• Categories: {', '.join(f'{k}: {v}' for k, v in stats['by_category'].items())}",
+        f"• Impact: {', '.join(f'{k}: {v}' for k, v in stats['by_impact'].items())}",
+        f"• Generated: <t:{int(time.time())}:R> using Gemini 2.5 with full context analysis",
+        "",
+        "---",
+        "",
+        collection_summary,
+        "",
+        "**📄 Individual PR Summaries**",
+    ]
 
-    # Save updated cache
-    save_pr_summary_cache(cached_summaries, model_name)
+    # Group by category
+    by_category = {}
+    for pr in pr_summaries:
+        if pr.category not in by_category:
+            by_category[pr.category] = []
+        by_category[pr.category].append(pr)
 
-    return pr_summaries
+    # Add PR links by category
+    for category, prs in by_category.items():
+        if prs:
+            lines.append("")
+            lines.append(f"**{category.title()}:**")
+            for pr in sorted(prs, key=lambda x: x.pr_number, reverse=True):
+                impact_emoji = {"major": "🔴", "moderate": "🟡", "minor": "🟢"}.get(pr.impact_level, "⚪")
+                title_preview = pr.title[:50] + "..." if len(pr.title) > 50 else pr.title
+                lines.append(
+                    f"• {impact_emoji} [#{pr.pr_number}: {title_preview}]({pr.html_url}) - [Analysis]({github_run_url}/artifacts)"
+                )
 
+    lines.extend(
+        [
+            "",
+            f"📦 [**Download Detailed PR Analysis Reports**]({github_run_url}/artifacts)",
+            "",
+            "*Enhanced analysis with full context, caching, and concurrency*",
+        ]
+    )
 
-def create_final_summary_prompt(pr_summaries: list[dict[str, str]], start_date: str, end_date: str, days: int) -> str:
-    """Create prompt for final summary from individual PR summaries."""
-    prompt = f"""You have individual summaries for all PRs merged into [Metta-AI/metta](https://github.com/Metta-AI/metta)
-from {start_date} to {end_date} ({days} days).
-
-Your task is to synthesize these into a cohesive weekly summary.
-
-IMPORTANT: Your first line MUST be:
-## Summary of changes from {start_date} to {end_date}
-
-Here are the individual PR summaries:
-
-"""
-
-    for pr_summary in pr_summaries:
-        prompt += f"---\nPR #{pr_summary['number']}: {pr_summary['title']}\n"
-        prompt += f"URL: {pr_summary['url']}\n"
-        prompt += f"{pr_summary['summary']}\n\n"
-
-    prompt += """---
-
-Now create a structured summary with:
-
-1. **Executive Summary:**
-   A concise paragraph summarizing the week's key technical developments and their overall impact.
-
-2. **Internal API Changes:**
-   List any API changes mentioned in the PR summaries, with PR references like [#123](https://github.com/Metta-AI/metta/pull/123).
-
-3. **Detailed Breakdown:**
-   Group related PRs by feature, component, or theme. Reference PRs like [#123](https://github.com/Metta-AI/metta/pull/123).
-
-Focus on technical accuracy and create a well-structured Markdown summary for Discord."""
-
-    return prompt
+    return "\n".join(lines)
 
 
-def main() -> None:
-    """Generate summary from PR digest using two-phase approach."""
-    print("Starting two-phase PR summarization...")
+def main():
+    """Main entry point."""
 
-    # Read PR digest
-    digest_file = Path(os.getenv("PR_DIGEST_FILE", "pr_digest_output.json"))
-    if not digest_file.exists():
-        print(f"Error: Digest file not found: {digest_file}")
-        sys.exit(1)
+    # Setup logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    with open(digest_file) as f:
-        prs = json.load(f)
-
-    if not prs:
-        print("No PRs to summarize")
-        return
-
-    # Get date range
-    date_range = os.getenv("DATE_RANGE", "")
-    if date_range:
-        start_date_str, end_date_str = date_range.split(" to ")
-    else:
-        merged_dates = [pr["merged_at"] for pr in prs]
-        start_date_str = min(merged_dates)[:10]
-        end_date_str = max(merged_dates)[:10]
-
-    days_scanned = int(os.getenv("DAYS_TO_SCAN", "7"))
-
-    # Initialize Gemini
+    # Get configuration
     api_key = os.getenv("GEMINI_API_KEY")
+    pr_digest_file = os.getenv("PR_DIGEST_FILE", "pr_digest_output.json")
+    date_range = os.getenv("DATE_RANGE", "")
+    repository = os.getenv("REPOSITORY", "")
+    github_run_url = (
+        f"{os.getenv('GITHUB_SERVER_URL', '')}/{os.getenv('GITHUB_REPOSITORY', '')}"
+        f"/actions/runs/{os.getenv('GITHUB_RUN_ID', '')}"
+    )
+
     if not api_key:
-        print("Error: GEMINI_API_KEY not set")
+        print("Error: GEMINI_API_KEY not provided")
         sys.exit(1)
 
-    genai.configure(api_key=api_key)
-
-    # Get model configuration
-    phase1_model_name, phase2_model_name = get_model_config()
-
-    # Model for individual PR summaries
-    pr_model = genai.GenerativeModel(phase1_model_name)
-
-    # Model for final summary
-    system_prompt = """You are a technical writing assistant specialized in summarizing software development activity.
-You synthesize individual PR summaries into structured, technical, and concise weekly reports suitable for Discord.
-Focus exclusively on technical accuracy, clarity, and readability."""
-
-    final_model = genai.GenerativeModel(phase2_model_name, system_instruction=system_prompt)
-
-    # Phase 1: Generate individual PR summaries
-    print(f"\nPhase 1: Generating summaries for {len(prs)} PRs...")
-
-    # Check if we should use parallel processing
-    use_parallel = os.getenv("USE_PARALLEL", "true").lower() == "true"
-    max_workers = int(os.getenv("MAX_WORKERS", "5"))
-
-    if use_parallel and len(prs) > 2:
-        print(f"  Using parallel processing with {max_workers} workers")
-        pr_summaries = summarize_prs_parallel(prs, pr_model, phase1_model_name, max_workers)
-    else:
-        print("  Using sequential processing")
-        pr_summaries = summarize_prs_sequential(prs, pr_model, phase1_model_name)
-
-    # Save intermediate summaries (useful for debugging)
-    with open("pr_summaries_intermediate.json", "w") as f:
-        json.dump(pr_summaries, f, indent=2)
-    print("  Saved intermediate summaries to pr_summaries_intermediate.json")
-
-    # Phase 2: Generate final summary
-    print("\nPhase 2: Generating final consolidated summary...")
-    final_prompt = create_final_summary_prompt(pr_summaries, start_date_str, end_date_str, days_scanned)
-
-    try:
-        response = final_model.generate_content(final_prompt)
-        summary = response.text
-
-        # Clean up response
-        if summary.startswith("```markdown"):
-            summary = summary[len("```markdown") :].lstrip()
-        if summary.endswith("```"):
-            summary = summary[: -len("```")].rstrip()
-
-    except Exception as e:
-        print(f"Error generating final summary: {e}")
+    if not Path(pr_digest_file).exists():
+        print(f"Error: PR digest file {pr_digest_file} not found")
         sys.exit(1)
 
-    # Output
-    print("\n--- Generated PR Summary ---")
-    print(summary)
-    print("--- End of Summary ---")
+    # Load PR data
+    with open(pr_digest_file, "r") as f:
+        pr_data_list = json.load(f)
 
-    # Save for workflow
+    if not pr_data_list:
+        print("No PRs found in digest")
+        sys.exit(0)
+
+    # Initialize generator
+    generator = PRSummaryGenerator(api_key)
+
+    print(f"Processing {len(pr_data_list)} PRs with enhanced analysis...")
+
+    # Process PRs with caching and concurrency
+    pr_summaries = generator.process_prs_with_cache(pr_data_list)
+
+    if not pr_summaries:
+        print("No summaries generated")
+        sys.exit(1)
+
+    # Generate collection summary
+    print("Generating collection summary...")
+    collection_summary = generator.generate_collection_summary(pr_summaries, date_range, repository)
+
+    # Create Discord-formatted output
+    discord_summary = create_discord_summary(pr_summaries, collection_summary, date_range, github_run_url)
+
+    # Save Discord summary
     with open("pr_summary_output.txt", "w") as f:
-        f.write(summary)
+        f.write(discord_summary)
 
-    # GitHub output
+    # Save structured data (only one JSON file)
+    with open("pr_summary_data.json", "w") as f:
+        json.dump([asdict(pr) for pr in pr_summaries], f, indent=2)
+
+    # GitHub outputs
     github_output = os.getenv("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a") as f:
-            f.write("summary_file=pr_summary_output.txt\n")
+            f.write("summary-file=pr_summary_output.txt\n")
+            f.write("data-file=pr_summary_data.json\n")
+            f.write(f"individual-summaries={len(pr_summaries)}\n")
 
-    print("\nScript finished successfully.")
+    print(f"✅ Generated {len(pr_summaries)} comprehensive summaries with caching and concurrency")
+    print(f"📁 Artifacts saved to: {generator.output_dir}")
 
 
 if __name__ == "__main__":
