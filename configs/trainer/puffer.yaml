@@ -23,7 +23,7 @@ gamma: 0.977
 #   weight_decay: 0
 
 #delete below after testing
-slice_obs: true
+slice_obs: false
 
 optimizer:
   type: adam

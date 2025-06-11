@@ -168,31 +168,32 @@ class PufferTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
-        _env_shape = metta_grid_env.single_observation_space.shape
-        environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
+        # delete
+        # assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
+        # _env_shape = metta_grid_env.single_observation_space.shape
+        # environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
-            found_match = False
-            for component_name, component in self.metta_agent.components.items():
-                if hasattr(component, "_obs_shape"):
-                    found_match = True
-                    component_shape = (
-                        tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                    )
-                    if component_shape != environment_shape:
-                        raise ValueError(
-                            f"Observation space mismatch error:\n"
-                            f"[policy] component_name: {component_name}\n"
-                            f"[policy] component_shape: {component_shape}\n"
-                            f"environment_shape: {environment_shape}\n"
-                        )
+        # if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
+        #     found_match = False
+        #     for component_name, component in self.metta_agent.components.items():
+        #         if hasattr(component, "_obs_shape"):
+        #             found_match = True
+        #             component_shape = (
+        #                 tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
+        #             )
+        #             if component_shape != environment_shape:
+        #                 raise ValueError(
+        #                     f"Observation space mismatch error:\n"
+        #                     f"[policy] component_name: {component_name}\n"
+        #                     f"[policy] component_shape: {component_shape}\n"
+        #                     f"environment_shape: {environment_shape}\n"
+        #                 )
 
-            if not found_match:
-                raise ValueError(
-                    "No component with observation shape found in policy. "
-                    f"Environment observation shape: {environment_shape}"
-                )
+        #     if not found_match:
+        #         raise ValueError(
+        #             "No component with observation shape found in policy. "
+        #             f"Environment observation shape: {environment_shape}"
+        #         )
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
@@ -358,6 +359,8 @@ class PufferTrainer:
         while not experience.full:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
+                if self.trainer_cfg.slice_obs: # delete
+                    o = o[:, :100, :]
 
                 if self.trainer_cfg.require_contiguous_env_ids:
                     raise ValueError(
@@ -386,10 +389,8 @@ class PufferTrainer:
 
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
 
-                if self.trainer_cfg.slice_obs:
-                    o_device = o[:, :100, :].to(self.device, non_blocking=True)
-                else:
-                    o_device = o.to(self.device, non_blocking=True)
+                o_device = o.to(self.device, non_blocking=True)
+
                 actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
 
                 if __debug__:
@@ -788,6 +789,10 @@ class PufferTrainer:
         obs_dtype = metta_grid_env.single_observation_space.dtype
         atn_shape = metta_grid_env.single_action_space.shape
         atn_dtype = metta_grid_env.single_action_space.dtype
+
+        # delete
+        if self.trainer_cfg.slice_obs:
+            obs_shape = (100, 3)
 
         # Use num_agents for the total number of environments/states to track
         lstm_total_agents = getattr(self.vecenv, "num_agents", 0)

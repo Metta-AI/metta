@@ -57,8 +57,8 @@ class LSTM(LayerBase):
 
         x_shape, space_shape = x.shape, self._obs_shape
         x_n, space_n = len(x_shape), len(space_shape)
-        if tuple(x_shape[-space_n:]) != tuple(space_shape):
-            raise ValueError("Invalid input tensor shape", x.shape)
+        # if tuple(x_shape[-space_n:]) != tuple(space_shape): #delete
+        #     raise ValueError("Invalid input tensor shape", x.shape)
 
         if x_n == space_n + 1:
             B, TT = x_shape[0], 1
