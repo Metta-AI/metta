@@ -123,17 +123,17 @@ sweep:
       scale: 1
       distribution: int_uniform
 
-  # Protein optimizer metadata
+    # Protein optimizer metadata
   metric: reward
   goal: maximize
 
-# Production training settings - high timesteps
-trainer:
-  total_timesteps: 50000000          # 50M timesteps (middle of 1e7-1e9 range)
-  evaluate_interval: 1000000         # Evaluate every 1M steps
-  checkpoint_interval: 5000000       # Checkpoint every 5M steps
+  # Production training settings - high timesteps
+  trainer:
+    total_timesteps: 50000000          # 50M timesteps (middle of 1e7-1e9 range)
+    evaluate_interval: 1000000         # Evaluate every 1M steps
+    checkpoint_interval: 5000000       # Checkpoint every 5M steps
 
-  # Production settings
-  num_steps: 128                     # Standard rollout length
-  cpu_offload: false                 # Keep on GPU for speed
-  compile: false                     # Disable for stability
+    # Production settings
+    num_steps: 128                     # Standard rollout length
+    cpu_offload: false                 # Keep on GPU for speed
+    compile: false                     # Disable for stability

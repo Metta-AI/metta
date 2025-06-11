@@ -98,8 +98,8 @@ sweep:
   metric: reward
   goal: maximize
 
-# Standard training settings
-trainer:
-  total_timesteps: 1000000           # 1M timesteps for reasonable training
-  evaluate_interval: 100000          # Evaluate every 100K steps
-  checkpoint_interval: 500000        # Checkpoint every 500K steps
+  # Standard training settings
+  trainer:
+    total_timesteps: 1000000           # 1M timesteps for reasonable training
+    evaluate_interval: 100000          # Evaluate every 100K steps
+    checkpoint_interval: 500000        # Checkpoint every 500K steps
