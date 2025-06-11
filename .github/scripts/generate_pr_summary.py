@@ -654,8 +654,7 @@ def create_discord_summary(
     lines.extend(
         [
             "",
-            f"📦 [**Download Detailed PR Analysis Reports**]({github_run_url}/artifacts)",
-            "",
+            f'📦 [**Download Complete Analysis ("Artifacts/pr-summary-N.zip")**]({github_run_url})',
             "*Enhanced analysis with full context, caching, and concurrency*",
         ]
     )
