@@ -142,11 +142,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         validation_time = time.perf_counter() - validation_start
         logging.debug(f"Level validation required {validation_time:.4f} sec")
 
-        # Convert to container for C++ code
-        config_conversion_start = time.perf_counter()
+        # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
-        config_conversion_time = time.perf_counter() - config_conversion_start
-        logging.debug(f"Config conversion required {config_conversion_time:.4f} sec")
 
         self._map_labels = level.labels
 
@@ -157,18 +154,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self._grid_env = self._c_env
 
-    @override
+    @override  # pufferlib.PufferEnv.reset
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
-        """
-        This method overrides the reset method from PufferEnv.
-        """
+        self._task = self._curriculum.get_task()
 
-        # Get a new task
-        with self.timer("reset.get_task"):
-            self._task = self._curriculum.get_task()
-
-        with self.timer("reset._initialize_c_env"):
-            self._initialize_c_env(self._task)
+        self._initialize_c_env(self._task)
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -189,7 +179,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
         return obs, infos
 
-    @override
+    @override  # pufferlib.PufferEnv.step
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         """
         Execute one timestep of the environment dynamics with the given actions.
@@ -380,7 +370,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._c_env.obs_height
 
     @property
-    def action_names(self):
+    def action_names(self) -> list[str]:
         return self._c_env.action_names()
 
     @property
@@ -388,18 +378,19 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def num_agents(self) -> int:
         return self._c_env.num_agents
 
-    def render(self):
+    def render(self) -> str | None:
         if self._renderer is None:
             return None
 
         return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
 
     @property
+    @override
     def done(self):
         return self._should_reset
 
     @property
-    def feature_normalizations(self):
+    def feature_normalizations(self) -> list[float]:
         return self._c_env.feature_normalizations()
 
     @property
@@ -407,6 +398,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return []
 
     @property
+    @override
     def render_mode(self):
         return self._render_mode
 
