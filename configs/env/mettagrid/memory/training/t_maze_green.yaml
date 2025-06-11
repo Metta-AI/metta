@@ -20,9 +20,10 @@ game:
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
-    border_width: 6
+    border_width: 3
     room:
       _target_: mettagrid.room.cognitive_evals.t_maze.TMaze
+      border_width: 1
       orientation: "down"
       main_hall_length: 12
       side_halls_length: 4
