@@ -106,6 +106,8 @@ simulations:
     env: env/mettagrid/navigation_sequence/evals/thecube
   navsequence/walkaround:
     env: env/mettagrid/navigation_sequence/evals/walkaround
+  navsequence/wanderout:
+    env: env/mettagrid/navigation_sequence/evals/wanderout
   memory/easy:
     env: env/mettagrid/memory/evals/easy
   memory/medium:
@@ -156,5 +158,3 @@ simulations:
     env: env/mettagrid/memory/evals/tease_small
   memory/you_shall_not_pass:
     env: env/mettagrid/memory/evals/you_shall_not_pass
-  navigation_sequence/wanderout:
-    env: env/mettagrid/navigation_sequence/evals/wanderout
