@@ -156,7 +156,5 @@ simulations:
     env: env/mettagrid/memory/evals/tease_small
   memory/you_shall_not_pass:
     env: env/mettagrid/memory/evals/you_shall_not_pass
-  memory/memory3:
-    env: env/mettagrid/memory/evals/memory3
   navigation_sequence/wanderout:
     env: env/mettagrid/navigation_sequence/evals/wanderout
