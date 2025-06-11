@@ -1,24 +1,105 @@
-# Run configuration
-run: sweep_test
-run_dir: ./train_dir/${run}
-policy_uri: file://${run_dir}/checkpoints
+# @package _global_
+# Template protein sweep - converted from CARBS format
+# Customize this for your specific use case
 
+# Rollout limit for predictable completion
+rollout_count: 20  # Stop after 20 experiments (~4-8 hours total)
+
+sweep:
+  parameters:
+    # Optimizer parameters
+    trainer.learning_rate:
+      min: 0.00001
+      max: 0.001
+      mean: 0.0001
+      scale: 1
+      distribution: log_normal
+
+    trainer.optimizer.beta1:
+      min: 0.8
+      max: 0.99
+      mean: 0.9
+      scale: 1
+      distribution: uniform
+
+    trainer.optimizer.beta2:
+      min: 0.9
+      max: 0.9999
+      mean: 0.999
+      scale: 1
+      distribution: uniform
+
+    trainer.optimizer.eps:
+      min: 0.00000001
+      max: 0.0001
+      mean: 0.00000001
+      scale: 1
+      distribution: log_normal
+
+    # PPO hyperparameters
+    trainer.gamma:
+      min: 0.9
+      max: 0.99
+      mean: 0.95
+      scale: 1
+      distribution: uniform
+
+    trainer.gae_lambda:
+      min: 0.9
+      max: 0.99
+      mean: 0.95
+      scale: 1
+      distribution: uniform
+
+    trainer.ent_coef:
+      min: 0.00001
+      max: 0.01
+      mean: 0.001
+      scale: 1
+      distribution: log_normal
+
+    trainer.vf_coef:
+      min: 0.3
+      max: 0.7
+      mean: 0.5
+      scale: 1
+      distribution: uniform
+
+    # Training configuration
+    trainer.batch_size:
+      min: 8192
+      max: 32768
+      mean: 16384
+      scale: 1
+      distribution: int_uniform
+
+    trainer.minibatch_size:
+      min: 1024
+      max: 8192
+      mean: 4096
+      scale: 1
+      distribution: int_uniform
+
+    trainer.update_epochs:
+      min: 1
+      max: 4
+      mean: 2
+      scale: 1
+      distribution: int_uniform
+
+    trainer.bptt_horizon:
+      min: 8
+      max: 64
+      mean: 32
+      scale: 1
+      distribution: int_uniform
+
+  # Protein optimizer metadata
+  metric: reward
+  goal: maximize
+
+# Standard training settings
 trainer:
-  # Learning rate sweep
-  optimizer:
-    learning_rate: ${ss:log, 1e-5, 1e-3}
-    beta1: ${ss:logit, 0.8, 0.99}
-    beta2: ${ss:logit, 0.9, 0.9999}
-    eps: ${ss:log, 1e-8, 1e-4}
-
-  # PPO hyperparameters
-  gamma: ${ss:logit, 0.9, 0.99}
-  gae_lambda: ${ss:logit, 0.9, 0.99}
-  ent_coef: ${ss:log, 1e-5, 1e-2}
-  vf_coef: ${ss:logit, 0.3, 0.7}
-
-  # Training configuration
-  batch_size: ${ss:pow2, 8192, 32768}
-  minibatch_size: ${ss:pow2, 1024, 8192}
-  update_epochs: ${ss:int, 1, 4}
-  bptt_horizon: ${ss:pow2, 8, 64}
+  total_timesteps: 1000000           # 1M timesteps for reasonable training
+  evaluate_interval: 100000          # Evaluate every 100K steps
+  checkpoint_interval: 500000        # Checkpoint every 500K steps

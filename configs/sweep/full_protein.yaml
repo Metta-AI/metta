@@ -1,0 +1,139 @@
+# @package _global_
+# Full protein sweep - converted from full.yaml CARBS format
+# Comprehensive parameter optimization for production use
+
+# Production rollout count
+rollout_count: 50  # Stop after 50 experiments (~2-4 days total)
+
+sweep:
+  parameters:
+    # Core PPO parameters
+    trainer.gamma:
+      min: 0.01
+      max: 0.999
+      mean: 0.99
+      scale: 1
+      distribution: uniform
+
+    trainer.gae_lambda:
+      min: 0.01
+      max: 0.999
+      mean: 0.95
+      scale: 1
+      distribution: uniform
+
+    trainer.update_epochs:
+      min: 1
+      max: 16
+      mean: 4
+      scale: 1
+      distribution: int_uniform
+
+    trainer.clip_coef:
+      min: 0.01
+      max: 0.999
+      mean: 0.2
+      scale: 1
+      distribution: uniform
+
+    trainer.vf_coef:
+      min: 0.01
+      max: 0.999
+      mean: 0.5
+      scale: 1
+      distribution: uniform
+
+    trainer.vf_clip_coef:
+      min: 0.01
+      max: 0.999
+      mean: 0.2
+      scale: 1
+      distribution: uniform
+
+    trainer.ent_coef:
+      min: 0.00001
+      max: 0.1
+      mean: 0.001
+      scale: 1
+      distribution: log_normal
+
+    # Batch size parameters - large scale
+    trainer.batch_size:
+      min: 131072
+      max: 524288
+      mean: 262144
+      scale: 1
+      distribution: int_uniform
+
+    trainer.minibatch_size:
+      min: 1024
+      max: 131072
+      mean: 32768
+      scale: 1
+      distribution: int_uniform
+
+    trainer.forward_pass_minibatch_target_size:
+      min: 1024
+      max: 32768
+      mean: 8192
+      scale: 1
+      distribution: int_uniform
+
+    trainer.bptt_horizon:
+      min: 1
+      max: 128
+      mean: 32
+      scale: 1
+      distribution: int_uniform
+
+    # Optimizer parameters
+    trainer.learning_rate:
+      min: 0.00001
+      max: 0.1
+      mean: 0.001
+      scale: 1
+      distribution: log_normal
+
+    trainer.optimizer.beta1:
+      min: 0.01
+      max: 0.999
+      mean: 0.9
+      scale: 1
+      distribution: uniform
+
+    trainer.optimizer.beta2:
+      min: 0.01
+      max: 0.999
+      mean: 0.999
+      scale: 1
+      distribution: uniform
+
+    trainer.optimizer.eps:
+      min: 0.000000000001
+      max: 0.000001
+      mean: 0.00000001
+      scale: 1
+      distribution: log_normal
+
+    # Agent architecture parameters
+    agent.components._obs_.atr_embed_dim:
+      min: 16
+      max: 128
+      mean: 64
+      scale: 1
+      distribution: int_uniform
+
+  # Protein optimizer metadata
+  metric: reward
+  goal: maximize
+
+# Production training settings - high timesteps
+trainer:
+  total_timesteps: 50000000          # 50M timesteps (middle of 1e7-1e9 range)
+  evaluate_interval: 1000000         # Evaluate every 1M steps
+  checkpoint_interval: 5000000       # Checkpoint every 5M steps
+
+  # Production settings
+  num_steps: 128                     # Standard rollout length
+  cpu_offload: false                 # Keep on GPU for speed
+  compile: false                     # Disable for stability

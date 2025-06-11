@@ -1,0 +1,96 @@
+# @package _global_
+# Fast protein sweep - converted from fast.yaml CARBS format
+# Completes in ~10-15 minutes with comprehensive parameter space
+
+# Limit rollouts for predictable completion
+rollout_count: 10  # Stop after 10 experiments (~1-2 hours total)
+
+sweep:
+  parameters:
+    # Learning rate - log distribution (1e-5 to 1e-1)
+    trainer.learning_rate:
+      min: 0.00001
+      max: 0.1
+      mean: 0.001
+      scale: 1
+      distribution: log_normal
+
+    # Gamma - logit distribution (0.0 to 1.0)
+    trainer.gamma:
+      min: 0.01
+      max: 0.999
+      mean: 0.95
+      scale: 1
+      distribution: uniform
+
+    # GAE Lambda - logit distribution (0.0 to 1.0)
+    trainer.gae_lambda:
+      min: 0.01
+      max: 0.999
+      mean: 0.95
+      scale: 1
+      distribution: uniform
+
+    # Value function coefficient - logit distribution (0.0 to 1.0)
+    trainer.vf_coef:
+      min: 0.01
+      max: 0.999
+      mean: 0.5
+      scale: 1
+      distribution: uniform
+
+    # Entropy coefficient - log distribution (1e-5 to 1e-1)
+    trainer.ent_coef:
+      min: 0.00001
+      max: 0.1
+      mean: 0.001
+      scale: 1
+      distribution: log_normal
+
+    # Batch size - power of 2 (128 to 1024)
+    trainer.batch_size:
+      min: 128
+      max: 1024
+      mean: 512
+      scale: 1
+      distribution: int_uniform
+
+    # BPTT horizon - power of 2 (4 to 8)
+    trainer.bptt_horizon:
+      min: 4
+      max: 8
+      mean: 6
+      scale: 1
+      distribution: int_uniform
+
+    # Altar cooldown - integer (1 to 20)
+    env.game.objects.altar.cooldown:
+      min: 1
+      max: 20
+      mean: 10
+      scale: 1
+      distribution: int_uniform
+
+  # Protein optimizer metadata
+  metric: reward
+  goal: maximize
+
+# Fast training settings - log distribution (1e3 to 1e4)
+trainer:
+  total_timesteps: 5000              # Middle of 1e3-1e4 range
+  evaluate_interval: 1000            # Quick evaluation
+  checkpoint_interval: 2500          # Minimal checkpointing
+
+  # Fixed optimizations for speed
+  update_epochs: 1                   # Single update epoch
+  num_steps: 32                      # Short rollouts
+  minibatch_size: 128               # Fixed small minibatch
+  forward_pass_minibatch_target_size: 128
+
+# Environment overrides
+env:
+  game:
+    max_steps: 32                    # Short episodes for speed
+    objects:
+      altar:
+        hp: 10                       # Fixed HP as in original
