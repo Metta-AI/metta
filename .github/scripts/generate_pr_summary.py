@@ -629,35 +629,8 @@ def create_discord_summary(
         "",
         collection_summary,
         "",
-        "**📄 Individual PR Summaries**",
+        f"📦 [**Download Complete Analysis (pr-summary-N.zip)**]({github_run_url})",
     ]
-
-    # Group by category
-    by_category = {}
-    for pr in pr_summaries:
-        if pr.category not in by_category:
-            by_category[pr.category] = []
-        by_category[pr.category].append(pr)
-
-    # Add PR links by category
-    for category, prs in by_category.items():
-        if prs:
-            lines.append("")
-            lines.append(f"**{category.title()}:**")
-            for pr in sorted(prs, key=lambda x: x.pr_number, reverse=True):
-                impact_emoji = {"major": "🔴", "moderate": "🟡", "minor": "🟢"}.get(pr.impact_level, "⚪")
-                title_preview = pr.title[:50] + "..." if len(pr.title) > 50 else pr.title
-                lines.append(
-                    f"• {impact_emoji} [#{pr.pr_number}: {title_preview}]({pr.html_url}) - [Analysis]({github_run_url}/artifacts)"
-                )
-
-    lines.extend(
-        [
-            "",
-            f'📦 [**Download Complete Analysis ("Artifacts/pr-summary-N.zip")**]({github_run_url})',
-            "*Enhanced analysis with full context, caching, and concurrency*",
-        ]
-    )
 
     return "\n".join(lines)
 

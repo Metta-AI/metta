@@ -96,7 +96,7 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
 
     for i, chunk in enumerate(chunks):
         # Prefix each chunk with CRLF
-        prefixed_chunk = "\r\n" + chunk
+        prefixed_chunk = "...\r\n   \r\n" + chunk
 
         payload: Dict[str, Any] = {"content": prefixed_chunk}
         if suppress_embeds:
