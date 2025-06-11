@@ -16,7 +16,6 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
-from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.policy import PufferAgent
@@ -88,7 +87,6 @@ class PufferTrainer:
         self._eval_grouped_scores = {}
         self._eval_suite_avgs = {}
         self._eval_categories = set()
-        self._weights_helper = WeightsMetricsHelper(cfg)
 
         # Curriculum setup
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
@@ -379,7 +377,6 @@ class PufferTrainer:
                 with self.timer("_evaluate_policy", log=logging.INFO):
                     self._evaluate_policy()
 
-            self._weights_helper.on_epoch_end(self.epoch, self.policy)
             if self.torch_profiler:
                 self.torch_profiler.on_epoch_end(self.epoch)
 
@@ -534,6 +531,13 @@ class PufferTrainer:
 
         return self.stats, infos
 
+    def _get_experience_buffer_mean_reward(self) -> float:
+        # Use rewards from experience buffer
+        if hasattr(self, "experience") and self.experience.rewards_np is not None:
+            return float(np.mean(self.experience.rewards_np))
+
+        return 0.0
+
     def _train(self):
         """Train phase with prioritized experience replay and new advantage computation."""
         profile = self.profile
@@ -559,8 +563,14 @@ class PufferTrainer:
 
             # Average reward adjustment
             if config.average_reward:
-                alpha = config.average_reward_alpha
-                self.average_reward = (1 - alpha) * self.average_reward + alpha * self.rewards.mean().item()
+                # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
+                # where ρ is the average reward estimate
+                current_batch_mean = self._get_experience_buffer_mean_reward()
+                alpha = self.trainer_cfg.average_reward_alpha
+                rewards_np_adjusted = (self.rewards.mean().item() - self.average_reward).astype(np.float32)
+                self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
+
+                # Use filtered estimate for advantage computation
                 rewards_adjusted = self.rewards - self.average_reward
                 effective_gamma = 1.0
             else:
@@ -814,12 +824,13 @@ class PufferTrainer:
             logger.warning("Failed to checkpoint policy")
             return
 
+        # Save filtered average reward estimate for restart continuity
+        extra_args = {}
+        if self.trainer_cfg.average_reward:
+            extra_args["average_reward"] = self.average_reward
+
         self.checkpoint = TrainerCheckpoint(
-            self.agent_step,
-            self.epoch,
-            self.optimizer.state_dict(),
-            pr.local_path(),
-            average_reward=self.average_reward,
+            self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
@@ -933,8 +944,145 @@ class PufferTrainer:
                     }
                     self.wandb_run.log(link_summary)
 
-    def _update_l2_init_weight_copy(self):
-        self.policy.update_l2_init_weight_copy()
+    def _process_stats(self):
+        # convert lists of values (collected across all environments and rollout steps on this GPU)
+        # into single mean values.
+        mean_stats = {}
+        for k, v in self.stats.items():
+            try:
+                mean_stats[k] = np.mean(v)
+            except (TypeError, ValueError) as e:
+                raise RuntimeError(
+                    f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
+                    f"All collected stats must be numeric values or lists of numeric values. "
+                    f"Error: {e}"
+                ) from e
+        self.stats = mean_stats
+
+        weight_metrics = {}
+        if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
+            for metrics in self.policy.compute_weight_metrics():
+                name = metrics.get("name", "unknown")
+                for key, value in metrics.items():
+                    if key != "name":
+                        weight_metrics[f"weights/{key}/{name}"] = value
+
+        # Calculate derived stats from local roll-outs (master process will handle logging)
+        sps = self.profile.SPS
+        agent_steps = self.agent_step
+        epoch = self.epoch
+        learning_rate = self.optimizer.param_groups[0]["lr"]
+        losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
+        performance = {k: v for k, v in self.profile}
+
+        overview = {"SPS": sps}
+        for k, v in self.trainer_cfg.stats.overview.items():
+            if k in self.stats:
+                overview[v] = self.stats[k]
+
+        for category in self._eval_categories:
+            score = self._eval_suite_avgs.get(f"{category}_score", None)
+            if score is not None:
+                overview[f"{category}_evals"] = score
+
+        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
+
+        # Add timing metrics to wandb
+        if self.wandb_run and self._master:
+            timer_data = {}
+            wall_time = self.timer.get_elapsed()  # global timer
+            timer_data = self.timer.get_all_elapsed()
+
+            training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
+            overhead_time = wall_time - training_time
+            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
+
+            timing_logs = {
+                # Key performance indicators
+                "timing/steps_per_second": steps_per_sec,
+                "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
+                "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
+                # Breakdown by operation (as a single structured metric)
+                "timing/breakdown": {
+                    op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
+                    for op, elapsed in timer_data.items()
+                },
+                # Total time for reference
+                "timing/total_seconds": wall_time,
+            }
+
+            # Log everything to wandb
+            self.wandb_run.log(
+                {
+                    **{f"overview/{k}": v for k, v in overview.items()},
+                    **{f"losses/{k}": v for k, v in losses.items()},
+                    **{f"performance/{k}": v for k, v in performance.items()},
+                    **environment,
+                    **weight_metrics,
+                    **self._eval_grouped_scores,
+                    "train/agent_step": agent_steps,
+                    "train/epoch": epoch,
+                    "train/learning_rate": learning_rate,
+                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+                    **timing_logs,
+                }
+            )
+
+        self._eval_grouped_scores = {}
+        self.stats.clear()
+
+    def close(self):
+        self.vecenv.close()
+
+    def initial_pr_uri(self):
+        return self._initial_pr.uri
+
+    def last_pr_uri(self):
+        return self.last_pr.uri
+
+    def _make_experience_buffer(self):
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, MettaGridEnv), (
+            "vecenv.driver_env must be a MettaGridEnv for experience buffer"
+        )
+
+        # Extract environment specifications
+        obs_shape = metta_grid_env.single_observation_space.shape
+        obs_dtype = metta_grid_env.single_observation_space.dtype
+        atn_shape = metta_grid_env.single_action_space.shape
+        atn_dtype = metta_grid_env.single_action_space.dtype
+
+        # Use num_agents for the total number of environments/states to track
+        lstm_total_agents = getattr(self.vecenv, "num_agents", 0)
+        assert lstm_total_agents > 0, "self.vecenv.num_agents not found!"
+        logging.info(f"Creating experience buffer with lstm_total_agents={lstm_total_agents} (from vecenv.num_agents)")
+
+        # Handle policy fields with assertions
+        assert hasattr(self.policy, "hidden_size"), "Policy must have hidden_size attribute"
+        hidden_size = int(getattr(self.policy, "hidden_size", -1))
+        assert hidden_size > 0, f"Policy hidden_size cannot be converted to int: {type(hidden_size)}"
+
+        assert hasattr(self.policy, "lstm"), "Policy must have lstm attribute"
+        lstm = getattr(self.policy, "lstm", {})
+        assert isinstance(lstm, torch.nn.modules.rnn.LSTM), (
+            f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
+        )
+
+        # Create the Experience buffer with appropriate parameters
+        self.experience = Experience(
+            batch_size=self.trainer_cfg.batch_size,  # Total number of environment steps to collect before updating
+            bptt_horizon=self.trainer_cfg.bptt_horizon,  # Sequence length for BPTT (backpropagation through time)
+            minibatch_size=self.trainer_cfg.minibatch_size,  # Size of minibatches for training
+            hidden_size=hidden_size,  # Dimension of the policy's hidden state
+            obs_shape=obs_shape,  # Shape of a single observation
+            obs_dtype=obs_dtype,  # Data type of observations
+            atn_shape=atn_shape,  # Shape of a single action
+            atn_dtype=atn_dtype,  # Data type of actions
+            cpu_offload=self.trainer_cfg.cpu_offload,  # Whether to store data on CPU and transfer to GPU as needed
+            device=self.device,  # Device to store tensors on ("cuda" or "cpu")
+            lstm=lstm,  # LSTM module from the policy (needed for dimensions) # type: ignore - Pylance is wrong
+            lstm_total_agents=lstm_total_agents,  # Total number of LSTM states to maintain
+        )
 
     def _make_losses(self):
         return SimpleNamespace(

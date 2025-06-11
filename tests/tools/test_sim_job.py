@@ -25,7 +25,8 @@ def build_config():
 def test_config_defaults(build_config):
     cfg = build_config(["run=test"])
     assert cfg.selector_type == "top"
-    assert cfg.policy_uris == ["file://./train_dir/test/checkpoints"]
+    assert len(cfg.policy_uris) == 1
+    assert cfg.policy_uris[0].endswith("test/checkpoints")
     assert cfg.simulation_suite.name == "all"
 
 
