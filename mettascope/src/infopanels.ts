@@ -41,6 +41,7 @@ infoPanelTemplate.remove();
 
 var hoverPanel = infoPanelTemplate.cloneNode(true) as HTMLElement;
 document.body.appendChild(hoverPanel);
+findIn(hoverPanel, ".actions").classList.add("hidden");
 hoverPanel.classList.add("hidden");
 
 hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
@@ -56,6 +57,14 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
   updateDom(panel.div, panel.object);
   panel.div.style.top = hoverPanel.style.top;
   panel.div.style.left = hoverPanel.style.left;
+
+  // Show the actions buttons (memory, etc.) if the object is an agent.
+  var actions = findIn(panel.div, ".actions");
+  if (panel.object.hasOwnProperty("agent_id")) {
+    actions.classList.remove("hidden");
+  } else {
+    actions.classList.add("hidden");
+  }
 
   ui.dragHtml = panel.div;
   // Compute mouse position relative to the panel.
@@ -77,7 +86,6 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
 export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
     updateDom(hoverPanel, object);
-
     hoverPanel.classList.remove("hidden");
 
     let panelRect = hoverPanel.getBoundingClientRect();
@@ -90,7 +98,6 @@ export function updateHoverPanel(object: any) {
     // Put it in the center above the object.
     hoverPanel.style.left = uiPoint.x() - panelRect.width / 2 + "px";
     hoverPanel.style.top = uiPoint.y() - panelRect.height + "px";
-
   } else {
     hoverPanel.classList.add("hidden");
   }
@@ -107,13 +114,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   var paramTemplate = findIn(infoPanelTemplate, ".param");
   var inventory = findIn(htmlPanel, ".inventory");
   var itemTemplate = findIn(infoPanelTemplate, ".item");
-  var actions = findIn(htmlPanel, ".actions");
-
-  if (object.hasOwnProperty("agent_id")) {
-    actions.classList.remove("hidden");
-  } else {
-    actions.classList.add("hidden");
-  }
+  let actions = findIn(hoverPanel, ".actions");
 
   removeChildren(params);
   //top.appendChild(pin);

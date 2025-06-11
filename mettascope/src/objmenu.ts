@@ -50,23 +50,31 @@ onEvent("click", "#object-menu .set-memory-to-random", (target: HTMLElement, e: 
   }));
 })
 
-onEvent("click", "#object-menu .copy-memory", (target: HTMLElement, e: Event) => {
+onEvent("click", "#object-menu .copy-memory", async (target: HTMLElement, e: Event) => {
   if (state.ws == null) return;
   let agentId = parseInt(findAttr(target, "data-agent-id"));
   console.log("Copying memory");
+  // Request memory from server
   state.ws.send(JSON.stringify({
     type: "copy_memory",
     agent_id: agentId
   }));
 })
 
-onEvent("click", "#object-menu .paste-memory", (target: HTMLElement, e: Event) => {
+onEvent("click", "#object-menu .paste-memory", async (target: HTMLElement, e: Event) => {
   if (state.ws == null) return;
   let agentId = parseInt(findAttr(target, "data-agent-id"));
   console.log("Pasting memory");
-  state.ws.send(JSON.stringify({
-    type: "paste_memory",
-    agent_id: agentId,
-    memory: JSON.parse(localStorage.getItem("memory") || "[[], []]")
-  }));
+
+  try {
+    const clipboardText = await navigator.clipboard.readText();
+    const memory = JSON.parse(clipboardText) as [number[], number[]];
+    state.ws.send(JSON.stringify({
+      type: "paste_memory",
+      agent_id: agentId,
+      memory: memory
+    }));
+  } catch (err) {
+    console.error("Failed to paste from clipboard:", err);
+  }
 })

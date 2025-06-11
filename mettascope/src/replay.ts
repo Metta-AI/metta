@@ -342,7 +342,7 @@ export function initWebSocket(wsUrl: string) {
       console.info("Received message: ", data.message);
     } else if (data.type === "memory_copied") {
       console.log("Received memory: ", data.memory);
-      localStorage.setItem("memory", JSON.stringify(data.memory));
+      navigator.clipboard.writeText(JSON.stringify(data.memory));
     }
   };
   state.ws.onopen = () => {
