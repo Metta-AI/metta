@@ -174,6 +174,16 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
             # Include all sections, not just the swept ones, to maintain full config structure
             train_cfg_dict = OmegaConf.to_container(cfg, resolve=True)
 
+            # Extract config overrides from sweep section (trainer, env, etc.)
+            sweep_overrides = {}
+            if isinstance(train_cfg_dict, dict) and "sweep" in train_cfg_dict:
+                sweep_config = train_cfg_dict["sweep"]
+                if isinstance(sweep_config, dict):
+                    for key, value in sweep_config.items():
+                        # Skip Protein-specific fields, keep config overrides
+                        if key not in ["parameters", "metric", "goal", "num_random_samples"]:
+                            sweep_overrides[key] = value
+
             # Remove sweep-specific fields that don't belong in training config
             if isinstance(train_cfg_dict, dict):
                 sweep_fields_to_remove = [
@@ -194,13 +204,27 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
 
             # Convert back to DictConfig
             train_cfg = OmegaConf.create(train_cfg_dict)
-            # Convert numpy types to Python native types for OmegaConf compatibility
-            import json
 
-            suggestion_clean = json.loads(
-                json.dumps(suggestion, default=lambda x: float(x) if hasattr(x, "item") else str(x))
-            )
-            apply_protein_suggestion(train_cfg, suggestion_clean)
+            # Apply sweep config overrides (trainer, env, etc.)
+            for key, value in sweep_overrides.items():
+                OmegaConf.update(train_cfg, key, value)
+
+            # Convert numpy types to Python native types for OmegaConf compatibility
+            import numpy as np
+
+            # Clean up Protein suggestions - handle numpy types properly
+            suggestion_clean = {}
+            for key, value in suggestion.items():
+                if key == "suggestion_uuid":
+                    suggestion_clean[key] = value
+                elif isinstance(value, (np.ndarray, np.generic)):
+                    # Convert numpy types to Python native types
+                    suggestion_clean[key] = value.item()
+                else:
+                    suggestion_clean[key] = value
+
+            logger.info(f"Cleaned Protein suggestions: {suggestion_clean}")
+            apply_protein_suggestion(train_cfg, OmegaConf.create(suggestion_clean))
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             OmegaConf.save(train_cfg, save_path)
             logger.info(f"Saved train config overrides to {save_path}")
