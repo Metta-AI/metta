@@ -22,3 +22,13 @@ python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_mem_pr
 python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_navsequence_backchain2  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_navsequence_backchain --skip-validation \
 
 python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_backchain_mem_pretrained  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain_mem trainer.initial_policy.uri=gd_backchain_mem_pretrained:v18 --skip-validation \
+
+./devops/skypilot/launch.py train georgedeane.nav_backchain_mem trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain_mem \
+
+./devops/skypilot/launch.py train georgdeane.nav_mem_pretrained trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_mem trainer.initial_policy.uri=gd_backchain_mem_pretrained:v18
+
+./devops/skypilot/launch.py train georgdeane.nav_backchain trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain \
+
+./devops/skypilot/launch.py train georgedeane.nav_navsequence_backchain trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_navsequence_backchain \
+
+./devops/skypilot/launch.py train georgedeane.nav_backchain_mem_pretrained trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain_mem trainer.initial_policy.uri=dd_navigation_curriculum:54 \
