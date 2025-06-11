@@ -76,7 +76,6 @@ class PufferTrainer:
         self._eval_grouped_scores = {}
         self._eval_suite_avgs = {}
         self._eval_categories = set()
-        self._weights_helper = WeightsMetricsHelper(cfg)
 
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
@@ -266,7 +265,6 @@ class PufferTrainer:
                 with self.timer("_evaluate_policy", log=logging.INFO):
                     self._evaluate_policy()
 
-            self._weights_helper.on_epoch_end(self.epoch, self.policy)
             self.torch_profiler.on_epoch_end(self.epoch)
 
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
@@ -775,7 +773,6 @@ class PufferTrainer:
             )
 
         self._eval_grouped_scores = {}
-        self._weights_helper.reset()
         self.stats.clear()
 
     def close(self):
