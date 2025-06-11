@@ -1,4 +1,4 @@
-s_target_: mettagrid.curriculum.LowRewardCurriculum
+_target_: mettagrid.curriculum.LowRewardCurriculum
 
 tasks:
   /env/mettagrid/multiagent/experiments/boxshare: 1
