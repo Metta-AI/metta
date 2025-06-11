@@ -8,7 +8,10 @@ inputs:
     required: true
   content:
     description: "Content to post to Discord"
-    required: true
+    required: false
+  content-file:
+    description: "Path to file containing content to post to Discord"
+    required: false
   suppress-embeds:
     description: "Whether to suppress embeds in Discord messages"
     required: false
@@ -33,4 +36,5 @@ runs:
       env:
         DISCORD_WEBHOOK_URL: ${{ inputs.webhook-url }}
         DISCORD_CONTENT: ${{ inputs.content }}
+        DISCORD_CONTENT_FILE: ${{ inputs.content-file }}
         DISCORD_SUPPRESS_EMBEDS: ${{ inputs.suppress-embeds }}
