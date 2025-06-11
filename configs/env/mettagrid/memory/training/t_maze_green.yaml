@@ -12,7 +12,7 @@ game:
       ore.green: 0
       ore.red: 0
       battery.red: 0
-      battery.blue: -1
+      battery.blue: -0.1
       battery.green: 1
   num_agents: 4
   max_steps: 50
