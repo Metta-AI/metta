@@ -22,9 +22,6 @@ gamma: 0.977
 #   learning_rate: 0.000238167
 #   weight_decay: 0
 
-#delete below after testing
-slice_obs: false
-
 optimizer:
   type: adam
   beta1: 0.9
