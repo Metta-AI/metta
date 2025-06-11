@@ -5,7 +5,7 @@ set -e
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
 
-  "b.georgedeane.nav_mem_pretrained"
+  # "b.georgedeane.nav_mem_pretrained"
   "b.georgedeane.nav_backchain_mem"
   "b.georgedeane.nav_navsequence_backchain"
   "b.georgedeane.nav_backchain"
