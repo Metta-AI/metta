@@ -15,10 +15,10 @@ fi
 source ./devops/setup.env
 
 DIST_ID=${DIST_ID:-localhost}
-DIST_CFG_PATH=./train_dir/sweep/$sweep/dist_$DIST_ID.yaml
+DIST_CFG_PATH="$DATA_DIR/sweep/$sweep/dist_$DIST_ID.yaml"
 
 echo "[INFO] Starting sweep rollout: $sweep"
-mkdir -p ./train_dir/sweep/$sweep
+mkdir -p "$DATA_DIR/sweep/$sweep"
 
 # Initialize sweep
 echo "[SWEEP:$sweep] Initializing sweep configuration..."
@@ -31,7 +31,7 @@ fi
 
 # Training phase
 echo "[SWEEP:$sweep] Starting training phase..."
-cmd="./devops/train.sh dist_cfg_path=$DIST_CFG_PATH data_dir=./train_dir/sweep/$sweep/runs $args"
+cmd="./devops/train.sh dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep/runs $args"
 echo "[SWEEP:$sweep] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Training failed for sweep: $sweep"
@@ -40,7 +40,7 @@ fi
 
 # Evaluation phase
 echo "[SWEEP:$sweep] Starting evaluation phase..."
-cmd="./tools/sweep_eval.py sweep_name=$sweep dist_cfg_path=$DIST_CFG_PATH data_dir=./train_dir/sweep/$sweep/runs $args"
+cmd="./tools/sweep_eval.py sweep_name=$sweep dist_cfg_path=$DIST_CFG_PATH data_dir=$DATA_DIR/sweep/$sweep/runs $args"
 echo "[SWEEP:$sweep] Running: $cmd"
 if ! $cmd; then
   echo "[ERROR] Evaluation failed for sweep: $sweep"

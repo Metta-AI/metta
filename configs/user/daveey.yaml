@@ -36,7 +36,7 @@ trainer:
 # policy_uri: puffer:///tmp/puffer_metta.pt
 # policy_uri: puffer:///tmp/puffer_metta.pt
 policy_uri: wandb://run/daveey.lasertag.r5.2x4:v12
-# policy_uri: puffer://./train_dir/puffer/puffer_metta.pt
+# policy_uri: puffer://${data_dir}/puffer/puffer_metta.pt
 
 npc_policy_uri: ${policy_uri}
 # npc_policy_uri: ${trained_policy_uri}
