@@ -93,10 +93,6 @@ class PufferTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        self._checkpoint_avg_reward = None
-        if checkpoint.policy_path and "average_reward" in checkpoint.extra_args:
-            self._checkpoint_avg_reward = checkpoint.extra_args["average_reward"]
-
         policy_record = None
         load_policy_attempts = 10
         while policy_record is None and load_policy_attempts > 0:
@@ -466,20 +462,14 @@ class PufferTrainer:
                 # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
                 # where ρ is the average reward estimate
 
-                if not hasattr(self, "_average_reward_estimate"):
-                    # Initialize from checkpoint or zero
-                    self._average_reward_estimate = (
-                        self._checkpoint_avg_reward if self._checkpoint_avg_reward is not None else 0.0
-                    )
-
                 current_batch_mean = self._get_experience_buffer_mean_reward()
 
                 # Apply IIR filter (exponential moving average)
                 alpha = self.trainer_cfg.average_reward_alpha
-                self._average_reward_estimate = (1 - alpha) * self._average_reward_estimate + alpha * current_batch_mean
+                self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
 
                 # Use filtered estimate for advantage computation
-                rewards_np_adjusted = (rewards_np - self._average_reward_estimate).astype(np.float32)
+                rewards_np_adjusted = (rewards_np - self.average_reward).astype(np.float32)
                 effective_gamma = 1.0
                 advantages_np = compute_gae(
                     dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
@@ -631,8 +621,8 @@ class PufferTrainer:
 
         # Save filtered average reward estimate for restart continuity
         extra_args = {}
-        if self.trainer_cfg.average_reward and hasattr(self, "_average_reward_estimate"):
-            extra_args["average_reward"] = self._average_reward_estimate
+        if self.trainer_cfg.average_reward:
+            extra_args["average_reward"] = self.average_reward
 
         self.checkpoint = TrainerCheckpoint(
             self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
