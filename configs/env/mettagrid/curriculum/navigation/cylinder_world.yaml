@@ -1,21 +1,14 @@
 _target_: mettagrid.curriculum.BucketedCurriculum
 
-sampling: 1
+# one – and only one – template
+env_cfg_template: /env/mettagrid/navigation/training/cylinder_world
 
-game:
-  num_agents: 4
-  map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    border_width: 6
+# bucket definitions
+buckets:
+  game.map_builder.room.width: # dotted path
+    range: [75, 120] # → 5 equal-width bins   (75, 86, …, 120)
+    bins: 5
 
-    room:
-      _target_: mettagrid.room.navigation.cylinder_world.CylinderWorld
-      width: [50, 100]
-      height: ${sampling:75,120,60}
-      border_width: 1
-      agents: 1
-
-  objects:
-    altar:
-      cooldown: 255
+  game.map_builder.room.height: # same param – different spec
+    range: [75, 120]
+    bins: 5 # override default 5 → 7 bins

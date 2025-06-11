@@ -1,24 +1,11 @@
 # Config: choose any style, including the new "cylinder_world"
 defaults:
-  - /env/mettagrid/mettagrid_deterministic@
+  - /env/mettagrid/navigation/training/defaults@
   - _self_
 
-sampling: 1
-
 game:
-  num_agents: 4
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
-    border_width: 6
-
     room:
       _target_: mettagrid.room.navigation.cylinder_world.CylinderWorld
       width: 80
       height: 80
-      border_width: 1
-      agents: 1
-
-  objects:
-    altar:
-      cooldown: 255

@@ -17,8 +17,8 @@ defaults:
 # baselines:
 #   uri: ${...baseline_uri}
 
-policy_uri: file://./train_dir/gabrielk.local.train.resnet/checkpoints/model_0000.pt
-baseline_uri: file://./train_dir/gabrielk.local.train.simple/checkpoints/model_0000.pt
+policy_uri: file://${data_dir}/gabrielk.local.train.resnet/checkpoints/model_0000.pt
+baseline_uri: file://${data_dir}/gabrielk.local.train.simple/checkpoints/model_0000.pt
 
 env:
   game:

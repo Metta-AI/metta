@@ -155,7 +155,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         self, policy_key: str | None = None, policy_version: int | None = None, env: str | None = None
     ) -> List[str]:
         query = """
-        SELECT e.replay_url 
+        SELECT e.replay_url
         FROM episodes e
         JOIN simulations s ON e.simulation_id = s.id
         WHERE e.replay_url IS NOT NULL
@@ -222,7 +222,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         if not episode_ids:
             return
         self.con.executemany(
-            """ 
+            """
             UPDATE episodes
                SET simulation_id = ?
              WHERE id = ?
