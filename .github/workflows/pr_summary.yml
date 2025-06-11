@@ -59,17 +59,6 @@ jobs:
           pip install -r .github/scripts/requirements-pr-summary.txt
           python .github/scripts/generate_pr_summary.py
 
-      - name: Read Summary
-        id: read-summary
-        run: |
-          if [ -f pr_summary_output.txt ]; then
-            {
-              echo "content<<EOF"
-              cat pr_summary_output.txt
-              echo "EOF"
-            } >> $GITHUB_OUTPUT
-          fi
-
       - name: Display Summary (Debug)
         run: |
           echo "## PR Summary Generated"
@@ -85,7 +74,7 @@ jobs:
         uses: ./.github/actions/discord-webhook
         with:
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          content: ${{ steps.read-summary.outputs.content }}
+          content-file: pr_summary_output.txt
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
