@@ -4,6 +4,30 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
+
+  "b.georgedeane.nav_mem_pretrained"
+  "b.georgedeane.nav_backchain_mem"
+  "b.georgedeane.nav_navsequence_backchain"
+  "b.georgedeane.nav_backchain"
+  "b.daphne.nav_backchain_mem"
+  "george.nav_backchain"
+  "george.nav_backchain_mem"
+  "georgedeane.nav_navsequence_backchain"
+  "georgedeane.nav_backchain"
+  # "georgedeane.nav_mem_pretrained"
+  "b.georgedeane.nav_navsequence_backchain2"
+  # "b.georgedeane.nav_backchain_mem_pretrained"
+  "georgedeane.nav_backchain"
+  "b.mrazo.nav_navsequence_backchain_simple_with_memory_v01"
+  "b.mrazo.nav_backchain_simple_with_memory_v01"
+  "b.georgedeane.nav_backchain_mem"
+  "b.georgedeane.nav_navsequence_backchain"
+  "b.daphne.nav_backchain_mem"
+  ""
+
+
+
+
   "gd_all2:v12"
   "gd_backchain_mem_pretrained:v18"
   "gd_all:v19"
