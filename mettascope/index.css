@@ -1943,7 +1943,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.actions button.mem-0 {
+.actions button.memory {
     position: relative;
     display: flex;
     width: fit-content;
@@ -1959,71 +1959,7 @@ button#help-button.hover-icon .icon {
     border-style: solid;
 }
 
-button.mem-0 .amount {
-    position: relative;
-    display: inline-block;
-    width: fit-content;
-    height: fit-content;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 20px;
-    text-align: center;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 26px;
-}
-
-.actions button.mem-1 {
-    position: relative;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    padding: 8px 4px 8px 4px;
-    background-color: rgba(20, 27, 35, 1.00);
-    border-radius: 5px;
-    overflow: hidden;
-    border-color: rgba(53, 53, 53, 1.00);
-    border-width: 1px;
-    border-style: solid;
-}
-
-button.mem-1 .amount {
-    position: relative;
-    display: inline-block;
-    width: fit-content;
-    height: fit-content;
-    color: rgba(255, 255, 255, 1.00);
-    font-family: IBM Plex Sans;
-    font-style: normal;
-    font-weight: 400;
-    font-size: 20px;
-    text-align: center;
-    vertical-align: top;
-    letter-spacing: 0px;
-    line-height: 26px;
-}
-
-.actions button.mem-r {
-    position: relative;
-    display: flex;
-    width: fit-content;
-    height: fit-content;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    padding: 8px 4px 8px 4px;
-    background-color: rgba(20, 27, 35, 1.00);
-    border-radius: 5px;
-    overflow: hidden;
-    border-color: rgba(53, 53, 53, 1.00);
-    border-width: 1px;
-    border-style: solid;
-}
-
-button.mem-r .amount {
+button.memory .text {
     position: relative;
     display: inline-block;
     width: fit-content;
@@ -2054,6 +1990,229 @@ button.mem-r .amount {
     height: 32px;
     right: 0px;
     top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu {
+    position: absolute;
+    display: flex;
+    width: 162px;
+    height: fit-content;
+    left: 1196px;
+    top: 662px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 5px 0px 5px 0px;
+    background-color: rgba(28, 29, 30, 1.00);
+    border-radius: 4px;
+    overflow: hidden;
+    border-color: rgba(79, 79, 79, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+#object-menu .set-memory-to-0.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.set-memory-to-0.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.set-memory-to-0.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .set-memory-to-1.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.set-memory-to-1.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.set-memory-to-1.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .set-memory-to-random.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.set-memory-to-random.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.set-memory-to-random.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .sep {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 1px;
+    align-self: stretch;
+    background-color: rgba(53, 54, 55, 1.00);
+}
+
+#object-menu .copy-memory.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.copy-memory.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.copy-memory.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .paste-memory.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.paste-memory.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.paste-memory.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }

@@ -9,6 +9,7 @@ import { processActions, initActionButtons } from './actions.js';
 import { initAgentTable, updateAgentTable } from './agentpanel.js';
 import { localStorageSetNumber, onEvent } from './htmlutils.js';
 import { updateReadout } from './infopanels.js';
+import { initObjectMenu } from './objmenu.js';
 
 /** Handles resize events. */
 export function onResize() {
@@ -641,6 +642,7 @@ toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
 
 initActionButtons();
 initAgentTable();
+initObjectMenu();
 
 window.addEventListener('load', async () => {
   // Use local atlas texture.

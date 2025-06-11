@@ -36,39 +36,6 @@ onEvent("click", ".infopanel .close", (target: HTMLElement, e: Event) => {
   ui.infoPanels = ui.infoPanels.filter(p => p.div !== panel);
 })
 
-onEvent("click", ".infopanel .mem-0", (target: HTMLElement, e: Event) => {
-  if (state.ws == null) return;
-  let agentId = parseInt(findAttr(target, "data-agent-id"));
-  console.log("Clearing memory to 0");
-  state.ws.send(JSON.stringify({
-    type: "clear_memory",
-    what: "0",
-    agent_id: agentId
-  }));
-})
-
-onEvent("click", ".infopanel .mem-1", (target: HTMLElement, e: Event) => {
-  if (state.ws == null) return;
-  let agentId = parseInt(findAttr(target, "data-agent-id"));
-  console.log("Clearing memory to 1");
-  state.ws.send(JSON.stringify({
-    type: "clear_memory",
-    what: "1",
-    agent_id: agentId
-  }));
-})
-
-onEvent("click", ".infopanel .mem-r", (target: HTMLElement, e: Event) => {
-  if (state.ws == null) return;
-  let agentId = parseInt(findAttr(target, "data-agent-id"));
-  console.log("Clearing memory to random");
-  state.ws.send(JSON.stringify({
-    type: "clear_memory",
-    what: "random",
-    agent_id: agentId
-  }));
-})
-
 var infoPanelTemplate = find(".infopanel") as HTMLElement;
 infoPanelTemplate.remove();
 
