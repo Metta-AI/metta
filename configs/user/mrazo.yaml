@@ -9,5 +9,3 @@ trainer:
   curriculum: /env/mettagrid/curriculum/t_maze
   wandb.enabled: true
   wandb.track: true
-
-run: mrazo_memory-traces_tmaze_v01a
