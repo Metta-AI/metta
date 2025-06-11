@@ -15,7 +15,6 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
-from metta.agent.util.weights_analysis import WeightsMetricsHelper
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
@@ -75,7 +74,6 @@ class PufferTrainer:
         self._eval_grouped_scores = {}
         self._eval_suite_avgs = {}
         self._eval_categories = set()
-        self._weights_helper = WeightsMetricsHelper(cfg)
 
         self.timer = Stopwatch(logger)
         self.timer.start()
@@ -267,7 +265,6 @@ class PufferTrainer:
                 with self.timer("_evaluate_policy", log=logging.INFO):
                     self._evaluate_policy()
 
-            self._weights_helper.on_epoch_end(self.epoch, self.policy)
             self.torch_profiler.on_epoch_end(self.epoch)
 
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
@@ -453,6 +450,13 @@ class PufferTrainer:
         self.experience.step = 0
         return self.stats, infos
 
+    def _get_experience_buffer_mean_reward(self) -> float:
+        # Use rewards from experience buffer
+        if hasattr(self, "experience") and self.experience.rewards_np is not None:
+            return float(np.mean(self.experience.rewards_np))
+
+        return 0.0
+
     def _train(self):
         self.losses = self._make_losses()
 
@@ -462,30 +466,30 @@ class PufferTrainer:
             values_np = self.experience.values_np[idxs]
             rewards_np = self.experience.rewards_np[idxs]
 
-            # Update average reward estimate
             if self.trainer_cfg.average_reward:
-                # Update average reward estimate using EMA with configured alpha
+                # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
+                # where ρ is the average reward estimate
+
+                current_batch_mean = self._get_experience_buffer_mean_reward()
+
+                # Apply IIR filter (exponential moving average)
                 alpha = self.trainer_cfg.average_reward_alpha
-                self.average_reward = (1 - alpha) * self.average_reward + alpha * np.mean(rewards_np)
-                # Adjust rewards by subtracting average reward for advantage computation
-                rewards_np_adjusted = rewards_np - self.average_reward
-                # Set gamma to 1.0 for average reward case
+                self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
+
+                # Use filtered estimate for advantage computation
+                rewards_np_adjusted = (rewards_np - self.average_reward).astype(np.float32)
                 effective_gamma = 1.0
-                # Compute advantages using adjusted rewards
                 advantages_np = compute_gae(
                     dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
                 )
-                # For average reward case, returns are computed differently:
-                # R(s) = Σ(r_t - ρ) represents the bias function
-                self.experience.returns_np = advantages_np + values_np
             else:
+                # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
                 effective_gamma = self.trainer_cfg.gamma
-                # Standard GAE computation for discounted case
                 advantages_np = compute_gae(
                     dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
                 )
-                self.experience.returns_np = advantages_np + values_np
 
+            self.experience.returns_np = advantages_np + values_np
             self.experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
@@ -620,12 +624,14 @@ class PufferTrainer:
             return
 
         pr = self._checkpoint_policy()
+
+        # Save filtered average reward estimate for restart continuity
+        extra_args = {}
+        if self.trainer_cfg.average_reward:
+            extra_args["average_reward"] = self.average_reward
+
         self.checkpoint = TrainerCheckpoint(
-            self.agent_step,
-            self.epoch,
-            self.optimizer.state_dict(),
-            pr.local_path(),
-            average_reward=self.average_reward,  # Save average reward state
+            self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
@@ -715,6 +721,14 @@ class PufferTrainer:
                 ) from e
         self.stats = mean_stats
 
+        weight_metrics = {}
+        if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
+            for metrics in self.policy.compute_weight_metrics():
+                name = metrics.get("name", "unknown")
+                for key, value in metrics.items():
+                    if key != "name":
+                        weight_metrics[f"weights/{key}/{name}"] = value
+
         # Calculate derived stats from local roll-outs (master process will handle logging)
         learning_rate = self.optimizer.param_groups[0]["lr"]
         losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
@@ -769,7 +783,7 @@ class PufferTrainer:
                     **{f"overview/{k}": v for k, v in overview.items()},
                     **{f"losses/{k}": v for k, v in losses.items()},
                     **environment,
-                    **self._weights_helper.stats(),
+                    **weight_metrics,
                     **self._eval_grouped_scores,
                     **train_logs,
                     **timing_logs,
@@ -777,7 +791,6 @@ class PufferTrainer:
             )
 
         self._eval_grouped_scores = {}
-        self._weights_helper.reset()
         self.stats.clear()
 
     def close(self):
