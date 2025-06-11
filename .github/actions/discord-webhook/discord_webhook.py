@@ -4,6 +4,7 @@
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any, Dict, List
 
 import requests
@@ -123,18 +124,45 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
     return True
 
 
+def get_content() -> str:
+    """Get content from either direct input or file."""
+    # Try direct content first
+    content = os.getenv("DISCORD_CONTENT")
+    if content:
+        return content
+
+    # Try content file
+    content_file = os.getenv("DISCORD_CONTENT_FILE")
+    if content_file:
+        content_path = Path(content_file)
+        if content_path.exists():
+            try:
+                return content_path.read_text(encoding="utf-8")
+            except Exception as e:
+                print(f"Error reading content file '{content_file}': {e}", file=sys.stderr)
+                sys.exit(1)
+        else:
+            print(f"Error: Content file '{content_file}' does not exist", file=sys.stderr)
+            sys.exit(1)
+
+    print("Error: Neither DISCORD_CONTENT nor DISCORD_CONTENT_FILE provided", file=sys.stderr)
+    sys.exit(1)
+
+
 def main() -> None:
     """Main entry point for the Discord posting action."""
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-    content = os.getenv("DISCORD_CONTENT")
     suppress_embeds = os.getenv("DISCORD_SUPPRESS_EMBEDS", "true").lower() == "true"
 
     if not webhook_url:
         print("Error: DISCORD_WEBHOOK_URL not provided", file=sys.stderr)
         sys.exit(1)
 
-    if not content:
-        print("Error: DISCORD_CONTENT not provided", file=sys.stderr)
+    # Get content from either direct input or file
+    content = get_content()
+
+    if not content.strip():
+        print("Error: Content is empty", file=sys.stderr)
         sys.exit(1)
 
     # Validate webhook URL format
