@@ -148,12 +148,4 @@ export function processActions(event: KeyboardEvent) {
       sendAction("swap", 0)
     }
   }
-
-  if (event.key == "p") {
-    // Clear memory
-    console.log("Clearing memory");
-    state.ws.send(JSON.stringify({
-      type: "clear_memory",
-    }));
-  }
 }
