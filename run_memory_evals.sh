@@ -35,6 +35,15 @@ POLICIES=(
   "gd_backchain_full_extended"
   "gd_backchain_in_context"
   "gd_backchain_scratch_hard"
+
+  "georgedeane.nav_backchain"
+  "b.georgedeane.nav_mem_pretrained"
+  "b.georgedeane.nav_backchain_mem"
+  "b.georgedeane.nav_navsequence_backchain"
+  "b.georgedeane.nav_backchain2"
+  "b.daphne.nav_navsequence_backchain"
+  "b.daphne.nav_backchain"
+  "b.georgedeane.nav_backchain_mem_pretrained"
 )
 
 
