@@ -3,7 +3,7 @@
 	"tasks": [
 		{
 			"type": "shell",
-			"command": "uv sync",
+			"command": "uv sync --inexact",
 			"label": "uv sync",
 			"group": {
 				"kind": "build",
