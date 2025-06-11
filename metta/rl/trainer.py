@@ -68,6 +68,7 @@ class MettaTrainer:
         self.policy_store = policy_store
 
         self._eval_scores = {}
+        self.average_reward = 0.0
 
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
@@ -480,35 +481,31 @@ class MettaTrainer:
             values_np = experience.values_np[idxs]
             rewards_np = experience.rewards_np[idxs]
 
-        # Calculate advantages based on RL formulation
-        if self.trainer_cfg.average_reward:
-            # Get previous estimate (from checkpoint or last calculation)
-            if not hasattr(self, "_average_reward_estimate"):
-                # Initialize from checkpoint or zero
-                self._average_reward_estimate = (
-                    self._checkpoint_avg_reward if self._checkpoint_avg_reward is not None else 0.0
+            if self.trainer_cfg.average_reward:
+                # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
+                # where ρ is the average reward estimate
+
+                current_batch_mean = self._get_experience_buffer_mean_reward()
+
+                # Apply IIR filter (exponential moving average)
+                alpha = self.trainer_cfg.average_reward_alpha
+                self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
+
+                # Use filtered estimate for advantage computation
+                rewards_np_adjusted = (rewards_np - self.average_reward).astype(np.float32)
+                effective_gamma = 1.0
+                advantages_np = compute_gae(
+                    dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
+                )
+            else:
+                # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
+                effective_gamma = self.trainer_cfg.gamma
+                advantages_np = compute_gae(
+                    dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
                 )
 
-            # Calculate current batch mean
-            current_batch_mean = self._get_experience_buffer_mean_reward()
-
-            # Apply IIR filter (exponential moving average)
-            alpha = self.trainer_cfg.average_reward_alpha
-            self._average_reward_estimate = (1 - alpha) * self._average_reward_estimate + alpha * current_batch_mean
-
-            # Use filtered estimate for advantage computation
-            rewards_np_adjusted = (rewards_np - self._average_reward_estimate).astype(np.float32)
-            effective_gamma = 1.0
-            advantages_np = compute_gae(
-                dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
-            )
-        else:
-            # Standard discounted case
-            effective_gamma = self.trainer_cfg.gamma
-            advantages_np = compute_gae(dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda)
-
-        experience.returns_np = advantages_np + values_np
-        experience.flatten_batch(advantages_np)
+            experience.returns_np = advantages_np + values_np
+            experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
@@ -645,8 +642,8 @@ class MettaTrainer:
 
         # Save filtered average reward estimate for restart continuity
         extra_args = {}
-        if self.trainer_cfg.average_reward and hasattr(self, "_average_reward_estimate"):
-            extra_args["average_reward"] = self._average_reward_estimate
+        if self.trainer_cfg.average_reward:
+            extra_args["average_reward"] = self.average_reward
 
         self.checkpoint = TrainerCheckpoint(
             self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
