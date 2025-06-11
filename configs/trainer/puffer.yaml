@@ -9,7 +9,7 @@ use_e3b: false
 
 total_timesteps: 50_000_000_000
 
-clip_coef: 0.1  
+clip_coef: 0.1
 ent_coef: 0.0021
 gae_lambda: 0.916
 gamma: 0.977
@@ -39,6 +39,10 @@ vf_clip_coef: 0.1
 vf_coef: 0.44
 l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
+
+# Prioritized experience replay parameters
+prio_alpha: 0.0  # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
+prio_beta0: 0.6  # Initial importance sampling correction
 
 norm_adv: true
 clip_vloss: true

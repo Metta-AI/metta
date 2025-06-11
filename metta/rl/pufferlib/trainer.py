@@ -481,17 +481,6 @@ class PufferTrainer:
                     self.truncations[indices, episode_length] = t.float()
                     self.values[indices, episode_length] = value.flatten()
 
-                    # Reset LSTM states when episodes end (terminal or truncation)
-                    if config.get("use_rnn", True) and hasattr(self, "lstm_h"):
-                        done_mask = d | t  # Episode ends on either terminal or truncation
-                        if done_mask.any():
-                            batch_key = env_id.start
-                            if batch_key in self.lstm_h:
-                                # Reset LSTM states for agents that have finished episodes
-                                for agent_idx in torch.where(done_mask)[0]:
-                                    self.lstm_h[batch_key][:, agent_idx, :] = 0
-                                    self.lstm_c[batch_key][:, agent_idx, :] = 0
-
                     self.ep_lengths[env_id] += 1
                     if episode_length + 1 >= self.trainer_cfg.bptt_horizon:
                         num_full = env_id.stop - env_id.start
@@ -599,8 +588,6 @@ class PufferTrainer:
 
         for mb in range(self.total_minibatches):
             with profile.train_misc:
-                self.amp_context.__enter__()
-
                 # Prioritized sampling
                 adv = advantages.abs().sum(axis=1)
                 prio_weights = torch.nan_to_num(adv**a, 0, 0, 0)
@@ -712,8 +699,6 @@ class PufferTrainer:
                     + ks_value_loss
                 )
 
-                self.amp_context.__exit__(None, None, None)
-
                 # Update value estimates
                 self.values[idx] = newvalue.detach().float()
 
@@ -756,7 +741,7 @@ class PufferTrainer:
             y_true = advantages.flatten() + self.values.flatten()
             var_y = y_true.var()
             explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
-            losses["explained_variance"] = explained_var.item()
+            losses["explained_variance"] = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
             # Update the SimpleNamespace object instead of replacing it
             for k, v in losses.items():
