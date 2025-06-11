@@ -386,7 +386,10 @@ class PufferTrainer:
 
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
 
-                o_device = o.to(self.device, non_blocking=True)
+                if self.trainer_cfg.slice_obs:
+                    o_device = o[:, :100, :].to(self.device, non_blocking=True)
+                else:
+                    o_device = o.to(self.device, non_blocking=True)
                 actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
 
                 if __debug__:
