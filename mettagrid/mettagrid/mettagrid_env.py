@@ -42,8 +42,6 @@ dtype_success = np.dtype(bool)
 
 logger = logging.getLogger("MettaGridEnv")
 
-logger = logging.getLogger("MettaGridEnv")
-
 
 def required(func):
     """Marks methods that PufferEnv requires but does not implement for override."""
@@ -201,7 +199,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                     self._task.env_cfg().game.diversity_bonus.diversity_coef,
                 )
 
-            self.process_episode_stats(infos)
+            with self.timer("process_episode_stats"):
+                self.process_episode_stats(infos)
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
@@ -216,14 +215,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 
+        instantiate_time = self.timer.get_elapsed("_initialize_c_env.instantiate")
+
         infos.update(
             {
-                "episode/reward.sum": episode_rewards_sum,
-                "episode/reward.mean": episode_rewards_mean,
-                "episode/reward.min": episode_rewards.min(),
-                "episode/reward.max": episode_rewards.max(),
-                "episode_length": self._c_env.current_step,
-                f"task/{self._task.name()}/reward": episode_rewards_mean,
+                f"task/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
+                f"task/{self._task.short_name()}/rewards.min": episode_rewards.min(),
+                f"task/{self._task.short_name()}/rewards.max": episode_rewards.max(),
+                f"task/{self._task.short_name()}/instantiate_time": instantiate_time,
             }
         )
 
@@ -257,7 +256,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos["timing"] = timing_logs
 
-        infos["episode_rewards"] = episode_rewards
         # infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
         infos["agent"] = {}
@@ -298,15 +296,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
             }
 
-            self._stats_writer.record_episode(
-                self._episode_id,
-                attributes,
-                agent_metrics,
-                agent_groups,
-                self.max_steps,
-                replay_url,
-                self._reset_at,
-            )
+            with self.timer("record_episode"):
+                self._stats_writer.record_episode(
+                    self._episode_id,
+                    attributes,
+                    agent_metrics,
+                    agent_groups,
+                    self.max_steps,
+                    replay_url,
+                    self._reset_at,
+                )
         self._episode_id = None
 
     @property
