@@ -53,7 +53,6 @@ dependencies = [
     "tqdm>=4.67.1",
     "uvicorn[standard]>=0.34.2",
     "wandb>=0.19.11",
-    "wandb-carbs",
     "wandb-core>=0.17.0b11",
 ]
 
@@ -87,12 +86,11 @@ cache-keys = [
 ]
 
 [tool.uv.workspace]
-members = ["mettagrid", "wandb_carbs"]
+members = ["mettagrid"]
 
 [tool.uv.sources]
 pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "d3cde3f4107daaf8e195bf87f55742d7cd026ddb" }
 carbs = { git = "https://github.com/imbue-ai/carbs.git" }
-wandb_carbs = { workspace = true }
 mettagrid = { workspace = true }
 
 [tool.pyright]
