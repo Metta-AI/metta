@@ -65,7 +65,7 @@ stats_repo = config.stats_repo
 
 
 @router.get("/policies/ids", response_model=PolicyIdResponse)
-async def get_policy_ids(policy_names: List[str] = Query(...)) -> PolicyIdResponse:
+async def get_policy_ids(policy_names: List[str] = Query(default=[])) -> PolicyIdResponse:
     """Get policy IDs for given policy names."""
     try:
         policy_ids = stats_repo.get_policy_ids(policy_names)
@@ -90,7 +90,7 @@ async def create_training_run(training_run: TrainingRunCreate) -> TrainingRunRes
 
 
 @router.post("/training-runs/{run_id}/epochs", response_model=PolicyEpochResponse)
-async def create_policy_epoch(run_id: int, epoch: EpochCreate) -> PolicyEpochResponse:
+async def create_epoch(run_id: int, epoch: EpochCreate) -> PolicyEpochResponse:
     """Create a new policy epoch."""
     try:
         epoch_id = stats_repo.create_epoch(

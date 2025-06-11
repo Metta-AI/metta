@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from .http_client import HttpClient
-from .stats_routes import (
+from metta.app.stats_routes import (
     EpisodeCreate,
     EpisodeResponse,
     EpochCreate,
@@ -12,6 +11,8 @@ from .stats_routes import (
     TrainingRunCreate,
     TrainingRunResponse,
 )
+
+from .http_client import HttpClient
 
 
 class StatsClient:

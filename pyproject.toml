@@ -37,6 +37,7 @@ dependencies = [
     "pynvml>=11.5.3",
     "pyright>=1.1.401",
     "pytest>=8.3.3",
+    "pytest-asyncio>=1.0.0",
     "pytest-benchmark>=5.1.0",
     "pytest-cov>=6.1.1",
     "python-dotenv>=1.1.0",
