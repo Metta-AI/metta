@@ -1,4 +1,4 @@
-FROM mettaai/metta-base:latest
+FROM mettaai/metta-base:3.0
 
 ARG CACHE_DATE
 RUN echo "Cache breaker: ${CACHE_DATE}"
