@@ -1,5 +1,4 @@
-FROM pufferai/puffertank:2.0
-# FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel
+FROM pufferai/puffertank:3.0
 
 WORKDIR /workspace
 
@@ -23,7 +22,7 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
         git-lfs \
         tmux \
         iproute2 \
-        netcat \
+        netcat-openbsd \
         iputils-ping \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
