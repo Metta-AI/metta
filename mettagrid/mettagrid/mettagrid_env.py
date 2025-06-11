@@ -20,7 +20,7 @@ from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.diversity import calculate_diversity_bonus
-from mettagrid.util.stopwatch import Stopwatch
+from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
@@ -102,6 +102,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
+    @with_instance_timer("_initialize_c_env")
     def _initialize_c_env(self, task: Task) -> None:
         """Initialize the C++ environment."""
         level = self._level
@@ -131,12 +132,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._grid_env = self._c_env
 
     @override  # pufferlib.PufferEnv.reset
+    @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
         with self.timer("_curriculum.get_task"):
             self._task = self._curriculum.get_task()
 
-        with self.timer("_initialize_c_env"):
-            self._initialize_c_env(self._task)
+        self._initialize_c_env(self._task)
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -158,6 +159,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
+    @with_instance_timer("step")
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         """
         Execute one timestep of the environment dynamics with the given actions.
@@ -236,27 +238,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
 
-        timer_data = {}
         wall_time = self.timer.get_elapsed()  # global timer
         timer_data = self.timer.get_all_elapsed()
 
-        steps_per_sec = self._steps / wall_time if wall_time > 0 else 0
-
-        timing_logs = {
-            # Key performance indicators
-            "timing/steps_per_second": steps_per_sec,
-            # Breakdown by operation (as a single structured metric)
-            "timing/breakdown": {
-                op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
+        infos["timing"] = {
+            **{
+                f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
                 for op, elapsed in timer_data.items()
             },
-            # Total time for reference
-            "timing/total_seconds": wall_time,
         }
 
-        infos["timing"] = timing_logs
-
-        # infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
         infos["agent"] = {}
         for agent_stats in stats["agent"]:

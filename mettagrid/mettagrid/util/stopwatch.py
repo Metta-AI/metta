@@ -1,7 +1,71 @@
+import functools
 import logging
 import time
 from contextlib import contextmanager
-from typing import Any, ContextManager, Dict, Optional, Tuple
+from typing import Any, Callable, ContextManager, Dict, Optional, Tuple, TypeVar, cast
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def with_timer(timer: "Stopwatch", timer_name: str, log_level: Optional[int] = None):
+    """Decorator that wraps function execution in a timer context.
+
+    Args:
+        timer: The Stopwatch instance to use
+        timer_name: Name of the timer
+        log_level: Optional logging level to automatically log elapsed time
+
+    Usage:
+        @with_timer(my_timer, "reset")
+        def reset(self, seed=None):
+            # method content
+            pass
+    """
+
+    def decorator(func: F) -> F:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with timer.time(timer_name, log=log_level):
+                return func(*args, **kwargs)
+
+        return cast(F, wrapper)
+
+    return decorator
+
+
+def with_instance_timer(timer_name: str, log_level: Optional[int] = None, timer_attr: str = "timer"):
+    """Decorator that uses a timer from the instance.
+
+    Args:
+        timer_name: Name of the timer
+        log_level: Optional logging level
+        timer_attr: Name of the timer attribute on the instance (default: "timer")
+
+    Usage:
+        class MyClass:
+            def __init__(self):
+                self.timer = Stopwatch()
+
+            @with_instance_timer("method_timer")
+            def my_method(self, value):
+                # method content
+                return value
+    """
+
+    def decorator(func: F) -> F:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            # First argument should be 'self' for instance methods
+            if not args:
+                raise ValueError("with_instance_timer can only be used on instance methods")
+            instance = args[0]
+            timer = getattr(instance, timer_attr)
+            with timer.time(timer_name, log=log_level):
+                return func(*args, **kwargs)
+
+        return cast(F, wrapper)
+
+    return decorator
 
 
 class Stopwatch:

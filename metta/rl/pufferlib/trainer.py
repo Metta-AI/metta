@@ -740,16 +740,13 @@ class PufferTrainer:
             timer_data = self.timer.get_all_elapsed()
 
             training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
-            overhead_time = wall_time - training_time
 
             timing_logs = {
                 "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
-                "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
-                "timing/breakdown": {
-                    op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
+                **{
+                    f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
                     for op, elapsed in timer_data.items()
                 },
-                "timing/total_seconds": wall_time,
             }
 
             steps_per_sec = self.agent_step / training_time if training_time > 0 else 0

@@ -3,13 +3,20 @@ import time
 
 import pytest
 
-from mettagrid.util.stopwatch import Stopwatch
+from mettagrid.util.stopwatch import Stopwatch, with_instance_timer, with_timer
 
 
 @pytest.fixture
 def stopwatch():
     """Stopwatch fixture with default logger."""
     return Stopwatch()
+
+
+@pytest.fixture(autouse=True)
+def cleanup():
+    """Ensure clean state between tests."""
+    yield
+    # Cleanup after each test if needed
 
 
 class TestStopwatch:
@@ -493,9 +500,153 @@ class TestStopwatchIntegration:
             assert any("66/100" in msg for msg in progress_logs)
             assert any("99/100" in msg for msg in progress_logs)
 
+    def test_timer_decorators(self, caplog):
+        """Test both @with_timer and @with_instance_timer decorators."""
 
-@pytest.fixture(autouse=True)
-def cleanup():
-    """Ensure clean state between tests."""
-    yield
-    # Cleanup after each test if needed
+        sw = Stopwatch()
+
+        class TestClass:
+            def __init__(self):
+                self.timer = Stopwatch()  # Default timer attribute
+                self.instance_timer = Stopwatch()  # Custom timer attribute
+                self.call_count = 0
+
+            @with_timer(sw, "external_timer")
+            def external_timed_method(self, value: int) -> int:
+                """Method timed with external timer."""
+                self.call_count += 1
+                time.sleep(0.05)
+                return value * 2
+
+            @with_instance_timer("instance_timer_default")
+            def instance_timed_method(self, value: int) -> int:
+                """Method timed with instance timer (default attr)."""
+                time.sleep(0.03)
+                return value + 1
+
+            @with_instance_timer("custom_timer", timer_attr="instance_timer")
+            def custom_attr_method(self, value: int) -> int:
+                """Method timed with custom timer attribute."""
+                time.sleep(0.02)
+                return value * 3
+
+            @with_instance_timer("logged_method", log_level=logging.INFO)
+            def logged_method(self, x: int, y: int = 10) -> int:
+                """Method with logging enabled."""
+                time.sleep(0.03)
+                return x + y
+
+        test_obj = TestClass()
+
+        # Test external timer decorator
+        result = test_obj.external_timed_method(5)
+        assert result == 10
+        assert test_obj.call_count == 1
+
+        external_elapsed = sw.get_elapsed("external_timer")
+        assert 0.04 < external_elapsed < 0.07
+
+        # Test instance timer decorator (default attribute)
+        result = test_obj.instance_timed_method(5)
+        assert result == 6
+
+        instance_elapsed = test_obj.timer.get_elapsed("instance_timer_default")
+        assert 0.025 < instance_elapsed < 0.05
+
+        # Test instance timer with custom attribute
+        result = test_obj.custom_attr_method(5)
+        assert result == 15
+
+        custom_elapsed = test_obj.instance_timer.get_elapsed("custom_timer")
+        assert 0.015 < custom_elapsed < 0.035
+
+        # Test logging functionality
+        with caplog.at_level(logging.INFO):
+            result = test_obj.logged_method(5, y=15)
+            assert result == 20
+
+            # Check log output
+            assert len(caplog.records) == 1
+            assert caplog.records[0].levelname == "INFO"
+            assert "logged_method took" in caplog.records[0].message
+
+        # Test multiple calls accumulate time
+        test_obj.external_timed_method(3)
+        total_external_elapsed = sw.get_elapsed("external_timer")
+        assert total_external_elapsed > external_elapsed
+
+        # Test function metadata preservation
+        assert test_obj.external_timed_method.__name__ == "external_timed_method"
+        assert test_obj.external_timed_method.__doc__ is not None
+        assert "Method timed with external timer." in test_obj.external_timed_method.__doc__
+
+        assert test_obj.instance_timed_method.__name__ == "instance_timed_method"
+        assert test_obj.instance_timed_method.__doc__ is not None
+        assert "Method timed with instance timer" in test_obj.instance_timed_method.__doc__
+
+        # Test exception handling for both decorators
+        @with_timer(sw, "exception_timer")
+        def failing_external():
+            time.sleep(0.02)
+            raise ValueError("External exception")
+
+        with pytest.raises(ValueError, match="External exception"):
+            failing_external()
+
+        exception_elapsed = sw.get_elapsed("exception_timer")
+        assert 0.015 < exception_elapsed < 0.03
+
+        # Test instance timer exception handling
+        class ExceptionTestClass:
+            def __init__(self):
+                self.timer = Stopwatch()
+
+            @with_instance_timer("exception_instance_timer")
+            def failing_instance_method(self):
+                time.sleep(0.02)
+                raise RuntimeError("Instance exception")
+
+        exception_obj = ExceptionTestClass()
+        with pytest.raises(RuntimeError, match="Instance exception"):
+            exception_obj.failing_instance_method()
+
+        instance_exception_elapsed = exception_obj.timer.get_elapsed("exception_instance_timer")
+        assert 0.015 < instance_exception_elapsed < 0.03
+
+        # Test error case: with_instance_timer on non-instance method
+        with pytest.raises(ValueError, match="with_instance_timer can only be used on instance methods"):
+
+            @with_instance_timer("standalone_timer")
+            def standalone_function():
+                pass
+
+            standalone_function()  # This should raise because no 'self' argument
+
+    def test_decorator_edge_cases(self):
+        """Test edge cases for decorators."""
+
+        # Test missing timer attribute
+        class MissingTimerClass:
+            def __init__(self):
+                pass  # No timer attribute
+
+            @with_instance_timer("test_timer")
+            def method_without_timer(self):
+                return "test"
+
+        obj = MissingTimerClass()
+        with pytest.raises(AttributeError):
+            obj.method_without_timer()
+
+        # Test custom timer attribute name that doesn't exist
+        class CustomTimerClass:
+            def __init__(self):
+                self.timer = Stopwatch()  # Has 'timer' but decorator looks for 'custom_timer'
+
+            @with_instance_timer("test_timer", timer_attr="custom_timer")
+            def method_with_missing_custom_attr(self):
+                return "test"
+
+        obj2 = CustomTimerClass()
+        with pytest.raises(AttributeError):
+            obj2.method_with_missing_custom_attr()
