@@ -19,17 +19,7 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 - `COMMAND`: The main command to execute
 - `RUN_ID`: Unique identifier for the run
 - `COMMAND_ARGS`: Additional arguments to pass to the command
-
-### Options
-
-- `--timeout-hours <HOURS>`: Automatically terminate the job after the specified number of hours (supports decimals, e.g., 1.5 for 90 minutes)
-- `--gpus <COUNT>`: Number of GPUs to request
-- `--nodes <COUNT>`: Number of nodes to use
-- `--cpus <COUNT>`: Number of CPUs to request
-- `--no-spot`: Disable spot instances (use on-demand)
-- `--copies <COUNT>`: Number of identical job copies to launch
-- `--git-ref <REF>`: Specific git reference to use
-- `--dry-run`: Show what would be executed without running
+- `OPTIONS`: Additional options to pass to the command (see `./devops/skypilot/launch.py --help` for the full list)
 
 ## Examples
 

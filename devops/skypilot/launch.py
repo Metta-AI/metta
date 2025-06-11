@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run
 import argparse
 import copy
+import shlex
 import subprocess
 
 import sky
@@ -46,12 +47,20 @@ def patch_task(
 
     # Add timeout configuration if specified
     if timeout_hours is not None:
-        timeout_seconds = int(timeout_hours * 3600)
-        # Update the task's run command to include timeout
-        current_run = task.run or ""
-        # Wrap the existing run command with timeout
-        timeout_run = f"timeout {timeout_seconds}s bash -c '{current_run}'"
-        task.run = timeout_run
+        current_run_script = task.run or ""
+        # Construct the command parts
+        # timeout utility takes DURATION COMMAND [ARG]...
+        # Here, COMMAND is 'bash', and its ARGs are '-c' and the script itself.
+        timeout_command_parts = [
+            "timeout",
+            f"{timeout_hours}h",  # Use 'h' suffix for hours, timeout supports floats
+            "bash",
+            "-c",
+            current_run_script,
+        ]
+        # shlex.join will correctly quote each part, especially current_run_script,
+        # ensuring it's passed as a single argument to bash -c.
+        task.run = shlex.join(timeout_command_parts)
 
     return task
 
