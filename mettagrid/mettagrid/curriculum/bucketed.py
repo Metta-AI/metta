@@ -105,7 +105,7 @@ class BucketedCurriculum(LowRewardCurriculum):
             original = OmegaConf.select(cfg, p)
             if isinstance(original, int):
                 v = int(round(v))
-            OmegaConf.update(cfg, p, v, merge=False)
+            OmegaConf.update(cfg, p, v, merge=True)
 
         final_conf = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
         sub = curriculum_from_config_path(self._template, final_conf)

@@ -1,4 +1,4 @@
 _target_: mettagrid.curriculum.LowRewardCurriculum
 
 tasks:
-  /env/mettagrid/object_use/training/easy_all_objects: 1
+  /env/mettagrid/curriculum/object_use/easy_all_objects: 1

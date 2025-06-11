@@ -1,6 +1,0 @@
-_target_: mettagrid.curriculum.LowRewardCurriculum
-
-tasks:
-  /env/mettagrid/curriculum/navigation/cylinder_world: 1
-  /env/mettagrid/curriculum/navigation/terrain: 4
-  /env/mettagrid/navigation/training/terrain_from_numpy: 1 #no buckets

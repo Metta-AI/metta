@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navigation_bucketed
+  curriculum: /env/mettagrid/curriculum/object_use
 
 policy_uri: wandb://run/daphne_navigation_bucketed
 
