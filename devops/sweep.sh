@@ -15,7 +15,7 @@ fi
 source ./devops/setup.env
 
 echo "[INFO] Starting continuous sweep execution: $sweep"
-mkdir -p ./train_dir/sweep/$sweep
+mkdir -p "${DATA_DIR}/sweep/$sweep"
 
 # Extract sweep_params to check for rollout_count
 sweep_params=$(echo "$args" | grep -o '++sweep_params=[^ ]*' | sed 's/++sweep_params=//')
