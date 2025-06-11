@@ -116,16 +116,85 @@ echo ""
 echo "📋 SWEEP CONFIGURATION:"
 echo "================================================================="
 
-# Show sweep config if available
-if [ -f "$sweep_dir/runs/${sweep_name}.r.0/config.yaml" ]; then
+# Function to find the original sweep config file
+find_sweep_config() {
+    local sweep_name="$1"
+
+    # Try to find the original config file used for this sweep
+    # Look for sweep_params in the first run's config to identify the source
+    if [ -f "$sweep_dir/runs/${sweep_name}.r.0/config.yaml" ]; then
+        sweep_params=$(grep "sweep_params:" "$sweep_dir/runs/${sweep_name}.r.0/config.yaml" | cut -d' ' -f2)
+        if [ -n "$sweep_params" ]; then
+            # Convert sweep/protein_working to configs/sweep/protein_working.yaml
+            config_file="configs/${sweep_params}.yaml"
+            if [ -f "$config_file" ]; then
+                echo "$config_file"
+                return 0
+            fi
+        fi
+    fi
+
+    # Fallback: try common config file patterns
+    for config_file in "configs/sweep/${sweep_name}.yaml" "configs/sweep/protein_${sweep_name}.yaml"; do
+        if [ -f "$config_file" ]; then
+            echo "$config_file"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+# Try to find and display the original sweep configuration
+config_file=$(find_sweep_config "$sweep_name")
+if [ -n "$config_file" ]; then
+    echo "Configuration source: $config_file"
+    echo ""
+
+    # Extract rollout count
     echo "Rollout count limit:"
-    grep -A1 -B1 "rollout_count" "$sweep_dir/runs/${sweep_name}.r.0/config.yaml" 2>/dev/null || echo "  No rollout_count found (infinite sweep)"
+    rollout_limit=$(grep "rollout_count:" "$config_file" | head -1 | sed 's/.*rollout_count: *\([0-9]*\).*/\1/')
+    if [ -n "$rollout_limit" ]; then
+        echo "  $rollout_limit (configured limit)"
+    else
+        echo "  No rollout_count found (infinite sweep)"
+    fi
+
+    # Extract num_samples
+    num_samples=$(grep "num_samples:" "$config_file" | head -1 | sed 's/.*num_samples: *\([0-9]*\).*/\1/')
+    if [ -n "$num_samples" ]; then
+        echo "  $num_samples samples per rollout"
+    fi
 
     echo ""
     echo "Parameter space:"
-    grep -A20 "parameters:" "$sweep_dir/runs/${sweep_name}.r.0/config.yaml" 2>/dev/null | head -20 || echo "  Config not found"
+
+    # Extract parameters section for Protein format
+    if grep -q "sweep:" "$config_file"; then
+        # Protein format - extract parameters under sweep.parameters
+        awk '/sweep:/{flag=1; next} flag && /^[[:space:]]*parameters:/{param_flag=1; next} param_flag && /^[[:space:]]*[a-zA-Z]/ && !/^[[:space:]]*#/{print "  " $0} param_flag && /^[^[:space:]]/ && !/^[[:space:]]*#/{exit}' "$config_file" | head -20
+    else
+        # Legacy CARBS format - extract trainer parameters
+        awk '/^trainer:/{flag=1; next} flag && /^[[:space:]]*[a-zA-Z]/{print "  " $0} flag && /^[^[:space:]]/{exit}' "$config_file" | head -10
+    fi
+
+    echo ""
+    echo "Optimizer settings:"
+
+    # Extract optimizer metadata
+    if grep -q "metric:" "$config_file"; then
+        metric=$(grep "metric:" "$config_file" | head -1 | sed 's/.*metric: *\([a-zA-Z_]*\).*/\1/')
+        goal=$(grep "goal:" "$config_file" | head -1 | sed 's/.*goal: *\([a-zA-Z_]*\).*/\1/')
+        echo "  Metric: $metric"
+        echo "  Goal: $goal"
+    fi
+
 else
-    echo "⚠️  Configuration not found"
+    echo "⚠️  Original configuration file not found"
+    echo "Checked locations:"
+    echo "  - configs/sweep/${sweep_name}.yaml"
+    echo "  - configs/sweep/protein_${sweep_name}.yaml"
+    echo "  - Sweep params from run config"
 fi
 
 echo ""
