@@ -15,11 +15,12 @@ permissions:
   id-token: write
 
 jobs:
-  # Validate PR context
+  # Validate PR context and check if we should skip
   validate-pr:
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.validate.outputs.pr_number }}
+      should_skip: ${{ steps.check-author.outputs.should_skip }}
     steps:
       - name: Validate PR Number
         id: validate
@@ -36,9 +37,24 @@ jobs:
           echo "✅ Valid PR number: $PR_NUMBER"
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
 
-  # Run all review types in parallel
+      - name: Check if PR is from Dependabot
+        id: check-author
+        run: |
+          PR_AUTHOR="${{ github.event.pull_request.user.login || 'unknown' }}"
+          echo "PR Author: $PR_AUTHOR"
+
+          if [[ "$PR_AUTHOR" == "dependabot[bot]" ]] || [[ "$PR_AUTHOR" == "dependabot" ]]; then
+            echo "🤖 Skipping Claude review for Dependabot PR"
+            echo "should_skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "👤 Running Claude review for user PR"
+            echo "should_skip=false" >> $GITHUB_OUTPUT
+          fi
+
+  # Run all review types in parallel (only if not skipping)
   review-readme:
     needs: validate-pr
+    if: needs.validate-pr.outputs.should_skip != 'true'
     secrets: inherit
     uses: ./.github/workflows/claude-review-readme.yml
     with:
@@ -46,6 +62,7 @@ jobs:
 
   review-comments:
     needs: validate-pr
+    if: needs.validate-pr.outputs.should_skip != 'true'
     secrets: inherit
     uses: ./.github/workflows/claude-review-comments.yml
     with:
@@ -53,6 +70,7 @@ jobs:
 
   review-types:
     needs: validate-pr
+    if: needs.validate-pr.outputs.should_skip != 'true'
     secrets: inherit
     uses: ./.github/workflows/claude-review-typing.yml
     with:
@@ -60,6 +78,7 @@ jobs:
 
   review-einops:
     needs: validate-pr
+    if: needs.validate-pr.outputs.should_skip != 'true'
     secrets: inherit
     uses: ./.github/workflows/claude-review-einops.yml
     with:
@@ -69,7 +88,7 @@ jobs:
   consolidate-review:
     needs: [validate-pr, review-readme, review-comments, review-types, review-einops]
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && needs.validate-pr.outputs.should_skip != 'true'
     permissions:
       contents: read
       pull-requests: write
@@ -113,3 +132,15 @@ jobs:
           echo "- Code Comments: ${{ needs.review-comments.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Type Annotations: ${{ needs.review-types.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Einops Suggestions: ${{ needs.review-einops.result }}" >> $GITHUB_STEP_SUMMARY
+
+  skip-summary:
+    needs: validate-pr
+    runs-on: ubuntu-latest
+    if: needs.validate-pr.outputs.should_skip == 'true'
+    steps:
+      - name: Skip Summary
+        run: |
+          echo "# 🤖 Claude Review Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Reason**: This PR was opened by Dependabot" >> $GITHUB_STEP_SUMMARY
+          echo "**Action**: Skipping Claude review for automated dependency updates" >> $GITHUB_STEP_SUMMARY

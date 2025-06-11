@@ -10,7 +10,7 @@ class MiniscopeRenderer:
     # These are selected to ensure visual clarity and consistent alignment
     MINISCOPE_SYMBOLS = {
         # Basic terrain
-        "wall": "🧱",  # Wall/barrier (W)
+        "wall": "🧱",  # Wall/barrier (#)
         "empty": "⬜",  # Empty space (white square for visibility)
         # Agents
         "agent": "🤖",  # Default agent

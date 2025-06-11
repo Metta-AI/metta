@@ -4,7 +4,7 @@ import { focusFullMap, requestFrame } from './worldmap.js';
 import { onResize, updateStep } from './main.js';
 import { updateAgentTable } from './agentpanel.js';
 
-// Gets an attribute from a grid object respecting the current step.
+/** Gets an attribute from a grid object respecting the current step. */
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
   if (atStep == -1) {
     // When step is not defined, use global step.
@@ -20,8 +20,7 @@ export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): 
   }
 }
 
-
-// Decompress a stream, used for compressed JSON from fetch or drag and drop.
+/** Decompress a stream, used for compressed JSON from fetch or drag and drop. */
 async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<string> {
   const decompressionStream = new DecompressionStream('deflate');
   const decompressedStream = stream.pipeThrough(decompressionStream);
@@ -46,7 +45,7 @@ async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<str
   return decoder.decode(flattenedChunks);
 }
 
-// Load the replay from a URL.
+/** Load the replay from a URL. */
 export async function fetchReplay(replayUrl: string) {
 
   // If its an S3 url, we can convert it to a http url.
@@ -84,7 +83,7 @@ export async function fetchReplay(replayUrl: string) {
   }
 }
 
-// Read a file from drag and drop.
+/** Read a file from drag and drop. */
 export async function readFile(file: File) {
   try {
     const contentType = file.type;
@@ -103,7 +102,10 @@ export async function readFile(file: File) {
   }
 }
 
-// Expand a sequence of values
+/**
+ * Expand a sequence of values.
+ * Example: [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
+ */
 // [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
 function expandSequence(sequence: any[], numSteps: number): any[] {
   var expanded: any[] = [];
@@ -235,6 +237,7 @@ function fixReplay() {
 
 }
 
+/** Load a replay from a JSON object. */
 async function loadReplayJson(url: string, replayData: any) {
   state.replay = replayData;
 
@@ -277,6 +280,7 @@ async function loadReplayJson(url: string, replayData: any) {
   requestFrame();
 }
 
+/** Load a single step of a replay. */
 export function loadReplayStep(replayStep: any) {
   // This gets us a simple replay step that we can overwrite.
 
@@ -322,6 +326,7 @@ export function loadReplayStep(replayStep: any) {
   requestFrame();
 }
 
+/** Initialize the WebSocket connection. */
 export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl);
   state.ws.onmessage = (event) => {
@@ -357,6 +362,7 @@ export function initWebSocket(wsUrl: string) {
   };
 }
 
+/** Send an action to the server. */
 export function sendAction(actionName: string, actionParam: number) {
   if (state.ws === null) {
     console.error("WebSocket is not connected");
