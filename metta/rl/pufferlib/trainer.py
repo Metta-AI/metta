@@ -437,6 +437,13 @@ class PufferTrainer:
         experience.step = 0
         return self.stats, infos
 
+    def _get_experience_buffer_mean_reward(self) -> float:
+        # Use rewards from experience buffer
+        if hasattr(self, "experience") and self.experience.rewards_np is not None:
+            return float(np.mean(self.experience.rewards_np))
+
+        return 0.0
+
     @profile_section("train")
     def _train(self):
         experience, profile = self.experience, self.profile
@@ -448,30 +455,30 @@ class PufferTrainer:
             values_np = experience.values_np[idxs]
             rewards_np = experience.rewards_np[idxs]
 
-            # Update average reward estimate
             if self.trainer_cfg.average_reward:
-                # Update average reward estimate using EMA with configured alpha
+                # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
+                # where ρ is the average reward estimate
+
+                current_batch_mean = self._get_experience_buffer_mean_reward()
+
+                # Apply IIR filter (exponential moving average)
                 alpha = self.trainer_cfg.average_reward_alpha
-                self.average_reward = (1 - alpha) * self.average_reward + alpha * np.mean(rewards_np)
-                # Adjust rewards by subtracting average reward for advantage computation
-                rewards_np_adjusted = rewards_np - self.average_reward
-                # Set gamma to 1.0 for average reward case
+                self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
+
+                # Use filtered estimate for advantage computation
+                rewards_np_adjusted = (rewards_np - self.average_reward).astype(np.float32)
                 effective_gamma = 1.0
-                # Compute advantages using adjusted rewards
                 advantages_np = compute_gae(
                     dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
                 )
-                # For average reward case, returns are computed differently:
-                # R(s) = Σ(r_t - ρ) represents the bias function
-                experience.returns_np = advantages_np + values_np
             else:
+                # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
                 effective_gamma = self.trainer_cfg.gamma
-                # Standard GAE computation for discounted case
                 advantages_np = compute_gae(
                     dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
                 )
-                experience.returns_np = advantages_np + values_np
 
+            experience.returns_np = advantages_np + values_np
             experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
@@ -608,12 +615,14 @@ class PufferTrainer:
             return
 
         pr = self._checkpoint_policy()
+
+        # Save filtered average reward estimate for restart continuity
+        extra_args = {}
+        if self.trainer_cfg.average_reward:
+            extra_args["average_reward"] = self.average_reward
+
         self.checkpoint = TrainerCheckpoint(
-            self.agent_step,
-            self.epoch,
-            self.optimizer.state_dict(),
-            pr.local_path(),
-            average_reward=self.average_reward,  # Save average reward state
+            self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
