@@ -150,10 +150,17 @@ jobs:
         with:
           python-version: "3.11.7"
 
-      - name: Install Dependencies
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+          enable-cache: true
+
+      - name: Install dependencies
         if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.install_packages != ''
+        shell: bash
         run: |
-          pip install ${{ inputs.install_packages }}
+          uv pip install --system ${{ inputs.install_packages }}
 
       - name: Run Claude Analysis
         id: claude-analysis
