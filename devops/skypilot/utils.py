@@ -1,5 +1,6 @@
-import os
+import copy
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -8,12 +9,6 @@ import sky
 
 from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
 from metta.util.fs import cd_repo_root
-from metta.util.git import (
-    get_commit_message,
-    get_current_commit,
-    has_unstaged_changes,
-    is_commit_pushed,
-)
 
 
 def print_tip(text: str):
@@ -21,7 +16,7 @@ def print_tip(text: str):
 
 
 def dashboard_url():
-    url = sky.server.common.get_server_url()
+    url = sky.server.common.get_server_url()  # type: ignore
     # strip username and password from server_url
     url = re.sub("https://.*@", "https://", url)
     return url
@@ -34,7 +29,7 @@ def launch_task(task: sky.Task, dry_run=False):
         print(task.to_yaml_config())
         return
 
-    request_id = sky.jobs.launch(task)
+    request_id = sky.jobs.launch(task)  # type: ignore
 
     print(green(f"Submitted sky.jobs.launch request: {request_id}"))
 
@@ -46,191 +41,130 @@ def launch_task(task: sky.Task, dry_run=False):
     print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
 
 
-def validate_critical_files(cmd: str, task_args: List[str]) -> bool:
-    """Validate that all critical files exist before launching the task."""
-    critical_files = [
-        "./devops/skypilot/config/sk_train.yaml",
-        f"./devops/{cmd}.sh",
-    ]
+def check_git_state(skip_check: bool = False) -> bool:
+    """Check for uncommitted changes that won't be reflected in the cloud."""
+    if skip_check:
+        return True
 
-    if cmd == "train":
-        critical_files.append("tools/train.py")
-    elif cmd == "sweep":
-        critical_files.append("tools/sweep.py")
-    elif cmd == "evolve":
-        critical_files.append("tools/evolve.py")
+    try:
+        # Check for uncommitted changes
+        result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True)
 
-    # Check for configuration files mentioned in task arguments
+        if result.stdout.strip():
+            print("❌ You have uncommitted changes that won't be reflected in the cloud job.")
+            print("Options:")
+            print("  - Commit: git add . && git commit -m 'your message'")
+            print("  - Stash: git stash")
+            print("  - Skip check: add --skip-git-check flag")
+            return False
+
+    except subprocess.CalledProcessError:
+        print("⚠️  Could not check git status (not in a git repo?)")
+
+    return True
+
+
+def check_config_files(cmd_args: List[str]) -> bool:
+    """Check that config files referenced in arguments actually exist."""
     config_files_to_check = []
-    for task_arg in task_args:
+
+    for task_arg in cmd_args:
         # Check for agent configuration
         if task_arg.startswith("agent="):
             agent_value = task_arg.split("=", 1)[1]
-            config_files_to_check.append(f"./configs/agent/{agent_value}.yaml")
+            config_files_to_check.append((task_arg, f"./configs/agent/{agent_value}.yaml"))
 
         # Check for trainer configuration
         elif task_arg.startswith("trainer="):
             trainer_value = task_arg.split("=", 1)[1]
-            config_files_to_check.append(f"./configs/trainer/{trainer_value}.yaml")
+            config_files_to_check.append((task_arg, f"./configs/trainer/{trainer_value}.yaml"))
 
         # Check for environment configuration
         elif task_arg.startswith("trainer.env="):
             env_value = task_arg.split("=", 1)[1]
-            config_files_to_check.append(f"./configs/{env_value}.yaml")
+            config_files_to_check.append((task_arg, f"./configs/{env_value}.yaml"))
 
         # Check for evaluation configuration
         elif task_arg.startswith("trainer.eval="):
             eval_value = task_arg.split("=", 1)[1]
-            config_files_to_check.append(f"./configs/eval/{eval_value}.yaml")
-
-    # Add config files to critical files list
-    critical_files.extend(config_files_to_check)
-
-    divider_length = 60
-    divider = "=" * divider_length
-    print(f"\n{divider}")
-    print(bold("Validating critical files..."))
-    print(f"{divider}")
+            config_files_to_check.append((task_arg, f"./configs/eval/{eval_value}.yaml"))
 
     missing_files = []
-    found_files = []
-
-    for file in critical_files:
-        if not os.path.exists(file):
-            missing_files.append(file)
-            print(red(f"❌ Missing required file: {file}"))
-        else:
-            found_files.append(file)
-            print(green(f"✅ Found: {file}"))
+    for arg, config_path in config_files_to_check:
+        if not Path(config_path).exists():
+            missing_files.append((arg, config_path))
 
     if missing_files:
-        print(red("\nValidation failed - missing required files:"))
-        print(red("=" * 50))
+        print("❌ Config files not found:")
+        for arg, path in missing_files:
+            print(f"  {arg} -> {path}")
 
-        # Group suggestions by type
-        suggestions = []
-        current_dir = Path.cwd()
+            # Try to suggest similar files
+            config_dir = Path(path).parent
+            if config_dir.exists():
+                yaml_files = list(config_dir.glob("*.yaml"))
+                if yaml_files:
+                    suggestions = [f.stem for f in yaml_files[:3]]
+                    print(f"    Available: {', '.join(suggestions)}")
 
-        # Check if we're in the wrong directory
-        if any("devops" in f for f in missing_files):
-            suggestions.append("• Ensure you're running from the repository root directory")
-            suggestions.append(f"  Current directory: {current_dir}")
-
-        # Check for config file issues
-        missing_configs = [f for f in missing_files if f.startswith("./configs/")]
-        if missing_configs:
-            suggestions.append("• Check your configuration file paths:")
-            for config in missing_configs:
-                suggestions.append(f"  {config}")
-                # Try to find similar files
-                config_dir = Path(config).parent
-                if config_dir.exists():
-                    similar_files = list(config_dir.glob("*.yaml"))
-                    if similar_files:
-                        suggestions.append(f"    Available in {config_dir}: {[f.name for f in similar_files[:3]]}")
-
-        # Check for tool files
-        missing_tools = [f for f in missing_files if f.startswith("tools/")]
-        if missing_tools:
-            suggestions.append("• Missing tool files - check your repository structure")
-
-        if suggestions:
-            print(yellow("\nSuggestions:"))
-            for suggestion in suggestions:
-                print(yellow(suggestion))
-
-        return False
-
-    print(green("All critical files found. Validation successful."))
-    return True
-
-
-def validate_git_state(
-    git_ref: Optional[str] = None, skip_validation: bool = False, skip_push_check: bool = False
-) -> bool:
-    """Validate git state and check for unstaged changes."""
-    if has_unstaged_changes() and not skip_validation:
-        print(red("Error: You have unstaged changes in your repository."))
-        print(red("These changes will not be reflected in the cloud environment."))
-        print(yellow("Commit or stash your changes, or use --skip-validation to bypass this check."))
-        return False
-
-    # Use current commit if no git_ref provided
-    if not git_ref:
-        git_ref = get_current_commit()
-        if not git_ref:
-            print(red("Error: Could not get current commit hash. Ensure you're in a git repository."))
-            return False
-
-    # Validate that the commit is pushed
-    if not skip_push_check and not is_commit_pushed(git_ref):
-        print(red(f"Error: Git commit {git_ref} has not been pushed."))
-        print("Please push your commit or use --skip-push-check to bypass.")
+        print("Check your argument spelling and file paths.")
         return False
 
     return True
 
 
-def display_task_summary(
-    task: sky.Task,
+def display_job_summary(
+    job_name: str,
     cmd: str,
     task_args: List[str],
     git_ref: Optional[str] = None,
-    timeout_hours: Optional[float] = None,
-    copies: int = 1,
+    commit_message: Optional[str] = None,
+    timeout_minutes: Optional[int] = None,
+    **kwargs,
 ) -> None:
-    """Display a comprehensive summary of the task that will be launched."""
+    """Display a summary of the job that will be launched."""
     divider_length = 60
     divider = "=" * divider_length
 
     print(f"\n{divider}")
-    print(bold("Task will be launched with the following details:"))
+    print(bold("Job will be submitted with the following details:"))
     print(f"{divider}")
 
-    print(f"Task Name: {task.name}")
-    print(f"Command: {cmd}")
+    print(f"Job Name: {job_name}")
 
-    if copies > 1:
-        print(f"Number of Copies: {copies}")
+    # Display any additional job details from kwargs
+    for key, value in kwargs.items():
+        if value is not None:
+            # Convert snake_case to Title Case for display
+            display_key = key.replace("_", " ").title()
+            print(f"{display_key}: {value}")
 
-    # Display resource information
-    if task.resources:
-        resource = list(task.resources)[0]  # Get first resource
-        if hasattr(resource, "accelerators") and resource.accelerators:
-            gpu_info = []
-            for gpu_type, count in resource.accelerators.items():
-                gpu_info.append(f"{count}x {gpu_type}")
-            print(f"GPUs: {', '.join(gpu_info)}")
+    # Display timeout information with prominence
+    if timeout_minutes:
+        timeout_hours = timeout_minutes // 60
+        timeout_mins = timeout_minutes % 60
 
-        if hasattr(resource, "cpus") and resource.cpus:
-            print(f"CPUs: {resource.cpus}")
+        if timeout_hours > 0:
+            if timeout_mins == 0:
+                timeout_str = f"{timeout_hours}h"
+            else:
+                timeout_str = f"{timeout_hours}h {timeout_mins}m"
+        else:
+            timeout_str = f"{timeout_mins}m"
 
-        if hasattr(resource, "memory") and resource.memory:
-            print(f"Memory: {resource.memory}GB")
-
-        if hasattr(resource, "use_spot"):
-            spot_status = "Yes" if resource.use_spot else "No"
-            print(f"Spot Instances: {spot_status}")
-
-    if task.num_nodes and task.num_nodes > 1:
-        print(f"Number of Nodes: {task.num_nodes}")
-
-    # Display timeout information
-    if timeout_hours:
-        timeout_str = format_timeout_display(timeout_hours)
-        print(bold(yellow(f"AUTO-TERMINATION: Task will terminate after {timeout_str}")))
+        print(bold(yellow(f"AUTO-TERMINATION: Job will terminate after {timeout_str}")))
     else:
-        print(yellow("NO TIMEOUT SET: Task will run until completion"))
+        print(yellow("NO TIMEOUT SET: Job will run until completion"))
 
     # Display git information
     if git_ref:
         print(f"Git Reference: {git_ref}")
-        commit_message = get_commit_message(git_ref)
         if commit_message:
             first_line = commit_message.split("\n")[0]
             print(f"Commit Message: {yellow(first_line)}")
 
     print(f"{'-' * divider_length}")
+    print(f"Command: {cmd}")
 
     # Display task arguments
     if task_args:
@@ -241,43 +175,21 @@ def display_task_summary(
     print(f"\n{divider}")
 
 
-def format_timeout_display(timeout_hours: float) -> str:
-    """Format timeout duration for display."""
-    total_minutes = int(timeout_hours * 60)
-    hours = total_minutes // 60
-    minutes = total_minutes % 60
-
-    if hours > 0:
-        if minutes == 0:
-            return f"{hours}h"
-        else:
-            return f"{hours}h {minutes}m"
-    else:
-        return f"{minutes}m"
-
-
-def get_user_confirmation(dry_run: bool = False, skip_validation: bool = False) -> bool:
-    """Get user confirmation before launching the task."""
+def get_user_confirmation(
+    dry_run: bool = False, skip_validation: bool = False, prompt: str = "Should we proceed?"
+) -> bool:
+    """Get user confirmation before proceeding with an action."""
     if dry_run:
-        print(bold("DRY RUN - No task will be launched"))
+        print(bold("DRY RUN - No action will be taken"))
         return False
 
     if not skip_validation:
-        response = input("Should we launch this task? (Y/n): ")
-        if response.lower() not in ["", "y", "yes"]:
-            print(yellow("Task launch cancelled by user."))
+        response = input(f"{prompt} (Y/n): ").strip().lower()
+        if response not in ["", "y", "yes"]:
+            print(yellow("Action cancelled by user."))
             return False
 
     return True
-
-
-def setup_launch_environment(use_color: bool = True) -> None:
-    """Set up the launch environment with proper directory and color settings."""
-    # Set up colors
-    use_colors(sys.stdout.isatty() and use_color)
-
-    # Ensure we're in the repository root
-    cd_repo_root()
 
 
 def validate_and_launch_task(
@@ -288,31 +200,25 @@ def validate_and_launch_task(
     timeout_hours: Optional[float] = None,
     copies: int = 1,
     dry_run: bool = False,
-    skip_validation: bool = False,
-    skip_push_check: bool = False,
+    skip_git_check: bool = False,
     use_color: bool = True,
 ) -> bool:
     """
-    Complete validation and launch workflow for a SkyPilot task.
+    Simple validation and launch workflow focusing on common mistakes.
 
     Returns True if task was successfully launched (or would be in dry run mode).
     """
-    # Set up environment
-    setup_launch_environment(use_color)
+    # Set up colors
+    use_colors(sys.stdout.isatty() and use_color)
 
-    # Validate critical files
-    if not validate_critical_files(cmd, task_args):
-        sys.exit(1)
+    # Ensure we're in the repository root
+    cd_repo_root()
 
-    # Validate git state
-    if not validate_git_state(git_ref, skip_validation, skip_push_check):
+    # Check the two things that commonly go wrong
+    if not check_git_state(skip_git_check):
         return False
 
-    # Display task summary
-    display_task_summary(task, cmd, task_args, git_ref, timeout_hours, copies)
-
-    # Get user confirmation
-    if not get_user_confirmation(dry_run, skip_validation):
+    if not check_config_files(task_args):
         return False
 
     # Launch the task(s)
@@ -321,9 +227,15 @@ def validate_and_launch_task(
             launch_task(task, dry_run)
         else:
             for i in range(copies):
-                copy_task = task.copy()
+                copy_task = copy.deepcopy(task)
                 copy_task.name = f"{task.name}_{i + 1}"
+                copy_task = copy_task.update_envs({"METTA_RUN_ID": copy_task.name})
+                copy_task.validate_name()
+                print(f"\nLaunching copy {i + 1}/{copies}: {copy_task.name}")
                 launch_task(copy_task, dry_run)
+
+        if not dry_run:
+            print(green(f"\n🚀 Successfully launched {copies} job{'s' if copies > 1 else ''}!"))
 
         return True
 

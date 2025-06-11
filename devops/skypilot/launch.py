@@ -3,10 +3,17 @@ import argparse
 import copy
 import shlex
 import subprocess
+import sys
 
 import sky
 
-from devops.skypilot.utils import launch_task
+from devops.skypilot.utils import (
+    check_config_files,
+    check_git_state,
+    display_job_summary,
+    get_user_confirmation,
+    launch_task,
+)
 
 
 def patch_task(
@@ -82,7 +89,16 @@ def main():
         default=None,
         help="Automatically terminate the job after this many hours (supports decimals, e.g., 1.5 for 90 minutes)",
     )
+    parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
+    parser.add_argument("--skip-validation", action="store_true", help="Skip confirmation prompt")
     (args, cmd_args) = parser.parse_known_args()
+
+    # Run validations
+    if not check_git_state(args.skip_git_check):
+        sys.exit(1)
+
+    if not check_config_files(cmd_args):
+        sys.exit(1)
 
     git_ref = args.git_ref
     if not git_ref:
@@ -104,15 +120,36 @@ def main():
         task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes, no_spot=args.no_spot, timeout_hours=args.timeout_hours
     )
 
+    # Show job summary
+    extra_details = {}
+    if args.copies > 1:
+        extra_details["copies"] = args.copies
+
+    display_job_summary(
+        job_name=args.run,
+        cmd=args.cmd,
+        task_args=cmd_args,
+        git_ref=git_ref,
+        timeout_hours=args.timeout_hours,
+        task=task,
+        **extra_details,
+    )
+
+    # Get confirmation
+    if not get_user_confirmation(args.dry_run, args.skip_validation, "Should we launch this task?"):
+        sys.exit(0)
+
+    # Launch the task(s)
     if args.copies == 1:
         launch_task(task, dry_run=args.dry_run)
     else:
-        for _ in range(1, args.copies + 1):
+        for i in range(1, args.copies + 1):
             copy_task = copy.deepcopy(task)
-            run_id = args.run
+            run_id = f"{args.run}_{i}"
             copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
             copy_task.name = run_id
             copy_task.validate_name()
+            print(f"\nLaunching copy {i}/{args.copies}: {run_id}")
             launch_task(copy_task, dry_run=args.dry_run)
 
 
