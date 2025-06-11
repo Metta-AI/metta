@@ -201,8 +201,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                     self._task.env_cfg().game.diversity_bonus.diversity_coef,
                 )
 
-            with self.timer("process_episode_stats"):
-                self.process_episode_stats(infos)
+            self.process_episode_stats(infos)
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
@@ -212,8 +211,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def close(self):
         pass
 
+    @with_instance_timer("process_episode_stats")
     def process_episode_stats(self, infos: Dict[str, Any]):
-        episode_rewards = self._c_env.get_episode_rewards()
+        with self.timer("_c_env.get_episode_rewards"):
+            episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 

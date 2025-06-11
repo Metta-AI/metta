@@ -82,7 +82,7 @@ class TestStopwatch:
 
         # Test with callable syntax and logging
         with caplog.at_level(logging.INFO):
-            with stopwatch("test_callable", log=logging.INFO):
+            with stopwatch("test_callable", log_level=logging.INFO):
                 time.sleep(0.1)
 
             # Check log output
@@ -470,10 +470,10 @@ class TestStopwatchIntegration:
 
         with caplog.at_level(logging.INFO):
             # Test multiple operations with logging
-            with sw("operation1", log=logging.INFO):
+            with sw("operation1", log_level=logging.INFO):
                 time.sleep(0.05)
 
-            with sw("operation2", log=logging.INFO):
+            with sw("operation2", log_level=logging.INFO):
                 time.sleep(0.03)
 
             # Test progress logging

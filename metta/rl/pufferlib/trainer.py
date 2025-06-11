@@ -28,7 +28,7 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from mettagrid.util.stopwatch import Stopwatch
+from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 torch.set_float32_matmul_precision("high")
 
@@ -82,8 +82,7 @@ class PufferTrainer:
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
 
-        with self.timer("_make_vecenv"):
-            self._make_vecenv()
+        self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), (
@@ -217,6 +216,7 @@ class PufferTrainer:
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
+    @with_instance_timer("train")
     def train(self):
         logger.info("Starting training")
 
@@ -232,15 +232,11 @@ class PufferTrainer:
             steps_before = self.agent_step
 
             with self.torch_profiler:
-                with self.timer("_rollout"):
-                    self._rollout()
-
-                with self.timer("_train"):
-                    self._train()
+                self._rollout()
+                self._train()
 
             # Processing stats
-            with self.timer("_process_stats"):
-                self._process_stats()
+            self._process_stats()
 
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
@@ -258,12 +254,10 @@ class PufferTrainer:
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                with self.timer("_checkpoint_trainer", log=logging.INFO):
-                    self._checkpoint_trainer()
+                self._checkpoint_trainer()
 
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                with self.timer("_evaluate_policy", log=logging.INFO):
-                    self._evaluate_policy()
+                self._evaluate_policy()
 
             self.torch_profiler.on_epoch_end(self.epoch)
 
@@ -278,8 +272,7 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
 
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
-                with self.timer("_generate_and_upload_replay", log=logging.INFO):
-                    self._generate_and_upload_replay()
+                self._generate_and_upload_replay()
 
             self._on_train_step()
 
@@ -291,6 +284,7 @@ class PufferTrainer:
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
 
+    @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
         if not self._master:
             return
@@ -337,12 +331,14 @@ class PufferTrainer:
                 if category in sim_name.lower():
                     self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
 
+    @with_instance_timer("_update_l2_init_weight_copy")
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
 
     def _on_train_step(self):
         pass
 
+    @with_instance_timer("_rollout")
     def _rollout(self):
         with self.timer("_rollout.misc"):
             policy = self.policy
@@ -457,6 +453,7 @@ class PufferTrainer:
 
         return 0.0
 
+    @with_instance_timer("_train")
     def _train(self):
         self.losses = self._make_losses()
 
@@ -619,6 +616,7 @@ class PufferTrainer:
             self.losses.explained_variance = explained_var
             self.epoch += 1
 
+    @with_instance_timer("_checkpoint_trainer", log_level=logging.INFO)
     def _checkpoint_trainer(self):
         if not self._master:
             return
@@ -634,6 +632,7 @@ class PufferTrainer:
             self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
+    @with_instance_timer("_checkpoint_policy")
     def _checkpoint_policy(self):
         if not self._master:
             return
@@ -669,6 +668,7 @@ class PufferTrainer:
         # at the same policy as the last_pr
         return self.last_pr
 
+    @with_instance_timer("_save_policy_to_wandb", log_level=logging.INFO)
     def _save_policy_to_wandb(self):
         if not self._master:
             return
@@ -679,6 +679,7 @@ class PufferTrainer:
         pr = self._checkpoint_policy()
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
+    @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
         if self._master:
             logger.info("Generating and saving a replay to wandb and S3.")
@@ -706,6 +707,7 @@ class PufferTrainer:
                     }
                     self.wandb_run.log(link_summary)
 
+    @with_instance_timer("_process_stats")
     def _process_stats(self):
         # convert lists of values (collected across all environments and rollout steps on this GPU)
         # into single mean values.
@@ -790,6 +792,7 @@ class PufferTrainer:
         self._eval_grouped_scores = {}
         self.stats.clear()
 
+    @with_instance_timer("close")
     def close(self):
         self.vecenv.close()
 
@@ -799,6 +802,7 @@ class PufferTrainer:
     def last_pr_uri(self):
         return self.last_pr.uri
 
+    @with_instance_timer("_make_experience_buffer")
     def _make_experience_buffer(self):
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), (
@@ -858,6 +862,7 @@ class PufferTrainer:
             ks_value_loss=0,
         )
 
+    @with_instance_timer("_make_vecenv")
     def _make_vecenv(self):
         """Create a vectorized environment."""
 

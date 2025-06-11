@@ -25,7 +25,7 @@ def with_timer(timer: "Stopwatch", timer_name: str, log_level: Optional[int] = N
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            with timer.time(timer_name, log=log_level):
+            with timer.time(timer_name, log_level=log_level):
                 return func(*args, **kwargs)
 
         return cast(F, wrapper)
@@ -60,7 +60,7 @@ def with_instance_timer(timer_name: str, log_level: Optional[int] = None, timer_
                 raise ValueError("with_instance_timer can only be used on instance methods")
             instance = args[0]
             timer = getattr(instance, timer_attr)
-            with timer.time(timer_name, log=log_level):
+            with timer.time(timer_name, log_level=log_level):
                 return func(*args, **kwargs)
 
         return cast(F, wrapper)
@@ -137,15 +137,15 @@ class Stopwatch:
         return elapsed
 
     @contextmanager
-    def time(self, name: Optional[str] = None, log: Optional[int] = None):
+    def time(self, name: Optional[str] = None, log_level: Optional[int] = None):
         """Context manager for timing a code block.
 
         Args:
             name: Name of the timer
-            log: Optional logging level (e.g., logging.INFO) to automatically log elapsed time on exit
+            log_level: Optional logging level (e.g., logging.INFO) to automatically log elapsed time on exit
 
         Usage:
-            with stopwatch.time("my_operation", log=logging.INFO):
+            with stopwatch.time("my_operation", log_level=logging.INFO):
                 # code to time
                 pass
         """
@@ -154,23 +154,23 @@ class Stopwatch:
             yield self
         finally:
             elapsed = self.stop(name)
-            if log is not None:
+            if log_level is not None:
                 display_name = name or "global"
-                self.logger.log(log, f"{display_name} took {elapsed:.3f}s")
+                self.logger.log(log_level, f"{display_name} took {elapsed:.3f}s")
 
-    def __call__(self, name: Optional[str] = None, log: Optional[int] = None) -> ContextManager["Stopwatch"]:
+    def __call__(self, name: Optional[str] = None, log_level: Optional[int] = None) -> ContextManager["Stopwatch"]:
         """Make Stopwatch callable to return context manager.
 
         Args:
             name: Name of the timer
-            log: Optional logging level (e.g., logging.INFO) to automatically log elapsed time on exit
+            log_level: Optional logging level (e.g., logging.INFO) to automatically log elapsed time on exit
 
         Usage:
-            with stopwatch("my_operation", log=logging.INFO):
+            with stopwatch("my_operation", log_level=logging.INFO):
                 # code to time
                 pass
         """
-        return self.time(name, log)
+        return self.time(name, log_level)
 
     def checkpoint(self, steps: int, checkpoint_name: Optional[str] = None, timer_name: Optional[str] = None):
         """Record a checkpoint (i.e. lap marker) with step count.
