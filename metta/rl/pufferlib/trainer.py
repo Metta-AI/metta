@@ -692,15 +692,29 @@ class PufferTrainer:
                     self.wandb_run.log(link_summary)
 
     def _process_stats(self):
-        for k in list(self.stats.keys()):
-            v = self.stats[k]
+        # convert lists of values (collected across all environments and rollout steps on this GPU)
+        # into single mean values.
+        mean_stats = {}
+        for k, v in self.stats.items():
             try:
-                v = np.mean(v)
-                self.stats[k] = v
-            except (TypeError, ValueError):
-                del self.stats[k]
+                mean_stats[k] = np.mean(v)
+            except (TypeError, ValueError) as e:
+                raise RuntimeError(
+                    f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
+                    f"All collected stats must be numeric values or lists of numeric values. "
+                    f"Error: {e}"
+                ) from e
+        self.stats = mean_stats
 
-        # Now synchronize and aggregate stats across processes
+        weight_metrics = {}
+        if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
+            for metrics in self.policy.compute_weight_metrics():
+                name = metrics.get("name", "unknown")
+                for key, value in metrics.items():
+                    if key != "name":
+                        weight_metrics[f"weights/{key}/{name}"] = value
+
+        # Calculate derived stats from local roll-outs (master process will handle logging)
         sps = self.profile.SPS
         agent_steps = self.agent_step
         epoch = self.epoch
@@ -751,7 +765,7 @@ class PufferTrainer:
                     **{f"losses/{k}": v for k, v in losses.items()},
                     **{f"performance/{k}": v for k, v in performance.items()},
                     **environment,
-                    **self._weights_helper.stats(),
+                    **weight_metrics,
                     **self._eval_grouped_scores,
                     "train/agent_step": agent_steps,
                     "train/epoch": epoch,
