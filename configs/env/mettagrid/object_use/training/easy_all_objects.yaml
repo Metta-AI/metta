@@ -20,6 +20,12 @@ game:
       blueprint: ${sampling:0.01,1, 0.1}
       heart: 1
       heart_max: 1000
+      laser: ${sampling:0.005,0.1, 0.01}
+      laser_max: 1
+      blueprint: ${sampling:0.005,0.1, 0.01}
+      blueprint_max: 1
+      armor: ${sampling:0.005,0.1, 0.01}
+      armor_max: 1
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}

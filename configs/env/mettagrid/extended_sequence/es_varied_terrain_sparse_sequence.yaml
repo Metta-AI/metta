@@ -1,0 +1,62 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+  map_builder:
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 6
+
+    room:
+      _target_: mettagrid.room.navigation.varied_terrain_sequence.VariedTerrainSequence
+      width: ${sampling:75,120,60}
+      height: ${sampling:75,120,60}
+      border_width: ${sampling:1,6,3}
+      agents: 1
+      style: all-sparse
+      objects:
+        altar: ${sampling:20,60,40}
+        mine.red: ${sampling:20,60,40}
+        mine.blue: ${sampling:20,60,40}
+        mine.green: ${sampling:20,60,40}
+        generator: ${sampling:20,60,40}
+  objects:
+    altar:
+      cooldown: 255
+      input_battery: 1
+      output_heart: 1
+      max_output: 1
+      conversion_ticks: 1
+      initial_items: 0
+    mine.red:
+      cooldown: 255
+      output_red_ore: 1
+      max_output: 1
+      conversion_ticks: 1
+      initial_items: 1
+    mine.blue:
+      cooldown: 255
+      input_red_ore: 1
+      output_blue_ore: 1
+      max_output: 1
+      conversion_ticks: 1
+      initial_items: 0
+    mine.green:
+      cooldown: 255
+      input_blue_ore: 1
+      output_green_ore: 1
+      max_output: 1
+      conversion_ticks: 1
+      initial_items: 0
+    generator.red:
+      input_ore.red: 0
+      cooldown: 255
+      input_blue_ore: 1
+      output_battery: 1
+      max_output: 1
+      conversion_ticks: 1
+      initial_items: 0

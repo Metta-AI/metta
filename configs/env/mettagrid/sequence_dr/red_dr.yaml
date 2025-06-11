@@ -1,0 +1,81 @@
+defaults:
+  - /env/mettagrid/sequence_dr/dr_defaults@
+  - _self_
+
+game:
+  map_builder:
+    room:
+      style: all-sparse
+
+    rewards:
+      action_failure_penalty: 0
+      ore.red: ${sampling:0.005,0.1, 0.01}
+      ore.blue: 0
+      ore.green: 0
+      battery.red: ${sampling:0.01,0.3, 0.1}
+      battery.blue: 0
+      battery.green: 0
+      heart: 1
+      heart_max: 1000
+
+  objects:
+    altar:
+      input_battery.red: 1
+      initial_items: ${choose:0,0,0,1}
+      cooldown: ${sampling:5, 20, 10}
+    generator.red:
+      initial_items: ${choose:0,0,0,0,0,0,0,1}
+      cooldown: ${sampling:5, 20, 10}
+    mine.red:
+      cooldown: ${sampling:15, 50, 10}
+
+    objects:
+    altar:
+      hp: 30
+      input_battery.red: 1
+      output_heart: 1
+      max_output: 1
+      conversion_ticks: 1
+      cooldown: ${sampling: 10, 20, 10}
+      initial_items: ${choose:0,0,0,0,1}
+
+    mine.red:
+      hp: 30
+      output_ore.red: 1
+      color: 0
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: ${sampling:0, 14, 10}
+      initial_items: 1
+
+    mine.blue:
+      hp: 30
+      color: 1
+      output_ore.blue: 1
+      max_output: 1
+      conversion_ticks: 1
+      cooldown: ${sampling:0, 14, 10}
+      initial_items: 0
+
+
+    generator.red:
+      hp: 30
+      input_ore.red: 1
+      output_battery.red: 1
+      color: 0
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: ${sampling: 5, 20, 10}
+      initial_items: ${choose:0,0,0,0,1}
+
+    generator.blue:
+      hp: 30
+      input_ore.blue: 1
+      output_battery.blue: 1
+      color: 1
+      max_output: 5
+      conversion_ticks: 1
+      cooldown: ${sampling: 5, 20, 10}
+      initial_items: 0
+
+

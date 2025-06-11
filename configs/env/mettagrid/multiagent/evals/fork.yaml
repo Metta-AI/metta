@@ -1,0 +1,11 @@
+defaults:
+  - /env/mettagrid/multiagent/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 40
+  agent:
+    rewards:
+      heart: 0.25
+  map_builder:
+    uri: "configs/env/mettagrid/maps/multiagent/fork.map"

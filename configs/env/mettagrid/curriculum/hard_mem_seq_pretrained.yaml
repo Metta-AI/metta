@@ -1,0 +1,14 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/navigation_sequence/training/hard_mem_sparse: 1
+  /env/mettagrid/navigation_sequence/training/hard_mem_balanced: 1
+  /env/mettagrid/navigation_sequence/training/hard_mem_maze: 1
+  /env/mettagrid/navigation_sequence/training/hard_mem_dense: 1
+  /env/mettagrid/navigation_sequence/training/hard_sequence_sparse: 1
+  /env/mettagrid/navigation_sequence/training/hard_sequence_balanced: 1
+  /env/mettagrid/navigation_sequence/training/hard_sequence_maze: 1
+  /env/mettagrid/navigation_sequence/training/hard_sequence_dense: 1
+
+
+

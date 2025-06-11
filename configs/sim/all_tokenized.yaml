@@ -94,8 +94,6 @@ simulations:
     env: env/mettagrid/navigation_sequence/evals/honeypot
   navsequence/knotty:
     env: env/mettagrid/navigation_sequence/evals/knotty
-  navsequence/memory_palace:
-    env: env/mettagrid/navigation_sequence/evals/memory_palace
   navsequence/radial_large:
     env: env/mettagrid/navigation_sequence/evals/radial_large
   navsequence/radial_mini:

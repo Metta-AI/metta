@@ -1,0 +1,12 @@
+defaults:
+  - /env/mettagrid/multiagent/training/defaults@
+  - _self_
+
+game:
+  map_builder:
+    team: team_1
+
+  reward_sharing:
+    groups:
+      team_1:
+        team_1: ${choose:0.1,0.25,0.5}
