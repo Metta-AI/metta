@@ -8,7 +8,6 @@ defaults:
   - _self_
 
 run: eval.metta.new
-data_dir: ./train_dir
 run_dir: ${data_dir}/${run}
 
 policy_uri: puffer://checkpoints/metta-new/metta.pt

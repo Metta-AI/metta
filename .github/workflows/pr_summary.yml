@@ -54,9 +54,9 @@ jobs:
         run: |
           if [ -f pr_summary_output.txt ]; then
             {
-              echo 'content<<EOF'
+              echo "content<<EOF"
               cat pr_summary_output.txt
-              echo EOF
+              echo "EOF"
             } >> $GITHUB_OUTPUT
           fi
 
