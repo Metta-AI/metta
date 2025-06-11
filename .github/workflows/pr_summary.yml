@@ -2,7 +2,7 @@ name: Generate PR Summary
 
 on:
   schedule:
-    - cron: "0 1 * * 2-6" # M to F at 5 pm PST
+    - cron: "0 1 * * 6" # F at 5 pm PST
   workflow_dispatch:
     inputs:
       days_to_scan:
