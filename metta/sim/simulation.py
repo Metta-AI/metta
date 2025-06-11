@@ -27,7 +27,6 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.rl.pufferlib.policy import PufferAgent
-from metta.sim.mind_reader import MindReaderLogger
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.vecenv import make_vecenv
@@ -35,6 +34,7 @@ from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from mind_reader.data.mind_reader_data import MindReaderLogger
 
 logger = logging.getLogger(__name__)
 
@@ -277,9 +277,7 @@ class Simulation:
                 metta_grid_env = self._vecenv.driver_env
                 assert isinstance(metta_grid_env, MettaGridEnv)
                 grid_objects = metta_grid_env.grid_objects
-                self._mind_reader_logger.log_timestep(
-                    self._policy_state, self._npc_state, self._policy_idxs, self._npc_idxs, grid_objects
-                )
+                self._mind_reader_logger.log_timestep(self._policy_state, self._policy_idxs, grid_objects)
             except Exception as e:
                 logger.warning(f"Mind reader logging failed: {e}")
 
@@ -289,7 +287,18 @@ class Simulation:
 
         # Save mind reader data
         if self._mind_reader_logger.enabled:
-            self._mind_reader_logger.save_data()
+            self._mind_reader_logger.save()
+
+            # Automatically preprocess the raw data
+            try:
+                logger.info("Starting automatic mind reader data preprocessing...")
+                X, y = self._mind_reader_logger.preprocess_data()
+                if X is not None and y is not None:
+                    logger.info(f"Mind reader preprocessing completed: {len(X)} training samples created")
+                else:
+                    logger.warning("Mind reader preprocessing failed - no training data created")
+            except Exception as e:
+                logger.error(f"Mind reader preprocessing failed: {e}")
 
         db = self._from_shards_and_context()
 
