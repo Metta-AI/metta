@@ -15,10 +15,8 @@ POLICIES=(
   "daphne.navbucketedopt_devbox"
   "dd.navbucketed_sparser"
   "dd.navbucketed_2"
-  "b.daphne.test_nav_curriculum"
-  "b.daphne.test_nav_bucketedcurriculum"
-  "b.daphne.test_nav_curriculum_full"
   "daphne.navnoterrain"
+
 
 )
 
