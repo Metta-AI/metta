@@ -526,10 +526,9 @@ class PufferTrainer:
         return self.stats, infos
 
     def _get_experience_buffer_mean_reward(self) -> float:
-        # Use rewards from experience buffer
-        if hasattr(self, "experience") and self.experience.rewards_np is not None:
-            return float(np.mean(self.experience.rewards_np))
-
+        # Use rewards from tensor buffer
+        if hasattr(self, "rewards") and self.rewards is not None:
+            return float(self.rewards.mean().item())
         return 0.0
 
     def _train(self):
@@ -545,7 +544,7 @@ class PufferTrainer:
 
             # Prioritized sampling parameters
             b0 = config.get("prio_beta0", 0.6)
-            a = config.get("prio_alpha", 0.6)
+            a = config.get("prio_alpha", 0.0)  # Default to 0 for uniform sampling
             clip_coef = config.clip_coef
             vf_clip = config.vf_clip_coef if hasattr(config, "vf_clip_coef") else config.get("vf_clip_coef", 0.1)
             total_epochs = max(1, self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
@@ -561,11 +560,13 @@ class PufferTrainer:
                 # where ρ is the average reward estimate
                 current_batch_mean = self._get_experience_buffer_mean_reward()
                 alpha = self.trainer_cfg.average_reward_alpha
-                rewards_np_adjusted = (self.rewards.mean().item() - self.average_reward).astype(np.float32)
+
+                # Update average reward estimate using EMA
                 self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
 
-                # Use filtered estimate for advantage computation
+                # Adjust rewards by subtracting average reward for advantage computation
                 rewards_adjusted = self.rewards - self.average_reward
+                # Set gamma to 1.0 for average reward case
                 effective_gamma = 1.0
             else:
                 rewards_adjusted = self.rewards
@@ -642,7 +643,10 @@ class PufferTrainer:
                 )
 
                 # Normalize advantages with prioritized weights
-                adv = mb_prio * (adv - adv.mean()) / (adv.std() + 1e-8)
+                if config.get("norm_adv", True):
+                    adv = mb_prio * (adv - adv.mean()) / (adv.std() + 1e-8)
+                else:
+                    adv = mb_prio * adv
 
                 # Losses
                 pg_loss1 = -adv * ratio
@@ -737,7 +741,9 @@ class PufferTrainer:
             explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
             losses["explained_variance"] = explained_var.item()
 
-            self.losses = losses
+            # Update the SimpleNamespace object instead of replacing it
+            for k, v in losses.items():
+                setattr(self.losses, k, v)
             self.epoch += 1
 
             profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
@@ -899,7 +905,7 @@ class PufferTrainer:
         agent_steps = self.agent_step
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
-        losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
+        losses = {k: v for k, v in self.losses.__dict__.items() if not k.startswith("_")}
         performance = {k: v for k, v in self.profile}
 
         overview = {"SPS": sps}
