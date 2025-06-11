@@ -29,6 +29,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Restore PR Summary Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .pr-digest-cache/
+          key: pr-cache-${{ github.repository }}-${{ hashFiles('.github/scripts/generate_pr_summary.py') }}
+          restore-keys: |
+            pr-cache-${{ github.repository }}-
+
       - name: Fetch PR Digest
         id: pr-digest
         uses: ./.github/actions/pr-digest
@@ -45,6 +54,7 @@ jobs:
           PR_DIGEST_FILE: ${{ steps.pr-digest.outputs.digest-file }}
           DATE_RANGE: ${{ steps.pr-digest.outputs.date-range }}
           DAYS_TO_SCAN: ${{ inputs.days_to_scan || '7' }}
+          FORCE_REFRESH: ${{ inputs.force_refresh || 'false' }}
         run: |
           pip install -r .github/scripts/requirements-pr-summary.txt
           python .github/scripts/generate_pr_summary.py

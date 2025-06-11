@@ -71,6 +71,11 @@ Keep the summary focused and technical. Maximum 200 words."""
 
 def load_pr_summary_cache() -> dict[str, dict[str, Any]]:
     """Load cached individual PR summaries."""
+    force_refresh = os.getenv("FORCE_REFRESH", "false").lower() == "true"
+    if force_refresh:
+        print("Force refresh enabled, skipping cache load")
+        return {}
+
     cache_file = Path(".pr-digest-cache/pr_summaries_cache.json")
     if cache_file.exists():
         try:
