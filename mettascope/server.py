@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def clear_memory(sim: replays.Simulation, what: str, agent_id: int):
+def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
     """Clear the memory of the policy."""
     policy_state = sim.get_policy_state()
     print("Policy state: ", policy_state)
