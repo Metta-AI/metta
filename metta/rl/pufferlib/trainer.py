@@ -384,12 +384,6 @@ class PufferTrainer:
                 with self.timer("_save_policy_to_wandb"):
                     self._save_policy_to_wandb()
 
-            if (
-                self.cfg.agent.l2_init_weight_update_interval != 0
-                and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0
-            ):
-                self._update_l2_init_weight_copy()
-
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 with self.timer("_generate_and_upload_replay", log=logging.INFO):
                     self._generate_and_upload_replay()
@@ -748,73 +742,6 @@ class PufferTrainer:
 
             profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
 
-    def _process_stats(self):
-        """Process and log training statistics."""
-        for k in list(self.stats.keys()):
-            v = self.stats[k]
-            try:
-                v = np.mean(v)
-                self.stats[k] = v
-            except (TypeError, ValueError):
-                del self.stats[k]
-
-        agent_steps = self.agent_step
-        epoch = self.epoch
-        learning_rate = self.optimizer.param_groups[0]["lr"]
-        losses = {k: v for k, v in self.losses.items() if not k.startswith("_")}
-        performance = {k: v for k, v in self.profile}
-
-        overview = {"SPS": self.profile.SPS}
-        for k, v in self.trainer_cfg.stats.overview.items():
-            if k in self.stats:
-                overview[v] = self.stats[k]
-
-        for category in self._eval_categories:
-            score = self._eval_suite_avgs.get(f"{category}_score", None)
-            if score is not None:
-                overview[f"{category}_evals"] = score
-
-        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
-
-        if self.wandb_run and self._master:
-            timer_data = self.timer.get_all_elapsed()
-            wall_time = self.timer.get_elapsed()
-
-            training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
-            overhead_time = wall_time - training_time
-            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
-
-            timing_logs = {
-                "timing/steps_per_second": steps_per_sec,
-                "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
-                "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
-                "timing/breakdown": {
-                    op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
-                    for op, elapsed in timer_data.items()
-                },
-                "timing/total_seconds": wall_time,
-            }
-
-            self.wandb_run.log(
-                {
-                    **{f"overview/{k}": v for k, v in overview.items()},
-                    **{f"losses/{k}": v for k, v in losses.items()},
-                    **{f"performance/{k}": v for k, v in performance.items()},
-                    **environment,
-                    **self._weights_helper.stats(),
-                    **self._eval_grouped_scores,
-                    "train/agent_step": agent_steps,
-                    "train/epoch": epoch,
-                    "train/learning_rate": learning_rate,
-                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
-                    **timing_logs,
-                }
-            )
-
-        self._eval_grouped_scores = {}
-        self._weights_helper.reset()
-        self.stats.clear()
-
     def _checkpoint_trainer(self):
         if not self._master:
             return
@@ -1040,50 +967,6 @@ class PufferTrainer:
     def last_pr_uri(self):
         return self.last_pr.uri
 
-    def _make_experience_buffer(self):
-        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv), (
-            "vecenv.driver_env must be a MettaGridEnv for experience buffer"
-        )
-
-        # Extract environment specifications
-        obs_shape = metta_grid_env.single_observation_space.shape
-        obs_dtype = metta_grid_env.single_observation_space.dtype
-        atn_shape = metta_grid_env.single_action_space.shape
-        atn_dtype = metta_grid_env.single_action_space.dtype
-
-        # Use num_agents for the total number of environments/states to track
-        lstm_total_agents = getattr(self.vecenv, "num_agents", 0)
-        assert lstm_total_agents > 0, "self.vecenv.num_agents not found!"
-        logging.info(f"Creating experience buffer with lstm_total_agents={lstm_total_agents} (from vecenv.num_agents)")
-
-        # Handle policy fields with assertions
-        assert hasattr(self.policy, "hidden_size"), "Policy must have hidden_size attribute"
-        hidden_size = int(getattr(self.policy, "hidden_size", -1))
-        assert hidden_size > 0, f"Policy hidden_size cannot be converted to int: {type(hidden_size)}"
-
-        assert hasattr(self.policy, "lstm"), "Policy must have lstm attribute"
-        lstm = getattr(self.policy, "lstm", {})
-        assert isinstance(lstm, torch.nn.modules.rnn.LSTM), (
-            f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
-        )
-
-        # Create the Experience buffer with appropriate parameters
-        self.experience = Experience(
-            batch_size=self.trainer_cfg.batch_size,  # Total number of environment steps to collect before updating
-            bptt_horizon=self.trainer_cfg.bptt_horizon,  # Sequence length for BPTT (backpropagation through time)
-            minibatch_size=self.trainer_cfg.minibatch_size,  # Size of minibatches for training
-            hidden_size=hidden_size,  # Dimension of the policy's hidden state
-            obs_shape=obs_shape,  # Shape of a single observation
-            obs_dtype=obs_dtype,  # Data type of observations
-            atn_shape=atn_shape,  # Shape of a single action
-            atn_dtype=atn_dtype,  # Data type of actions
-            cpu_offload=self.trainer_cfg.cpu_offload,  # Whether to store data on CPU and transfer to GPU as needed
-            device=self.device,  # Device to store tensors on ("cuda" or "cpu")
-            lstm=lstm,  # LSTM module from the policy (needed for dimensions) # type: ignore - Pylance is wrong
-            lstm_total_agents=lstm_total_agents,  # Total number of LSTM states to maintain
-        )
-
     def _make_losses(self):
         return SimpleNamespace(
             policy_loss=0,
@@ -1135,15 +1018,6 @@ class PufferTrainer:
 
     def _on_train_step(self):
         pass
-
-    def close(self):
-        self.vecenv.close()
-
-    def initial_pr_uri(self):
-        return self._initial_pr.uri
-
-    def last_pr_uri(self):
-        return self.last_pr.uri
 
 
 class AbortingTrainer(PufferTrainer):
