@@ -262,11 +262,9 @@ onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
   // '<' and '>' control the playback speed.
   if (event.key == ",") {
     state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01);
-    console.log("playbackSpeed: ", state.playbackSpeed);
   }
   if (event.key == ".") {
     state.playbackSpeed = Math.min(state.playbackSpeed * 1.1, 1000);
-    console.log("playbackSpeed: ", state.playbackSpeed);
   }
   // If space make it press the play button.
   if (event.key == " ") {
@@ -376,7 +374,7 @@ async function parseUrlParams() {
   const replayUrl = urlParams.get('replayUrl');
   const wsUrl = urlParams.get('wsUrl');
   if (replayUrl) {
-    console.log("Loading replay from URL: ", replayUrl);
+    console.info("Loading replay from URL: ", replayUrl);
     await fetchReplay(replayUrl);
     focusFullMap(ui.mapPanel);
   } else if (wsUrl) {
@@ -658,7 +656,7 @@ window.addEventListener('load', async () => {
     );
     return;
   } else {
-    console.log("Context3d initialized successfully.");
+    console.info("Context3d initialized successfully.");
   }
 
   await parseUrlParams();

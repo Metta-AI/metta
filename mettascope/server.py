@@ -21,15 +21,10 @@ logger = logging.getLogger(__name__)
 def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
     """Clear the memory of the policy."""
     policy_state = sim.get_policy_state()
-    print("Policy state: ", policy_state)
 
     if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
-        print("No policy state to clear")
+        logger.error("No policy state to clear")
         return
-
-    print("Before: ")
-    print(policy_state.lstm_c)
-    print(policy_state.lstm_h)
 
     if what == "0":
         policy_state.lstm_c[:, agent_id, :].zero_()
@@ -40,26 +35,18 @@ def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
     elif what == "random":
         policy_state.lstm_c[:, agent_id, :].normal_(mean=0, std=1)
         policy_state.lstm_h[:, agent_id, :].normal_(mean=0, std=1)
-    print("After: ")
-    print(policy_state.lstm_c)
-    print(policy_state.lstm_h)
 
 
 def copy_memory(sim: replays.Simulation, agent_id: int) -> tuple[list[float], list[float]]:
     """Copy the memory of the policy."""
     policy_state = sim.get_policy_state()
     if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
-        print("No policy state to copy")
+        logger.error("No policy state to copy")
         return [], []
 
     # Copy the memory of the policy.
     lstm_c = policy_state.lstm_c[:, agent_id, :].clone()
     lstm_h = policy_state.lstm_h[:, agent_id, :].clone()
-
-    print("Copied memory: ")
-    print(lstm_c)
-    print(lstm_h)
-
     return lstm_c.tolist(), lstm_h.tolist()
 
 
@@ -67,15 +54,12 @@ def paste_memory(sim: replays.Simulation, agent_id: int, memory: tuple[list[floa
     """Paste the memory of the policy."""
     policy_state = sim.get_policy_state()
     if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
-        print("No policy state to paste")
+        logger.error("No policy state to paste")
         return
 
     [lstm_c, lstm_h] = memory
     policy_state.lstm_c[:, agent_id, :] = th.tensor(lstm_c)
     policy_state.lstm_h[:, agent_id, :] = th.tensor(lstm_h)
-    print("Pasted memory: ")
-    print(policy_state.lstm_c)
-    print(policy_state.lstm_h)
 
 
 def make_app(cfg: DictConfig):

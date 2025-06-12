@@ -30,7 +30,6 @@ export class InfoPanel {
 }
 
 onEvent("click", ".infopanel .close", (target: HTMLElement, e: Event) => {
-  console.log("Info panel close clicked");
   let panel = target.parentElement as HTMLElement;
   panel.remove();
   ui.infoPanels = ui.infoPanels.filter(p => p.div !== panel);
@@ -45,8 +44,6 @@ findIn(hoverPanel, ".actions").classList.add("hidden");
 hoverPanel.classList.add("hidden");
 
 hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
-  console.log("Info panel clicked");
-
   // Create a new info panel.
   let panel = new InfoPanel(ui.delayedHoverObject);
   panel.div = infoPanelTemplate.cloneNode(true) as HTMLElement;
