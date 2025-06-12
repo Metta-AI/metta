@@ -14,7 +14,7 @@ class ObsTokenShaper(LayerBase):
         obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
         feature_normalizations: list[float],
-        use_max_n_dense: Optional[bool] = None, # delete
+        use_max_n_dense: Optional[bool] = None,  # delete
         **cfg,
     ) -> None:
         super().__init__(**cfg)
@@ -25,7 +25,7 @@ class ObsTokenShaper(LayerBase):
         self.M = obs_shape[0]
         self._feature_normalizations = list(feature_normalizations)
         self._max_embeds = 256
-        self._use_max_n_dense = use_max_n_dense # delete
+        self._use_max_n_dense = use_max_n_dense  # delete
         if self._use_max_n_dense is None:
             self._use_max_n_dense = False
 
@@ -56,40 +56,41 @@ class ObsTokenShaper(LayerBase):
     def slice_at_max_n_dense(self, tensor):
         """
         Find the maximum number of consecutive non-zero tokens and slice the tensor.
+        Simplified GPU-optimized version that avoids synchronization.
 
         Args:
             tensor: Shape [B, M, 3] where B is batch size, M is sequence length
 
         Returns:
             sliced_tensor: Shape [B, max_n_dense, 3]
-            max_n_dense: The maximum dense sequence length found
         """
         # Check if tokens are non-zero
         is_dense = tensor.any(dim=-1)  # Shape: [B, M]
 
-        # Add padding to handle edge cases
-        padded = torch.nn.functional.pad(is_dense, (1, 1), value=False)
+        # Simple approach: find the last True position in each batch
+        # This gives us the length of dense sequence assuming it starts from beginning
+        # Flip the tensor to find from the end, then flip back positions
+        is_dense_flipped = torch.flip(is_dense, dims=[1])
 
-        # Find transitions (start and end of dense regions)
-        diff = padded[:, 1:].int() - padded[:, :-1].int()
+        # Find first True in flipped tensor (which is last True in original)
+        # If no True values, argmax returns 0
+        last_true_flipped = is_dense_flipped.float().argmax(dim=1)  # [B]
 
-        # Start positions: where diff == 1
-        starts = (diff == 1).nonzero(as_tuple=False)
+        # Convert back to original positions
+        seq_length = tensor.shape[1]
+        last_true_pos = seq_length - 1 - last_true_flipped  # [B]
 
-        # End positions: where diff == -1
-        ends = (diff == -1).nonzero(as_tuple=False)
+        # Handle case where there are no True values
+        has_dense = is_dense.any(dim=1)  # [B]
+        lengths = torch.where(has_dense, last_true_pos + 1, torch.zeros_like(last_true_pos))
 
-        if starts.shape[0] == 0:
-            # No dense tokens found, return empty tensor
-            return tensor[:, :0, :], 0
+        # Get maximum length across batch (keep as tensor to avoid sync)
+        max_n_dense = lengths.max()
 
-        # Calculate lengths for each dense region
-        lengths = ends[:, 1] - starts[:, 1]
+        # Ensure we don't exceed tensor bounds
+        max_n_dense = torch.min(max_n_dense, torch.tensor(seq_length, device=tensor.device))
 
-        # Find the maximum length
-        max_n_dense = int(lengths.max().item())
-
-        # Slice the tensor to keep only the first max_n_dense tokens
+        # Slice using tensor index (no sync required)
         sliced_tensor = tensor[:, :max_n_dense, :]
 
         return sliced_tensor
