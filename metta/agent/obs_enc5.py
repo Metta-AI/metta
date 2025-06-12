@@ -7,6 +7,8 @@ from tensordict import TensorDict
 
 from metta.agent.lib.nn_layer_library import LayerBase
 
+# This file contains multiple versions of the ObsTokenShaper for experiments. Pending testing, most will be removed.
+
 
 class ObsTokenShaper(LayerBase):
     def __init__(
@@ -25,6 +27,9 @@ class ObsTokenShaper(LayerBase):
         self.M = obs_shape[0]
         self._feature_normalizations = list(feature_normalizations)
         self._max_embeds = 256
+        self._use_max_n_dense = use_max_n_dense  # delete
+        if self._use_max_n_dense is None:
+            self._use_max_n_dense = False
 
     def _make_net(self) -> None:
         self._out_tensor_shape = [self.M, self._feat_dim]
@@ -110,116 +115,6 @@ class ObsTokenShaper(LayerBase):
         return td
 
 
-class ObsTokenShaperValueEmbed(LayerBase):
-    def __init__(
-        self,
-        obs_shape: Tuple[int, ...],
-        atr_embed_dim: int,
-        feature_normalizations: list[float],
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._obs_shape = obs_shape
-        self._atr_embed_dim = atr_embed_dim  # Dimension of attribute embeddings
-        self._value_dim = 1
-        self._feat_dim = self._atr_embed_dim + self._value_dim
-        self.M = obs_shape[0]
-        self._feature_normalizations = list(feature_normalizations)
-        self._max_embeds = 256
-
-    def _make_net(self) -> None:
-        self._out_tensor_shape = [self.M, self._feat_dim]
-
-        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
-
-        # Coord byte supports up to 16x16, so 256 possible coord values
-        self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
-        nn.init.trunc_normal_(self._coord_embeds.weight, std=0.02)
-
-        self._val_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
-        nn.init.trunc_normal_(self._val_embeds.weight, std=0.02)
-
-        # Create a tensor for feature normalizations
-        # We need to handle the case where atr_idx might be 0 (padding) or larger than defined normalizations.
-        # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
-        # Initialize with 1.0 to avoid division by zero for unmapped indices.
-        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
-        for i, val in enumerate(self._feature_normalizations):
-            if i < len(norm_tensor):  # Ensure we don't go out of bounds
-                norm_tensor[i] = val
-            else:
-                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
-        self.register_buffer("_norm_factors", norm_tensor)
-
-        return None
-
-    def _forward(self, td: TensorDict) -> TensorDict:
-        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
-        observations = td.get("x")
-
-        B = observations.shape[0]
-        TT = 1
-        td["_B_"] = B
-        td["_TT_"] = TT
-        if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
-            TT = observations.shape[1]
-            td["_TT_"] = TT
-            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
-            # observations = observations.flatten(0, 1)
-        td["_BxTT_"] = B * TT
-
-        # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
-        coords_byte = observations[..., 0].to(torch.uint8)
-
-        # Extract x and y coordinate indices (0-15 range)
-        x_coord_indices = (coords_byte >> 4) & 0x0F  # Shape: [B_TT, M]
-        y_coord_indices = coords_byte & 0x0F  # Shape: [B_TT, M]
-
-        # Combine x and y indices to a single index for embedding lookup (0-255 range)
-        # Assuming 16 possible values for x (0-15)
-        combined_coord_indices = y_coord_indices * 16 + x_coord_indices
-        coord_pair_embedding = self._coord_embeds(combined_coord_indices.long())  # [B_TT, M, 4]
-
-        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
-
-        # The attribute value is treated as a categorical variable for embedding.
-        val_indices = observations[..., 2].long()
-        # Clip values to be within the embedding range to avoid errors, e.g. if a value is 256 for _max_embeds=256
-        val_indices = torch.clamp(val_indices, 0, self._max_embeds - 1)
-        val_embeds = self._val_embeds(val_indices)
-
-        combined_embeds = atr_embeds + coord_pair_embedding + val_embeds
-
-        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
-
-        # Gather normalization factors based on atr_indices
-        norm_factors = self._norm_factors[atr_indices]  # Shape: [B_TT, M]
-
-        # Normalize atr_values
-        # no epsilon to prevent division by zero - we want to fail if we have a bad normalization
-        normalized_atr_values = atr_values / (norm_factors)
-        normalized_atr_values = normalized_atr_values.unsqueeze(-1)  # Shape: [B_TT, M, 1]
-
-        # Assemble feature vectors
-        # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
-        feat_vectors = torch.empty(
-            (*atr_embeds.shape[:-1], self._feat_dim),
-            dtype=atr_embeds.dtype,
-            device=atr_embeds.device,
-        )
-        # Combined embedding portion
-        feat_vectors[..., : self._atr_embed_dim] = combined_embeds
-        feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = normalized_atr_values
-
-        obs_mask = atr_indices == 0  # important! true means 0 ie mask me
-
-        td[self._name] = feat_vectors
-        td["obs_mask"] = obs_mask
-        return td
-
-
 class ObsVanillaAttn(LayerBase):
     """Future work can go beyond just using the feat dim as the attn qv dim, a single layer and single head,
     adding a GRU before the out projection..."""
@@ -228,13 +123,11 @@ class ObsVanillaAttn(LayerBase):
         self,
         out_dim: int,
         use_mask: bool = False,
-        num_layers: int = 1,
         **cfg,
     ) -> None:
         super().__init__(**cfg)
         self._out_dim = out_dim
         self._use_mask = use_mask
-        self._num_layers = num_layers
 
     def _make_net(self) -> None:
         # we expect input shape to be [B, M, feat_dim]
@@ -244,16 +137,13 @@ class ObsVanillaAttn(LayerBase):
 
         self._out_tensor_shape = [self._M, self._out_dim]
 
-        self.layer_norms_1 = nn.ModuleList([nn.LayerNorm(self._feat_dim) for _ in range(self._num_layers)])
-        self.W_qkvs = nn.ParameterList()
-        self.b_qkvs = nn.ParameterList()
-        for _ in range(self._num_layers):
-            W_qkv = nn.Parameter(torch.empty(self._feat_dim, 3 * self._feat_dim))
-            b_qkv = nn.Parameter(torch.empty(3 * self._feat_dim))
-            nn.init.xavier_uniform_(W_qkv)
-            nn.init.zeros_(b_qkv)
-            self.W_qkvs.append(W_qkv)
-            self.b_qkvs.append(b_qkv)
+        self._layer_norm_1 = nn.LayerNorm(self._feat_dim)
+
+        # QKV projection parameters
+        self.W_qkv = nn.Parameter(torch.empty(self._feat_dim, 3 * self._feat_dim))
+        self.b_qkv = nn.Parameter(torch.empty(3 * self._feat_dim))
+        nn.init.xavier_uniform_(self.W_qkv)
+        nn.init.zeros_(self.b_qkv)
 
         self._layer_norm_2 = nn.LayerNorm(self._feat_dim)
 
@@ -270,35 +160,32 @@ class ObsVanillaAttn(LayerBase):
         if self._use_mask:
             key_mask = td["obs_mask"]  # True for elements to be masked
 
-        x = x_features
-        for i in range(self._num_layers):
-            x_res = x
-            x_norm = self.layer_norms_1[i](x)
+        x_norm1 = self._layer_norm_1(x_features)
 
-            # QKV projection
-            # x_norm: [B, M, feat_dim], W_qkv: [feat_dim, 3 * feat_dim]
-            # qkv: [B, M, 3 * feat_dim]
-            qkv = torch.einsum("bmd,df->bmf", x_norm, self.W_qkvs[i]) + self.b_qkvs[i]
-            q, k, v = torch.chunk(qkv, 3, dim=-1)  # Each [B, M, feat_dim]
+        # QKV projection
+        # x_norm1: [B, M, feat_dim], W_qkv: [feat_dim, 3 * feat_dim]
+        # qkv: [B, M, 3 * feat_dim]
+        qkv = torch.einsum("bmd,df->bmf", x_norm1, self.W_qkv) + self.b_qkv
+        q, k, v = torch.chunk(qkv, 3, dim=-1)  # Each [B, M, feat_dim]
 
-            # Simplified single-head attention
-            # Attention scores: [B, M, M]
-            attn_scores = torch.einsum("bmd,bnd->bmn", q, k) * self._scale
+        # Simplified single-head attention
+        # Attention scores: [B, M, M]
+        attn_scores = torch.einsum("bmd,bnd->bmn", q, k) * self._scale
 
-            if key_mask is not None:
-                # key_mask: [B, M] -> [B, 1, M] for broadcasting
-                # True in key_mask means mask out, so fill with -inf
-                mask_value = -torch.finfo(attn_scores.dtype).max
-                attn_scores = attn_scores + key_mask.unsqueeze(1).to(attn_scores.dtype) * mask_value
+        if key_mask is not None:
+            # key_mask: [B, M] -> [B, 1, M] for broadcasting
+            # True in key_mask means mask out, so add large negative value
+            mask_value = -torch.finfo(attn_scores.dtype).max
+            attn_scores = attn_scores + key_mask.unsqueeze(1).to(attn_scores.dtype) * mask_value
 
-            attn_weights = torch.softmax(attn_scores, dim=-1)  # [B, M, M]
+        attn_weights = torch.softmax(attn_scores, dim=-1)  # [B, M, M]
 
-            # Weighted sum of V: [B, M, feat_dim]
-            attn_output = torch.einsum("bmn,bnd->bmd", attn_weights, v)
+        # Weighted sum of V: [B, M, feat_dim]
+        attn_output = torch.einsum("bmn,bnd->bmd", attn_weights, v)
 
-            x = x_res + attn_output
+        x_res = x_features + attn_output
 
-        x_norm2 = self._layer_norm_2(x)
+        x_norm2 = self._layer_norm_2(x_res)
 
         output = self._out_proj(x_norm2)
 
@@ -402,13 +289,13 @@ class ObsCrossAttn(LayerBase):
         self._q_token = nn.Parameter(torch.randn(1, self._num_query_tokens, self._query_token_dim))
         nn.init.trunc_normal_(self._q_token, std=0.02)
 
-        self._layer_norm_1 = nn.LayerNorm(self._feat_dim)
+        # self._layer_norm_1 = nn.LayerNorm(self._feat_dim)  # commented out for now to debug
 
         self.q_proj = nn.Linear(self._query_token_dim, self._qk_dim, bias=False)
         self.k_proj = nn.Linear(self._feat_dim, self._qk_dim, bias=False)
         self.v_proj = nn.Linear(self._feat_dim, self._v_dim, bias=False)
 
-        self._layer_norm_2 = nn.LayerNorm(self._v_dim)
+        self._layer_norm_2 = nn.LayerNorm(self._v_dim)  # commented out for now to debug
 
         self._out_proj = nn.Identity()
         if self._v_dim != self._out_dim or self._mlp_out_hidden_dim is not None:
@@ -442,7 +329,7 @@ class ObsCrossAttn(LayerBase):
         attn_scores = torch.einsum("bqd,bkd->bqk", q_p, k_p)
 
         # Scale scores
-        attn_scores = attn_scores / self._qk_dim_sqrt
+        attn_scores = attn_scores / self._qk_dim_sqrt # commented out for now to debug
 
         # Apply mask
         if key_mask is not None:
@@ -451,13 +338,14 @@ class ObsCrossAttn(LayerBase):
 
         # Softmax to get attention weights
         # attn_weights will have shape [B_TT, num_query_tokens, M]
+        # commented out for now to debug
         attn_weights = torch.softmax(attn_scores, dim=-1)
 
         # Calculate output: Weights @ V_projected
         # x will have shape [B_TT, num_query_tokens, _actual_v_dim]
         x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
 
-        x = self._layer_norm_2(x)
+        x = self._layer_norm_2(x)  # commented out for now to debug
 
         # x shape: [B_TT, num_query_tokens, _actual_v_dim]
         # _out_proj maps last dim from _actual_v_dim to _out_dim
@@ -500,6 +388,7 @@ class ObsSlotAttn(LayerBase):
 
     def _make_net(self) -> None:
         # Expected input shape: [B, M, feat_dim]
+        self._M = self._in_tensor_shapes[0][0]
         self._feat_dim = self._in_tensor_shapes[0][1]
 
         self._out_tensor_shape = [self._num_slots, self._slot_dim]
@@ -555,6 +444,7 @@ class ObsSlotAttn(LayerBase):
             attn_logits = attn_logits / (self._slot_dim**0.5)
 
             if key_mask is not None:
+                # obs_mask: [B_TT, M], need to unsqueeze for broadcasting: [B_TT, 1, M]
                 mask_value = -torch.finfo(attn_logits.dtype).max
                 attn_logits = attn_logits + key_mask.unsqueeze(1).to(attn_logits.dtype) * mask_value
 
@@ -584,112 +474,107 @@ class ObsSlotAttn(LayerBase):
         return td
 
 
-class ObsTransformerEncoder(LayerBase):
-    """
-    Applies a multi-layer Transformer Encoder to a sequence of observation tokens,
-    using a prepended CLS (class) token to aggregate information.
-
-    This layer implements the core logic of a Vision Transformer (ViT) encoder:
-    1. A learnable CLS token is prepended to the input sequence of tokens.
-    2. The combined sequence is processed by a standard `nn.TransformerEncoder`.
-    3. The output representation of the CLS token is extracted and returned as the
-       final output of the layer.
-
-    This is designed to produce a single vector representation that summarizes the
-    entire input sequence. Positional encodings are expected to be handled by
-    upstream layers (e.g., within the token shaper).
-
-    Args:
-        out_dim (int): The dimension of the final output vector.
-        num_layers (int, optional): The number of sub-encoder-layers in the encoder.
-            Defaults to 3.
-        num_heads (int, optional): The number of heads in the multiheadattention models.
-            Defaults to 6.
-        mlp_ratio (float, optional): The ratio of the feedforward layer's size to the
-            embedding size. Defaults to 3.0.
-        use_mask (bool, optional): If True, an observation mask (`obs_mask` from the
-            input TensorDict) is used to ignore padded tokens in the input sequence.
-            Defaults to False.
-        **cfg: Additional configuration for LayerBase.
-
-    Input TensorDict:
-        - `x_features` (from `self._sources[0]["name"]`): Tensor of shape
-          `[B_TT, M, feat_dim]` containing the input token features.
-        - `obs_mask` (optional, if `use_mask` is True): Tensor of shape `[B_TT, M]`
-          indicating elements to be masked (True for masked).
-        - `_BxTT_`: Batch-time dimension.
-
-    Output TensorDict:
-        - `self._name`: Output tensor of shape `[B_TT, out_dim]`.
-    """
+class ObsTokenCat(LayerBase):
+    """Concatenate attr embeds w coord embeds."""
 
     def __init__(
         self,
-        out_dim: int,
-        num_layers: int = 3,
-        num_heads: int = 6,
-        mlp_ratio: float = 3.0,
-        use_mask: bool = False,
+        obs_shape: Tuple[int, ...],
+        atr_embed_dim: int,
+        coord_embed_dim: int,
+        feature_normalizations: list[float],
         **cfg,
     ) -> None:
         super().__init__(**cfg)
-        self._out_dim = out_dim
-        self._num_layers = num_layers
-        self._num_heads = num_heads
-        self._mlp_ratio = mlp_ratio
-        self._use_mask = use_mask
+        self._obs_shape = obs_shape
+        self._atr_embed_dim = atr_embed_dim  # Dimension of attribute embeddings
+        self._coord_embed_dim = coord_embed_dim  # Dimension of coordinate embeddings
+        self._value_dim = 1
+        self._feat_dim = self._atr_embed_dim + self._coord_embed_dim + self._value_dim
+        self.M = obs_shape[0]
+        self._feature_normalizations = list(feature_normalizations)
+        self._max_embeds = 256
 
     def _make_net(self) -> None:
-        self._feat_dim = self._in_tensor_shapes[0][1]
-        self._out_tensor_shape = [self._out_dim]
+        self._out_tensor_shape = [self.M, self._feat_dim]
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, self._feat_dim))
-        nn.init.trunc_normal_(self.cls_token, std=0.02)
+        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
+        nn.init.uniform_(self._atr_embeds.weight, -0.1, 0.1)
 
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=self._feat_dim,
-            nhead=self._num_heads,
-            dim_feedforward=int(self._feat_dim * self._mlp_ratio),
-            activation="gelu",
-            batch_first=True,
-            norm_first=True,
-        )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=self._num_layers)
+        # Coord byte supports up to 16x16, so 256 possible coord values
+        self._coord_embeds = nn.Embedding(self._max_embeds, self._coord_embed_dim)
+        nn.init.uniform_(self._coord_embeds.weight, -0.1, 0.1)
 
-        self.final_norm = nn.LayerNorm(self._feat_dim)
+        # Create a tensor for feature normalizations
+        # We need to handle the case where atr_idx might be 0 (padding) or larger than defined normalizations.
+        # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
+        # Initialize with 1.0 to avoid division by zero for unmapped indices.
+        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
+        for i, val in enumerate(self._feature_normalizations):
+            if i < len(norm_tensor):  # Ensure we don't go out of bounds
+                norm_tensor[i] = val
+            else:
+                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
+        self.register_buffer("_norm_factors", norm_tensor)
 
-        if self._feat_dim == self._out_dim:
-            self.output_proj = nn.Identity()
-        else:
-            self.output_proj = nn.Linear(self._feat_dim, self._out_dim)
+        return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        x_features = td[self._sources[0]["name"]]  # [B_TT, M, feat_dim]
-        B_TT = x_features.shape[0]
+        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
+        observations = td.get("x")
 
-        # Prepend CLS token
-        cls_tokens = self.cls_token.expand(B_TT, -1, -1)  # [B_TT, 1, feat_dim]
-        tokens = torch.cat([cls_tokens, x_features], dim=1)  # [B_TT, M + 1, feat_dim]
+        B = observations.shape[0]
+        TT = 1
+        td["_B_"] = B
+        td["_TT_"] = TT
+        if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
+            TT = observations.shape[1]
+            td["_TT_"] = TT
+            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
+            # observations = observations.flatten(0, 1)
+        td["_BxTT_"] = B * TT
 
-        # Create mask if necessary
-        mask = None
-        if self._use_mask:
-            obs_mask = td["obs_mask"]  # [B_TT, M], True means mask
-            # CLS token should not be masked
-            cls_mask = torch.zeros(B_TT, 1, dtype=torch.bool, device=obs_mask.device)
-            mask = torch.cat([cls_mask, obs_mask], dim=1)  # [B_TT, M + 1]
+        # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
+        coords_byte = observations[..., 0].to(torch.uint8)
 
-        # Pass through transformer
-        transformer_output = self.transformer(tokens, src_key_padding_mask=mask)
+        # Extract x and y coordinate indices (0-15 range)
+        x_coord_indices = (coords_byte >> 4) & 0x0F  # Shape: [B_TT, M]
+        y_coord_indices = coords_byte & 0x0F  # Shape: [B_TT, M]
 
-        # Extract CLS token output
-        cls_output = transformer_output[:, 0]  # [B_TT, feat_dim]
+        # Combine x and y indices to a single index for embedding lookup (0-255 range)
+        # Assuming 16 possible values for x (0-15)
+        combined_coord_indices = y_coord_indices * 16 + x_coord_indices
+        coord_pair_embedding = self._coord_embeds(combined_coord_indices.long())  # [B_TT, M, 4]
 
-        # Final normalization and projection
-        cls_output = self.final_norm(cls_output)
-        output = self.output_proj(cls_output)  # [B_TT, out_dim]
+        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
 
-        td[self._name] = output
+        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+
+        # Gather normalization factors based on atr_indices
+        norm_factors = self._norm_factors[atr_indices]  # Shape: [B_TT, M]
+
+        # Normalize atr_values
+        # no epsilon to prevent division by zero - we want to fail if we have a bad normalization
+        normalized_atr_values = atr_values / (norm_factors)
+        normalized_atr_values = normalized_atr_values.unsqueeze(-1)  # Shape: [B_TT, M, 1]
+
+        # Assemble feature vectors
+        # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
+        feat_vectors = torch.empty(
+            (*atr_embeds.shape[:-1], self._feat_dim),
+            dtype=atr_embeds.dtype,
+            device=atr_embeds.device,
+        )
+        # Combined embedding portion
+        feat_vectors[..., : self._atr_embed_dim] = atr_embeds
+        feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._coord_embed_dim] = coord_pair_embedding
+        feat_vectors[..., self._atr_embed_dim + self._coord_embed_dim :] = normalized_atr_values
+
+        obs_mask = atr_indices == 0  # important! true means 0 ie mask me
+
+        td[self._name] = feat_vectors
+        td["obs_mask"] = obs_mask
         return td
 
 
@@ -720,7 +605,7 @@ class ObsTokenCatFourier(LayerBase):
         self._out_tensor_shape = [self.M, self._feat_dim]
 
         self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
+        nn.init.uniform_(self._atr_embeds.weight, -0.1, 0.1)
 
         # Create a tensor for feature normalizations
         # We need to handle the case where atr_idx might be 0 (padding) or larger than defined normalizations.
@@ -813,6 +698,110 @@ class ObsTokenCatFourier(LayerBase):
 
         obs_mask = atr_indices == 0  # important! true means 0 ie mask me
 
+        td[self._name] = feat_vectors
+        td["obs_mask"] = obs_mask
+        return td
+
+
+class ObsTokenRoPE(LayerBase):
+    """Applies Rotary Position Embedding (RoPE) to attribute embeddings based on coordinates."""
+
+    def __init__(
+        self,
+        obs_shape: Tuple[int, ...],
+        atr_embed_dim: int,
+        feature_normalizations: list[float],
+        rope_base: float = 10000.0,
+        **cfg,
+    ) -> None:
+        super().__init__(**cfg)
+        if atr_embed_dim % 4 != 0:
+            raise ValueError(f"atr_embed_dim must be divisible by 4 for RoPE, but got {atr_embed_dim}")
+
+        self._obs_shape = obs_shape
+        self._atr_embed_dim = atr_embed_dim
+        self._value_dim = 1
+        self._feat_dim = self._atr_embed_dim + self._value_dim
+        self.M = obs_shape[0]
+        self._feature_normalizations = list(feature_normalizations)
+        self._max_embeds = 256
+        self._rope_base = rope_base
+
+    def _make_net(self) -> None:
+        self._out_tensor_shape = [self.M, self._feat_dim]
+
+        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
+        nn.init.uniform_(self._atr_embeds.weight, -0.1, 0.1)
+
+        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
+        for i, val in enumerate(self._feature_normalizations):
+            if i < len(norm_tensor):
+                norm_tensor[i] = val
+            else:
+                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
+        self.register_buffer("_norm_factors", norm_tensor)
+
+        # RoPE inverse frequencies
+        # One half of the embedding dimension is used for x, the other for y.
+        rope_dim = self._atr_embed_dim // 2
+        inv_freq = 1.0 / (self._rope_base ** (torch.arange(0, rope_dim, 2).float() / rope_dim))
+        self.register_buffer("inv_freq", inv_freq)
+
+        return None
+
+    def _rotate_half(self, x: torch.Tensor) -> torch.Tensor:
+        """Rotates half the channels of a tensor."""
+        x1, x2 = x.chunk(2, dim=-1)
+        return torch.cat((-x2, x1), dim=-1)
+
+    def _forward(self, td: TensorDict) -> TensorDict:
+        observations = td.get("x")
+
+        B = observations.shape[0]
+        TT = 1
+        td["_B_"] = B
+        td["_TT_"] = TT
+        if observations.dim() != 3:
+            TT = observations.shape[1]
+            td["_TT_"] = TT
+            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
+        td["_BxTT_"] = B * TT
+
+        # Get attribute embeddings
+        atr_indices = observations[..., 1].long()
+        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, atr_embed_dim]
+
+        # Get coordinates
+        coords_byte = observations[..., 0].to(torch.uint8)
+        x_coords = ((coords_byte >> 4) & 0x0F).float().unsqueeze(-1)  # [B_TT, M, 1]
+        y_coords = (coords_byte & 0x0F).float().unsqueeze(-1)  # [B_TT, M, 1]
+
+        # Calculate frequency terms for RoPE
+        inv_freq = self.get_buffer("inv_freq")
+        freqs_x = torch.einsum("bmi,d->bmd", x_coords, inv_freq)  # [B_TT, M, rope_dim/2]
+        freqs_y = torch.einsum("bmi,d->bmd", y_coords, inv_freq)  # [B_TT, M, rope_dim/2]
+        freqs_x = torch.cat((freqs_x, freqs_x), dim=-1)  # [B_TT, M, rope_dim]
+        freqs_y = torch.cat((freqs_y, freqs_y), dim=-1)  # [B_TT, M, rope_dim]
+
+        # Split attribute embeddings for x and y rotation
+        atr_embeds_x, atr_embeds_y = atr_embeds.chunk(2, dim=-1)
+
+        # Apply RoPE
+        rotated_x = atr_embeds_x * freqs_x.cos() + self._rotate_half(atr_embeds_x) * freqs_x.sin()
+        rotated_y = atr_embeds_y * freqs_y.cos() + self._rotate_half(atr_embeds_y) * freqs_y.sin()
+
+        # Concatenate the rotated parts back together
+        rotated_embeds = torch.cat((rotated_x, rotated_y), dim=-1)
+
+        # Get and normalize attribute values
+        atr_values = observations[..., 2].float()
+        norm_factors = self._norm_factors[atr_indices]
+        normalized_atr_values = (atr_values / norm_factors).unsqueeze(-1)
+
+        # Assemble final feature vector
+        feat_vectors = torch.cat([rotated_embeds, normalized_atr_values], dim=-1)
+
+        obs_mask = atr_indices == 0
         td[self._name] = feat_vectors
         td["obs_mask"] = obs_mask
         return td
