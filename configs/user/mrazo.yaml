@@ -1,11 +1,15 @@
 # @package __global__
 
 defaults:
-  # - override /agent: simple_with_memory
+  - override /agent: simple_with_memory
   # - override /sim: t_maze
   - _self_
 
-trainer:
-  curriculum: /env/mettagrid/curriculum/t_maze
-  wandb.enabled: true
-  wandb.track: true
+# trainer:
+#   curriculum: /env/mettagrid/curriculum/t_maze
+#   wandb.enabled: true
+#   wandb.track: true
+
+# policy_uri: wandb://run/mrazo_t-maze_simple_v04
+
+# run: test_0304923u40935333
