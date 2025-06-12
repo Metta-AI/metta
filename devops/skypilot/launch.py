@@ -100,7 +100,7 @@ def main():
         help="Automatically terminate the job after this many hours (supports decimals, e.g., 1.5 for 90 minutes)",
     )
     parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
-    parser.add_argument("--confirm", action="store_true", help="Show confirmation prompt")
+    parser.add_argument("-c", "--confirm", action="store_true", help="Show confirmation prompt")
     (args, cmd_args) = parser.parse_known_args(filtered_args)
 
     if run_id is None:
