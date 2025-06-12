@@ -428,6 +428,7 @@ class ObsCrossAttn(LayerBase):
         self._qk_dim = qk_dim
         self._v_dim = v_dim
         self._mlp_out_hidden_dim = mlp_out_hidden_dim
+        self._qk_dim_sqrt = self._qk_dim**0.5
 
     def _make_net(self) -> None:
         # we expect input shape to be [B, M, feat_dim]
@@ -489,7 +490,7 @@ class ObsCrossAttn(LayerBase):
         attn_scores = torch.einsum("bqd,bkd->bqk", q_p, k_p)
 
         # Scale scores
-        attn_scores = attn_scores / (self._qk_dim**0.5)
+        attn_scores = attn_scores / self._qk_dim_sqrt
 
         # Apply mask
         if key_mask is not None:
@@ -500,11 +501,13 @@ class ObsCrossAttn(LayerBase):
 
         # Softmax to get attention weights
         # attn_weights will have shape [B_TT, num_query_tokens, M]
-        attn_weights = torch.softmax(attn_scores, dim=-1)
+        # commented out for now to debug
+        # attn_weights = torch.softmax(attn_scores, dim=-1)
 
         # Calculate output: Weights @ V_projected
         # x will have shape [B_TT, num_query_tokens, _actual_v_dim]
-        x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
+        # x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
+        x = torch.einsum("bqk,bkd->bqd", attn_scores, v_p)
 
         x = self._layer_norm_2(x)
 
