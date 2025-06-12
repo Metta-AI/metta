@@ -119,7 +119,8 @@ def display_job_summary(
     task_args: List[str],
     git_ref: Optional[str] = None,
     commit_message: Optional[str] = None,
-    timeout_minutes: Optional[int] = None,
+    timeout_hours: Optional[float] = None,
+    task: Optional["sky.Task"] = None,
     **kwargs,
 ) -> None:
     """Display a summary of the job that will be launched."""
@@ -132,25 +133,51 @@ def display_job_summary(
 
     print(f"Job Name: {job_name}")
 
-    # Display any additional job details from kwargs
+    # Extract resource info from task if provided
+    if task:
+        if task.resources:
+            resource = list(task.resources)[0]  # Get first resource option
+
+            # GPU info
+            if hasattr(resource, "accelerators") and resource.accelerators:
+                gpu_info = []
+                for gpu_type, count in resource.accelerators.items():
+                    gpu_info.append(f"{count}x {gpu_type}")
+                print(f"GPUs: {', '.join(gpu_info)}")
+
+            # CPU info
+            if hasattr(resource, "cpus") and resource.cpus:
+                print(f"CPUs: {resource.cpus}")
+
+            # Spot instance info
+            if hasattr(resource, "use_spot"):
+                spot_status = "Yes" if resource.use_spot else "No"
+                print(f"Spot Instances: {spot_status}")
+
+        # Node count
+        if task.num_nodes and task.num_nodes > 1:
+            print(f"Nodes: {task.num_nodes}")
+
+    # Display any additional job details from kwargs (excluding 'task')
     for key, value in kwargs.items():
-        if value is not None:
+        if value is not None and key != "task":
             # Convert snake_case to Title Case for display
             display_key = key.replace("_", " ").title()
             print(f"{display_key}: {value}")
 
     # Display timeout information with prominence
-    if timeout_minutes:
-        timeout_hours = timeout_minutes // 60
-        timeout_mins = timeout_minutes % 60
+    if timeout_hours:
+        timeout_mins = int(timeout_hours * 60)
+        hours = timeout_mins // 60
+        mins = timeout_mins % 60
 
-        if timeout_hours > 0:
-            if timeout_mins == 0:
-                timeout_str = f"{timeout_hours}h"
+        if hours > 0:
+            if mins == 0:
+                timeout_str = f"{hours}h"
             else:
-                timeout_str = f"{timeout_hours}h {timeout_mins}m"
+                timeout_str = f"{hours}h {mins}m"
         else:
-            timeout_str = f"{timeout_mins}m"
+            timeout_str = f"{mins}m"
 
         print(bold(yellow(f"AUTO-TERMINATION: Job will terminate after {timeout_str}")))
     else:
