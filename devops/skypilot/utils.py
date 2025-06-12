@@ -7,7 +7,7 @@ from typing import List, Optional
 
 import sky
 
-from metta.util.colorama import blue, bold, green, red, use_colors, yellow
+from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
 from metta.util.fs import cd_repo_root
 
 
@@ -193,11 +193,14 @@ def display_job_summary(
     print(blue("-" * divider_length))
     print(f"{bold('Command:')} {yellow(cmd)}")
 
-    # Display task arguments
     if task_args:
         print(bold("Task Arguments:"))
         for i, arg in enumerate(task_args):
-            print(f"  {i + 1}. {yellow(arg)}")
+            if "=" in arg:
+                key, value = arg.split("=", 1)
+                print(f"  {i + 1}. {yellow(key)}={cyan(value)}")
+            else:
+                print(f"  {i + 1}. {yellow(arg)}")
 
     print(f"\n{divider}")
 
