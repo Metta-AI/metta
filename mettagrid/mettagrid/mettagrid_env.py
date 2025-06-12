@@ -71,33 +71,34 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.timer.start()
         self._steps = 0
 
-        self._render_mode = render_mode
-        self._curriculum = curriculum
-        self._task = self._curriculum.get_task()
-        self._level = level
-        self._renderer = None
-        self._map_labels = []
-        self._stats_writer = stats_writer
-        self._replay_writer = replay_writer
-        self._episode_id: str | None = None
-        self._reset_at = datetime.datetime.now()
-        self._current_seed = 0
+        with self.timer("__init__"):
+            self._render_mode = render_mode
+            self._curriculum = curriculum
+            self._task = self._curriculum.get_task()
+            self._level = level
+            self._renderer = None
+            self._map_labels = []
+            self._stats_writer = stats_writer
+            self._replay_writer = replay_writer
+            self._episode_id: str | None = None
+            self._reset_at = datetime.datetime.now()
+            self._current_seed = 0
 
-        self.labels = self._task.env_cfg().get("labels", None)
-        self._should_reset = False
+            self.labels = self._task.env_cfg().get("labels", None)
+            self._should_reset = False
 
-        self._initialize_c_env(self._task)
-        super().__init__(buf)
+            self._initialize_c_env(self._task)
+            super().__init__(buf)
 
-        if self._render_mode is not None:
-            if self._render_mode == "human":
-                from .renderer.nethack import NethackRenderer
+            if self._render_mode is not None:
+                if self._render_mode == "human":
+                    from .renderer.nethack import NethackRenderer
 
-                self._renderer = NethackRenderer(self.object_type_names)
-            elif self._render_mode == "miniscope":
-                from .renderer.miniscope import MiniscopeRenderer
+                    self._renderer = NethackRenderer(self.object_type_names)
+                elif self._render_mode == "miniscope":
+                    from .renderer.miniscope import MiniscopeRenderer
 
-                self._renderer = MiniscopeRenderer(self.object_type_names)
+                    self._renderer = MiniscopeRenderer(self.object_type_names)
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -243,10 +244,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         timer_data = self.timer.get_all_elapsed()
 
         infos["timing"] = {
-            **{
-                f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
-                for op, elapsed in timer_data.items()
-            },
+            **{f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0 for op, elapsed in timer_data.items()},
         }
 
         infos["game"] = stats["game"]
