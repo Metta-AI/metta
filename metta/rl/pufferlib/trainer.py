@@ -210,7 +210,7 @@ class PufferTrainer:
 
         if wandb_run and self._master:
             wandb_run.define_metric("train/agent_step")
-            wandb_run.define_metric("train/agent_steps_per_update", step_metric="train/agent_step")
+            wandb_run.define_metric("train/avg_agent_steps_per_update", step_metric="train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
