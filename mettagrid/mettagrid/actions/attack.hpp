@@ -22,7 +22,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionType arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg > 9 || arg < 1) {
       return false;
     }

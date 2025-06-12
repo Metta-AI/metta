@@ -46,7 +46,10 @@ typedef uint8_t ObservationType;
 typedef bool TerminalType;
 typedef bool TruncationType;
 typedef float RewardType;
+
 typedef int32_t ActionType;
+typedef ActionType ActionArg;
+
 typedef bool MaskType;
 typedef bool SuccessType;
 

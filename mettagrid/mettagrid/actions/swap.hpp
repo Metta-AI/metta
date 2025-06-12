@@ -7,6 +7,7 @@
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "types.hpp"
 
 class Swap : public ActionHandler {
 public:
@@ -17,7 +18,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionType arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     GridLocation target_loc = _grid->relative_location(actor->location, static_cast<Orientation>(actor->orientation));
     MettaObject* target = static_cast<MettaObject*>(_grid->object_at(target_loc));
     if (target == nullptr) {

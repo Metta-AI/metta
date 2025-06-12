@@ -5,6 +5,7 @@
 
 #include "action_handler.hpp"
 #include "objects/agent.hpp"
+#include "types.hpp"
 
 class ChangeColorAction : public ActionHandler {
 public:
@@ -15,7 +16,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionType arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     if (arg == 0) {  // Increment
       if (actor->color < 255) {
         actor->color += 1;

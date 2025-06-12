@@ -334,13 +334,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
     unsigned char current_priority = _max_action_priority - offset;
 
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
-      // Skip agents who already successfully performed an action this step
-      if (_action_success[agent_idx]) {
-        continue;
-      }
-
       ActionType action = actions_view(agent_idx, 0);
-      ActionType arg = actions_view(agent_idx, 1);
 
       if (action < 0 || action >= _num_action_handlers) {
         throw std::runtime_error("Invalid action type " + std::to_string(action) + ". Valid range: 0 to " +
@@ -353,6 +347,8 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       if (handler->priority != current_priority) {
         continue;
       }
+
+      ActionArg arg = actions_view(agent_idx, 1);
 
       if (arg > _max_action_args[action]) {
         throw std::runtime_error("Invalid action argument " + std::to_string(arg) + " exceeds maximum " +

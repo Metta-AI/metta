@@ -6,6 +6,7 @@
 #include "action_handler.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "types.hpp"
 
 class Move : public ActionHandler {
 public:
@@ -16,7 +17,7 @@ public:
   }
 
 protected:
-  bool _handle_action(Agent* actor, ActionType arg) override {
+  bool _handle_action(Agent* actor, ActionArg arg) override {
     unsigned short direction = arg;
 
     Orientation orientation = static_cast<Orientation>(actor->orientation);
