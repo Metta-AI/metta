@@ -128,10 +128,10 @@ def display_job_summary(
     divider = blue("=" * divider_length)
 
     print(f"\n{divider}")
-    print(bold(blue("Job will be submitted with the following details:")))
+    print(bold(blue("Job details:")))
     print(f"{divider}")
 
-    print(f"{bold('Job Name:')} {yellow(job_name)}")
+    print(f"{bold('Name:')} {yellow(job_name)}")
 
     # Extract resource info from task if provided
     if task:
@@ -191,7 +191,7 @@ def display_job_summary(
             print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
     print(blue("-" * divider_length))
-    print(f"{bold('Command:')} {yellow(cmd)}")
+    print(f"{bold('Command:')} {red(cmd)}")
 
     if task_args:
         print(bold("Task Arguments:"))
