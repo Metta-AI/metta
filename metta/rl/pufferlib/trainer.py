@@ -4,6 +4,7 @@ import time
 from collections import defaultdict
 from types import SimpleNamespace
 
+import einops
 import numpy as np
 import torch
 import wandb
@@ -57,6 +58,8 @@ class PufferTrainer:
         self._master = True
         self._world_size = 1
         self.device: torch.device = cfg.device
+        self._batch_size = self.trainer_cfg.batch_size
+        self._minibatch_size = self.trainer_cfg.minibatch_size
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
@@ -67,11 +70,6 @@ class PufferTrainer:
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
-        else:
-            self._master = True
-            self._world_size = 1
-            self._batch_size = self.trainer_cfg.batch_size
-            self._minibatch_size = self.trainer_cfg.minibatch_size
 
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
@@ -711,9 +709,9 @@ class PufferTrainer:
         # Now synchronize and aggregate stats across processes
         sps = self.profile.SPS
         agent_steps = self.agent_step
-        steps_per_update = 0.0
+        avg_steps_per_update = 0.0
         if self._total_minibatches:
-            steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
+            avg_steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
             self._last_agent_step = agent_steps
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
@@ -766,7 +764,7 @@ class PufferTrainer:
                     **self._weights_helper.stats(),
                     **self._eval_grouped_scores,
                     "train/agent_step": agent_steps,
-                    "train/agent_steps_per_update": steps_per_update,
+                    "train/avg_agent_steps_per_update": avg_steps_per_update,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
                     "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
@@ -783,15 +781,11 @@ class PufferTrainer:
         adv = adv.reshape(-1)
         if self.trainer_cfg.norm_adv:
             if torch.distributed.is_initialized():
-                # in the case of distributed training we have to synchronize the advantage mean
-                # and standard deviation to get the same normalized advantage on all ranks
-                local_sum = adv.sum().unsqueeze(0)
-                local_sq_sum = (adv * adv).sum().unsqueeze(0)
+                local_sum = einops.rearrange(adv.sum(), "-> 1")
+                local_sq_sum = einops.rearrange((adv * adv).sum(), "-> 1")
                 local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
 
-                stats = torch.stack(
-                    [local_sum, local_sq_sum, local_count]
-                )  # putting them into one tensor so we only have to do a single all-reduce
+                stats, _ = einops.pack([local_sum, local_sq_sum, local_count], "* 1")
                 torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
 
                 global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
@@ -881,15 +875,15 @@ class PufferTrainer:
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
-        batch_size = int(self.target_batch_size)
-        logger.info(f"vecenv_batch_size: {batch_size}")
+        forward_pass_batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
+        logger.info(f"vecenv_batch_size: {forward_pass_batch_size}")
 
-        num_envs = batch_size * self.trainer_cfg.async_factor
+        num_envs = forward_pass_batch_size * self.trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
             logger.error(
-                f"num_envs = batch_size ({batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
+                f"num_envs = batch_size ({forward_pass_batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
@@ -897,7 +891,7 @@ class PufferTrainer:
             self._curriculum,
             self.cfg.vectorization,
             num_envs=num_envs,
-            batch_size=batch_size,
+            batch_size=forward_pass_batch_size,
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy,
         )
