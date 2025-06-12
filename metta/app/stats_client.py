@@ -17,7 +17,7 @@ from .stats_routes import (
 class StatsClient:
     """Client for interacting with the stats API."""
 
-    def __init__(self, http_client: HttpClient):
+    def __init__(self, http_client: HttpClient, user: str):
         """
         Initialize the stats client.
 
@@ -25,6 +25,7 @@ class StatsClient:
             http_client: HTTP client implementation to use for requests
         """
         self.http_client = http_client
+        self.user = user
 
     def __enter__(self):
         return self

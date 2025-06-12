@@ -49,7 +49,7 @@ class TestStatsServerSimple:
     def stats_client(self, test_client):
         """Create a stats client for testing."""
         http_client = FastAPITestClientAdapter(test_client)
-        return StatsClient(http_client)
+        return StatsClient(http_client, user="test_user")
 
     def test_complete_workflow(self, stats_client):
         """Test the complete end-to-end workflow."""
