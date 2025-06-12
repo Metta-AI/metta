@@ -104,11 +104,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         task = self._task
         level = self._level
         last_level = self._last_level_per_task.get(task.id(), None)
-        if (
-            level is None
-            and last_level is not None
-            and random.random() < task.env_cfg().get("replay_level_prob", 0)
-        ):
+        if level is None and last_level is not None and random.random() < task.env_cfg().get("replay_level_prob", 0):
             # Replay the last level we had for this task, rather than building a new one.
             # This will be less adaptive to changes in the task config, but will save a lot
             # of CPU, and so is helpful if we're CPU bound.
