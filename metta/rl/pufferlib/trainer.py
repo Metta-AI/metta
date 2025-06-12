@@ -19,7 +19,7 @@ from metta.agent.util.debug import assert_shape
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.policy import PufferAgent
-from metta.rl.pufferlib.profile import Profile
+from metta.rl.pufferlib.profile import Profile, profile_section
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
@@ -116,21 +116,21 @@ class PufferTrainer:
         self._initial_pr = policy_record
         self.last_pr = policy_record
         self.policy_record = policy_record
-        self.uncompiled_policy = policy_record.policy().to(self.device)
-        self.policy = self.uncompiled_policy
+        self.policy = policy_record.policy().to(self.device)
+        self.uncompiled_policy = self.policy
 
         # Action setup
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
-        # Kickstarter
-        self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
-
         # Compile policy if requested
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+
+        # Kickstarter
+        self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
 
         # Distributed setup
         if torch.distributed.is_initialized():
@@ -170,10 +170,6 @@ class PufferTrainer:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
             )
-
-        # Mixed precision
-        precision = self.trainer_cfg.get("precision", "float32")
-        self.amp_context = torch.amp.autocast(device_type="cuda", dtype=getattr(torch, precision))
 
         # Monitoring
         self.profile = Profile(frequency=1)
@@ -384,6 +380,12 @@ class PufferTrainer:
                 with self.timer("_save_policy_to_wandb"):
                     self._save_policy_to_wandb()
 
+            if (
+                self.cfg.agent.l2_init_weight_update_interval != 0
+                and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0
+            ):
+                self._update_l2_init_weight_copy()
+
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 with self.timer("_generate_and_upload_replay", log=logging.INFO):
                     self._generate_and_upload_replay()
@@ -399,6 +401,53 @@ class PufferTrainer:
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
 
+    def _evaluate_policy(self):
+        if not self._master:
+            return
+
+        logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
+        sim = SimulationSuite(
+            config=self.sim_suite_config,
+            policy_pr=self.last_pr,
+            policy_store=self.policy_store,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
+            stats_dir="/tmp/stats",
+        )
+        result = sim.simulate()
+        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
+        logger.info("Simulation complete")
+
+        self._eval_categories = set()
+        for sim_name in self.sim_suite_config.simulations.keys():
+            self._eval_categories.add(sim_name.split("/")[0])
+        self._eval_suite_avgs = {}
+
+        # Compute scores for each evaluation category
+        for category in self._eval_categories:
+            score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
+            logger.info(f"{category} score: {score}")
+            self._eval_suite_avgs[f"{category}_score"] = score if score is not None else 0.0
+
+        # Get overall score
+        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
+        self._current_eval_score = overall_score if overall_score is not None else 0.0
+        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
+
+        # Categorize scores
+        self._eval_grouped_scores = {}
+        for (_, sim_name, _), score in all_scores.items():
+            for category in self._eval_categories:
+                if category in sim_name.lower():
+                    self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
+
+    def _update_l2_init_weight_copy(self):
+        self.policy.update_l2_init_weight_copy()
+
+    def _on_train_step(self):
+        pass
+
+    @profile_section("eval")
     def _rollout(self):
         """Rollout phase - collect experience from environments."""
         profile = self.profile
@@ -432,7 +481,7 @@ class PufferTrainer:
                     d = torch.as_tensor(d).to(device, non_blocking=True)
                     t = torch.as_tensor(t).to(device, non_blocking=True)
 
-                with profile.eval_forward, torch.no_grad(), self.amp_context:
+                with profile.eval_forward, torch.no_grad():
                     state = PolicyState()
 
                     if config.get("use_rnn", True) and hasattr(self, "lstm_h"):
@@ -532,6 +581,7 @@ class PufferTrainer:
             return float(self.rewards.mean().item())
         return 0.0
 
+    @profile_section("train")
     def _train(self):
         """Train phase with prioritized experience replay and new advantage computation."""
         profile = self.profile
@@ -800,46 +850,6 @@ class PufferTrainer:
             },
         )
         return self.last_pr
-
-    def _evaluate_policy(self):
-        if not self._master:
-            return
-
-        logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
-        sim = SimulationSuite(
-            config=self.sim_suite_config,
-            policy_pr=self.last_pr,
-            policy_store=self.policy_store,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
-            stats_dir="/tmp/stats",
-        )
-        result = sim.simulate()
-        stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-        logger.info("Simulation complete")
-
-        self._eval_categories = set()
-        for sim_name in self.sim_suite_config.simulations.keys():
-            self._eval_categories.add(sim_name.split("/")[0])
-        self._eval_suite_avgs = {}
-
-        # Compute scores for each evaluation category
-        for category in self._eval_categories:
-            score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
-            logger.info(f"{category} score: {score}")
-            self._eval_suite_avgs[f"{category}_score"] = score if score is not None else 0.0
-
-        # Get overall score
-        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
-        self._current_eval_score = overall_score if overall_score is not None else 0.0
-        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
-
-        # Categorize scores
-        self._eval_grouped_scores = {}
-        for (_, sim_name, _), score in all_scores.items():
-            for category in self._eval_categories:
-                if category in sim_name.lower():
-                    self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
 
     def _save_policy_to_wandb(self):
         if not self._master:
