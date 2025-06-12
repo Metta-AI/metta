@@ -73,9 +73,21 @@ def patch_task(
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Launch SkyPilot training jobs",
+        epilog="Usage: %(prog)s <cmd> <run_id> [task_args...] [options]\n"
+        + "Example: %(prog)s train my_exp trainer=basic --timeout-hours=2 --id_suffix=001",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("cmd", help="Command to run")
-    parser.add_argument("run", help="Run ID")
+    parser.add_argument("run", help="Base ID")
+    parser.add_argument(
+        "--id_suffix",
+        dest="id_suffix",
+        type=str,
+        default=None,
+        help="Suffix to append to run ID (e.g., --id_suffix=0 makes 'base_name.0')",
+    )
     parser.add_argument("--git-ref", type=str, default=None)
     parser.add_argument("--gpus", type=int, default=None)
     parser.add_argument("--nodes", type=int, default=None)
@@ -100,6 +112,11 @@ def main():
     if not check_config_files(cmd_args):
         sys.exit(1)
 
+    # Build final run ID
+    final_run_id = args.run
+    if args.id_suffix:
+        final_run_id = f"{args.run}.{args.id_suffix}"
+
     git_ref = args.git_ref
     if not git_ref:
         git_ref = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
@@ -107,13 +124,13 @@ def main():
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
     task = task.update_envs(
         dict(
-            METTA_RUN_ID=args.run,
+            METTA_RUN_ID=final_run_id,
             METTA_CMD=args.cmd,
             METTA_CMD_ARGS=" ".join(cmd_args),
             METTA_GIT_REF=git_ref,
         )
     )
-    task.name = args.run
+    task.name = final_run_id
     task.validate_name()
 
     task = patch_task(
@@ -126,7 +143,7 @@ def main():
         extra_details["copies"] = args.copies
 
     display_job_summary(
-        job_name=args.run,
+        job_name=final_run_id,
         cmd=args.cmd,
         task_args=cmd_args,
         git_ref=git_ref,
@@ -145,7 +162,7 @@ def main():
     else:
         for i in range(1, args.copies + 1):
             copy_task = copy.deepcopy(task)
-            run_id = f"{args.run}_{i}"
+            run_id = f"{final_run_id}_{i}"
             copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
             copy_task.name = run_id
             copy_task.validate_name()

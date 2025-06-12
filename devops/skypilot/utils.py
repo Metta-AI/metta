@@ -80,14 +80,14 @@ def check_config_files(cmd_args: List[str]) -> bool:
             config_files_to_check.append((task_arg, f"./configs/trainer/{trainer_value}.yaml"))
 
         # Check for environment configuration
-        elif task_arg.startswith("trainer.env="):
+        elif task_arg.startswith("trainer.curriculum="):
             env_value = task_arg.split("=", 1)[1]
             config_files_to_check.append((task_arg, f"./configs/{env_value}.yaml"))
 
         # Check for evaluation configuration
-        elif task_arg.startswith("trainer.eval="):
-            eval_value = task_arg.split("=", 1)[1]
-            config_files_to_check.append((task_arg, f"./configs/eval/{eval_value}.yaml"))
+        elif task_arg.startswith("trainer.sim="):
+            sim_value = task_arg.split("=", 1)[1]
+            config_files_to_check.append((task_arg, f"./configs/sim/{sim_value}.yaml"))
 
     missing_files = []
     for arg, config_path in config_files_to_check:
