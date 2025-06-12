@@ -59,7 +59,6 @@ class PufferTrainer:
         self.trainer_cfg = cfg.trainer
         self.sim_suite_config = sim_suite_config
 
-        # Backend optimization
         torch.backends.cudnn.deterministic = self.trainer_cfg.get("torch_deterministic", True)
         torch.backends.cudnn.benchmark = True
 
@@ -76,7 +75,7 @@ class PufferTrainer:
             self.device = f"cuda:{os.environ['LOCAL_RANK']}"
             logger.info(f"Setting up distributed training on device {self.device}")
 
-        self.profile = Profile(frequency=1)
+        self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
@@ -107,7 +106,31 @@ class PufferTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
 
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
-        policy_record = self._load_policy(checkpoint)
+
+        policy_record = None
+        load_policy_attempts = 10
+        while policy_record is None and load_policy_attempts > 0:
+            if checkpoint.policy_path:
+                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+                policy_record = self.policy_store.policy(checkpoint.policy_path)
+                if "average_reward" in checkpoint.extra_args:
+                    self.average_reward = checkpoint.extra_args["average_reward"]
+            elif self.cfg.trainer.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy URI: {self.cfg.trainer.initial_policy.uri}")
+                policy_record = self.policy_store.policy(self.cfg.trainer.initial_policy)
+            else:
+                policy_path = os.path.join(self.cfg.trainer.checkpoint_dir, self.policy_store.make_model_name(0))
+                if os.path.exists(policy_path):
+                    logger.info(f"Loading policy from checkpoint: {policy_path}")
+                    policy_record = self.policy_store.policy(policy_path)
+                elif self._master:
+                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
+                    metta_grid_env: MettaGridEnv = self.vecenv.driver_env
+                    policy_record = self.policy_store.create(metta_grid_env)
+            if policy_record is not None:
+                break
+            load_policy_attempts -= 1
+            time.sleep(5)
 
         assert policy_record is not None, "No policy found"
 
@@ -216,32 +239,6 @@ class PufferTrainer:
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
-    def _load_policy(self, checkpoint):
-        """Load policy from checkpoint or create new one."""
-        load_policy_attempts = 10
-        while load_policy_attempts > 0:
-            if checkpoint.policy_path:
-                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                policy_record = self.policy_store.policy(checkpoint.policy_path)
-                if "average_reward" in checkpoint.extra_args:
-                    self.average_reward = checkpoint.extra_args["average_reward"]
-                return policy_record
-            elif self.cfg.trainer.initial_policy.uri is not None:
-                logger.info(f"Loading initial policy URI: {self.cfg.trainer.initial_policy.uri}")
-                return self.policy_store.policy(self.cfg.trainer.initial_policy)
-            else:
-                policy_path = os.path.join(self.cfg.trainer.checkpoint_dir, self.policy_store.make_model_name(0))
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    return self.policy_store.policy(policy_path)
-                elif self._master:
-                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                    metta_grid_env: MettaGridEnv = self.vecenv.driver_env
-                    return self.policy_store.create(metta_grid_env)
-            load_policy_attempts -= 1
-            time.sleep(5)
-        return None
-
     def _make_experience_buffer(self):
         """Create experience buffer with tensor-based storage for prioritized sampling."""
         vecenv = self.vecenv
@@ -341,8 +338,7 @@ class PufferTrainer:
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
             stats_time = self.timer.get_last_elapsed("_process_stats")
-            steps_calculated = self.agent_step - steps_before
-            steps_per_sec = steps_calculated / (train_time + rollout_time)
+            steps_per_sec = self.agent_step / (train_time + rollout_time)
 
             logger.info(
                 f"Epoch {self.epoch} - "
@@ -415,15 +411,20 @@ class PufferTrainer:
         for category in self._eval_categories:
             score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
-            self._eval_suite_avgs[f"{category}_score"] = score if score is not None else 0.0
+            # Only add the score if we got a non-None result
+            if score is not None:
+                self._eval_suite_avgs[f"{category}_score"] = score
+            else:
+                self._eval_suite_avgs[f"{category}_score"] = 0.0
 
-        # Get overall score
+        # Get overall score (average of all rewards)
         overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
         self._current_eval_score = overall_score if overall_score is not None else 0.0
         all_scores = stats_db.simulation_scores(self.last_pr, "reward")
 
-        # Categorize scores
+        # Categorize scores by environment type
         self._eval_grouped_scores = {}
+        # Process each score and assign to the right category
         for (_, sim_name, _), score in all_scores.items():
             for category in self._eval_categories:
                 if category in sim_name.lower():
