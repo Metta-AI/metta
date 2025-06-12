@@ -10,7 +10,7 @@ import { initAgentTable, updateAgentTable } from './agentpanel.js';
 import { localStorageSetNumber, onEvent, find } from './htmlutils.js';
 import { updateReadout } from './infopanels.js';
 import { initObjectMenu } from './objmenu.js';
-import { drawScrubber, initScrubber, updateScrubber } from './scrubber.js';
+import { drawScrubber, initScrubber, updateScrubber, onScrubberChange } from './scrubber.js';
 
 /** Handles resize events. */
 export function onResize() {
@@ -107,6 +107,7 @@ onEvent("mouseup", "body", () => {
   ui.dragging = "";
   ui.dragHtml = null;
   ui.dragOffset = new Vec2f(0, 0);
+  ui.mainScrubberDown = false;
 
   // Due to how we select objects on mouse-up (mouse-down is drag/pan),
   // we need to check for double-click on mouse-up as well.
@@ -152,6 +153,10 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
   if (ui.dragHtml != null) {
     ui.dragHtml.style.left = (ui.mousePos.x() - ui.dragOffset.x()) + "px";
     ui.dragHtml.style.top = (ui.mousePos.y() - ui.dragOffset.y()) + "px";
+  }
+
+  if (ui.mainScrubberDown) {
+    onScrubberChange(event);
   }
 
   requestFrame();

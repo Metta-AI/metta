@@ -21,7 +21,7 @@ export function initScrubber() {
 }
 
 /** Update the scrubber. */
-function onScrubberChange(event: MouseEvent) {
+export function onScrubberChange(event: MouseEvent) {
   let mouseX = event.clientX;
   let scrubberWidth = ui.scrubberPanel.width - 32;
   let s = Math.floor((mouseX - 16) / scrubberWidth * state.replay.max_steps);
@@ -32,20 +32,8 @@ function onScrubberChange(event: MouseEvent) {
 /** Handle mouse down on the scrubber, which will update the step. */
 onEvent("mousedown", "#scrubber-panel", (target: HTMLElement, event: Event) => {
   console.log("Scrubber clicked");
-  ui.mouseDown = true;
+  ui.mainScrubberDown = true;
   onScrubberChange(event as MouseEvent);
-});
-
-/** Handle mouse up on the scrubber, which will update the step. */
-onEvent("mouseup", "#scrubber-panel", (target: HTMLElement, event: Event) => {
-  ui.mouseDown = false;
-});
-
-/** Handle mouse move on the scrubber, which will update the step. */
-onEvent("mousemove", "#scrubber-panel", (target: HTMLElement, event: Event) => {
-  if (ui.mouseDown) {
-    onScrubberChange(event as MouseEvent);
-  }
 });
 
 /** Update the scrubber. */

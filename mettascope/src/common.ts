@@ -56,6 +56,7 @@ export const ui = {
   mouseDownPos: new Vec2f(0, 0),
   scrollDelta: 0,
   lastClickTime: 0, // For double-click detection
+  mainScrubberDown: false,
 
   // Split between trace and info panels.
   traceSplit: localStorageGetNumber("traceSplit", 0.8),
