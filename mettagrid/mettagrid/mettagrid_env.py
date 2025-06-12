@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import random
 import uuid
 from typing import Any, Dict, Optional, cast
 
@@ -76,6 +77,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._curriculum = curriculum
             self._task = self._curriculum.get_task()
             self._level = level
+            self._last_level_per_task = {self._task.id(): level}
             self._renderer = None
             self._map_labels = []
             self._stats_writer = stats_writer
@@ -106,9 +108,18 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @with_instance_timer("_initialize_c_env")
     def _initialize_c_env(self) -> None:
         """Initialize the C++ environment."""
+        task = self._task
         level = self._level
+
+        last_level = self._last_level_per_task.get(task.id(), None)
+        if level is None and last_level is not None and random.random() < task.env_cfg().get("replay_level_prob", 0):
+            # Replay the last level we had for this task, rather than building a new one.
+            # This will be less adaptive to changes in the task config, but will save a lot
+            # of CPU, and so is helpful if we're CPU bound.
+            level = last_level
+
         if level is None:
-            map_builder_config = self._task.env_cfg().game.map_builder
+            map_builder_config = task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.hydra"):
                 map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
             with self.timer("_initialize_c_env.map_builder"):
@@ -116,13 +127,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert self._task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {self._task.env_cfg().game.num_agents} "
-            f"does not match number of agents in map {level_agents}"
+        assert task.env_cfg().game.num_agents == level_agents, (
+            f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
-        config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))
+        config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
 
         self._map_labels = level.labels
 
