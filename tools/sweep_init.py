@@ -209,27 +209,9 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
             for key, value in sweep_overrides.items():
                 OmegaConf.update(train_cfg, key, value)
 
-            # Convert numpy types to Python native types for OmegaConf compatibility
-            import numpy as np
-
-            def clean_numpy_types(obj):
-                """Recursively convert numpy types to Python native types."""
-                if isinstance(obj, np.ndarray):
-                    return obj.item() if obj.size == 1 else obj.tolist()
-                elif isinstance(obj, np.generic):
-                    return obj.item()
-                elif isinstance(obj, dict):
-                    return {k: clean_numpy_types(v) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [clean_numpy_types(v) for v in obj]
-                return obj
-
-            # Clean up Protein suggestions - handle numpy types properly
-            suggestion_clean = clean_numpy_types(suggestion)
-
-            logger.info(f"Cleaned Protein suggestions: {suggestion_clean}")
-            # Ensure we create a DictConfig, not ListConfig
-            suggestion_config = OmegaConf.create(suggestion_clean)
+            logger.info(f"Protein suggestions: {suggestion}")
+            # Suggestion is already cleaned by MettaProtein._transform_suggestion()
+            suggestion_config = OmegaConf.create(suggestion)
             if isinstance(suggestion_config, DictConfig):
                 apply_protein_suggestion(train_cfg, suggestion_config)
             else:
