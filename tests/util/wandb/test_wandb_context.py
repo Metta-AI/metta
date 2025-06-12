@@ -43,6 +43,7 @@ class DummyRun:
     save_code: bool
     resume: bool
     tags: list[str]
+    notes: str | None
     settings: wandb.Settings
 
 
@@ -114,6 +115,30 @@ def test_run_fields(monkeypatch, dummy_init, tmp_path):
     assert run.resume is True
     assert run.monitor_gym is True
     assert run.save_code is True
+
+
+def test_tags_and_notes(monkeypatch, dummy_init, tmp_path):
+    cfg_on = OmegaConf.create(
+        dict(
+            enabled=True,
+            project="p",
+            entity="e",
+            group="g",
+            name="n",
+            run_id="r",
+            data_dir=str(tmp_path),
+            job_type="j",
+            tags=["a", "b"],
+            notes="hello",
+        )
+    )
+
+    ctx = WandbContext(cfg_on, OmegaConf.create({}))
+    run = ctx.__enter__()
+
+    assert run is not None
+    assert run.tags == ["a", "b", "user:unknown"]
+    assert run.notes == "hello"
 
 
 def test_exit_finishes_run(monkeypatch, dummy_init, tmp_path):
