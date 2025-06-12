@@ -951,7 +951,7 @@ class PufferTrainer:
         num_agents = self._curriculum.get_task().env_cfg().game.num_agents
 
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // num_agents
-        if self.target_batch_size < 2:
+        if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
         self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
@@ -975,12 +975,11 @@ class PufferTrainer:
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
 
+        # Use rank-specific seed for environment reset to ensure different
+        # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
         rank_specific_env_seed = self.cfg.seed + rank if self.cfg.seed is not None else rank
         self.vecenv.async_reset(rank_specific_env_seed)
-
-    def _on_train_step(self):
-        pass
 
 
 class AbortingTrainer(PufferTrainer):
