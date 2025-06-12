@@ -14,7 +14,7 @@ from pufferlib import unroll_nested_dict
 from pydantic import validate_call
 from typing_extensions import override
 
-from mettagrid.curriculum import Curriculum, Task
+from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
@@ -87,7 +87,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self.labels = self._task.env_cfg().get("labels", None)
             self._should_reset = False
 
-            self._initialize_c_env(self._task)
+            self._initialize_c_env()
             super().__init__(buf)
 
             if self._render_mode is not None:
@@ -104,11 +104,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return str(uuid.uuid4())
 
     @with_instance_timer("_initialize_c_env")
-    def _initialize_c_env(self, task: Task) -> None:
+    def _initialize_c_env(self) -> None:
         """Initialize the C++ environment."""
         level = self._level
         if level is None:
-            map_builder_config = task.env_cfg().game.map_builder
+            map_builder_config = self._task.env_cfg().game.map_builder
             with self.timer("_initialize_c_env.hydra"):
                 map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
             with self.timer("_initialize_c_env.map_builder"):
@@ -122,7 +122,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         )
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
-        config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
+        config_dict = cast(Dict[str, Any], OmegaConf.to_container(self._task.env_cfg()))
 
         self._map_labels = level.labels
 
@@ -139,7 +139,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         with self.timer("_curriculum.get_task"):
             self._task = self._curriculum.get_task()
 
-        self._initialize_c_env(self._task)
+        self._initialize_c_env()
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
