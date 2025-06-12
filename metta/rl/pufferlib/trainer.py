@@ -229,76 +229,6 @@ class PufferTrainer:
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
-    def _make_experience_buffer(self):
-        """Create experience buffer with tensor-based storage for prioritized sampling."""
-        vecenv = self.vecenv
-        device = self.device
-
-        obs_space = vecenv.single_observation_space
-        atn_space = vecenv.single_action_space
-        total_agents = vecenv.num_agents
-        self.total_agents = total_agents
-
-        batch_size = self.trainer_cfg.batch_size
-        horizon = self.trainer_cfg.bptt_horizon
-        segments = batch_size // horizon
-        self.segments = segments
-
-        # Create tensor storage for experience
-        self.observations = torch.zeros(
-            segments,
-            horizon,
-            *obs_space.shape,
-            dtype=torch.float32 if obs_space.dtype == np.float32 else torch.uint8,
-            pin_memory=device == "cuda" and self.trainer_cfg.cpu_offload,
-            device="cpu" if self.trainer_cfg.cpu_offload else device,
-        )
-        self.actions = torch.zeros(
-            segments,
-            horizon,
-            *atn_space.shape,
-            device=device,
-            dtype=torch.int32 if atn_space.dtype in (np.int32, np.int64) else torch.float32,
-        )
-
-        self.values = torch.zeros(segments, horizon, device=device)
-        self.logprobs = torch.zeros(segments, horizon, device=device)
-        self.rewards = torch.zeros(segments, horizon, device=device)
-        self.terminals = torch.zeros(segments, horizon, device=device)
-        self.truncations = torch.zeros(segments, horizon, device=device)
-        self.ratio = torch.ones(segments, horizon, device=device)
-        self.importance = torch.ones(segments, horizon, device=device)
-        self.ep_lengths = torch.zeros(total_agents, device=device, dtype=torch.int32)
-        self.ep_indices = torch.arange(total_agents, device=device, dtype=torch.int32) % segments
-        self.free_idx = total_agents % segments
-
-        if self.trainer_cfg.get("use_rnn", True):
-            n = vecenv.agents_per_batch
-            h = getattr(self.policy, "hidden_size", 256)
-            num_layers = 2
-            if hasattr(self.policy, "components") and "_core_" in self.policy.components:
-                lstm_module = self.policy.components["_core_"]
-                if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
-                    num_layers = lstm_module._net.num_layers
-            self.lstm_h = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
-            self.lstm_c = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
-
-        minibatch_size = self.trainer_cfg.minibatch_size
-        max_minibatch_size = self.trainer_cfg.get("max_minibatch_size", minibatch_size)
-        self.minibatch_size = min(minibatch_size, max_minibatch_size)
-
-        if batch_size < minibatch_size:
-            raise ValueError(f"batch_size {batch_size} must be >= minibatch_size {minibatch_size}")
-
-        self.accumulate_minibatches = max(1, minibatch_size // max_minibatch_size)
-        self.total_minibatches = int(self.trainer_cfg.update_epochs * batch_size / self.minibatch_size)
-        self.minibatch_segments = self.minibatch_size // horizon
-
-        if self.minibatch_segments * horizon != self.minibatch_size:
-            raise ValueError(f"minibatch_size {self.minibatch_size} must be divisible by bptt_horizon {horizon}")
-
-        self.full_rows = 0
-
     def train(self):
         logger.info("Starting training")
 
@@ -930,6 +860,76 @@ class PufferTrainer:
 
     def last_pr_uri(self):
         return self.last_pr.uri
+
+    def _make_experience_buffer(self):
+        """Create experience buffer with tensor-based storage for prioritized sampling."""
+        vecenv = self.vecenv
+        device = self.device
+
+        obs_space = vecenv.single_observation_space
+        atn_space = vecenv.single_action_space
+        total_agents = vecenv.num_agents
+        self.total_agents = total_agents
+
+        batch_size = self.trainer_cfg.batch_size
+        horizon = self.trainer_cfg.bptt_horizon
+        segments = batch_size // horizon
+        self.segments = segments
+
+        # Create tensor storage for experience
+        self.observations = torch.zeros(
+            segments,
+            horizon,
+            *obs_space.shape,
+            dtype=torch.float32 if obs_space.dtype == np.float32 else torch.uint8,
+            pin_memory=device == "cuda" and self.trainer_cfg.cpu_offload,
+            device="cpu" if self.trainer_cfg.cpu_offload else device,
+        )
+        self.actions = torch.zeros(
+            segments,
+            horizon,
+            *atn_space.shape,
+            device=device,
+            dtype=torch.int32 if atn_space.dtype in (np.int32, np.int64) else torch.float32,
+        )
+
+        self.values = torch.zeros(segments, horizon, device=device)
+        self.logprobs = torch.zeros(segments, horizon, device=device)
+        self.rewards = torch.zeros(segments, horizon, device=device)
+        self.terminals = torch.zeros(segments, horizon, device=device)
+        self.truncations = torch.zeros(segments, horizon, device=device)
+        self.ratio = torch.ones(segments, horizon, device=device)
+        self.importance = torch.ones(segments, horizon, device=device)
+        self.ep_lengths = torch.zeros(total_agents, device=device, dtype=torch.int32)
+        self.ep_indices = torch.arange(total_agents, device=device, dtype=torch.int32) % segments
+        self.free_idx = total_agents % segments
+
+        if self.trainer_cfg.get("use_rnn", True):
+            n = vecenv.agents_per_batch
+            h = getattr(self.policy, "hidden_size", 256)
+            num_layers = 2
+            if hasattr(self.policy, "components") and "_core_" in self.policy.components:
+                lstm_module = self.policy.components["_core_"]
+                if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
+                    num_layers = lstm_module._net.num_layers
+            self.lstm_h = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
+            self.lstm_c = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
+
+        minibatch_size = self.trainer_cfg.minibatch_size
+        max_minibatch_size = self.trainer_cfg.get("max_minibatch_size", minibatch_size)
+        self.minibatch_size = min(minibatch_size, max_minibatch_size)
+
+        if batch_size < minibatch_size:
+            raise ValueError(f"batch_size {batch_size} must be >= minibatch_size {minibatch_size}")
+
+        self.accumulate_minibatches = max(1, minibatch_size // max_minibatch_size)
+        self.total_minibatches = int(self.trainer_cfg.update_epochs * batch_size / self.minibatch_size)
+        self.minibatch_segments = self.minibatch_size // horizon
+
+        if self.minibatch_segments * horizon != self.minibatch_size:
+            raise ValueError(f"minibatch_size {self.minibatch_size} must be divisible by bptt_horizon {horizon}")
+
+        self.full_rows = 0
 
     def _make_losses(self):
         return SimpleNamespace(
