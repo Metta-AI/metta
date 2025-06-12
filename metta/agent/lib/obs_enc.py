@@ -267,121 +267,102 @@ class ObsCrossAttn(LayerBase):
         self._qk_dim = qk_dim
         self._v_dim = v_dim
         self._mlp_out_hidden_dim = mlp_out_hidden_dim
+        self._qk_dim_sqrt = self._qk_dim**0.5
 
     def _make_net(self) -> None:
-        # PERFORMANCE DEBUG START - Comment out original _make_net
-        # # we expect input shape to be [B, M, feat_dim]
-        # self._M = self._in_tensor_shapes[0][0]
-        # self._feat_dim = self._in_tensor_shapes[0][1]
+        # we expect input shape to be [B, M, feat_dim]
+        self._feat_dim = self._in_tensor_shapes[0][1]
 
-        # if self._qk_dim is None:
-        #     self._qk_dim = self._feat_dim
-        # if self._v_dim is None:
-        #     self._v_dim = self._feat_dim
-        # if self._query_token_dim is None:
-        #     self._query_token_dim = self._feat_dim
+        if self._qk_dim is None:
+            self._qk_dim = self._feat_dim
+        if self._v_dim is None:
+            self._v_dim = self._feat_dim
+        if self._query_token_dim is None:
+            self._query_token_dim = self._feat_dim
 
-        # if self._num_query_tokens == 1:
-        #     self._out_tensor_shape = [self._out_dim]
-        # else:
-        #     self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
-
-        # self._q_token = nn.Parameter(torch.randn(1, self._num_query_tokens, self._query_token_dim))
-
-        # self._layer_norm_1 = nn.LayerNorm(self._feat_dim)
-
-        # self.q_proj = nn.Linear(self._query_token_dim, self._qk_dim, bias=False)
-        # self.k_proj = nn.Linear(self._feat_dim, self._qk_dim, bias=False)
-        # self.v_proj = nn.Linear(self._feat_dim, self._v_dim, bias=False)
-
-        # self._layer_norm_2 = nn.LayerNorm(self._v_dim)
-
-        # self._out_proj = nn.Identity()
-        # if self._v_dim != self._out_dim or self._mlp_out_hidden_dim is not None:
-        #     if self._mlp_out_hidden_dim is None:
-        #         raise ValueError("mlp_out_hidden_dim must be provided if v_dim != out_dim")
-        #     self._out_proj = nn.Sequential(
-        #         nn.Linear(self._v_dim, self._mlp_out_hidden_dim),
-        #         nn.ReLU(),
-        #         nn.Linear(self._mlp_out_hidden_dim, self._out_dim),
-        #     )
-
-        # PERFORMANCE DEBUG - Preallocate random tensor for output
         if self._num_query_tokens == 1:
             self._out_tensor_shape = [self._out_dim]
-            self.register_buffer("_debug_output_tensor", torch.randn(1, self._out_dim))
         else:
             self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
-            self.register_buffer("_debug_output_tensor", torch.randn(1, self._num_query_tokens, self._out_dim))
-        # PERFORMANCE DEBUG END
+
+        self._q_token = nn.Parameter(torch.randn(1, self._num_query_tokens, self._query_token_dim))
+        nn.init.trunc_normal_(self._q_token, std=0.02)
+
+        self._layer_norm_1 = nn.LayerNorm(self._feat_dim)
+
+        self.q_proj = nn.Linear(self._query_token_dim, self._qk_dim, bias=False)
+        self.k_proj = nn.Linear(self._feat_dim, self._qk_dim, bias=False)
+        self.v_proj = nn.Linear(self._feat_dim, self._v_dim, bias=False)
+
+        self._layer_norm_2 = nn.LayerNorm(self._v_dim)
+
+        self._out_proj = nn.Identity()
+        if self._v_dim != self._out_dim or self._mlp_out_hidden_dim is not None:
+            if self._mlp_out_hidden_dim is None:
+                raise ValueError("mlp_out_hidden_dim must be provided if v_dim != out_dim")
+            self._out_proj = nn.Sequential(
+                nn.Linear(self._v_dim, self._mlp_out_hidden_dim),
+                nn.ReLU(),
+                nn.Linear(self._mlp_out_hidden_dim, self._out_dim),
+            )
 
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        # PERFORMANCE DEBUG START - Comment out entire forward method
-        # x_features = td[self._sources[0]["name"]]
-        # key_mask = None
-        # if self._use_mask:
-        #     key_mask = td["obs_mask"]
-        # B_TT = td["_BxTT_"]
-
-        # # query_token_unprojected will have shape [B_TT, num_query_tokens, _feat_dim]
-        # query_token_unprojected = self._q_token.expand(B_TT, -1, -1)
-        # x_features_norm = self._layer_norm_1(x_features)  # [B_TT, M, _feat_dim]
-
-        # q_p = self.q_proj(query_token_unprojected)  # q_p is now [B_TT, num_query_tokens, _actual_qk_dim]
-        # k_p = self.k_proj(x_features_norm)  # [B_TT, M, _actual_qk_dim]
-        # v_p = self.v_proj(x_features_norm)  # [B_TT, M, _actual_v_dim]
-
-        # # Calculate attention scores: Q_projected @ K_projected.T
-        # # q_p: [B_TT, num_query_tokens, _actual_qk_dim], k_p: [B_TT, M, _actual_qk_dim].
-        # # attn_scores will have shape [B_TT, num_query_tokens, M]
-        # attn_scores = torch.einsum("bqd,bkd->bqk", q_p, k_p)
-
-        # # Scale scores
-        # attn_scores = attn_scores / (self._qk_dim**0.5)
-
-        # # Apply mask
-        # if key_mask is not None:
-        #     # key_mask shape: [B_TT, M] -> unsqueeze to [B_TT, 1, M] for broadcasting
-        #     # This will broadcast across the num_query_tokens dimension.
-        #     key_mask_expanded = key_mask.unsqueeze(1)
-        #     attn_scores = attn_scores.masked_fill(key_mask_expanded, -float("inf"))
-
-        # # Softmax to get attention weights
-        # # attn_weights will have shape [B_TT, num_query_tokens, M]
-        # attn_weights = torch.softmax(attn_scores, dim=-1)
-
-        # # Calculate output: Weights @ V_projected
-        # # x will have shape [B_TT, num_query_tokens, _actual_v_dim]
-        # x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
-
-        # x = self._layer_norm_2(x)
-
-        # # x shape: [B_TT, num_query_tokens, _actual_v_dim]
-        # # _out_proj maps last dim from _actual_v_dim to _out_dim
-        # # x after _out_proj: [B_TT, num_query_tokens, _out_dim]
-        # x = self._out_proj(x)
-
-        # if self._num_query_tokens == 1:
-        #     # Reshape [B_TT, 1, self._out_dim] to [B_TT, self._out_dim]
-        #     # This explicitly removes the middle dimension of size 1.
-        #     x = einops.rearrange(x, "btt 1 d -> btt d")
-        # # Else (num_query_tokens > 1), x is already [B_TT, self._num_query_tokens, self._out_dim]
-        # # and this shape is consistent with self._out_tensor_shape (plus batch dim).
-
-        # td[self._name] = x
-        # return td
-
-        # PERFORMANCE DEBUG - Minimal forward pass with preallocated tensor
+        x_features = td[self._sources[0]["name"]]
+        key_mask = None
+        if self._use_mask:
+            key_mask = td["obs_mask"]
         B_TT = td["_BxTT_"]
 
-        # Expand preallocated tensor to match batch size
-        output = self._debug_output_tensor.expand(B_TT, *self._debug_output_tensor.shape[1:])
+        # query_token_unprojected will have shape [B_TT, num_query_tokens, _feat_dim]
+        query_token_unprojected = self._q_token.expand(B_TT, -1, -1)
+        x_features_norm = self._layer_norm_1(x_features)  # [B_TT, M, _feat_dim]
 
-        td[self._name] = output
-        # PERFORMANCE DEBUG END
+        q_p = self.q_proj(query_token_unprojected)  # q_p is now [B_TT, num_query_tokens, _actual_qk_dim]
+        k_p = self.k_proj(x_features_norm)  # [B_TT, M, _actual_qk_dim]
+        v_p = self.v_proj(x_features_norm)  # [B_TT, M, _actual_v_dim]
 
+        # Calculate attention scores: Q_projected @ K_projected.T
+        # q_p: [B_TT, num_query_tokens, _actual_qk_dim], k_p: [B_TT, M, _actual_qk_dim].
+        # attn_scores will have shape [B_TT, num_query_tokens, M]
+        attn_scores = torch.einsum("bqd,bkd->bqk", q_p, k_p)
+
+        # Scale scores
+        attn_scores = attn_scores / self._qk_dim_sqrt
+
+        # Apply mask
+        if key_mask is not None:
+            # key_mask shape: [B_TT, M] -> unsqueeze to [B_TT, 1, M] for broadcasting
+            # This will broadcast across the num_query_tokens dimension.
+            key_mask_expanded = key_mask.unsqueeze(1)
+            attn_scores = attn_scores.masked_fill(key_mask_expanded, -float("inf"))
+
+        # Softmax to get attention weights
+        # attn_weights will have shape [B_TT, num_query_tokens, M]
+        # commented out for now to debug
+        # attn_weights = torch.softmax(attn_scores, dim=-1)
+
+        # Calculate output: Weights @ V_projected
+        # x will have shape [B_TT, num_query_tokens, _actual_v_dim]
+        # x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
+        x = torch.einsum("bqk,bkd->bqd", attn_scores, v_p)
+
+        x = self._layer_norm_2(x)
+
+        # x shape: [B_TT, num_query_tokens, _actual_v_dim]
+        # _out_proj maps last dim from _actual_v_dim to _out_dim
+        # x after _out_proj: [B_TT, num_query_tokens, _out_dim]
+        x = self._out_proj(x)
+
+        if self._num_query_tokens == 1:
+            # Reshape [B_TT, 1, self._out_dim] to [B_TT, self._out_dim]
+            # This explicitly removes the middle dimension of size 1.
+            x = einops.rearrange(x, "btt 1 d -> btt d")
+        # Else (num_query_tokens > 1), x is already [B_TT, self._num_query_tokens, self._out_dim]
+        # and this shape is consistent with self._out_tensor_shape (plus batch dim).
+
+        td[self._name] = x
         return td
 
 
