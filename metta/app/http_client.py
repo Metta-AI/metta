@@ -18,6 +18,7 @@ class HttpClient(ABC):
         """Make a POST request."""
         pass
 
+    @abstractmethod
     async def close(self):
         """Close the HTTP client. Optional method."""
         pass
