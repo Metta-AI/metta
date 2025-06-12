@@ -95,7 +95,10 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
     print(f"Splitting message into {len(chunks)} chunk(s)...")
 
     for i, chunk in enumerate(chunks):
-        payload: Dict[str, Any] = {"content": chunk}
+        # Prefix each chunk with CRLF
+        prefixed_chunk = "...\r\n   \r\n" + chunk
+
+        payload: Dict[str, Any] = {"content": prefixed_chunk}
         if suppress_embeds:
             payload["flags"] = 4  # SUPPRESS_EMBEDS flag
 
