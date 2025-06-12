@@ -73,6 +73,8 @@ export function onResize() {
   ui.agentPanel.updateDiv();
   ui.scrubberPanel.updateDiv();
 
+  updateScrubber();
+
   // Redraw the square after resizing.
   requestFrame();
 }

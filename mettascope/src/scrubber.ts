@@ -50,6 +50,10 @@ onEvent("mousemove", "#scrubber-panel", (target: HTMLElement, event: Event) => {
 
 /** Update the scrubber. */
 export function updateScrubber() {
+  if (state.replay === null) {
+    return;
+  }
+
   let scrubberWidth = ui.scrubberPanel.width - 32;
   html.stepCounter.textContent = state.step.toString();
   html.stepCounter.parentElement!.style.left = (16 + state.step / state.replay.max_steps * scrubberWidth - 46 / 2).toString() + "px";
