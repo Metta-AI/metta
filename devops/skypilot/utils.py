@@ -15,7 +15,7 @@ def print_tip(text: str):
     print(blue(text), file=sys.stderr)
 
 
-def dashboard_url():
+def dashboard_url() -> str:
     url = sky.server.common.get_server_url()  # type: ignore
     # strip username and password from server_url
     url = re.sub("https://.*@", "https://", url)
