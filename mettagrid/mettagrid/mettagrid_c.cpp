@@ -343,7 +343,6 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
       auto& handler = _action_handlers[action];
 
-      // Skip if this handler doesn't match current priority level
       if (handler->priority != current_priority) {
         continue;
       }
