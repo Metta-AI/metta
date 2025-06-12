@@ -86,6 +86,7 @@ class Stopwatch:
             "last_elapsed": 0.0,
             "is_running": False,
             "checkpoints": {},  # name -> (time, steps)
+            "lap_counter": 0,  # Internal counter for auto-incrementing laps
         }
 
     def _get_timer(self, name: Optional[str] = None) -> Dict:
@@ -172,20 +173,22 @@ class Stopwatch:
         """
         return self.time(name, log_level)
 
-    def checkpoint(self, steps: int, checkpoint_name: Optional[str] = None, timer_name: Optional[str] = None):
+    def checkpoint(
+        self, steps: Optional[int] = None, checkpoint_name: Optional[str] = None, timer_name: Optional[str] = None
+    ):
         """Record a checkpoint (i.e. lap marker) with step count.
 
         Args:
-            steps: Current step count
+            steps: Step count. If None, uses internal lap counter
             checkpoint_name: Optional name for the checkpoint. If None, uses auto-generated name.
             timer_name: Name of the timer (None for global)
 
         Usage:
-            # Named checkpoint (for specific milestones)
+            # With explicit steps
             stopwatch.checkpoint(1000, "epoch_1")
 
-            # Anonymous checkpoint (for lap-based rate tracking)
-            stopwatch.checkpoint(1000)
+            # With auto-incrementing internal counter
+            stopwatch.checkpoint()  # uses internal counter
         """
         timer = self._get_timer(timer_name)
         display_name = timer_name or "global"
@@ -196,19 +199,24 @@ class Stopwatch:
 
         elapsed = time.time() - timer["start_time"]
 
+        # Use internal counter if steps not provided
+        if steps is None:
+            timer["lap_counter"] += 1
+            steps = timer["lap_counter"]
+
         # Generate name if not provided
         if checkpoint_name is None:
             checkpoint_name = f"_lap_{len(timer['checkpoints'])}"
 
         timer["checkpoints"][checkpoint_name] = (elapsed, steps)
 
-    def lap(self, steps: int, name: Optional[str] = None) -> float:
+    def lap(self, steps: Optional[int] = None, name: Optional[str] = None) -> float:
         """Record a lap and return the lap time.
 
         Convenience method that creates a checkpoint and returns time since last checkpoint.
 
         Args:
-            steps: Current step count
+            steps: Step count. If None, uses internal lap counter
             name: Timer name (None for global)
 
         Returns:
@@ -227,6 +235,43 @@ class Stopwatch:
         self.checkpoint(steps, timer_name=name)
 
         return lap_time
+
+    def checkpoint_all(self, steps: Optional[int] = None, checkpoint_name: Optional[str] = None):
+        """Record a checkpoint on all active timers.
+
+        Args:
+            steps: Step count. If None, uses internal lap counter for each timer
+            checkpoint_name: Optional name for the checkpoint
+        """
+        for timer_name in self._timers:
+            timer = self._timers[timer_name]
+            if timer["is_running"]:
+                actual_name = timer_name if timer_name != "__global__" else None
+                self.checkpoint(steps, checkpoint_name, actual_name)
+
+    def lap_all(self, steps: Optional[int] = None, exclude_global: bool = True) -> Dict[str, float]:
+        """Mark a lap on all active timers and return lap times.
+
+        Args:
+            steps: Step count. If None, uses internal lap counter for each timer
+            exclude_global: If True, excludes the global timer from results (but still records lap)
+
+        Returns:
+            Dictionary mapping timer names to their lap times
+        """
+        lap_times = {}
+        for timer_name in self._timers:
+            timer = self._timers[timer_name]
+            if timer["is_running"]:
+                # Always record the lap to keep timers in sync
+                actual_name = timer_name if timer_name != "__global__" else None
+                lap_time = self.lap(steps, actual_name)
+
+                # Only include in results if not excluding global or not global timer
+                if not (exclude_global and timer_name == "__global__"):
+                    display_name = "global" if timer_name == "__global__" else timer_name
+                    lap_times[display_name] = lap_time
+        return lap_times
 
     def get_elapsed(self, name: Optional[str] = None) -> float:
         """Get total elapsed time including current run if active."""

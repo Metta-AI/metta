@@ -737,23 +737,21 @@ class PufferTrainer:
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         if self.wandb_run and self._master:
-            timer_data = {}
-            wall_time = self.timer.get_elapsed()  # global timer
-            timer_data = self.timer.get_all_elapsed()
-
-            training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
+            lap_times = self.timer.lap_all(self.agent_step)
+            wall_time_for_lap = self.timer.get_last_elapsed()
+            training_time_for_lap = lap_times.get("_rollout", 0) + lap_times.get("_train", 0)
+            steps_per_second = self.timer.get_lap_rate(self.agent_step) if wall_time_for_lap > 0 else 0
 
             timing_logs = {
-                "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
+                "timing/steps_per_second": steps_per_second,
+                "timing/training_efficiency": training_time_for_lap / wall_time_for_lap if wall_time_for_lap > 0 else 0,
                 **{
-                    f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
-                    for op, elapsed in timer_data.items()
+                    f"timing/fraction/{op}": elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                    for op, elapsed in lap_times.items()
                 },
             }
 
-            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
-
-            overview = {"SPS": steps_per_sec}
+            overview = {"SPS": steps_per_second}
 
             # Add custom overview items
             for k, v in self.trainer_cfg.stats.overview.items():
