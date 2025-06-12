@@ -337,6 +337,8 @@ class PufferTrainer:
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
             stats_time = self.timer.get_last_elapsed("_process_stats")
+            steps_calculated = self.agent_step - steps_before
+            steps_per_sec = steps_calculated / (train_time + rollout_time)
             steps_per_sec = self.agent_step / (train_time + rollout_time)
 
             logger.info(
@@ -438,7 +440,6 @@ class PufferTrainer:
     @profile_section("eval")
     def _rollout(self):
         experience, profile = self.experience, self.profile
-        profile.start_epoch(self.epoch, "eval")
 
         with profile.eval_misc:
             policy = self.policy
