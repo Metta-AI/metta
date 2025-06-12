@@ -323,7 +323,8 @@ class PRSummaryGenerator:
 • [Second most important change or architectural impact]
 • [Third change if applicable - focus on developer-visible changes]
 
-**Developer Impact:** [How this affects other developers: new APIs, breaking changes, new dependencies, workflow changes, etc. If minimal impact, state "Minimal developer impact."]
+**Developer Impact:** [How this affects other developers: new APIs, breaking changes, new dependencies,
+workflow changes, etc. If minimal impact, state "Minimal developer impact."]
 
 **Technical Notes:** [Any implementation details, trade-offs, or technical decisions worth highlighting]
 
@@ -512,8 +513,10 @@ Guidelines:
 
         return results
 
-    def generate_collection_summary(self, pr_summaries: List[PRSummary], date_range: str, repository: str) -> str:
-        """Generate collection summary using Gemini 2.5 Pro."""
+    def generate_collection_summary(
+        self, pr_summaries: List[PRSummary], date_range: str, repository: str
+    ) -> tuple[str, str]:
+        """Generate collection summary and shout outs using Gemini 2.5 Pro."""
 
         context = self._prepare_collection_context(pr_summaries, date_range, repository)
 
@@ -535,14 +538,36 @@ Guidelines:
 
 **Internal API Changes:** [List any API changes mentioned, with PR references]
 
-Keep it strategic, outcome-focused, and well-structured for Discord. Maximum 400 words."""
+Keep it strategic and outcome-focused. Maximum 1000 words.
+
+---
+
+**SEPARATE SECTION: Shout Outs**
+
+Now, provide up to 3 developer shout outs based on the PR analysis. Guidelines:
+- Highlight ONLY the most significant work - it's okay to only have one or two shout outs
+- Do NOT give all shout outs to the same developer
+- Focus on exceptional contributions, innovative solutions, or going above and beyond
+- Consider factors like: complex problem solving, code quality, helping others, major features, critical bug fixes
+- Each shout out should be 1-2 sentences explaining why they deserve recognition
+- Format: "👏 @username - [brief reason for recognition]"
+
+**Shout Outs:**
+[List 0-3 shout outs, or "No specific shout outs this period" if none are warranted]"""
 
         response = self.ai_client.generate_with_retry(prompt, "phase2")
 
         if not response:
-            return self._create_fallback_summary(pr_summaries, date_range)
+            summary = self._create_fallback_summary(pr_summaries, date_range)
+            shout_outs = "No specific shout outs this period"
+            return summary, shout_outs
 
-        return response
+        # Split the response into summary and shout outs
+        parts = response.split("**Shout Outs:**")
+        summary = parts[0].strip()
+        shout_outs = parts[1].strip() if len(parts) > 1 else "No specific shout outs this period"
+
+        return summary, shout_outs
 
     def _prepare_collection_context(self, pr_summaries: List[PRSummary], date_range: str, repository: str) -> str:
         """Prepare comprehensive context for collection summary."""
@@ -577,7 +602,7 @@ Keep it strategic, outcome-focused, and well-structured for Discord. Maximum 400
         for category, prs in by_category.items():
             context_lines.append(f"\n**{category.upper()} ({len(prs)} PRs):**")
             for pr in prs[:6]:  # Top 6 per category
-                context_lines.append(f"• #{pr.pr_number}: {pr.title} ({pr.impact_level})")
+                context_lines.append(f"• #{pr.pr_number}: {pr.title} ({pr.impact_level}) by {pr.author}")
                 context_lines.append(f"  Summary: {pr.summary[:120]}...")
                 if pr.developer_impact and pr.developer_impact != "Minimal developer impact.":
                     context_lines.append(f"  Impact: {pr.developer_impact[:80]}...")
@@ -607,9 +632,9 @@ Keep it strategic, outcome-focused, and well-structured for Discord. Maximum 400
 
 
 def create_discord_summary(
-    pr_summaries: List[PRSummary], collection_summary: str, date_range: str, github_run_url: str
+    pr_summaries: List[PRSummary], collection_summary: str, shout_outs: str, date_range: str, github_run_url: str
 ) -> str:
-    """Create Discord-formatted summary with enhanced formatting."""
+    """Create Discord-formatted summary with enhanced formatting and shout outs."""
 
     stats = {"by_category": {}, "by_impact": {}}
     for pr in pr_summaries:
@@ -628,6 +653,12 @@ def create_discord_summary(
         "---",
         "",
         collection_summary,
+        "",
+        "---",
+        "",
+        "🎉 **Shout Outs**",
+        "",
+        shout_outs,
         "",
         f"📦 [**Download Complete Analysis (pr-summary-N.zip)**]({github_run_url})",
     ]
@@ -679,12 +710,12 @@ def main():
         print("No summaries generated")
         sys.exit(1)
 
-    # Generate collection summary
-    print("Generating collection summary...")
-    collection_summary = generator.generate_collection_summary(pr_summaries, date_range, repository)
+    # Generate collection summary and shout outs
+    print("Generating collection summary and shout outs...")
+    collection_summary, shout_outs = generator.generate_collection_summary(pr_summaries, date_range, repository)
 
     # Create Discord-formatted output
-    discord_summary = create_discord_summary(pr_summaries, collection_summary, date_range, github_run_url)
+    discord_summary = create_discord_summary(pr_summaries, collection_summary, shout_outs, date_range, github_run_url)
 
     # Save Discord summary
     with open("pr_summary_output.txt", "w") as f:
