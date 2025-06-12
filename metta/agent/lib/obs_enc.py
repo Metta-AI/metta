@@ -310,8 +310,7 @@ class ObsCrossAttn(LayerBase):
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        # x_features = td[self._sources[0]["name"]]
-        x_features_norm = td[self._sources[0]["name"]]
+        x_features = td[self._sources[0]["name"]]
         key_mask = None
         if self._use_mask:
             key_mask = td["obs_mask"]
@@ -319,11 +318,10 @@ class ObsCrossAttn(LayerBase):
 
         # query_token_unprojected will have shape [B_TT, num_query_tokens, _feat_dim]
         query_token_unprojected = self._q_token.expand(B_TT, -1, -1)
-        # x_features_norm = self._layer_norm_1(x_features)  # [B_TT, M, _feat_dim] # commented out for now to debug
 
         q_p = self.q_proj(query_token_unprojected)  # q_p is now [B_TT, num_query_tokens, _actual_qk_dim]
-        k_p = self.k_proj(x_features_norm)  # [B_TT, M, _actual_qk_dim]
-        v_p = self.v_proj(x_features_norm)  # [B_TT, M, _actual_v_dim]
+        k_p = self.k_proj(x_features)  # [B_TT, M, _actual_qk_dim]
+        v_p = self.v_proj(x_features)  # [B_TT, M, _actual_v_dim]
 
         # Calculate attention scores: Q_projected @ K_projected.T
         # q_p: [B_TT, num_query_tokens, _actual_qk_dim], k_p: [B_TT, M, _actual_qk_dim].
