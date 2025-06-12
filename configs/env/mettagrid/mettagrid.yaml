@@ -5,8 +5,8 @@ game:
   obs_height: 11
   use_observation_tokens: false
   num_observation_tokens: 128
-  tile_size: 16
   max_steps: 1000
+  replay_level_prob: 0.9
 
   diversity_bonus:
     enabled: false
