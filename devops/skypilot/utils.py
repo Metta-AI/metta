@@ -70,26 +70,21 @@ def check_config_files(cmd_args: List[str]) -> bool:
     """Check that config files referenced in arguments actually exist."""
     config_files_to_check = []
 
+    # Mapping of argument prefix to config file path template
+    config_mappings = {
+        "agent=": "./configs/agent/{}.yaml",
+        "trainer=": "./configs/trainer/{}.yaml",
+        "trainer.curriculum=": "./configs/{}.yaml",
+        "sim=": "./configs/sim/{}.yaml",
+    }
+
     for task_arg in cmd_args:
-        # Check for agent configuration
-        if task_arg.startswith("agent="):
-            agent_value = task_arg.split("=", 1)[1]
-            config_files_to_check.append((task_arg, f"./configs/agent/{agent_value}.yaml"))
-
-        # Check for trainer configuration
-        elif task_arg.startswith("trainer="):
-            trainer_value = task_arg.split("=", 1)[1]
-            config_files_to_check.append((task_arg, f"./configs/trainer/{trainer_value}.yaml"))
-
-        # Check for environment configuration
-        elif task_arg.startswith("trainer.curriculum="):
-            env_value = task_arg.split("=", 1)[1]
-            config_files_to_check.append((task_arg, f"./configs/{env_value}.yaml"))
-
-        # Check for evaluation configuration
-        elif task_arg.startswith("sim="):
-            sim_value = task_arg.split("=", 1)[1]
-            config_files_to_check.append((task_arg, f"./configs/sim/{sim_value}.yaml"))
+        for prefix, path_template in config_mappings.items():
+            if task_arg.startswith(prefix):
+                value = task_arg.split("=", 1)[1]
+                config_path = path_template.format(value)
+                config_files_to_check.append((task_arg, config_path))
+                break  # Found a match, no need to check other prefixes
 
     missing_files = []
     for arg, config_path in config_files_to_check:
