@@ -47,7 +47,7 @@ class EpisodeCreate(BaseModel):
     agent_policies: Dict[int, int]
     agent_metrics: Dict[int, Dict[str, float]]
     primary_policy_id: int
-    training_epoch: Optional[int] = None
+    stats_epoch: Optional[int] = None
     eval_name: Optional[str] = None
     simulation_suite: Optional[str] = None
     replay_url: Optional[str] = None
@@ -118,7 +118,7 @@ def create_stats_router(stats_repo: StatsRepo) -> APIRouter:
                 agent_policies=episode.agent_policies,
                 agent_metrics=episode.agent_metrics,
                 primary_policy_id=episode.primary_policy_id,
-                training_epoch=episode.training_epoch,
+                stats_epoch=episode.stats_epoch,
                 eval_name=episode.eval_name,
                 simulation_suite=episode.simulation_suite,
                 replay_url=episode.replay_url,

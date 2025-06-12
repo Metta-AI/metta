@@ -93,7 +93,7 @@ class TestStatsServerSimple:
                 1: {"reward": 85.2, "steps": 45.0, "success_rate": 0.7},
             },
             primary_policy_id=policy.id,
-            training_epoch=epoch.id,
+            stats_epoch=epoch.id,
             eval_name="test_evaluation",
             simulation_suite="test_suite",
             replay_url="https://example.com/replay",
@@ -125,7 +125,7 @@ class TestStatsServerSimple:
                 agent_policies={0: policy.id},
                 agent_metrics={0: {"reward": float(i * 10), "steps": float(i * 5)}},
                 primary_policy_id=policy.id,
-                training_epoch=epoch.id,
+                stats_epoch=epoch.id,
                 eval_name=f"episode_{i}",
             )
             episode_ids.append(episode.id)

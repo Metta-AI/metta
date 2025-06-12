@@ -49,7 +49,7 @@ EVAL_MIGRATIONS = [
                 id SERIAL PRIMARY KEY,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 primary_policy_id INTEGER NOT NULL REFERENCES policies(id),
-                training_epoch INTEGER REFERENCES epochs(id),
+                stats_epoch INTEGER REFERENCES epochs(id),
                 replay_url TEXT,
                 eval_name TEXT,
                 simulation_suite TEXT,
@@ -162,7 +162,7 @@ class StatsRepo:
         agent_policies: Dict[int, int],
         agent_metrics: Dict[int, Dict[str, float]],
         primary_policy_id: int,
-        training_epoch: int | None,
+        stats_epoch: int | None,
         eval_name: str | None,
         simulation_suite: str | None,
         replay_url: str | None,
@@ -177,7 +177,7 @@ class StatsRepo:
                     eval_name,
                     simulation_suite,
                     primary_policy_id,
-                    training_epoch,
+                    stats_epoch,
                     attributes
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s
@@ -188,7 +188,7 @@ class StatsRepo:
                     eval_name,
                     simulation_suite,
                     primary_policy_id,
-                    training_epoch,
+                    stats_epoch,
                     Jsonb(attributes),
                 ),
             ).fetchone()

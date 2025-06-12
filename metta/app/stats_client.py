@@ -136,7 +136,7 @@ class StatsClient:
         agent_policies: Dict[int, int],
         agent_metrics: Dict[int, Dict[str, float]],
         primary_policy_id: int,
-        training_epoch: Optional[int] = None,
+        stats_epoch: Optional[int] = None,
         eval_name: Optional[str] = None,
         simulation_suite: Optional[str] = None,
         replay_url: Optional[str] = None,
@@ -149,7 +149,7 @@ class StatsClient:
             agent_policies: Mapping of agent IDs to policy IDs
             agent_metrics: Mapping of agent IDs to their metrics
             primary_policy_id: ID of the primary policy
-            training_epoch: Optional training epoch number
+            stats_epoch: Optional stats epoch id
             eval_name: Optional evaluation name
             simulation_suite: Optional simulation suite identifier
             replay_url: Optional URL to the replay
@@ -165,7 +165,7 @@ class StatsClient:
             agent_policies=agent_policies,
             agent_metrics=agent_metrics,
             primary_policy_id=primary_policy_id,
-            training_epoch=training_epoch,
+            stats_epoch=stats_epoch,
             eval_name=eval_name,
             simulation_suite=simulation_suite,
             replay_url=replay_url,
