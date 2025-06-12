@@ -77,7 +77,7 @@ class StatsClient:
         response.raise_for_status()
         return TrainingRunResponse(**response.json())
 
-    def create_policy_epoch(
+    def create_epoch(
         self,
         run_id: int,
         start_training_epoch: int,

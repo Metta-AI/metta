@@ -64,7 +64,7 @@ class TestStatsServerSimple:
         assert training_run.id > 0
 
         # 2. Create an epoch
-        epoch = stats_client.create_policy_epoch(
+        epoch = stats_client.create_epoch(
             run_id=training_run.id,
             start_training_epoch=0,
             end_training_epoch=100,
@@ -113,7 +113,7 @@ class TestStatsServerSimple:
         training_run = stats_client.create_training_run(name="multi_episode_test", user_id="test_user")
 
         # Create an epoch
-        epoch = stats_client.create_policy_epoch(run_id=training_run.id, start_training_epoch=0, end_training_epoch=10)
+        epoch = stats_client.create_epoch(run_id=training_run.id, start_training_epoch=0, end_training_epoch=10)
 
         # Create a policy
         policy = stats_client.create_policy(name="multi_episode_policy", epoch_id=epoch.id)
