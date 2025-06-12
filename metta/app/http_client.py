@@ -66,3 +66,7 @@ class FastAPITestClientAdapter(HttpClient):
     async def post(self, url: str, json: Optional[Dict[str, Any]] = None) -> Any:
         """Make a POST request using TestClient."""
         return self.test_client.post(url, json=json)
+
+    async def close(self):
+        """Close the HTTP client."""
+        pass
