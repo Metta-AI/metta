@@ -14,6 +14,7 @@ from devops.skypilot.utils import (
     get_user_confirmation,
     launch_task,
 )
+from metta.util.fs import cd_repo_root
 
 
 def patch_task(
@@ -105,6 +106,9 @@ def main():
     )
     (args, cmd_args) = parser.parse_known_args()
 
+    # Ensure we're in the repository root
+    cd_repo_root()
+
     # Run validations
     if not check_git_state(args.skip_git_check):
         sys.exit(1)
@@ -162,11 +166,10 @@ def main():
     else:
         for i in range(1, args.copies + 1):
             copy_task = copy.deepcopy(task)
-            copy_run_id = f"{run_id}_{i}"
-            copy_task = copy_task.update_envs({"METTA_RUN_ID": copy_run_id})
-            copy_task.name = copy_run_id
+            copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
+            copy_task.name = run_id
             copy_task.validate_name()
-            print(f"\nLaunching copy {i}/{args.copies}: {copy_run_id}")
+            print(f"\nLaunching copy {i}/{args.copies}: {run_id}")
             launch_task(copy_task, dry_run=args.dry_run)
 
 

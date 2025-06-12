@@ -1,14 +1,12 @@
-import copy
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import List, Optional
 
 import sky
 
-from metta.util.colorama import blue, bold, cyan, green, magenta, red, use_colors, yellow
-from metta.util.fs import cd_repo_root
+from metta.util.colorama import blue, bold, cyan, green, magenta, red, yellow
+from metta.util.git import has_unstaged_changes
 
 
 def print_tip(text: str):
@@ -46,20 +44,14 @@ def check_git_state(skip_check: bool = False) -> bool:
     if skip_check:
         return True
 
-    try:
-        # Check for uncommitted changes
-        result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True)
-
-        if result.stdout.strip():
-            print(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
-            print("Options:")
-            print("  - Commit: git add . && git commit -m 'your message'")
-            print("  - Stash: git stash")
-            print("  - Skip check: add --skip-git-check flag")
-            return False
-
-    except subprocess.CalledProcessError:
-        print(yellow("⚠️  Could not check git status (not in a git repo?)"))
+    # Use the utility function instead of duplicating git command logic
+    if has_unstaged_changes():
+        print(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
+        print("Options:")
+        print("  - Commit: git add . && git commit -m 'your message'")
+        print("  - Stash: git stash")
+        print("  - Skip check: add --skip-git-check flag")
+        return False
 
     return True
 
@@ -85,7 +77,7 @@ def check_config_files(cmd_args: List[str]) -> bool:
             config_files_to_check.append((task_arg, f"./configs/{env_value}.yaml"))
 
         # Check for evaluation configuration
-        elif task_arg.startswith("trainer.sim="):
+        elif task_arg.startswith("sim="):
             sim_value = task_arg.split("=", 1)[1]
             config_files_to_check.append((task_arg, f"./configs/sim/{sim_value}.yaml"))
 
@@ -220,55 +212,3 @@ def get_user_confirmation(
             return False
 
     return True
-
-
-def validate_and_launch_task(
-    task: sky.Task,
-    cmd: str,
-    task_args: List[str],
-    git_ref: Optional[str] = None,
-    timeout_hours: Optional[float] = None,
-    copies: int = 1,
-    dry_run: bool = False,
-    skip_git_check: bool = False,
-    use_color: bool = True,
-) -> bool:
-    """
-    Simple validation and launch workflow focusing on common mistakes.
-
-    Returns True if task was successfully launched (or would be in dry run mode).
-    """
-    # Set up colors
-    use_colors(sys.stdout.isatty() and use_color)
-
-    # Ensure we're in the repository root
-    cd_repo_root()
-
-    # Check the two things that commonly go wrong
-    if not check_git_state(skip_git_check):
-        return False
-
-    if not check_config_files(task_args):
-        return False
-
-    # Launch the task(s)
-    try:
-        if copies == 1:
-            launch_task(task, dry_run)
-        else:
-            for i in range(copies):
-                copy_task = copy.deepcopy(task)
-                copy_task.name = f"{task.name}_{i + 1}"
-                copy_task = copy_task.update_envs({"METTA_RUN_ID": copy_task.name})
-                copy_task.validate_name()
-                print(f"\nLaunching copy {i + 1}/{copies}: {copy_task.name}")
-                launch_task(copy_task, dry_run)
-
-        if not dry_run:
-            print(green(f"\n🚀 Successfully launched {copies} job{'s' if copies > 1 else ''}!"))
-
-        return True
-
-    except Exception as e:
-        print(red(f"Failed to launch task: {e}"))
-        return False
