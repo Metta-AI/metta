@@ -545,7 +545,7 @@ class PufferTrainer:
 
             # Prioritized sampling parameters
             b0 = config.get("prio_beta0", 0.6)
-            a = config.get("prio_alpha", 0.0)  # Default to 0 for uniform sampling
+            a = config.get("prio_alpha", 0.6)
             clip_coef = config.clip_coef
             vf_clip = config.vf_clip_coef if hasattr(config, "vf_clip_coef") else config.get("vf_clip_coef", 0.1)
             total_epochs = max(1, self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)

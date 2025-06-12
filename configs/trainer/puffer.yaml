@@ -41,7 +41,7 @@ l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
 
 # Prioritized experience replay parameters
-prio_alpha: 0.0  # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
+prio_alpha: 0.6  # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
 prio_beta0: 0.6  # Initial importance sampling correction
 
 norm_adv: true
