@@ -15,7 +15,7 @@ game:
       battery.blue: -0.1
       battery.green: 1
   num_agents: 4
-  max_steps: 50
+  max_steps: 500
 
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
