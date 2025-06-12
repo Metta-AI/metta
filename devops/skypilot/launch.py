@@ -146,6 +146,7 @@ def main():
         task=task,
         **extra_details,
     )
+
     if args.confirm and not get_user_confirmation("Should we launch this task?"):
         sys.exit(0)
 
