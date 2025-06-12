@@ -7,7 +7,7 @@ from typing import List, Optional
 
 import sky
 
-from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
+from metta.util.colorama import blue, bold, cyan, green, magenta, red, use_colors, yellow
 from metta.util.fs import cd_repo_root
 
 
@@ -51,7 +51,7 @@ def check_git_state(skip_check: bool = False) -> bool:
         result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True)
 
         if result.stdout.strip():
-            print("❌ You have uncommitted changes that won't be reflected in the cloud job.")
+            print(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
             print("Options:")
             print("  - Commit: git add . && git commit -m 'your message'")
             print("  - Stash: git stash")
@@ -59,7 +59,7 @@ def check_git_state(skip_check: bool = False) -> bool:
             return False
 
     except subprocess.CalledProcessError:
-        print("⚠️  Could not check git status (not in a git repo?)")
+        print(yellow("⚠️  Could not check git status (not in a git repo?)"))
 
     return True
 
@@ -95,7 +95,7 @@ def check_config_files(cmd_args: List[str]) -> bool:
             missing_files.append((arg, config_path))
 
     if missing_files:
-        print("❌ Config files not found:")
+        print(red("❌ Config files not found:"))
         for arg, path in missing_files:
             print(f"  {arg} -> {path}")
 
@@ -191,7 +191,7 @@ def display_job_summary(
             print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
     print(blue("-" * divider_length))
-    print(f"{bold('Command:')} {red(cmd)}")
+    print(f"{bold('Command:')} {magenta(cmd)}")
 
     if task_args:
         print(bold("Task Arguments:"))
