@@ -335,8 +335,6 @@ class ObsCrossAttn(LayerBase):
 
         # Apply mask
         if key_mask is not None:
-            # key_mask shape: [B_TT, M] -> unsqueeze to [B_TT, 1, M] for broadcasting
-            # This will broadcast across the num_query_tokens dimension.
             mask_value = -torch.finfo(attn_scores.dtype).max
             attn_scores = attn_scores + key_mask.unsqueeze(1).to(attn_scores.dtype) * mask_value
 
