@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 class LowRewardCurriculum(RandomCurriculum):
     """Curriculum that adaptively samples tasks to focus on low-reward scenarios."""
 
-    def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig):
+    def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig, alpha: float = 0.01):
         super().__init__(tasks, env_overrides)
         self._reward_averages = {task_id: 0.0 for task_id in tasks.keys()}
         self._reward_maxes = {task_id: 0.0 for task_id in tasks.keys()}
-        self._alpha = 0.01  # Smoothing factor for moving average
+        self._alpha = alpha  # Smoothing factor for moving average
 
     def complete_task(self, id: str, score: float):
         # Update moving average for the completed task

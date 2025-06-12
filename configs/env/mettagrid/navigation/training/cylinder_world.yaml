@@ -1,4 +1,3 @@
-# Config: choose any style, including the new "cylinder_world"
 defaults:
   - /env/mettagrid/navigation/training/defaults@
   - _self_

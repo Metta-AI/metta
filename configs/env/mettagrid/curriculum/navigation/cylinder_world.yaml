@@ -1,14 +1,13 @@
 _target_: mettagrid.curriculum.BucketedCurriculum
 
-# one – and only one – template
 env_cfg_template: /env/mettagrid/navigation/training/cylinder_world
 
 # bucket definitions
 buckets:
-  game.map_builder.room.width: # dotted path
-    range: [75, 120] # → 5 equal-width bins   (75, 86, …, 120)
+  game.map_builder.room.width:
+    range: [75, 120]
     bins: 5
 
-  game.map_builder.room.height: # same param – different spec
+  game.map_builder.room.height:
     range: [75, 120]
-    bins: 5 # override default 5 → 7 bins
+    bins: 5
