@@ -133,22 +133,22 @@ def main():
         task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes, no_spot=args.no_spot, timeout_hours=args.timeout_hours
     )
 
-    extra_details = {}
-    if args.copies > 1:
-        extra_details["copies"] = args.copies
+    if args.confirm:
+        extra_details = {}
+        if args.copies > 1:
+            extra_details["copies"] = args.copies
 
-    display_job_summary(
-        job_name=run_id,
-        cmd=args.cmd,
-        task_args=cmd_args,
-        git_ref=git_ref,
-        timeout_hours=args.timeout_hours,
-        task=task,
-        **extra_details,
-    )
-
-    if args.confirm and not get_user_confirmation("Should we launch this task?"):
-        sys.exit(0)
+        display_job_summary(
+            job_name=run_id,
+            cmd=args.cmd,
+            task_args=cmd_args,
+            git_ref=git_ref,
+            timeout_hours=args.timeout_hours,
+            task=task,
+            **extra_details,
+        )
+        if not get_user_confirmation("Should we launch this task?"):
+            sys.exit(0)
 
     # Launch the task(s)
     if args.copies == 1:
