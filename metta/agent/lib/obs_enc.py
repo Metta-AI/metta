@@ -16,6 +16,7 @@ class ObsTokenShaper(LayerBase):
         obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
         feature_normalizations: list[float],
+        use_max_n_dense: Optional[bool] = None,  # delete
         **cfg,
     ) -> None:
         super().__init__(**cfg)
@@ -26,119 +27,38 @@ class ObsTokenShaper(LayerBase):
         self.M = obs_shape[0]
         self._feature_normalizations = list(feature_normalizations)
         self._max_embeds = 256
+        self._use_max_n_dense = use_max_n_dense  # delete
+        if self._use_max_n_dense is None:
+            self._use_max_n_dense = False
 
     def _make_net(self) -> None:
         self._out_tensor_shape = [self.M, self._feat_dim]
 
-        # PERFORMANCE DEBUG START - Comment out original embedding layers
-        # self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-        # nn.init.uniform_(self._atr_embeds.weight, -0.1, 0.1)
+        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
+        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
 
         # Coord byte supports up to 16x16, so 256 possible coord values
-        # self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
-        # nn.init.uniform_(self._coord_embeds.weight, -0.1, 0.1)
+        self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
+        nn.init.trunc_normal_(self._coord_embeds.weight, std=0.02)
 
         # Create a tensor for feature normalizations
         # We need to handle the case where atr_idx might be 0 (padding) or larger than defined normalizations.
         # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
         # Initialize with 1.0 to avoid division by zero for unmapped indices.
-        # norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
-        # for i, val in enumerate(self._feature_normalizations):
-        #     if i < len(norm_tensor):  # Ensure we don't go out of bounds
-        #         norm_tensor[i] = val
-        #     else:
-        #         raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
-        # self.register_buffer("_norm_factors", norm_tensor)
-
-        # PERFORMANCE DEBUG - Preallocate random tensor
-        self.register_buffer("_debug_feat_tensor", torch.randn(1, 300, self._feat_dim))
-        self.register_buffer("_debug_obs_mask", torch.zeros(1, 300, dtype=torch.bool))
-        # PERFORMANCE DEBUG END
+        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
+        for i, val in enumerate(self._feature_normalizations):
+            if i < len(norm_tensor):  # Ensure we don't go out of bounds
+                norm_tensor[i] = val
+            else:
+                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
+        self.register_buffer("_norm_factors", norm_tensor)
 
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        # PERFORMANCE DEBUG START - Comment out entire forward method
-        # # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
-        # observations = td.get("x")
-
-        # B = observations.shape[0]
-        # TT = 1
-        # td["_B_"] = B
-        # td["_TT_"] = TT
-        # if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
-        #     TT = observations.shape[1]
-        #     td["_TT_"] = TT
-        #     observations = einops.rearrange(observations, "b t h c -> (b t) h c")
-        #     # observations = observations.flatten(0, 1)
-        # td["_BxTT_"] = B * TT
-
-        # # PERFORMANCE DEBUG: Comment out coordinate parsing operations
-        # # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
-        # # coords_byte = observations[..., 0].to(torch.uint8)
-
-        # # Extract x and y coordinate indices (0-15 range)
-        # # x_coord_indices = (coords_byte >> 4) & 0x0F  # Shape: [B_TT, M]
-        # # y_coord_indices = coords_byte & 0x0F  # Shape: [B_TT, M]
-
-        # # Combine x and y indices to a single index for embedding lookup (0-255 range)
-        # # Assuming 16 possible values for x (0-15)
-        # # combined_coord_indices = y_coord_indices * 16 + x_coord_indices
-        # # coord_pair_embedding = self._coord_embeds(combined_coord_indices.long())  # [B_TT, M, 4]
-
-        # # PERFORMANCE DEBUG: Replace with fixed embedding lookup
-        # B_TT = observations.shape[0]
-        # M = observations.shape[1]
-        # fixed_coord_idx = torch.zeros((B_TT, M), dtype=torch.long, device=observations.device)
-        # coord_pair_embedding = self._coord_embeds(fixed_coord_idx)  # [B_TT, M, embed_dim]
-
-        # # PERFORMANCE DEBUG: Comment out attribute embedding lookup
-        # # atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-        # # atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
-
-        # # PERFORMANCE DEBUG: Replace with fixed attribute embedding lookup
-        # fixed_atr_idx = torch.ones((B_TT, M), dtype=torch.long, device=observations.device)
-        # atr_embeds = self._atr_embeds(fixed_atr_idx)  # [B_TT, M, embed_dim]
-
-        # combined_embeds = atr_embeds + coord_pair_embedding
-
-        # # PERFORMANCE DEBUG: Comment out normalization operations
-        # # atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
-
-        # # Gather normalization factors based on atr_indices
-        # # norm_factors = self._norm_factors[atr_indices]  # Shape: [B_TT, M]
-
-        # # Normalize atr_values
-        # # no epsilon to prevent division by zero - we want to fail if we have a bad normalization
-        # # normalized_atr_values = atr_values / (norm_factors)
-        # # normalized_atr_values = normalized_atr_values.unsqueeze(-1)  # Shape: [B_TT, M, 1]
-
-        # # PERFORMANCE DEBUG: Replace with simple fixed values
-        # normalized_atr_values = torch.ones((B_TT, M, 1), dtype=observations.dtype, device=observations.device)
-
-        # # Assemble feature vectors
-        # # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
-        # feat_vectors = torch.empty(
-        #     (*atr_embeds.shape[:-1], self._feat_dim),
-        #     dtype=atr_embeds.dtype,
-        #     device=atr_embeds.device,
-        # )
-        # # Combined embedding portion
-        # feat_vectors[..., : self._atr_embed_dim] = combined_embeds
-        # feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = normalized_atr_values
-
-        # # PERFORMANCE DEBUG: Comment out mask computation
-        # # obs_mask = atr_indices == 0  # important! true means 0 ie mask me
-
-        # # PERFORMANCE DEBUG: Replace with fixed mask
-        # # obs_mask = torch.zeros((B_TT, M), dtype=torch.bool, device=observations.device)
-
-        # td[self._name] = feat_vectors
-        # # td["obs_mask"] = obs_mask
-        # return td
-
-        # PERFORMANCE DEBUG - Minimal forward pass with preallocated tensor
+        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
         observations = td.get("x")
+
         B = observations.shape[0]
         TT = 1
         td["_B_"] = B
@@ -146,16 +66,52 @@ class ObsTokenShaper(LayerBase):
         if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
             TT = observations.shape[1]
             td["_TT_"] = TT
+            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
+            # observations = observations.flatten(0, 1)
         td["_BxTT_"] = B * TT
 
-        # Expand preallocated tensor to match batch size
-        feat_vectors = self._debug_feat_tensor.expand(B * TT, -1, -1)
-        obs_mask = self._debug_obs_mask.expand(B * TT, -1)
+        # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
+        coords_byte = observations[..., 0].to(torch.uint8)
+
+        # Extract x and y coordinate indices (0-15 range)
+        x_coord_indices = (coords_byte >> 4) & 0x0F  # Shape: [B_TT, M]
+        y_coord_indices = coords_byte & 0x0F  # Shape: [B_TT, M]
+
+        # Combine x and y indices to a single index for embedding lookup (0-255 range)
+        # Assuming 16 possible values for x (0-15)
+        combined_coord_indices = y_coord_indices * 16 + x_coord_indices
+        coord_pair_embedding = self._coord_embeds(combined_coord_indices.long())  # [B_TT, M, 4]
+
+        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
+
+        combined_embeds = atr_embeds + coord_pair_embedding
+
+        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+
+        # Gather normalization factors based on atr_indices
+        norm_factors = self._norm_factors[atr_indices]  # Shape: [B_TT, M]
+
+        # Normalize atr_values
+        # no epsilon to prevent division by zero - we want to fail if we have a bad normalization
+        normalized_atr_values = atr_values / (norm_factors)
+        normalized_atr_values = normalized_atr_values.unsqueeze(-1)  # Shape: [B_TT, M, 1]
+
+        # Assemble feature vectors
+        # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
+        feat_vectors = torch.empty(
+            (*atr_embeds.shape[:-1], self._feat_dim),
+            dtype=atr_embeds.dtype,
+            device=atr_embeds.device,
+        )
+        # Combined embedding portion
+        feat_vectors[..., : self._atr_embed_dim] = combined_embeds
+        feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = normalized_atr_values
+
+        obs_mask = atr_indices == 0  # important! true means 0 ie mask me
 
         td[self._name] = feat_vectors
         td["obs_mask"] = obs_mask
-        # PERFORMANCE DEBUG END
-
         return td
 
 
