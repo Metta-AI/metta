@@ -65,6 +65,30 @@ class ObsTokenShaper(LayerBase):
             # observations = observations.flatten(0, 1)
         td["_BxTT_"] = B * TT
 
+        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+
+        # transition_idx = atr_values.argmax(dim=0)
+
+
+        obs_mask = atr_indices == 0  # important! true means 0 ie mask me
+        global_flip = (~obs_mask).argmax(dim=1).max().item()
+
+        # 1) find each row’s flip‐point
+        flip_pts = (~obs_mask).argmax(dim=1)      # shape [B], on GPU
+
+        # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
+        max_flip = flip_pts.max()                   # e.g. tensor(3, device='cuda')
+
+        # 3) build a 1‐D “positions” row [0,1,2,…,L−1]
+        positions = torch.arange(obs_mask.size(1), device=obs_mask.device)
+
+        # 4) make a boolean column mask: keep all columns strictly before max_flip
+        keep_cols = positions < max_flip            # shape [L], dtype=torch.bool
+
+        # 5) now “slice” your batch in one go, on the GPU:
+        observations = observations[:, keep_cols]         # shape [B, max_flip]
+        print(f"observations: {observations.shape}")
+
         # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
         coords_byte = observations[..., 0].to(torch.uint8)
 
@@ -77,7 +101,6 @@ class ObsTokenShaper(LayerBase):
         combined_coord_indices = y_coord_indices * 16 + x_coord_indices
         coord_pair_embedding = self._coord_embeds(combined_coord_indices.long())  # [B_TT, M, 4]
 
-        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
 
         combined_embeds = atr_embeds + coord_pair_embedding
@@ -102,8 +125,6 @@ class ObsTokenShaper(LayerBase):
         # Combined embedding portion
         feat_vectors[..., : self._atr_embed_dim] = combined_embeds
         feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = normalized_atr_values
-
-        obs_mask = atr_indices == 0  # important! true means 0 ie mask me
 
         td[self._name] = feat_vectors
         td["obs_mask"] = obs_mask
