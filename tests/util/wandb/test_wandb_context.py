@@ -117,7 +117,7 @@ def test_run_fields(monkeypatch, dummy_init, tmp_path):
     assert run.save_code is True
 
 
-def test_tags_and_msg(monkeypatch, dummy_init, tmp_path):
+def test_tags_and_notes(monkeypatch, dummy_init, tmp_path):
     cfg_on = OmegaConf.create(
         dict(
             enabled=True,
@@ -129,7 +129,7 @@ def test_tags_and_msg(monkeypatch, dummy_init, tmp_path):
             data_dir=str(tmp_path),
             job_type="j",
             tags=["a", "b"],
-            msg="hello",
+            notes="hello",
         )
     )
 

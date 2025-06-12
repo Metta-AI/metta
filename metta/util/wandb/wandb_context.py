@@ -30,7 +30,7 @@ class WandbConfigOn(Config):
     data_dir: str
     job_type: str
     tags: list[str] = []
-    msg: str = ""
+    notes: str = ""
 
 
 class WandbConfigOff(Config, extra="allow"):
@@ -106,7 +106,7 @@ class WandbContext:
                 save_code=True,
                 resume=True,
                 tags=tags,
-                notes=self.cfg.msg or None,
+                notes=self.cfg.notes or None,
                 settings=wandb.Settings(quiet=True, init_timeout=self.timeout),
             )
 
