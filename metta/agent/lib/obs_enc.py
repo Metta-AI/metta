@@ -295,7 +295,7 @@ class ObsCrossAttn(LayerBase):
         self.k_proj = nn.Linear(self._feat_dim, self._qk_dim, bias=False)
         self.v_proj = nn.Linear(self._feat_dim, self._v_dim, bias=False)
 
-        # self._layer_norm_2 = nn.LayerNorm(self._v_dim)  # commented out for now to debug
+        self._layer_norm_2 = nn.LayerNorm(self._v_dim)  # commented out for now to debug
 
         self._out_proj = nn.Identity()
         if self._v_dim != self._out_dim or self._mlp_out_hidden_dim is not None:
@@ -331,7 +331,7 @@ class ObsCrossAttn(LayerBase):
         attn_scores = torch.einsum("bqd,bkd->bqk", q_p, k_p)
 
         # Scale scores
-        # attn_scores = attn_scores / self._qk_dim_sqrt # commented out for now to debug
+        attn_scores = attn_scores / self._qk_dim_sqrt # commented out for now to debug
 
         # Apply mask
         if key_mask is not None:
@@ -346,9 +346,8 @@ class ObsCrossAttn(LayerBase):
         # Calculate output: Weights @ V_projected
         # x will have shape [B_TT, num_query_tokens, _actual_v_dim]
         x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
-        # x = torch.einsum("bqk,bkd->bqd", attn_scores, v_p)
 
-        # x = self._layer_norm_2(x)  # commented out for now to debug
+        x = self._layer_norm_2(x)  # commented out for now to debug
 
         # x shape: [B_TT, num_query_tokens, _actual_v_dim]
         # _out_proj maps last dim from _actual_v_dim to _out_dim
