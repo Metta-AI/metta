@@ -806,7 +806,7 @@ class PufferTrainer:
                 local_sq_sum = einops.rearrange((adv * adv).sum(), "-> 1")
                 local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
 
-                stats, _ = einops.pack([local_sum, local_sq_sum, local_count], "* _")
+                stats, _ = einops.rearrange([local_sum, local_sq_sum, local_count], "a b c -> (a b c)")
                 torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
 
                 global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
