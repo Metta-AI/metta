@@ -161,26 +161,6 @@ class PufferTrainer:
             weight_decay=self.trainer_cfg.optimizer.weight_decay,
         )
 
-        if checkpoint.agent_step > 0:
-            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-
-        # Learning rate scheduler
-        self.lr_scheduler = None
-        if self.trainer_cfg.lr_scheduler.enabled:
-            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
-            )
-
-        # Monitoring
-        self.profile = Profile(frequency=1)
-        self.torch_profiler = None
-        if cfg.trainer.get("profiler_interval_epochs", 0) > 0 and wandb_run is not None:
-            self.torch_profiler = TorchProfiler(
-                self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run
-            )
-        self.timer = Stopwatch(logger)
-        self.timer.start()
-
         # Policy validation
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
@@ -209,6 +189,20 @@ class PufferTrainer:
                     f"Environment observation shape: {environment_shape}"
                 )
 
+        if checkpoint.agent_step > 0:
+            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+
+        # Learning rate scheduler
+        self.lr_scheduler = None
+        if self.trainer_cfg.lr_scheduler.enabled:
+            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+            )
+
+        # Monitoring
+        self.profile = Profile(frequency=1)
+        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
+
         self.model_size = sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
         self.experience = None  # For compatibility
 
@@ -218,6 +212,9 @@ class PufferTrainer:
             num_episodes=1,
             env_overrides=self._curriculum.get_task().env_cfg(),
         )
+
+        self.timer = Stopwatch(logger)
+        self.timer.start()
 
         # Define wandb metrics
         if wandb_run and self._master:
@@ -338,13 +335,12 @@ class PufferTrainer:
         while self.agent_step < self.trainer_cfg.total_timesteps:
             steps_before = self.agent_step
 
-            if self.torch_profiler:
-                with self.torch_profiler:
-                    with self.timer("_rollout"):
-                        self._rollout()
+            with self.torch_profiler:
+                with self.timer("_rollout"):
+                    self._rollout()
 
-                    with self.timer("_train"):
-                        self._train()
+                with self.timer("_train"):
+                    self._train()
 
             with self.timer("_process_stats"):
                 self._process_stats()
@@ -373,8 +369,7 @@ class PufferTrainer:
                 with self.timer("_evaluate_policy", log=logging.INFO):
                     self._evaluate_policy()
 
-            if self.torch_profiler:
-                self.torch_profiler.on_epoch_end(self.epoch)
+            self.torch_profiler.on_epoch_end(self.epoch)
 
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 with self.timer("_save_policy_to_wandb"):
