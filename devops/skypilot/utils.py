@@ -7,7 +7,7 @@ from typing import List, Optional
 
 import sky
 
-from metta.util.colorama import blue, bold, cyan, green, red, use_colors, yellow
+from metta.util.colorama import blue, bold, green, red, use_colors, yellow
 from metta.util.fs import cd_repo_root
 
 
@@ -125,13 +125,13 @@ def display_job_summary(
 ) -> None:
     """Display a summary of the job that will be launched."""
     divider_length = 60
-    divider = "=" * divider_length
+    divider = blue("=" * divider_length)
 
     print(f"\n{divider}")
-    print(bold("Job will be submitted with the following details:"))
+    print(bold(blue("Job will be submitted with the following details:")))
     print(f"{divider}")
 
-    print(f"Job Name: {job_name}")
+    print(f"{bold('Job Name:')} {yellow(job_name)}")
 
     # Extract resource info from task if provided
     if task:
@@ -143,27 +143,27 @@ def display_job_summary(
                 gpu_info = []
                 for gpu_type, count in resource.accelerators.items():
                     gpu_info.append(f"{count}x {gpu_type}")
-                print(f"GPUs: {', '.join(gpu_info)}")
+                print(f"{bold('GPUs:')} {yellow(', '.join(gpu_info))}")
 
             # CPU info
             if hasattr(resource, "cpus") and resource.cpus:
-                print(f"CPUs: {resource.cpus}")
+                print(f"{bold('CPUs:')} {yellow(str(resource.cpus))}")
 
             # Spot instance info
             if hasattr(resource, "use_spot"):
                 spot_status = "Yes" if resource.use_spot else "No"
-                print(f"Spot Instances: {spot_status}")
+                print(f"{bold('Spot Instances:')} {yellow(spot_status)}")
 
         # Node count
         if task.num_nodes and task.num_nodes > 1:
-            print(f"Nodes: {task.num_nodes}")
+            print(f"{bold('Nodes:')} {yellow(str(task.num_nodes))}")
 
     # Display any additional job details from kwargs (excluding 'task')
     for key, value in kwargs.items():
         if value is not None and key != "task":
             # Convert snake_case to Title Case for display
             display_key = key.replace("_", " ").title()
-            print(f"{display_key}: {value}")
+            print(f"{bold(display_key + ':')} {yellow(str(value))}")
 
     # Display timeout information with prominence
     if timeout_hours:
@@ -179,25 +179,25 @@ def display_job_summary(
         else:
             timeout_str = f"{mins}m"
 
-        print(bold(yellow(f"AUTO-TERMINATION: Job will terminate after {timeout_str}")))
+        print(f"{bold('Auto-termination:')} {yellow(timeout_str)}")
     else:
-        print(yellow("NO TIMEOUT SET: Job will run until completion"))
+        print(f"{bold('Auto-termination:')} {yellow('None')}")
 
     # Display git information
     if git_ref:
-        print(f"Git Reference: {git_ref}")
+        print(f"{bold('Git Reference:')} {yellow(git_ref)}")
         if commit_message:
             first_line = commit_message.split("\n")[0]
-            print(f"Commit Message: {yellow(first_line)}")
+            print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
-    print(f"{'-' * divider_length}")
-    print(f"Command: {cmd}")
+    print(blue("-" * divider_length))
+    print(f"{bold('Command:')} {yellow(cmd)}")
 
     # Display task arguments
     if task_args:
-        print(yellow("Task Arguments:"))
+        print(bold("Task Arguments:"))
         for i, arg in enumerate(task_args):
-            print(f"  {i + 1}. {cyan(arg)}")
+            print(f"  {i + 1}. {yellow(arg)}")
 
     print(f"\n{divider}")
 

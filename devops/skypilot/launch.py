@@ -81,7 +81,6 @@ def main():
     )
     parser.add_argument("cmd", help="Command to run")
     parser.add_argument("run", help="Run ID")
-
     parser.add_argument("--git-ref", type=str, default=None)
     parser.add_argument("--gpus", type=int, default=None)
     parser.add_argument("--nodes", type=int, default=None)
