@@ -16,9 +16,8 @@ from metta.util.config import Config, setup_metta_environment
 from metta.util.heartbeat import start_heartbeat
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.stats_client_cfg import get_stats_client
 from metta.util.wandb.wandb_context import WandbContext, WandbRun
-
-from .stats_client_cfg import get_stats_client
 
 
 # TODO: populate this more

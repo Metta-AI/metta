@@ -24,8 +24,7 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.util.config import Config
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
-
-from .stats_client_cfg import get_stats_client
+from metta.util.stats_client_cfg import get_stats_client
 
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
