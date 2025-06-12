@@ -68,7 +68,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     ):
         self._render_mode = render_mode
         self._curriculum = curriculum
-        self._task = self._curriculum.get_task()
+        self._task: Task = self._curriculum.get_task()
         self._level = level
         self._renderer = None
         self._map_labels = []
@@ -109,8 +109,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
         assert task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {task.env_cfg().game.num_agents} "
-            f"does not match number of agents in map {level_agents}"
+            f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
