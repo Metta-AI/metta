@@ -611,27 +611,28 @@ class PufferTrainer:
                 mb_prio = (self.segments * prio_probs[idx, None]) ** -anneal_beta
 
                 # Minibatch data
-                mb_obs = self.observations[idx]
-                mb_logprobs = self.logprobs[idx]
-                mb_actions = self.actions[idx]
-                mb_terminals = self.terminals[idx]
-                mb_values = self.values[idx]
-                mb_returns = advantages[idx] + mb_values
+                obs = self.observations[idx]
+                obs = obs.to(device, non_blocking=True)
+                atn = self.actions[idx]
+                old_action_log_probs = self.logprobs[idx]
+                val = self.values[idx]
+                adv = advantages[idx]
+                ret = adv + val
 
             with profile.train_forward:
                 lstm_state = PolicyState()
                 if not config.get("use_rnn", True):
-                    mb_obs = mb_obs.reshape(-1, *self.vecenv.single_observation_space.shape)
+                    obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
 
-                _, newlogprob, entropy, newvalue, full_log_probs = self.policy(
-                    mb_obs.to(device), lstm_state, action=mb_actions.to(device)
+                _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
+                    obs, lstm_state, action=atn
                 )
 
             with profile.train_misc:
-                if hasattr(newlogprob, "reshape"):
-                    newlogprob = newlogprob.reshape(mb_logprobs.shape)
+                if hasattr(new_action_log_probs, "reshape"):
+                    new_action_log_probs = new_action_log_probs.reshape(old_action_log_probs.shape)
 
-                logratio = newlogprob - mb_logprobs
+                logratio = new_action_log_probs - old_action_log_probs
                 ratio = logratio.exp()
                 self.ratio[idx] = ratio
 
@@ -644,9 +645,9 @@ class PufferTrainer:
                 # Re-compute advantages with new ratios (V-trace)
                 adv = advantages[idx]
                 torch.ops.pufferlib.compute_puff_advantage(
-                    mb_values,
+                    val,
                     rewards_adjusted[idx],
-                    mb_terminals,
+                    self.terminals[idx],
                     ratio,
                     adv,
                     effective_gamma,
@@ -667,29 +668,23 @@ class PufferTrainer:
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
-                newvalue = newvalue.view(mb_returns.shape)
+                newvalue = newvalue.view(ret.shape)
                 if config.clip_vloss:
-                    v_loss_unclipped = (newvalue - mb_returns) ** 2
-                    v_clipped = mb_values + torch.clamp(newvalue - mb_values, -vf_clip, vf_clip)
-                    v_loss_clipped = (v_clipped - mb_returns) ** 2
+                    v_loss_unclipped = (newvalue - ret) ** 2
+                    v_clipped = val + torch.clamp(newvalue - val, -vf_clip, vf_clip)
+                    v_loss_clipped = (v_clipped - ret) ** 2
                     v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
                 else:
-                    v_loss = 0.5 * ((newvalue - mb_returns) ** 2).mean()
+                    v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
-                # Entropy loss
                 entropy_loss = entropy.mean()
 
                 # Kickstarter losses
-                if hasattr(self, "kickstarter"):
-                    teacher_lstm_state = []
-                    ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                        self.agent_step, full_log_probs, newvalue, mb_obs, teacher_lstm_state
-                    )
-                else:
-                    ks_action_loss = torch.tensor(0.0, device=device)
-                    ks_value_loss = torch.tensor(0.0, device=device)
+                teacher_lstm_state = []
+                ks_action_loss, ks_value_loss = self.kickstarter.loss(
+                    self.agent_step, full_log_probs_distribution, newvalue, obs, teacher_lstm_state
+                )
 
-                # L2 regularization losses
                 l2_reg_loss = torch.tensor(0.0, device=device)
                 if config.l2_reg_loss_coef > 0:
                     l2_reg_loss = config.l2_reg_loss_coef * self.policy.l2_reg_loss().to(device)
