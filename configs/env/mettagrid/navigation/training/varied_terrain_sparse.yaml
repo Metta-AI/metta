@@ -12,14 +12,13 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      _target_: mettagrid.room.random.Random
       width: ${sampling:75,120,60}
       height: ${sampling:75,120,60}
       border_width: ${sampling:1,6,3}
       agents: 1
-      style: all-sparse # ${choose:"all-sparse","balanced","dense","maze"}
       objects:
-        altar: ${sampling:30,75,50}
+        altar: ${sampling:10,50,20}
   objects:
     altar:
       cooldown: 1000
