@@ -501,13 +501,11 @@ class ObsCrossAttn(LayerBase):
 
         # Softmax to get attention weights
         # attn_weights will have shape [B_TT, num_query_tokens, M]
-        # commented out for now to debug
-        # attn_weights = torch.softmax(attn_scores, dim=-1)
+        attn_weights = torch.softmax(attn_scores, dim=-1)
 
         # Calculate output: Weights @ V_projected
         # x will have shape [B_TT, num_query_tokens, _actual_v_dim]
-        # x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
-        x = torch.einsum("bqk,bkd->bqd", attn_scores, v_p)
+        x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
 
         x = self._layer_norm_2(x)
 
