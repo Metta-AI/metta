@@ -153,12 +153,11 @@ def main():
     if args.copies == 1:
         launch_task(task, dry_run=args.dry_run)
     else:
-        for i in range(1, args.copies + 1):
+        for _ in range(1, args.copies + 1):
             copy_task = copy.deepcopy(task)
             copy_task = copy_task.update_envs({"METTA_RUN_ID": run_id})
             copy_task.name = run_id
             copy_task.validate_name()
-            print(f"\nLaunching copy {i}/{args.copies}: {run_id}")
             launch_task(copy_task, dry_run=args.dry_run)
 
 
