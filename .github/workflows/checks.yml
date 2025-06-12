@@ -352,6 +352,7 @@ jobs:
 
       - name: Save evals benchmark
         id: save_evals_benchmark
+        if: steps.eval_smoke_test.conclusion == 'success'
         uses: ./.github/actions/save-benchmarks
         with:
           name: evals_smoke_test
@@ -359,6 +360,7 @@ jobs:
           filename: smoke_test_evals_benchmark_results.json
 
       - name: Upload evals benchmark file
+        if: steps.eval_smoke_test.conclusion == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: evals-benchmark-results
