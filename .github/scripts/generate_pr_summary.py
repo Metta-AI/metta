@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Enhanced PR summary generator combining comprehensive analysis with caching and concurrency."""
 
 import json
 import logging
@@ -254,7 +253,7 @@ class PRSummaryGenerator:
         estimated_tokens = len(full_diff + full_description) // 4
         logging.info(f"PR #{pr_number}: Using ~{estimated_tokens:,} tokens")
 
-        prompt = self._create_comprehensive_prompt(pr_data, full_diff, full_description)
+        prompt = self._create_pr_analysis_prompt(pr_data, full_diff, full_description)
 
         # Generate with phase1 model
         ai_response = self.ai_client.generate_with_retry(prompt, "phase1")
@@ -288,9 +287,7 @@ class PRSummaryGenerator:
             "artifact_path": artifact_path,
         }
 
-    def _create_comprehensive_prompt(self, pr_data: dict, full_diff: str, full_description: str) -> str:
-        """Create comprehensive prompt for PR analysis."""
-
+    def _create_pr_analysis_prompt(self, pr_data: dict, full_diff: str, full_description: str) -> str:
         # Extract file info for context
         file_changes = re.findall(r"^diff --git a/(.+?) b/(.+?)$", full_diff, re.MULTILINE)
         file_types = set()
@@ -301,7 +298,8 @@ class PRSummaryGenerator:
         lines_added = full_diff.count("\n+")
         lines_removed = full_diff.count("\n-")
 
-        return f"""Analyze this Pull Request comprehensively using the complete context:
+        prompt = f"""
+Analyze this Pull Request comprehensively for an engineering audience.
 
 **PR #{pr_data["number"]}: {pr_data["title"]}**
 - Author: {pr_data["author"]}
@@ -317,24 +315,28 @@ class PRSummaryGenerator:
 
 **Required Output Format:**
 
-**Summary:** [2-3 clear sentences explaining what this PR accomplishes and why it matters]
+**Summary:** [2-3 sentences explaining what this PR accomplishes, why it was needed, and its primary benefit]
 
 **Key Changes:**
-• [Most significant change - be specific about what was modified/added]
-• [Second most important change or architectural impact]
-• [Third change if applicable - focus on developer-visible changes]
+• [Most significant functional or architectural change with specific details]
+• [Second most important change - focus on implementation or API changes]
+• [Third change if applicable - additional notable modifications]
 
-**Developer Impact:** [How this affects other developers: new APIs, breaking changes, new dependencies,
-workflow changes, etc. If minimal impact, state "Minimal developer impact."]
+**Developer Impact:** [Concrete effects on other developers: new/changed APIs, breaking changes, new dependencies,
+modified workflows, testing requirements. If truly minimal, state "Minimal developer impact."]
 
-**Technical Notes:** [Any implementation details, trade-offs, or technical decisions worth highlighting]
+**Technical Notes:** [Implementation details, architectural decisions, performance implications, trade-offs, or
+gotchas worth highlighting]
 
-Guidelines:
-- You have access to the COMPLETE diff and description - use this full context
-- Focus on practical impact for developers working on this codebase
-- Be specific about what actually changed, not just what was intended
-- Highlight any notable technical decisions or trade-offs
-- Maximum 300 words total but be comprehensive within that limit"""
+**Analysis Guidelines:**
+- Use the COMPLETE diff and description - analyze actual code changes, not just intentions
+- Focus on concrete, measurable changes rather than abstract descriptions
+- Prioritize information that helps engineers understand integration points and potential conflicts
+- Highlight any non-obvious implications or technical debt considerations
+- Be precise about scope: distinguish between refactoring, new features, and bug fixes
+
+Maximum 500 words total. Be comprehensive within this limit."""
+        return prompt
 
     def _parse_ai_response(self, response: str) -> dict:
         """Parse AI response into structured data."""
