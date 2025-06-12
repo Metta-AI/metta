@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { loadDataFromUri, loadDataFromFile } from "./data_loader";
-import { DataRepo, Repo } from "./repo";
+import { ServerRepo, Repo } from "./repo";
 import { Dashboard } from "./Dashboard";
 
 function App() {
@@ -11,7 +10,6 @@ function App() {
   };
   type LoadingState = {
     type: "loading";
-    dataUri: string;
   };
   type RepoState = {
     type: "repo";
@@ -19,49 +17,34 @@ function App() {
   };
   type State = DefaultState | LoadingState | RepoState;
 
-  const [state, setState] = useState<State>({ type: "default", error: null });
-
-  const getDataUri: () => string | null = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("data");
-  };
+  const [state, setState] = useState<State>({ type: "loading" });
 
   useEffect(() => {
-    const loadData = async () => {
-      const dataUri = getDataUri();
-      if (!dataUri) {
-        return;
-      }
-
-      setState({ type: "loading", dataUri });
-
+    const initializeRepo = async () => {
       try {
-        const data = await loadDataFromUri(dataUri);
-        setState({ type: "repo", repo: new DataRepo(data) });
+        // Get server URL from environment or use default
+        const serverUrl =
+          import.meta.env.VITE_SERVER_URL || "http://localhost:8000";
+        const repo = new ServerRepo(serverUrl);
+
+        // Test the connection by calling getSuites
+        await repo.getSuites();
+
+        setState({ type: "repo", repo });
       } catch (err: any) {
-        setState({ type: "default", error: err.message });
+        setState({
+          type: "default",
+          error: `Failed to connect to server: ${
+            err.message
+          }. Make sure the server is running at ${
+            import.meta.env.VITE_SERVER_URL || "http://localhost:8000"
+          }`,
+        });
       }
     };
 
-    loadData();
+    initializeRepo();
   }, []);
-
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const data = await loadDataFromFile(file);
-      setState({ type: "repo", repo: new DataRepo(data) });
-    } catch (err: any) {
-      setState({
-        type: "default",
-        error: "Failed to load data from file: " + err.message,
-      });
-    }
-  };
 
   if (state.type === "default") {
     return (
@@ -97,28 +80,17 @@ function App() {
             Policy Evaluation Dashboard
           </h1>
           <p style={{ marginBottom: "20px", color: "#666" }}>
-            Upload your evaluation data or provide a data URI as a query
-            parameter.
+            Unable to connect to the evaluation server.
           </p>
-          <div style={{ marginBottom: "20px" }}>
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleFileUpload}
-              style={{
-                padding: "10px",
-                border: "2px dashed #ddd",
-                borderRadius: "4px",
-                width: "100%",
-                cursor: "pointer",
-              }}
-            />
-          </div>
           {state.error && (
-            <div style={{ color: "red", marginTop: "10px" }}>{state.error}</div>
+            <div
+              style={{ color: "red", marginTop: "10px", marginBottom: "20px" }}
+            >
+              {state.error}
+            </div>
           )}
           <p style={{ color: "#666", fontSize: "14px" }}>
-            Or add <code>?data=YOUR_DATA_URI</code> to the URL
+            Please ensure the server is running and accessible.
           </p>
         </div>
       </div>
@@ -126,7 +98,30 @@ function App() {
   }
 
   if (state.type === "loading") {
-    return <div>Loading data...</div>;
+    return (
+      <div
+        style={{
+          fontFamily: "Arial, sans-serif",
+          margin: 0,
+          padding: "20px",
+          background: "#f8f9fa",
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            textAlign: "center",
+            color: "#666",
+          }}
+        >
+          <h2>Connecting to server...</h2>
+          <p>Loading evaluation data from the server.</p>
+        </div>
+      </div>
+    );
   }
 
   if (state.type === "repo") {

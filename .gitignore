@@ -39,5 +39,6 @@ cpplint_output*
 
 observatory/node_modules/
 observatory/.vite/
+observatory/dist/
 
 wandb

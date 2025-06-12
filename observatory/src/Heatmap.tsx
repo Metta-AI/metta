@@ -73,31 +73,35 @@ export function Heatmap({ data, selectedMetric, setSelectedCell, openReplayUrl }
   const [lastHoveredCell, setLastHoveredCell] = useState<{policyUri: string, evalName: string} | null>(null)
 
   // Convert to heatmap format
-  const policies = [...new Set(data.cells.keys())]
+  const policies = Object.keys(data.cells);
   const shortNameToEvalName = new Map<string, string>();
-  data.evalNames.forEach(evalName => {
+  data.evalNames.forEach((evalName) => {
     shortNameToEvalName.set(getShortName(evalName), evalName);
   });
-  const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) => a.localeCompare(b));
+  const sortedShortNames = [...shortNameToEvalName.keys()].sort((a, b) =>
+    a.localeCompare(b)
+  );
 
   const xLabels = ["overall", ...sortedShortNames];
 
   // Iterate over the policyEvalMap, and for each policy compute the average value of the evals
-  const sortedPolicies = policies.sort((a, b) => data.policyAverageScores.get(a)! - data.policyAverageScores.get(b)!);
+  const sortedPolicies = policies.sort(
+    (a, b) => data.policyAverageScores[a] - data.policyAverageScores[b]
+  );
   // take last 20 of sorted policies
-  const y_labels = sortedPolicies.slice(-20)
+  const y_labels = sortedPolicies.slice(-20);
 
-
-  const z = y_labels.map(policy => 
-    [data.policyAverageScores.get(policy)!, ...sortedShortNames.map(shortName => {
-      const evalName = shortNameToEvalName.get(shortName)!
-      const cell = data.cells.get(policy)?.get(evalName)
+  const z = y_labels.map((policy) => [
+    data.policyAverageScores[policy],
+    ...sortedShortNames.map((shortName) => {
+      const evalName = shortNameToEvalName.get(shortName)!;
+      const cell = data.cells[policy]?.[evalName];
       if (!cell) {
-        return 0
+        return 0;
       }
-      return cell.value
-    })]
-  )
+      return cell.value;
+    }),
+  ]);
 
   const y_label_texts = y_labels.map(policy => {
     return `<a href="${wandb_url(policy)}" target="_blank">${policy}</a>`
@@ -105,12 +109,12 @@ export function Heatmap({ data, selectedMetric, setSelectedCell, openReplayUrl }
 
   const onHover = (event: any) => {
     if (!event.points?.[0]) return
-    
+
     const shortName = event.points[0].x
     const policyUri = event.points[0].y
 
     const evalName = shortNameToEvalName.get(shortName)!
-    
+
     setLastHoveredCell({ policyUri, evalName })
     if (!(shortName === "overall")) {
       setSelectedCell({policyUri, evalName})
@@ -171,4 +175,4 @@ export function Heatmap({ data, selectedMetric, setSelectedCell, openReplayUrl }
       />
     </>
   );
-} 
+}
