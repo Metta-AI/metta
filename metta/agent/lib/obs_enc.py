@@ -124,10 +124,10 @@ class ObsTokenShaper(LayerBase):
         # obs_mask = atr_indices == 0  # important! true means 0 ie mask me
 
         # PERFORMANCE DEBUG: Replace with fixed mask
-        obs_mask = torch.zeros((B_TT, M), dtype=torch.bool, device=observations.device)
+        # obs_mask = torch.zeros((B_TT, M), dtype=torch.bool, device=observations.device)
 
         td[self._name] = feat_vectors
-        td["obs_mask"] = obs_mask
+        # td["obs_mask"] = obs_mask
         return td
 
 
