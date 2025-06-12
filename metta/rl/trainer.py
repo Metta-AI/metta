@@ -19,6 +19,7 @@ from metta.rl.experience import Experience
 from metta.rl.fast_gae import compute_gae
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.policy import PufferAgent
+from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
@@ -62,6 +63,7 @@ class MettaTrainer:
             self.device = f"cuda:{os.environ['LOCAL_RANK']}"
             logger.info(f"Setting up distributed training on device {self.device}")
 
+        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -226,11 +228,11 @@ class MettaTrainer:
         while self.agent_step < self.trainer_cfg.total_timesteps:
             steps_before = self.agent_step
 
-            with self.timer("_rollout"):
+            with self.torch_profiler:
                 self._rollout()
-
-            with self.timer("_train"):
                 self._train()
+
+            self.torch_profiler.on_epoch_end(self.epoch)
 
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
