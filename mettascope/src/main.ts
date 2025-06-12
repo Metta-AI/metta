@@ -10,7 +10,7 @@ import { initAgentTable, updateAgentTable } from './agentpanel.js';
 import { localStorageSetNumber, onEvent, find } from './htmlutils.js';
 import { updateReadout } from './infopanels.js';
 import { initObjectMenu } from './objmenu.js';
-import { drawScrubber, initScrubber } from './scrubber.js';
+import { drawScrubber, initScrubber, updateScrubber } from './scrubber.js';
 
 /** Handles resize events. */
 export function onResize() {
@@ -231,6 +231,7 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
   if (!skipScrubberUpdate) {
     //html.scrubber.value = state.step.toString();
     console.log("Scrubber value:", state.step);
+    updateScrubber();
   }
   updateAgentTable();
   requestFrame();

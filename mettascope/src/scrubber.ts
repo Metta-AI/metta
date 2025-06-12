@@ -15,11 +15,13 @@ import { updateStep } from './main.js';
 import { clamp } from "./context3d.js";
 import { getAttr } from "./replay.js";
 
+/** Initialize the scrubber. */
 export function initScrubber() {
   console.log("Initializing scrubber");
 }
 
-function updateScrubber(event: MouseEvent) {
+/** Update the scrubber. */
+function onScrubberChange(event: MouseEvent) {
   let mouseX = event.clientX;
   let scrubberWidth = ui.scrubberPanel.width - 32;
   let s = Math.floor((mouseX - 16) / scrubberWidth * state.replay.max_steps);
@@ -31,7 +33,7 @@ function updateScrubber(event: MouseEvent) {
 onEvent("mousedown", "#scrubber-panel", (target: HTMLElement, event: Event) => {
   console.log("Scrubber clicked");
   ui.mouseDown = true;
-  updateScrubber(event as MouseEvent);
+  onScrubberChange(event as MouseEvent);
 });
 
 /** Handle mouse up on the scrubber, which will update the step. */
@@ -42,10 +44,18 @@ onEvent("mouseup", "#scrubber-panel", (target: HTMLElement, event: Event) => {
 /** Handle mouse move on the scrubber, which will update the step. */
 onEvent("mousemove", "#scrubber-panel", (target: HTMLElement, event: Event) => {
   if (ui.mouseDown) {
-    updateScrubber(event as MouseEvent);
+    onScrubberChange(event as MouseEvent);
   }
 });
 
+/** Update the scrubber. */
+export function updateScrubber() {
+  let scrubberWidth = ui.scrubberPanel.width - 32;
+  html.stepCounter.textContent = state.step.toString();
+  html.stepCounter.parentElement!.style.left = (16 + state.step / state.replay.max_steps * scrubberWidth - 46 / 2).toString() + "px";
+}
+
+/** Draw the scrubber. */
 export function drawScrubber(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -109,7 +119,6 @@ export function drawScrubber(panel: PanelInfo) {
         );
       }
       prevFrozen = frozen;
-
 
     }
   }

@@ -144,6 +144,7 @@ export const html = {
   visualRangeToggle: find('#visual-range-toggle') as HTMLImageElement,
   fogOfWarToggle: find('#fog-of-war-toggle') as HTMLImageElement,
 
+  stepCounter: find('#step-counter') as HTMLSpanElement,
 
   // Utility
   modal: find('#modal') as HTMLDivElement,

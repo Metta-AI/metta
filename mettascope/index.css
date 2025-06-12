@@ -291,6 +291,39 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
+#scrubber-panel #step-redout {
+    position: absolute;
+    display: block;
+    width: 47px;
+    height: 22px;
+    left: 668px;
+    top: 5px;
+    background-color: rgba(0, 0, 0, 1.00);
+    border-radius: 8px;
+    overflow: hidden;
+    border-color: rgba(85, 85, 85, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+#step-redout #step-counter {
+    position: absolute;
+    display: inline-block;
+    left: 0px;
+    right: 0px;
+    top: 1px;
+    bottom: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: center;
+    vertical-align: center;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
 #trace-panel {
     position: absolute;
     display: block;
