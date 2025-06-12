@@ -63,10 +63,16 @@ export function Dashboard({ repo }: DashboardProps) {
   const [selectedMetric, setSelectedMetric] = useState<string>("reward");
   const [selectedSuite, setSelectedSuite] = useState<string>("navigation");
   const [isViewLocked, setIsViewLocked] = useState(false);
-  const [selectedCell, setSelectedCell] = useState<{policyUri: string, evalName: string} | null>(null);
-  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>([]);
+  const [selectedCell, setSelectedCell] = useState<{
+    policyUri: string;
+    evalName: string;
+  } | null>(null);
+  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>(
+    []
+  );
   const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>("");
-  
+  const [numPoliciesToShow, setNumPoliciesToShow] = useState(20);
+
   const parseGroupMetric = (label: string): GroupHeatmapMetric => {
     if (label.includes(" - ")) {
       const [group1, group2] = label.split(" - ");
@@ -103,7 +109,7 @@ export function Dashboard({ repo }: DashboardProps) {
         }
       }
 
-      const groupMetrics: string[] = ["",  ...groupIdsData, ...groupDiffs];
+      const groupMetrics: string[] = ["", ...groupIdsData, ...groupDiffs];
       setAvailableGroupMetrics(groupMetrics);
     };
 
@@ -129,7 +135,10 @@ export function Dashboard({ repo }: DashboardProps) {
 
   // Component functions
 
-  const setSelectedCellIfNotLocked = (cell: {policyUri: string, evalName: string}) => {
+  const setSelectedCellIfNotLocked = (cell: {
+    policyUri: string;
+    evalName: string;
+  }) => {
     if (!isViewLocked) {
       setSelectedCell(cell);
     }
@@ -153,7 +162,9 @@ export function Dashboard({ repo }: DashboardProps) {
     }
   };
 
-  const selectedCellData = selectedCell ? heatmapData.cells.get(selectedCell.policyUri)?.get(selectedCell.evalName) : null;
+  const selectedCellData = selectedCell
+    ? heatmapData.cells.get(selectedCell.policyUri)?.get(selectedCell.evalName)
+    : null;
   const selectedEval = selectedCellData?.evalName ?? null;
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null;
 
@@ -210,6 +221,7 @@ export function Dashboard({ repo }: DashboardProps) {
             selectedMetric={selectedMetric}
             setSelectedCell={setSelectedCellIfNotLocked}
             openReplayUrl={openReplayUrl}
+            numPoliciesToShow={numPoliciesToShow}
           />
         )}
 
@@ -275,6 +287,32 @@ export function Dashboard({ repo }: DashboardProps) {
               </option>
             ))}
           </select>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            marginTop: "20px",
+            marginBottom: "30px",
+            gap: "12px",
+          }}
+        >
+          <div style={{ color: "#666", fontSize: "14px" }}>
+            Number of policies to show:
+          </div>
+          <input
+            type="number"
+            value={numPoliciesToShow}
+            onChange={(e) => setNumPoliciesToShow(parseInt(e.target.value))}
+            style={{
+              padding: "8px 12px",
+              borderRadius: "4px",
+              border: "1px solid #ddd",
+              fontSize: "14px",
+            }}
+          />
         </div>
 
         <MapViewer
