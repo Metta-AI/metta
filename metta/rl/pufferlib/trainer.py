@@ -450,7 +450,7 @@ class PufferTrainer:
                 with profile.env:
                     o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
-                    if self.trainer_cfg.get("require_contiguous_env_ids", False):
+                    if self.trainer_cfg.require_contiguous_env_ids:
                         raise ValueError(
                             "We are assuming contiguous env id is always False. async_factor == num_workers = "
                             f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
@@ -498,10 +498,6 @@ class PufferTrainer:
                     indices = self.ep_indices[env_id]
 
                     o = o if self.trainer_cfg.cpu_offload else o_device
-                    r_device = r.to(self.device, non_blocking=True)
-                    d_device = d.to(self.device, non_blocking=True)
-                    t_device = t.to(self.device, non_blocking=True)
-
                     self.observations[indices, episode_length] = o
 
                     if self.actions.dtype == torch.int32:
@@ -512,9 +508,9 @@ class PufferTrainer:
                         self.actions[indices, episode_length] = actions
 
                     self.logprobs[indices, episode_length] = selected_action_log_probs
-                    self.rewards[indices, episode_length] = r_device
-                    self.terminals[indices, episode_length] = d_device.float()
-                    self.truncations[indices, episode_length] = t_device.float()
+                    self.rewards[indices, episode_length] = r.to(self.device, non_blocking=True)
+                    self.terminals[indices, episode_length] = d.to(self.device, non_blocking=True).float()
+                    self.truncations[indices, episode_length] = t.to(self.device, non_blocking=True).float()
                     self.values[indices, episode_length] = value
 
                     self.ep_lengths[env_id] += 1
@@ -575,11 +571,10 @@ class PufferTrainer:
             config = self.trainer_cfg
             device = self.device
 
-            # Prioritized sampling parameters
             b0 = config.get("prio_beta0", 0.6)
             a = config.get("prio_alpha", 0.6)
             clip_coef = config.clip_coef
-            vf_clip = config.vf_clip_coef if hasattr(config, "vf_clip_coef") else config.get("vf_clip_coef", 0.1)
+            vf_clip = config.get("vf_clip_coef", 0.1)
             total_epochs = max(1, self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
             anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
             self.ratio[:] = 1
@@ -634,16 +629,10 @@ class PufferTrainer:
                 mb_returns = advantages[idx] + mb_values
 
             with profile.train_forward:
+                lstm_state = PolicyState()
                 if not config.get("use_rnn", True):
                     mb_obs = mb_obs.reshape(-1, *self.vecenv.single_observation_space.shape)
-                    # Don't use LSTM state if not using RNN
-                    lstm_state = PolicyState()
-                else:
-                    # For RNN training, let the policy handle its own LSTM states internally
-                    # The policy will process sequences and manage state across timesteps
-                    lstm_state = PolicyState()
 
-                # Use MettaAgent forward method with proper LSTM state
                 _, newlogprob, entropy, newvalue, full_log_probs = self.policy(
                     mb_obs.to(device), lstm_state, action=mb_actions.to(device)
                 )
@@ -788,7 +777,6 @@ class PufferTrainer:
             logger.warning("Failed to checkpoint policy")
             return
 
-        # Save filtered average reward estimate for restart continuity
         extra_args = {}
         if self.trainer_cfg.average_reward:
             extra_args["average_reward"] = self.average_reward
