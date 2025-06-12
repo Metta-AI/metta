@@ -1,5 +1,4 @@
 #!/bin/bash
-# Initialize variables
 EXCLUDE_PATTERN=""
 
 # Parse command line arguments
@@ -53,7 +52,6 @@ format_files() {
   fi
 }
 
-# Format JSON files
 format_files "json"
 
 # Also format .code-workspace files
