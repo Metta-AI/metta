@@ -6,7 +6,7 @@ from typing import List, Optional
 import sky
 
 from metta.util.colorama import blue, bold, cyan, green, magenta, red, yellow
-from metta.util.git import has_unstaged_changes
+from metta.util.git import get_current_commit, has_unstaged_changes, is_commit_pushed
 
 
 def print_tip(text: str):
@@ -40,16 +40,27 @@ def launch_task(task: sky.Task, dry_run=False):
 
 
 def check_git_state(skip_check: bool = False) -> bool:
-    """Check for uncommitted changes that won't be reflected in the cloud."""
+    """Check for uncommitted changes and unpushed commits that won't be reflected in the cloud."""
     if skip_check:
         return True
 
-    # Use the utility function instead of duplicating git command logic
+    issues_found = False
+
     if has_unstaged_changes():
         print(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         print("Options:")
         print("  - Commit: git add . && git commit -m 'your message'")
         print("  - Stash: git stash")
+        issues_found = True
+
+    current_commit = get_current_commit()
+    if current_commit and not is_commit_pushed(current_commit):
+        print(red("❌ Your current commit hasn't been pushed and won't be reflected in the cloud job."))
+        print("Options:")
+        print("  - Push: git push")
+        issues_found = True
+
+    if issues_found:
         print("  - Skip check: add --skip-git-check flag")
         return False
 
