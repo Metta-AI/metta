@@ -19,6 +19,7 @@ game:
       agents: 1
       objects:
         altar: ${sampling:10,50,20}
+        wall: ${sampling:50,200,100}
   objects:
     altar:
       cooldown: 1000
