@@ -314,7 +314,7 @@ class ObsCrossAttn(LayerBase):
         # key_mask = None
         # if self._use_mask:
         #     key_mask = td["obs_mask"]
-        # B_TT = td["_BxTT_"]
+        B_TT = td["_BxTT_"]
 
         # query_token_unprojected will have shape [B_TT, num_query_tokens, _feat_dim]
         query_token_unprojected = self._q_token.expand(B_TT, -1, -1)
