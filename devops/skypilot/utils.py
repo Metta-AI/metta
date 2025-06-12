@@ -1,7 +1,6 @@
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional
 
 import sky
 
@@ -39,7 +38,7 @@ def launch_task(task: sky.Task, dry_run=False):
     print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
 
 
-def check_git_state(commit_hash: Optional[str] = None) -> bool:
+def check_git_state(commit_hash: str | None = None) -> bool:
     """Check that the local git state will be matched in the cloud job."""
 
     issues_found = False
@@ -66,7 +65,7 @@ def check_git_state(commit_hash: Optional[str] = None) -> bool:
     return True
 
 
-def check_config_files(cmd_args: List[str]) -> bool:
+def check_config_files(cmd_args: list[str]) -> bool:
     """Check that config files referenced in arguments actually exist."""
     config_files_to_check = []
 
@@ -113,11 +112,11 @@ def check_config_files(cmd_args: List[str]) -> bool:
 def display_job_summary(
     job_name: str,
     cmd: str,
-    task_args: List[str],
-    git_ref: Optional[str] = None,
-    commit_message: Optional[str] = None,
-    timeout_hours: Optional[float] = None,
-    task: Optional["sky.Task"] = None,
+    task_args: list[str],
+    git_ref: str | None = None,
+    commit_message: str | None = None,
+    timeout_hours: float | None = None,
+    task: sky.Task | None = None,
     **kwargs,
 ) -> None:
     """Display a summary of the job that will be launched."""
