@@ -7,9 +7,10 @@ import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
 import { initAgentTable, updateAgentTable } from './agentpanel.js';
-import { localStorageSetNumber, onEvent } from './htmlutils.js';
+import { localStorageSetNumber, onEvent, find } from './htmlutils.js';
 import { updateReadout } from './infopanels.js';
 import { initObjectMenu } from './objmenu.js';
+import { drawScrubber, initScrubber } from './scrubber.js';
 
 /** Handles resize events. */
 export function onResize() {
@@ -51,6 +52,12 @@ export function onResize() {
   ui.tracePanel.width = screenWidth;
   ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
 
+  // Scrubber panel is always on the bottom of the screen.
+  ui.scrubberPanel.x = 0;
+  ui.scrubberPanel.y = screenHeight - 64 - 64;
+  ui.scrubberPanel.width = screenWidth;
+  ui.scrubberPanel.height = 64;
+
   // Agent panel is always on the top of the screen.
   ui.agentPanel.x = 0;
   ui.agentPanel.y = Common.HEADER_HEIGHT;
@@ -64,6 +71,7 @@ export function onResize() {
   ui.infoPanel.updateDiv();
   ui.tracePanel.updateDiv();
   ui.agentPanel.updateDiv();
+  ui.scrubberPanel.updateDiv();
 
   // Redraw the square after resizing.
   requestFrame();
@@ -221,7 +229,8 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 
   // Update the scrubber value (unless told to skip)
   if (!skipScrubberUpdate) {
-    html.scrubber.value = state.step.toString();
+    //html.scrubber.value = state.step.toString();
+    console.log("Scrubber value:", state.step);
   }
   updateAgentTable();
   requestFrame();
@@ -238,10 +247,10 @@ export function updateSelection(object: any, setFollow = false) {
   requestFrame();
 }
 
-/** Handle scrubber change events. */
-function onScrubberChange() {
-  updateStep(parseInt(html.scrubber.value), true);
-}
+// /** Handle scrubber change events. */
+// function onScrubberChange() {
+//   //updateStep(parseInt(html.scrubber.value), true);
+// }
 
 /** Handle key down events. */
 onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
@@ -304,6 +313,9 @@ export function onFrame() {
 
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
+
+  ctx.useMesh("scrubber");
+  drawScrubber(ui.scrubberPanel);
 
   if (state.showInfo) {
     ui.infoPanel.div.classList.remove("hidden");
@@ -492,6 +504,7 @@ ui.agentPanel.div.classList.add("hidden");
 ui.mapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 ui.tracePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 ui.miniMapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
+ui.scrubberPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 
 // Add event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize);
@@ -508,10 +521,10 @@ onEvent("click", "#help-button", () => {
   window.open("https://github.com/Metta-AI/metta/blob/main/mettascope/README.md", "_blank");
 });
 
-// Bottom area
-html.scrubber.addEventListener('input', onScrubberChange);
-html.scrubber.setAttribute("type", "range");
-html.scrubber.setAttribute("value", "0");
+// // Bottom area
+// html.scrubber.addEventListener('input', onScrubberChange);
+// html.scrubber.setAttribute("type", "range");
+// html.scrubber.setAttribute("value", "0");
 
 onEvent("click", "#rewind-to-start", () => {
   setIsPlaying(false);
@@ -641,6 +654,7 @@ toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
 initActionButtons();
 initAgentTable();
 initObjectMenu();
+initScrubber();
 
 window.addEventListener('load', async () => {
   // Use local atlas texture.

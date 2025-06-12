@@ -263,7 +263,8 @@ async function loadReplayJson(url: string, replayData: any) {
 
 
   // Set the scrubber max value to the max steps.
-  html.scrubber.max = (state.replay.max_steps - 1).toString();
+  //html.scrubber.max = (state.replay.max_steps - 1).toString();
+  console.log("Scrubber max:", state.replay.max_steps);
 
   if (state.replay.file_name) {
     html.fileName.textContent = state.replay.file_name;

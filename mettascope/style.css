@@ -89,7 +89,7 @@ html {
 #toast.hiding {
   opacity: 0;
   /* Animate upward when hiding */
-  transform: translateX(-50%) translateY(-20px);
+  transform: translateX(-50%) translateY(120px);
 }
 
 #modal.error {
