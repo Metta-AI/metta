@@ -54,7 +54,7 @@ runs:
     - name: Install dependencies
       shell: bash
       run: |
-        pip install -r ${{ github.action_path }}/requirements.txt
+        uv pip install --system -r ${{ github.action_path }}/requirements.txt
 
     - name: Set cache key
       id: cache-key
