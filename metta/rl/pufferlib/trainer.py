@@ -76,12 +76,13 @@ class PufferTrainer:
             self.device = f"cuda:{os.environ['LOCAL_RANK']}"
             logger.info(f"Setting up distributed training on device {self.device}")
 
-        # Core components
-        self.wandb_run = wandb_run
-        self.policy_store = policy_store
+        self.profile = Profile(frequency=1)
+        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.last_stats = defaultdict(list)
+        self.wandb_run = wandb_run
+        self.policy_store = policy_store
         self.average_reward = 0.0
         self._current_eval_score = None
         self._eval_grouped_scores = {}
@@ -143,10 +144,6 @@ class PufferTrainer:
         # Training state
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
-        self.global_step = self.agent_step
-        self.last_log_step = 0
-        self.last_log_time = time.time()
-        self.start_time = time.time()
 
         # Optimizer
         assert self.trainer_cfg.optimizer.type in ("adam", "muon"), (
@@ -200,8 +197,6 @@ class PufferTrainer:
             )
 
         # Monitoring
-        self.profile = Profile(frequency=1)
-        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
 
         self.model_size = sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
         self.experience = None  # For compatibility
