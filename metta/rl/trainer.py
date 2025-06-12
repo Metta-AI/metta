@@ -9,27 +9,25 @@ import torch
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from pufferlib import unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.experience import Experience
 from metta.rl.fast_gae import compute_gae
-from metta.rl.pufferlib.experience import Experience
-from metta.rl.pufferlib.kickstarter import Kickstarter
-from metta.rl.pufferlib.policy import PufferAgent
-from metta.rl.pufferlib.profile import Profile, profile_section
-from metta.rl.pufferlib.torch_profiler import TorchProfiler
-from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.policy import PufferAgent
+from metta.rl.torch_profiler import TorchProfiler
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
-from metta.util.timing import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from mettagrid.util.stopwatch import Stopwatch
 
 torch.set_float32_matmul_precision("high")
 
@@ -39,7 +37,7 @@ local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
-class PufferTrainer:
+class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig | ListConfig,
@@ -65,17 +63,14 @@ class PufferTrainer:
             self.device = f"cuda:{os.environ['LOCAL_RANK']}"
             logger.info(f"Setting up distributed training on device {self.device}")
 
-        self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
+
+        self._eval_scores = {}
         self.average_reward = 0.0
-        self._current_eval_score = None
-        self._eval_grouped_scores = {}
-        self._eval_suite_avgs = {}
-        self._eval_categories = set()
 
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
@@ -91,14 +86,17 @@ class PufferTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
+        # In __init__
+        self._checkpoint_avg_reward = None
+        if checkpoint.policy_path and "average_reward" in checkpoint.extra_args:
+            self._checkpoint_avg_reward = checkpoint.extra_args["average_reward"]
+
         policy_record = None
         load_policy_attempts = 10
         while policy_record is None and load_policy_attempts > 0:
             if checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
                 policy_record = policy_store.policy(checkpoint.policy_path)
-                if "average_reward" in checkpoint.extra_args:
-                    self.average_reward = checkpoint.extra_args["average_reward"]
             elif cfg.trainer.initial_policy.uri is not None:
                 logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
                 policy_record = policy_store.policy(cfg.trainer.initial_policy)
@@ -119,7 +117,7 @@ class PufferTrainer:
         assert policy_record is not None, "No policy found"
 
         if self._master:
-            logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
+            logger.info(f"MettaTrainer loaded: {policy_record.policy()}")
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
@@ -202,9 +200,8 @@ class PufferTrainer:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
         if wandb_run and self._master:
-            wandb_run.define_metric("train/agent_step")
-            for k in ["0verview", "env", "losses", "performance", "train"]:
-                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
+            # Define agent_step as the global x-axis for all metrics
+            wandb_run.define_metric("*", step_metric="train/agent_step")
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
@@ -215,7 +212,7 @@ class PufferTrainer:
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        logger.info(f"PufferTrainer initialization complete on device: {self.device}")
+        logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self):
         logger.info("Starting training")
@@ -232,15 +229,10 @@ class PufferTrainer:
             steps_before = self.agent_step
 
             with self.torch_profiler:
-                with self.timer("_rollout"):
-                    self._rollout()
+                self._rollout()
+                self._train()
 
-                with self.timer("_train"):
-                    self._train()
-
-            # Processing stats
-            with self.timer("_process_stats"):
-                self._process_stats()
+            self.torch_profiler.on_epoch_end(self.epoch)
 
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
@@ -261,11 +253,14 @@ class PufferTrainer:
                 with self.timer("_checkpoint_trainer", log=logging.INFO):
                     self._checkpoint_trainer()
 
+            eval_metrics = {}
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 with self.timer("_evaluate_policy", log=logging.INFO):
-                    self._evaluate_policy()
+                    eval_metrics = self._evaluate_policy()
 
-            self.torch_profiler.on_epoch_end(self.epoch)
+            # Processing stats
+            with self.timer("_process_stats"):
+                self._process_stats(eval_metrics)
 
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
                 with self.timer("_save_policy_to_wandb"):
@@ -291,9 +286,16 @@ class PufferTrainer:
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
 
-    def _evaluate_policy(self):
+    def _evaluate_policy(self) -> dict[str, float]:
+        """Evaluate the current policy and return evaluation metrics.
+
+        Returns metrics like:
+        - "evals/overall_score": float
+        - "evals/{category}_score": float for each category
+        - "evals/details/{category}/{sim_name}": float for each simulation
+        """
         if not self._master:
-            return
+            return {}
 
         logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
@@ -306,36 +308,39 @@ class PufferTrainer:
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-
         logger.info("Simulation complete")
 
-        self._eval_categories = set()
+        # Extract categories from simulation names
+        categories = set()
         for sim_name in self.sim_suite_config.simulations.keys():
-            self._eval_categories.add(sim_name.split("/")[0])
-        self._eval_suite_avgs = {}
+            categories.add(sim_name.split("/")[0])
 
-        # Compute scores for each evaluation category
-        for category in self._eval_categories:
+        # Build evaluation metrics
+        eval_metrics = {}
+
+        # Get category scores
+        self._eval_scores = {}  # For checkpointing
+        for category in categories:
             score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
-            # Only add the score if we got a non-None result
-            if score is not None:
-                self._eval_suite_avgs[f"{category}_score"] = score
-            else:
-                self._eval_suite_avgs[f"{category}_score"] = 0.0
+            score_value = score if score is not None else 0.0
+            eval_metrics[f"evals/{category}_score"] = score_value
+            self._eval_scores[f"{category}_score"] = score_value  # For checkpoint
 
-        # Get overall score (average of all rewards)
+        # Get overall score
         overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
-        self._current_eval_score = overall_score if overall_score is not None else 0.0
-        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
+        overall_score_value = overall_score if overall_score is not None else 0.0
+        eval_metrics["evals/overall_score"] = overall_score_value
+        self._eval_scores["overall_score"] = overall_score_value  # For checkpoint
 
-        # Categorize scores by environment type
-        self._eval_grouped_scores = {}
-        # Process each score and assign to the right category
+        # Get detailed per-simulation scores (optional, for debugging)
+        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
         for (_, sim_name, _), score in all_scores.items():
-            for category in self._eval_categories:
-                if category in sim_name.lower():
-                    self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
+            category = sim_name.split("/")[0]
+            sim_short_name = sim_name.split("/")[-1]
+            eval_metrics[f"evals/details/{category}/{sim_short_name}"] = score
+
+        return eval_metrics
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
@@ -343,17 +348,16 @@ class PufferTrainer:
     def _on_train_step(self):
         pass
 
-    @profile_section("eval")
     def _rollout(self):
-        experience, profile = self.experience, self.profile
+        experience = self.experience
 
-        with profile.eval_misc:
+        with self.timer("_rollout.misc"):
             policy = self.policy
             infos = defaultdict(list)
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
 
         while not experience.full:
-            with profile.env:
+            with self.timer("_rollout.env"):
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
                 if self.trainer_cfg.require_contiguous_env_ids:
@@ -364,7 +368,7 @@ class PufferTrainer:
 
                 training_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
-            with profile.eval_misc:
+            with self.timer("_rollout.misc"):
                 num_steps = sum(mask)
                 self.agent_step += num_steps * self._world_size
 
@@ -372,7 +376,7 @@ class PufferTrainer:
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
 
-            with profile.eval_forward, torch.no_grad():
+            with self.timer("_rollout.forward"), torch.no_grad():
                 assert training_env_id is not None and training_env_id.numel() > 0, (
                     "training_env_id must exist and have elements"
                 )
@@ -400,21 +404,46 @@ class PufferTrainer:
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
-            with profile.eval_misc:
+            with self.timer("_rollout.misc"):
                 value = value.flatten()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
+                experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
+                # At this point, infos contains lists of values collected across:
+                # 1. Multiple vectorized environments managed by this GPU's vecenv
+                # 2. Multiple rollout steps (until experience buffer is full)
+                #
+                # For example, if we have 32 environments and collect 128 steps:
+                # - Some stats (like "episode/reward") appear only when episodes complete
+                # - Other stats might appear every step
+                # - infos["episode/reward"] might contain [10.5, 23.1, 15.7, ...]
+                #   from various episodes that completed during this rollout
+                #
+                # These will later be averaged in _process_stats() to get mean values
+                # across all environments on this GPU. Stats from other GPUs (if using
+                # distributed training) are handled separately and not aggregated here.
                 for i in info:
-                    for k, v in unroll_nested_dict(i):
-                        infos[k].append(v)
 
-            with profile.env:
+                    def process_dict(d, prefix=""):
+                        if not isinstance(d, dict):
+                            return
+                        for k, v in d.items():
+                            if isinstance(v, dict):
+                                # Recurse with prefix
+                                process_dict(v, f"{prefix}{k}/" if prefix else f"{k}/")
+                            else:
+                                # Add value with full path as key
+                                full_key = f"{prefix}{k}"
+                                infos[full_key].append(v)
+
+                    process_dict(i)
+
+            with self.timer("_rollout.env"):
                 actions_np = actions.cpu().numpy().astype(dtype_actions)
                 self.vecenv.send(actions_np)
 
-        with profile.eval_misc:
+        with self.timer("_rollout.misc"):
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
                     v = v.tolist()
@@ -444,12 +473,11 @@ class PufferTrainer:
 
         return 0.0
 
-    @profile_section("train")
     def _train(self):
-        experience, profile = self.experience, self.profile
+        experience = self.experience
         self.losses = self._make_losses()
 
-        with profile.train_misc:
+        with self.timer("_train.misc"):
             idxs = experience.sort_training_data()
             dones_np = experience.dones_np[idxs]
             values_np = experience.values_np[idxs]
@@ -487,7 +515,7 @@ class PufferTrainer:
             lstm_state = PolicyState()
             teacher_lstm_state = []
             for mb in range(experience.num_minibatches):
-                with profile.train_misc:
+                with self.timer("_train.misc"):
                     obs = experience.b_obs[mb]
                     obs = obs.to(self.device, non_blocking=True)
                     atn = experience.b_actions[mb]
@@ -496,7 +524,7 @@ class PufferTrainer:
                     adv = experience.b_advantages[mb]
                     ret = experience.b_returns[mb]
 
-                with profile.train_forward:
+                with self.timer("_train.forward"):
                     # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
                     _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
                         obs, lstm_state, action=atn
@@ -504,7 +532,7 @@ class PufferTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-                with profile.train_misc:
+                with self.timer("_train.misc"):
                     if __debug__:
                         assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
                         assert_shape(old_action_log_probs, ("B", "T"), "old_action_log_probs")
@@ -566,7 +594,7 @@ class PufferTrainer:
                         + ks_value_loss
                     )
 
-                with profile.learn:
+                with self.timer("_train.learn"):
                     self.optimizer.zero_grad()
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
@@ -578,7 +606,7 @@ class PufferTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-                with profile.train_misc:
+                with self.timer("_train.misc"):
                     if self.losses is None:
                         raise ValueError("self.losses is None")
 
@@ -597,7 +625,7 @@ class PufferTrainer:
                 if approx_kl > self.trainer_cfg.target_kl:
                     break
 
-        with profile.train_misc:
+        with self.timer("_train.misc"):
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
@@ -607,8 +635,6 @@ class PufferTrainer:
             explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
             self.losses.explained_variance = explained_var
             self.epoch += 1
-
-            profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -652,8 +678,8 @@ class PufferTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": training_time,
-                "score": self._current_eval_score,
-                "eval_scores": self._eval_suite_avgs,
+                "score": self._eval_scores.get("overall_score", 0.0),
+                "eval_scores": self._eval_scores,
             },
         )
         # this is hacky, but otherwise the initial_pr points
@@ -697,7 +723,7 @@ class PufferTrainer:
                     }
                     self.wandb_run.log(link_summary)
 
-    def _process_stats(self):
+    def _process_stats(self, eval_metrics: dict[str, float]) -> None:
         # convert lists of values (collected across all environments and rollout steps on this GPU)
         # into single mean values.
         mean_stats = {}
@@ -721,26 +747,10 @@ class PufferTrainer:
                         weight_metrics[f"weights/{key}/{name}"] = value
 
         # Calculate derived stats from local roll-outs (master process will handle logging)
-        sps = self.profile.SPS
-        agent_steps = self.agent_step
-        epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
         losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
-        performance = {k: v for k, v in self.profile}
-
-        overview = {"SPS": sps}
-        for k, v in self.trainer_cfg.stats.overview.items():
-            if k in self.stats:
-                overview[v] = self.stats[k]
-
-        for category in self._eval_categories:
-            score = self._eval_suite_avgs.get(f"{category}_score", None)
-            if score is not None:
-                overview[f"{category}_evals"] = score
-
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        # Add timing metrics to wandb
         if self.wandb_run and self._master:
             timer_data = {}
             wall_time = self.timer.get_elapsed()  # global timer
@@ -748,40 +758,55 @@ class PufferTrainer:
 
             training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
             overhead_time = wall_time - training_time
-            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
 
             timing_logs = {
-                # Key performance indicators
-                "timing/steps_per_second": steps_per_sec,
                 "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
                 "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
-                # Breakdown by operation (as a single structured metric)
                 "timing/breakdown": {
                     op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
                     for op, elapsed in timer_data.items()
                 },
-                # Total time for reference
                 "timing/total_seconds": wall_time,
             }
+
+            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
+
+            overview = {"SPS": steps_per_sec}
+
+            # Add custom overview items
+            for k, v in self.trainer_cfg.stats.overview.items():
+                if k in self.stats:
+                    overview[v] = self.stats[k]
+
+            # Add all evaluation scores to overview
+            if hasattr(self, "_eval_scores") and self._eval_scores:
+                for k, v in self._eval_scores.items():
+                    overview[k] = v  # This adds "overall_score", "navigation_score", etc.
+
+            # Build training metrics
+            train_log = {
+                "train/agent_step": self.agent_step,  # defined as the x-axis value (step_metric) in init()
+                "train/epoch": self.epoch,
+                "train/learning_rate": learning_rate,
+            }
+
+            # Add the IIR filtered average reward if using that RL formulation
+            if self.trainer_cfg.average_reward and hasattr(self, "_average_reward_estimate"):
+                train_log["train/average_reward"] = self._average_reward_estimate
 
             # Log everything to wandb
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
                     **{f"losses/{k}": v for k, v in losses.items()},
-                    **{f"performance/{k}": v for k, v in performance.items()},
                     **environment,
                     **weight_metrics,
-                    **self._eval_grouped_scores,
-                    "train/agent_step": agent_steps,
-                    "train/epoch": epoch,
-                    "train/learning_rate": learning_rate,
-                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+                    **eval_metrics,
+                    **train_log,
                     **timing_logs,
                 }
             )
 
-        self._eval_grouped_scores = {}
         self.stats.clear()
 
     def close(self):
@@ -889,7 +914,7 @@ class PufferTrainer:
         self.vecenv.async_reset(rank_specific_env_seed)
 
 
-class AbortingTrainer(PufferTrainer):
+class AbortingTrainer(MettaTrainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
