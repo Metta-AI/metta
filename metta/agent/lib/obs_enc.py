@@ -288,13 +288,13 @@ class ObsCrossAttn(LayerBase):
         self._q_token = nn.Parameter(torch.randn(1, self._num_query_tokens, self._query_token_dim))
         nn.init.trunc_normal_(self._q_token, std=0.02)
 
-        self._layer_norm_1 = nn.LayerNorm(self._feat_dim)
+        # self._layer_norm_1 = nn.LayerNorm(self._feat_dim)  # commented out for now to debug
 
         self.q_proj = nn.Linear(self._query_token_dim, self._qk_dim, bias=False)
         self.k_proj = nn.Linear(self._feat_dim, self._qk_dim, bias=False)
         self.v_proj = nn.Linear(self._feat_dim, self._v_dim, bias=False)
 
-        self._layer_norm_2 = nn.LayerNorm(self._v_dim)
+        # self._layer_norm_2 = nn.LayerNorm(self._v_dim)  # commented out for now to debug
 
         self._out_proj = nn.Identity()
         if self._v_dim != self._out_dim or self._mlp_out_hidden_dim is not None:
@@ -309,15 +309,16 @@ class ObsCrossAttn(LayerBase):
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        x_features = td[self._sources[0]["name"]]
-        key_mask = None
-        if self._use_mask:
-            key_mask = td["obs_mask"]
-        B_TT = td["_BxTT_"]
+        # x_features = td[self._sources[0]["name"]]
+        x_features_norm = td[self._sources[0]["name"]]
+        # key_mask = None
+        # if self._use_mask:
+        #     key_mask = td["obs_mask"]
+        # B_TT = td["_BxTT_"]
 
         # query_token_unprojected will have shape [B_TT, num_query_tokens, _feat_dim]
         query_token_unprojected = self._q_token.expand(B_TT, -1, -1)
-        x_features_norm = self._layer_norm_1(x_features)  # [B_TT, M, _feat_dim]
+        # x_features_norm = self._layer_norm_1(x_features)  # [B_TT, M, _feat_dim] # commented out for now to debug
 
         q_p = self.q_proj(query_token_unprojected)  # q_p is now [B_TT, num_query_tokens, _actual_qk_dim]
         k_p = self.k_proj(x_features_norm)  # [B_TT, M, _actual_qk_dim]
@@ -329,14 +330,14 @@ class ObsCrossAttn(LayerBase):
         attn_scores = torch.einsum("bqd,bkd->bqk", q_p, k_p)
 
         # Scale scores
-        attn_scores = attn_scores / self._qk_dim_sqrt
+        # attn_scores = attn_scores / self._qk_dim_sqrt # commented out for now to debug
 
         # Apply mask
-        if key_mask is not None:
-            # key_mask shape: [B_TT, M] -> unsqueeze to [B_TT, 1, M] for broadcasting
-            # This will broadcast across the num_query_tokens dimension.
-            key_mask_expanded = key_mask.unsqueeze(1)
-            attn_scores = attn_scores.masked_fill(key_mask_expanded, -float("inf"))
+        # if key_mask is not None:
+        #     # key_mask shape: [B_TT, M] -> unsqueeze to [B_TT, 1, M] for broadcasting
+        #     # This will broadcast across the num_query_tokens dimension.
+        #     key_mask_expanded = key_mask.unsqueeze(1)
+        #     attn_scores = attn_scores.masked_fill(key_mask_expanded, -float("inf"))
 
         # Softmax to get attention weights
         # attn_weights will have shape [B_TT, num_query_tokens, M]
@@ -348,7 +349,7 @@ class ObsCrossAttn(LayerBase):
         # x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
         x = torch.einsum("bqk,bkd->bqd", attn_scores, v_p)
 
-        x = self._layer_norm_2(x)
+        # x = self._layer_norm_2(x)  # commented out for now to debug
 
         # x shape: [B_TT, num_query_tokens, _actual_v_dim]
         # _out_proj maps last dim from _actual_v_dim to _out_dim
