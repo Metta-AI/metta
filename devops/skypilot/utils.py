@@ -39,10 +39,8 @@ def launch_task(task: sky.Task, dry_run=False):
     print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
 
 
-def check_git_state(skip_check: bool = False, commit_hash: Optional[str] = None) -> bool:
+def check_git_state(commit_hash: Optional[str] = None) -> bool:
     """Check that the local git state will be matched in the cloud job."""
-    if skip_check:
-        return True
 
     issues_found = False
 

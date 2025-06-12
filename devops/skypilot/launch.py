@@ -74,12 +74,7 @@ def patch_task(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Launch SkyPilot training jobs",
-        epilog="Usage: %(prog)s <cmd> <run_id> [task_args...] [options]\n"
-        + "Example: %(prog)s train my_exp trainer=basic --timeout-hours=2 --id_suffix=001",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
+    parser = argparse.ArgumentParser()
     parser.add_argument("cmd", help="Command to run")
     parser.add_argument("run", help="Run ID")
     parser.add_argument("--git-ref", type=str, default=None)
@@ -112,7 +107,7 @@ def main():
     if not git_ref:
         git_ref = get_current_commit()
 
-    if not check_git_state(args.skip_git_check, git_ref):
+    if not args.skip_git_check and not check_git_state(git_ref):
         sys.exit(1)
 
     if not check_config_files(cmd_args):
