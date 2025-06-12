@@ -104,7 +104,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         task = self._task
         level = self._level
         last_level = self._last_level_per_task.get(task.id(), None)
-        if level is None and last_level is not None and random.random() < task.env_cfg().game.replay_level_prob:
+        if level is None and last_level is not None and random.random() < task.env_cfg().game.get("replay_level_prob", 0):
             level = last_level
 
         if level is None:
