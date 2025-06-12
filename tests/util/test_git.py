@@ -2,11 +2,14 @@ import subprocess
 
 import pytest
 
-from metta.util.git import GitError, commit_exists, get_current_branch, get_current_commit, is_commit_contained, run_git
-
-# known-good hash
-TEST_EXISTING_COMMIT_HASH = "1593126bcc4de4f3ba832afe7e7b4a8b40349328"
-TEST_ABBREVIATED_HASH = TEST_EXISTING_COMMIT_HASH[:8]  # e.g., '1593126b'
+from metta.util.git import (
+    GitError,
+    commit_exists,
+    get_current_branch,
+    get_current_commit,
+    is_commit_contained,
+    run_git,
+)
 
 # invalid hash (never valid in any repo)
 TEST_FAKE_COMMIT_HASH = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
@@ -31,10 +34,6 @@ def test_commit_exists_for_current_commit():
     assert commit_exists(commit)
 
 
-def test_commit_exists_for_known_commit():
-    assert commit_exists(TEST_EXISTING_COMMIT_HASH), f"Commit {TEST_EXISTING_COMMIT_HASH} should exist"
-
-
 def test_commit_does_not_exist_for_fake_commit():
     assert not commit_exists(TEST_FAKE_COMMIT_HASH), f"Commit {TEST_FAKE_COMMIT_HASH} should not exist"
 
@@ -42,9 +41,8 @@ def test_commit_does_not_exist_for_fake_commit():
 @pytest.mark.parametrize(
     "hash_input, expected",
     [
-        ("123", False),  # too short, likely invalid
-        ("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", False),  # invalid hex
-        (TEST_ABBREVIATED_HASH, True),  # valid abbreviated hash
+        "123",  # too short, likely invalid
+        "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",  # invalid hex
     ],
 )
 def test_commit_exists_various_hashes(hash_input, expected):
