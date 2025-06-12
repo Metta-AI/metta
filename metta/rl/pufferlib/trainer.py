@@ -112,21 +112,20 @@ class PufferTrainer:
         while policy_record is None and load_policy_attempts > 0:
             if checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                policy_record = self.policy_store.policy(checkpoint.policy_path)
+                policy_record = policy_store.policy(checkpoint.policy_path)
                 if "average_reward" in checkpoint.extra_args:
                     self.average_reward = checkpoint.extra_args["average_reward"]
-            elif self.cfg.trainer.initial_policy.uri is not None:
-                logger.info(f"Loading initial policy URI: {self.cfg.trainer.initial_policy.uri}")
-                policy_record = self.policy_store.policy(self.cfg.trainer.initial_policy)
+            elif cfg.trainer.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
+                policy_record = policy_store.policy(cfg.trainer.initial_policy)
             else:
-                policy_path = os.path.join(self.cfg.trainer.checkpoint_dir, self.policy_store.make_model_name(0))
+                policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
                 if os.path.exists(policy_path):
                     logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    policy_record = self.policy_store.policy(policy_path)
+                    policy_record = policy_store.policy(policy_path)
                 elif self._master:
                     logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                    metta_grid_env: MettaGridEnv = self.vecenv.driver_env
-                    policy_record = self.policy_store.create(metta_grid_env)
+                    policy_record = policy_store.create(metta_grid_env)
             if policy_record is not None:
                 break
             load_policy_attempts -= 1
@@ -155,7 +154,7 @@ class PufferTrainer:
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
         # Kickstarter
-        self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
+        self.kickstarter = Kickstarter(cfg, policy_store, actions_names, actions_max_params)
 
         # Distributed setup
         if torch.distributed.is_initialized():
