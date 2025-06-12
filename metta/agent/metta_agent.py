@@ -191,25 +191,25 @@ class MettaAgent(nn.Module):
 
         # Define probabilities based on user preferences
         # High frequency actions (put, get, move, rotate, swap)
-        target_probs[0] = 0.09  # put_recipe_items_0
-        target_probs[1] = 0.065  # get_output_0
-        target_probs[2] = 0.005  # noop_0 (low frequency)
-        target_probs[3] = 0.09  # move_0
-        target_probs[4] = 0.09  # move_1
-        target_probs[5] = 0.065  # rotate_0
-        target_probs[6] = 0.065  # rotate_1
-        target_probs[7] = 0.065  # rotate_2
-        target_probs[8] = 0.065  # rotate_3
+        target_probs[0] = 0.2  # put_recipe_items_0
+        target_probs[1] = 0.2  # get_output_0
+        target_probs[2] = 0.00  # noop_0 (low frequency)
+        target_probs[3] = 0.1  # move_0
+        target_probs[4] = 0.1  # move_1
+        target_probs[5] = 0.02  # rotate_0
+        target_probs[6] = 0.02  # rotate_1
+        target_probs[7] = 0.02  # rotate_2
+        target_probs[8] = 0.02  # rotate_3
 
         # Strongly suppress attack actions (indices 9-19)
         for i in range(9, 20):
-            target_probs[i] = 0.005  # attack_0 through attack_nearest_0
+            target_probs[i] = 0.001  # attack_0 through attack_nearest_0
 
-        target_probs[20] = 0.08  # swap_0 (high frequency)
+        target_probs[20] = 0.01  # swap_0 (high frequency)
 
         # Strongly suppress change_color actions (indices 21-24)
         for i in range(21, 25):
-            target_probs[i] = 0.005  # change_color_0 through change_color_3
+            target_probs[i] = 0.001  # change_color_0 through change_color_3
 
         # Normalize to ensure it sums to 1
         target_probs = target_probs / target_probs.sum()
