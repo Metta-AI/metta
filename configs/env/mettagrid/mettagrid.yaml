@@ -1,4 +1,5 @@
 sampling: 0
+desync_episodes: false
 game:
   num_agents: ???
   obs_width: 11

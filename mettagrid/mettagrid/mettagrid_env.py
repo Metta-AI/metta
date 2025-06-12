@@ -64,6 +64,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         buf=None,
         stats_writer: Optional[StatsWriter] = None,
         replay_writer: Optional[ReplayWriter] = None,
+        training: bool = False,
         **kwargs,
     ):
         self._render_mode = render_mode
@@ -80,6 +81,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
+        self._training = training
 
         self._initialize_c_env(self._task)
         super().__init__(buf)
@@ -114,6 +116,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
+        if self._training and getattr(self, "num_episodes", 0) == 0 and task.env_cfg().get("desync_episodes", False):
+            max_steps = int(task.env_cfg().game.max_steps)
+            config_game = cast(Dict[str, Any], config_dict.get("game", {}))
+            config_game["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            config_dict["game"] = config_game
 
         self._map_labels = level.labels
 
