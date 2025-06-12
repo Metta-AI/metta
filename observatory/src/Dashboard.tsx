@@ -66,7 +66,7 @@ export function Dashboard({ repo }: DashboardProps) {
   const [selectedCell, setSelectedCell] = useState<{policyUri: string, evalName: string} | null>(null);
   const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>([]);
   const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>("");
-  
+
   const parseGroupMetric = (label: string): GroupHeatmapMetric => {
     if (label.includes(" - ")) {
       const [group1, group2] = label.split(" - ");
@@ -136,7 +136,7 @@ export function Dashboard({ repo }: DashboardProps) {
   };
 
   const openReplayUrl = (policyUri: string, evalName: string) => {
-    const evalData = heatmapData?.cells.get(policyUri)?.get(evalName);
+    const evalData = heatmapData?.cells[policyUri]?.[evalName];
     if (!evalData?.replayUrl) return;
 
     const replay_url_prefix = "https://metta-ai.github.io/metta/?replayUrl=";
@@ -153,7 +153,9 @@ export function Dashboard({ repo }: DashboardProps) {
     }
   };
 
-  const selectedCellData = selectedCell ? heatmapData.cells.get(selectedCell.policyUri)?.get(selectedCell.evalName) : null;
+  const selectedCellData = selectedCell
+    ? heatmapData?.cells[selectedCell.policyUri]?.[selectedCell.evalName]
+    : null;
   const selectedEval = selectedCellData?.evalName ?? null;
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null;
 
