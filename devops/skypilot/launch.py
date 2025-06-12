@@ -74,9 +74,18 @@ def patch_task(
 
 
 def main():
+    # To match other usage patterns we want to specify the run ID with `run=foo`` somewhere in the args
+    # A named argument with argparse would end up as `--run=foo` which is not quite right
+    run_id = None
+    filtered_args = []
+    for arg in sys.argv[1:]:
+        if arg.startswith("run="):
+            run_id = arg[4:]  # Remove 'run=' prefix
+        else:
+            filtered_args.append(arg)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("cmd", help="Command to run")
-    parser.add_argument("run", help="Run ID")
     parser.add_argument("--git-ref", type=str, default=None)
     parser.add_argument("--gpus", type=int, default=None)
     parser.add_argument("--nodes", type=int, default=None)
@@ -92,14 +101,10 @@ def main():
     )
     parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
     parser.add_argument("--confirm", action="store_true", help="Show confirmation prompt")
-    parser.add_argument(
-        "--id_suffix",
-        dest="id_suffix",
-        type=str,
-        default=None,
-        help="Suffix to append to run ID (e.g., --id_suffix=0 makes 'base_name.0')",
-    )
-    (args, cmd_args) = parser.parse_known_args()
+    (args, cmd_args) = parser.parse_known_args(filtered_args)
+
+    if run_id is None:
+        parser.error("run= parameter is required")
 
     cd_repo_root()
 
@@ -112,10 +117,6 @@ def main():
 
     if not check_config_files(cmd_args):
         sys.exit(1)
-
-    run_id = args.run
-    if args.id_suffix:
-        run_id = f"{args.run}.{args.id_suffix}"
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
     task = task.update_envs(
