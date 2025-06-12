@@ -99,11 +99,18 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.7"
 
-      - name: Install Dependencies
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+          enable-cache: true
+
+      - name: Install dependencies
+        shell: bash
         run: |
-          pip install -r .github/scripts/requirements-claude-review.txt
+          uv pip install --system -r .github/scripts/requirements-claude-review.txt
 
       - name: Consolidate Reviews and Create GitHub Review
         id: consolidate

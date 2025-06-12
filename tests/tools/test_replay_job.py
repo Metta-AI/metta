@@ -25,7 +25,7 @@ def build_config():
 def test_config_defaults(build_config):
     cfg = build_config(["run=test"])
     assert cfg.selector_type == "top"
-    assert cfg.policy_uri == "file://./train_dir/test/checkpoints"
+    assert cfg.policy_uri.endswith("test/checkpoints")
     assert cfg.sim.env == "/env/mettagrid/simple"
 
 

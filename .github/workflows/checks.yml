@@ -266,8 +266,31 @@ jobs:
           retention-days: 1
           if-no-files-found: warn
 
+      - name: Check evals smoke test policy availability
+        id: check_evals_policy
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+        run: |
+          # Smoke test configuration
+          EVAL_SMOKE_TEST_POLICY="b.rwalters.0605.nav.pr811.00"
+
+          echo "Checking WANDB for metta-research/metta/runs/$EVAL_SMOKE_TEST_POLICY"
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $WANDB_API_KEY" \
+            "https://api.wandb.ai/runs/metta-research/metta/$EVAL_SMOKE_TEST_POLICY")
+
+          echo "WANDB run check returned HTTP $STATUS_CODE"
+
+          if [ "$STATUS_CODE" != "200" ]; then
+            exit 78  # Exit with code 78 to signal a neutral result — this causes
+                    # GitHub Actions to mark the step as 'skipped' rather than 'success' or 'failure'.
+                    # This allows conditional steps to check:
+                    #   if: steps.check_evals_policy.outcome == 'success'  # to continue
+          fi
+
       - name: Run evals smoke test
         id: eval_smoke_test
+        if: steps.check_evals_policy.outcome == 'success'
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
