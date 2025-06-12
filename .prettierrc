@@ -1,51 +1,64 @@
 {
+  "semi": true,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "es5",
+  "printWidth": 80,
   "overrides": [
-  {
-    "files": ["*.yml", "*.yaml"],
-    "options": {
-      "parser": "yaml",
-      "singleQuote": false,
-      "printWidth": 100,
-      "tabWidth": 2,
-      "useTabs": false,
-      "trailingComma": "none",
-      "bracketSpacing": true,
-      "proseWrap": "preserve",
-      "endOfLine": "lf",
-      "arrowParens": "avoid"
+    {
+      "files": [".vscode/*.json", "*.code-workspace"],
+      "options": {
+        "parser": "jsonc",
+        "singleQuote": false,
+        "trailingComma": "none"
+      }
+    },
+    {
+      "files": ["*.yml", "*.yaml"],
+      "options": {
+        "parser": "yaml",
+        "singleQuote": false,
+        "printWidth": 100,
+        "tabWidth": 2,
+        "useTabs": false,
+        "trailingComma": "none",
+        "bracketSpacing": true,
+        "proseWrap": "preserve",
+        "endOfLine": "lf",
+        "arrowParens": "avoid"
+      }
+    },
+    {
+      "files": ["*.sh"],
+      "options": {
+        "parser": "sh",
+        "plugins": ["prettier-plugin-sh"],
+        "printWidth": 100,
+        "tabWidth": 2,
+        "useTabs": false,
+        "singleQuote": true,
+        "bracketSpacing": true,
+        "endOfLine": "lf",
+        "indent": 2,
+        "keepComments": true,
+        "keepPadding": false,
+        "functionNextLine": false,
+        "switchCaseIndent": true,
+        "spaceRedirects": true
+      }
+    },
+    {
+      "files": ["*.toml"],
+      "options": {
+        "parser": "toml",
+        "plugins": ["prettier-plugin-toml"],
+        "printWidth": 100,
+        "tabWidth": 2,
+        "useTabs": false,
+        "singleQuote": true,
+        "bracketSpacing": true,
+        "endOfLine": "lf"
+      }
     }
-  },
-  {
-    "files": ["*.sh"],
-    "options": {
-      "parser": "sh",
-      "plugins": ["prettier-plugin-sh"],
-      "printWidth": 100,
-      "tabWidth": 2,
-      "useTabs": false,
-      "singleQuote": true,
-      "bracketSpacing": true,
-      "endOfLine": "lf",
-      "indent": 2,
-      "keepComments": true,
-      "keepPadding": false,
-      "functionNextLine": false,
-      "switchCaseIndent": true,
-      "spaceRedirects": true
-    }
-  },
-  {
-    "files": ["*.toml"],
-    "options": {
-      "parser": "toml",
-      "plugins": ["prettier-plugin-toml"],
-      "printWidth": 100,
-      "tabWidth": 2,
-      "useTabs": false,
-      "singleQuote": true,
-      "bracketSpacing": true,
-      "endOfLine": "lf"
-    }
-  }
   ]
- }
+}
