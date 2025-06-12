@@ -66,32 +66,48 @@ class ObsTokenShaper(LayerBase):
             # observations = observations.flatten(0, 1)
         td["_BxTT_"] = B * TT
 
+        # PERFORMANCE DEBUG: Comment out coordinate parsing operations
         # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
-        coords_byte = observations[..., 0].to(torch.uint8)
+        # coords_byte = observations[..., 0].to(torch.uint8)
 
         # Extract x and y coordinate indices (0-15 range)
-        x_coord_indices = (coords_byte >> 4) & 0x0F  # Shape: [B_TT, M]
-        y_coord_indices = coords_byte & 0x0F  # Shape: [B_TT, M]
+        # x_coord_indices = (coords_byte >> 4) & 0x0F  # Shape: [B_TT, M]
+        # y_coord_indices = coords_byte & 0x0F  # Shape: [B_TT, M]
 
         # Combine x and y indices to a single index for embedding lookup (0-255 range)
         # Assuming 16 possible values for x (0-15)
-        combined_coord_indices = y_coord_indices * 16 + x_coord_indices
-        coord_pair_embedding = self._coord_embeds(combined_coord_indices.long())  # [B_TT, M, 4]
+        # combined_coord_indices = y_coord_indices * 16 + x_coord_indices
+        # coord_pair_embedding = self._coord_embeds(combined_coord_indices.long())  # [B_TT, M, 4]
 
-        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
+        # PERFORMANCE DEBUG: Replace with fixed embedding lookup
+        B_TT = observations.shape[0]
+        M = observations.shape[1]
+        fixed_coord_idx = torch.zeros((B_TT, M), dtype=torch.long, device=observations.device)
+        coord_pair_embedding = self._coord_embeds(fixed_coord_idx)  # [B_TT, M, embed_dim]
+
+        # PERFORMANCE DEBUG: Comment out attribute embedding lookup
+        # atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+        # atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
+
+        # PERFORMANCE DEBUG: Replace with fixed attribute embedding lookup
+        fixed_atr_idx = torch.ones((B_TT, M), dtype=torch.long, device=observations.device)
+        atr_embeds = self._atr_embeds(fixed_atr_idx)  # [B_TT, M, embed_dim]
 
         combined_embeds = atr_embeds + coord_pair_embedding
 
-        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+        # PERFORMANCE DEBUG: Comment out normalization operations
+        # atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
 
         # Gather normalization factors based on atr_indices
-        norm_factors = self._norm_factors[atr_indices]  # Shape: [B_TT, M]
+        # norm_factors = self._norm_factors[atr_indices]  # Shape: [B_TT, M]
 
         # Normalize atr_values
         # no epsilon to prevent division by zero - we want to fail if we have a bad normalization
-        normalized_atr_values = atr_values / (norm_factors)
-        normalized_atr_values = normalized_atr_values.unsqueeze(-1)  # Shape: [B_TT, M, 1]
+        # normalized_atr_values = atr_values / (norm_factors)
+        # normalized_atr_values = normalized_atr_values.unsqueeze(-1)  # Shape: [B_TT, M, 1]
+
+        # PERFORMANCE DEBUG: Replace with simple fixed values
+        normalized_atr_values = torch.ones((B_TT, M, 1), dtype=observations.dtype, device=observations.device)
 
         # Assemble feature vectors
         # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
@@ -104,7 +120,11 @@ class ObsTokenShaper(LayerBase):
         feat_vectors[..., : self._atr_embed_dim] = combined_embeds
         feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = normalized_atr_values
 
-        obs_mask = atr_indices == 0  # important! true means 0 ie mask me
+        # PERFORMANCE DEBUG: Comment out mask computation
+        # obs_mask = atr_indices == 0  # important! true means 0 ie mask me
+
+        # PERFORMANCE DEBUG: Replace with fixed mask
+        obs_mask = torch.zeros((B_TT, M), dtype=torch.bool, device=observations.device)
 
         td[self._name] = feat_vectors
         td["obs_mask"] = obs_mask
