@@ -49,10 +49,13 @@ def get_current_commit() -> str:
 
 
 def commit_exists(commit_hash: str) -> bool:
-    """Check whether a given commit hash exists in the repository."""
+    """
+    Check if the commit can be checked out. This verifies the commit object
+    exists locally and is a full commit (not a tag/blob/partial).
+    """
     try:
-        run_git("cat-file", "-e", f"{commit_hash}^{commit_hash and ''}")
-        return True
+        obj_type = run_git("cat-file", "-t", commit_hash)
+        return obj_type.strip() == "commit"
     except GitError:
         return False
 
