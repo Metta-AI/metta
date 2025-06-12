@@ -9,17 +9,17 @@ class HttpClient(ABC):
     """Abstract HTTP client interface."""
 
     @abstractmethod
-    async def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """Make a GET request."""
         pass
 
     @abstractmethod
-    async def post(self, url: str, json: Optional[Dict[str, Any]] = None) -> Any:
+    def post(self, url: str, json: Optional[Dict[str, Any]] = None) -> Any:
         """Make a POST request."""
         pass
 
     @abstractmethod
-    async def close(self):
+    def close(self):
         """Close the HTTP client. Optional method."""
         pass
 
@@ -30,27 +30,27 @@ class HttpxClient(HttpClient):
     def __init__(self, base_url: str = "http://localhost:8000", timeout: float = 30.0):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self._client = httpx.AsyncClient(timeout=timeout)
+        self._client = httpx.Client(timeout=timeout)
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
-    async def close(self):
+    def close(self):
         """Close the HTTP client."""
-        await self._client.aclose()
+        self._client.close()
 
-    async def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> httpx.Response:
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> httpx.Response:
         """Make a GET request."""
         full_url = f"{self.base_url}{url}"
-        return await self._client.get(full_url, params=params)
+        return self._client.get(full_url, params=params)
 
-    async def post(self, url: str, json: Optional[Dict[str, Any]] = None) -> httpx.Response:
+    def post(self, url: str, json: Optional[Dict[str, Any]] = None) -> httpx.Response:
         """Make a POST request."""
         full_url = f"{self.base_url}{url}"
-        return await self._client.post(full_url, json=json)
+        return self._client.post(full_url, json=json)
 
 
 class FastAPITestClientAdapter(HttpClient):
@@ -59,14 +59,14 @@ class FastAPITestClientAdapter(HttpClient):
     def __init__(self, test_client: TestClient):
         self.test_client = test_client
 
-    async def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """Make a GET request using TestClient."""
         return self.test_client.get(url, params=params)
 
-    async def post(self, url: str, json: Optional[Dict[str, Any]] = None) -> Any:
+    def post(self, url: str, json: Optional[Dict[str, Any]] = None) -> Any:
         """Make a POST request using TestClient."""
         return self.test_client.post(url, json=json)
 
-    async def close(self):
+    def close(self):
         """Close the HTTP client."""
         pass

@@ -26,17 +26,17 @@ class StatsClient:
         """
         self.http_client = http_client
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
-    async def close(self):
+    def close(self):
         """Close the HTTP client."""
-        await self.http_client.close()
+        self.http_client.close()
 
-    async def get_policy_ids(self, policy_names: List[str]) -> PolicyIdResponse:
+    def get_policy_ids(self, policy_names: List[str]) -> PolicyIdResponse:
         """
         Get policy IDs for given policy names.
 
@@ -50,11 +50,11 @@ class StatsClient:
             httpx.HTTPStatusError: If the request fails
         """
         params = {"policy_names": policy_names}
-        response = await self.http_client.get("/stats/policies/ids", params=params)
+        response = self.http_client.get("/stats/policies/ids", params=params)
         response.raise_for_status()
         return PolicyIdResponse(**response.json())
 
-    async def create_training_run(
+    def create_training_run(
         self, name: str, user_id: str, attributes: Optional[Dict[str, str]] = None, url: Optional[str] = None
     ) -> TrainingRunResponse:
         """
@@ -73,11 +73,11 @@ class StatsClient:
             httpx.HTTPStatusError: If the request fails
         """
         data = TrainingRunCreate(name=name, user_id=user_id, attributes=attributes or {}, url=url)
-        response = await self.http_client.post("/stats/training-runs", json=data.model_dump())
+        response = self.http_client.post("/stats/training-runs", json=data.model_dump())
         response.raise_for_status()
         return TrainingRunResponse(**response.json())
 
-    async def create_policy_epoch(
+    def create_policy_epoch(
         self,
         run_id: int,
         start_training_epoch: int,
@@ -104,11 +104,11 @@ class StatsClient:
             end_training_epoch=end_training_epoch,
             attributes=attributes or {},
         )
-        response = await self.http_client.post(f"/stats/training-runs/{run_id}/epochs", json=data.model_dump())
+        response = self.http_client.post(f"/stats/training-runs/{run_id}/epochs", json=data.model_dump())
         response.raise_for_status()
         return PolicyEpochResponse(**response.json())
 
-    async def create_policy(
+    def create_policy(
         self, name: str, description: Optional[str] = None, url: Optional[str] = None, epoch_id: Optional[int] = None
     ) -> PolicyResponse:
         """
@@ -127,11 +127,11 @@ class StatsClient:
             httpx.HTTPStatusError: If the request fails
         """
         data = PolicyCreate(name=name, description=description, url=url, epoch_id=epoch_id)
-        response = await self.http_client.post("/stats/policies", json=data.model_dump())
+        response = self.http_client.post("/stats/policies", json=data.model_dump())
         response.raise_for_status()
         return PolicyResponse(**response.json())
 
-    async def record_episode(
+    def record_episode(
         self,
         agent_policies: Dict[int, int],
         agent_metrics: Dict[int, Dict[str, float]],
@@ -171,6 +171,6 @@ class StatsClient:
             replay_url=replay_url,
             attributes=attributes or {},
         )
-        response = await self.http_client.post("/stats/episodes", json=data.model_dump())
+        response = self.http_client.post("/stats/episodes", json=data.model_dump())
         response.raise_for_status()
         return EpisodeResponse(**response.json())

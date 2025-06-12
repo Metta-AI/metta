@@ -51,12 +51,11 @@ class TestStatsServerSimple:
         http_client = FastAPITestClientAdapter(test_client)
         return StatsClient(http_client)
 
-    @pytest.mark.asyncio
-    async def test_complete_workflow(self, stats_client):
+    def test_complete_workflow(self, stats_client):
         """Test the complete end-to-end workflow."""
 
         # 1. Create a training run
-        training_run = await stats_client.create_training_run(
+        training_run = stats_client.create_training_run(
             name="test_training_run",
             user_id="test_user",
             attributes={"environment": "test_env", "algorithm": "test_alg"},
@@ -65,7 +64,7 @@ class TestStatsServerSimple:
         assert training_run.id > 0
 
         # 2. Create an epoch
-        epoch = await stats_client.create_policy_epoch(
+        epoch = stats_client.create_policy_epoch(
             run_id=training_run.id,
             start_training_epoch=0,
             end_training_epoch=100,
@@ -74,7 +73,7 @@ class TestStatsServerSimple:
         assert epoch.id > 0
 
         # 3. Create a policy
-        policy = await stats_client.create_policy(
+        policy = stats_client.create_policy(
             name="test_policy_v1",
             description="Test policy for end-to-end testing",
             url="https://example.com/policy",
@@ -83,13 +82,11 @@ class TestStatsServerSimple:
         assert policy.id > 0
 
         # 4. Create another policy for agent diversity
-        policy2 = await stats_client.create_policy(
-            name="test_policy_v2", description="Second test policy", epoch_id=epoch.id
-        )
+        policy2 = stats_client.create_policy(name="test_policy_v2", description="Second test policy", epoch_id=epoch.id)
         assert policy2.id > 0
 
         # 5. Record an episode
-        episode = await stats_client.record_episode(
+        episode = stats_client.record_episode(
             agent_policies={0: policy.id, 1: policy2.id},
             agent_metrics={
                 0: {"reward": 100.5, "steps": 50.0, "success_rate": 0.8},
@@ -105,29 +102,26 @@ class TestStatsServerSimple:
         assert episode.id > 0
 
         # 6. Test policy ID lookup
-        policy_ids = await stats_client.get_policy_ids(["test_policy_v1", "test_policy_v2"])
+        policy_ids = stats_client.get_policy_ids(["test_policy_v1", "test_policy_v2"])
         assert policy_ids.policy_ids["test_policy_v1"] == policy.id
         assert policy_ids.policy_ids["test_policy_v2"] == policy2.id
 
-    @pytest.mark.asyncio
-    async def test_multiple_episodes(self, stats_client):
+    def test_multiple_episodes(self, stats_client):
         """Test recording multiple episodes."""
 
         # Create a training run
-        training_run = await stats_client.create_training_run(name="multi_episode_test", user_id="test_user")
+        training_run = stats_client.create_training_run(name="multi_episode_test", user_id="test_user")
 
         # Create an epoch
-        epoch = await stats_client.create_policy_epoch(
-            run_id=training_run.id, start_training_epoch=0, end_training_epoch=10
-        )
+        epoch = stats_client.create_policy_epoch(run_id=training_run.id, start_training_epoch=0, end_training_epoch=10)
 
         # Create a policy
-        policy = await stats_client.create_policy(name="multi_episode_policy", epoch_id=epoch.id)
+        policy = stats_client.create_policy(name="multi_episode_policy", epoch_id=epoch.id)
 
         # Record multiple episodes
         episode_ids = []
         for i in range(5):
-            episode = await stats_client.record_episode(
+            episode = stats_client.record_episode(
                 agent_policies={0: policy.id},
                 agent_metrics={0: {"reward": float(i * 10), "steps": float(i * 5)}},
                 primary_policy_id=policy.id,
@@ -140,16 +134,14 @@ class TestStatsServerSimple:
         # Verify all episodes have different IDs
         assert len(set(episode_ids)) == 5
 
-    @pytest.mark.asyncio
-    async def test_policy_id_lookup_empty(self, stats_client):
+    def test_policy_id_lookup_empty(self, stats_client):
         """Test policy ID lookup with empty list."""
-        policy_ids = await stats_client.get_policy_ids([])
+        policy_ids = stats_client.get_policy_ids([])
         assert policy_ids.policy_ids == {}
 
-    @pytest.mark.asyncio
-    async def test_policy_id_lookup_nonexistent(self, stats_client):
+    def test_policy_id_lookup_nonexistent(self, stats_client):
         """Test policy ID lookup for non-existent policies."""
-        policy_ids = await stats_client.get_policy_ids(["nonexistent_policy"])
+        policy_ids = stats_client.get_policy_ids(["nonexistent_policy"])
         assert policy_ids.policy_ids == {}
 
 
