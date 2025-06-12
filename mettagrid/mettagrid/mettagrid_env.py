@@ -109,9 +109,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         level = self._level
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
-            with self.timer("_initialize_c_env.instantiate"):
+            with self.timer("_initialize_c_env.hydra"):
                 map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
-            level = map_builder.build()
+            with self.timer("_initialize_c_env.map_builder"):
+                level = map_builder.build()
 
         # Validate the level
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
