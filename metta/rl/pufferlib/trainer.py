@@ -116,11 +116,12 @@ class PufferTrainer:
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
-        self.policy_record = policy_record
         self.policy = policy_record.policy().to(self.device)
+        self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
-        # Action setup
+        # Note that these fields are specific to MettaGridEnv, which is why we can't keep
+        # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
@@ -186,9 +187,6 @@ class PufferTrainer:
                     f"Environment observation shape: {environment_shape}"
                 )
 
-        if checkpoint.agent_step > 0:
-            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
-
         # Learning rate scheduler
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
@@ -196,8 +194,13 @@ class PufferTrainer:
                 self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
             )
 
-        # Monitoring
+        if checkpoint.agent_step > 0:
+            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
+        if wandb_run and self._master:
+            wandb_run.define_metric("train/agent_step")
+            for k in ["overview", "env", "losses", "performance", "train"]:
+                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
         self.model_size = sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
         self.experience = None  # For compatibility
 
@@ -210,12 +213,6 @@ class PufferTrainer:
 
         self.timer = Stopwatch(logger)
         self.timer.start()
-
-        # Define wandb metrics
-        if wandb_run and self._master:
-            wandb_run.define_metric("train/agent_step")
-            for k in ["overview", "env", "losses", "performance", "train"]:
-                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
 
@@ -463,7 +460,6 @@ class PufferTrainer:
                     env_id = slice(env_id[0], env_id[-1] + 1)
                     num_steps = sum(mask)
                     self.agent_step += num_steps * self._world_size
-                    self.global_step = self.agent_step
 
                     o = torch.as_tensor(o)
                     o_device = o.to(device, non_blocking=True)
