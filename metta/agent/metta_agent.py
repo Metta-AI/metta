@@ -11,7 +11,12 @@ from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+from metta.agent.util.distribution_utils import (
+    evaluate_actions,
+    evaluate_actions_with_kl,
+    sample_actions,
+    sample_actions_with_kl,
+)
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -173,7 +178,48 @@ class MettaAgent(nn.Module):
                 action_index.append([action_type_idx, j])
 
         self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
+
+        # Create target action distribution based on preferences
+        # Action list: ['put_recipe_items_0', 'get_output_0', 'noop_0', 'move_0', 'move_1',
+        #               'rotate_0', 'rotate_1', 'rotate_2', 'rotate_3',
+        #               'attack_0', 'attack_1', 'attack_2', 'attack_3', 'attack_4',
+        #               'attack_5', 'attack_6', 'attack_7', 'attack_8', 'attack_9',
+        #               'attack_nearest_0', 'swap_0',
+        #               'change_color_0', 'change_color_1', 'change_color_2', 'change_color_3']
+
+        target_probs = torch.zeros(len(full_action_names), device=self.device, dtype=torch.float32)
+
+        # Define probabilities based on user preferences
+        # High frequency actions (put, get, move, rotate, swap)
+        target_probs[0] = 0.09  # put_recipe_items_0
+        target_probs[1] = 0.065  # get_output_0
+        target_probs[2] = 0.005  # noop_0 (low frequency)
+        target_probs[3] = 0.09  # move_0
+        target_probs[4] = 0.09  # move_1
+        target_probs[5] = 0.065  # rotate_0
+        target_probs[6] = 0.065  # rotate_1
+        target_probs[7] = 0.065  # rotate_2
+        target_probs[8] = 0.065  # rotate_3
+
+        # Strongly suppress attack actions (indices 9-19)
+        for i in range(9, 20):
+            target_probs[i] = 0.005  # attack_0 through attack_nearest_0
+
+        target_probs[20] = 0.08  # swap_0 (high frequency)
+
+        # Strongly suppress change_color actions (indices 21-24)
+        for i in range(21, 25):
+            target_probs[i] = 0.005  # change_color_0 through change_color_3
+
+        # Normalize to ensure it sums to 1
+        target_probs = target_probs / target_probs.sum()
+
+        # Store target distribution
+        self.target_action_probs = target_probs
+        self.use_kl_divergence = True  # Flag to use KL divergence instead of entropy
+
         logger.info(f"Agent actions activated with: {self.active_actions}")
+        logger.info(f"Target action distribution created with shape: {self.target_action_probs.shape}")
 
     @property
     def lstm(self):
@@ -194,10 +240,10 @@ class MettaAgent(nn.Module):
             logits: Action logits tensor, shape (BT, A)
 
         Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            Tuple of (action, action_log_prob, entropy_or_kl, value, log_probs)
             - action: Sampled action, shape (BT, 2)
             - action_log_prob: Log probability of the sampled action, shape (BT,)
-            - entropy: Entropy of the action distribution, shape (BT,)
+            - entropy_or_kl: Entropy or KL divergence of the action distribution, shape (BT,)
             - value: Value estimate, shape (BT, 1)
             - log_probs: Log-softmax of logits, shape (BT, A)
         """
@@ -206,12 +252,17 @@ class MettaAgent(nn.Module):
             assert_shape(logits, ("BT", "A"), "inference_logits")
 
         # Sample actions
-        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
+        if hasattr(self, "use_kl_divergence") and self.use_kl_divergence:
+            action_logit_index, action_log_prob, entropy_or_kl, log_probs = sample_actions_with_kl(
+                logits, self.target_action_probs
+            )
+        else:
+            action_logit_index, action_log_prob, entropy_or_kl, log_probs = sample_actions(logits)
 
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "action_logit_index")
             assert_shape(action_log_prob, ("BT",), "action_log_prob")
-            assert_shape(entropy, ("BT",), "entropy")
+            assert_shape(entropy_or_kl, ("BT",), "entropy_or_kl")
             assert_shape(log_probs, ("BT", "A"), "log_probs")
 
         # Convert logit index to action
@@ -220,7 +271,7 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action, ("BT", 2), "inference_output_action")
 
-        return action, action_log_prob, entropy, value, log_probs
+        return action, action_log_prob, entropy_or_kl, value, log_probs
 
     def forward_training(
         self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor
@@ -234,10 +285,10 @@ class MettaAgent(nn.Module):
             action: Action tensor for evaluation, shape (B, T, 2)
 
         Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            Tuple of (action, action_log_prob, entropy_or_kl, value, log_probs)
             - action: Same as input action, shape (B, T, 2)
             - action_log_prob: Log probability of the provided action, shape (BT,)
-            - entropy: Entropy of the action distribution, shape (BT,)
+            - entropy_or_kl: Entropy or KL divergence of the action distribution, shape (BT,)
             - value: Value estimate, shape (BT, 1)
             - log_probs: Log-softmax of logits, shape (BT, A)
         """
@@ -253,15 +304,20 @@ class MettaAgent(nn.Module):
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "converted_action_logit_index")
 
-        action_log_prob, entropy, log_probs = evaluate_actions(logits, action_logit_index)
+        if hasattr(self, "use_kl_divergence") and self.use_kl_divergence:
+            action_log_prob, entropy_or_kl, log_probs = evaluate_actions_with_kl(
+                logits, action_logit_index, self.target_action_probs
+            )
+        else:
+            action_log_prob, entropy_or_kl, log_probs = evaluate_actions(logits, action_logit_index)
 
         if __debug__:
             assert_shape(action_log_prob, ("BT",), "training_action_log_prob")
-            assert_shape(entropy, ("BT",), "training_entropy")
+            assert_shape(entropy_or_kl, ("BT",), "training_entropy_or_kl")
             assert_shape(log_probs, ("BT", "A"), "training_log_probs")
             assert_shape(action, ("B", "T", 2), "training_output_action")
 
-        return action, action_log_prob, entropy, value, log_probs
+        return action, action_log_prob, entropy_or_kl, value, log_probs
 
     def forward(
         self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
