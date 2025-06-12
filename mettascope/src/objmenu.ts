@@ -4,7 +4,7 @@
  * It allows the user to set the memory to 0, 1, or random.
  * It also allows the user to copy and paste the memory.
  * Cool thing about copy and paste is that it uses the clipboard,
- * so it works across tabs, can be saved to a file or send across devices.
+ * so it works across tabs, can be saved to a file or sent across devices.
  */
 
 import { find, findIn, onEvent, showMenu, findAttr } from "./htmlutils.js";
