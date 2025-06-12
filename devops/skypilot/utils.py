@@ -202,18 +202,12 @@ def display_job_summary(
     print(f"\n{divider}")
 
 
-def get_user_confirmation(
-    dry_run: bool = False, skip_validation: bool = False, prompt: str = "Should we proceed?"
-) -> bool:
+def get_user_confirmation(prompt: str = "Should we proceed?") -> bool:
     """Get user confirmation before proceeding with an action."""
-    if dry_run:
-        print(bold("DRY RUN - No action will be taken"))
-        return False
 
-    if not skip_validation:
-        response = input(f"{prompt} (Y/n): ").strip().lower()
-        if response not in ["", "y", "yes"]:
-            print(yellow("Action cancelled by user."))
-            return False
+    response = input(f"{prompt} (Y/n): ").strip().lower()
+    if response not in ["", "y", "yes"]:
+        print(yellow("Action cancelled by user."))
+        return False
 
     return True

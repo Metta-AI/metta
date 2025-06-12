@@ -91,7 +91,7 @@ def main():
         help="Automatically terminate the job after this many hours (supports decimals, e.g., 1.5 for 90 minutes)",
     )
     parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
-    parser.add_argument("--skip-validation", action="store_true", help="Skip confirmation prompt")
+    parser.add_argument("--confirm", action="store_true", help="Show confirmation prompt")
     parser.add_argument(
         "--id_suffix",
         dest="id_suffix",
@@ -146,8 +146,7 @@ def main():
         task=task,
         **extra_details,
     )
-
-    if not get_user_confirmation(args.dry_run, args.skip_validation, "Should we launch this task?"):
+    if args.confirm and not get_user_confirmation("Should we launch this task?"):
         sys.exit(0)
 
     # Launch the task(s)
