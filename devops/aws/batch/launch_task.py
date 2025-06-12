@@ -120,7 +120,8 @@ def validate_batch_job(args, task_args, job_name, job_queue, job_definition, req
     if args.cmd == "train":
         critical_files.append("tools/train.py")
     elif args.cmd == "sweep":
-        critical_files.append("tools/sweep.py")
+        critical_files.append("tools/sweep_eval.py")
+        critical_files.append("tools/sweep_init.py")
     elif args.cmd == "evolve":
         critical_files.append("tools/evolve.py")
 
@@ -292,7 +293,7 @@ def submit_batch_job(args, task_args):
         "jobQueue": job_queue,
         "jobDefinition": job_definition,
         "containerOverrides": container_config(args, task_args, job_name),
-        "retryStrategy": {"attempts": 1},
+        "retryStrategy": {"attempts": 10},
     }
 
     if args.num_nodes > 1:
@@ -345,6 +346,7 @@ def submit_batch_job(args, task_args):
 
 def main():
     parser = argparse.ArgumentParser(description="Launch an AWS Batch task with a wandb key.")
+    parser.add_argument("--force", action="store_true", help="Force use of deprecated script")
     parser.add_argument("--cluster", default="metta")
     parser.add_argument("--run", required=True)
     parser.add_argument("--job-name", help="The job name. If not specified, will use run id with random suffix.")
@@ -357,8 +359,8 @@ def main():
     git_group.add_argument("--git-branch", help="Use the HEAD of a specific git branch instead of current commit")
     git_group.add_argument("--git-commit", help="Use a specific git commit hash")
 
-    parser.add_argument("--gpus", type=int, default=1)
-    parser.add_argument("--node-gpus", type=int, default=1)
+    parser.add_argument("--gpus", type=int, default=4)
+    parser.add_argument("--node-gpus", type=int, default=4)
     parser.add_argument("--gpu-cpus", type=int)
     parser.add_argument("--node-ram-gb", type=int)
     parser.add_argument("--copies", type=int, default=1)
@@ -375,6 +377,11 @@ def main():
         help="Automatically terminate the job after this many minutes.",
     )
     args, task_args = parser.parse_known_args()
+
+    if not args.force:
+        print(red("This script is deprecated. Please use ./devops/skypilot/launch.py instead."))
+        print(yellow("Use --force to bypass this check if needed."))
+        sys.exit(1)
 
     use_colors(sys.stdout.isatty() and not args.no_color)
 

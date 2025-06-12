@@ -404,6 +404,7 @@ for COMMIT in $COMMITS; do
     --timeout-minutes=30 \
     --skip-validation \
     --skip-push-check \
+    --force \
     trainer.env=env/mettagrid/simple
 
   # Log job details
