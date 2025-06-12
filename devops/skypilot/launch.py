@@ -2,7 +2,6 @@
 import argparse
 import copy
 import shlex
-import subprocess
 import sys
 
 import sky
@@ -15,6 +14,7 @@ from devops.skypilot.utils import (
     launch_task,
 )
 from metta.util.fs import cd_repo_root
+from metta.util.git import get_current_commit
 
 
 def patch_task(
@@ -106,24 +106,21 @@ def main():
     )
     (args, cmd_args) = parser.parse_known_args()
 
-    # Ensure we're in the repository root
     cd_repo_root()
 
-    # Run validations
-    if not check_git_state(args.skip_git_check):
+    git_ref = args.git_ref
+    if not git_ref:
+        git_ref = get_current_commit()
+
+    if not check_git_state(args.skip_git_check, git_ref):
         sys.exit(1)
 
     if not check_config_files(cmd_args):
         sys.exit(1)
 
-    # Build final run ID
     run_id = args.run
     if args.id_suffix:
         run_id = f"{args.run}.{args.id_suffix}"
-
-    git_ref = args.git_ref
-    if not git_ref:
-        git_ref = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
     task = task.update_envs(
@@ -141,7 +138,6 @@ def main():
         task, cpus=args.cpus, gpus=args.gpus, nodes=args.nodes, no_spot=args.no_spot, timeout_hours=args.timeout_hours
     )
 
-    # Show job summary
     extra_details = {}
     if args.copies > 1:
         extra_details["copies"] = args.copies
@@ -156,7 +152,6 @@ def main():
         **extra_details,
     )
 
-    # Get confirmation
     if not get_user_confirmation(args.dry_run, args.skip_validation, "Should we launch this task?"):
         sys.exit(0)
 

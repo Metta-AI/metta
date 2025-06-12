@@ -39,8 +39,8 @@ def launch_task(task: sky.Task, dry_run=False):
     print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
 
 
-def check_git_state(skip_check: bool = False) -> bool:
-    """Check for uncommitted changes and unpushed commits that won't be reflected in the cloud."""
+def check_git_state(skip_check: bool = False, commit_hash: Optional[str] = None) -> bool:
+    """Check that the local git state will be matched in the cloud job."""
     if skip_check:
         return True
 
@@ -53,9 +53,10 @@ def check_git_state(skip_check: bool = False) -> bool:
         print("  - Stash: git stash")
         issues_found = True
 
-    current_commit = get_current_commit()
-    if current_commit and not is_commit_pushed(current_commit):
-        print(red("❌ Your current commit hasn't been pushed and won't be reflected in the cloud job."))
+    target_commit = commit_hash or get_current_commit()
+    if target_commit and not is_commit_pushed(target_commit):
+        commit_display = target_commit[:8]
+        print(red(f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job."))
         print("Options:")
         print("  - Push: git push")
         issues_found = True
