@@ -191,7 +191,7 @@ class MettaAgent(nn.Module):
 
         # Define probabilities based on user preferences
         # High frequency actions (put, get, move, rotate, swap)
-        target_probs[0] = 0.09  # put_recipe_items_0
+        target_probs[0] = 0.005  # put_recipe_items_0
         target_probs[1] = 0.065  # get_output_0
         target_probs[2] = 0.005  # noop_0 (low frequency)
         target_probs[3] = 0.09  # move_0
@@ -205,7 +205,7 @@ class MettaAgent(nn.Module):
         for i in range(9, 20):
             target_probs[i] = 0.005  # attack_0 through attack_nearest_0
 
-        target_probs[20] = 0.08  # swap_0 (high frequency)
+        target_probs[20] = 0.005  # swap_0 (high frequency)
 
         # Strongly suppress change_color actions (indices 21-24)
         for i in range(21, 25):
