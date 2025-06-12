@@ -212,19 +212,28 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
             # Convert numpy types to Python native types for OmegaConf compatibility
             import numpy as np
 
+            def clean_numpy_types(obj):
+                """Recursively convert numpy types to Python native types."""
+                if isinstance(obj, np.ndarray):
+                    return obj.item() if obj.size == 1 else obj.tolist()
+                elif isinstance(obj, np.generic):
+                    return obj.item()
+                elif isinstance(obj, dict):
+                    return {k: clean_numpy_types(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [clean_numpy_types(v) for v in obj]
+                return obj
+
             # Clean up Protein suggestions - handle numpy types properly
-            suggestion_clean = {}
-            for key, value in suggestion.items():
-                if key == "suggestion_uuid":
-                    suggestion_clean[key] = value
-                elif isinstance(value, (np.ndarray, np.generic)):
-                    # Convert numpy types to Python native types
-                    suggestion_clean[key] = value.item()
-                else:
-                    suggestion_clean[key] = value
+            suggestion_clean = clean_numpy_types(suggestion)
 
             logger.info(f"Cleaned Protein suggestions: {suggestion_clean}")
-            apply_protein_suggestion(train_cfg, OmegaConf.create(suggestion_clean))
+            # Ensure we create a DictConfig, not ListConfig
+            suggestion_config = OmegaConf.create(suggestion_clean)
+            if isinstance(suggestion_config, DictConfig):
+                apply_protein_suggestion(train_cfg, suggestion_config)
+            else:
+                logger.error(f"Unexpected suggestion config type: {type(suggestion_config)}")
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             OmegaConf.save(train_cfg, save_path)
             logger.info(f"Saved train config overrides to {save_path}")
