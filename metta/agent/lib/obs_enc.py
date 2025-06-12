@@ -336,7 +336,8 @@ class ObsVanillaAttn(LayerBase):
             if key_mask is not None:
                 # key_mask: [B, M] -> [B, 1, M] for broadcasting
                 # True in key_mask means mask out, so fill with -inf
-                attn_scores.masked_fill_(key_mask.unsqueeze(1), -torch.finfo(attn_scores.dtype).max)
+                mask_value = -torch.finfo(attn_scores.dtype).max
+                attn_scores = attn_scores + key_mask.unsqueeze(1).to(attn_scores.dtype) * mask_value
 
             attn_weights = torch.softmax(attn_scores, dim=-1)  # [B, M, M]
 
@@ -494,10 +495,8 @@ class ObsCrossAttn(LayerBase):
 
         # Apply mask
         if key_mask is not None:
-            # key_mask shape: [B_TT, M] -> unsqueeze to [B_TT, 1, M] for broadcasting
-            # This will broadcast across the num_query_tokens dimension.
-            key_mask_expanded = key_mask.unsqueeze(1)
-            attn_scores = attn_scores.masked_fill(key_mask_expanded, -float("inf"))
+            mask_value = -torch.finfo(attn_scores.dtype).max
+            attn_scores = attn_scores + key_mask.unsqueeze(1).to(attn_scores.dtype) * mask_value
 
         # Softmax to get attention weights
         # attn_weights will have shape [B_TT, num_query_tokens, M]
@@ -605,8 +604,8 @@ class ObsSlotAttn(LayerBase):
             attn_logits = attn_logits / (self._slot_dim**0.5)
 
             if key_mask is not None:
-                # obs_mask: [B_TT, M], need to unsqueeze for broadcasting: [B_TT, 1, M]
-                attn_logits.masked_fill_(key_mask.unsqueeze(1), -float("inf"))
+                mask_value = -torch.finfo(attn_logits.dtype).max
+                attn_logits = attn_logits + key_mask.unsqueeze(1).to(attn_logits.dtype) * mask_value
 
             attn = torch.softmax(attn_logits, dim=-1)  # Shape: [B_TT, num_slots, M]
 
