@@ -7,9 +7,7 @@ from psycopg.rows import class_row
 from psycopg.sql import SQL
 from pydantic import BaseModel
 
-from metta.app.config import stats_repo
-
-router = APIRouter(prefix="/observatory", tags=["observatory"])
+from metta.app.stats_repo import StatsRepo
 
 
 # Pydantic models for API responses
@@ -34,110 +32,6 @@ class GroupDiff(BaseModel):
 
 class GroupHeatmapMetric(BaseModel):
     group_metric: str | GroupDiff
-
-
-@router.get("/suites")
-async def get_suites() -> List[str]:
-    """Get all available simulation suites."""
-    with stats_repo.connect() as con:
-        result = con.execute("""
-            SELECT DISTINCT simulation_suite
-            FROM episodes
-            WHERE simulation_suite IS NOT NULL
-            ORDER BY simulation_suite
-        """)
-        return [row[0] for row in result]
-
-
-@router.get("/suites/{suite}/metrics")
-async def get_metrics(suite: str) -> List[str]:
-    """Get all available metrics for a given suite."""
-    with stats_repo.connect() as con:
-        result = con.execute(
-            """
-            SELECT DISTINCT eam.metric
-            FROM episodes e
-            JOIN episode_agent_metrics eam ON e.id = eam.episode_id
-            WHERE e.simulation_suite = %s
-            ORDER BY eam.metric
-        """,
-            (suite,),
-        )
-        return [row[0] for row in result]
-
-
-@router.get("/suites/{suite}/group-ids")
-async def get_group_ids(suite: str) -> List[str]:
-    """Get all available group IDs for a given suite."""
-    with stats_repo.connect() as con:
-        result = con.execute(
-            """
-            SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
-            FROM episodes e
-            WHERE e.simulation_suite = %s
-            ORDER BY group_id
-        """,
-            (suite,),
-        )
-        return [row[0] for row in result]
-
-
-@router.post("/suites/{suite}/metrics/{metric}/heatmap")
-async def get_heatmap_data(
-    suite: str,
-    metric: str,
-    group_metric: GroupHeatmapMetric,
-) -> HeatmapData:
-    """Get heatmap data for a given suite, metric, and group metric."""
-    with stats_repo.connect() as con:
-        eval_rows = con.execute("SELECT DISTINCT eval_name FROM episodes WHERE simulation_suite = %s", (suite,))
-        all_eval_names: list[str] = [row[0] for row in eval_rows]
-
-        if isinstance(group_metric.group_metric, GroupDiff):
-            group1_rows = get_group_data(con, suite, metric, group_metric.group_metric.group_1)
-            group2_rows = get_group_data(con, suite, metric, group_metric.group_metric.group_2)
-        else:
-            group1_rows = get_group_data(con, suite, metric, group_metric.group_metric)
-            group2_rows: List[GroupDataRow] = []
-
-        all_policy_uris: set[str] = set()
-        for row in group1_rows:
-            all_policy_uris.add(row.policy_uri)
-        for row in group2_rows:
-            all_policy_uris.add(row.policy_uri)
-
-        group_1_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
-        group_2_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
-        for row in group1_rows:
-            group_1_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
-        for row in group2_rows:
-            group_2_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
-
-        cells: Dict[str, Dict[str, HeatmapCell]] = {}
-        for policy_uri in all_policy_uris:
-            cells[policy_uri] = {}
-            for eval_name in all_eval_names:
-                group_1_value = group_1_values.get((policy_uri, eval_name), (0, None))
-                group_2_value = group_2_values.get((policy_uri, eval_name), (0, None))
-
-                cells[policy_uri][eval_name] = HeatmapCell(
-                    evalName=eval_name,
-                    replayUrl=group_1_value[1] if group_1_value[1] is not None else group_2_value[1],
-                    value=group_1_value[0] - group_2_value[0],
-                )
-
-        policy_average_scores: Dict[str, float] = {}
-        for policy_uri in all_policy_uris:
-            policy_cells = cells[policy_uri]
-            policy_average_scores[policy_uri] = sum(cell.value for cell in policy_cells.values()) / len(policy_cells)
-
-        return HeatmapData(
-            evalNames=all_eval_names,
-            cells=cells,
-            policyAverageScores=policy_average_scores,
-            evalAverageScores={},
-            evalMaxScores={},
-        )
 
 
 @dataclass
@@ -183,3 +77,112 @@ def get_group_data(con: Connection, suite: str, metric: str, group: str) -> List
     with con.cursor(row_factory=class_row(GroupDataRow)) as cursor:
         cursor.execute(query, params)
         return cursor.fetchall()
+
+
+def create_dashboard_router(stats_repo: StatsRepo) -> APIRouter:
+    """Create a dashboard router with the given StatsRepo instance."""
+    router = APIRouter(prefix="/observatory", tags=["observatory"])
+
+    @router.get("/suites")
+    async def get_suites() -> List[str]:
+        """Get all available simulation suites."""
+        with stats_repo.connect() as con:
+            result = con.execute("""
+                SELECT DISTINCT simulation_suite
+                FROM episodes
+                WHERE simulation_suite IS NOT NULL
+                ORDER BY simulation_suite
+            """)
+            return [row[0] for row in result]
+
+    @router.get("/suites/{suite}/metrics")
+    async def get_metrics(suite: str) -> List[str]:
+        """Get all available metrics for a given suite."""
+        with stats_repo.connect() as con:
+            result = con.execute(
+                """
+                SELECT DISTINCT eam.metric
+                FROM episodes e
+                JOIN episode_agent_metrics eam ON e.id = eam.episode_id
+                WHERE e.simulation_suite = %s
+                ORDER BY eam.metric
+            """,
+                (suite,),
+            )
+            return [row[0] for row in result]
+
+    @router.get("/suites/{suite}/group-ids")
+    async def get_group_ids(suite: str) -> List[str]:
+        """Get all available group IDs for a given suite."""
+        with stats_repo.connect() as con:
+            result = con.execute(
+                """
+                SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
+                FROM episodes e
+                WHERE e.simulation_suite = %s
+                ORDER BY group_id
+            """,
+                (suite,),
+            )
+            return [row[0] for row in result]
+
+    @router.post("/suites/{suite}/metrics/{metric}/heatmap")
+    async def get_heatmap_data(
+        suite: str,
+        metric: str,
+        group_metric: GroupHeatmapMetric,
+    ) -> HeatmapData:
+        """Get heatmap data for a given suite, metric, and group metric."""
+        with stats_repo.connect() as con:
+            eval_rows = con.execute("SELECT DISTINCT eval_name FROM episodes WHERE simulation_suite = %s", (suite,))
+            all_eval_names: list[str] = [row[0] for row in eval_rows]
+
+            if isinstance(group_metric.group_metric, GroupDiff):
+                group1_rows = get_group_data(con, suite, metric, group_metric.group_metric.group_1)
+                group2_rows = get_group_data(con, suite, metric, group_metric.group_metric.group_2)
+            else:
+                group1_rows = get_group_data(con, suite, metric, group_metric.group_metric)
+                group2_rows: List[GroupDataRow] = []
+
+            all_policy_uris: set[str] = set()
+            for row in group1_rows:
+                all_policy_uris.add(row.policy_uri)
+            for row in group2_rows:
+                all_policy_uris.add(row.policy_uri)
+
+            group_1_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
+            group_2_values: Dict[Tuple[str, str], Tuple[float, str | None]] = {}
+            for row in group1_rows:
+                group_1_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
+            for row in group2_rows:
+                group_2_values[(row.policy_uri, row.eval_name)] = (row.total_value / row.num_agents, row.replay_url)
+
+            cells: Dict[str, Dict[str, HeatmapCell]] = {}
+            for policy_uri in all_policy_uris:
+                cells[policy_uri] = {}
+                for eval_name in all_eval_names:
+                    group_1_value = group_1_values.get((policy_uri, eval_name), (0, None))
+                    group_2_value = group_2_values.get((policy_uri, eval_name), (0, None))
+
+                    cells[policy_uri][eval_name] = HeatmapCell(
+                        evalName=eval_name,
+                        replayUrl=group_1_value[1] if group_1_value[1] is not None else group_2_value[1],
+                        value=group_1_value[0] - group_2_value[0],
+                    )
+
+            policy_average_scores: Dict[str, float] = {}
+            for policy_uri in all_policy_uris:
+                policy_cells = cells[policy_uri]
+                policy_average_scores[policy_uri] = sum(cell.value for cell in policy_cells.values()) / len(
+                    policy_cells
+                )
+
+            return HeatmapData(
+                evalNames=all_eval_names,
+                cells=cells,
+                policyAverageScores=policy_average_scores,
+                evalAverageScores={},
+                evalMaxScores={},
+            )
+
+    return router

@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
 
 from metta.app.http_client import FastAPITestClientAdapter
-from metta.app.server import app
+from metta.app.server import create_app
 from metta.app.stats_client import StatsClient
 from metta.app.stats_repo import StatsRepo
 
@@ -38,11 +38,7 @@ class TestStatsServerSimple:
     @pytest.fixture(scope="class")
     def test_app(self, stats_repo):
         """Create a test FastAPI app with dependency injection."""
-        # Override the stats_repo dependency
-        from metta.app import stats_routes
-
-        stats_routes.stats_repo = stats_repo
-        return app
+        return create_app(stats_repo)
 
     @pytest.fixture(scope="class")
     def test_client(self, test_app):
