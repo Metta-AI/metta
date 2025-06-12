@@ -62,7 +62,6 @@ class PufferTrainer:
         torch.backends.cudnn.deterministic = self.trainer_cfg.get("torch_deterministic", True)
         torch.backends.cudnn.benchmark = True
 
-        # Distributed setup
         self._master = True
         self._world_size = 1
         self.device: torch.device = cfg.device
@@ -88,12 +87,10 @@ class PufferTrainer:
         self._eval_suite_avgs = {}
         self._eval_categories = set()
 
-        # Curriculum setup
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
 
-        # Create vecenv
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -148,15 +145,12 @@ class PufferTrainer:
         actions_max_params = metta_grid_env.max_action_args
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
-        # Compile policy if requested
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
-        # Kickstarter
         self.kickstarter = Kickstarter(cfg, policy_store, actions_names, actions_max_params)
 
-        # Distributed setup
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             self._original_policy = self.policy
@@ -164,7 +158,6 @@ class PufferTrainer:
 
         self._make_experience_buffer()
 
-        # Training state
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
 
@@ -209,7 +202,6 @@ class PufferTrainer:
                     f"Environment observation shape: {environment_shape}"
                 )
 
-        # Learning rate scheduler
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -226,7 +218,6 @@ class PufferTrainer:
         self.model_size = sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
         self.experience = None  # For compatibility
 
-        # Replay config
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
             num_episodes=1,
@@ -281,7 +272,6 @@ class PufferTrainer:
         self.ep_indices = torch.arange(total_agents, device=device, dtype=torch.int32) % segments
         self.free_idx = total_agents % segments
 
-        # LSTM states
         if self.trainer_cfg.get("use_rnn", True):
             n = vecenv.agents_per_batch
             h = getattr(self.policy, "hidden_size", 256)
@@ -293,7 +283,6 @@ class PufferTrainer:
             self.lstm_h = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
             self.lstm_c = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
 
-        # Minibatch setup
         minibatch_size = self.trainer_cfg.minibatch_size
         max_minibatch_size = self.trainer_cfg.get("max_minibatch_size", minibatch_size)
         self.minibatch_size = min(minibatch_size, max_minibatch_size)
@@ -339,7 +328,6 @@ class PufferTrainer:
             stats_time = self.timer.get_last_elapsed("_process_stats")
             steps_calculated = self.agent_step - steps_before
             steps_per_sec = steps_calculated / (train_time + rollout_time)
-            steps_per_sec = self.agent_step / (train_time + rollout_time)
 
             logger.info(
                 f"Epoch {self.epoch} - "
@@ -377,7 +365,6 @@ class PufferTrainer:
 
             self._on_train_step()
 
-        # Training complete
         timing_summary = self.timer.get_all_summaries()
         logger.info("Training complete!")
         for name, summary in timing_summary.items():
@@ -440,6 +427,7 @@ class PufferTrainer:
     @profile_section("eval")
     def _rollout(self):
         experience, profile = self.experience, self.profile
+        profile.start_epoch(self.epoch, "eval")
 
         with profile.eval_misc:
             policy = self.policy
@@ -494,6 +482,7 @@ class PufferTrainer:
 
                 with profile.eval_misc:
                     value = value.flatten()
+                    mask = torch.as_tensor(mask)
                     episode_length = self.ep_lengths[env_id.start].item()
                     indices = self.ep_indices[env_id]
 
@@ -553,6 +542,9 @@ class PufferTrainer:
             self.ep_indices = torch.arange(self.total_agents, device=self.device, dtype=torch.int32) % self.segments
             self.ep_lengths.zero_()
 
+        # TODO: Better way to enable multiple collects
+        experience.ptr = 0
+        experience.step = 0
         return self.stats, infos
 
     def _get_experience_buffer_mean_reward(self) -> float:
@@ -571,6 +563,7 @@ class PufferTrainer:
             config = self.trainer_cfg
             device = self.device
 
+            # Prioritized sampling parameters
             b0 = config.get("prio_beta0", 0.6)
             a = config.get("prio_alpha", 0.6)
             clip_coef = config.clip_coef
