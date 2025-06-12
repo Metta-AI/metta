@@ -112,8 +112,12 @@ def main():
     if not git_ref:
         git_ref = get_current_commit()
 
-    if not args.skip_git_check and not check_git_state(git_ref):
-        sys.exit(1)
+    if not args.skip_git_check:
+        ok, error_message = check_git_state(git_ref)
+        if not ok:
+            print(error_message)
+            print("  - Skip check: add --skip-git-check flag")
+            sys.exit(1)
 
     if not check_config_files(cmd_args):
         sys.exit(1)

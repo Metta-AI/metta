@@ -1,8 +1,11 @@
 import re
 import sys
 from pathlib import Path
+from typing import Tuple
 
 import sky
+import sky.jobs
+import sky.server.common
 
 from metta.util.colorama import blue, bold, cyan, green, magenta, red, yellow
 from metta.util.git import get_current_commit, has_unstaged_changes, is_commit_pushed
@@ -13,7 +16,7 @@ def print_tip(text: str):
 
 
 def dashboard_url() -> str:
-    url = sky.server.common.get_server_url()  # type: ignore
+    url = sky.server.common.get_server_url()
     # strip username and password from server_url
     url = re.sub("https://.*@", "https://", url)
     return url
@@ -26,7 +29,7 @@ def launch_task(task: sky.Task, dry_run=False):
         print(task.to_yaml_config())
         return
 
-    request_id = sky.jobs.launch(task)  # type: ignore
+    request_id = sky.jobs.launch(task)
 
     print(green(f"Submitted sky.jobs.launch request: {request_id}"))
 
@@ -38,31 +41,29 @@ def launch_task(task: sky.Task, dry_run=False):
     print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
 
 
-def check_git_state(commit_hash: str | None = None) -> bool:
+def check_git_state(commit_hash: str | None = None) -> Tuple[bool, str]:
     """Check that the local git state will be matched in the cloud job."""
 
-    issues_found = False
+    error_lines = []
 
     if has_unstaged_changes():
-        print(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
-        print("Options:")
-        print("  - Commit: git add . && git commit -m 'your message'")
-        print("  - Stash: git stash")
-        issues_found = True
+        error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
+        error_lines.append("Options:")
+        error_lines.append("  - Commit: git add . && git commit -m 'your message'")
+        error_lines.append("  - Stash: git stash")
+        return (False, "\n".join(error_lines))
 
     target_commit = commit_hash or get_current_commit()
     if target_commit and not is_commit_pushed(target_commit):
         commit_display = target_commit[:8]
-        print(red(f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job."))
-        print("Options:")
-        print("  - Push: git push")
-        issues_found = True
+        error_lines.append(
+            red(f"❌ Commit {commit_display} hasn't been pushed and won't be reflected in the cloud job.")
+        )
+        error_lines.append("Options:")
+        error_lines.append("  - Push: git push")
+        return (False, "\n".join(error_lines))
 
-    if issues_found:
-        print("  - Skip check: add --skip-git-check flag")
-        return False
-
-    return True
+    return (True, "")
 
 
 def check_config_files(cmd_args: list[str]) -> bool:

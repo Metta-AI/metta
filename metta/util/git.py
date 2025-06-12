@@ -1,64 +1,114 @@
 import subprocess
-from typing import Optional
 
 
-def get_current_branch(repo_path: Optional[str] = None) -> str:
+def get_current_branch() -> str:
     """Get the current git branch name."""
-    cmd = ["git", "symbolic-ref", "--short", "HEAD"]
-    if repo_path:
-        cmd = ["git", "-C", repo_path, "symbolic-ref", "--short", "HEAD"]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return result.stdout.strip()
+    result = subprocess.run(["git", "symbolic-ref", "--short", "HEAD"], capture_output=True, text=True, check=False)
+
+    if result.returncode == 0:
+        return result.stdout.strip()
+    elif result.returncode == 128:
+        # Not in a git repo or detached HEAD state
+        if "not a git repository" in result.stderr:
+            raise ValueError("Not in a git repository")
+        elif "HEAD is not a symbolic ref" in result.stderr:
+            # In detached HEAD state - return commit hash instead
+            return get_current_commit()
+
+    # Unexpected error
+    raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
 
 
-def get_current_commit(repo_path: Optional[str] = None) -> str:
+def get_current_commit() -> str:
     """Get the current git commit hash."""
-    cmd = ["git", "rev-parse", "HEAD"]
-    if repo_path:
-        cmd = ["git", "-C", repo_path, "rev-parse", "HEAD"]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return result.stdout.strip()
+    result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=False)
+
+    if result.returncode == 0:
+        return result.stdout.strip()
+    elif result.returncode == 128:
+        if "not a git repository" in result.stderr:
+            raise ValueError("Not in a git repository")
+        elif "ambiguous argument 'HEAD'" in result.stderr:
+            raise ValueError("No commits in repository yet")
+
+    # Unexpected error
+    raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
 
 
-def is_commit_pushed(commit_hash: str, repo_path: Optional[str] = None) -> bool:
+def is_commit_pushed(commit_hash: str) -> bool:
     """Check if a commit has been pushed to any remote branch."""
-    cmd = ["git", "branch", "-r", "--contains", commit_hash]
-    if repo_path:
-        cmd = ["git", "-C", repo_path, "branch", "-r", "--contains", commit_hash]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return bool(result.stdout.strip())
+    result = subprocess.run(
+        ["git", "branch", "-r", "--contains", commit_hash], capture_output=True, text=True, check=False
+    )
+
+    if result.returncode == 0:
+        return bool(result.stdout.strip())
+    elif result.returncode == 129:
+        # Invalid commit hash - treat as "not pushed"
+        return False
+    elif result.returncode == 128:
+        if "not a git repository" in result.stderr:
+            raise ValueError("Not in a git repository")
+
+    # Unexpected error
+    raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
 
 
-def has_unstaged_changes(repo_path: Optional[str] = None) -> bool:
+def has_unstaged_changes() -> bool:
     """Check if there are any unstaged changes in the git repository."""
-    cmd = ["git", "status", "--porcelain"]
-    if repo_path:
-        cmd = ["git", "-C", repo_path, "status", "--porcelain"]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return bool(result.stdout.strip())
+    result = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=False)
+
+    if result.returncode == 0:
+        return bool(result.stdout.strip())
+    elif result.returncode == 128:
+        if "not a git repository" in result.stderr:
+            raise ValueError("Not in a git repository")
+
+    # Unexpected error
+    raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
 
 
-def get_branch_commit(branch_name: str, repo_path: Optional[str] = None) -> str:
+def get_branch_commit(branch_name: str) -> str:
     """Get the latest commit hash on a branch, including remote branches."""
     # Make sure we have the latest remote data
-    fetch_cmd = ["git", "fetch", "--quiet"]
-    if repo_path:
-        fetch_cmd = ["git", "-C", repo_path, "fetch", "--quiet"]
-    subprocess.run(fetch_cmd, check=True)
+    fetch_result = subprocess.run(["git", "fetch", "--quiet"], capture_output=True, text=True, check=False)
+
+    if fetch_result.returncode == 128:
+        if "not a git repository" in fetch_result.stderr:
+            raise ValueError("Not in a git repository")
+    elif fetch_result.returncode != 0:
+        raise subprocess.CalledProcessError(
+            fetch_result.returncode, fetch_result.args, fetch_result.stdout, fetch_result.stderr
+        )
 
     # Get the commit hash for the branch
-    rev_cmd = ["git", "rev-parse", branch_name]
-    if repo_path:
-        rev_cmd = ["git", "-C", repo_path, "rev-parse", branch_name]
+    result = subprocess.run(["git", "rev-parse", branch_name], capture_output=True, text=True, check=False)
 
-    result = subprocess.run(rev_cmd, capture_output=True, text=True, check=True)
-    return result.stdout.strip()
+    if result.returncode == 0:
+        return result.stdout.strip()
+    elif result.returncode == 128:
+        if "not a git repository" in result.stderr:
+            raise ValueError("Not in a git repository")
+        elif "unknown revision" in result.stderr:
+            raise ValueError(f"Branch '{branch_name}' not found")
+
+    # Unexpected error
+    raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
 
 
-def get_commit_message(commit_hash: str, repo_path: Optional[str] = None) -> str:
+def get_commit_message(commit_hash: str) -> str:
     """Get the commit message for a specific commit hash."""
-    cmd = ["git", "log", "-1", "--pretty=%B", commit_hash]
-    if repo_path:
-        cmd = ["git", "-C", repo_path, "log", "-1", "--pretty=%B", commit_hash]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return result.stdout.strip()
+    result = subprocess.run(
+        ["git", "log", "-1", "--pretty=%B", commit_hash], capture_output=True, text=True, check=False
+    )
+
+    if result.returncode == 0:
+        return result.stdout.strip()
+    elif result.returncode == 128:
+        if "not a git repository" in result.stderr:
+            raise ValueError("Not in a git repository")
+        elif "bad revision" in result.stderr or "unknown revision" in result.stderr:
+            raise ValueError(f"Commit '{commit_hash}' not found")
+
+    # Unexpected error
+    raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)

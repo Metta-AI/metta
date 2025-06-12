@@ -11,8 +11,9 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 ## Usage
 
 ```bash
-./devops/skypilot/launch.py <COMMAND> <RUN_ID> [COMMAND_ARGS...] [OPTIONS]
+./devops/skypilot/launch.py <COMMAND> [COMMAND_ARGS...] [OPTIONS]
 ```
+You should include run=your_run_id in COMMAND_ARGS if your command logic requires it.
 
 ### Parameters
 
@@ -26,31 +27,32 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 1. Launch a training run with default parameters:
 
 ```bash
-./launch.py train my_experiment_001
+./launch.py train run=my_experiment_001
 ```
 
 2. Launch a training run with specific arguments:
 
 ```bash
-./launch.py train my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
+./launch.py train run=my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
+
 ```
 
 3. Launch a training run with a 2-hour timeout:
 
 ```bash
-./launch.py train my_experiment_003 --timeout-hours 2
+./launch.py train run=my_experiment_003 --timeout-hours 2
 ```
 
 4. Launch a quick experiment with a 30-minute timeout:
 
 ```bash
-./launch.py train quick_test_004 --timeout-hours 0.5
+./launch.py train run=quick_test_004 --timeout-hours 0.5
 ```
 
 5. Launch a long-running job with 4 hours timeout on multiple GPUs:
 
 ```bash
-./launch.py train long_experiment_005 --timeout-hours 4 --gpus 2
+./launch.py train run=long_experiment_005 --timeout-hours 4 --gpus 2
 ```
 
 ## Job Management
