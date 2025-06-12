@@ -440,7 +440,7 @@ class PufferTrainer:
 
                     if self.trainer_cfg.require_contiguous_env_ids:
                         raise ValueError(
-                            "We are assuming contiguous env id is always False. async_factor == num_workers = "
+                            "We are assuming contiguous eng id is always False. async_factor == num_workers = "
                             f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
                         )
 
@@ -488,6 +488,11 @@ class PufferTrainer:
 
                     o = o if self.trainer_cfg.cpu_offload else o_device
                     self.observations[indices, episode_length] = o
+                    self.logprobs[indices, episode_length] = selected_action_log_probs
+                    self.rewards[indices, episode_length] = r.to(self.device, non_blocking=True)
+                    self.terminals[indices, episode_length] = d.to(self.device, non_blocking=True).float()
+                    self.truncations[indices, episode_length] = t.to(self.device, non_blocking=True).float()
+                    self.values[indices, episode_length] = value
 
                     if self.actions.dtype == torch.int32:
                         self.actions[indices, episode_length] = actions.int()
@@ -495,12 +500,6 @@ class PufferTrainer:
                         self.actions[indices, episode_length] = actions.long()
                     else:
                         self.actions[indices, episode_length] = actions
-
-                    self.logprobs[indices, episode_length] = selected_action_log_probs
-                    self.rewards[indices, episode_length] = r.to(self.device, non_blocking=True)
-                    self.terminals[indices, episode_length] = d.to(self.device, non_blocking=True).float()
-                    self.truncations[indices, episode_length] = t.to(self.device, non_blocking=True).float()
-                    self.values[indices, episode_length] = value
 
                     self.ep_lengths[env_id] += 1
                     if episode_length + 1 >= self.trainer_cfg.bptt_horizon:
@@ -613,8 +612,8 @@ class PufferTrainer:
 
                 # Minibatch data
                 mb_obs = self.observations[idx]
-                mb_actions = self.actions[idx]
                 mb_logprobs = self.logprobs[idx]
+                mb_actions = self.actions[idx]
                 mb_terminals = self.terminals[idx]
                 mb_values = self.values[idx]
                 mb_returns = advantages[idx] + mb_values
