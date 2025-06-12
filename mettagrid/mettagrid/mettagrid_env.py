@@ -219,14 +219,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 
-        instantiate_time = self.timer.get_elapsed("_initialize_c_env.instantiate")
+        init_time = self.timer.get_elapsed("_initialize_c_env")
 
         infos.update(
             {
                 f"task/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
                 f"task/{self._task.short_name()}/rewards.min": episode_rewards.min(),
                 f"task/{self._task.short_name()}/rewards.max": episode_rewards.max(),
-                f"task/{self._task.short_name()}/instantiate_time": instantiate_time,
+                f"task/{self._task.short_name()}/init_time": init_time,
             }
         )
 
