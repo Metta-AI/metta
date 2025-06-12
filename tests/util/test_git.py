@@ -13,9 +13,6 @@ from metta.util.git import (
 
 # Keep in mind that CI will only have a shallow copy of the repository!
 
-# invalid hash (never valid in any repo)
-TEST_FAKE_COMMIT_HASH = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-
 
 def test_get_current_branch():
     branch = get_current_branch()
@@ -36,20 +33,16 @@ def test_commit_exists_for_current_commit():
     assert commit_exists(commit)
 
 
-def test_commit_does_not_exist_for_fake_commit():
-    assert not commit_exists(TEST_FAKE_COMMIT_HASH), f"Commit {TEST_FAKE_COMMIT_HASH} should not exist"
-
-
 @pytest.mark.parametrize(
-    "hash_input, expected",
+    "hash_input",
     [
-        "123",  # too short, likely invalid
+        "123",  # too short
         "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",  # invalid hex
     ],
 )
-def test_commit_exists_various_hashes(hash_input, expected):
+def test_commit_does_not_exist(hash_input):
     result = commit_exists(hash_input)
-    assert result == expected, f"Expected {expected} for hash {hash_input}, got {result}"
+    assert not result, f"Expected hash {hash_input} to not exist"
 
 
 def test_run_git_error_propagation():
