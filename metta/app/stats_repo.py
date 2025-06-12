@@ -62,7 +62,7 @@ EVAL_MIGRATIONS = [
                 PRIMARY KEY (episode_id, policy_id, agent_id)
             )""",
             """CREATE TABLE episode_agent_metrics (
-                episode_id INTEGER NOT NULL,
+                episode_id INTEGER NOT NULL REFERENCES episodes(id),
                 agent_id INTEGER NOT NULL,
                 metric TEXT NOT NULL,
                 value REAL,
