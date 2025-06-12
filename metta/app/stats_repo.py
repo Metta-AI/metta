@@ -83,24 +83,18 @@ class StatsRepo:
         return Connection.connect(self.db_uri)
 
     def query(self, query: Query, params: Tuple[Any, ...] = ()) -> Sequence[TupleRow]:
-        with Connection.connect(self.db_uri) as con:
+        with self.connect() as con:
             return con.execute(query, params).fetchall()
 
     def execute(self, query: LiteralString, params: Tuple[Any, ...] = ()) -> None:
-        with Connection.connect(self.db_uri) as con:
+        with self.connect() as con:
             con.execute(query, params)
 
-    def _get_con(self, con: Connection | None = None) -> Connection:
-        if con is None:
-            return Connection.connect(self.db_uri)
-        return con
-
-    def get_policy_ids(self, policy_names: List[str], con: Connection | None = None) -> Dict[str, int]:
+    def get_policy_ids(self, policy_names: List[str]) -> Dict[str, int]:
         if not policy_names:
             return {}
 
-        with self._get_con(con) as con:
-            # Use psycopg's built-in list handling
+        with self.connect() as con:
             res = con.execute(
                 """
                 SELECT id, name FROM policies WHERE name = ANY(%s)
@@ -109,11 +103,9 @@ class StatsRepo:
             ).fetchall()
             return {row[1]: row[0] for row in res}
 
-    def create_training_run(
-        self, name: str, user_id: str, attributes: Dict[str, str], url: str | None, con: Connection | None = None
-    ) -> int:
+    def create_training_run(self, name: str, user_id: str, attributes: Dict[str, str], url: str | None) -> int:
         status = "running"
-        with self._get_con(con) as con:
+        with self.connect() as con:
             result = con.execute(
                 """
                 INSERT INTO training_runs (name, user_id, attributes, status, url)
@@ -132,9 +124,8 @@ class StatsRepo:
         start_training_epoch: int,
         end_training_epoch: int,
         attributes: Dict[str, str],
-        con: Connection | None = None,
     ) -> int:
-        with self._get_con(con) as con:
+        with self.connect() as con:
             result = con.execute(
                 """
                 INSERT INTO epochs (run_id, start_training_epoch, end_training_epoch, attributes)
@@ -153,9 +144,8 @@ class StatsRepo:
         description: str | None,
         url: str | None,
         epoch_id: int | None,
-        con: Connection | None = None,
     ) -> int:
-        with self._get_con(con) as con:
+        with self.connect() as con:
             result = con.execute(
                 """
                 INSERT INTO policies (name, description, url, epoch_id) VALUES (%s, %s, %s, %s)
@@ -177,9 +167,8 @@ class StatsRepo:
         simulation_suite: str | None,
         replay_url: str | None,
         attributes: Dict[str, Any],
-        con: Connection | None = None,
     ) -> int:
-        with self._get_con(con) as con:
+        with self.connect() as con:
             # Insert into episodes table
             result = con.execute(
                 """
