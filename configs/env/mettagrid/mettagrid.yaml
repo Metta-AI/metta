@@ -1,4 +1,5 @@
 sampling: 0
+replay_level_prob: 0.9
 game:
   num_agents: ???
   obs_width: 11
@@ -6,7 +7,6 @@ game:
   use_observation_tokens: false
   num_observation_tokens: 128
   max_steps: 1000
-  replay_level_prob: 0.9
 
   diversity_bonus:
     enabled: false
