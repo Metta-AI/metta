@@ -257,7 +257,7 @@ class PufferTrainer:
         segments = batch_size // horizon
         self.segments = segments
 
-        # Create tensor storage
+        # Create tensor storage for experience
         self.observations = torch.zeros(
             segments,
             horizon,
@@ -334,6 +334,7 @@ class PufferTrainer:
                 with self.timer("_train"):
                     self._train()
 
+            # Processing stats
             with self.timer("_process_stats"):
                 self._process_stats()
 
@@ -351,7 +352,7 @@ class PufferTrainer:
                 f"[{steps_per_sec:.0f} steps/sec]"
             )
 
-            # Checkpointing
+            # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 with self.timer("_checkpoint_trainer", log=logging.INFO):
                     self._checkpoint_trainer()
@@ -573,9 +574,9 @@ class PufferTrainer:
         profile = self.profile
         profile.start_epoch(self.epoch, "train")
         self.losses = self._make_losses()
+        losses = defaultdict(float)
 
         with profile.train_misc:
-            losses = defaultdict(float)
             config = self.trainer_cfg
             device = self.device
 
@@ -622,6 +623,7 @@ class PufferTrainer:
                 config.get("vtrace_c_clip", 1.0),
             )
 
+        # Optimizing the policy and value network
         for mb in range(self.total_minibatches):
             with profile.train_misc:
                 # Prioritized sampling
@@ -631,13 +633,13 @@ class PufferTrainer:
                 idx = torch.multinomial(prio_probs, self.minibatch_segments)
                 mb_prio = (self.segments * prio_probs[idx, None]) ** -anneal_beta
 
-            # Minibatch data
-            mb_obs = self.observations[idx]
-            mb_actions = self.actions[idx]
-            mb_logprobs = self.logprobs[idx]
-            mb_terminals = self.terminals[idx]
-            mb_values = self.values[idx]
-            mb_returns = advantages[idx] + mb_values
+                # Minibatch data
+                mb_obs = self.observations[idx]
+                mb_actions = self.actions[idx]
+                mb_logprobs = self.logprobs[idx]
+                mb_terminals = self.terminals[idx]
+                mb_values = self.values[idx]
+                mb_returns = advantages[idx] + mb_values
 
             with profile.train_forward:
                 if not config.get("use_rnn", True):
@@ -688,15 +690,16 @@ class PufferTrainer:
                 else:
                     adv = mb_prio * adv
 
-                # Losses
+                # Policy loss
                 pg_loss1 = -adv * ratio
                 pg_loss2 = -adv * torch.clamp(ratio, 1 - clip_coef, 1 + clip_coef)
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
+                # Value loss
                 newvalue = newvalue.view(mb_returns.shape)
                 if config.clip_vloss:
-                    v_clipped = mb_values + torch.clamp(newvalue - mb_values, -vf_clip, vf_clip)
                     v_loss_unclipped = (newvalue - mb_returns) ** 2
+                    v_clipped = mb_values + torch.clamp(newvalue - mb_values, -vf_clip, vf_clip)
                     v_loss_clipped = (v_clipped - mb_returns) ** 2
                     v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
                 else:
