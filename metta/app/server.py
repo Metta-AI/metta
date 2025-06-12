@@ -34,6 +34,7 @@ def create_app(stats_repo: StatsRepo) -> fastapi.FastAPI:
 if __name__ == "__main__":
     from metta.app import config
 
-    app = create_app(config.stats_repo)
+    stats_repo = StatsRepo(config.stats_db_uri)
+    app = create_app(stats_repo)
 
     uvicorn.run(app, host=config.host, port=config.port)
