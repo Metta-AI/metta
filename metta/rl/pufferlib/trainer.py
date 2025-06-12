@@ -543,8 +543,6 @@ class PufferTrainer:
             self.ep_lengths.zero_()
 
         # TODO: Better way to enable multiple collects
-        experience.ptr = 0
-        experience.step = 0
         return self.stats, infos
 
     def _get_experience_buffer_mean_reward(self) -> float:
