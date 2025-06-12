@@ -235,6 +235,17 @@ class PolicyStore:
     def _policy_records(self, uri, selector_type="top", n=1, metric: str = "score"):
         version = None
         if uri.startswith("wandb://"):
+            # Check if wandb is disabled before proceeding
+            if (
+                not hasattr(self._cfg, "wandb")
+                or not hasattr(self._cfg.wandb, "entity")
+                or not hasattr(self._cfg.wandb, "project")
+            ):
+                raise ValueError(
+                    f"Cannot load wandb policy '{uri}' when wandb is disabled (wandb=off). "
+                    "Either enable wandb or use a local policy URI (file://) instead. "
+                    "For example, you can download the policy locally and use file://path/to/policy.pt"
+                )
             wandb_uri = uri[len("wandb://") :]
             if ":" in wandb_uri:
                 wandb_uri, version = wandb_uri.split(":")
@@ -419,11 +430,29 @@ class PolicyStore:
         ]
 
     def _prs_from_wandb_sweep(self, sweep_name: str, version: Optional[str] = None) -> List[PolicyRecord]:
+        if (
+            not hasattr(self._cfg, "wandb")
+            or not hasattr(self._cfg.wandb, "entity")
+            or not hasattr(self._cfg.wandb, "project")
+        ):
+            raise ValueError(
+                f"Cannot load wandb sweep policy '{sweep_name}' when wandb is disabled (wandb=off). "
+                "Either enable wandb or use a local policy URI (file://) instead."
+            )
         return self._prs_from_wandb_artifact(
             f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/sweep_model/{sweep_name}", version
         )
 
     def _prs_from_wandb_run(self, run_id: str, version: Optional[str] = None) -> List[PolicyRecord]:
+        if (
+            not hasattr(self._cfg, "wandb")
+            or not hasattr(self._cfg.wandb, "entity")
+            or not hasattr(self._cfg.wandb, "project")
+        ):
+            raise ValueError(
+                f"Cannot load wandb run policy '{run_id}' when wandb is disabled (wandb=off). "
+                "Either enable wandb or use a local policy URI (file://) instead."
+            )
         return self._prs_from_wandb_artifact(
             f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/model/{run_id}", version
         )
