@@ -11,6 +11,8 @@ from metta.util.git import (
     run_git,
 )
 
+# Keep in mind that CI will only have a shallow copy of the repository!
+
 # invalid hash (never valid in any repo)
 TEST_FAKE_COMMIT_HASH = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 
