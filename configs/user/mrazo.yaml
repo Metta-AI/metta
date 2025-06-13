@@ -1,0 +1,11 @@
+# @package __global__
+
+defaults:
+  - override /agent: simple_noLSTM
+  # - override /sim: t_maze
+  - _self_
+
+trainer:
+  curriculum: /env/mettagrid/curriculum/navigation
+  wandb.enabled: true
+  wandb.track: true
