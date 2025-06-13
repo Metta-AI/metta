@@ -96,7 +96,4 @@ def main(cfg: ListConfig | DictConfig) -> int:
 
 
 if __name__ == "__main__":
-    import cProfile
-
-    cProfile.run("main()", sort="cumulative")
-    # sys.exit(main())
+    sys.exit(main())

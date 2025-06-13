@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import cProfile
 import datetime
 import logging
 import random
@@ -82,6 +83,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
+        self._profiler = cProfile.Profile()
+        self._profiler.enable()
 
         self._initialize_c_env()
         super().__init__(buf)
@@ -95,6 +98,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 from .renderer.miniscope import MiniscopeRenderer
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
+        self._profiler.disable()
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -136,6 +140,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override  # pufferlib.PufferEnv.reset
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+        self._profiler.enable()
         self._task = self._curriculum.get_task()
 
         self._initialize_c_env()
@@ -155,6 +160,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         obs, infos = self._c_env.reset()
         self._should_reset = False
+        self._profiler.disable()
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
@@ -173,6 +179,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             Tuple of (observations, rewards, terminals, truncations, infos)
 
         """
+        self._profiler.enable()
 
         # Note: We explicitly allow invalid actions to be used. The environment will
         # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
@@ -199,11 +206,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
+        self._profiler.disable()
+
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     @override
     def close(self):
-        pass
+        self._profiler.print_stats(sort='cumulative')
 
     def process_episode_stats(self, infos: Dict[str, Any]):
         episode_rewards = self._c_env.get_episode_rewards()
