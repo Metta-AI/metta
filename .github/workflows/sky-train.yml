@@ -1,4 +1,4 @@
-name: "Launch AWS Training Job"
+name: "Launch SkyPilot Training Job"
 
 on:
   workflow_dispatch:
@@ -55,12 +55,12 @@ jobs:
 
           # Generate the run name
           if [ -n "$PR_NUMBER" ]; then
-            RUN_NAME="github.pr${PR_NUMBER}"
+            RUN_NAME="github.sky.pr${PR_NUMBER}"
             echo "Using PR #$PR_NUMBER in run name"
           else
             # Get branch name
             BRANCH=$(git rev-parse --abbrev-ref HEAD | sed 's/[^a-zA-Z0-9]/_/g')
-            RUN_NAME="github.$BRANCH"
+            RUN_NAME="github.sky.$BRANCH"
             echo "Using branch name '$BRANCH' in run name"
           fi
 
