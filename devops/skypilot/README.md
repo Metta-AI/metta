@@ -96,24 +96,24 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 The `--confirm` flag displays a detailed job summary before launching:
 
-```
-============================================================
-Job details:
-============================================================
-Name: my_experiment_001
-GPUs: 1x A10G
-CPUs: 8+
-Spot Instances: Yes
-Auto-termination: 2h
-Git Reference: 56e04aa725000f186ec1bb2de84b359b4f273947
-------------------------------------------------------------
-Command: train
-Task Arguments:
-  1. trainer.curriculum=env/mettagrid/curriculum/navigation
-  2. trainer.learning_rate=0.001
-============================================================
-Should we launch this task? (Y/n):
-```
+   ```sh
+   ============================================================
+   Job details:
+   ============================================================
+   Name: my_experiment_001
+   GPUs: 1x A10G
+   CPUs: 8+
+   Spot Instances: Yes
+   Auto-termination: 2h
+   Git Reference: 56e04aa725000f186ec1bb2de84b359b4f273947
+   ------------------------------------------------------------
+   Command: train
+   Task Arguments:
+   1. trainer.curriculum=env/mettagrid/curriculum/navigation
+   2. trainer.learning_rate=0.001
+   ============================================================
+   Should we launch this task? (Y/n):
+   ```
 
 11. **Dry run:**
     ```bash
