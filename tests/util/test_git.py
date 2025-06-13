@@ -102,13 +102,20 @@ def test_is_commit_pushed():
     "ref,expected_valid",
     [
         ("HEAD", True),
+        ("main", True),
         ("non-existent-branch", False),
         ("", False),
+        ("invalid..ref", False),
     ],
 )
 def test_validate_git_ref(ref, expected_valid):
-    is_valid, _ = validate_git_ref(ref)
-    assert is_valid is expected_valid
+    commit_hash = validate_git_ref(ref)
+
+    if expected_valid:
+        assert commit_hash is not None
+        assert len(commit_hash) == 40  # SHA-1 hashes are 40 chars
+    else:
+        assert commit_hash is None
 
 
 def test_validate_git_ref_with_commit():
@@ -116,13 +123,11 @@ def test_validate_git_ref_with_commit():
     current_commit = get_current_commit()
 
     # Test with full commit hash
-    is_valid, commit_hash = validate_git_ref(current_commit)
-    assert is_valid is True
+    commit_hash = validate_git_ref(current_commit)
     assert commit_hash == current_commit
 
     # Test with short commit hash
-    is_valid, commit_hash = validate_git_ref(current_commit[:8])
-    assert is_valid is True
+    commit_hash = validate_git_ref(current_commit[:8])
     assert commit_hash == current_commit  # Git should resolve short hash to full hash
 
 
@@ -136,8 +141,7 @@ def test_remote_operations():
             assert len(commit) == 40
 
             # Test validate_git_ref with remote
-            is_valid, commit_hash = validate_git_ref(remote_ref)
-            assert is_valid is True
+            commit_hash = validate_git_ref(remote_ref)
             assert commit_hash == commit  # Should match the commit we got from get_branch_commit
 
             return  # Found at least one valid remote ref
@@ -149,13 +153,11 @@ def test_remote_operations():
 
 def test_validate_git_ref_returns_commit_hash():
     # Test that validate_git_ref returns the commit hash
-    is_valid, commit_hash = validate_git_ref("HEAD")
-    assert is_valid is True
+    commit_hash = validate_git_ref("HEAD")
     assert commit_hash == get_current_commit()
 
     # Test invalid ref returns None
-    is_valid, commit_hash = validate_git_ref("invalid-ref")
-    assert is_valid is False
+    commit_hash = validate_git_ref("invalid-ref")
     assert commit_hash is None
 
 

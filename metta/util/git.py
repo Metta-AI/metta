@@ -1,5 +1,4 @@
 import subprocess
-from typing import Tuple
 
 
 class GitError(Exception):
@@ -70,10 +69,10 @@ def is_commit_pushed(commit_hash: str) -> bool:
         return False
 
 
-def validate_git_ref(ref: str) -> Tuple[bool, str | None]:
+def validate_git_ref(ref: str) -> str | None:
     """Validate a git reference exists (locally or in remote)."""
     try:
         commit_hash = run_git("rev-parse", "--verify", ref)
     except GitError:
-        return False, None
-    return True, commit_hash
+        return None
+    return commit_hash

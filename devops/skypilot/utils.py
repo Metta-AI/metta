@@ -1,7 +1,6 @@
 import re
 import sys
 from pathlib import Path
-from typing import Tuple
 
 import sky
 import sky.jobs
@@ -41,7 +40,7 @@ def launch_task(task: sky.Task, dry_run=False):
     print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
 
 
-def check_git_state(commit_hash: str) -> Tuple[bool, str]:
+def check_git_state(commit_hash: str) -> str | None:
     """Check that the commit has been pushed and there are no staged changes."""
 
     error_lines = []
@@ -51,7 +50,7 @@ def check_git_state(commit_hash: str) -> Tuple[bool, str]:
         error_lines.append("Options:")
         error_lines.append("  - Commit: git add . && git commit -m 'your message'")
         error_lines.append("  - Stash: git stash")
-        return (False, "\n".join(error_lines))
+        return "\n".join(error_lines)
 
     if not is_commit_pushed(commit_hash):
         commit_display = commit_hash[:8]
@@ -60,9 +59,9 @@ def check_git_state(commit_hash: str) -> Tuple[bool, str]:
         )
         error_lines.append("Options:")
         error_lines.append("  - Push: git push")
-        return (False, "\n".join(error_lines))
+        return "\n".join(error_lines)
 
-    return (True, "")
+    return None
 
 
 def check_config_files(cmd_args: list[str]) -> bool:

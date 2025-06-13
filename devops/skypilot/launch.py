@@ -111,8 +111,8 @@ def main():
 
     # check that the parsed args.git_ref provides a valid commit hash
     if args.git_ref:
-        ok, commit_hash = validate_git_ref(args.git_ref)
-        if not ok:
+        commit_hash = validate_git_ref(args.git_ref)
+        if not commit_hash:
             print(red(f"❌ Invalid git reference: '{args.git_ref}'"))
             sys.exit(1)
     else:
@@ -120,8 +120,8 @@ def main():
 
         # check that the commit has been pushed and there are no staged changes
         if not args.skip_git_check:
-            ok, error_message = check_git_state(commit_hash)
-            if not ok:
+            error_message = check_git_state(commit_hash)
+            if error_message:
                 print(error_message)
                 print("  - Skip check: add --skip-git-check flag")
                 sys.exit(1)
