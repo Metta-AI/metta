@@ -108,7 +108,8 @@ class TestObservations:
         c_env = create_minimal_mettagrid_c_env()
         obs, _info = c_env.reset()
         distances = []
-        for location in obs[0, :, 0]:
+        # skip the first 4 (global) tokens
+        for location in obs[0, 4:, 0]:
             # cast as ints to avoid numpy uint8 underflow
             x = int(location >> 4)
             y = int(location & 0xF)
@@ -225,3 +226,57 @@ def test_environment_state_consistency():
     actions2 = c_env.action_names()
 
     assert actions1 == actions2, "Action names should remain consistent"
+
+
+class TestGlobalTokens:
+    """Test global token functionality and formats."""
+
+    def test_global_tokens(self):
+        """Test global token format and content."""
+        max_steps = 10
+        c_env = create_minimal_mettagrid_c_env(max_steps=max_steps)
+        obs, _info = c_env.reset()
+
+        # These come from constants in the C++ code
+        EPISODE_COMPLETION_PCT = 8
+        LAST_ACTION = 9
+        LAST_ACTION_ARG = 10
+        LAST_REWARD = 11
+
+        # Initial state checks
+        assert obs[0, 0, 1] == EPISODE_COMPLETION_PCT, "First token should be episode completion percentage"
+        assert obs[0, 0, 2] == 0, "Episode completion should start at 0%"
+        assert obs[0, 1, 1] == LAST_ACTION, "Second token should be last action"
+        assert obs[0, 1, 2] == 0, "Last action should be 0"
+        assert obs[0, 2, 1] == LAST_ACTION_ARG, "Third token should be last action arg"
+        assert obs[0, 2, 2] == 0, "Last action arg should start at 0"
+        assert obs[0, 3, 1] == LAST_REWARD, "Fourth token should be last reward"
+        assert obs[0, 3, 2] == 0, "Last reward should start at 0"
+
+        # Take a step with a noop action
+        noop_action_idx = c_env.action_names().index("noop")
+        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        obs, rewards, terminals, truncations, _info = c_env.step(actions)
+
+        # Check tokens after first step
+        expected_completion = int(round((1 / max_steps) * 255))  # 10% completion
+        assert obs[0, 0, 2] == expected_completion, (
+            f"Episode completion should be {expected_completion} after first step"
+        )
+        assert obs[0, 1, 2] == noop_action_idx, "Last action should be noop action index"
+        assert obs[0, 2, 2] == 0, "Last action arg should be 0 for noop"
+        assert obs[0, 3, 2] == 0, "Last reward should be 0 for noop"
+
+        # Take another step with a move action
+        move_action_idx = c_env.action_names().index("move")
+        actions = np.full((NUM_AGENTS, 2), [move_action_idx, 1], dtype=dtype_actions)  # Use arg 1 to move backwards
+        obs, rewards, terminals, truncations, _info = c_env.step(actions)
+
+        # Check tokens after second step
+        expected_completion = int(round((2 / max_steps) * 255))  # 20% completion
+        assert obs[0, 0, 2] == expected_completion, (
+            f"Episode completion should be {expected_completion} after second step"
+        )
+        assert obs[0, 1, 2] == move_action_idx, "Last action should be move action index"
+        assert obs[0, 2, 2] == 1, "Last action arg should be 1 for backwards move"
+        assert obs[0, 3, 2] == 0, "Last reward should be 0 for failed move"

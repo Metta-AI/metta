@@ -1,0 +1,48 @@
+#This config is the defaults for training environments focused on
+#learning the sequence and remembering where objects are located.
+#So, rooms are small, and there are a very few number of each object.
+#Currently objects are only altars, mines, and generators, of single color.
+
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+sampling: 1
+labels:
+  - memory
+game:
+  num_agents: 4
+  agent:
+    ore.red_max: ${sampling:1,10,5}
+    battery.red_max: ${sampling:1,10,5}
+    rewards:
+      action_failure_penalty: 0
+      ore.red: ${sampling:0.005,0.05, 0.01}
+      battery.red: ${sampling:0.01,0.1, 0.1}
+      heart: 1
+      heart_max: 1000
+  map_builder:
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: 4
+    border_width: 3
+    room:
+      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      width: ${sampling:50,100,75}
+      height: ${sampling:50,100,75}
+      border_width: 3
+      agents: ${div:${...num_agents},${..num_rooms}}
+      style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      objects:
+        mine.red: ${sampling:1,3,2}
+        generator.red: ${sampling:1,3,2}
+        altar: 5
+  objects:
+    altar:
+      input_battery.red: 1
+      initial_items: ${choose:0,0,0,1}
+      cooldown: ${sampling:1, 20, 10}
+    generator.red:
+      initial_items: ${choose:0,0,0,1}
+      cooldown: ${sampling:30, 70, 40}
+    mine.red:
+      cooldown: ${sampling:15, 50, 10}
