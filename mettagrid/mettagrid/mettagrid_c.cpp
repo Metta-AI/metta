@@ -330,7 +330,7 @@ void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style
   }
 }
 
-void handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg) {
+void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg) {
   auto& agent = _agents[agent_idx];
   agent->stats.incr(stat);
   agent->stats.incr(stat + "." + std::to_string(type) + "." + std::to_string(arg));
@@ -371,7 +371,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
       // Tolerate invalid action types
       if (action < 0 || action >= _num_action_handlers) {
-        handle_invalid_action(agent_idx, "action.invalid_type", action, arg);
+        _handle_invalid_action(agent_idx, "action.invalid_type", action, arg);
         continue;
       }
 
@@ -382,7 +382,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
       // Tolerate invalid action arguments
       if (arg > _max_action_args[action]) {
-        handle_invalid_action(agent_idx, "action.invalid_arg", action, arg);
+        _handle_invalid_action(agent_idx, "action.invalid_arg", action, arg);
         continue;
       }
 
