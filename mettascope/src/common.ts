@@ -14,9 +14,9 @@ export const DEFAULT_ZOOM_LEVEL = 1 / 2;
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4;
 export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
 export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
-export const HEADER_HEIGHT = 60;          // height of the header
-export const SCRUBBER_HEIGHT = 128;        // height of the scrubber
+export const PANEL_BOTTOM_MARGIN = 60;
+export const HEADER_HEIGHT = 60;
+export const FOOTER_HEIGHT = 128;
 export const SPEEDS = [0.02, 0.1, 0.25, 0.5, 1.0, 5.0];
 
 // Map constants
@@ -68,7 +68,7 @@ export const ui = {
   tracePanel: new PanelInfo("#trace-panel"),
   infoPanel: new PanelInfo("#info-panel"),
   agentPanel: new PanelInfo("#agent-panel"),
-  scrubberPanel: new PanelInfo("#scrubber-panel"),
+  timelinePanel: new PanelInfo("#timeline-panel"),
 
   infoPanels: [] as InfoPanel[],
   hoverObject: null as any,
@@ -112,9 +112,6 @@ export const html = {
   fileName: find('#file-name') as HTMLDivElement,
   helpButton: find('#help-button') as HTMLButtonElement,
   shareButton: find('#share-button') as HTMLButtonElement,
-
-  // Bottom area
-  // scrubber: find('#main-scrubber') as HTMLInputElement,
 
   rewindToStartButton: find('#rewind-to-start') as HTMLImageElement,
   stepBackButton: find('#step-back') as HTMLImageElement,

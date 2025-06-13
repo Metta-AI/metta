@@ -15,41 +15,40 @@ import { updateStep } from './main.js';
 import { clamp } from "./context3d.js";
 import { getAttr } from "./replay.js";
 
-/** Initialize the scrubber. */
-export function initScrubber() {
-  console.log("Initializing scrubber");
+/** Initialize the timeline. */
+export function initTimeline() {
+  console.log("Initializing timeline");
 }
 
 /** Update the scrubber. */
 export function onScrubberChange(event: MouseEvent) {
   let mouseX = event.clientX;
-  let scrubberWidth = ui.scrubberPanel.width - 32;
+  let scrubberWidth = ui.timelinePanel.width - 32;
   let s = Math.floor((mouseX - 16) / scrubberWidth * state.replay.max_steps);
   let step = clamp(s, 0, state.replay.max_steps - 1);
   updateStep(step);
 }
 
-/** Handle mouse down on the scrubber, which will update the step. */
-onEvent("mousedown", "#scrubber-panel", (target: HTMLElement, event: Event) => {
-  console.log("Scrubber clicked");
+/** Handle mouse down on the timeline, which will update the step. */
+onEvent("mousedown", "#timeline-panel", (target: HTMLElement, event: Event) => {
   ui.mainScrubberDown = true;
   onScrubberChange(event as MouseEvent);
 });
 
-/** Update the scrubber. */
-export function updateScrubber() {
+/** Update the timeline. */
+export function updateTimeline() {
   if (state.replay === null) {
     return;
   }
 
-  let scrubberWidth = ui.scrubberPanel.width - 32;
+  let scrubberWidth = ui.timelinePanel.width - 32;
   let fullSteps = state.replay.max_steps - 1;
   html.stepCounter.textContent = state.step.toString();
   html.stepCounter.parentElement!.style.left = (16 + state.step / fullSteps * scrubberWidth - 46 / 2).toString() + "px";
 }
 
-/** Draw the scrubber. */
-export function drawScrubber(panel: PanelInfo) {
+/** Draw the timeline. */
+export function drawTimeline(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
   }
@@ -87,7 +86,7 @@ export function drawScrubber(panel: PanelInfo) {
     [1, 1, 1, 1]
   );
 
-  // Draw key actions on the scrubber.
+  // Draw key actions on the timeline.
   for (let agent of state.replay.agents) {
     let prevFrozen = 0;
     for (let j = 0; j < state.replay.max_steps; j++) {
@@ -113,7 +112,6 @@ export function drawScrubber(panel: PanelInfo) {
         );
       }
       prevFrozen = frozen;
-
     }
   }
 

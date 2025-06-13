@@ -280,7 +280,7 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-#scrubber-panel {
+#timeline-panel {
     position: absolute;
     display: block;
     height: 64px;
@@ -291,12 +291,12 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-#scrubber-panel #step-redout {
+#timeline-panel #timeline-redout {
     position: absolute;
     display: block;
-    width: 47px;
+    width: 46px;
     height: 22px;
-    left: 668px;
+    left: -55px;
     top: 5px;
     background-color: rgba(0, 0, 0, 1.00);
     border-radius: 8px;
@@ -306,7 +306,7 @@ canvas#global-canvas {
     border-style: solid;
 }
 
-#step-redout #step-counter {
+#timeline-redout #step-counter {
     position: absolute;
     display: inline-block;
     left: 0px;
