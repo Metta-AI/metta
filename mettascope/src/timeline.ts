@@ -18,6 +18,8 @@ import { getAttr } from "./replay.js";
 /** Initialize the timeline. */
 export function initTimeline() {
   console.log("Initializing timeline");
+  // Move the step counter off screen for now.
+  html.stepCounter.parentElement!.style.left = "-1000px";
 }
 
 /** Update the scrubber. */

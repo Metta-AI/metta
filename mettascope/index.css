@@ -296,8 +296,9 @@ canvas#global-canvas {
     display: block;
     width: 46px;
     height: 22px;
-    left: -55px;
+    left: 50%;
     top: 5px;
+    transform: translate(-22.50px, 0);
     background-color: rgba(0, 0, 0, 1.00);
     border-radius: 8px;
     overflow: hidden;
