@@ -101,7 +101,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.average_reward = 0.0
-        self._current_eval_score = None
+        self._current_eval_score = 0.0
         self._eval_grouped_scores = {}
         self._eval_suite_avgs = {}
         self._eval_categories = set()
@@ -122,32 +122,10 @@ class PufferTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
 
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
+        policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
-        policy_record = None
-        load_policy_attempts = 10
-        while policy_record is None and load_policy_attempts > 0:
-            if checkpoint.policy_path:
-                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                policy_record = policy_store.policy(checkpoint.policy_path)
-                if "average_reward" in checkpoint.extra_args:
-                    self.average_reward = checkpoint.extra_args["average_reward"]
-            elif cfg.trainer.initial_policy.uri is not None:
-                logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
-                policy_record = policy_store.policy(cfg.trainer.initial_policy)
-            else:
-                policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    policy_record = policy_store.policy(policy_path)
-                elif self._master:
-                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                    policy_record = policy_store.create(metta_grid_env)
-            if policy_record is not None:
-                break
-            load_policy_attempts -= 1
-            time.sleep(5)
-
-        assert policy_record is not None, "No policy found"
+        if "average_reward" in checkpoint.extra_args:
+            self.average_reward = checkpoint.extra_args["average_reward"]
 
         if self._master:
             logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
@@ -183,10 +161,11 @@ class PufferTrainer:
         self._total_minibatches = 0
 
         # Optimizer
-        assert self.trainer_cfg.optimizer.type in ("adam", "muon"), (
-            f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
-        )
-        opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
+        optimizer_map = {"adam": torch.optim.Adam, "muon": ForeachMuon}
+        if self.trainer_cfg.optimizer.type not in optimizer_map:
+            raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}")
+
+        opt_cls = optimizer_map[self.trainer_cfg.optimizer.type]
         self.optimizer = opt_cls(
             self.policy.parameters(),
             lr=self.trainer_cfg.optimizer.learning_rate,
@@ -198,30 +177,10 @@ class PufferTrainer:
         # Policy validation
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
-        _env_shape = metta_grid_env.single_observation_space.shape
-        environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
+        environment_shape = tuple(metta_grid_env.single_observation_space.shape)
         if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
-            found_match = False
-            for component_name, component in self.metta_agent.components.items():
-                if hasattr(component, "_obs_shape"):
-                    found_match = True
-                    component_shape = (
-                        tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                    )
-                    if component_shape != environment_shape:
-                        raise ValueError(
-                            f"Observation space mismatch error:\n"
-                            f"[policy] component_name: {component_name}\n"
-                            f"[policy] component_shape: {component_shape}\n"
-                            f"environment_shape: {environment_shape}\n"
-                        )
-
-            if not found_match:
-                raise ValueError(
-                    "No component with observation shape found in policy. "
-                    f"Environment observation shape: {environment_shape}"
-                )
+            self._validate_observation_shapes(environment_shape)
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
@@ -341,33 +300,26 @@ class PufferTrainer:
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
         logger.info("Simulation complete")
 
-        self._eval_categories = set()
-        for sim_name in self.sim_suite_config.simulations.keys():
-            self._eval_categories.add(sim_name.split("/")[0])
+        # Extract evaluation categories from simulation names
+        self._eval_categories = {sim_name.split("/")[0] for sim_name in self.sim_suite_config.simulations.keys()}
         self._eval_suite_avgs = {}
 
         # Compute scores for each evaluation category
         for category in self._eval_categories:
             score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
-            # Only add the score if we got a non-None result
-            if score is not None:
-                self._eval_suite_avgs[f"{category}_score"] = score
-            else:
-                self._eval_suite_avgs[f"{category}_score"] = 0.0
+            self._eval_suite_avgs[f"{category}_score"] = score if score is not None else 0.0
 
-        # Get overall score (average of all rewards)
-        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
-        self._current_eval_score = overall_score if overall_score is not None else 0.0
-        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
+        # Get overall score
+        self._current_eval_score = stats_db.get_average_metric_by_filter("reward", self.last_pr) or 0.0
 
-        # Categorize scores by environment type
-        self._eval_grouped_scores = {}
-        # Process each score and assign to the right category
-        for (_, sim_name, _), score in all_scores.items():
-            for category in self._eval_categories:
-                if category in sim_name.lower():
-                    self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
+        # Categorize individual simulation scores
+        self._eval_grouped_scores = {
+            f"{category}/{sim_name.split('/')[-1]}": score
+            for (_, sim_name, _), score in stats_db.simulation_scores(self.last_pr, "reward").items()
+            for category in self._eval_categories
+            if category in sim_name.lower()
+        }
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
@@ -588,12 +540,10 @@ class PufferTrainer:
                 v_loss = self._value_loss(newvalue, minibatch["returns"], minibatch["values"], config)
                 entropy_loss = entropy.mean()
 
-                # Additional losses
+                # Additional losses with conditional computation
                 ks_action_loss, ks_value_loss = self.kickstarter.loss(self.agent_step, full_logprobs, newvalue, obs, [])
-                l2_reg_loss = config.l2_reg_loss_coef * self.policy.l2_reg_loss() if config.l2_reg_loss_coef > 0 else 0
-                l2_init_loss = (
-                    config.l2_init_loss_coef * self.policy.l2_init_loss() if config.l2_init_loss_coef > 0 else 0
-                )
+                l2_reg_loss = self._compute_l2_loss(config.l2_reg_loss_coef, self.policy.l2_reg_loss)
+                l2_init_loss = self._compute_l2_loss(config.l2_init_loss_coef, self.policy.l2_init_loss)
 
                 # Total loss
                 loss = (
@@ -801,44 +751,44 @@ class PufferTrainer:
 
     def _process_stats(self):
         # Clean up stats - convert lists to means where possible
-        for k in list(self.stats.keys()):
-            try:
-                self.stats[k] = np.mean(self.stats[k])
-            except (TypeError, ValueError):
-                del self.stats[k]
+        self.stats = {
+            k: np.mean(v) if isinstance(v, list) and len(v) > 0 else v
+            for k, v in self.stats.items()
+            if not (isinstance(v, list) and len(v) == 0)
+        }
 
         # Collect weight metrics if needed
         weight_metrics = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
-            for metrics in self.policy.compute_weight_metrics():
-                name = metrics.get("name", "unknown")
-                for key, value in metrics.items():
-                    if key != "name":
-                        weight_metrics[f"weights/{key}/{name}"] = value
+            weight_metrics = {
+                f"weights/{key}/{metrics.get('name', 'unknown')}": value
+                for metrics in self.policy.compute_weight_metrics()
+                for key, value in metrics.items()
+                if key != "name"
+            }
 
-        # Calculate derived stats from local roll-outs (master process will handle logging)
-        sps = self.profile.SPS
-        agent_steps = self.agent_step
-        avg_steps_per_update = 0.0
-        if self._total_minibatches:
-            avg_steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
-            self._last_agent_step = agent_steps
-        epoch = self.epoch
-        learning_rate = self.optimizer.param_groups[0]["lr"]
+        # Calculate derived stats
         losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
         performance = {k: v for k, v in self.profile}
 
         # Overview metrics
         overview = {"SPS": self.profile.SPS}
-        for k, v in self.trainer_cfg.stats.overview.items():
-            if k in self.stats:
-                overview[v] = self.stats[k]
+        overview.update(
+            {
+                self.trainer_cfg.stats.overview[k]: self.stats[k]
+                for k in self.trainer_cfg.stats.overview
+                if k in self.stats
+            }
+        )
 
         # Add evaluation scores
-        for category in self._eval_categories:
-            score = self._eval_suite_avgs.get(f"{category}_score")
-            if score is not None:
-                overview[f"{category}_evals"] = score
+        overview.update(
+            {
+                f"{category}_evals": self._eval_suite_avgs.get(f"{category}_score")
+                for category in self._eval_categories
+                if self._eval_suite_avgs.get(f"{category}_score") is not None
+            }
+        )
 
         # Environment stats
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
@@ -1017,6 +967,53 @@ class PufferTrainer:
         # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
         self.vecenv.async_reset(self.cfg.seed + rank)
+
+    def _load_policy(self, checkpoint, policy_store, metta_grid_env):
+        """Load policy from checkpoint, initial_policy.uri, or create new."""
+        for attempt in range(10):
+            if checkpoint.policy_path:
+                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+                return policy_store.policy(checkpoint.policy_path)
+            elif self.cfg.trainer.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy URI: {self.cfg.trainer.initial_policy.uri}")
+                return policy_store.policy(self.cfg.trainer.initial_policy)
+            else:
+                policy_path = os.path.join(self.cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
+                if os.path.exists(policy_path):
+                    logger.info(f"Loading policy from checkpoint: {policy_path}")
+                    return policy_store.policy(policy_path)
+                elif self._master:
+                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
+                    return policy_store.create(metta_grid_env)
+            time.sleep(5)
+
+        raise RuntimeError("Failed to load policy after 10 attempts")
+
+    def _validate_observation_shapes(self, environment_shape):
+        found_match = False
+        for component_name, component in self.metta_agent.components.items():
+            if hasattr(component, "_obs_shape"):
+                found_match = True
+                component_shape = (
+                    tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
+                )
+                if component_shape != environment_shape:
+                    raise ValueError(
+                        f"Observation space mismatch error:\n"
+                        f"[policy] component_name: {component_name}\n"
+                        f"[policy] component_shape: {component_shape}\n"
+                        f"environment_shape: {environment_shape}\n"
+                    )
+
+        if not found_match:
+            raise ValueError(
+                "No component with observation shape found in policy. "
+                f"Environment observation shape: {environment_shape}"
+            )
+
+    def _compute_l2_loss(self, coef: float, loss_fn):
+        """Compute L2 loss only if coefficient is positive."""
+        return coef * loss_fn() if coef > 0 else 0
 
 
 class AbortingTrainer(PufferTrainer):

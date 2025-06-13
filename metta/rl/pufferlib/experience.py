@@ -63,14 +63,9 @@ class Experience:
             device=obs_device,
         )
 
-        # Simplified action dtype handling
-        self.actions = torch.zeros(
-            self.segments,
-            bptt_horizon,
-            *atn_space.shape,
-            device=self.device,
-            dtype=torch.int32 if np.issubdtype(atn_space.dtype, np.integer) else torch.float32,
-        )
+        # Action tensor with proper dtype
+        atn_dtype = torch.int32 if np.issubdtype(atn_space.dtype, np.integer) else torch.float32
+        self.actions = torch.zeros(self.segments, bptt_horizon, *atn_space.shape, device=self.device, dtype=atn_dtype)
 
         self.values = torch.zeros(self.segments, bptt_horizon, device=self.device)
         self.logprobs = torch.zeros(self.segments, bptt_horizon, device=self.device)
@@ -124,7 +119,7 @@ class Experience:
         episode_length = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
-        # Store data - simplified indexing
+        # Store data
         batch_slice = (indices, episode_length)
         self.observations[batch_slice] = obs if self.cpu_offload else obs
         self.actions[batch_slice] = actions
@@ -137,13 +132,9 @@ class Experience:
         # Update episode tracking
         self.ep_lengths[env_id] += 1
 
-        # Check if episodes are complete
+        # Check if episodes are complete and reset if needed
         if episode_length + 1 >= self.bptt_horizon:
-            num_full = env_id.stop - env_id.start
-            self.ep_indices[env_id] = (self.free_idx + torch.arange(num_full, device=self.device).int()) % self.segments
-            self.ep_lengths[env_id] = 0
-            self.free_idx = (self.free_idx + num_full) % self.segments
-            self.full_rows += num_full
+            self._reset_completed_episodes(env_id)
 
         # Update LSTM states if provided
         if lstm_state is not None and self.use_rnn and env_id.start in self.lstm_h:
@@ -151,6 +142,14 @@ class Experience:
             self.lstm_c[env_id.start] = lstm_state["lstm_c"]
 
         return int(num_steps)
+
+    def _reset_completed_episodes(self, env_id: slice) -> None:
+        """Reset episode tracking for completed episodes."""
+        num_full = env_id.stop - env_id.start
+        self.ep_indices[env_id] = (self.free_idx + torch.arange(num_full, device=self.device).int()) % self.segments
+        self.ep_lengths[env_id] = 0
+        self.free_idx = (self.free_idx + num_full) % self.segments
+        self.full_rows += num_full
 
     def get_lstm_state(self, env_id_start: int) -> Optional[Dict[str, Tensor]]:
         """Get LSTM state for a batch starting at env_id_start."""
@@ -217,9 +216,6 @@ class Experience:
         # Sample segment indices
         idx = torch.multinomial(prio_probs, self.minibatch_segments)
 
-        # Compute importance sampling weights
-        importance_weights = (self.segments * prio_probs[idx, None]) ** -prio_beta
-
         # Get minibatch data
         mb_obs = self.observations[idx]
         if self.cpu_offload:
@@ -235,7 +231,7 @@ class Experience:
             "advantages": advantages[idx],
             "returns": advantages[idx] + self.values[idx],
             "indices": idx,
-            "prio_weights": importance_weights,
+            "prio_weights": (self.segments * prio_probs[idx, None]) ** -prio_beta,
             "ratio": self.ratio[idx],
         }
 
