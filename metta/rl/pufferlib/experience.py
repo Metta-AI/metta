@@ -54,7 +54,8 @@ class Experience:
         obs_device = "cpu" if cpu_offload else self.device
         obs_dtype = torch.float32 if obs_space.dtype == np.float32 else torch.uint8
 
-        self.observations = torch.zeros(
+        # Use 'obs' to match main branch naming
+        self.obs = torch.zeros(
             self.segments,
             bptt_horizon,
             *obs_space.shape,
@@ -70,8 +71,8 @@ class Experience:
         self.values = torch.zeros(self.segments, bptt_horizon, device=self.device)
         self.logprobs = torch.zeros(self.segments, bptt_horizon, device=self.device)
         self.rewards = torch.zeros(self.segments, bptt_horizon, device=self.device)
-        self.terminals = torch.zeros(self.segments, bptt_horizon, device=self.device)
-        self.truncations = torch.zeros(self.segments, bptt_horizon, device=self.device)
+        self.dones = torch.zeros(self.segments, bptt_horizon, device=self.device)
+        self.truncateds = torch.zeros(self.segments, bptt_horizon, device=self.device)
         self.ratio = torch.ones(self.segments, bptt_horizon, device=self.device)
 
         # Episode tracking
@@ -121,12 +122,12 @@ class Experience:
 
         # Store data
         batch_slice = (indices, episode_length)
-        self.observations[batch_slice] = obs if self.cpu_offload else obs
+        self.obs[batch_slice] = obs if self.cpu_offload else obs
         self.actions[batch_slice] = actions
         self.logprobs[batch_slice] = logprobs
         self.rewards[batch_slice] = rewards
-        self.terminals[batch_slice] = terminals.float()
-        self.truncations[batch_slice] = truncations.float()
+        self.dones[batch_slice] = terminals.float()
+        self.truncateds[batch_slice] = truncations.float()
         self.values[batch_slice] = values
 
         # Update episode tracking
@@ -188,7 +189,7 @@ class Experience:
         torch.ops.pufferlib.compute_puff_advantage(
             self.values,
             rewards,
-            self.terminals,
+            self.dones,
             self.ratio,
             advantages,
             gamma,
@@ -217,7 +218,7 @@ class Experience:
         idx = torch.multinomial(prio_probs, self.minibatch_segments)
 
         # Get minibatch data
-        mb_obs = self.observations[idx]
+        mb_obs = self.obs[idx]
         if self.cpu_offload:
             mb_obs = mb_obs.to(self.device, non_blocking=True)
 
@@ -227,7 +228,7 @@ class Experience:
             "logprobs": self.logprobs[idx],
             "values": self.values[idx],
             "rewards": self.rewards[idx],
-            "terminals": self.terminals[idx],
+            "terminals": self.dones[idx],  # Keep "terminals" key for trainer.py compatibility
             "advantages": advantages[idx],
             "returns": advantages[idx] + self.values[idx],
             "indices": idx,
@@ -246,6 +247,11 @@ class Experience:
     def get_mean_reward(self) -> float:
         """Get mean reward from the buffer."""
         return self.rewards.mean().item()
+
+    @property
+    def full(self) -> bool:
+        """Check if buffer has enough data for training (matches main branch interface)."""
+        return self.full_rows >= self.segments
 
     @property
     def ready_for_training(self) -> bool:
