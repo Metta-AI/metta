@@ -623,15 +623,16 @@ class PufferTrainer:
                     ks_action_loss,
                     ks_value_loss,
                     total_minibatches,
+                    importance=ratio.mean().item(),
                 )
 
             # Learn on accumulated minibatches
             with profile.learn:
-                self.optimizer.zero_grad()
                 loss.backward()
                 if (mb + 1) % self.accumulate_minibatches == 0:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), config.max_grad_norm)
                     self.optimizer.step()
+                    self.optimizer.zero_grad()
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
@@ -690,6 +691,7 @@ class PufferTrainer:
         ks_action_loss,
         ks_value_loss,
         total_minibatches,
+        importance=None,
     ):
         """Update loss tracking for logging."""
         self.losses.policy_loss += pg_loss.item() / total_minibatches
@@ -706,6 +708,8 @@ class PufferTrainer:
         ) / total_minibatches
         self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
         self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+        if importance is not None:
+            self.losses.importance += importance / total_minibatches
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -972,6 +976,7 @@ class PufferTrainer:
             l2_init_loss=0,
             ks_action_loss=0,
             ks_value_loss=0,
+            importance=0,
         )
 
     def _make_vecenv(self):

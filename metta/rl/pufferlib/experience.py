@@ -245,7 +245,7 @@ class Experience:
 
     def update_ratio(self, indices: Tensor, new_ratio: Tensor) -> None:
         """Update importance sampling ratios for given indices."""
-        self.ratio[indices] = new_ratio
+        self.ratio[indices] = new_ratio.detach()
 
     def get_mean_reward(self) -> float:
         """Get mean reward from the buffer."""
