@@ -524,11 +524,6 @@ onEvent("click", "#help-button", () => {
   window.open("https://github.com/Metta-AI/metta/blob/main/mettascope/README.md", "_blank");
 });
 
-// // Bottom area
-// html.scrubber.addEventListener('input', onScrubberChange);
-// html.scrubber.setAttribute("type", "range");
-// html.scrubber.setAttribute("value", "0");
-
 onEvent("click", "#rewind-to-start", () => {
   setIsPlaying(false);
   updateStep(0)

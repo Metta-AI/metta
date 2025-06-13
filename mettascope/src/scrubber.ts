@@ -2,7 +2,7 @@
  * This file handles the timeline scrubber.
  * Main features is that clicking on the scrubber will update the step.
  * It shows the current step as a counter.
- * It can show key actions on the time line.
+ * It can show key actions on the timeline.
  * It has a box which is that the traces view is looking at, so it sort of
  * acts like a traces minimap.
 */
