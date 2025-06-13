@@ -1,0 +1,34 @@
+# @package __global__
+
+defaults:
+  - _self_
+  # - /trainer/puffer@trainer
+
+# sweep_params: "sweep/fast"
+# sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+# sweep:
+#   metric: action.use_item
+
+trainer:
+  env: /env/mettagrid/simple
+  evaluate_interval: 200
+  batch_size: 10240
+  minibatch_size: 8
+  num_workers: 1
+
+# Run configuration
+run: axel.local.run
+run_dir: ./train_dir/${run}
+policy_uri: file://${run_dir}/checkpoints
+run_id: 2
+
+
+wandb:
+  enabled: true
+  project: metta
+  entity: metta-research
+  group: ${run}
+  name: ${run}
+  run_id: ${run}
+  data_dir: ${run_dir}
+  job_type: train

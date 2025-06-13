@@ -83,7 +83,7 @@ for dep in \
   "metta.rl.fast_gae" \
   "mettagrid.mettagrid_env" \
   "mettagrid.mettagrid_c" \
-  "wandb_carbs"; do
+  "metta.rl.protein_opt.wandb_protein"; do
   uv run python -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
     echo "❌ Failed to import $dep"
     exit 1

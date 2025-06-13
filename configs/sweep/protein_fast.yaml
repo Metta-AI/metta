@@ -1,0 +1,58 @@
+# @package _global_
+# Super-fast protein sweep - completes in ~10-15 minutes
+# Based on fast.yaml with protein format and minimal timesteps
+
+# Limit rollouts for predictable completion
+rollout_count: 5  # Stop after 5 experiments (~15-20 minutes total)
+
+sweep:
+  parameters:
+    # Core learning parameter with focused range
+    trainer.learning_rate:
+      min: 0.0001
+      max: 0.01
+      mean: 0.001
+      scale: 1
+      distribution: log_normal
+
+    # Discount factor - narrow range for quick convergence
+    trainer.gamma:
+      min: 0.95
+      max: 0.99
+      mean: 0.97
+      scale: 1
+      distribution: uniform
+
+    # Simple batch size optimization
+    trainer.batch_size:
+      min: 128
+      max: 512
+      mean: 256
+      scale: 1
+      distribution: int_uniform
+
+  # Protein optimizer metadata
+  metric: reward
+  goal: maximize
+
+  # Ultra-fast training settings - the key to speed!
+  trainer:
+    total_timesteps: 5000              # VERY low - like fast.yaml (1e3-1e4)
+    evaluate_interval: 1000            # Quick evaluation
+    checkpoint_interval: 2500          # Minimal checkpointing
+
+    # Speed optimizations
+    update_epochs: 1                   # Single update epoch
+    num_steps: 32                      # Short rollouts
+    bptt_horizon: 4                    # Minimal BPTT
+    minibatch_size: 128               # Small minibatch
+    forward_pass_minibatch_target_size: 128
+
+  # Fast environment settings
+  env:
+    game:
+      max_steps: 32                    # Very short episodes
+      objects:
+        altar:
+          hp: 5                        # Faster object interactions
+          cooldown: 5
