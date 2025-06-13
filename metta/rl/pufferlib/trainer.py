@@ -74,7 +74,9 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.average_reward = 0.0
+        self.mean_reward = 0.0
+        self.filtered_mean_reward = 0.0  # IIR filtered value used by self.trainer_cfg.average_reward
+
         self._current_eval_score = None
         self._eval_grouped_scores = {}
         self._eval_suite_avgs = {}
@@ -104,8 +106,8 @@ class PufferTrainer:
             if checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
                 policy_record = policy_store.policy(checkpoint.policy_path)
-                if "average_reward" in checkpoint.extra_args:
-                    self.average_reward = checkpoint.extra_args["average_reward"]
+                if "filtered_mean_reward" in checkpoint.extra_args:
+                    self.filtered_mean_reward = checkpoint.extra_args["filtered_mean_reward"]
             elif cfg.trainer.initial_policy.uri is not None:
                 logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
                 policy_record = policy_store.policy(cfg.trainer.initial_policy)
@@ -223,6 +225,7 @@ class PufferTrainer:
             wandb_run.define_metric("overview/reward_vs_train_time", step_metric="train/train_time")
             wandb_run.define_metric("overview/reward_vs_total_time", step_metric="train/total_time")
             wandb_run.define_metric("overview/reward_vs_epoch", step_metric="train/epoch")
+            wandb_run.define_metric("train/delta_steps_vs_epoch", step_metric="train/epoch")
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
@@ -476,18 +479,18 @@ class PufferTrainer:
             values_np = self.experience.values_np[idxs]
             rewards_np = self.experience.rewards_np[idxs]
 
+            self.mean_reward = self._get_experience_buffer_mean_reward()
+
             if self.trainer_cfg.average_reward:
                 # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
                 # where ρ is the average reward estimate
 
-                current_batch_mean = self._get_experience_buffer_mean_reward()
-
                 # Apply IIR filter (exponential moving average)
                 alpha = self.trainer_cfg.average_reward_alpha
-                self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
+                self.filtered_mean_reward = (1 - alpha) * self.filtered_mean_reward + alpha * self.mean_reward
 
                 # Use filtered estimate for advantage computation
-                rewards_np_adjusted = (rewards_np - self.average_reward).astype(np.float32)
+                rewards_np_adjusted = (rewards_np - self.filtered_mean_reward).astype(np.float32)
                 effective_gamma = 1.0
                 advantages_np = compute_gae(
                     dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
@@ -637,7 +640,7 @@ class PufferTrainer:
         # Save filtered average reward estimate for restart continuity
         extra_args = {}
         if self.trainer_cfg.average_reward:
-            extra_args["average_reward"] = self.average_reward
+            extra_args["filtered_mean_reward"] = self.filtered_mean_reward
 
         self.checkpoint = TrainerCheckpoint(
             self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
@@ -750,18 +753,21 @@ class PufferTrainer:
         if self.wandb_run and self._master:
             elapsed_times = self.timer.get_all_elapsed()
             wall_time = self.timer.get_elapsed()
-            epoch_time = elapsed_times.get("epoch", 0)
             train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
 
             # these were defined as wandb x-axis values (step_metric) in init()
             x_axis_values = {
                 "train/step": self.agent_step,
+                "train/epoch": self.epoch,
                 "train/total_time": wall_time,
-                "train/epoch_time": epoch_time,
                 "train/train_time": train_time,
             }
 
-            lap_times = self.timer.lap_all(self.agent_step)
+            lap_times = self.timer.lap_all(self.agent_step)  # declares a new lap
+            delta_steps = self.timer.get_lap_steps()
+            if delta_steps is None:
+                delta_steps = self.agent_step
+
             wall_time_for_lap = self.timer.get_last_elapsed()
             training_time_for_lap = lap_times.get("_rollout", 0) + lap_times.get("_train", 0)
 
@@ -777,16 +783,17 @@ class PufferTrainer:
                 },
             }
 
-            steps_per_second = self.timer.get_lap_rate(self.agent_step) if wall_time_for_lap > 0 else 0
+            steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+            lap_steps_per_second = self.timer.get_lap_rate(self.agent_step) if wall_time_for_lap > 0 else 0
 
             overview = {
                 "sps": steps_per_second,  # average rate since start
-                "lap_sps": steps_per_second,  # lap rate for the current epoch
-                "steps_per_training_sec": steps_per_second,  # average rate vs training time since start
-                "lap_steps_per_training_sec": steps_per_second,  # average rate vs training time since start
-                "reward_vs_train_time": steps_per_second,
-                "reward_vs_total_time": steps_per_second,
-                "reward_vs_epoch": steps_per_second,
+                "lap_sps": lap_steps_per_second,  # rate during the current epoch
+                "steps_per_training_sec": steps_per_second,
+                "lap_steps_per_training_sec": lap_steps_per_second,
+                "reward_vs_train_time": self.mean_reward,
+                "reward_vs_total_time": self.mean_reward,
+                "reward_vs_epoch": self.mean_reward,
             }
 
             # Add custom overview items
@@ -802,13 +809,13 @@ class PufferTrainer:
             train_logs = {
                 "train/epoch": self.epoch,
                 "train/learning_rate": learning_rate,
-                "train/avg_agent_steps_per_update": avg_steps_per_update,
+                "train/delta_steps_vs_epoch": delta_steps,
                 **x_axis_values,
             }
 
             # Add the IIR filtered average reward if using that RL formulation
             if self.trainer_cfg.average_reward:
-                train_logs["train/average_reward"] = self.average_reward
+                train_logs["train/filtered_mean_reward"] = self.filtered_mean_reward
 
             # Log everything to wandb
             self.wandb_run.log(

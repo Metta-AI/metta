@@ -399,3 +399,45 @@ class Stopwatch:
             results[timer_name] = elapsed
 
         return results
+
+    def get_lap_steps(self, lap_index: int = -1, name: Optional[str] = None) -> Optional[int]:
+        """Get the step count for a specific lap.
+
+        Args:
+            lap_index: Index of the lap (1-based). Negative indices count from the end.
+                    default -1 is the most recent completed lap
+            name: Timer name (None for global)
+
+        Returns:
+            Step count for the specified lap, or None if the lap doesn't exist.
+            For lap N, this returns the number of steps taken between checkpoint N-1 and checkpoint N.
+        """
+        timer = self._get_timer(name)
+
+        if not timer["checkpoints"]:
+            return None
+
+        # Sort checkpoints by time to get them in order
+        sorted_checkpoints = sorted(timer["checkpoints"].items(), key=lambda x: x[1][0])
+
+        # Need at least 2 checkpoints to have a completed lap
+        if len(sorted_checkpoints) < 2:
+            return None
+
+        # Handle negative indices
+        if lap_index < 0:
+            lap_index = len(sorted_checkpoints) + lap_index + 1
+
+        if lap_index < 1 or lap_index > len(sorted_checkpoints):
+            return None
+
+        # Get the step count at the end of the requested lap
+        _, (_, end_steps) = sorted_checkpoints[lap_index - 1]
+
+        # Get the step count at the start of the lap (or 0 if it's the first lap)
+        if lap_index > 1:
+            _, (_, start_steps) = sorted_checkpoints[lap_index - 2]
+        else:
+            start_steps = 0
+
+        return end_steps - start_steps
