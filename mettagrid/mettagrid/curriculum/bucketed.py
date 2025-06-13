@@ -4,7 +4,6 @@ import logging
 from itertools import product
 from typing import Any, Dict, List
 
-import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.curriculum.util import config_from_path, curriculum_from_config
@@ -43,19 +42,19 @@ class LazyDict(dict):
         return self.lamba_dict.keys()
 
     def values(self):
-        raise NotImplementedError("TBD error handling")
+        raise NotImplementedError("values() not implemented for LazyDict")
 
     def items(self):
-        raise NotImplementedError("TBD error handling")
+        raise NotImplementedError("items() not implemented for LazyDict")
 
     def get(self, key, default=None):
-        raise NotImplementedError("TBD error handling")
+        raise NotImplementedError("get() not implemented for LazyDict")
 
     def clear(self):
         raise NotImplementedError("LazyDict is immutable")
 
     def copy(self):
-        raise NotImplementedError("TBD error handling")
+        raise NotImplementedError("copy() not implemented for LazyDict")
 
     def update(self, other=None, **kwargs):
         raise NotImplementedError("LazyDict is immutable")
@@ -67,7 +66,7 @@ class LazyDict(dict):
         raise NotImplementedError("LazyDict is immutable")
 
     def setdefault(self, key, default=None):
-        raise NotImplementedError("TBD error handling")
+        raise NotImplementedError("setdefault() not implemented for LazyDict")
 
 
 class BucketedCurriculum(LowRewardCurriculum):
@@ -129,8 +128,7 @@ def _buckets_from_spec(spec: Dict[str, Any], default_bins: int) -> List[Any]:
     lo, hi = spec["range"]
     n = int(spec.get("bins", default_bins))
 
-    # equally-spaced, then cast to int if endpoints were ints
-    pts = np.linspace(lo, hi, num=n)
-    if isinstance(lo, int) and isinstance(hi, int):
-        pts = np.round(pts).astype(int)
-    return pts.tolist()
+    # Create n ranges from [lo,hi]
+    step = (hi - lo) / n
+    binned_ranges = [{"range": (lo + i * step, lo + (i + 1) * step)} for i in range(n)]
+    return binned_ranges
