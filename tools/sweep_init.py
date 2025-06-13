@@ -11,6 +11,7 @@ import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.rl.protein_opt.metta_protein import MettaProtein
+from metta.rl.protein_opt.sweep_config import validate_sweep_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import config_from_path
 from metta.util.lock import run_once
@@ -26,7 +27,24 @@ def main(cfg: DictConfig | ListConfig) -> int:
     logger.info(yaml.dump(OmegaConf.to_container(cfg, resolve=True), default_flow_style=False))
     cfg.wandb.name = cfg.sweep_name
     OmegaConf.register_new_resolver("ss", sweep_space, replace=True)
-    cfg.sweep = config_from_path(cfg.sweep_params, cfg.sweep_params_override)
+
+    # Load and validate sweep configuration
+    sweep_config_dict = config_from_path(cfg.sweep_params, cfg.sweep_params_override)
+
+    # Validate the sweep configuration using Pydantic
+    try:
+        validated_config = validate_sweep_config(OmegaConf.to_container(sweep_config_dict, resolve=True))
+        logger.info("Sweep configuration validated successfully")
+
+        # Convert back to OmegaConf for compatibility
+        cfg.sweep = OmegaConf.create(validated_config.model_dump(exclude_none=True))
+
+        # Use the validated sweep section if it exists
+        if validated_config.sweep:
+            cfg.sweep = OmegaConf.create(validated_config.sweep.model_dump(exclude_none=True))
+    except Exception as e:
+        logger.error(f"Invalid sweep configuration: {e}")
+        raise
 
     is_master = os.environ.get("NODE_INDEX", "0") == "0"
 
