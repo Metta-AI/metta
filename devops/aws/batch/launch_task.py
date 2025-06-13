@@ -346,6 +346,7 @@ def submit_batch_job(args, task_args):
 
 def main():
     parser = argparse.ArgumentParser(description="Launch an AWS Batch task with a wandb key.")
+    parser.add_argument("--force", action="store_true", help="Force use of deprecated script")
     parser.add_argument("--cluster", default="metta")
     parser.add_argument("--run", required=True)
     parser.add_argument("--job-name", help="The job name. If not specified, will use run id with random suffix.")
@@ -376,6 +377,11 @@ def main():
         help="Automatically terminate the job after this many minutes.",
     )
     args, task_args = parser.parse_known_args()
+
+    if not args.force:
+        print(red("This script is deprecated. Please use ./devops/skypilot/launch.py instead."))
+        print(yellow("Use --force to bypass this check if needed."))
+        sys.exit(1)
 
     use_colors(sys.stdout.isatty() and not args.no_color)
 

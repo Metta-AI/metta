@@ -2,7 +2,7 @@ name: Generate PR Summary
 
 on:
   schedule:
-    - cron: "0 19 * * 5"
+    - cron: "0 1 * * 6" # F at 5 pm PST
   workflow_dispatch:
     inputs:
       days_to_scan:
@@ -10,7 +10,7 @@ on:
         required: false
         default: "7"
         type: choice
-        options: ["7", "14", "30"]
+        options: ["1", "7", "14", "30"]
       force_refresh:
         description: "Force cache refresh"
         required: false
@@ -29,6 +29,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set days to scan
+        id: set-days
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Use repository variable for scheduled runs, fallback to 7 if not set
+            DAYS="${{ vars.PR_NEWSLETTER_HISTORY_DAYS || '7' }}"
+            echo "Using repository variable PR_NEWSLETTER_HISTORY_DAYS: $DAYS days"
+          else
+            # Use workflow input for manual runs, fallback to 7 if not provided
+            DAYS="${{ inputs.days_to_scan || '7' }}"
+            echo "Using workflow input: $DAYS days"
+          fi
+          echo "days=$DAYS" >> $GITHUB_OUTPUT
+          echo "Selected days to scan: $DAYS"
+
       - name: Restore PR Summary Cache
         uses: actions/cache@v4
         with:
@@ -44,7 +59,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           repository: "Metta-AI/metta"
-          days: ${{ inputs.days_to_scan || '7' }}
+          days: ${{ steps.set-days.outputs.days }}
           force-refresh: ${{ inputs.force_refresh || 'false' }}
 
       - name: Install uv
@@ -59,7 +74,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PR_DIGEST_FILE: ${{ steps.pr-digest.outputs.digest-file }}
           DATE_RANGE: ${{ steps.pr-digest.outputs.date-range }}
-          DAYS_TO_SCAN: ${{ inputs.days_to_scan || '7' }}
+          DAYS_TO_SCAN: ${{ steps.set-days.outputs.days }}
           FORCE_REFRESH: ${{ inputs.force_refresh || 'false' }}
         run: |
           uv pip install --system -r .github/scripts/requirements-pr-summary.txt
