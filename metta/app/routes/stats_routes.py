@@ -1,3 +1,4 @@
+import uuid
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -8,7 +9,7 @@ from metta.app.metta_repo import MettaRepo
 
 # Request/Response Models
 class PolicyIdResponse(BaseModel):
-    policy_ids: Dict[str, int]
+    policy_ids: Dict[str, str]
 
 
 class TrainingRunCreate(BaseModel):
@@ -19,7 +20,7 @@ class TrainingRunCreate(BaseModel):
 
 
 class TrainingRunResponse(BaseModel):
-    id: int
+    id: str
 
 
 class EpochCreate(BaseModel):
@@ -28,26 +29,26 @@ class EpochCreate(BaseModel):
     attributes: Dict[str, str] = Field(default_factory=dict)
 
 
-class PolicyEpochResponse(BaseModel):
-    id: int
+class EpochResponse(BaseModel):
+    id: str
 
 
 class PolicyCreate(BaseModel):
     name: str
     description: Optional[str] = None
     url: Optional[str] = None
-    epoch_id: Optional[int] = None
+    epoch_id: Optional[str] = None
 
 
 class PolicyResponse(BaseModel):
-    id: int
+    id: str
 
 
 class EpisodeCreate(BaseModel):
-    agent_policies: Dict[int, int]
+    agent_policies: Dict[int, str]
     agent_metrics: Dict[int, Dict[str, float]]
-    primary_policy_id: int
-    stats_epoch: Optional[int] = None
+    primary_policy_id: str
+    stats_epoch: Optional[str] = None
     eval_name: Optional[str] = None
     simulation_suite: Optional[str] = None
     replay_url: Optional[str] = None
@@ -55,7 +56,7 @@ class EpisodeCreate(BaseModel):
 
 
 class EpisodeResponse(BaseModel):
-    id: int
+    id: str
 
 
 def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
@@ -67,7 +68,9 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         """Get policy IDs for given policy names."""
         try:
             policy_ids = stats_repo.get_policy_ids(policy_names)
-            return PolicyIdResponse(policy_ids=policy_ids)
+            # Convert UUIDs to strings for JSON serialization
+            policy_ids_str = {name: str(uuid_val) for name, uuid_val in policy_ids.items()}
+            return PolicyIdResponse(policy_ids=policy_ids_str)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get policy IDs: {str(e)}") from e
 
@@ -81,21 +84,24 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 attributes=training_run.attributes,
                 url=training_run.url,
             )
-            return TrainingRunResponse(id=run_id)
+            return TrainingRunResponse(id=str(run_id))
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create training run: {str(e)}") from e
 
-    @router.post("/training-runs/{run_id}/epochs", response_model=PolicyEpochResponse)
-    async def create_epoch(run_id: int, epoch: EpochCreate) -> PolicyEpochResponse:
+    @router.post("/training-runs/{run_id}/epochs", response_model=EpochResponse)
+    async def create_epoch(run_id: str, epoch: EpochCreate) -> EpochResponse:
         """Create a new policy epoch."""
         try:
+            run_id_uuid = uuid.UUID(run_id)
             epoch_id = stats_repo.create_epoch(
-                run_id=run_id,
+                run_id=run_id_uuid,
                 start_training_epoch=epoch.start_training_epoch,
                 end_training_epoch=epoch.end_training_epoch,
                 attributes=epoch.attributes,
             )
-            return PolicyEpochResponse(id=epoch_id)
+            return EpochResponse(id=str(epoch_id))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid UUID format")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create policy epoch: {str(e)}") from e
 
@@ -103,10 +109,13 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     async def create_policy(policy: PolicyCreate) -> PolicyResponse:
         """Create a new policy."""
         try:
+            epoch_id_uuid = uuid.UUID(policy.epoch_id) if policy.epoch_id else None
             policy_id = stats_repo.create_policy(
-                name=policy.name, description=policy.description, url=policy.url, epoch_id=policy.epoch_id
+                name=policy.name, description=policy.description, url=policy.url, epoch_id=epoch_id_uuid
             )
-            return PolicyResponse(id=policy_id)
+            return PolicyResponse(id=str(policy_id))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid UUID format")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create policy: {str(e)}") from e
 
@@ -114,17 +123,26 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     async def record_episode(episode: EpisodeCreate) -> EpisodeResponse:
         """Record a new episode with agent policies and metrics."""
         try:
+            # Convert string UUIDs to UUID objects
+            agent_policies_uuid = {
+                agent_id: uuid.UUID(policy_id) for agent_id, policy_id in episode.agent_policies.items()
+            }
+            primary_policy_id_uuid = uuid.UUID(episode.primary_policy_id)
+            stats_epoch_uuid = uuid.UUID(episode.stats_epoch) if episode.stats_epoch else None
+
             episode_id = stats_repo.record_episode(
-                agent_policies=episode.agent_policies,
+                agent_policies=agent_policies_uuid,
                 agent_metrics=episode.agent_metrics,
-                primary_policy_id=episode.primary_policy_id,
-                stats_epoch=episode.stats_epoch,
+                primary_policy_id=primary_policy_id_uuid,
+                stats_epoch=stats_epoch_uuid,
                 eval_name=episode.eval_name,
                 simulation_suite=episode.simulation_suite,
                 replay_url=episode.replay_url,
                 attributes=episode.attributes,
             )
-            return EpisodeResponse(id=episode_id)
+            return EpisodeResponse(id=str(episode_id))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid UUID format")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to record episode: {str(e)}") from e
 

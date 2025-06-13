@@ -1,18 +1,37 @@
+import uuid
 from typing import Any, Dict, List, Optional
 
 import httpx
+from pydantic import BaseModel
 
 from metta.app.routes.stats_routes import (
     EpisodeCreate,
-    EpisodeResponse,
     EpochCreate,
     PolicyCreate,
-    PolicyEpochResponse,
     PolicyIdResponse,
-    PolicyResponse,
     TrainingRunCreate,
-    TrainingRunResponse,
 )
+
+
+# Client-specific models with UUID fields
+class ClientPolicyIdResponse(BaseModel):
+    policy_ids: Dict[str, uuid.UUID]
+
+
+class ClientTrainingRunResponse(BaseModel):
+    id: uuid.UUID
+
+
+class ClientEpochResponse(BaseModel):
+    id: uuid.UUID
+
+
+class ClientPolicyResponse(BaseModel):
+    id: uuid.UUID
+
+
+class ClientEpisodeResponse(BaseModel):
+    id: uuid.UUID
 
 
 class StatsClient:
@@ -37,7 +56,7 @@ class StatsClient:
         """Close the HTTP client."""
         self.http_client.close()
 
-    def get_policy_ids(self, policy_names: List[str]) -> PolicyIdResponse:
+    def get_policy_ids(self, policy_names: List[str]) -> ClientPolicyIdResponse:
         """
         Get policy IDs for given policy names.
 
@@ -45,7 +64,7 @@ class StatsClient:
             policy_names: List of policy names to get IDs for
 
         Returns:
-            PolicyIdResponse containing the mapping of names to IDs
+            ClientPolicyIdResponse containing the mapping of names to UUIDs
 
         Raises:
             httpx.HTTPStatusError: If the request fails
@@ -53,11 +72,15 @@ class StatsClient:
         params = {"policy_names": policy_names}
         response = self.http_client.get("/stats/policies/ids", params=params)
         response.raise_for_status()
-        return PolicyIdResponse(**response.json())
+
+        # Deserialize string UUIDs to UUID objects
+        server_response = PolicyIdResponse(**response.json())
+        policy_ids_uuid = {name: uuid.UUID(uuid_str) for name, uuid_str in server_response.policy_ids.items()}
+        return ClientPolicyIdResponse(policy_ids=policy_ids_uuid)
 
     def create_training_run(
         self, name: str, user_id: str, attributes: Optional[Dict[str, str]] = None, url: Optional[str] = None
-    ) -> TrainingRunResponse:
+    ) -> ClientTrainingRunResponse:
         """
         Create a new training run.
 
@@ -68,7 +91,7 @@ class StatsClient:
             url: Optional URL associated with the training run
 
         Returns:
-            TrainingRunResponse containing the created run ID
+            ClientTrainingRunResponse containing the created run UUID
 
         Raises:
             httpx.HTTPStatusError: If the request fails
@@ -76,26 +99,30 @@ class StatsClient:
         data = TrainingRunCreate(name=name, user_id=user_id, attributes=attributes or {}, url=url)
         response = self.http_client.post("/stats/training-runs", json=data.model_dump())
         response.raise_for_status()
-        return TrainingRunResponse(**response.json())
+
+        # Deserialize string UUID to UUID object
+        response_data = response.json()
+        run_id_uuid = uuid.UUID(response_data["id"])
+        return ClientTrainingRunResponse(id=run_id_uuid)
 
     def create_epoch(
         self,
-        run_id: int,
+        run_id: uuid.UUID,
         start_training_epoch: int,
         end_training_epoch: int,
         attributes: Optional[Dict[str, str]] = None,
-    ) -> PolicyEpochResponse:
+    ) -> ClientEpochResponse:
         """
         Create a new policy epoch.
 
         Args:
-            run_id: ID of the training run
+            run_id: UUID of the training run
             start_training_epoch: Starting epoch number
             end_training_epoch: Ending epoch number
             attributes: Optional attributes for the epoch
 
         Returns:
-            PolicyEpochResponse containing the created epoch ID
+            ClientPolicyEpochResponse containing the created epoch UUID
 
         Raises:
             httpx.HTTPStatusError: If the request fails
@@ -107,11 +134,19 @@ class StatsClient:
         )
         response = self.http_client.post(f"/stats/training-runs/{run_id}/epochs", json=data.model_dump())
         response.raise_for_status()
-        return PolicyEpochResponse(**response.json())
+
+        # Deserialize string UUID to UUID object
+        response_data = response.json()
+        epoch_id_uuid = uuid.UUID(response_data["id"])
+        return ClientEpochResponse(id=epoch_id_uuid)
 
     def create_policy(
-        self, name: str, description: Optional[str] = None, url: Optional[str] = None, epoch_id: Optional[int] = None
-    ) -> PolicyResponse:
+        self,
+        name: str,
+        description: Optional[str] = None,
+        url: Optional[str] = None,
+        epoch_id: Optional[uuid.UUID] = None,
+    ) -> ClientPolicyResponse:
         """
         Create a new policy.
 
@@ -119,54 +154,64 @@ class StatsClient:
             name: Name of the policy
             description: Optional description of the policy
             url: Optional URL associated with the policy
-            epoch_id: Optional ID of the associated epoch
+            epoch_id: Optional UUID of the associated epoch
 
         Returns:
-            PolicyResponse containing the created policy ID
+            ClientPolicyResponse containing the created policy UUID
 
         Raises:
             httpx.HTTPStatusError: If the request fails
         """
-        data = PolicyCreate(name=name, description=description, url=url, epoch_id=epoch_id)
+        epoch_id_str = str(epoch_id) if epoch_id else None
+        data = PolicyCreate(name=name, description=description, url=url, epoch_id=epoch_id_str)
         response = self.http_client.post("/stats/policies", json=data.model_dump())
         response.raise_for_status()
-        return PolicyResponse(**response.json())
+
+        # Deserialize string UUID to UUID object
+        response_data = response.json()
+        policy_id_uuid = uuid.UUID(response_data["id"])
+        return ClientPolicyResponse(id=policy_id_uuid)
 
     def record_episode(
         self,
-        agent_policies: Dict[int, int],
+        agent_policies: Dict[int, uuid.UUID],
         agent_metrics: Dict[int, Dict[str, float]],
-        primary_policy_id: int,
-        stats_epoch: Optional[int] = None,
+        primary_policy_id: uuid.UUID,
+        stats_epoch: Optional[uuid.UUID] = None,
         eval_name: Optional[str] = None,
         simulation_suite: Optional[str] = None,
         replay_url: Optional[str] = None,
         attributes: Optional[Dict[str, Any]] = None,
-    ) -> EpisodeResponse:
+    ) -> ClientEpisodeResponse:
         """
         Record a new episode with agent policies and metrics.
 
         Args:
-            agent_policies: Mapping of agent IDs to policy IDs
+            agent_policies: Mapping of agent IDs to policy UUIDs
             agent_metrics: Mapping of agent IDs to their metrics
-            primary_policy_id: ID of the primary policy
-            stats_epoch: Optional stats epoch id
+            primary_policy_id: UUID of the primary policy
+            stats_epoch: Optional stats epoch UUID
             eval_name: Optional evaluation name
             simulation_suite: Optional simulation suite identifier
             replay_url: Optional URL to the replay
             attributes: Optional additional attributes
 
         Returns:
-            EpisodeResponse containing the created episode ID
+            ClientEpisodeResponse containing the created episode UUID
 
         Raises:
             httpx.HTTPStatusError: If the request fails
         """
+        # Convert UUIDs to strings for the Pydantic model
+        agent_policies_str = {agent_id: str(policy_id) for agent_id, policy_id in agent_policies.items()}
+        primary_policy_id_str = str(primary_policy_id)
+        stats_epoch_str = str(stats_epoch) if stats_epoch else None
+
         data = EpisodeCreate(
-            agent_policies=agent_policies,
+            agent_policies=agent_policies_str,
             agent_metrics=agent_metrics,
-            primary_policy_id=primary_policy_id,
-            stats_epoch=stats_epoch,
+            primary_policy_id=primary_policy_id_str,
+            stats_epoch=stats_epoch_str,
             eval_name=eval_name,
             simulation_suite=simulation_suite,
             replay_url=replay_url,
@@ -174,4 +219,8 @@ class StatsClient:
         )
         response = self.http_client.post("/stats/episodes", json=data.model_dump())
         response.raise_for_status()
-        return EpisodeResponse(**response.json())
+
+        # Deserialize string UUID to UUID object
+        response_data = response.json()
+        episode_id_uuid = uuid.UUID(response_data["id"])
+        return ClientEpisodeResponse(id=episode_id_uuid)

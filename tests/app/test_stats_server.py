@@ -2,9 +2,9 @@ import pytest
 from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
 
+from metta.app.metta_repo import MettaRepo
 from metta.app.server import create_app
 from metta.app.stats_client import StatsClient
-from metta.app.metta_repo import MettaRepo
 
 
 class TestStatsServerSimple:
@@ -49,7 +49,7 @@ class TestStatsServerSimple:
         """Create a stats client for testing."""
         return StatsClient(test_client)
 
-    def test_complete_workflow(self, stats_client):
+    def test_complete_workflow(self, stats_client: StatsClient):
         """Test the complete end-to-end workflow."""
 
         # 1. Create a training run
@@ -59,7 +59,7 @@ class TestStatsServerSimple:
             attributes={"environment": "test_env", "algorithm": "test_alg"},
             url="https://example.com/run",
         )
-        assert training_run.id > 0
+        assert training_run.id is not None
 
         # 2. Create an epoch
         epoch = stats_client.create_epoch(
@@ -68,7 +68,7 @@ class TestStatsServerSimple:
             end_training_epoch=100,
             attributes={"learning_rate": "0.001", "batch_size": "32"},
         )
-        assert epoch.id > 0
+        assert epoch.id is not None
 
         # 3. Create a policy
         policy = stats_client.create_policy(
@@ -77,11 +77,11 @@ class TestStatsServerSimple:
             url="https://example.com/policy",
             epoch_id=epoch.id,
         )
-        assert policy.id > 0
+        assert policy.id is not None
 
         # 4. Create another policy for agent diversity
         policy2 = stats_client.create_policy(name="test_policy_v2", description="Second test policy", epoch_id=epoch.id)
-        assert policy2.id > 0
+        assert policy2.id is not None
 
         # 5. Record an episode
         episode = stats_client.record_episode(
@@ -97,7 +97,7 @@ class TestStatsServerSimple:
             replay_url="https://example.com/replay",
             attributes={"episode_length": 100, "difficulty": "medium"},
         )
-        assert episode.id > 0
+        assert episode.id is not None
 
         # 6. Test policy ID lookup
         policy_ids = stats_client.get_policy_ids(["test_policy_v1", "test_policy_v2"])
@@ -127,7 +127,7 @@ class TestStatsServerSimple:
                 eval_name=f"episode_{i}",
             )
             episode_ids.append(episode.id)
-            assert episode.id > 0
+            assert episode.id is not None
 
         # Verify all episodes have different IDs
         assert len(set(episode_ids)) == 5
