@@ -1,7 +1,9 @@
 #!/bin/bash
 EXCLUDE_PATTERN=""
 
-# Parse command line arguments
+# Note that this script assumes that a .prettierc is present with appropriate settings for
+# regular json files and vscode's flavor of jsonc
+
 while [[ $# -gt 0 ]]; do
   case $1 in
     --exclude)
@@ -58,14 +60,6 @@ format_files "json"
 if [ -f "metta.code-workspace" ]; then
   echo "Formatting metta.code-workspace..."
   npx prettier --write metta.code-workspace
-fi
-
-# Check if prettier config exists
-if [ ! -f ".prettierrc" ] && [ ! -f ".prettierrc.json" ] && [ ! -f ".prettierrc.js" ]; then
-  echo ""
-  echo "WARNING: No .prettierrc file found in the current directory."
-  echo "The JSON5 parser configuration for .vscode/*.json files won't be applied."
-  echo "Make sure your .prettierrc file is in the project root."
 fi
 
 echo "All JSON files (except excluded ones) have been formatted with Prettier."
