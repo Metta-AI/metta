@@ -100,6 +100,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
         self._profiler.disable()
+        self.dump_profile()
 
     def dump_profile(self):
         with open(f"profile_{self._uuid}.prof", "w") as f:
@@ -166,6 +167,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         obs, infos = self._c_env.reset()
         self._should_reset = False
         self._profiler.disable()
+        self.dump_profile()
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
@@ -212,6 +214,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
         self._profiler.disable()
+        self.dump_profile()
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
