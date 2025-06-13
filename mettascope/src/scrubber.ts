@@ -43,8 +43,9 @@ export function updateScrubber() {
   }
 
   let scrubberWidth = ui.scrubberPanel.width - 32;
+  let fullSteps = state.replay.max_steps - 1;
   html.stepCounter.textContent = state.step.toString();
-  html.stepCounter.parentElement!.style.left = (16 + state.step / state.replay.max_steps * scrubberWidth - 46 / 2).toString() + "px";
+  html.stepCounter.parentElement!.style.left = (16 + state.step / fullSteps * scrubberWidth - 46 / 2).toString() + "px";
 }
 
 /** Draw the scrubber. */
@@ -58,6 +59,7 @@ export function drawScrubber(panel: PanelInfo) {
   ctx.translate(panel.x, panel.y);
 
   let scrubberWidth = panel.width - 32;
+  let fullSteps = state.replay.max_steps - 1;
 
   // Draw the background of the scrubber.
   ctx.drawSolidRect(
@@ -69,12 +71,12 @@ export function drawScrubber(panel: PanelInfo) {
   // Draw the foreground of the scrubber.
   ctx.drawSolidRect(
     16, 34,
-    scrubberWidth * state.step / state.replay.max_steps, 16,
+    scrubberWidth * state.step / fullSteps, 16,
     [1, 1, 1, 1]
   );
 
   // The the position of the traces view.
-  let scrubberTileSize = scrubberWidth / state.replay.max_steps
+  let scrubberTileSize = scrubberWidth / fullSteps
   let tracesX = -ui.tracePanel.panPos.x() / Common.TRACE_WIDTH * scrubberTileSize
   let zoomLevel = ui.tracePanel.zoomLevel;
   let tracesW = (ui.tracePanel.width / zoomLevel) / Common.TRACE_WIDTH * scrubberTileSize;
@@ -93,7 +95,7 @@ export function drawScrubber(panel: PanelInfo) {
       // Draw frozen state.
       let frozen = getAttr(agent, "agent:frozen", j);
       if (frozen > 0 && prevFrozen == 0) {
-        let x = j / state.replay.max_steps * scrubberWidth;
+        let x = j / fullSteps * scrubberWidth;
         ctx.drawSprite(
           "agents/frozen.png",
           x,
