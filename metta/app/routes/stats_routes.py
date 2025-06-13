@@ -100,8 +100,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 attributes=epoch.attributes,
             )
             return EpochResponse(id=str(epoch_id))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid UUID format")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create policy epoch: {str(e)}") from e
 
@@ -114,8 +114,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 name=policy.name, description=policy.description, url=policy.url, epoch_id=epoch_id_uuid
             )
             return PolicyResponse(id=str(policy_id))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid UUID format")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create policy: {str(e)}") from e
 
@@ -141,8 +141,8 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 attributes=episode.attributes,
             )
             return EpisodeResponse(id=str(episode_id))
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid UUID format")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to record episode: {str(e)}") from e
 
