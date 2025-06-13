@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/navigation_sequence/experiments/terrain_defaults@
+  - _self_
+
+game:
+  map_builder:
+    room:
+      style: all-sparse
+      width: ${sampling:20,50,30}
+      height: ${sampling:20,50,30}

@@ -33,8 +33,8 @@ game:
       agents: 1
       style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
-        mine.red: ${sampling:1,3,2}
-        generator.red: ${sampling:1,3,2}
+        mine.red: ${sampling:1,10,5}
+        generator.red: ${sampling:1,10,5}
         altar: 5
   objects:
     altar:
