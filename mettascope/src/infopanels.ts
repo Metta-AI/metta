@@ -55,9 +55,10 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
   panel.div.style.top = hoverPanel.style.top;
   panel.div.style.left = hoverPanel.style.left;
 
-  // Show the actions buttons (memory, etc.) if the object is an agent.
+  // Show the actions buttons (memory, etc.) if the object is an agent
+  // and if the websocket is connected.
   var actions = findIn(panel.div, ".actions");
-  if (panel.object.hasOwnProperty("agent_id")) {
+  if (state.ws != null && panel.object.hasOwnProperty("agent_id")) {
     actions.classList.remove("hidden");
   } else {
     actions.classList.add("hidden");
