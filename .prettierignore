@@ -4,12 +4,14 @@
 
 .DS_Store
 node_modules/
-
+dist/
 build/
 build-debug/
-dist/
-.cache/
 coverage/
+.mypy_cache/
+.venv/
+wandb/
+htmlcov/
 
 package-lock.json
 yarn.lock
