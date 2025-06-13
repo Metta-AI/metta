@@ -38,6 +38,8 @@ jobs:
 
       - name: Setup Python and uv
         uses: ./.github/actions/setup-uv
+        with:
+          include-dev: true
 
       - name: Generate run name
         id: generate_run_name
