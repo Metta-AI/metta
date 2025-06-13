@@ -8,7 +8,7 @@ import sky.jobs
 import sky.server.common
 
 from metta.util.colorama import blue, bold, cyan, green, magenta, red, yellow
-from metta.util.git import get_current_commit, has_unstaged_changes, is_commit_pushed
+from metta.util.git import get_current_commit, has_unstaged_changes, is_commit_pushed, ref_to_hash
 
 
 def print_tip(text: str):
@@ -41,7 +41,7 @@ def launch_task(task: sky.Task, dry_run=False):
     print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
 
 
-def check_git_state(commit_hash: str | None = None) -> Tuple[bool, str]:
+def check_git_state(git_ref: str | None = None) -> Tuple[bool, str]:
     """Check that the local git state will be matched in the cloud job."""
 
     error_lines = []
@@ -53,7 +53,7 @@ def check_git_state(commit_hash: str | None = None) -> Tuple[bool, str]:
         error_lines.append("  - Stash: git stash")
         return (False, "\n".join(error_lines))
 
-    target_commit = commit_hash or get_current_commit()
+    target_commit = get_current_commit() if git_ref is None else ref_to_hash(git_ref)
     if target_commit and not is_commit_pushed(target_commit):
         commit_display = target_commit[:8]
         error_lines.append(

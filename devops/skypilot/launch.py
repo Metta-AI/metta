@@ -113,7 +113,7 @@ def main():
     if not git_ref:
         git_ref = get_current_commit()
 
-    # check that git_ref corresponds to a branch that can be checked out
+    # check that the parsed args.git_ref provides a valid branch
     elif not validate_git_ref(git_ref):
         print(red(f"❌ Invalid git reference: '{git_ref}'"))
         sys.exit(1)

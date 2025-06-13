@@ -79,3 +79,11 @@ def validate_git_ref(ref: str) -> bool:
     except GitError:
         return False
     return True
+
+
+def ref_to_hash(ref: str) -> str | None:
+    """Validate a git reference exists (locally or in remote)."""
+    try:
+        return run_git("rev-parse", "--verify", ref)
+    except GitError:
+        return None
