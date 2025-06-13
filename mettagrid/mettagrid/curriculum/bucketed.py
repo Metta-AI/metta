@@ -4,11 +4,11 @@ import logging
 from itertools import product
 from typing import Any, Dict, List, Tuple
 
-import numpy as np
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-from mettagrid.curriculum.util import config_from_path, curriculum_from_config
+from mettagrid.curriculum.sampling import SampledTaskCurriculum
+from mettagrid.curriculum.util import config_from_path
 
 from .low_reward import LowRewardCurriculum
 
@@ -34,17 +34,11 @@ class BucketedCurriculum(LowRewardCurriculum):
 
         # here, tasks map directly to curricula
         tasks = {}
-
         base = config_from_path(env_cfg_template, env_overrides)
-        cfg = OmegaConf.create(OmegaConf.to_container(base, resolve=False))
+        env_cfg_template = OmegaConf.create(OmegaConf.to_container(base, resolve=False))
         logger.info("Generating bucketed tasks")
         for task_id, parameter_values in tqdm(enumerate(product(*bucket_values))):
-            base = cfg.copy()
-            override = dict(zip(bucket_parameters, parameter_values, strict=False))
-            for k, v in override.items():
-                OmegaConf.update(base, k, _sample(v), merge=False)
-            env_cfg = OmegaConf.create(OmegaConf.to_container(base, resolve=True))
-            curriculum = curriculum_from_config(env_cfg, env_overrides)
+            curriculum = SampledTaskCurriculum(task_id, env_cfg_template, bucket_parameters, parameter_values)
             tasks[task_id] = curriculum
         super().__init__(tasks=tasks, env_overrides=env_overrides, alpha=alpha)
 
@@ -73,14 +67,3 @@ def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -
         else:
             raise ValueError(f"Invalid bucket spec: {bucket_spec}")
     return list(buckets_unpacked.keys()), list(buckets_unpacked.values())
-
-
-def _sample(choice: Any) -> Any:
-    if isinstance(choice, dict) and "range" in choice:
-        lo, hi = choice["range"]
-        value = np.random.uniform(lo, hi)
-        if choice.get("want_int", False):
-            value = int(value)
-        return value
-
-    return choice
