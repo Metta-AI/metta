@@ -97,18 +97,6 @@ def main(cfg: ListConfig | DictConfig) -> int:
 
 if __name__ == "__main__":
     import cProfile
-    import pstats
-    import io
 
-    profiler = cProfile.Profile()
-    try:
-        profiler.enable()
-        main()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        profiler.disable()
-        s = io.StringIO()
-        ps = pstats.Stats(profiler, stream=s).sort_stats('cumulative')
-        ps.print_stats()
-        print(s.getvalue())
+    cProfile.run("main()", sort="cumulative")
+    # sys.exit(main())
