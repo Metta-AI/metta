@@ -71,7 +71,7 @@ class ObsTokenShaper(LayerBase):
         coords = observations[..., 0]
         obs_mask = coords == 255  # important! true means mask me
 
-        # 1) find each row’s flip‐point
+        # 1) find each row's flip‐point
         flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
 
         # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
@@ -79,13 +79,13 @@ class ObsTokenShaper(LayerBase):
         if max_flip == 0:
             max_flip = max_flip + M  # hack to avoid 0. should instead grab
 
-        # 3) build a 1‐D “positions” row [0,1,2,…,L−1]
+        # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
         positions = torch.arange(M, device=obs_mask.device)
 
         # 4) make a boolean column mask: keep all columns strictly before max_flip
         keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
 
-        # 5) now “slice” your batch in one go, on the GPU:
+        # 5) now "slice" your batch in one go, on the GPU:
         observations = observations[:, keep_cols]  # shape [B, max_flip]
         obs_mask = obs_mask[:, keep_cols]
 
@@ -196,7 +196,7 @@ class ObsTokenShaperValueEmbed(LayerBase):
         coords = observations[..., 0]
         obs_mask = coords == 255  # important! true means mask me
 
-        # 1) find each row’s flip‐point
+        # 1) find each row's flip‐point
         flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
 
         # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
@@ -204,13 +204,13 @@ class ObsTokenShaperValueEmbed(LayerBase):
         if max_flip == 0:
             max_flip = max_flip + M  # hack to avoid 0. should instead grab
 
-        # 3) build a 1‐D “positions” row [0,1,2,…,L−1]
+        # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
         positions = torch.arange(M, device=obs_mask.device)
 
         # 4) make a boolean column mask: keep all columns strictly before max_flip
         keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
 
-        # 5) now “slice” your batch in one go, on the GPU:
+        # 5) now "slice" your batch in one go, on the GPU:
         observations = observations[:, keep_cols]  # shape [B, max_flip]
         obs_mask = obs_mask[:, keep_cols]
 
@@ -351,10 +351,11 @@ class ObsVanillaAttn(LayerBase):
 
 class ObsCrossAttn(LayerBase):
     """
-    Performs cross-attention between learnable query tokens and input features.
+    Performs multi-layer cross-attention between learnable query tokens and input features.
 
-    This layer uses a set of `num_query_tokens` learnable parameters as queries to attend
-    to the input features `x_features` (typically coming from an observation encoder).
+    This layer implements a stack of `num_layers` cross-attention blocks, inspired by
+    transformer decoders. A set of `num_query_tokens` learnable parameters are used as
+    queries to iteratively attend to the input features `x_features`.
 
     !!! Note About Output Shape: !!!
     The output shape depends on the `num_query_tokens` parameter:
@@ -362,14 +363,12 @@ class ObsCrossAttn(LayerBase):
       where B is the batch-time dimension (B_TT).
     - If `num_query_tokens > 1`, the output tensor shape will be `[B, num_query_tokens, out_dim]`.
 
-    Key Functionality:
-    1. Initializes `num_query_tokens` learnable query tokens.
-    2. Projects these query tokens to `qk_dim` (query projection).
-    3. Projects input features to `qk_dim` (key projection) and `v_dim` (value projection).
-    4. Computes scaled dot-product attention scores between projected queries and keys.
-    5. Applies softmax to get attention weights.
-    6. Computes the weighted sum of projected values using these weights.
-    7. Passes the result through a LayerNorm and an optional output MLP.
+    Key Functionality (per layer):
+    1. Multi-Head Cross-Attention: The current query tokens attend to the full sequence of
+       input features (keys and values).
+    2. Residual Connection and Layer Normalization.
+    3. Feed-Forward Network (MLP): A position-wise MLP is applied to each query token.
+    4. Another Residual Connection and Layer Normalization.
 
     Args:
         out_dim (int): The final output dimension for each query token's processed features.
@@ -378,19 +377,18 @@ class ObsCrossAttn(LayerBase):
             Defaults to False.
         num_query_tokens (int, optional): The number of learnable query tokens to use.
             Defaults to 1.
+        num_heads (int, optional): The number of attention heads. Defaults to 1.
+        num_layers (int, optional): The number of cross-attention blocks. Defaults to 1.
         query_token_dim (Optional[int], optional): The embedding dimension for the initial
-            learnable query tokens. If None, defaults to the input feature dimension (`feat_dim`).
-            Defaults to None.
+            learnable query tokens and the hidden dimension throughout the layers.
+            If None, defaults to the input feature dimension (`feat_dim`). Defaults to None.
         qk_dim (Optional[int], optional): The dimension for query and key projections in the
-            attention mechanism. If None, defaults to `feat_dim`. Defaults to None.
-        v_dim (Optional[int], optional): The dimension for value projection in the attention
-            mechanism. If None, defaults to `feat_dim`. Defaults to None.
-        mlp_out_hidden_dim (Optional[int], optional): If provided, an MLP is used as the final
-            output projection. This defines the hidden layer size of that MLP.
-            The MLP structure is Linear(v_dim, mlp_out_hidden_dim) -> ReLU -> Linear(mlp_out_hidden_dim, out_dim).
-            If None and v_dim == out_dim, an nn.Identity() is used. If None and v_dim != out_dim,
-            a ValueError is raised (as mlp_out_hidden_dim is required to define the MLP).
-            Defaults to None.
+            attention mechanism. If None, defaults to `query_token_dim`. Defaults to None.
+        v_dim (Optional[int], optional): The dimension for value projection. For multi-layer
+            architectures, this must be equal to `query_token_dim` to allow for residual
+            connections. If None, defaults to `query_token_dim`. Defaults to None.
+        mlp_ratio (float, optional): Determines the hidden dimension of the per-layer feed-forward
+            network as `mlp_ratio * query_token_dim`. Defaults to 4.0.
         **cfg: Additional configuration for LayerBase.
 
     Input TensorDict:
@@ -410,32 +408,47 @@ class ObsCrossAttn(LayerBase):
         out_dim: int,
         use_mask: bool = False,
         num_query_tokens: int = 1,
+        num_heads: int = 1,
+        num_layers: int = 1,
         query_token_dim: Optional[int] = None,
         qk_dim: Optional[int] = None,
         v_dim: Optional[int] = None,
-        mlp_out_hidden_dim: Optional[int] = None,
+        mlp_ratio: float = 4.0,
         **cfg,
     ) -> None:
         super().__init__(**cfg)
         self._out_dim = out_dim
         self._use_mask = use_mask
         self._num_query_tokens = num_query_tokens
+        self._num_heads = num_heads
+        self._num_layers = num_layers
         self._query_token_dim = query_token_dim
         self._qk_dim = qk_dim
         self._v_dim = v_dim
-        self._mlp_out_hidden_dim = mlp_out_hidden_dim
-        self._qk_dim_sqrt = self._qk_dim**0.5
+        self._mlp_ratio = mlp_ratio
 
     def _make_net(self) -> None:
         # we expect input shape to be [B, M, feat_dim]
         self._feat_dim = self._in_tensor_shapes[0][1]
 
-        if self._qk_dim is None:
-            self._qk_dim = self._feat_dim
-        if self._v_dim is None:
-            self._v_dim = self._feat_dim
         if self._query_token_dim is None:
             self._query_token_dim = self._feat_dim
+        if self._qk_dim is None:
+            self._qk_dim = self._query_token_dim
+        if self._v_dim is None:
+            self._v_dim = self._query_token_dim
+
+        if self._num_layers > 1 and self._query_token_dim != self._v_dim:
+            raise ValueError(
+                f"For multi-layer cross attention (num_layers > 1), query_token_dim ({self._query_token_dim}) must equal v_dim ({self._v_dim}) for residual connections."
+            )
+
+        if self._qk_dim % self._num_heads != 0:
+            raise ValueError(f"qk_dim ({self._qk_dim}) must be divisible by num_heads ({self._num_heads})")
+        if self._v_dim % self._num_heads != 0:
+            raise ValueError(f"v_dim ({self._v_dim}) must be divisible by num_heads ({self._num_heads})")
+
+        self._scale = (self._qk_dim // self._num_heads) ** -0.5
 
         if self._num_query_tokens == 1:
             self._out_tensor_shape = [self._out_dim]
@@ -445,23 +458,33 @@ class ObsCrossAttn(LayerBase):
         self._q_token = nn.Parameter(torch.randn(1, self._num_query_tokens, self._query_token_dim))
         nn.init.trunc_normal_(self._q_token, std=0.02)
 
-        self._layer_norm_1 = nn.LayerNorm(self._feat_dim)
-
-        self.q_proj = nn.Linear(self._query_token_dim, self._qk_dim, bias=False)
+        self.norm_kv = nn.LayerNorm(self._feat_dim)
         self.k_proj = nn.Linear(self._feat_dim, self._qk_dim, bias=False)
         self.v_proj = nn.Linear(self._feat_dim, self._v_dim, bias=False)
 
-        self._layer_norm_2 = nn.LayerNorm(self._v_dim)
-
-        self._out_proj = nn.Identity()
-        if self._v_dim != self._out_dim or self._mlp_out_hidden_dim is not None:
-            if self._mlp_out_hidden_dim is None:
-                raise ValueError("mlp_out_hidden_dim must be provided if v_dim != out_dim")
-            self._out_proj = nn.Sequential(
-                nn.Linear(self._v_dim, self._mlp_out_hidden_dim),
-                nn.ReLU(),
-                nn.Linear(self._mlp_out_hidden_dim, self._out_dim),
+        self.layers = nn.ModuleList([])
+        for _ in range(self._num_layers):
+            self.layers.append(
+                nn.ModuleDict(
+                    {
+                        "q_proj": nn.Linear(self._query_token_dim, self._qk_dim, bias=False),
+                        "norm1": nn.LayerNorm(self._query_token_dim),
+                        "norm2": nn.LayerNorm(self._query_token_dim),
+                        "mlp": nn.Sequential(
+                            nn.Linear(self._query_token_dim, int(self._query_token_dim * self._mlp_ratio)),
+                            nn.GELU(),
+                            nn.Linear(int(self._query_token_dim * self._mlp_ratio), self._query_token_dim),
+                        ),
+                    }
+                )
             )
+
+        self.final_norm = nn.LayerNorm(self._query_token_dim)
+
+        if self._query_token_dim == self._out_dim:
+            self.output_proj = nn.Identity()
+        else:
+            self.output_proj = nn.Linear(self._query_token_dim, self._out_dim)
 
         return None
 
@@ -472,40 +495,43 @@ class ObsCrossAttn(LayerBase):
             key_mask = td["obs_mask"]
         B_TT = td["_BxTT_"]
 
-        # query_token_unprojected will have shape [B_TT, num_query_tokens, _feat_dim]
-        query_token_unprojected = self._q_token.expand(B_TT, -1, -1)
+        queries = self._q_token.expand(B_TT, -1, -1)
 
-        q_p = self.q_proj(query_token_unprojected)  # q_p is now [B_TT, num_query_tokens, _actual_qk_dim]
-        k_p = self.k_proj(x_features)  # [B_TT, M, _actual_qk_dim]
-        v_p = self.v_proj(x_features)  # [B_TT, M, _actual_v_dim]
+        kv_norm = self.norm_kv(x_features)
+        k_p = self.k_proj(kv_norm)
+        v_p = self.v_proj(kv_norm)
 
-        # Calculate attention scores: Q_projected @ K_projected.T
-        # q_p: [B_TT, num_query_tokens, _actual_qk_dim], k_p: [B_TT, M, _actual_qk_dim].
-        # attn_scores will have shape [B_TT, num_query_tokens, M]
-        attn_scores = torch.einsum("bqd,bkd->bqk", q_p, k_p)
+        k_p = einops.rearrange(k_p, "b m (h d) -> b h m d", h=self._num_heads)
+        v_p = einops.rearrange(v_p, "b m (h d) -> b h m d", h=self._num_heads)
 
-        # Scale scores
-        attn_scores = attn_scores / self._qk_dim_sqrt
+        for layer in self.layers:
+            # Attention block
+            queries_res = queries
+            queries_norm = layer["norm1"](queries)
+            q_p = layer["q_proj"](queries_norm)
+            q_p = einops.rearrange(q_p, "b q (h d) -> b h q d", h=self._num_heads)
 
-        # Apply mask
-        if key_mask is not None:
-            mask_value = -torch.finfo(attn_scores.dtype).max
-            attn_scores = attn_scores + key_mask.unsqueeze(1).to(attn_scores.dtype) * mask_value
+            attn_scores = torch.einsum("bhqd,bhkd->bhqk", q_p, k_p) * self._scale
 
-        # Softmax to get attention weights
-        # attn_weights will have shape [B_TT, num_query_tokens, M]
-        attn_weights = torch.softmax(attn_scores, dim=-1)
+            if key_mask is not None:
+                mask_value = -torch.finfo(attn_scores.dtype).max
+                # key_mask: [B_TT, M] -> [B_TT, 1, 1, M] for broadcasting
+                attn_scores = attn_scores + key_mask.unsqueeze(1).unsqueeze(1).to(attn_scores.dtype) * mask_value
 
-        # Calculate output: Weights @ V_projected
-        # x will have shape [B_TT, num_query_tokens, _actual_v_dim]
-        x = torch.einsum("bqk,bkd->bqd", attn_weights, v_p)
+            attn_weights = torch.softmax(attn_scores, dim=-1)
+            attn_output = torch.einsum("bhqk,bhkd->bhqd", attn_weights, v_p)
+            attn_output = einops.rearrange(attn_output, "b h q d -> b q (h d)")
 
-        x = self._layer_norm_2(x)
+            queries = queries_res + attn_output
 
-        # x shape: [B_TT, num_query_tokens, _actual_v_dim]
-        # _out_proj maps last dim from _actual_v_dim to _out_dim
-        # x after _out_proj: [B_TT, num_query_tokens, _out_dim]
-        x = self._out_proj(x)
+            # MLP block
+            queries_res = queries
+            queries_norm = layer["norm2"](queries)
+            mlp_output = layer["mlp"](queries_norm)
+            queries = queries_res + mlp_output
+
+        x = self.final_norm(queries)
+        x = self.output_proj(x)
 
         if self._num_query_tokens == 1:
             # Reshape [B_TT, 1, self._out_dim] to [B_TT, self._out_dim]
@@ -799,7 +825,7 @@ class ObsTokenCatFourier(LayerBase):
         coords = observations[..., 0]
         obs_mask = coords == 255  # important! true means mask me
 
-        # 1) find each row’s flip‐point
+        # 1) find each row's flip‐point
         flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
 
         # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
@@ -807,13 +833,13 @@ class ObsTokenCatFourier(LayerBase):
         if max_flip == 0:
             max_flip = max_flip + M  # hack to avoid 0. should instead grab
 
-        # 3) build a 1‐D “positions” row [0,1,2,…,L−1]
+        # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
         positions = torch.arange(M, device=obs_mask.device)
 
         # 4) make a boolean column mask: keep all columns strictly before max_flip
         keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
 
-        # 5) now “slice” your batch in one go, on the GPU:
+        # 5) now "slice" your batch in one go, on the GPU:
         observations = observations[:, keep_cols]  # shape [B, max_flip]
         obs_mask = obs_mask[:, keep_cols]
 
