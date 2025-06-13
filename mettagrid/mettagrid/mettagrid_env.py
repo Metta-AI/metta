@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import cProfile
+import pstats
 import datetime
 import logging
 import random
@@ -104,7 +105,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     def dump_profile(self):
         with open(f"profile_{self._uuid}.prof", "w") as f:
-            self._profiler.print_stats(sort='cumulative', stream=f)
+            ps = pstats.Stats(self._profiler, stream=f).sort_stats('cumulative')
+            ps.print_stats()
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
