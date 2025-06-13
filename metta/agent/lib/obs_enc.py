@@ -55,16 +55,15 @@ class ObsTokenShaper(LayerBase):
         observations = td.get("x")
 
         B = observations.shape[0]
-        M = observations.shape[1]
         TT = 1
         td["_B_"] = B
         td["_TT_"] = TT
         if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
             TT = observations.shape[1]
-            M = observations.shape[2]
             td["_TT_"] = TT
             observations = einops.rearrange(observations, "b t h c -> (b t) h c")
             # observations = observations.flatten(0, 1)
+        M = observations.shape[1]
         td["_BxTT_"] = B * TT
 
         # transition_idx = atr_values.argmax(dim=0)

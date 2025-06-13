@@ -14,20 +14,20 @@ components:
 
   _obs_:
     _target_: metta.agent.lib.obs_enc.ObsTokenCatFourier
-    atr_embed_dim: 32
+    atr_embed_dim: 12
     num_freqs: 4
     sources:
       null
 
   obs_latent_query_attn:
     _target_: metta.agent.lib.obs_enc.ObsCrossAttn
-    out_dim: 396
+    out_dim: 132
     use_mask: true
     num_query_tokens: 9
-    query_token_dim: 396
-    qk_dim: 396
-    v_dim: 396
-    mlp_out_hidden_dim: 396
+    query_token_dim: 128
+    qk_dim: 128
+    v_dim: 128
+    mlp_out_hidden_dim: 128
     sources:
       - name: _obs_
 
