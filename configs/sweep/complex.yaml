@@ -1,8 +1,3 @@
-program: python
-method: protein
-project: metta
-entity: metta-research
-
 # Complex Protein sweep - 10 hyperparameters with massive search space
 # Total combinations: ~10^23 (requires intelligent sampling)
 parameters:
@@ -41,11 +36,3 @@ parameters:
   # Training dynamics
   trainer.num_epochs:
     values: [3, 4, 5, 8, 10, 15, 20]
-
-command:
-  - python
-  - -m
-  - metta.rl.pufferlib.train
-  - config/user/protein_demo.yaml
-  - ++wandb_enabled=True
-  - ++wandb_resume=True

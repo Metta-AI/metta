@@ -1,35 +1,86 @@
-# Protein parameter search space
+# Full sweep configuration - comprehensive parameter search
 parameters:
-  trainer.gamma: ${ss:logit, 0.0, 1.0}
-  trainer.gae_lambda: ${ss:logit, 0.0, 1.0}
-  trainer.update_epochs: ${ss:int, 1, 16}
-  trainer.clip_coef: ${ss:logit, 0.0, 1.0}
-  trainer.vf_coef: ${ss:logit, 0.0, 1.0}
-  trainer.vf_clip_coef: ${ss:logit, 0.0, 1.0}
-  # trainer.max_grad_norm: ${ss:linear, 0.0, 6.0}
-  trainer.ent_coef: ${ss:log, 1e-5, 1e-1}
-  trainer.batch_size: ${ss:pow2, 131072, 524288, 131072}
-  trainer.minibatch_size: ${ss:pow2, 1024, 131072}
-  trainer.forward_pass_minibatch_target_size: $pow2(1024, 32768)
-  trainer.bptt_horizon: ${ss:pow2, 1, 128}
-  trainer.total_timesteps: ${ss:log, 1e7, 1e9, 5e8}
-  # trainer.compile: ${ss:int, 0, 1}
+  trainer.gamma:
+    min: 0.9
+    max: 0.999
+    distribution: uniform
 
-  trainer.optimizer.learning_rate: ${ss:log, 1e-5, 1e-1}
-  trainer.optimizer.betas: [[0.9, 0.999]]
+  trainer.gae_lambda:
+    min: 0.9
+    max: 0.999
+    distribution: uniform
 
-  agent.clip_range: ${ss:linear, 0.0, 0.5}
-  agent.components._core_.nn_params.num_layers: ${ss:int, 1, 2}
-  agent.components._core_.output_size: ${ss:pow2, 128, 1024}
-  agent.components._core_.l2_norm_scale: ${ss:log, 0.0, 0.01}
-  agent.components._core_.l2_init_scale: ${ss:log, 0.0, 0.01}
-  agent.components._obs_enc_.atr_embed_dim: ${ss:pow2, 2, 16}
-  agent.components._action_embeds_.nn_params.embedding_dim: ${ss:pow2, 4, 64}
-  agent.components._action_.mlp_hidden_dim: ${ss:pow2, 128, 1024}
-  agent.components._action_.bilinear_output_dim: ${ss:pow2, 4, 64}
-  # agent.l2_norm_coeff: ${ss:log, 0.0, 0.01}
-  # agent.l2_init_coeff: ${ss:log, 0.0, 0.01}
+  trainer.update_epochs:
+    min: 1
+    max: 16
+    distribution: int_uniform
 
-  # TODO: Should we sweep this?
-  # trainer.env_overrides.game.objects.altar.hp: ${ss:int, 5, 20, 10}
-  # trainer.env_overrides.game.objects.altar.cooldown: ${ss:int, 1, 20, 10}
+  trainer.clip_coef:
+    min: 0.1
+    max: 0.5
+    distribution: uniform
+
+  trainer.vf_coef:
+    min: 0.1
+    max: 2.0
+    distribution: uniform
+
+  trainer.vf_clip_coef:
+    min: 0.1
+    max: 10.0
+    distribution: uniform
+
+  trainer.ent_coef:
+    min: 1e-5
+    max: 1e-1
+    distribution: log_normal
+
+  trainer.batch_size:
+    min: 131072
+    max: 524288
+    distribution: int_uniform
+
+  trainer.minibatch_size:
+    min: 1024
+    max: 131072
+    distribution: int_uniform
+
+  trainer.forward_pass_minibatch_target_size:
+    min: 1024
+    max: 32768
+    distribution: int_uniform
+
+  trainer.bptt_horizon:
+    min: 1
+    max: 128
+    distribution: int_uniform
+
+  trainer.total_timesteps:
+    min: 1e7
+    max: 1e9
+    distribution: log_normal
+
+  trainer.optimizer.learning_rate:
+    min: 1e-5
+    max: 1e-1
+    distribution: log_normal
+
+  trainer.optimizer.beta1:
+    min: 0.9
+    max: 0.999
+    distribution: uniform
+
+  trainer.optimizer.beta2:
+    min: 0.9
+    max: 0.999
+    distribution: uniform
+
+  trainer.optimizer.eps:
+    min: 1e-14
+    max: 1e-6
+    distribution: log_normal
+
+  agent.components._obs_.atr_embed_dim:
+    min: 16
+    max: 128
+    distribution: int_uniform

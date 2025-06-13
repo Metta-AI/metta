@@ -1,13 +1,51 @@
-# Protein parameter search space
+# Fast sweep configuration - minimal parameters for quick iteration
 parameters:
-  trainer.gamma: ${ss:logit, 0.0, 1.0}
-  trainer.gae_lambda: ${ss:logit, 0.0, 1.0}
-  trainer.vf_coef: ${ss:logit, 0.0, 1.0}
-  trainer.ent_coef: ${ss:log, 1e-5, 1e-1}
-  trainer.batch_size: ${ss:pow2, 128, 1024, 128}
-  trainer.minibatch_size: ${ss:pow2, 128, 128, 128}
-  trainer.bptt_horizon: ${ss:pow2, 4, 8, 4}
-  trainer.total_timesteps: ${ss:log, 1e3, 1e4, 1e4}
+  trainer.gamma:
+    min: 0.9
+    max: 0.999
+    distribution: uniform
 
-  trainer.env_overrides.game.objects.altar.hp: 10
-  trainer.env_overrides.game.objects.altar.cooldown: ${ss:int, 1, 20, 10}
+  trainer.gae_lambda:
+    min: 0.9
+    max: 0.999
+    distribution: uniform
+
+  trainer.vf_coef:
+    min: 0.1
+    max: 2.0
+    distribution: uniform
+
+  trainer.ent_coef:
+    min: 1e-5
+    max: 1e-1
+    distribution: log_normal
+
+  trainer.batch_size:
+    min: 128
+    max: 1024
+    distribution: int_uniform
+
+  trainer.minibatch_size:
+    min: 128
+    max: 128
+    distribution: int_uniform
+
+  trainer.bptt_horizon:
+    min: 4
+    max: 8
+    distribution: int_uniform
+
+  trainer.total_timesteps:
+    min: 1e3
+    max: 1e4
+    distribution: log_normal
+
+  env.game.objects.altar.hp:
+    min: 10
+    max: 10
+    distribution: int_uniform
+
+  env.game.objects.altar.cooldown:
+    min: 1
+    max: 20
+    distribution: int_uniform

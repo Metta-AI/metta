@@ -1,9 +1,7 @@
 # @package _global_
 # Ultra-fast protein sweep - completes in ~30 seconds
 # For immediate testing with minimal timesteps
-
-# Limit rollouts for predictable completion
-rollout_count: 2  # Stop after 2 experiments (~1-2 minutes total)
+# Use --rollout-count=2 to stop after 2 experiments
 
 sweep:
   parameters:

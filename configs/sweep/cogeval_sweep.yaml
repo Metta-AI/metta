@@ -1,13 +1,7 @@
-program: python
-method: protein
-project: metta
-entity: metta-research
-
 metric: action.use.altar
-goal: maximize
+# goal: maximize  # default
 test: raw # glicko, elo, raw
 
-rollout_count: 100000
 num_random_samples: 10
 resume: true
 
@@ -91,11 +85,3 @@ parameters:
     mean: 1.1e9
     scale: 1
     distribution: log_normal
-
-command:
-  - python
-  - -m
-  - metta.rl.pufferlib.train
-  - config/user/cogeval.yaml
-  - ++wandb_enabled=True
-  - ++wandb_resume=True
