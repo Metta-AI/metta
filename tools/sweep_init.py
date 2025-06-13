@@ -10,8 +10,7 @@ import wandb
 import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-import wandb_carbs
-from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
+from metta.rl.protein_opt.metta_protein import MettaProtein
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import config_from_path
 from metta.util.lock import run_once
@@ -41,6 +40,45 @@ def main(cfg: DictConfig | ListConfig) -> int:
     return 0
 
 
+def _convert_protein_params_to_wandb(sweep_config: DictConfig | ListConfig) -> dict:
+    """Convert Protein parameter space format to WandB sweep parameters format."""
+    wandb_params = {}
+
+    # Handle nested sweep structure
+    if hasattr(sweep_config, "sweep"):
+        if hasattr(sweep_config.sweep, "parameters"):
+            # Structure: sweep.parameters.param_name
+            params = sweep_config.sweep.parameters
+        else:
+            # Structure: sweep.param_name (direct parameters under sweep)
+            params = sweep_config.sweep
+    elif hasattr(sweep_config, "parameters"):
+        # Structure: parameters.param_name
+        params = sweep_config.parameters
+    else:
+        # Direct parameter definitions
+        params = sweep_config
+
+    for param_name, param_config in params.items():
+        if isinstance(param_config, (DictConfig, dict)):
+            # Access using dict-style notation
+            distribution = param_config.get("distribution", "uniform")
+            min_val = param_config.get("min")
+            max_val = param_config.get("max")
+
+            if distribution == "log_normal":
+                wandb_params[param_name] = {"distribution": "log_uniform_values", "min": min_val, "max": max_val}
+            elif distribution == "uniform":
+                wandb_params[param_name] = {"min": min_val, "max": max_val}
+            elif distribution == "int_uniform":
+                wandb_params[param_name] = {
+                    "min": int(min_val) if min_val is not None else 0,
+                    "max": int(max_val) if max_val is not None else 1,
+                }
+
+    return wandb_params
+
+
 def create_sweep(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) -> None:
     """
     Create a new sweep with the given name.
@@ -53,14 +91,26 @@ def create_sweep(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) 
     logger.info(f"Creating new sweep: {cfg.sweep_dir}")
     os.makedirs(cfg.runs_dir, exist_ok=True)
 
-    carbs_params = carbs_params_from_cfg(cfg)
-    sweep_id = wandb_carbs.create_sweep(sweep_name, cfg.wandb.entity, cfg.wandb.project, carbs_params[0])
+    # Create WandB sweep with dummy parameter - Protein will override with real suggestions
+    logger.info("Creating WandB sweep with dummy parameters for Protein control")
+
+    sweep_id = wandb.sweep(
+        sweep={
+            "name": sweep_name,
+            "method": "bayes",  # This won't actually be used since Protein overrides suggestions
+            "metric": {"name": "protein.objective", "goal": "maximize"},
+            "parameters": {
+                "_protein_dummy": {"values": [1]}  # Dummy parameter - Protein will override all suggestions
+            },
+        },
+        project=cfg.wandb.project,
+        entity=cfg.wandb.entity,
+    )
     OmegaConf.save(
         {
             "sweep": sweep_name,
             "wandb_sweep_id": sweep_id,
             "wandb_path": f"{cfg.wandb.entity}/{cfg.wandb.project}/{sweep_id}",
-            "carbs_params": carbs_params[0],
         },
         os.path.join(cfg.sweep_dir, "config.yaml"),
     )
@@ -95,27 +145,77 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
                 wandb_run.tags = ()
             wandb_run.tags += (f"sweep_id:{sweep_cfg.wandb_sweep_id}", f"sweep_name:{sweep_cfg.sweep}")
 
-            carbs = MettaCarbs(cfg, wandb_run)
+            protein = MettaProtein(cfg.sweep, wandb_run)
             logger.info("Config:")
             logger.info(OmegaConf.to_yaml(cfg))
             _log_file(
                 run_dir,
                 wandb_run,
-                "carbs_state.yaml",
+                "protein_state.yaml",
                 {
-                    "generation": carbs.generation,
-                    "observations": carbs._observations,
-                    "params": str(carbs._carbs.params),
+                    "observations": protein._num_observations,
+                    "failures": protein._num_failures,
+                    "running": protein._num_running,
                 },
             )
 
-            suggestion = carbs.suggest()
-            logger.info("Generated CARBS suggestion: ")
-            logger.info(f"\n{'-' * 10}\n{yaml.dump(suggestion, default_flow_style=False)}\n{'-' * 10}")
-            _log_file(run_dir, wandb_run, "carbs_suggestion.yaml", suggestion)
+            suggestion_tuple = protein.suggest()
+            # Extract the actual suggestion from the tuple (suggestion, metadata)
+            if isinstance(suggestion_tuple, tuple) and len(suggestion_tuple) >= 1:
+                suggestion = suggestion_tuple[0]
+            else:
+                suggestion = suggestion_tuple
 
-            train_cfg = OmegaConf.create({key: cfg[key] for key in cfg.sweep.keys()})
-            apply_carbs_suggestion(train_cfg, suggestion)
+            logger.info("Generated Protein suggestion: ")
+            logger.info(f"\n{'-' * 10}\n{yaml.dump(suggestion, default_flow_style=False)}\n{'-' * 10}")
+            _log_file(run_dir, wandb_run, "protein_suggestion.yaml", suggestion)
+
+            # Create complete training config from the FULL loaded config (original working architecture)
+            # Include all sections, not just the swept ones, to maintain full config structure
+            train_cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+
+            # Extract config overrides from sweep section (trainer, env, etc.)
+            sweep_overrides = {}
+            if isinstance(train_cfg_dict, dict) and "sweep" in train_cfg_dict:
+                sweep_config = train_cfg_dict["sweep"]
+                if isinstance(sweep_config, dict):
+                    for key, value in sweep_config.items():
+                        # Skip Protein-specific fields, keep config overrides
+                        if key not in ["parameters", "metric", "goal", "num_random_samples"]:
+                            sweep_overrides[key] = value
+
+            # Remove sweep-specific fields that don't belong in training config
+            if isinstance(train_cfg_dict, dict):
+                sweep_fields_to_remove = [
+                    "sweep",
+                    "sweep_name",
+                    "sweep_params",
+                    "sweep_params_override",
+                    "sweep_dir",
+                    "runs_dir",
+                    "sweep_job",
+                    "metric",
+                    "num_random_samples",
+                    "dist_cfg_path",
+                    "cmd",
+                ]
+                for field in sweep_fields_to_remove:
+                    train_cfg_dict.pop(field, None)
+
+            # Convert back to DictConfig
+            train_cfg = OmegaConf.create(train_cfg_dict)
+
+            # Apply sweep config overrides (trainer, env, etc.)
+            for key, value in sweep_overrides.items():
+                OmegaConf.update(train_cfg, key, value)
+
+            logger.info(f"Protein suggestions: {suggestion}")
+            # Suggestion is already cleaned by MettaProtein._transform_suggestion()
+            suggestion_config = OmegaConf.create(suggestion)
+            if isinstance(suggestion_config, DictConfig):
+                apply_protein_suggestion(train_cfg, suggestion_config)
+            else:
+                logger.error(f"Unexpected suggestion config type: {type(suggestion_config)}")
             save_path = os.path.join(run_dir, "train_config_overrides.yaml")
             OmegaConf.save(train_cfg, save_path)
             logger.info(f"Saved train config overrides to {save_path}")
@@ -152,7 +252,7 @@ def wait_for_run(sweep_name: str, cfg: DictConfig | ListConfig, path: str, logge
     logger.info(f"Run ID: {run} ready")
 
 
-def apply_carbs_suggestion(config: DictConfig | ListConfig, suggestion: DictConfig):
+def apply_protein_suggestion(config: DictConfig | ListConfig, suggestion: DictConfig):
     """Apply suggestions to a configuration object using dotted path notation.
 
     Args:

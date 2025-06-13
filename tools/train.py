@@ -5,7 +5,6 @@ from logging import Logger
 from typing import Optional
 
 import hydra
-import torch
 import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
@@ -27,6 +26,14 @@ class TrainJob(Config):
 
 
 def train(cfg, wandb_run, logger: Logger):
+    # If dist_cfg_path is provided, load run information from it
+    if hasattr(cfg, "dist_cfg_path") and cfg.dist_cfg_path and os.path.exists(cfg.dist_cfg_path):
+        dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
+        if "run" in dist_cfg:
+            cfg.run = dist_cfg.run
+            cfg.run_dir = os.path.join(cfg.data_dir, cfg.run)
+            logger.info(f"Loaded run information from dist config: run={cfg.run}, run_dir={cfg.run_dir}")
+
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
     if os.path.exists(overrides_path):
         logger.info(f"Loading train config overrides from {overrides_path}")
@@ -37,6 +44,8 @@ def train(cfg, wandb_run, logger: Logger):
         cfg = OmegaConf.merge(cfg, override_cfg)
         # Optionally, restore struct behavior after merge
         OmegaConf.set_struct(cfg, True)
+    else:
+        logger.warning(f"No train config overrides found at {overrides_path}")
 
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
@@ -45,10 +54,6 @@ def train(cfg, wandb_run, logger: Logger):
     train_job = TrainJob(cfg.train_job)
 
     policy_store = PolicyStore(cfg, wandb_run)
-
-    if torch.distributed.is_initialized():
-        world_size = torch.distributed.get_world_size()
-        cfg.trainer.forward_pass_minibatch_target_size = cfg.trainer.forward_pass_minibatch_target_size // world_size
 
     trainer = hydra.utils.instantiate(
         cfg.trainer, cfg, wandb_run, policy_store=policy_store, sim_suite_config=train_job.evals
