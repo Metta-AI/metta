@@ -13,8 +13,9 @@ from devops.skypilot.utils import (
     get_user_confirmation,
     launch_task,
 )
+from metta.util.colorama import red
 from metta.util.fs import cd_repo_root
-from metta.util.git import get_current_commit
+from metta.util.git import get_current_commit, validate_git_ref
 
 
 def patch_task(
@@ -112,6 +113,12 @@ def main():
     if not git_ref:
         git_ref = get_current_commit()
 
+    # check that git_ref corresponds to a branch that can be checked out
+    if not validate_git_ref(git_ref):
+        print(red(f"❌ Invalid git reference: '{git_ref}'"))
+        sys.exit(1)
+
+    # check that the local git state is consistent with the git_ref (unless skipped)
     if not args.skip_git_check:
         ok, error_message = check_git_state(git_ref)
         if not ok:
@@ -119,6 +126,7 @@ def main():
             print("  - Skip check: add --skip-git-check flag")
             sys.exit(1)
 
+    # check that the files referenced in the cmd exist
     if not check_config_files(cmd_args):
         sys.exit(1)
 

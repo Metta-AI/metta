@@ -7,19 +7,7 @@ class GitError(Exception):
 
 
 def run_git(*args: str, allow_codes: Optional[list[int]] = None) -> str:
-    """
-    Run a git command and return its output.
-
-    Args:
-        *args: Git command arguments.
-        allow_codes: Optional list of non-zero exit codes to allow without raising.
-
-    Returns:
-        str: Output of the command.
-
-    Raises:
-        GitError: For any disallowed non-zero return code.
-    """
+    """Run a git command and return its output."""
     try:
         result = subprocess.run(["git", *args], capture_output=True, text=True, check=True)
         return result.stdout.strip()
@@ -48,31 +36,46 @@ def get_current_commit() -> str:
     return run_git("rev-parse", "HEAD")
 
 
-def commit_exists(commit_hash: str) -> bool:
-    """
-    Check if the commit can be checked out. This verifies the commit object
-    exists locally and is a full commit (not a tag/blob/partial).
-    """
+def get_branch_commit(branch: str) -> str:
+    """Get the commit hash for a given branch."""
+    # Fetch quietly to ensure we have latest remote data
     try:
-        obj_type = run_git("cat-file", "-t", commit_hash)
-        return obj_type.strip() == "commit"
+        run_git("fetch", "--quiet")
+    except GitError:
+        # Fetch failure is non-fatal, continue with local data
+        pass
+
+    return run_git("rev-parse", branch)
+
+
+def get_commit_message(commit_hash: str) -> str:
+    """Get the commit message for a given commit."""
+    return run_git("log", "-1", "--pretty=%B", commit_hash)
+
+
+def has_unstaged_changes() -> bool:
+    """Check if there are any unstaged changes."""
+    try:
+        status_output = run_git("status", "--porcelain")
+        return bool(status_output)
     except GitError:
         return False
 
 
-def is_commit_contained(branch: str, commit_hash: str) -> bool:
-    """
-    Check if the commit is contained in the given remote branch.
-
-    Args:
-        branch: Remote branch name.
-        commit_hash: Commit hash to check.
-
-    Returns:
-        bool: True if commit is contained, False otherwise.
-    """
+def is_commit_pushed(commit_hash: str) -> bool:
+    """Check if a commit has been pushed to any remote branch."""
     try:
-        branches = run_git("branch", "-r", "--contains", commit_hash)
-        return branch in branches.splitlines()
+        # Get all remote branches that contain this commit
+        remote_branches = run_git("branch", "-r", "--contains", commit_hash)
+        return bool(remote_branches.strip())
     except GitError:
         return False
+
+
+def validate_git_ref(ref: str) -> bool:
+    """Validate a git reference exists (locally or in remote)."""
+    try:
+        _commit_hash = run_git("rev-parse", "--verify", ref)
+    except GitError:
+        return False
+    return True
