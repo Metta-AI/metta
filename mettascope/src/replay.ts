@@ -54,7 +54,7 @@ export async function fetchReplay(replayUrl: string) {
   if (replayUrl.startsWith(s3Prefix)) {
     const httpPrefix = "https://softmax-public.s3.us-east-1.amazonaws.com/";
     httpUrl = httpPrefix + replayUrl.slice(s3Prefix.length);
-    console.log("Converted S3 url to http url: ", httpUrl);
+    console.info("Converted S3 url to http url: ", httpUrl);
   }
 
   try {
@@ -67,7 +67,7 @@ export async function fetchReplay(replayUrl: string) {
     }
     // Check the Content-Type header
     const contentType = response.headers.get('Content-Type');
-    console.log("Content-Type: ", contentType);
+    console.info("Content-Type: ", contentType);
     if (contentType === "application/json") {
       let replayData = await response.text();
       loadReplayText(replayUrl, replayData);
@@ -87,14 +87,12 @@ export async function fetchReplay(replayUrl: string) {
 export async function readFile(file: File) {
   try {
     const contentType = file.type;
-    console.log("Content-Type: ", contentType);
+    console.info("Content-Type: ", contentType);
     if (contentType === "application/json") {
       loadReplayText(file.name, await file.text());
     } else if (contentType === "application/x-compress" || contentType === "application/octet-stream") {
       // Compressed JSON.
-      console.log("Decompressing file");
       const decompressedData = await decompressStream(file.stream());
-      console.log("Decompressed file");
       loadReplayText(file.name, decompressedData);
     }
   } catch (error) {
@@ -263,10 +261,6 @@ async function loadReplayJson(url: string, replayData: any) {
 
   fixReplay();
 
-
-  // Set the scrubber max value to the max steps.
-  html.scrubber.max = (state.replay.max_steps - 1).toString();
-
   if (state.replay.file_name) {
     html.fileName.textContent = state.replay.file_name;
   } else {
@@ -331,7 +325,7 @@ export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl);
   state.ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    console.log("Received message: ", data.type);
+    console.info("Received message: ", data.type);
     if (data.type === "replay") {
       loadReplayJson(wsUrl, data.replay);
       Common.closeModal();
@@ -340,6 +334,8 @@ export function initWebSocket(wsUrl: string) {
       loadReplayStep(data.replay_step);
     } else if (data.type === "message") {
       console.info("Received message: ", data.message);
+    } else if (data.type === "memory_copied") {
+      navigator.clipboard.writeText(JSON.stringify(data.memory));
     }
   };
   state.ws.onopen = () => {

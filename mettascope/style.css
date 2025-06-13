@@ -29,6 +29,7 @@
   cursor: pointer;
   opacity: 0.75;
 }
+
 .hover-icon:hover {
   opacity: 1;
 }
@@ -38,8 +39,19 @@
   cursor: pointer;
   background-color: rgba(255, 255, 255, 0.0);
 }
+
 .hover:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+button {
+  transition: background-color 0.3s ease;
+  cursor: pointer;
+  background-color: #141B23;
+}
+
+button:hover {
+  background-color: #284251 !important;
 }
 
 body,
@@ -67,15 +79,17 @@ html {
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
+
 #toast.visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
   pointer-events: auto;
 }
+
 #toast.hiding {
   opacity: 0;
   /* Animate upward when hiding */
-  transform: translateX(-50%) translateY(-20px);
+  transform: translateX(-50%) translateY(120px);
 }
 
 #modal.error {

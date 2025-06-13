@@ -5,9 +5,7 @@
   "files.insertFinalNewline": true,
   // C/C++ Configuration
   "[cpp]": {
-    "editor.rulers": [
-      120
-    ]
+    "editor.rulers": [120]
   },
   "C_Cpp.default.cppStandard": "c++20",
   "C_Cpp.default.compilerPath": "/usr/bin/clang++",
@@ -21,27 +19,12 @@
       "source.fixAll.ruff": "explicit",
       "source.organizeImports.ruff": "explicit"
     },
-    "editor.rulers": [
-      120
-    ],
+    "editor.rulers": [120],
     "editor.renderWhitespace": "trailing"
   },
-  "python.analysis.typeCheckingMode": "basic",
-  "python.analysis.extraPaths": [
-    "mettagrid"
-  ],
-  "python.autoComplete.extraPaths": [
-    "mettagrid"
-  ],
   "python.testing.unittestEnabled": true,
   "python.testing.pytestEnabled": false,
-  "python.testing.unittestArgs": [
-    "-v",
-    "-s",
-    "./tests",
-    "-p",
-    "test_*.py"
-  ],
+  "python.testing.unittestArgs": ["-v", "-s", "./tests", "-p", "test_*.py"],
   // YAML Configuration
   "[yaml]": {
     "editor.insertSpaces": true,

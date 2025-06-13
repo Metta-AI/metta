@@ -7,8 +7,8 @@ sampling: 1
 game:
   num_agents: 4
   agent:
-    # ore.red_max: ${sampling:3,8,6}
-    # battery_max: ${sampling:3,8,6}
+    ore.red_max: ${sampling:5,25,15}
+    battery.red_max: ${sampling:5,25,15}
     rewards:
       action_failure_penalty: 0
       ore.red: ${sampling:0.005,0.1, 0.01}
@@ -22,11 +22,11 @@ game:
     room:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: ${sampling:1,6,3}
-      agents: 1
+      agents: ${div:${...num_agents},${..num_rooms}}
       objects:
         mine.red: ${sampling:3,15,2}
         generator.red: ${sampling:3,15,2}
-        altar: ${sampling:1,15,2}
+        altar: 5
   objects:
     altar:
       input_battery.red: 1
