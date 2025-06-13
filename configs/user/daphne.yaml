@@ -17,6 +17,6 @@ trainer:
 
 policy_uri: wandb://run/daphne_navigation_bucketed
 
-run_id: 8
+run_id: 9
 run: ${oc.env:USER}.loca3l.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

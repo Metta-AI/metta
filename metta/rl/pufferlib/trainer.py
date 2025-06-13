@@ -28,7 +28,7 @@ from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulati
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.timing import Stopwatch
-from mettagrid.curriculum import curriculum_from_config_path
+from mettagrid.curriculum.util import curriculum_from_config
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 
 torch.set_float32_matmul_precision("high")
@@ -79,7 +79,7 @@ class PufferTrainer:
 
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
-        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+        self._curriculum = curriculum_from_config(curriculum_config, env_overrides)
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore

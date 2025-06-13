@@ -4,7 +4,7 @@ from typing import Dict
 from omegaconf import DictConfig
 
 from mettagrid.curriculum.curriculum import Curriculum
-from mettagrid.curriculum.util import curriculum_from_config_path
+from mettagrid.curriculum.util import curriculum_from_config
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +13,7 @@ class MultiTaskCurriculum(Curriculum):
     """Base class for curricula with multiple tasks."""
 
     def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig):
-        self._curriculums = {t: curriculum_from_config_path(t, env_overrides) for t in tasks.keys()}
-        self._task_weights = tasks
-
+        self.set_curricula(tasks, env_overrides)
         num_agents = None
         for task_id, curriculum in self._curriculums.items():
             cfg_num_agents = curriculum.get_task().env_cfg().game.num_agents
@@ -25,3 +23,7 @@ class MultiTaskCurriculum(Curriculum):
                 assert cfg_num_agents == num_agents, (
                     f"Task {task_id} has num_agents {cfg_num_agents}, expected {num_agents}"
                 )
+
+    def set_curricula(self, tasks, env_overrides):
+        self._curriculums = {t: curriculum_from_config(t, env_overrides) for t in tasks.keys()}
+        self._task_weights = tasks
