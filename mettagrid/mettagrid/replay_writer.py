@@ -100,6 +100,8 @@ class EpisodeReplay:
             for key, changes in list(grid_object.items()):
                 if isinstance(changes, list) and len(changes) == 1:
                     grid_object[key] = changes[0][1]
+        # Store the env config.
+        self.replay_data["config"] = self.env.config
         return self.replay_data
 
     def write_replay(self, path: str):
