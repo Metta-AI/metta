@@ -333,7 +333,7 @@ void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style
   } else {
     for (size_t idx = 0; idx < _agents.size(); idx++) {
       auto& agent = _agents[idx];
-      _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, -1, -1);
+      _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, 0, 0);
     }
   }
 }
