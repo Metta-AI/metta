@@ -35,10 +35,13 @@ onEvent("click", ".hover-panel .close", (target: HTMLElement, e: Event) => {
   ui.hoverPanels = ui.hoverPanels.filter(p => p.div !== panel);
 })
 
-var hoverPanelTemplate = find(".hover-panel") as HTMLElement;
+let hoverPanelTemplate = find(".hover-panel") as HTMLElement;
+let paramTemplate = findIn(hoverPanelTemplate, ".param");
+let itemTemplate = findIn(hoverPanelTemplate, ".inventory .item");
+let recipeArrow = findIn(hoverPanelTemplate, ".recipe .arrow");
 hoverPanelTemplate.remove();
 
-var hoverPanel = hoverPanelTemplate.cloneNode(true) as HTMLElement;
+let hoverPanel = hoverPanelTemplate.cloneNode(true) as HTMLElement;
 document.body.appendChild(hoverPanel);
 findIn(hoverPanel, ".actions").classList.add("hidden");
 hoverPanel.classList.add("hidden");
@@ -57,7 +60,7 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
 
   // Show the actions buttons (memory, etc.) if the object is an agent
   // and if the websocket is connected.
-  var actions = findIn(panel.div, ".actions");
+  let actions = findIn(panel.div, ".actions");
   if (state.ws != null && panel.object.hasOwnProperty("agent_id")) {
     actions.classList.remove("hidden");
   } else {
@@ -108,20 +111,14 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   htmlPanel.setAttribute("data-object-id", getAttr(object, "id"));
   htmlPanel.setAttribute("data-agent-id", getAttr(object, "agent_id"));
 
-  var params = findIn(htmlPanel, ".params");
-  var paramTemplate = findIn(hoverPanelTemplate, ".param");
-  var inventory = findIn(htmlPanel, ".inventory");
-  var itemTemplate = findIn(hoverPanelTemplate, ".item");
-  let actions = findIn(hoverPanel, ".actions");
-
+  let params = findIn(htmlPanel, ".params");
   removeChildren(params);
-  //top.appendChild(pin);
+  let inventory = findIn(htmlPanel, ".inventory");
   removeChildren(inventory);
-
   for (const key in object) {
     let value = getAttr(object, key);
     if ((key.startsWith("inv:") || key.startsWith("agent:inv:")) && value > 0) {
-      var item = itemTemplate.cloneNode(true) as HTMLElement;
+      let item = itemTemplate.cloneNode(true) as HTMLElement;
       item.querySelector(".amount")!.textContent = value;
       let resource = key.replace("inv:", "").replace("agent:", "");
       item.querySelector(".icon")!.setAttribute("src", "data/resources/" + resource + ".png");
@@ -139,23 +136,79 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
       } else {
         continue;
       }
-      var param = paramTemplate.cloneNode(true) as HTMLElement;
+      let param = paramTemplate.cloneNode(true) as HTMLElement;
       param.querySelector(".name")!.textContent = key;
       param.querySelector(".value")!.textContent = value;
       params.appendChild(param);
     }
   }
+
+  // Populate the recipe area if the object has input_ or output_ resources.
+  let recipe = findIn(htmlPanel, ".recipe");
+  removeChildren(recipe);
+  let recipeArea = findIn(htmlPanel, ".recipe-area");
+  let config = state.replay.config;
+  let displayedResources = 0;
+  for (let name in config.game.objects) {
+    let nameParts = name.split(".");
+    let configTypeName = nameParts[0];
+    let configColorName = nameParts[1] || "red"; // Red is the default 0 color.
+
+    let objectTypeName = state.replay.object_types[object.type];
+    let objectColorName = undefined;
+    if (object.color >= 0 && object.color < Common.COLORS.length) {
+      objectColorName = Common.COLORS[object.color][0];
+    }
+    console.log("configTypeName", configTypeName, "objectTypeName", objectTypeName, "configColorName", configColorName, "objectColorName", objectColorName);
+
+    if (configTypeName == objectTypeName && (objectColorName === undefined || configColorName == objectColorName)) {
+      let objectConfig = config.game.objects[name];
+      console.log("Found config:", name, objectConfig);
+      recipeArea.classList.remove("hidden");
+      // configs have input_{resource} and output_{resource}
+      for (let key in objectConfig) {
+        if (key.startsWith("input_")) {
+          let resource = key.replace("input_", "");
+          let amount = objectConfig[key];
+          let item = itemTemplate.cloneNode(true) as HTMLElement;
+          item.querySelector(".amount")!.textContent = amount;
+          item.querySelector(".icon")!.setAttribute("src", "data/resources/" + resource + ".png");
+          recipe.appendChild(item);
+          displayedResources++;
+        }
+      }
+      // Add the arrow.
+      recipe.appendChild(recipeArrow.cloneNode(true));
+      // Add the output.
+      for (let key in objectConfig) {
+        if (key.startsWith("output_")) {
+          let resource = key.replace("output_", "");
+          let amount = objectConfig[key];
+          let item = itemTemplate.cloneNode(true) as HTMLElement;
+          item.querySelector(".amount")!.textContent = amount;
+          item.querySelector(".icon")!.setAttribute("src", "data/resources/" + resource + ".png");
+          recipe.appendChild(item);
+          displayedResources++;
+        }
+      }
+    }
+  }
+  if (displayedResources > 0) {
+    recipeArea.classList.remove("hidden");
+  } else {
+    recipeArea.classList.add("hidden");
+  }
 }
 
 /** Updates the readout of the selected object or replay info. */
 export function updateReadout() {
-  var readout = ""
+  let readout = ""
   readout += "Step: " + state.step + "\n";
   readout += "Map size: " + state.replay.map_size[0] + "x" + state.replay.map_size[1] + "\n";
   readout += "Num agents: " + state.replay.num_agents + "\n";
   readout += "Max steps: " + state.replay.max_steps + "\n";
 
-  var objectTypeCounts = new Map<string, number>();
+  let objectTypeCounts = new Map<string, number>();
   for (const gridObject of state.replay.grid_objects) {
     const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
