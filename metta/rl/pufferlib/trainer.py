@@ -3,6 +3,7 @@ import os
 import time
 from collections import defaultdict
 from types import SimpleNamespace
+from typing import Optional
 
 import numpy as np
 import torch
@@ -17,6 +18,7 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.policy import PufferAgent
 from metta.rl.pufferlib.profile import Profile, profile_section
@@ -47,6 +49,8 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
 class PufferTrainer:
+    experience: Optional[Experience]
+
     def __init__(
         self,
         cfg: DictConfig | ListConfig,
@@ -216,7 +220,6 @@ class PufferTrainer:
             for k in ["overview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
         self.model_size = sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
-        self.experience = None  # For compatibility
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
@@ -357,97 +360,84 @@ class PufferTrainer:
     @profile_section("eval")
     def _rollout(self):
         experience, profile = self.experience, self.profile
+        assert experience is not None, "Experience buffer not initialized"
         profile.start_epoch(self.epoch, "eval")
 
         with profile.eval_misc:
             policy = self.policy
             infos = defaultdict(list)
 
-            self.full_rows = 0
-            while self.full_rows < self.segments:
-                with profile.env:
-                    o, r, d, t, info, env_id, mask = self.vecenv.recv()
+            experience.reset_for_rollout()
 
-                    if self.trainer_cfg.require_contiguous_env_ids:
-                        raise ValueError(
-                            "We are assuming contiguous eng id is always False. async_factor == num_workers = "
-                            f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
-                        )
+        while not experience.ready_for_training:
+            with profile.env:
+                o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
-                with profile.eval_misc:
-                    env_id = slice(env_id[0], env_id[-1] + 1)
-                    num_steps = sum(mask)
-                    self.agent_step += num_steps * self._world_size
+                if self.trainer_cfg.require_contiguous_env_ids:
+                    raise ValueError(
+                        "We are assuming contiguous eng id is always False. async_factor == num_workers = "
+                        f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
+                    )
 
-                    o = torch.as_tensor(o)
-                    r = torch.as_tensor(r)
-                    d = torch.as_tensor(d)
-                    t = torch.as_tensor(t)
+            with profile.eval_misc:
+                env_id = slice(env_id[0], env_id[-1] + 1)
+                num_steps = sum(mask)
+                self.agent_step += num_steps * self._world_size
 
-                with profile.eval_forward, torch.no_grad():
-                    state = PolicyState()
+                o = torch.as_tensor(o)
+                r = torch.as_tensor(r)
+                d = torch.as_tensor(d)
+                t = torch.as_tensor(t)
 
-                    if self.trainer_cfg.get("use_rnn", True) and hasattr(self, "lstm_h"):
-                        batch_key = env_id.start
-                        if batch_key in self.lstm_h:
-                            state.lstm_h = self.lstm_h[batch_key]
-                            state.lstm_c = self.lstm_c[batch_key]
+            with profile.eval_forward, torch.no_grad():
+                state = PolicyState()
 
-                    o_device = o.to(self.device, non_blocking=True)
-                    actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
+                # Get LSTM state from experience buffer
+                lstm_state = experience.get_lstm_state(env_id.start)
+                if lstm_state is not None:
+                    state.lstm_h = lstm_state["lstm_h"]
+                    state.lstm_c = lstm_state["lstm_c"]
 
-                    if __debug__:
-                        assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
-                        assert_shape(actions, ("BT", 2), "actions")
+                o_device = o.to(self.device, non_blocking=True)
+                actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
 
-                    if self.trainer_cfg.get("use_rnn", True) and hasattr(self, "lstm_h"):
-                        if state.lstm_h is not None and state.lstm_c is not None:
-                            batch_key = env_id.start
-                            if batch_key in self.lstm_h:
-                                self.lstm_h[batch_key] = state.lstm_h
-                                self.lstm_c[batch_key] = state.lstm_c
+                if __debug__:
+                    assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
+                    assert_shape(actions, ("BT", 2), "actions")
 
-                    if self.device == "cuda":
-                        torch.cuda.synchronize()
+                # Prepare LSTM state for storage
+                lstm_state_to_store = None
+                if self.trainer_cfg.get("use_rnn", True) and state.lstm_h is not None:
+                    lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
-                with profile.eval_misc:
-                    value = value.flatten()
-                    mask = torch.as_tensor(mask)
-                    episode_length = self.ep_lengths[env_id.start].item()
-                    indices = self.ep_indices[env_id]
+                if self.device == "cuda":
+                    torch.cuda.synchronize()
 
-                    o = o if self.trainer_cfg.cpu_offload else o_device
-                    self.observations[indices, episode_length] = o
-                    self.logprobs[indices, episode_length] = selected_action_log_probs
-                    self.rewards[indices, episode_length] = r.to(self.device, non_blocking=True)
-                    self.terminals[indices, episode_length] = d.to(self.device, non_blocking=True).float()
-                    self.truncations[indices, episode_length] = t.to(self.device, non_blocking=True).float()
-                    self.values[indices, episode_length] = value
+            with profile.eval_misc:
+                value = value.flatten()
+                mask_tensor = torch.as_tensor(mask)
 
-                    if self.actions.dtype == torch.int32:
-                        self.actions[indices, episode_length] = actions.int()
-                    elif self.actions.dtype == torch.int64:
-                        self.actions[indices, episode_length] = actions.long()
-                    else:
-                        self.actions[indices, episode_length] = actions
+                # Store experience
+                experience.store(
+                    obs=o if self.trainer_cfg.cpu_offload else o_device,
+                    actions=actions,
+                    logprobs=selected_action_log_probs,
+                    rewards=r.to(self.device, non_blocking=True),
+                    terminals=d.to(self.device, non_blocking=True),
+                    truncations=t.to(self.device, non_blocking=True),
+                    values=value,
+                    env_id=env_id,
+                    mask=mask_tensor,
+                    lstm_state=lstm_state_to_store,
+                )
 
-                    self.ep_lengths[env_id] += 1
-                    if episode_length + 1 >= self.trainer_cfg.bptt_horizon:
-                        num_full = env_id.stop - env_id.start
-                        self.ep_indices[env_id] = (
-                            self.free_idx + torch.arange(num_full, device=self.device).int()
-                        ) % self.segments
-                        self.ep_lengths[env_id] = 0
-                        self.free_idx = (self.free_idx + num_full) % self.segments
-                        self.full_rows += num_full
+                for i in info:
+                    for k, v in unroll_nested_dict(i):
+                        infos[k].append(v)
 
-                    for i in info:
-                        for k, v in unroll_nested_dict(i):
-                            infos[k].append(v)
-
-                with profile.env:
-                    actions_np = actions.cpu().numpy().astype(dtype_actions)
-                    self.vecenv.send(actions_np)
+            with profile.env:
+                actions_np = actions.cpu().numpy().astype(dtype_actions)
+                self.vecenv.send(actions_np)
 
         with profile.eval_misc:
             for k, v in infos.items():
@@ -467,22 +457,19 @@ class PufferTrainer:
                         except TypeError:
                             self.stats[k] = [self.stats[k], v]
 
-            self.free_idx = self.total_agents % self.segments
-            self.ep_indices = torch.arange(self.total_agents, device=self.device, dtype=torch.int32) % self.segments
-            self.ep_lengths.zero_()
-
         # TODO: Better way to enable multiple collects
         return self.stats, infos
 
     def _get_experience_buffer_mean_reward(self) -> float:
-        # Use rewards from tensor buffer
-        if hasattr(self, "rewards") and self.rewards is not None:
-            return float(self.rewards.mean().item())
+        # Use rewards from experience buffer
+        if hasattr(self, "experience") and self.experience is not None:
+            return self.experience.get_mean_reward()
         return 0.0
 
     @profile_section("train")
     def _train(self):
         experience, profile = self.experience, self.profile
+        assert experience is not None, "Experience buffer not initialized"
         profile.start_epoch(self.epoch, "train")
         self.losses = self._make_losses()
 
@@ -497,10 +484,6 @@ class PufferTrainer:
             vf_clip = config.get("vf_clip_coef", 0.1)
             total_epochs = max(1, self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
             anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
-            self.ratio[:] = 1
-
-            shape = self.values.shape
-            advantages = torch.zeros(shape, device=device)
 
             # Average reward adjustment
             if config.average_reward:
@@ -508,46 +491,39 @@ class PufferTrainer:
                 alpha = self.trainer_cfg.average_reward_alpha
                 current_batch_mean = self._get_experience_buffer_mean_reward()
                 self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
-                # Adjust rewards by subtracting average reward for advantage computation
-                rewards_adjusted = self.rewards - self.average_reward
-                # Set gamma to 1.0 for average reward case
-                effective_gamma = 1.0
-            else:
-                rewards_adjusted = self.rewards
-                effective_gamma = config.gamma
 
-            # Compute advantages using pufferlib kernel
-            torch.ops.pufferlib.compute_puff_advantage(
-                self.values,
-                rewards_adjusted,
-                self.terminals,
-                self.ratio,
-                advantages,
-                effective_gamma,
-                config.gae_lambda,
-                config.get("vtrace_rho_clip", 1.0),
-                config.get("vtrace_c_clip", 1.0),
+            # Compute advantages
+            advantages = experience.compute_advantages(
+                gamma=config.gamma,
+                gae_lambda=config.gae_lambda,
+                vtrace_rho_clip=config.get("vtrace_rho_clip", 1.0),
+                vtrace_c_clip=config.get("vtrace_c_clip", 1.0),
+                average_reward=self.average_reward if config.average_reward else 0.0,
+                use_average_reward=config.average_reward,
             )
 
         # Optimizing the policy and value network
         total_minibatches = self.total_minibatches
         for mb in range(total_minibatches):
             with profile.train_misc:
-                # Prioritized sampling
-                adv = advantages.abs().sum(axis=1)
-                prio_weights = torch.nan_to_num(adv**a, 0, 0, 0)
-                prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
-                idx = torch.multinomial(prio_probs, self.minibatch_segments)
-                mb_prio = (self.segments * prio_probs[idx, None]) ** -anneal_beta
+                # Sample prioritized minibatch
+                minibatch_data = experience.sample_minibatch(
+                    advantages=advantages,
+                    prio_alpha=a,
+                    prio_beta=anneal_beta,
+                    minibatch_idx=mb,
+                    total_minibatches=total_minibatches,
+                )
 
-                # Minibatch data
-                obs = self.observations[idx]
-                obs = obs.to(device, non_blocking=True)
-                atn = self.actions[idx]
-                old_action_log_probs = self.logprobs[idx]
-                val = self.values[idx]
-                adv = advantages[idx]
-                ret = adv + val
+                # Unpack minibatch data
+                obs = minibatch_data["obs"]
+                atn = minibatch_data["actions"]
+                old_action_log_probs = minibatch_data["logprobs"]
+                val = minibatch_data["values"]
+                adv = minibatch_data["advantages"]
+                ret = minibatch_data["returns"]
+                idx = minibatch_data["indices"]
+                mb_prio = minibatch_data["prio_weights"]
 
             with profile.train_forward:
                 lstm_state = PolicyState()
@@ -564,7 +540,7 @@ class PufferTrainer:
 
                 logratio = new_action_log_probs - old_action_log_probs
                 ratio = logratio.exp()
-                self.ratio[idx] = ratio
+                experience.update_ratio(idx, ratio)
 
                 # KL divergence tracking
                 with torch.no_grad():
@@ -573,11 +549,18 @@ class PufferTrainer:
                     clipfrac = ((ratio - 1.0).abs() > clip_coef).float().mean()
 
                 # Re-compute advantages with new ratios (V-trace)
-                adv = advantages[idx]
+                rewards_mb = minibatch_data["rewards"]
+                terminals_mb = minibatch_data["terminals"]
+                adv = minibatch_data["advantages"]
+
+                # Get effective gamma for average reward case
+                effective_gamma = 1.0 if config.average_reward else config.gamma
+                rewards_adjusted = rewards_mb - self.average_reward if config.average_reward else rewards_mb
+
                 torch.ops.pufferlib.compute_puff_advantage(
                     val,
-                    rewards_adjusted[idx],
-                    self.terminals[idx],
+                    rewards_adjusted,
+                    terminals_mb,
                     ratio,
                     adv,
                     effective_gamma,
@@ -635,7 +618,7 @@ class PufferTrainer:
                 )
 
                 # Update value estimates
-                self.values[idx] = newvalue.detach().float()
+                experience.update_values(idx, newvalue)
 
                 # Logging
                 self.losses.policy_loss += pg_loss.item() / total_minibatches
@@ -674,8 +657,8 @@ class PufferTrainer:
                 self.lr_scheduler.step()
 
             # Calculate explained variance
-            y_pred = self.values.flatten()
-            y_true = advantages.flatten() + self.values.flatten()
+            y_pred = experience.values.flatten()
+            y_true = advantages.flatten() + experience.values.flatten()
             var_y = y_true.var()
             explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
             self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
@@ -876,60 +859,40 @@ class PufferTrainer:
         segments = batch_size // horizon
         self.segments = segments
 
-        # Create tensor storage for experience
-        self.observations = torch.zeros(
-            segments,
-            horizon,
-            *obs_space.shape,
-            dtype=torch.float32 if obs_space.dtype == np.float32 else torch.uint8,
-            pin_memory=device == "cuda" and self.trainer_cfg.cpu_offload,
-            device="cpu" if self.trainer_cfg.cpu_offload else device,
-        )
-        self.actions = torch.zeros(
-            segments,
-            horizon,
-            *atn_space.shape,
-            device=device,
-            dtype=torch.int32 if atn_space.dtype in (np.int32, np.int64) else torch.float32,
-        )
-
-        self.values = torch.zeros(segments, horizon, device=device)
-        self.logprobs = torch.zeros(segments, horizon, device=device)
-        self.rewards = torch.zeros(segments, horizon, device=device)
-        self.terminals = torch.zeros(segments, horizon, device=device)
-        self.truncations = torch.zeros(segments, horizon, device=device)
-        self.ratio = torch.ones(segments, horizon, device=device)
-        self.importance = torch.ones(segments, horizon, device=device)
-        self.ep_lengths = torch.zeros(total_agents, device=device, dtype=torch.int32)
-        self.ep_indices = torch.arange(total_agents, device=device, dtype=torch.int32) % segments
-        self.free_idx = total_agents % segments
-
-        if self.trainer_cfg.get("use_rnn", True):
-            n = vecenv.agents_per_batch
-            h = getattr(self.policy, "hidden_size", 256)
-            num_layers = 2
-            if hasattr(self.policy, "components") and "_core_" in self.policy.components:
-                lstm_module = self.policy.components["_core_"]
-                if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
-                    num_layers = lstm_module._net.num_layers
-            self.lstm_h = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
-            self.lstm_c = {i * n: torch.zeros(num_layers, n, h, device=device) for i in range(total_agents // n)}
-
         minibatch_size = self.trainer_cfg.minibatch_size
         max_minibatch_size = self.trainer_cfg.get("max_minibatch_size", minibatch_size)
-        self.minibatch_size = min(minibatch_size, max_minibatch_size)
 
-        if batch_size < minibatch_size:
-            raise ValueError(f"batch_size {batch_size} must be >= minibatch_size {minibatch_size}")
+        # Get LSTM parameters if using RNN
+        use_rnn = self.trainer_cfg.get("use_rnn", True)
+        hidden_size = getattr(self.policy, "hidden_size", 256)
+        num_lstm_layers = 2
+        if hasattr(self.policy, "components") and "_core_" in self.policy.components:
+            lstm_module = self.policy.components["_core_"]
+            if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
+                num_lstm_layers = lstm_module._net.num_layers
 
-        self.accumulate_minibatches = max(1, minibatch_size // max_minibatch_size)
+        # Create experience buffer
+        self.experience = Experience(
+            total_agents=total_agents,
+            batch_size=batch_size,
+            bptt_horizon=horizon,
+            minibatch_size=minibatch_size,
+            max_minibatch_size=max_minibatch_size,
+            obs_space=obs_space,
+            atn_space=atn_space,
+            device=device,
+            cpu_offload=self.trainer_cfg.cpu_offload,
+            use_rnn=use_rnn,
+            hidden_size=hidden_size,
+            num_lstm_layers=num_lstm_layers,
+            agents_per_batch=getattr(vecenv, "agents_per_batch", None),
+        )
+
+        # Store some references for compatibility
+        self.minibatch_size = self.experience.minibatch_size
+        self.accumulate_minibatches = self.experience.accumulate_minibatches
         self.total_minibatches = int(self.trainer_cfg.update_epochs * batch_size / self.minibatch_size)
-        self.minibatch_segments = self.minibatch_size // horizon
-
-        if self.minibatch_segments * horizon != self.minibatch_size:
-            raise ValueError(f"minibatch_size {self.minibatch_size} must be divisible by bptt_horizon {horizon}")
-
-        self.full_rows = 0
+        self.minibatch_segments = self.experience.minibatch_segments
 
     def _make_losses(self):
         return SimpleNamespace(
