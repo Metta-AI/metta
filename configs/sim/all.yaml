@@ -33,13 +33,6 @@ simulations:
     env: env/mettagrid/navigation/evals/labyrinth
   navigation/radialmaze:
     env: env/mettagrid/navigation/evals/radialmaze
-<<<<<<< HEAD
-    policy_agents_pct: 1.0
-  # npc/simple:
-  #   env: env/mettagrid/simple
-  #   policy_agents_pct: 0.5
-  #   npc_policy_uri: wandb://run/b.daphne.npc_simple
-=======
   navigation/cylinder_easy:
     env: env/mettagrid/navigation/evals/cylinder_easy
   navigation/honeypot:
@@ -66,7 +59,6 @@ simulations:
     env: env/mettagrid/simple
     policy_agents_pct: 0.5
     npc_policy_uri: wandb://run/b.daphne.npc_simple
->>>>>>> a5df163c21c7227e88c2eb82f7e39ff8030bb1c0
   objectuse/altar_use_free:
     env: env/mettagrid/object_use/evals/altar_use_free
     policy_agents_pct: 1.0
