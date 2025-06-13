@@ -785,7 +785,7 @@ class PufferTrainer:
                 local_sq_sum = einops.rearrange((adv * adv).sum(), "-> 1")
                 local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
 
-                stats, _ = einops.pack([local_sum, local_sq_sum, local_count], "* 1")
+                stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
                 torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
 
                 global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
@@ -875,7 +875,9 @@ class PufferTrainer:
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
-        forward_pass_batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
+        forward_pass_batch_size = (
+            self.target_batch_size // self.trainer_cfg.num_workers
+        ) * self.trainer_cfg.num_workers
         logger.info(f"vecenv_batch_size: {forward_pass_batch_size}")
 
         num_envs = forward_pass_batch_size * self.trainer_cfg.async_factor
