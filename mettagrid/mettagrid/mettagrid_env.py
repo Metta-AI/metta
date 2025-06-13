@@ -174,10 +174,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         """
 
-        if __debug__:
-            from mettagrid.util.actions import validate_actions
-
-            validate_actions(self, actions, logger)
+        # Note: We explicitly allow invalid actions to be used. The environment will
+        # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
 
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_pre_step(self._episode_id, actions)
