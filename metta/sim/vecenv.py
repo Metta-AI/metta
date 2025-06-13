@@ -34,7 +34,6 @@ def make_env_func(
         buf=buf,
         stats_writer=stats_writer,
         replay_writer=replay_writer,
-        training=training,
         **kwargs,
     )
     # Ensure the environment is properly initialized

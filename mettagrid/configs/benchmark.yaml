@@ -2,6 +2,7 @@
 report_stats_interval: 100
 
 sampling: 0
+desync_episodes: false
 
 game:
   num_agents: 24
@@ -98,7 +99,7 @@ game:
   diversity_bonus:
     enabled: false
     similarity_coef: 0.5
-    diversity_coef: 0.5 
+    diversity_coef: 0.5
 
   objects:
     altar:
