@@ -25,6 +25,7 @@ components:
     num_query_tokens: 10
     query_token_dim: 32
     num_heads: 8
+    num_layers: 2
     qk_dim: 32
     v_dim: 32
     mlp_out_hidden_dim: 64
