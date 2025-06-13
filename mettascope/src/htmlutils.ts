@@ -119,6 +119,8 @@ export function showMenu(target: HTMLElement, menu: HTMLElement) {
   openMenu.style.left = rect.left + "px";
   openMenu.style.top = (rect.bottom + 2) + "px";
   openMenu.classList.remove("hidden");
+  // Bring menu to front (move to the end of the sibling list)
+  openMenu.parentElement?.appendChild(openMenu);
 }
 
 /** Hides the menu and the scrim. */
