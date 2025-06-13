@@ -76,7 +76,7 @@ export function drawTimeline(panel: PanelInfo) {
     [1, 1, 1, 1]
   );
 
-  // The the position of the traces view.
+  // Draw the position of the traces view.
   let scrubberTileSize = scrubberWidth / fullSteps
   let tracesX = -ui.tracePanel.panPos.x() / Common.TRACE_WIDTH * scrubberTileSize
   let zoomLevel = ui.tracePanel.zoomLevel;
