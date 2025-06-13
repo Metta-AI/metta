@@ -336,6 +336,14 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       ActionType action = actions_view(agent_idx, 0);
 
+      // Action validation: Currently we throw on invalid action type or arg to catch bugs early.
+      // TODO: When supporting externally trained policies, consider changing this to:
+      //   - Log a warning instead of throwing
+      //   - Convert invalid actions to no-op
+      //   - Track statistics on invalid action attempts
+      // This would allow graceful handling of policies that output out-of-range actions
+      // due to training in different environments or action space configurations.
+
       if (action < 0 || action >= _num_action_handlers) {
         throw std::runtime_error("Invalid action type " + std::to_string(action) + ". Valid range: 0 to " +
                                  std::to_string(_num_action_handlers - 1));
