@@ -255,3 +255,8 @@ class Experience:
     def ready_for_training(self) -> bool:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
+
+    @property
+    def num_minibatches(self) -> int:
+        """Number of minibatches that can be created from the buffer."""
+        return self.segments // self.minibatch_segments

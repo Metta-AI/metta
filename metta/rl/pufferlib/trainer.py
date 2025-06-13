@@ -70,6 +70,15 @@ class PufferTrainer:
         self._master = True
         self._world_size = 1
 
+        # Initialize device
+        if torch.cuda.is_available() and cfg.device == "cuda":
+            if torch.distributed.is_initialized():
+                self.device = torch.device(f"cuda:{os.environ.get('LOCAL_RANK', 0)}")
+            else:
+                self.device = torch.device("cuda")
+        else:
+            self.device = torch.device(cfg.device if hasattr(cfg, "device") else "cpu")
+
         # Initialize device handling
         self._batch_size = self.trainer_cfg.batch_size
         self._minibatch_size = self.trainer_cfg.minibatch_size
@@ -507,7 +516,10 @@ class PufferTrainer:
             )
 
         # Optimizing the policy and value network
-        total_minibatches = self.total_minibatches
+        total_minibatches = self._total_minibatches
+        self.accumulate_minibatches = experience.accumulate_minibatches
+        self.num_minibatches = experience.num_minibatches
+
         for mb in range(total_minibatches):
             with profile.train_misc:
                 # Sample prioritized minibatch
@@ -545,28 +557,6 @@ class PufferTrainer:
                     old_approx_kl = (-logratio).mean()
                     approx_kl = ((ratio - 1) - logratio).mean()
                     clipfrac = ((ratio - 1.0).abs() > config.clip_coef).float().mean()
-
-                    adv = self._compute_advantage(adv)
-
-                    # Policy loss
-                    pg_loss1 = -adv * ratio
-                    pg_loss2 = -adv * torch.clamp(ratio, 1 - self.trainer_cfg.clip_coef, 1 + self.trainer_cfg.clip_coef)
-                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                    # Value loss
-                    newvalue = newvalue.view(-1)
-                    if self.trainer_cfg.clip_vloss:
-                        v_loss_unclipped = (newvalue - ret) ** 2
-                        v_clipped = val + torch.clamp(
-                            newvalue - val,
-                            -self.trainer_cfg.vf_clip_coef,
-                            self.trainer_cfg.vf_clip_coef,
-                        )
-                        v_loss_clipped = (v_clipped - ret) ** 2
-                        v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                        v_loss = 0.5 * v_loss_max.mean()
-                    else:
-                        v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
                 # Re-compute advantages with new ratios (V-trace)
                 adv = minibatch["advantages"]
@@ -876,23 +866,23 @@ class PufferTrainer:
             "timing/total_seconds": wall_time,
         }
 
-            # Log everything to wandb
-            self.wandb_run.log(
-                {
-                    **{f"overview/{k}": v for k, v in overview.items()},
-                    **{f"losses/{k}": v for k, v in losses.items()},
-                    **{f"performance/{k}": v for k, v in performance.items()},
-                    **environment,
-                    **weight_metrics,
-                    **self._eval_grouped_scores,
-                    "train/agent_step": agent_steps,
-                    "train/avg_agent_steps_per_update": avg_steps_per_update,
-                    "train/epoch": epoch,
-                    "train/learning_rate": learning_rate,
-                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
-                    **timing_logs,
-                }
-            )
+        # Log everything to wandb
+        self.wandb_run.log(
+            {
+                **{f"overview/{k}": v for k, v in overview.items()},
+                **{f"losses/{k}": v for k, v in losses.items()},
+                **{f"performance/{k}": v for k, v in performance.items()},
+                **environment,
+                **weight_metrics,
+                **self._eval_grouped_scores,
+                "train/agent_step": self.agent_step,
+                "train/avg_agent_steps_per_update": self._agent_steps_per_update,
+                "train/epoch": self.epoch,
+                "train/learning_rate": self.optimizer.param_groups[0]["lr"],
+                "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+                **timing_logs,
+            }
+        )
 
     def _compute_advantage(self, adv: torch.Tensor) -> torch.Tensor:
         """Compute normalized advantages, handling distributed training synchronization."""
@@ -945,25 +935,28 @@ class PufferTrainer:
         num_lstm_layers = 2  # Default value
 
         # Try to get actual number of LSTM layers from policy
+        lstm = None
         if hasattr(self.policy, "components") and "_core_" in self.policy.components:
             lstm_module = self.policy.components["_core_"]
             if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
                 num_lstm_layers = lstm_module._net.num_layers
+                lstm = lstm_module._net
 
         # Create experience buffer
         self.experience = Experience(
+            total_agents=total_agents,
             batch_size=self._batch_size,  # Total number of environment steps to collect before updating
             bptt_horizon=self.trainer_cfg.bptt_horizon,  # Sequence length for BPTT (backpropagation through time)
             minibatch_size=self._minibatch_size,  # Size of minibatches for training
-            hidden_size=hidden_size,  # Dimension of the policy's hidden state
-            obs_shape=obs_shape,  # Shape of a single observation
-            obs_dtype=obs_dtype,  # Data type of observations
-            atn_shape=atn_shape,  # Shape of a single action
-            atn_dtype=atn_dtype,  # Data type of actions
-            cpu_offload=self.trainer_cfg.cpu_offload,  # Whether to store data on CPU and transfer to GPU as needed
+            max_minibatch_size=max_minibatch_size,  # Maximum size of a minibatch
+            obs_space=obs_space,  # Observation space
+            atn_space=atn_space,  # Action space
             device=self.device,  # Device to store tensors on ("cuda" or "cpu")
-            lstm=lstm,  # LSTM module from the policy (needed for dimensions) # type: ignore - Pylance is wrong
-            lstm_total_agents=lstm_total_agents,  # Total number of LSTM states to maintain
+            cpu_offload=self.trainer_cfg.cpu_offload,  # Whether to store data on CPU and transfer to GPU as needed
+            use_rnn=use_rnn,  # Whether to use RNN
+            hidden_size=hidden_size,  # Dimension of the policy's hidden state
+            num_lstm_layers=num_lstm_layers,  # Number of LSTM layers
+            agents_per_batch=getattr(vecenv, "agents_per_batch", None),  # Agents per batch for LSTM states
         )
 
     def _make_losses(self):
