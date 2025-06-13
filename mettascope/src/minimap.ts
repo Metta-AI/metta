@@ -1,6 +1,6 @@
-import { Vec2f, Mat3f } from './vector_math.js';
+import { Vec2f } from './vector_math.js';
 import * as Common from './common.js';
-import { ui, state, html, ctx, setFollowSelection } from './common.js';
+import { ui, state, ctx } from './common.js';
 import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { parseHtmlColor } from './htmlutils.js';
@@ -67,7 +67,8 @@ export function drawMiniMap(panel: PanelInfo) {
     const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
     if (typeName === "agent") {
-      ctx.drawSprite("minimapPip.png",
+      ctx.drawSprite(
+        "minimapPip.png",
         x * Common.MINI_MAP_TILE_SIZE + 1,
         y * Common.MINI_MAP_TILE_SIZE + 1,
         [1, 0, 0, 1],
