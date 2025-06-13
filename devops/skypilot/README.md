@@ -151,6 +151,7 @@ sky jobs cancel --all
 
 # Cancel jobs by name pattern
 sky jobs cancel -n "experiment_*"
+
 ```
 
 ### Job Status
@@ -189,7 +190,7 @@ This script also sets `AWS_PROFILE=softmax` automatically.
   ```
 
 #### Job Control
-- `jk`, `jc`, `jkl` - Cancel a job (all three aliases do the same thing)
+- `jk` - Cancel a job
   ```bash
   jk <JOB_ID>  # Equivalent to: sky jobs cancel <JOB_ID>
   ```
