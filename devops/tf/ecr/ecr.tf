@@ -1,7 +1,3 @@
-provider "aws" {
-  region = "us-east-1"
-}
-
 # Create ECR repository
 resource "aws_ecr_repository" "metta" {
   name                 = "metta"
@@ -30,4 +26,19 @@ resource "aws_ecr_lifecycle_policy" "metta" {
       }
     }]
   })
+}
+
+# Replicate to other regions
+data "aws_caller_identity" "current" {}
+
+resource "aws_ecr_replication_configuration" "regions" {
+  for_each = toset(var.replication_regions)
+  replication_configuration {
+    rule {
+      destination {
+        region      = each.value
+        registry_id = data.aws_caller_identity.current.account_id
+      }
+    }
+  }
 }
