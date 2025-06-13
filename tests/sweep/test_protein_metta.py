@@ -22,9 +22,9 @@ class TestMettaProtein:
                     "random_suggestions": 1024,
                     "suggestions_per_pareto": 256,
                 },
+                "metric": "reward",
+                "goal": "maximize",
                 "parameters": {
-                    "metric": "reward",
-                    "goal": "maximize",
                     "trainer": {
                         "optimizer": {
                             "learning_rate": {
@@ -51,7 +51,7 @@ class TestMettaProtein:
 
                 # Verify Protein was called with correct parameters
                 mock_protein.assert_called_once()
-                args, _ = mock_protein.call_args
+                args, kwargs = mock_protein.call_args
 
                 # Check that parameters were passed correctly
                 protein_config = args[0]
@@ -59,10 +59,10 @@ class TestMettaProtein:
                 assert protein_config["goal"] == "maximize"
                 assert "trainer" in protein_config
 
-                # Check protein-specific parameters
-                assert args[1] == 7200  # max_suggestion_cost
-                assert args[3] == 100  # num_random_samples
-                assert args[4] == 2  # global_search_scale
+                # Check protein-specific parameters were passed as kwargs
+                assert kwargs["max_suggestion_cost"] == 7200
+                assert kwargs["num_random_samples"] == 100
+                assert kwargs["global_search_scale"] == 2
 
     def test_metta_protein_init_with_defaults(self):
         """Test MettaProtein initialization with minimal config (using defaults)."""
@@ -76,9 +76,9 @@ class TestMettaProtein:
                     "random_suggestions": 1024,
                     "suggestions_per_pareto": 256,
                 },  # Default protein config values
+                "metric": "accuracy",
+                "goal": "minimize",
                 "parameters": {
-                    "metric": "accuracy",
-                    "goal": "minimize",
                     "batch_size": {"distribution": "uniform", "min": 16, "max": 128, "scale": "auto", "mean": 64},
                 },
             }
@@ -103,9 +103,9 @@ class TestMettaProtein:
                 assert protein_config["goal"] == "minimize"
 
                 # Check defaults were used
-                assert args[1] == 3600  # max_suggestion_cost default
-                assert args[3] == 50  # num_random_samples default
-                assert args[4] == 1  # global_search_scale default
+                assert kwargs["max_suggestion_cost"] == 3600
+                assert kwargs["num_random_samples"] == 50
+                assert kwargs["global_search_scale"] == 1
 
     def test_metta_protein_config_interpolation(self):
         """Test that OmegaConf interpolations are resolved correctly."""
@@ -119,9 +119,9 @@ class TestMettaProtein:
                     "random_suggestions": 1024,
                     "suggestions_per_pareto": 256,
                 },
+                "metric": "loss",
+                "goal": "minimize",
                 "parameters": {
-                    "metric": "loss",
-                    "goal": "minimize",
                     "trainer": {
                         "batch_size": 32,
                         "optimizer": {
@@ -167,7 +167,9 @@ class TestMettaProtein:
                     "random_suggestions": 1024,
                     "suggestions_per_pareto": 256,
                 },
-                "parameters": {"metric": "reward", "goal": "maximize"},
+                "metric": "reward",
+                "goal": "maximize",
+                "parameters": {},
             }
         )
 
