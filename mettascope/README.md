@@ -79,7 +79,7 @@ python tools/gen_html.py
 - **Play/Pause**: Control playback with the play/pause button
 - **Frame Navigation**: Step forward/backward to move frame by frame
 - **Speed Control**: Adjust playback speed using the speed controls
-- **Timeline**: Drag the scrubber on the timeline to jump to any point in the replay
+- **Timeline**: Drag the scrubber on the timeline to jump to any point in the replay. The timeline also shows key events like agent freezing and acts as a minimap for the trace view.
 
 ### Action Traces
 
