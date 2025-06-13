@@ -992,7 +992,7 @@ class PufferTrainer:
                         self.wandb_run.alert(
                             title="Critical: Training Run Stuck",
                             text=alert_message,
-                            level=AlertLevel.CRITICAL,
+                            level=AlertLevel.ERROR,
                         )
                     except Exception as e:
                         # This will catch errors if .alert() is missing, not callable, or fails internally
