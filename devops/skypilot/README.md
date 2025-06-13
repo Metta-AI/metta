@@ -15,8 +15,6 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 ./devops/skypilot/launch.py <COMMAND> run=<RUN_ID> [COMMAND_ARGS...] [OPTIONS]
 ```
 
-You should include run=your_run_id in COMMAND_ARGS if your command logic requires it.
-
 ### Required Parameters
 
 - `COMMAND`: The main command to execute (e.g., `train`, `eval`)
@@ -42,58 +40,58 @@ You should include run=your_run_id in COMMAND_ARGS if your command logic require
 
 1. **Launch a training run with default parameters:**
    ```bash
-   ./launch.py train run=my_experiment_001
+   devops/skypilot/launch.py train run=my_experiment_001
    ```
 
 2. **Launch with custom hyperparameters:**
    ```bash
-   ./launch.py train run=my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
+   devops/skypilot/launch.py train run=my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
    ```
 
 ### Resource Configuration
 
 3. **Use multiple GPUs:**
    ```bash
-   ./launch.py train run=gpu_experiment --gpus 4
+   devops/skypilot/launch.py train run=gpu_experiment --gpus 4
    ```
 
 4. **Multi-node training:**
    ```bash
-   ./launch.py train run=distributed_training --nodes 2 --gpus 8
+   devops/skypilot/launch.py train run=distributed_training --nodes 2 --gpus 8
    ```
 
 5. **Use on-demand instances (more reliable but costlier):**
    ```bash
-   ./launch.py train run=critical_experiment --no-spot
+   devops/skypilot/launch.py train run=critical_experiment --no-spot
    ```
 
 ### Time Management
 
 6. **Quick 30-minute experiment:**
    ```bash
-   ./launch.py train run=quick_test --timeout-hours 0.5
+   devops/skypilot/launch.py train run=quick_test --timeout-hours 0.5
    ```
 
 7. **Long-running job with 8-hour limit:**
    ```bash
-   ./launch.py train run=long_experiment --timeout-hours 8 --gpus 2
+   devops/skypilot/launch.py train run=long_experiment --timeout-hours 8 --gpus 2
    ```
 
 ### Advanced Usage
 
 8. **Launch multiple identical experiments:**
    ```bash
-   ./launch.py train run=ablation_study --copies 5 --timeout-hours 2
+   devops/skypilot/launch.py train run=ablation_study --copies 5 --timeout-hours 2
    ```
 
 9. **Use specific git commit:**
    ```bash
-   ./launch.py train run=reproducible_exp --git-ref abc123def
+   devops/skypilot/launch.py train run=reproducible_exp --git-ref abc123def
    ```
 
 10. **Preview configuration before launching:**
     ```bash
-    ./launch.py train run=test_config --confirm
+    devops/skypilot/launch.py train run=test_config --confirm
     ```
 
 The `--confirm` flag displays a detailed job summary before launching:
@@ -117,10 +115,19 @@ Task Arguments:
 Should we launch this task? (Y/n):
 ```
 
-11. **Dry run with confirmation:**
+11. **Dry run:**
     ```bash
-    ./launch.py train run=test_config --dry-run --confirm
+    devops/skypilot/launch.py train run=test_config --dry-run
     ```
+
+The `--dry-run` flag allows you to preview the configuration that will be used before launching.
+
+It will output the complete YAML configuration that would be used for the deployment, including:
+- Resource specifications (cloud provider, instance types, GPUs)
+- Docker configurations
+- Environment variables
+- File mounts
+- Setup and run commands
 
 ## Job Management
 
@@ -162,6 +169,76 @@ Jobs can have the following statuses:
 - `FAILED`: Terminated with error
 - `CANCELLED`: Manually cancelled
 
+## Shell Aliases
+
+To streamline your workflow, we provide convenient shell aliases for common SkyPilot operations.
+
+### Setup
+
+Source the shell setup script to load all aliases:
+
+```bash
+source ./devops/skypilot/setup_shell.sh
+```
+
+This script also sets `AWS_PROFILE=softmax` automatically.
+
+### Available Aliases
+
+#### Job Queue Management
+- `jq` - List active jobs (skips finished jobs)
+  ```bash
+  jq  # Equivalent to: sky jobs queue --skip-finished
+  ```
+- `jqa` - List all jobs including finished ones
+  ```bash
+  jqa  # Equivalent to: sky jobs queue
+  ```
+
+#### Job Control
+- `jk`, `jc`, `jkl` - Cancel a job (all three aliases do the same thing)
+  ```bash
+  jk <JOB_ID>  # Equivalent to: sky jobs cancel <JOB_ID>
+  ```
+
+#### Logs
+- `jl` - View job logs
+  ```bash
+  jl <JOB_ID>  # Equivalent to: sky jobs logs <JOB_ID>
+  ```
+- `jlc` - View controller logs (useful for debugging)
+  ```bash
+  jlc <JOB_ID>  # Equivalent to: sky jobs logs --controller <JOB_ID>
+  ```
+- `jll` - View logs for the most recent job
+  ```bash
+  jll  # Automatically gets logs for the latest running job
+  ```
+- `jllc` - View controller logs for the most recent job
+  ```bash
+  jllc  # Automatically gets controller logs for the latest running job
+  ```
+
+#### Launching
+- `lt` - Quick launch training jobs
+  ```bash
+  lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py train run=my_experiment_001
+  ```
+
+### Adding to Your Shell Profile
+
+To make these aliases permanent, add the source command to your shell profile:
+
+```bash
+# For bash users:
+echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.bashrc
+
+# For zsh users:
+echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.zshrc
+
+# For fish users:
+echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/fish/config.fish
+```
 
 ## Sandboxes
 
@@ -214,8 +291,6 @@ The script uses `./devops/skypilot/config/sk_train.yaml` as the base configurati
 - Environment variables
 - Setup and run scripts
 
-
-
 ### Environment Variables
 
 The following environment variables are automatically set:
@@ -244,7 +319,7 @@ sky jobs queue -a
 
 1. **Use descriptive run IDs**: Include date, user name, experiment type, and key parameters
    ```bash
-   ./launch.py train run=2024_01_15_bert_lr_sweep_001
+   lt run=2024_01_15_bert_lr_sweep_001
    ```
 
 2. **Set appropriate timeouts**: Always use `--timeout-hours` to prevent runaway costs
