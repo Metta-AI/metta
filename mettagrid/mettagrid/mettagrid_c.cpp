@@ -2,6 +2,7 @@
 
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+
 #include <algorithm>
 #include <cmath>
 
@@ -309,15 +310,11 @@ void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style
     auto observation_view = _observations.mutable_unchecked<3>();
     for (size_t idx = 0; idx < _agents.size(); idx++) {
       ObservationToken* tokens = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(idx, 0, 0));
-      unsigned int episode_completion_pct = 0;
-      if (max_steps > 0) {
-        episode_completion_pct = static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
-      }
+      unsigned int episode_completion_pct =
+          max_steps > 0 ? static_cast<unsigned int>(std::round(current_step * 255.0 / max_steps)) : 0;
       tokens[0] = {0, ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)};
-      tokens[1] = {0, ObservationFeature::LastAction,
-                   static_cast<uint8_t>(actions_view(idx, 0))};
-      tokens[2] = {0, ObservationFeature::LastActionArg,
-                   static_cast<uint8_t>(actions_view(idx, 1))};
+      tokens[1] = {0, ObservationFeature::LastAction, static_cast<uint8_t>(actions_view(idx, 0))};
+      tokens[2] = {0, ObservationFeature::LastActionArg, static_cast<uint8_t>(actions_view(idx, 1))};
       int reward_int = static_cast<int>(std::round(rewards_view(idx) * 100.0f));
       reward_int = std::clamp(reward_int, 0, 255);
       tokens[3] = {0, ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)};
@@ -331,6 +328,14 @@ void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style
       _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, 0);
     }
   }
+}
+
+void handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg) {
+  auto& agent = _agents[agent_idx];
+  agent->stats.incr(stat);
+  agent->stats.incr(stat + "." + std::to_string(type) + "." + std::to_string(arg));
+  _action_success[agent_idx] = false;
+  *agent->reward -= agent->action_failure_penalty;
 }
 
 void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
@@ -362,36 +367,28 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
     for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
       ActionType action = actions_view(agent_idx, 0);
+      ActionArg arg = actions_view(agent_idx, 1);
 
-      // Action validation: Currently we throw on invalid action type or arg to catch bugs early.
-      // TODO: When supporting externally trained policies, consider changing this to:
-      //   - Log a warning instead of throwing
-      //   - Convert invalid actions to no-op
-      //   - Track statistics on invalid action attempts
-      // This would allow graceful handling of policies that output out-of-range actions
-      // due to training in different environments or action space configurations.
-
+      // Tolerate invalid action types
       if (action < 0 || action >= _num_action_handlers) {
-        throw std::runtime_error("Invalid action type " + std::to_string(action) + ". Valid range: 0 to " +
-                                 std::to_string(_num_action_handlers - 1));
+        handle_invalid_action(agent_idx, "action.invalid_type", action, arg);
+        continue;
       }
 
       auto& handler = _action_handlers[action];
-
       if (handler->priority != current_priority) {
         continue;
       }
 
-      ActionArg arg = actions_view(agent_idx, 1);
-
+      // Tolerate invalid action arguments
       if (arg > _max_action_args[action]) {
-        throw std::runtime_error("Invalid action argument " + std::to_string(arg) + " exceeds maximum " +
-                                 std::to_string(_max_action_args[action]) + " for action " + std::to_string(action));
+        handle_invalid_action(agent_idx, "action.invalid_arg", action, arg);
+        continue;
       }
 
       auto& agent = _agents[agent_idx];
-
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
+      // note that handle_action will assign a penalty for attempting invalid actions as a side effect
       _action_success[agent_idx] = handler->handle_action(agent->id, arg);
     }
   }
