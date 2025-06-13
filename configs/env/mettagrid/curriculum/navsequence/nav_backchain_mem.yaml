@@ -4,5 +4,5 @@ _target_: mettagrid.curriculum.RandomCurriculum
 #dd_navigation_curriculum:v54
 tasks:
   /env/mettagrid/curriculum/navigation: 1
-  /env/mettagrid/curriculum/navsequence/backchain_seq: 1
-  /env/mettagrid/curriculum/navsequence/mem_medium: 1
+  /env/mettagrid/curriculum/experiments/backchain_seq: 1
+  /env/mettagrid/curriculum/experiments/mem_medium: 1

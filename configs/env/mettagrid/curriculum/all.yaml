@@ -1,13 +1,10 @@
 _target_: mettagrid.curriculum.RandomCurriculum
 
 tasks:
-  # /env/mettagrid/curriculum/simple: 2
-  /env/mettagrid/curriculum/navigation: 5
-  /env/mettagrid/curriculum/navsequence_all: 4
-  /env/mettagrid/curriculum/backchain_seq: 1
-  /env/mettagrid/curriculum/easy_sequence: 2
-  /env/mettagrid/curriculum/pure_seq_backchain: 2
-  /env/mettagrid/curriculum/pure_mem_backchain: 2
-# env_overrides:
-#   game:
-#     num_agents: 4
+  /env/mettagrid/curriculum/simple: 5
+  /env/mettagrid/curriculum/navigation: 3
+  /env/mettagrid/curriculum/object_use: 2
+
+env_overrides:
+  game:
+    num_agents: 24

@@ -31,6 +31,7 @@ game:
     border_width: 6
     room:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+<<<<<<< HEAD:configs/env/mettagrid/navigation_sequence/training/mem_defaults.yaml
       width: ${sampling:20,60,50}
       height: ${sampling:20,60,50}
       border_width: ${sampling:1,6,3}
@@ -40,11 +41,26 @@ game:
         mine.red: ${sampling:2,5,2}
         generator.red: ${sampling:2,5,2}
         altar: ${sampling:2,5,2}
+=======
+      width: ${sampling:15,60,25}
+      height: ${sampling:15,60,25}
+      border_width: 3
+      agents: ${div:${...num_agents},${..num_rooms}}
+      style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      objects:
+        mine.red: ${sampling:2,10,5}
+        generator.red: ${sampling:2,10,5}
+        altar: 5
+>>>>>>> 1b5e37eb8bf87731266d942cc10f838b1ffed119:configs/env/mettagrid/navigation_sequence/experiments/mem_defaults.yaml
   objects:
     altar:
       input_battery.red: 1
       initial_items: ${choose:0,0,0,1}
+<<<<<<< HEAD:configs/env/mettagrid/navigation_sequence/training/mem_defaults.yaml
       cooldown: ${sampling:5, 20, 10}
+=======
+      cooldown: ${sampling:1, 20, 10}
+>>>>>>> 1b5e37eb8bf87731266d942cc10f838b1ffed119:configs/env/mettagrid/navigation_sequence/experiments/mem_defaults.yaml
     generator.red:
       initial_items: ${choose:0,0,0,1}
       cooldown: ${sampling:5, 20, 10}
