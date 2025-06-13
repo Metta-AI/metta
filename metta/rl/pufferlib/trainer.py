@@ -990,7 +990,7 @@ class PufferTrainer:
         forward_pass_batch_size = (
             self.target_batch_size // self.trainer_cfg.num_workers
         ) * self.trainer_cfg.num_workers
-        logger.info(f"vecenv_batch_size: {forward_pass_batch_size}")
+        logger.info(f"forward_pass_batch_size: {forward_pass_batch_size}")
 
         num_envs = forward_pass_batch_size * self.trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
