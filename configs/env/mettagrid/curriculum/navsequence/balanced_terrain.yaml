@@ -5,7 +5,6 @@ env_cfg_template: /env/mettagrid/navigation_sequence/experiments/terrain
 buckets:
   game.agent.ore.red_max:
     range: [2, 15]
-    bins: 2
   game.agent.battery.red_max:
     range: [2, 15]
     bins: 2
@@ -22,7 +21,7 @@ buckets:
     range: [15, 100]
     bins: 3
   game.map_builder.room.style:
-    values: ["all-sparse", "balanced", "dense", "maze"]
+    values: [balanced]
   game.map_builder.room.objects.mine.red:
     range: [2, 15]
     bins: 2

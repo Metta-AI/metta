@@ -1,6 +1,6 @@
 _target_: mettagrid.curriculum.BucketedCurriculum
 
-env_cfg_template: /env/mettagrid/navigation_sequence/experiments/terrain_from_numpy
+env_cfg_template: /env/mettagrid/navigation_sequence/experiments/terrain
 
 buckets:
   game.agent.ore.red_max:
@@ -22,7 +22,7 @@ buckets:
     range: [15, 100]
     bins: 2
   game.map_builder.room.style:
-    values: ["all-sparse", "balanced", "dense", "maze"]
+    values: [all-sparse]
   game.map_builder.room.objects.mine.red:
     range: [2, 15]
     bins: 2
