@@ -24,17 +24,17 @@ components:
     out_dim: 256
     use_mask: true
     num_query_tokens: 10
-    query_token_dim: 256
-    qk_dim: 256
-    v_dim: 256
-    mlp_out_hidden_dim: 256
+    query_token_dim: 128
+    qk_dim: 128
+    v_dim: 128
+    mlp_out_hidden_dim: 128
     sources:
       - name: _obs_
 
   obs_latent_self_attn:
     _target_: metta.agent.lib.obs_enc.ObsVanillaAttn
-    out_dim: 256
-    num_layers: 3
+    out_dim: 128
+    num_layers: 4
     use_mask: false
     sources:
       - name: obs_latent_query_attn
@@ -44,8 +44,8 @@ components:
     out_dim: 128
     use_mask: false
     num_query_tokens: 1
-    qk_dim: 256
-    v_dim: 256
+    qk_dim: 128
+    v_dim: 128
     mlp_out_hidden_dim: 256
     sources:
       - name: obs_latent_self_attn
