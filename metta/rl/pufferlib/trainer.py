@@ -412,11 +412,8 @@ class PufferTrainer:
                 # 1. Multiple vectorized environments managed by this GPU's vecenv
                 # 2. Multiple rollout steps (until experience buffer is full)
                 #
-                # For example, if we have 32 environments and collect 128 steps:
                 # - Some stats (like "episode/reward") appear only when episodes complete
                 # - Other stats might appear every step
-                # - infos["episode/reward"] might contain [10.5, 23.1, 15.7, ...]
-                #   from various episodes that completed during this rollout
                 #
                 # These will later be averaged in _process_stats() to get mean values
                 # across all environments on this GPU. Stats from other GPUs (if using
