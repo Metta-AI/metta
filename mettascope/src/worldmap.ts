@@ -713,7 +713,7 @@ function drawAttackMode() {
       ctx.drawSprite('target.png', targetX * Common.TILE_SIZE, targetY * Common.TILE_SIZE);
       if (gridMousePos != null && targetX == gridMousePos.x() && targetY == gridMousePos.y()) {
         // Check if we are clicking this specific tile.
-        console.log("Attack mode clicked on:", targetX, targetY);
+        console.info("Attack mode clicked on:", targetX, targetY);
         sendAction("attack", attackIndex)
       }
     }
@@ -770,13 +770,13 @@ export function drawMap(panel: PanelInfo) {
 
   if (ui.mouseDoubleClick) {
     // Toggle followSelection on double-click
-    console.log("Map double click - following selection");
+    console.info("Map double click - following selection");
     setFollowSelection(true);
     panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
     ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
   } else if (ui.mouseClick) {
     // Map click - likely a drag/pan
-    console.log("Map click - clearing follow selection");
+    console.info("Map click - clearing follow selection");
     setFollowSelection(false);
   } else if (ui.mouseUp &&
     ui.mouseDownPos.sub(ui.mousePos).length() < 10
@@ -784,7 +784,7 @@ export function drawMap(panel: PanelInfo) {
     // Check if we are clicking on an object.
     if (objectUnderMouse !== undefined) {
       updateSelection(objectUnderMouse)
-      console.log("Selected object on the map:", state.selectedGridObject);
+      console.info("Selected object on the map:", state.selectedGridObject);
       if (state.selectedGridObject.agent_id !== undefined) {
         // If selecting an agent, focus the trace panel on the agent.
         ui.tracePanel.focusPos(

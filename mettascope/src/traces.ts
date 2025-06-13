@@ -16,19 +16,19 @@ export function drawTrace(panel: PanelInfo) {
   if (ui.mouseTarget == "trace-panel") {
     if (ui.mouseDoubleClick) {
       // Toggle followSelection on double-click
-      console.log("Trace double click - following selection");
+      console.info("Trace double click - following selection");
       setFollowSelection(true);
       panel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
       ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
     } else if (ui.mouseClick) {
       // Trace click - likely a drag/pan
-      console.log("Trace click - clearing trace follow selection");
+      console.info("Trace click - clearing trace follow selection");
       setFollowSelection(false);
     } else if (ui.mouseUp &&
       ui.mouseDownPos.sub(ui.mousePos).length() < 10
     ) {
       // Check if we are clicking on an action/step.
-      console.log("Trace up without dragging - selecting trace object");
+      console.info("Trace up without dragging - selecting trace object");
       const localMousePos = panel.transformOuter(ui.mousePos);
       if (localMousePos != null) {
         const mapX = localMousePos.x();
@@ -40,7 +40,7 @@ export function drawTrace(panel: PanelInfo) {
           agentId >= 0 && agentId < state.replay.num_agents
         ) {
           updateSelection(state.replay.agents[agentId]);
-          console.log("Selected an agent on a trace:", state.selectedGridObject);
+          console.info("Selected an agent on a trace:", state.selectedGridObject);
           ui.mapPanel.focusPos(
             getAttr(state.selectedGridObject, "c") * Common.TILE_SIZE,
             getAttr(state.selectedGridObject, "r") * Common.TILE_SIZE,

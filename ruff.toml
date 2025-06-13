@@ -20,7 +20,13 @@ exclude = [
 # Define import sections and their order
 known-third-party = ["wandb", "torch", "omegaconf"]
 known-first-party = ["metta", "mettagrid"]
-section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+section-order = [
+  "future",
+  "standard-library",
+  "third-party",
+  "first-party",
+  "local-folder",
+]
 
 [lint]
 # Rules to enable for linting
@@ -55,3 +61,6 @@ unfixable = []
 
 [lint.flake8-tidy-imports.banned-api]
 "mettagrid.mettagrid".msg = "Import mettagrid instead of mettagrid.mettagrid"
+
+[lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]

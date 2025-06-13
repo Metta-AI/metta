@@ -88,7 +88,6 @@ def put_image(img, name):
 for root, _dirs, files in os.walk("data"):
     for file in files:
         if file.endswith(".png"):
-            print("Processing", root + "/" + file)
             img = pixie.read_image(root + "/" + file)
             put_image(img, (root + "/" + file).replace("data/", ""))
 

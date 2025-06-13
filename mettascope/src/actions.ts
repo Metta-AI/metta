@@ -62,7 +62,13 @@ export function processActions(event: KeyboardEvent) {
   // Smart navigation, where pressing key rotations the agent in the
   // direction of the key, but if the agent is already facing in that
   // direction, it moves forward.
-  if (state.ws != null && state.selectedGridObject != null) {
+
+  if (state.ws == null) {
+    console.error("Trying to send commands when not connected to server");
+    return;
+  }
+
+  if (state.selectedGridObject != null) {
     const agent = state.selectedGridObject;
     const orientation = getAttr(agent, "agent:orientation");
     if (event.key == "w") {

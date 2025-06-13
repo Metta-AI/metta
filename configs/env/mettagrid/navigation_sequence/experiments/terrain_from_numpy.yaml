@@ -24,9 +24,9 @@ game:
       border_width: ${sampling:1,6,3}
       agents: 1
       objects:
-        mine.red: ${sampling:3,15,2}
-        generator.red: ${sampling:3,15,2}
-        altar: ${sampling:1,15,2}
+        mine.red: ${sampling:3,10,2}
+        generator.red: ${sampling:3,10,2}
+        altar: 5
   objects:
     altar:
       input_battery.red: 1

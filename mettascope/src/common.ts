@@ -173,7 +173,6 @@ export function showModal(type: string, title: string, message: string) {
   if (content) {
     content.textContent = message;
   }
-  console.log("showing modal", html.modal, type, title, message);
 }
 
 /** Close the modal. */
