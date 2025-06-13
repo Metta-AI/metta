@@ -272,38 +272,45 @@ class ObsVanillaAttn(LayerBase):
         out_dim: int,
         use_mask: bool = False,
         num_layers: int = 1,
+        num_heads: int = 1,
         **cfg,
     ) -> None:
         super().__init__(**cfg)
         self._out_dim = out_dim
         self._use_mask = use_mask
         self._num_layers = num_layers
+        self._num_heads = num_heads
 
     def _make_net(self) -> None:
         # we expect input shape to be [B, M, feat_dim]
         self._M = self._in_tensor_shapes[0][0]
         self._feat_dim = self._in_tensor_shapes[0][1]
-        self._scale = self._feat_dim**-0.5
+
+        if self._feat_dim % self._num_heads != 0:
+            raise ValueError(f"feat_dim ({self._feat_dim}) must be divisible by num_heads ({self._num_heads})")
+
+        self._scale = (self._feat_dim // self._num_heads) ** -0.5
 
         self._out_tensor_shape = [self._M, self._out_dim]
 
         self.layer_norms_1 = nn.ModuleList([nn.LayerNorm(self._feat_dim) for _ in range(self._num_layers)])
-        self.W_qkvs = nn.ParameterList()
-        self.b_qkvs = nn.ParameterList()
+        self.q_projs = nn.ModuleList()
+        self.k_projs = nn.ModuleList()
+        self.v_projs = nn.ModuleList()
+        self.out_projs = nn.ModuleList()
+
         for _ in range(self._num_layers):
-            W_qkv = nn.Parameter(torch.empty(self._feat_dim, 3 * self._feat_dim))
-            b_qkv = nn.Parameter(torch.empty(3 * self._feat_dim))
-            nn.init.xavier_uniform_(W_qkv)
-            nn.init.zeros_(b_qkv)
-            self.W_qkvs.append(W_qkv)
-            self.b_qkvs.append(b_qkv)
+            self.q_projs.append(nn.Linear(self._feat_dim, self._feat_dim, bias=False))
+            self.k_projs.append(nn.Linear(self._feat_dim, self._feat_dim, bias=False))
+            self.v_projs.append(nn.Linear(self._feat_dim, self._feat_dim, bias=False))
+            self.out_projs.append(nn.Linear(self._feat_dim, self._feat_dim))
 
         self._layer_norm_2 = nn.LayerNorm(self._feat_dim)
 
         if self._feat_dim != self._out_dim:
-            self._out_proj = nn.Linear(self._feat_dim, self._out_dim)
+            self._final_proj = nn.Linear(self._feat_dim, self._out_dim)
         else:
-            self._out_proj = nn.Identity()
+            self._final_proj = nn.Identity()
 
         return None
 
@@ -318,32 +325,38 @@ class ObsVanillaAttn(LayerBase):
             x_res = x
             x_norm = self.layer_norms_1[i](x)
 
-            # QKV projection
-            # x_norm: [B, M, feat_dim], W_qkv: [feat_dim, 3 * feat_dim]
-            # qkv: [B, M, 3 * feat_dim]
-            qkv = torch.einsum("bmd,df->bmf", x_norm, self.W_qkvs[i]) + self.b_qkvs[i]
-            q, k, v = torch.chunk(qkv, 3, dim=-1)  # Each [B, M, feat_dim]
+            q = self.q_projs[i](x_norm)
+            k = self.k_projs[i](x_norm)
+            v = self.v_projs[i](x_norm)
 
-            # Simplified single-head attention
-            # Attention scores: [B, M, M]
-            attn_scores = torch.einsum("bmd,bnd->bmn", q, k) * self._scale
+            # Reshape for multi-head
+            q = einops.rearrange(q, "b m (h d) -> b h m d", h=self._num_heads)
+            k = einops.rearrange(k, "b m (h d) -> b h m d", h=self._num_heads)
+            v = einops.rearrange(v, "b m (h d) -> b h m d", h=self._num_heads)
+
+            # Attention scores: [B, num_heads, M, M]
+            attn_scores = torch.einsum("bhmd,bhnd->bhmn", q, k) * self._scale
 
             if key_mask is not None:
-                # key_mask: [B, M] -> [B, 1, M] for broadcasting
-                # True in key_mask means mask out, so fill with -inf
+                # key_mask: [B, M] -> [B, 1, 1, M] for broadcasting
                 mask_value = -torch.finfo(attn_scores.dtype).max
-                attn_scores = attn_scores + key_mask.unsqueeze(1).to(attn_scores.dtype) * mask_value
+                attn_scores = attn_scores + key_mask.unsqueeze(1).unsqueeze(1).to(attn_scores.dtype) * mask_value
 
-            attn_weights = torch.softmax(attn_scores, dim=-1)  # [B, M, M]
+            attn_weights = torch.softmax(attn_scores, dim=-1)  # [B, num_heads, M, M]
 
-            # Weighted sum of V: [B, M, feat_dim]
-            attn_output = torch.einsum("bmn,bnd->bmd", attn_weights, v)
+            # Weighted sum of V: [B, num_heads, M, head_dim]
+            attn_output = torch.einsum("bhmn,bhnd->bhmd", attn_weights, v)
+
+            # Combine heads: [B, M, feat_dim]
+            attn_output = einops.rearrange(attn_output, "b h m d -> b m (h d)")
+
+            attn_output = self.out_projs[i](attn_output)
 
             x = x_res + attn_output
 
         x_norm2 = self._layer_norm_2(x)
 
-        output = self._out_proj(x_norm2)
+        output = self._final_proj(x_norm2)
 
         td[self._name] = output
         return td
