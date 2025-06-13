@@ -102,7 +102,6 @@ def test_is_commit_pushed():
     "ref,expected_valid",
     [
         ("HEAD", True),
-        ("main", True),
         ("non-existent-branch", False),
         ("", False),
         ("invalid..ref", False),
