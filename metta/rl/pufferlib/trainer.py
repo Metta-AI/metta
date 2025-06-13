@@ -391,7 +391,7 @@ class PufferTrainer:
                 state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
 
                 o_device = o.to(self.device, non_blocking=True)
-                actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
+                actions, selected_action_log_probs, entropy, value, _ = policy(o_device, state)
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
@@ -411,6 +411,7 @@ class PufferTrainer:
                 value = value.flatten()
                 mask = torch.as_tensor(mask)  # * policy.mask)
                 o = o if self.trainer_cfg.cpu_offload else o_device
+                r += r + self.trainer_cfg.rewards.entropy_coef * entropy.to(r.device)
                 self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
                 for i in info:
@@ -465,14 +466,14 @@ class PufferTrainer:
             values_np = experience.values_np[idxs]
             rewards_np = experience.rewards_np[idxs]
 
-            if self.trainer_cfg.average_reward:
+            if self.trainer_cfg.rewards.average_reward:
                 # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
                 # where ρ is the average reward estimate
 
                 current_batch_mean = self._get_experience_buffer_mean_reward()
 
                 # Apply IIR filter (exponential moving average)
-                alpha = self.trainer_cfg.average_reward_alpha
+                alpha = self.trainer_cfg.rewards.average_reward_alpha
                 self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
 
                 # Use filtered estimate for advantage computation
@@ -626,7 +627,7 @@ class PufferTrainer:
 
         # Save filtered average reward estimate for restart continuity
         extra_args = {}
-        if self.trainer_cfg.average_reward:
+        if self.trainer_cfg.rewards.average_reward:
             extra_args["average_reward"] = self.average_reward
 
         self.checkpoint = TrainerCheckpoint(
@@ -789,7 +790,7 @@ class PufferTrainer:
                     "train/avg_agent_steps_per_update": avg_steps_per_update,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
-                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+                    "train/average_reward": self.average_reward if self.trainer_cfg.rewards.average_reward else None,
                     **timing_logs,
                 }
             )
