@@ -22,17 +22,10 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 
 ### Optional Parameters
 
-- `COMMAND_ARGS`: Additional arguments to pass to the command
-- `--git-ref <REF>`: Specify a git reference (branch, tag, or commit hash) instead of current HEAD
-- `--gpus <N>`: Number of GPUs per node (overrides config)
-- `--nodes <N>`: Number of nodes to use (overrides config)
-- `--cpus <N>`: Number of CPUs per node (overrides config)
-- `--no-spot`: Disable spot instances (use on-demand instead)
-- `--copies <N>`: Launch N identical copies of the job (default: 1)
-- `--timeout-hours <HOURS>`: Auto-terminate job after specified hours (supports decimals)
-- `--skip-git-check`: Skip validation that commits are pushed
-- `-c, --confirm`: Show detailed job summary and confirmation prompt before launching
-- `--dry-run`: Show what would be executed without actually launching
+For a complete list of optional parameters and their descriptions, use:
+
+```bash
+./devops/skypilot/launch.py --help
 
 ## Examples
 
