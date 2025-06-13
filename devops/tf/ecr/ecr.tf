@@ -32,12 +32,14 @@ resource "aws_ecr_lifecycle_policy" "metta" {
 data "aws_caller_identity" "current" {}
 
 resource "aws_ecr_replication_configuration" "regions" {
-  for_each = toset(var.replication_regions)
   replication_configuration {
     rule {
-      destination {
-        region      = each.value
-        registry_id = data.aws_caller_identity.current.account_id
+      dynamic "destination" {
+        for_each = var.replication_regions
+        content {
+          region      = each.value
+          registry_id = data.aws_caller_identity.current.account_id
+        }
       }
     }
   }
