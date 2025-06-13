@@ -477,6 +477,9 @@ class PufferTrainer:
             config = self.trainer_cfg
             device = self.device
 
+            # Reset importance sampling ratios
+            experience.reset_ratio()
+
             # Prioritized sampling parameters
             b0 = config.get("prio_beta0", 0.6)
             a = config.get("prio_alpha", 0.0)

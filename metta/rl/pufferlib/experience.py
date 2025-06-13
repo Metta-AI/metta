@@ -232,6 +232,10 @@ class Experience:
         self.ep_indices = torch.arange(self.total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.ep_lengths.zero_()
 
+    def reset_ratio(self) -> None:
+        """Reset the importance sampling ratio to 1.0 at the beginning of training."""
+        self.ratio[:] = 1.0
+
     def compute_advantages(
         self,
         gamma: float,
