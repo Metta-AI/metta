@@ -2,8 +2,4 @@ defaults:
   - sim_single
   - _self_
 
-<<<<<<< HEAD
-env: /env/mettagrid/mapgen_auto
-=======
-env: /env/mettagrid/navigation_sequence/training/hard_mem_sparse
->>>>>>> 503a50cc714faecdb3128473a523fbc27ad5eb9f
+env: /env/mettagrid/memory/training/easy
