@@ -2,6 +2,8 @@
 
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+#include <algorithm>
+#include <cmath>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
@@ -212,7 +214,8 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
                                      unsigned int observer_col,
                                      unsigned short obs_width,
                                      unsigned short obs_height,
-                                     size_t agent_idx) {
+                                     size_t agent_idx,
+                                     size_t start_idx) {
   // Calculate observation boundaries
   unsigned int obs_width_radius = obs_width >> 1;
   unsigned int obs_height_radius = obs_height >> 1;
@@ -233,7 +236,7 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // we don't need to do that here.
   if (_use_observation_tokens) {
     size_t attempted_tokens_written = 0;
-    size_t tokens_written = 0;
+    size_t tokens_written = start_idx;
     auto observation_view = _observations.mutable_unchecked<3>();
     // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
     for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
@@ -300,9 +303,33 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 }
 
 void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
-  for (size_t idx = 0; idx < _agents.size(); idx++) {
-    auto& agent = _agents[idx];
-    _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx);
+  auto actions_view = actions.unchecked<2>();
+  auto rewards_view = _rewards.unchecked<1>();
+  if (_use_observation_tokens) {
+    auto observation_view = _observations.mutable_unchecked<3>();
+    for (size_t idx = 0; idx < _agents.size(); idx++) {
+      ObservationToken* tokens = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(idx, 0, 0));
+      unsigned int episode_completion_pct = 0;
+      if (max_steps > 0) {
+        episode_completion_pct = static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
+      }
+      tokens[0] = {0, ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)};
+      tokens[1] = {0, ObservationFeature::LastAction,
+                   static_cast<uint8_t>(actions_view(idx, 0))};
+      tokens[2] = {0, ObservationFeature::LastActionArg,
+                   static_cast<uint8_t>(actions_view(idx, 1))};
+      int reward_int = static_cast<int>(std::round(rewards_view(idx) * 100.0f));
+      reward_int = std::clamp(reward_int, 0, 255);
+      tokens[3] = {0, ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)};
+
+      auto& agent = _agents[idx];
+      _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, 4);
+    }
+  } else {
+    for (size_t idx = 0; idx < _agents.size(); idx++) {
+      auto& agent = _agents[idx];
+      _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, 0);
+    }
   }
 }
 
