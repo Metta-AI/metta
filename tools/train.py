@@ -5,7 +5,6 @@ from logging import Logger
 from typing import Optional
 
 import hydra
-import torch
 import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
@@ -45,10 +44,6 @@ def train(cfg, wandb_run, logger: Logger):
     train_job = TrainJob(cfg.train_job)
 
     policy_store = PolicyStore(cfg, wandb_run)
-
-    if torch.distributed.is_initialized():
-        world_size = torch.distributed.get_world_size()
-        cfg.trainer.forward_pass_minibatch_target_size = cfg.trainer.forward_pass_minibatch_target_size // world_size
 
     trainer = hydra.utils.instantiate(
         cfg.trainer, cfg, wandb_run, policy_store=policy_store, sim_suite_config=train_job.evals
@@ -96,4 +91,7 @@ def main(cfg: ListConfig | DictConfig) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    import cProfile
+
+    cProfile.run("main()", sort="cumulative")
+    # sys.exit(main())

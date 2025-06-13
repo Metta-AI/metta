@@ -85,6 +85,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._should_reset = False
         self._profiler = cProfile.Profile()
         self._profiler.enable()
+        self._uuid = str(uuid.uuid4())
 
         self._initialize_c_env()
         super().__init__(buf)
@@ -99,10 +100,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
         self._profiler.disable()
-        print("MettaGridEnv initialized")
-        if random.random() < 0.01:
-            import traceback
-            traceback.print_stack()
+
+    def dump_profile(self):
+        with open(f"profile_{self._uuid}.prof", "w") as f:
+            self._profiler.print_stats(sort='cumulative', stream=f)
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
