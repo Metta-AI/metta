@@ -99,6 +99,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
         self._profiler.disable()
+        print("MettaGridEnv initialized")
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -212,6 +213,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @override
     def close(self):
+        print("MettaGridEnv closing")
         self._profiler.print_stats(sort='cumulative')
 
     def process_episode_stats(self, infos: Dict[str, Any]):
