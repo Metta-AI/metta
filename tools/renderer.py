@@ -19,7 +19,7 @@ from mettagrid.mettagrid_env import (
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.util.actions import generate_valid_random_actions, validate_actions
+from mettagrid.util.actions import generate_valid_random_actions
 from mettagrid.util.hydra import get_cfg
 
 
@@ -284,8 +284,6 @@ def run_renderer(cfg: DictConfig) -> None:
         for _step in range(cfg.renderer_job.num_steps):
             # Get action from policy
             actions = policy.predict(obs)
-
-            validate_actions(env, actions)
 
             try:
                 # Step environment
