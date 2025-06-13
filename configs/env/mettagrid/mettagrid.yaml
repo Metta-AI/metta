@@ -6,7 +6,7 @@ game:
   obs_height: 11
   use_observation_tokens: false
   num_observation_tokens: 128
-  max_steps: 1000
+  max_steps: 100000
 
   diversity_bonus:
     enabled: false
