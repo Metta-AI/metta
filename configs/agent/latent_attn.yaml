@@ -24,7 +24,7 @@ components:
     use_mask: true
     num_query_tokens: 10
     query_token_dim: 32
-    num_heads: 8
+    num_heads: 1
     num_layers: 1
     qk_dim: 32
     v_dim: 32
@@ -35,8 +35,8 @@ components:
   obs_latent_self_attn:
     _target_: metta.agent.lib.obs_enc.ObsVanillaAttn
     out_dim: 32
-    num_layers: 3
-    num_heads: 8
+    num_layers: 1
+    num_heads: 1
     use_mask: false
     sources:
       - name: obs_latent_query_attn
