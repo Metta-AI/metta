@@ -989,21 +989,13 @@ class PufferTrainer:
 
                 if self.wandb_run:
                     try:
-                        # Use the original alert if available, or the run's alert
-                        alert_fn = (
-                            getattr(self._original_wandb_log_fn.__self__, "alert", self.wandb_run.alert)
-                            if self._original_wandb_log_fn and hasattr(self._original_wandb_log_fn.__self__, "alert")
-                            else getattr(self.wandb_run, "alert", None)
+                        self.wandb_run.alert(
+                            title="Critical: Training Run Stuck",
+                            text=alert_message,
+                            level=AlertLevel.CRITICAL,
                         )
-                        if alert_fn:
-                            alert_fn(
-                                title="Critical: Training Run Stuck",
-                                text=alert_message,
-                                level=AlertLevel.CRITICAL,
-                            )
-                        else:
-                            logger.error("wandb_run.alert function not found for stuck run alert.")
                     except Exception as e:
+                        # This will catch errors if .alert() is missing, not callable, or fails internally
                         logger.error(f"Failed to send wandb.alert for stuck run: {e}", exc_info=True)
 
                 logger.info("Attempting to close vecenv before forced exit due to W&B inactivity...")
