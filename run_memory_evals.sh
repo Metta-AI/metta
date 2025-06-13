@@ -4,9 +4,15 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
-  "gd_all2:v12"
+  "georgedeane.sky.nav_backchain_mem"
+  "georgdeane.sky.nav_backchain"
+  "georgedeane.sky.nav_mem_pretrained"
+  "georgedeane.sky.nav_backchain_mem_pretrained"
+  "georgedeane.sky.nav_navsequence_backchain"
+  "georgedeane.sky.nav_backchain_mem"
+  "gd_all2"
   "gd_backchain_mem_pretrained:v18"
-  "gd_all:v19"
+  "gd_all"
   # "dd.2objectuse_curriculum"
   # "dd_navigation_curriculum"
   "dd_navsequence_memory_pretrained"
@@ -35,15 +41,6 @@ POLICIES=(
   "gd_backchain_full_extended"
   "gd_backchain_in_context"
   "gd_backchain_scratch_hard"
-
-  "georgedeane.nav_backchain"
-  "b.georgedeane.nav_mem_pretrained"
-  "b.georgedeane.nav_backchain_mem"
-  "b.georgedeane.nav_navsequence_backchain"
-  "b.georgedeane.nav_backchain2"
-  "b.daphne.nav_navsequence_backchain"
-  "b.daphne.nav_backchain"
-  "b.georgedeane.nav_backchain_mem_pretrained"
 )
 
 

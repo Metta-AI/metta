@@ -23,7 +23,7 @@
 
 # python -m devops.aws.batch.launch_task --cmd=train --run=b.georgdeane.nav_backchain_mem_pretrained  --git-branch=george-navsequence-experiments trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain_mem trainer.initial_policy.uri=wandb://run/dd_navigation_curriculum:54 --skip-validation \
 
-./devops/skypilot/launch.py train georgedeane.sky.nav_backchain_mem_pretrained trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain_mem trainer.initial_policy.uri=wandb://run/dd_navigation_curriculum:54
+./devops/skypilot/launch.py train georgedeane.sky.nav_backchain_mem_pretrained trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain_mem trainer.initial_policy.uri=wandb://run/dd_navigation_curriculum:v54
 
 
 

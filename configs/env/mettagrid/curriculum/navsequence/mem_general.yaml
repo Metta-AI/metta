@@ -9,5 +9,11 @@ tasks:
   /env/mettagrid/memory/training/hard: 1
   /env/mettagrid/navigation_sequence/training/mem_balanced: 1
   /env/mettagrid/navigation_sequence/training/mem_sparse: 1
+<<<<<<< HEAD:configs/env/mettagrid/curriculum/mem_general.yaml
   /env/mettagrid/navigation_sequence/training/mem_maze: 1
   /env/mettagrid/navigation_sequence/training/mem_dense: 1
+=======
+  /env/mettagrid/navigation_sequence/training/hard_mem_balanced: 1
+  /env/mettagrid/navigation_sequence/training/hard_mem_dense: 1
+  /env/mettagrid/navigation_sequence/training/hard_mem_sparse: 1
+>>>>>>> cd75631607bc094e0ba902f09cb4967a00f9714d:configs/env/mettagrid/curriculum/navsequence/mem_general.yaml
