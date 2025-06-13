@@ -7,137 +7,320 @@ This script provides a convenient way to launch training jobs on AWS using SkyPi
 - AWS credentials configured with `softmax` profile
 - Access to AWS ECR in us-east-1 region
 - SkyPilot CLI installed and configured
+- Git repository with pushed commits (unless using `--skip-git-check`)
 
 ## Usage
 
 ```bash
-./devops/skypilot/launch.py <COMMAND> <RUN_ID> [COMMAND_ARGS...] [OPTIONS]
+./devops/skypilot/launch.py <COMMAND> run=<RUN_ID> [COMMAND_ARGS...] [OPTIONS]
 ```
 
-### Parameters
+### Required Parameters
 
-- `COMMAND`: The main command to execute
-- `RUN_ID`: Unique identifier for the run
-- `COMMAND_ARGS`: Additional arguments to pass to the command
-- `OPTIONS`: Additional options to pass to the command (see `./devops/skypilot/launch.py --help` for the full list)
+- `COMMAND`: The main command to execute (e.g., `train`, `eval`)
+- `run=<RUN_ID>`: Unique identifier for the run (required parameter)
+
+### Optional Parameters
+
+For a complete list of optional parameters and their descriptions, use:
+
+```bash
+./devops/skypilot/launch.py --help
 
 ## Examples
 
-1. Launch a training run with default parameters:
+### Basic Usage
 
-```bash
-./launch.py train my_experiment_001
-```
+1. **Launch a training run with default parameters:**
+   ```bash
+   devops/skypilot/launch.py train run=my_experiment_001
+   ```
 
-2. Launch a training run with specific arguments:
+2. **Launch with custom hyperparameters:**
+   ```bash
+   devops/skypilot/launch.py train run=my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
+   ```
 
-```bash
-./launch.py train my_experiment_002 trainer.learning_rate=0.001 trainer.batch_size=32
-```
+### Resource Configuration
 
-3. Launch a training run with a 2-hour timeout:
+3. **Use multiple GPUs:**
+   ```bash
+   devops/skypilot/launch.py train run=gpu_experiment --gpus 4
+   ```
 
-```bash
-./launch.py train my_experiment_003 --timeout-hours 2
-```
+4. **Multi-node training:**
+   ```bash
+   devops/skypilot/launch.py train run=distributed_training --nodes 2 --gpus 8
+   ```
 
-4. Launch a quick experiment with a 30-minute timeout:
+5. **Use on-demand instances (more reliable but costlier):**
+   ```bash
+   devops/skypilot/launch.py train run=critical_experiment --no-spot
+   ```
 
-```bash
-./launch.py train quick_test_004 --timeout-hours 0.5
-```
+### Time Management
 
-5. Launch a long-running job with 4 hours timeout on multiple GPUs:
+6. **Quick 30-minute experiment:**
+   ```bash
+   devops/skypilot/launch.py train run=quick_test --timeout-hours 0.5
+   ```
 
-```bash
-./launch.py train long_experiment_005 --timeout-hours 4 --gpus 2
-```
+7. **Long-running job with 8-hour limit:**
+   ```bash
+   devops/skypilot/launch.py train run=long_experiment --timeout-hours 8 --gpus 2
+   ```
+
+### Advanced Usage
+
+8. **Launch multiple identical experiments:**
+   ```bash
+   devops/skypilot/launch.py train run=ablation_study --copies 5 --timeout-hours 2
+   ```
+
+9. **Use specific git commit:**
+   ```bash
+   devops/skypilot/launch.py train run=reproducible_exp --git-ref abc123def
+   ```
+
+10. **Preview configuration before launching:**
+    ```bash
+    devops/skypilot/launch.py train run=test_config --confirm
+    ```
+
+The `--confirm` flag displays a detailed job summary before launching:
+
+   ```sh
+   ============================================================
+   Job details:
+   ============================================================
+   Name: my_experiment_001
+   GPUs: 1x A10G
+   CPUs: 8+
+   Spot Instances: Yes
+   Auto-termination: 2h
+   Git Reference: 56e04aa725000f186ec1bb2de84b359b4f273947
+   ------------------------------------------------------------
+   Command: train
+   Task Arguments:
+   1. trainer.curriculum=env/mettagrid/curriculum/navigation
+   2. trainer.learning_rate=0.001
+   ============================================================
+   Should we launch this task? (Y/n):
+   ```
+
+11. **Dry run:**
+    ```bash
+    devops/skypilot/launch.py train run=test_config --dry-run
+    ```
+
+The `--dry-run` flag allows you to preview the configuration that will be used before launching.
+
+It will output the complete YAML configuration that would be used for the deployment, including:
+- Resource specifications (cloud provider, instance types, GPUs)
+- Docker configurations
+- Environment variables
+- File mounts
+- Setup and run commands
 
 ## Job Management
 
 ### Viewing Jobs
 
-List all jobs:
-
 ```bash
+# List all jobs with status
 sky jobs queue
-```
 
-View job logs:
-
-```bash
+# View job logs
 sky jobs logs <JOB_ID>
+
+# View controller logs (for debugging)
 sky jobs logs <JOB_ID> --controller
+
+# Stream logs in real-time
+sky jobs logs <JOB_ID> --follow
 ```
 
 ### Canceling Jobs
 
-Cancel a specific job:
-
 ```bash
+# Cancel a specific job
 sky jobs cancel <JOB_ID>
+
+# Cancel all jobs
+sky jobs cancel --all
+
+# Cancel jobs by name pattern
+sky jobs cancel -n "experiment_*"
 ```
 
-Cancel all jobs:
+### Job Status
+
+Jobs can have the following statuses:
+- `PENDING`: Waiting for resources
+- `RUNNING`: Currently executing
+- `SUCCEEDED`: Completed successfully
+- `FAILED`: Terminated with error
+- `CANCELLED`: Manually cancelled
+
+## Shell Aliases
+
+To streamline your workflow, we provide convenient shell aliases for common SkyPilot operations.
+
+### Setup
+
+Source the shell setup script to load all aliases:
 
 ```bash
-sky jobs cancel --all
+source ./devops/skypilot/setup_shell.sh
 ```
 
-## Timeout Feature
+This script also sets `AWS_PROFILE=softmax` automatically.
 
-The `--timeout-hours` option provides automatic job termination to help manage resource usage and prevent runaway jobs:
+### Available Aliases
 
-- **Supports decimal values**: Use `--timeout-hours 1.5` for 90 minutes, `--timeout-hours 0.25` for 15 minutes
-- **Automatic cleanup**: Jobs are terminated gracefully when the timeout is reached
-- **Cost control**: Prevents unexpected charges from jobs that run longer than intended
-- **Resource management**: Ensures compute resources are freed up for other tasks
+#### Job Queue Management
+- `jq` - List active jobs (skips finished jobs)
+  ```bash
+  jq  # Equivalent to: sky jobs queue --skip-finished
+  ```
+- `jqa` - List all jobs including finished ones
+  ```bash
+  jqa  # Equivalent to: sky jobs queue
+  ```
 
-**Example timeout values:**
+#### Job Control
+- `jk`, `jc`, `jkl` - Cancel a job (all three aliases do the same thing)
+  ```bash
+  jk <JOB_ID>  # Equivalent to: sky jobs cancel <JOB_ID>
+  ```
 
-- `--timeout-hours 0.5` = 30 minutes
-- `--timeout-hours 1` = 1 hour
-- `--timeout-hours 2.5` = 2 hours 30 minutes
-- `--timeout-hours 8` = 8 hours
+#### Logs
+- `jl` - View job logs
+  ```bash
+  jl <JOB_ID>  # Equivalent to: sky jobs logs <JOB_ID>
+  ```
+- `jlc` - View controller logs (useful for debugging)
+  ```bash
+  jlc <JOB_ID>  # Equivalent to: sky jobs logs --controller <JOB_ID>
+  ```
+- `jll` - View logs for the most recent job
+  ```bash
+  jll  # Automatically gets logs for the latest running job
+  ```
+- `jllc` - View controller logs for the most recent job
+  ```bash
+  jllc  # Automatically gets controller logs for the latest running job
+  ```
+
+#### Launching
+- `lt` - Quick launch training jobs
+  ```bash
+  lt run=my_experiment_001  # Equivalent to: ./devops/skypilot/launch.py train run=my_experiment_001
+  ```
+
+### Adding to Your Shell Profile
+
+To make these aliases permanent, add the source command to your shell profile:
+
+```bash
+# For bash users:
+echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.bashrc
+
+# For zsh users:
+echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.zshrc
+
+# For fish users:
+echo "source /path/to/your/project/devops/skypilot/setup_shell.sh" >> ~/.config/fish/config.fish
+```
 
 ## Sandboxes
 
-Sandboxes are often easier for quick experimentation.
+Sandboxes provide persistent development environments for experimentation.
 
-### Deployment
-
-The following command creates a new EC2 instance with specifications as defined in `sandbox.yaml`.
-The script also runs a setup job to compile a metta repo on the machine, defaulting to main, but specific git commits can be specified.
+### Creating a Sandbox
 
 ```bash
-./devops/skypilot/sandbox.py [--git-ref <GIT_REF>] [--new]
+# Create sandbox with main branch
+./devops/skypilot/sandbox.py
+
+# Create sandbox with specific commit/branch
+./devops/skypilot/sandbox.py --git-ref feature/my-branch
+
+# Force create new sandbox (even if one exists)
+./devops/skypilot/sandbox.py --new
 ```
 
-- `--git-ref <GIT_REF>`: Optional. Specify a git reference (branch, tag, or commit hash) to check out in the sandbox.
-- `--new`: Optional. Force the creation of a new sandbox even if existing ones are found.
-
-### Connecting
-
-Connect to the sandbox using ssh (e.g., `ssh <cluster_name>`). The hostname will be printed by the deployment script. Authentication will be magically handled by SkyPilot.
-
-### Shutting Down
-
-To shut down a sandbox, use the following command:
+### Connecting to Sandbox
 
 ```bash
-sky down <CLUSTER_NAME>
+# SSH into sandbox (cluster name shown after creation)
+ssh <cluster_name>
 ```
 
-## Notes
+### Managing Sandboxes
 
-- The script automatically:
+```bash
+# List all clusters (including sandboxes)
+sky status
 
-  - Gets ECR login credentials
-  - Sets up environment variables
-  - Uses the current git commit hash
-  - Launches jobs in detached mode
-  - Uses the configuration from `./devops/skypilot/config/sk_train.yaml`
+# Stop sandbox (keeps data, saves costs)
+sky stop <cluster_name>
 
-- Jobs are launched asynchronously and will run in the background
-- Monitor job status using SkyPilot CLI or AWS console
-- When using `--timeout-hours`, jobs will be automatically terminated when the time limit is reached
+# Restart stopped sandbox
+sky start <cluster_name>
+
+# Delete sandbox completely
+sky down <cluster_name>
+```
+
+## Configuration
+
+The script uses `./devops/skypilot/config/sk_train.yaml` as the base configuration. This file defines:
+- Default resource requirements (CPU, GPU, memory)
+- Docker image settings
+- Environment variables
+- Setup and run scripts
+
+### Environment Variables
+
+The following environment variables are automatically set:
+- `METTA_RUN_ID`: The run identifier
+- `METTA_CMD`: The command being executed
+- `METTA_CMD_ARGS`: Additional command arguments
+- `METTA_GIT_REF`: Git commit hash being used
+
+### Debug Commands
+
+```bash
+# Check cluster status
+sky status
+
+# View detailed resource availability
+sky show-gpus
+
+# Check SkyPilot configuration
+sky check
+
+# View job details
+sky jobs queue -a
+```
+
+## Best Practices
+
+1. **Use descriptive run IDs**: Include date, user name, experiment type, and key parameters
+   ```bash
+   lt run=2024_01_15_bert_lr_sweep_001
+   ```
+
+2. **Set appropriate timeouts**: Always use `--timeout-hours` to prevent runaway costs
+
+3. **Use confirmation for important jobs**: Add `--confirm` to review the job details including GPU allocation, spot instance usage, and all command arguments
+
+4. **Monitor actively**: Check job status regularly, especially for long-running jobs
+
+5. **Clean up resources**: Cancel failed jobs and shut down unused sandboxes
+
+## Additional Resources
+
+- [SkyPilot Documentation](https://skypilot.readthedocs.io/)
+- [AWS Instance Types](https://aws.amazon.com/ec2/instance-types/)
