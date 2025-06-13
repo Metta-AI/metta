@@ -11,6 +11,7 @@ import yaml
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.rl.protein_opt.metta_protein import MettaProtein
+from metta.rl.protein_opt.sweep_config import validate_sweep_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import config_from_path
 from metta.util.lock import run_once
@@ -27,13 +28,23 @@ def main(cfg: DictConfig | ListConfig) -> int:
     cfg.wandb.name = cfg.sweep_name
     OmegaConf.register_new_resolver("ss", sweep_space, replace=True)
 
-    # Load sweep parameters from the specified file
-    sweep_params = config_from_path(f"sweep/{cfg.sweep_params}", cfg.sweep_params_override)
+    # Load and validate sweep configuration
+    sweep_config_dict = config_from_path(cfg.sweep_params, cfg.sweep_params_override)
 
-    # Merge parameters into the sweep section
-    if "parameters" not in cfg.sweep:
-        cfg.sweep.parameters = {}
-    cfg.sweep.parameters = OmegaConf.merge(cfg.sweep.parameters, sweep_params.parameters)
+    # Validate the sweep configuration using Pydantic
+    try:
+        validated_config = validate_sweep_config(OmegaConf.to_container(sweep_config_dict, resolve=True))
+        logger.info("Sweep configuration validated successfully")
+
+        # Convert back to OmegaConf for compatibility
+        cfg.sweep = OmegaConf.create(validated_config.model_dump(exclude_none=True))
+
+        # Use the validated sweep section if it exists
+        if validated_config.sweep:
+            cfg.sweep = OmegaConf.create(validated_config.sweep.model_dump(exclude_none=True))
+    except Exception as e:
+        logger.error(f"Invalid sweep configuration: {e}")
+        raise
 
     is_master = os.environ.get("NODE_INDEX", "0") == "0"
 
@@ -166,43 +177,55 @@ def create_run(sweep_name: str, cfg: DictConfig | ListConfig, logger: Logger) ->
                 },
             )
 
-            suggestion, _ = protein.suggest()
+            suggestion_tuple = protein.suggest()
+            # Extract the actual suggestion from the tuple (suggestion, metadata)
+            if isinstance(suggestion_tuple, tuple) and len(suggestion_tuple) >= 1:
+                suggestion = suggestion_tuple[0]
+            else:
+                suggestion = suggestion_tuple
 
             logger.info("Generated Protein suggestion: ")
             logger.info(f"\n{'-' * 10}\n{yaml.dump(suggestion, default_flow_style=False)}\n{'-' * 10}")
             _log_file(run_dir, wandb_run, "protein_suggestion.yaml", suggestion)
 
-            # Start with the full configuration (includes all base configs from defaults)
-            full_cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+            # Create complete training config from the FULL loaded config (original working architecture)
+            # Include all sections, not just the swept ones, to maintain full config structure
+            train_cfg_dict = OmegaConf.to_container(cfg, resolve=True)
+
+            # Extract config overrides from sweep section (trainer, env, etc.)
+            sweep_overrides = {}
+            if isinstance(train_cfg_dict, dict) and "sweep" in train_cfg_dict:
+                sweep_config = train_cfg_dict["sweep"]
+                if isinstance(sweep_config, dict):
+                    for key, value in sweep_config.items():
+                        # Skip Protein-specific fields, keep config overrides
+                        if key not in ["parameters", "metric", "goal", "num_random_samples"]:
+                            sweep_overrides[key] = value
 
             # Remove sweep-specific fields that don't belong in training config
-            # These fields are for sweep management, not for the actual training run
-            sweep_specific_fields = [
-                "sweep",
-                "sweep_name",
-                "sweep_params",
-                "sweep_params_override",
-                "sweep_dir",
-                "runs_dir",
-                "sweep_job",  # We'll apply these overrides separately
-                "metric",
-                "num_random_samples",
-                "dist_cfg_path",
-                "cmd",
-            ]
-            for field in sweep_specific_fields:
-                full_cfg_dict.pop(field, None)
+            if isinstance(train_cfg_dict, dict):
+                sweep_fields_to_remove = [
+                    "sweep",
+                    "sweep_name",
+                    "sweep_params",
+                    "sweep_params_override",
+                    "sweep_dir",
+                    "runs_dir",
+                    "sweep_job",
+                    "metric",
+                    "num_random_samples",
+                    "dist_cfg_path",
+                    "cmd",
+                ]
+                for field in sweep_fields_to_remove:
+                    train_cfg_dict.pop(field, None)
 
-            # Create base training config (has trainer, agent, wandb, etc.)
-            train_cfg = OmegaConf.create(full_cfg_dict)
+            # Convert back to DictConfig
+            train_cfg = OmegaConf.create(train_cfg_dict)
 
-            # Apply sweep_job overrides on top of base config
-            # This is where we apply things like trainer.evaluate_interval: 300
-            if "sweep_job" in OmegaConf.to_container(cfg, resolve=False):
-                sweep_job_overrides = OmegaConf.to_container(cfg.sweep_job, resolve=True)
-                for section, overrides in sweep_job_overrides.items():
-                    if section != "evals":  # evals is handled separately in train_job
-                        OmegaConf.update(train_cfg, section, overrides)
+            # Apply sweep config overrides (trainer, env, etc.)
+            for key, value in sweep_overrides.items():
+                OmegaConf.update(train_cfg, key, value)
 
             logger.info(f"Protein suggestions: {suggestion}")
             # Suggestion is already cleaned by MettaProtein._transform_suggestion()

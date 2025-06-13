@@ -1,75 +1,124 @@
-# Sweep Configuration Structure
+# Sweep Configurations
 
-This directory contains sweep configurations for hyperparameter optimization using the Protein optimizer.
+This directory contains hyperparameter sweep configurations for the Metta training system using the Protein optimizer (Gaussian Process-based optimization).
 
-## New Structure (Recommended)
+## Overview
 
-As of the latest update, sweep configurations follow a cleaner structure that separates sweep metadata from training configuration overrides:
+The sweep system automates hyperparameter optimization through:
+1. Define parameter search space in YAML configuration
+2. Run sweep with `./devops/sweep.sh`
+3. Protein optimizer suggests parameters
+4. System trains with suggested parameters
+5. Results feed back to optimizer
 
-### Sweep Configuration Files (in `configs/sweep/`)
+## Configuration Format
 
-These files contain:
-1. **Sweep metadata** - Information for the Protein optimizer
-2. **Parameter search space** - Hyperparameters to sweep over
+Sweep configurations use YAML format with parameters defined under a `sweep` section:
 
-Example structure:
 ```yaml
-# Sweep metadata
-metric: "episode/reward.mean"  # Metric to optimize
-goal: maximize                 # Direction: maximize or minimize
-num_random_samples: 10         # Random samples before Bayesian optimization
-
-# Parameter search space
+# Required: Parameter search space
 parameters:
-  trainer.learning_rate: ${ss:log, 1e-5, 1e-3}
-  trainer.batch_size: ${ss:pow2, 2048, 8192}
-  agent.components._core_.hidden_size: ${ss:pow2, 128, 512}
+  trainer.learning_rate:
+    min: 0.00001
+    max: 0.01
+    distribution: log_normal  # Options: uniform, log_normal, int_uniform
+
+  trainer.batch_size:
+    min: 32
+    max: 256
+    distribution: int_uniform
+
+# Optional: Optimization settings
+metric: reward        # Default: reward
+goal: maximize       # Default: maximize
+
+# Optional: Additional settings
+num_random_samples: 10  # Initial random samples before optimization
 ```
 
-### Sweep Job Configuration (in `configs/sweep_job.yaml`)
+### Parameter Distributions
 
-The `sweep_job` section contains configuration overrides that apply to ALL runs in the sweep:
+| Distribution | Use Case | Example |
+|-------------|----------|---------|
+| `uniform` | Linear ranges | gamma: [0.9, 0.999] |
+| `log_normal` | Exponential ranges | learning_rate: [1e-5, 1e-2] |
+| `int_uniform` | Integer ranges | batch_size: [32, 256] |
 
+## Usage
+
+### Running a Sweep
+
+```bash
+# Basic usage
+./devops/sweep.sh run=my_sweep ++sweep_params=sweep/fast --rollout-count=10
+
+# With hardware configuration
+./devops/sweep.sh run=my_sweep ++sweep_params=sweep/complex +hardware=aws --rollout-count=50
+```
+
+### Validating Configuration
+
+```bash
+# Validate before running
+python -m metta.rl.protein_opt.sweep_config configs/sweep/my_sweep.yaml -v
+```
+
+## Available Configurations
+
+- **`fast_30s.yaml`** - Ultra-fast test sweep (30 seconds)
+- **`fast.yaml`** - Quick parameter sweep
+- **`complex.yaml`** - Comprehensive 10-parameter optimization
+- **`full.yaml`** - Full parameter search space
+- **`cogeval_sweep.yaml`** - Cognitive evaluation tasks
+
+## Creating Custom Sweeps
+
+1. Create a new YAML file in `configs/sweep/`
+2. Define parameters under the `parameters` section
+3. Set appropriate min/max ranges and distributions
+4. Validate with the validation tool
+5. Run with `./devops/sweep.sh`
+
+Example:
 ```yaml
-sweep_job:
-  # Fixed training configuration for all runs
-  trainer:
-    evaluate_interval: 300
-    checkpoint_interval: 1000
+parameters:
+  trainer.learning_rate:
+    min: 0.0001
+    max: 0.01
+    distribution: log_normal
 
-  # Fixed agent configuration
-  agent:
-    clip_range: 0.2
-
-  # Evaluation configuration
-  sim:
-    num_episodes: 10
+  trainer.gamma:
+    min: 0.95
+    max: 0.999
+    distribution: uniform
 ```
 
-## Key Differences from Old Structure
+## Best Practices
 
-**Old structure** (deprecated):
-- Mixed sweep metadata with config overrides in the same section
-- Required filtering out metadata keys like "metric", "num_random_samples"
-- Less clear separation of concerns
+- Start with few parameters (3-4) before scaling up
+- Use `log_normal` distribution for learning rates
+- Ensure batch sizes are divisible by minibatch sizes
+- Set appropriate `--rollout-count` based on parameter space size
+- Monitor progress via WandB dashboard
 
-**New structure**:
-- Clean separation: `sweep/` files for optimizer metadata, `sweep_job` for config overrides
-- No ambiguity about what's being swept vs what's fixed
-- Easier to understand and maintain
+## Troubleshooting
 
-## Available Sweep Configurations
+**Validation errors**: Run the validation tool to check configuration syntax
 
-- `fast.yaml` - Quick sweep with small parameter ranges for testing
-- `full.yaml` - Comprehensive sweep with full parameter ranges
-- `example_new_structure.yaml` - Example demonstrating the new structure
+**Memory issues**: Reduce batch_size ranges or adjust minibatch_size
 
-## Parameter Space Syntax
+**Sweep not converging**: Increase `num_random_samples` for better initial exploration
 
-Parameters use the `${ss:...}` syntax for defining search spaces:
+## Migration from CARBS
 
-- `${ss:log, min, max}` - Log-uniform distribution
-- `${ss:logit, min, max}` - Logit-uniform distribution (for probabilities)
-- `${ss:linear, min, max}` - Uniform distribution
-- `${ss:int, min, max}` - Integer uniform distribution
-- `${ss:pow2, min, max}` - Powers of 2 (for batch sizes, hidden dimensions)
+If migrating from old CARBS configs:
+
+| CARBS Syntax | Protein Equivalent |
+|--------------|-------------------|
+| `${ss:log, 1e-5, 1e-2}` | `min: 0.00001, max: 0.01, distribution: log_normal` |
+| `${ss:int, 1, 10}` | `min: 1, max: 10, distribution: int_uniform` |
+
+## Related Documentation
+
+- [Protein Optimizer Paper](https://arxiv.org/abs/2308.00352)
+- [WandB Documentation](https://docs.wandb.ai/guides/sweeps)
