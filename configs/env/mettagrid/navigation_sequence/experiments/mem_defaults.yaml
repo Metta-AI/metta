@@ -30,7 +30,7 @@ game:
       width: ${sampling:15,60,25}
       height: ${sampling:15,60,25}
       border_width: 3
-      agents: 1
+      agents: ${div:${...num_agents},${..num_rooms}}
       style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
       objects:
         mine.red: ${sampling:2,10,5}

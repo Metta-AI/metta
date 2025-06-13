@@ -32,7 +32,7 @@ game:
       width: ${sampling:50,100,60}
       height: ${sampling:50,100,60}
       border_width: 6
-      agents: 1
+      agents: ${div:${...num_agents},${..num_rooms}}
       style: ???
       objects:
         mine.red: ${sampling:5,20,15}
