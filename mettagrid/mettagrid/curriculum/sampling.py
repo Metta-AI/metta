@@ -5,7 +5,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 
 from mettagrid.util.hydra import config_from_path
 
@@ -15,11 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class SamplingCurriculum(Curriculum):
-    def __init__(self, env_cfg_template: str | DictConfig | ListConfig, env_overrides: Optional[DictConfig] = None):
-        if isinstance(env_cfg_template, str):
-            self._cfg_template = config_from_path(env_cfg_template, env_overrides)
-        else:
-            self._cfg_template = env_cfg_template
+    def __init__(self, env_cfg_template: str, env_overrides: Optional[DictConfig] = None):
+        self._cfg_template = config_from_path(env_cfg_template, env_overrides)
 
     def get_task(self) -> Task:
         cfg = OmegaConf.create(copy.deepcopy(self._cfg_template))

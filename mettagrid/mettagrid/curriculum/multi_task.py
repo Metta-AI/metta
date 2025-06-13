@@ -4,7 +4,7 @@ from typing import Dict
 from omegaconf import DictConfig
 
 from mettagrid.curriculum.curriculum import Curriculum
-from mettagrid.curriculum.util import curriculum_from_config
+from mettagrid.curriculum.util import curriculum_from_config_path
 
 logger = logging.getLogger(__name__)
 
@@ -25,5 +25,5 @@ class MultiTaskCurriculum(Curriculum):
                 )
 
     def set_curricula(self, tasks, env_overrides):
-        self._curriculums = {t: curriculum_from_config(t, env_overrides) for t in tasks.keys()}
+        self._curriculums = {t: curriculum_from_config_path(t, env_overrides) for t in tasks.keys()}
         self._task_weights = tasks
