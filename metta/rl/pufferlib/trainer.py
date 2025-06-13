@@ -574,7 +574,7 @@ class PufferTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device == "cuda":
+                    if str(self.device).startswith("cuda"):
                         torch.cuda.synchronize()
 
             if config.target_kl is not None and approx_kl > config.target_kl:
@@ -686,7 +686,7 @@ class PufferTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": training_time,
-                "score": self._current_eval_score or 0.0,
+                "score": self._current_eval_score or 0.0,  # Default to 0.0 if no evaluation yet
                 "eval_scores": self._eval_suite_avgs,
             },
         )
