@@ -1,7 +1,7 @@
 #!/bin/bash
 EXCLUDE_PATTERN=""
 
-# Note that this script assumes that a .prettierc is present with appropriate settings for
+# Note that this script assumes that a .prettierrc is present with appropriate settings for
 # regular json files and vscode's flavor of jsonc
 
 while [[ $# -gt 0 ]]; do
