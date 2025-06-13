@@ -33,7 +33,6 @@ simulations:
     env: env/mettagrid/navigation/evals/labyrinth
   navigation/radialmaze:
     env: env/mettagrid/navigation/evals/radialmaze
-    policy_agents_pct: 1.0
   navigation/cylinder_easy:
     env: env/mettagrid/navigation/evals/cylinder_easy
   navigation/honeypot:
