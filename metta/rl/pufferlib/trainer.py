@@ -852,9 +852,64 @@ class PufferTrainer:
 
         assert hasattr(self.policy, "lstm"), "Policy must have lstm attribute"
         lstm = getattr(self.policy, "lstm", {})
-        assert isinstance(lstm, torch.nn.modules.rnn.LSTM), (
-            f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
-        )
+        # Support both LSTM and non-LSTM cores (like Identity layers for non-memory agents)
+        if isinstance(lstm, torch.nn.modules.rnn.LSTM):
+            # Use the actual LSTM
+            pass
+        elif hasattr(lstm, "num_layers") and hasattr(lstm, "hidden_size"):
+            # For non-LSTM cores, create a dummy LSTM for Experience buffer compatibility
+            lstm = torch.nn.LSTM(
+                input_size=hidden_size,
+                hidden_size=hidden_size,
+                num_layers=getattr(lstm, "num_layers", 1),
+                batch_first=False,
+            )
+        else:
+            # Check if the parent layer (the core component) has the attributes we need
+            components = getattr(self.policy, "components", None)
+            core_layer = None
+            if components is not None and "_core_" in components:
+                core_layer = components["_core_"]
+
+            if core_layer and hasattr(core_layer, "num_layers") and hasattr(core_layer, "hidden_size"):
+                # For non-LSTM cores, create a dummy LSTM for Experience buffer compatibility
+                lstm = torch.nn.LSTM(
+                    input_size=hidden_size,
+                    hidden_size=hidden_size,
+                    num_layers=getattr(core_layer, "num_layers", 1),
+                    batch_first=False,
+                )
+            elif isinstance(lstm, torch.nn.modules.linear.Identity):
+                # Handle Identity layer specifically - assume it's a non-memory core
+                # Use the core_num_layers from the policy if available
+                num_layers = getattr(self.policy, "core_num_layers", 1)
+                lstm = torch.nn.LSTM(
+                    input_size=hidden_size,
+                    hidden_size=hidden_size,
+                    num_layers=num_layers,
+                    batch_first=False,
+                )
+            else:
+                # Provide more detailed error information for debugging
+                error_details = []
+                error_details.append(f"lstm type: {type(lstm)}")
+                error_details.append(f"components exists: {components is not None}")
+                if components is not None:
+                    error_details.append(f"'_core_' in components: {'_core_' in components}")
+                    if "_core_" in components:
+                        core = components["_core_"]
+                        error_details.append(f"core_layer type: {type(core)}")
+                        error_details.append(f"core has num_layers: {hasattr(core, 'num_layers')}")
+                        error_details.append(f"core has hidden_size: {hasattr(core, 'hidden_size')}")
+                        if hasattr(core, 'num_layers'):
+                            error_details.append(f"core.num_layers: {getattr(core, 'num_layers', 'None')}")
+                        if hasattr(core, 'hidden_size'):
+                            error_details.append(f"core.hidden_size: {getattr(core, 'hidden_size', 'None')}")
+
+                raise ValueError(
+                    f"Policy lstm must be a valid LSTM instance or have num_layers/hidden_size attributes. "
+                    f"Debug info: {'; '.join(error_details)}"
+                )
 
         # Create the Experience buffer with appropriate parameters
         self.experience = Experience(

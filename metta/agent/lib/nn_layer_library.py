@@ -354,6 +354,72 @@ class Identity(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
+    def __init__(self, hidden_size=None, num_layers=None, **cfg):
+        super().__init__(**cfg)
+        # Add LSTM-like attributes for trainer compatibility when used as core
+        # Try multiple ways to get these values since they might be passed differently
+
+        # For hidden_size, try: direct param, cfg, nn_params, or default
+        if hidden_size is not None:
+            self.hidden_size = hidden_size
+        elif "hidden_size" in cfg:
+            self.hidden_size = cfg["hidden_size"]
+        elif hasattr(self, '_nn_params') and "hidden_size" in self._nn_params:
+            self.hidden_size = self._nn_params["hidden_size"]
+        else:
+            self.hidden_size = 128  # default value
+
+        # For num_layers, try: direct param, cfg, nn_params, or default
+        if num_layers is not None:
+            self.num_layers = num_layers
+        elif "num_layers" in cfg:
+            self.num_layers = cfg["num_layers"]
+        elif hasattr(self, '_nn_params') and "num_layers" in self._nn_params:
+            self.num_layers = self._nn_params["num_layers"]
+        else:
+            self.num_layers = 1  # default value
+
+        # Debug: ensure attributes are set
+        if not hasattr(self, 'hidden_size'):
+            self.hidden_size = 128
+        if not hasattr(self, 'num_layers'):
+            self.num_layers = 1
+
     def _make_net(self):
         self._out_tensor_shape = self._in_tensor_shapes[0].copy()
         return nn.Identity()
+
+    def _forward(self, td: TensorDict):
+        """Custom forward method to handle state management for non-LSTM cores."""
+        # Get input from source
+        if self._sources is None or len(self._sources) == 0:
+            raise ValueError("Identity layer requires at least one source")
+
+        hidden = td[self._sources[0]["name"]]
+        state = td.get("state", None)
+
+        # Pass input through identity (unchanged)
+        output = self._net(hidden)
+
+        # Handle state management for compatibility with MettaAgent
+        # Create dummy states that mimic LSTM behavior but don't actually use memory
+        batch_size = hidden.shape[0]
+
+        # Use fallback values if attributes aren't set properly
+        num_layers = getattr(self, 'num_layers', 1)
+        hidden_size = getattr(self, 'hidden_size', hidden.shape[-1])
+
+        if state is None:
+            # Create dummy states (2 * num_layers because MettaAgent expects h and c states)
+            dummy_state = torch.zeros(2 * num_layers, batch_size, hidden_size,
+                                    device=hidden.device, dtype=hidden.dtype)
+        else:
+            # Maintain existing state shape but don't use it for computation
+            # This ensures state is always available for MettaAgent's state splitting
+            dummy_state = state.detach()
+
+        # Set output and state in TensorDict
+        td[self._name] = output
+        td["state"] = dummy_state
+
+        return td
