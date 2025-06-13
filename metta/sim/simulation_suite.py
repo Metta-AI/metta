@@ -25,7 +25,7 @@ class SimulationSuite:
         vectorization: str,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
-        mind_reader_config: dict | None = None,
+        doxascope_config: dict | None = None,
     ):
         self._config = config
         self._policy_pr = policy_pr
@@ -34,7 +34,7 @@ class SimulationSuite:
         self._stats_dir = stats_dir
         self._device = device
         self._vectorization = vectorization
-        self._mind_reader_config = mind_reader_config
+        self._doxascope_config = doxascope_config
         self.name = config.name
 
     def simulate(self) -> SimulationResults:
@@ -59,7 +59,7 @@ class SimulationSuite:
                     suite=self,
                     stats_dir=self._stats_dir,
                     replay_dir=self._replay_dir,
-                    mind_reader_config=self._mind_reader_config,
+                    doxascope_config=self._doxascope_config,
                 )
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()

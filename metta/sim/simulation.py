@@ -23,6 +23,7 @@ import torch
 from einops import rearrange
 from omegaconf import OmegaConf
 
+from doxascope.data.doxascope_data import DoxascopeLogger
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
@@ -34,7 +35,6 @@ from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
-from mind_reader.data.mind_reader_data import MindReaderLogger
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class Simulation:
         suite=None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
-        mind_reader_config: dict | None = None,
+        doxascope_config: dict | None = None,
     ):
         self._name = name
         self._suite = suite
@@ -146,10 +146,11 @@ class Simulation:
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
-        # ---------------- mind reader setup ---------------------------- #
-        if mind_reader_config is None:
-            mind_reader_config = {"enabled": False, "output_dir": "./mind_reader_data/"}
-        self._mind_reader_logger = MindReaderLogger(mind_reader_config, self._id)
+        # ---------------- doxascope setup ---------------------------- #
+        self._doxascope_config = doxascope_config
+        if doxascope_config is None:
+            doxascope_config = {"enabled": False, "output_dir": "./doxascope_data/"}
+        self._doxascope_logger = DoxascopeLogger(doxascope_config, self._id)
 
     def start_simulation(self) -> None:
         """
@@ -270,35 +271,35 @@ class Simulation:
             elif not done_now[e] and self._env_done_flags[e]:
                 self._env_done_flags[e] = False
 
-        # ---------------- mind reader logging -------------------- #
-        if self._mind_reader_logger.enabled:
+        # ---------------- doxascope logging -------------------- #
+        if self._doxascope_logger.enabled:
             try:
                 # Get grid objects from the underlying MettaGridEnv
                 metta_grid_env = self._vecenv.driver_env
                 assert isinstance(metta_grid_env, MettaGridEnv)
                 grid_objects = metta_grid_env.grid_objects
-                self._mind_reader_logger.log_timestep(self._policy_state, self._policy_idxs, grid_objects)
+                self._doxascope_logger.log_timestep(self._policy_state, self._policy_idxs, grid_objects)
             except Exception as e:
-                logger.warning(f"Mind reader logging failed: {e}")
+                logger.warning(f"Doxascope logging failed: {e}")
 
     def end_simulation(self) -> SimulationResults:
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
 
-        # Save mind reader data
-        if self._mind_reader_logger.enabled:
-            self._mind_reader_logger.save()
+        # Save doxascope data
+        if self._doxascope_logger.enabled:
+            self._doxascope_logger.save()
 
             # Automatically preprocess the raw data
             try:
-                logger.info("Starting automatic mind reader data preprocessing...")
-                X, y = self._mind_reader_logger.preprocess_data()
+                logger.info("Starting automatic doxascope data preprocessing...")
+                X, y = self._doxascope_logger.preprocess_data()
                 if X is not None and y is not None:
-                    logger.info(f"Mind reader preprocessing completed: {len(X)} training samples created")
+                    logger.info(f"Doxascope preprocessing completed: {len(X)} training samples created")
                 else:
-                    logger.warning("Mind reader preprocessing failed - no training data created")
+                    logger.warning("Doxascope preprocessing failed - no training data created")
             except Exception as e:
-                logger.error(f"Mind reader preprocessing failed: {e}")
+                logger.error(f"Doxascope preprocessing failed: {e}")
 
         db = self._from_shards_and_context()
 

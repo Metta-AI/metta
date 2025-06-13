@@ -10,6 +10,6 @@ run: lars_sim_test_2
 policy_uri: wandb://run/sasmith.20250610.bisect.devbox
 
 # Mind reader configuration for collecting LSTM memory and position data
-mind_reader:
+doxascope:
   enabled: true
-  output_dir: ./mind_reader/data/raw_data/
+  output_dir: ./doxascope/data/raw_data/

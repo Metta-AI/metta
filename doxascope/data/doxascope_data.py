@@ -23,16 +23,16 @@ from metta.agent.policy_state import PolicyState
 logger = logging.getLogger(__name__)
 
 
-class MindReaderLogger:
-    """Logs memory vectors and position data for training mind reader networks."""
+class DoxascopeLogger:
+    """Logs memory vectors and position data for training doxascope networks."""
 
-    def __init__(self, mind_reader_config, simulation_id: str):
-        self.enabled = mind_reader_config.get("enabled", False)
+    def __init__(self, doxascope_config, simulation_id: str):
+        self.enabled = doxascope_config.get("enabled", False)
         if not self.enabled:
             return
 
         # Use the new directory structure
-        self.output_dir = Path(mind_reader_config.get("output_dir", "./mind_reader/data/raw_data/"))
+        self.output_dir = Path(doxascope_config.get("output_dir", "./doxascope/data/raw_data/"))
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Set up paths for both raw and preprocessed data
@@ -40,7 +40,7 @@ class MindReaderLogger:
         self.preprocessed_dir = self.output_dir.parent / "preprocessed_data"
         self.preprocessed_dir.mkdir(parents=True, exist_ok=True)
 
-        self.output_file = self.raw_data_dir / f"mind_reader_data_{simulation_id}.json"
+        self.output_file = self.raw_data_dir / f"doxascope_data_{simulation_id}.json"
         self.data = []
         self.timestep = 0
 
@@ -114,7 +114,7 @@ class MindReaderLogger:
             return None, None
 
         output_file = self.preprocessed_dir / output_filename
-        json_files = list(self.raw_data_dir.glob("mind_reader_data_*.json"))
+        json_files = list(self.raw_data_dir.glob("doxascope_data_*.json"))
 
         if not json_files:
             logger.warning(f"No JSON files found in {self.raw_data_dir}")

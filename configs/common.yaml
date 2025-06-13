@@ -14,6 +14,6 @@ vectorization: multiprocessing
 seed: 0
 device: cuda
 
-mind_reader:
+doxascope:
   enabled: false
-  output_dir: ./mind_reader_data/
+  output_dir: ./doxascope_data/
