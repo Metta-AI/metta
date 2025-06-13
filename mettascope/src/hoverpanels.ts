@@ -15,7 +15,7 @@ import * as Common from "./common.js";
 import { Vec2f } from "./vector_math.js";
 
 /** An info panel. */
-export class InfoPanel {
+export class HoverPanel {
   public object: any;
   public div: HTMLElement;
 
@@ -29,24 +29,24 @@ export class InfoPanel {
   }
 }
 
-onEvent("click", ".infopanel .close", (target: HTMLElement, e: Event) => {
+onEvent("click", ".hover-panel .close", (target: HTMLElement, e: Event) => {
   let panel = target.parentElement as HTMLElement;
   panel.remove();
-  ui.infoPanels = ui.infoPanels.filter(p => p.div !== panel);
+  ui.hoverPanels = ui.hoverPanels.filter(p => p.div !== panel);
 })
 
-var infoPanelTemplate = find(".infopanel") as HTMLElement;
-infoPanelTemplate.remove();
+var hoverPanelTemplate = find(".hover-panel") as HTMLElement;
+hoverPanelTemplate.remove();
 
-var hoverPanel = infoPanelTemplate.cloneNode(true) as HTMLElement;
+var hoverPanel = hoverPanelTemplate.cloneNode(true) as HTMLElement;
 document.body.appendChild(hoverPanel);
 findIn(hoverPanel, ".actions").classList.add("hidden");
 hoverPanel.classList.add("hidden");
 
 hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
   // Create a new info panel.
-  let panel = new InfoPanel(ui.delayedHoverObject);
-  panel.div = infoPanelTemplate.cloneNode(true) as HTMLElement;
+  let panel = new HoverPanel(ui.delayedHoverObject);
+  panel.div = hoverPanelTemplate.cloneNode(true) as HTMLElement;
   panel.div.classList.add("draggable");
   let tip = findIn(panel.div, ".tip");
   tip.remove();
@@ -69,7 +69,7 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
   let rect = panel.div.getBoundingClientRect();
   ui.dragOffset = new Vec2f(e.clientX - rect.left, e.clientY - rect.top);
   ui.dragging = "info-panel";
-  ui.infoPanels.push(panel);
+  ui.hoverPanels.push(panel);
 
   // Hide the old hover panel.
   // THe new info panel should be identical to the old hover panel,
@@ -109,9 +109,9 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   htmlPanel.setAttribute("data-agent-id", getAttr(object, "agent_id"));
 
   var params = findIn(htmlPanel, ".params");
-  var paramTemplate = findIn(infoPanelTemplate, ".param");
+  var paramTemplate = findIn(hoverPanelTemplate, ".param");
   var inventory = findIn(htmlPanel, ".inventory");
-  var itemTemplate = findIn(infoPanelTemplate, ".item");
+  var itemTemplate = findIn(hoverPanelTemplate, ".item");
   let actions = findIn(hoverPanel, ".actions");
 
   removeChildren(params);
