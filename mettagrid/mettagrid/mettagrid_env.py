@@ -100,6 +100,9 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 self._renderer = MiniscopeRenderer(self.object_type_names)
         self._profiler.disable()
         print("MettaGridEnv initialized")
+        if random.random() < 0.01:
+            import traceback
+            traceback.print_stack()
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
