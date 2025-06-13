@@ -6,8 +6,8 @@ env_cfg_template: /env/mettagrid/navigation/training/cylinder_world
 buckets:
   game.map_builder.room.width:
     range: [75, 120]
-    bins: 5
+    bins: 3
 
   game.map_builder.room.height:
     range: [75, 120]
-    bins: 5
+    bins: 3
