@@ -3,6 +3,9 @@
 defaults:
   - _self_
 
+trainer:
+  total_timesteps: 1000000
+
 seed: null
-run_id: 20250612.12
+run_id: 20250612.13
 run: ${oc.env:USER}.local.${run_id}
