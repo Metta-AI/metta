@@ -1,7 +1,7 @@
 import subprocess
 
 
-def get_current_branch(repo_path=None):
+def get_current_branch(repo_path: str | None = None) -> str | None:
     """Get the current git branch name."""
     try:
         cmd = ["git", "symbolic-ref", "--short", "HEAD"]
@@ -13,7 +13,7 @@ def get_current_branch(repo_path=None):
         return None
 
 
-def get_current_commit(repo_path=None):
+def get_current_commit(repo_path: str | None = None) -> str | None:
     """Get the current git commit hash."""
     try:
         cmd = ["git", "rev-parse", "HEAD"]
@@ -25,7 +25,7 @@ def get_current_commit(repo_path=None):
         return None
 
 
-def is_commit_pushed(commit_hash, repo_path=None):
+def is_commit_pushed(commit_hash: str, repo_path: str | None = None) -> bool:
     """Check if a commit has been pushed to any remote branch."""
     try:
         cmd = ["git", "branch", "-r", "--contains", commit_hash]
@@ -37,7 +37,7 @@ def is_commit_pushed(commit_hash, repo_path=None):
         return False
 
 
-def has_unstaged_changes(repo_path=None):
+def has_unstaged_changes(repo_path: str | None = None) -> bool:
     """Check if there are any unstaged changes in the git repository."""
     try:
         cmd = ["git", "status", "--porcelain"]
@@ -49,7 +49,7 @@ def has_unstaged_changes(repo_path=None):
         return False
 
 
-def get_branch_commit(branch_name, repo_path=None):
+def get_branch_commit(branch_name: str, repo_path: str | None = None) -> str | None:
     """Get the latest commit hash on a branch, including remote branches."""
     try:
         # Make sure we have the latest remote data
@@ -69,14 +69,53 @@ def get_branch_commit(branch_name, repo_path=None):
         return None
 
 
-def get_commit_message(commit_hash):
+def get_commit_message(commit_hash: str, repo_path: str | None = None) -> str | None:
     """Get the commit message for a specific commit hash."""
     try:
-        import subprocess
+        cmd = ["git", "log", "-1", "--pretty=%B", commit_hash]
+        if repo_path:
+            cmd = ["git", "-C", repo_path, "log", "-1", "--pretty=%B", commit_hash]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
 
+
+def get_current_repo() -> str | None:
+    """Get the current GitHub repository in owner/repo format."""
+    try:
         result = subprocess.run(
-            ["git", "log", "-1", "--pretty=%B", commit_hash], capture_output=True, text=True, check=True
+            ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError:
         return None
+
+
+def get_github_variable(variable_name: str, repo: str | None = None) -> str | None:
+    """Get the current value of a GitHub variable."""
+    cmd = ["gh", "variable", "get", variable_name]
+    if repo:
+        cmd.extend(["--repo", repo])
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError:
+        return None
+
+
+def set_github_variable(variable_name: str, value: str, repo: str | None = None) -> bool:
+    """Set a GitHub variable using the GitHub CLI."""
+    cmd = ["gh", "variable", "set", variable_name, "--body", value]
+    if repo:
+        cmd.extend(["--repo", repo])
+
+    try:
+        subprocess.run(cmd, check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
