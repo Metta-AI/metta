@@ -320,7 +320,7 @@ canvas#global-canvas {
     font-weight: 400;
     font-size: 14px;
     text-align: center;
-    vertical-align: center;
+    vertical-align: middle;
     letter-spacing: 0px;
     line-height: 18.20px;
 }
@@ -1495,7 +1495,7 @@ button#help-button.hover-icon .icon {
     font-weight: 400;
     font-size: 16px;
     text-align: left;
-    vertical-align: center;
+    vertical-align: middle;
     letter-spacing: 0px;
     line-height: 20.80px;
 }
