@@ -7,7 +7,7 @@ from psycopg.rows import class_row
 from psycopg.sql import SQL
 from pydantic import BaseModel
 
-from metta.app.stats_repo import StatsRepo
+from metta.app.metta_repo import MettaRepo
 
 
 # Pydantic models for API responses
@@ -79,52 +79,21 @@ def get_group_data(con: Connection, suite: str, metric: str, group: str) -> List
         return cursor.fetchall()
 
 
-def create_dashboard_router(stats_repo: StatsRepo) -> APIRouter:
+def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     """Create a dashboard router with the given StatsRepo instance."""
-    router = APIRouter(prefix="/observatory", tags=["observatory"])
+    router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
     @router.get("/suites")
     async def get_suites() -> List[str]:
-        """Get all available simulation suites."""
-        with stats_repo.connect() as con:
-            result = con.execute("""
-                SELECT DISTINCT simulation_suite
-                FROM episodes
-                WHERE simulation_suite IS NOT NULL
-                ORDER BY simulation_suite
-            """)
-            return [row[0] for row in result]
+        return metta_repo.get_suites()
 
     @router.get("/suites/{suite}/metrics")
     async def get_metrics(suite: str) -> List[str]:
-        """Get all available metrics for a given suite."""
-        with stats_repo.connect() as con:
-            result = con.execute(
-                """
-                SELECT DISTINCT eam.metric
-                FROM episodes e
-                JOIN episode_agent_metrics eam ON e.id = eam.episode_id
-                WHERE e.simulation_suite = %s
-                ORDER BY eam.metric
-            """,
-                (suite,),
-            )
-            return [row[0] for row in result]
+        return metta_repo.get_metrics(suite)
 
     @router.get("/suites/{suite}/group-ids")
     async def get_group_ids(suite: str) -> List[str]:
-        """Get all available group IDs for a given suite."""
-        with stats_repo.connect() as con:
-            result = con.execute(
-                """
-                SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
-                FROM episodes e
-                WHERE e.simulation_suite = %s
-                ORDER BY group_id
-            """,
-                (suite,),
-            )
-            return [row[0] for row in result]
+        return metta_repo.get_group_ids(suite)
 
     @router.post("/suites/{suite}/metrics/{metric}/heatmap")
     async def get_heatmap_data(
@@ -133,7 +102,7 @@ def create_dashboard_router(stats_repo: StatsRepo) -> APIRouter:
         group_metric: GroupHeatmapMetric,
     ) -> HeatmapData:
         """Get heatmap data for a given suite, metric, and group metric."""
-        with stats_repo.connect() as con:
+        with metta_repo.connect() as con:
             eval_rows = con.execute("SELECT DISTINCT eval_name FROM episodes WHERE simulation_suite = %s", (suite,))
             all_eval_names: list[str] = [row[0] for row in eval_rows]
 

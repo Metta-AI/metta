@@ -1,15 +1,13 @@
-from typing import Any, Dict, List, LiteralString, Sequence, Tuple
+from typing import Any, Dict, List
 
 from psycopg import Connection
-from psycopg.abc import Query
-from psycopg.rows import TupleRow
 from psycopg.types.json import Jsonb
 
 from metta.util.schema_manager import SqlMigration, run_migrations
 
 # This is a list of migrations that will be applied to the eval database.
 # Do not change existing migrations, only add new ones.
-EVAL_MIGRATIONS = [
+MIGRATIONS = [
     SqlMigration(
         version=0,
         description="Initial eval schema",
@@ -73,22 +71,14 @@ EVAL_MIGRATIONS = [
 ]
 
 
-class StatsRepo:
+class MettaRepo:
     def __init__(self, db_uri: str) -> None:
         self.db_uri = db_uri
         with Connection.connect(self.db_uri) as con:
-            run_migrations(con, EVAL_MIGRATIONS)
+            run_migrations(con, MIGRATIONS)
 
     def connect(self) -> Connection:
         return Connection.connect(self.db_uri)
-
-    def query(self, query: Query, params: Tuple[Any, ...] = ()) -> Sequence[TupleRow]:
-        with self.connect() as con:
-            return con.execute(query, params).fetchall()
-
-    def execute(self, query: LiteralString, params: Tuple[Any, ...] = ()) -> None:
-        with self.connect() as con:
-            con.execute(query, params)
 
     def get_policy_ids(self, policy_names: List[str]) -> Dict[str, int]:
         if not policy_names:
@@ -225,3 +215,42 @@ class StatsRepo:
                     )
 
             return episode_id
+
+    def get_suites(self) -> List[str]:
+        with self.connect() as con:
+            result = con.execute("""
+                SELECT DISTINCT simulation_suite
+                FROM episodes
+                WHERE simulation_suite IS NOT NULL
+                ORDER BY simulation_suite
+            """)
+            return [row[0] for row in result]
+
+    def get_metrics(self, suite: str) -> List[str]:
+        """Get all available metrics for a given suite."""
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT DISTINCT eam.metric
+                FROM episodes e
+                JOIN episode_agent_metrics eam ON e.id = eam.episode_id
+                WHERE e.simulation_suite = %s
+                ORDER BY eam.metric
+            """,
+                (suite,),
+            )
+            return [row[0] for row in result]
+
+    def get_group_ids(self, suite: str) -> List[str]:
+        """Get all available group IDs for a given suite."""
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT DISTINCT jsonb_object_keys(e.attributes->'agent_groups') as group_id
+                FROM episodes e
+                WHERE e.simulation_suite = %s
+                ORDER BY group_id
+            """,
+                (suite,),
+            )
+            return [row[0] for row in result]

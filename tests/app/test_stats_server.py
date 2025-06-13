@@ -2,10 +2,9 @@ import pytest
 from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
 
-from metta.app.http_client import FastAPITestClientAdapter
 from metta.app.server import create_app
 from metta.app.stats_client import StatsClient
-from metta.app.stats_repo import StatsRepo
+from metta.app.metta_repo import MettaRepo
 
 
 class TestStatsServerSimple:
@@ -33,7 +32,7 @@ class TestStatsServerSimple:
     @pytest.fixture(scope="class")
     def stats_repo(self, db_uri):
         """Create a StatsRepo instance with the test database."""
-        return StatsRepo(db_uri)
+        return MettaRepo(db_uri)
 
     @pytest.fixture(scope="class")
     def test_app(self, stats_repo):
@@ -48,8 +47,7 @@ class TestStatsServerSimple:
     @pytest.fixture(scope="class")
     def stats_client(self, test_client):
         """Create a stats client for testing."""
-        http_client = FastAPITestClientAdapter(test_client)
-        return StatsClient(http_client)
+        return StatsClient(test_client)
 
     def test_complete_workflow(self, stats_client):
         """Test the complete end-to-end workflow."""

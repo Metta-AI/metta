@@ -1,7 +1,8 @@
 from typing import Any, Dict, List, Optional
 
-from .http_client import HttpClient
-from .stats_routes import (
+import httpx
+
+from metta.app.routes.stats_routes import (
     EpisodeCreate,
     EpisodeResponse,
     EpochCreate,
@@ -17,7 +18,7 @@ from .stats_routes import (
 class StatsClient:
     """Client for interacting with the stats API."""
 
-    def __init__(self, http_client: HttpClient):
+    def __init__(self, http_client: httpx.Client):
         """
         Initialize the stats client.
 

@@ -1,12 +1,14 @@
+#!/usr/bin/env -S uv run
+
 import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
-from metta.app import dashboard_routes, stats_routes
-from metta.app.stats_repo import StatsRepo
+from metta.app.routes import dashboard_routes, stats_routes
+from metta.app.metta_repo import MettaRepo
 
 
-def create_app(stats_repo: StatsRepo) -> fastapi.FastAPI:
+def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     """Create a FastAPI app with the given StatsRepo instance."""
     app = fastapi.FastAPI()
 
@@ -34,7 +36,7 @@ def create_app(stats_repo: StatsRepo) -> fastapi.FastAPI:
 if __name__ == "__main__":
     from metta.app import config
 
-    stats_repo = StatsRepo(config.stats_db_uri)
+    stats_repo = MettaRepo(config.stats_db_uri)
     app = create_app(stats_repo)
 
     uvicorn.run(app, host=config.host, port=config.port)

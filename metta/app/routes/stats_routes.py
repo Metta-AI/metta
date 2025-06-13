@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from metta.app.stats_repo import StatsRepo
+from metta.app.metta_repo import MettaRepo
 
 
 # Request/Response Models
@@ -58,7 +58,7 @@ class EpisodeResponse(BaseModel):
     id: int
 
 
-def create_stats_router(stats_repo: StatsRepo) -> APIRouter:
+def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
     """Create a stats router with the given StatsRepo instance."""
     router = APIRouter(prefix="/stats", tags=["stats"])
 
