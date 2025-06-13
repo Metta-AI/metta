@@ -69,17 +69,10 @@ class PufferTrainer:
 
         self._master = True
         self._world_size = 1
+        self.device = torch.device(cfg.device if hasattr(cfg, "device") else "cpu")
+        if torch.distributed.is_initialized():
+            self.device = torch.device(f"cuda:{os.environ.get('LOCAL_RANK', 0)}")
 
-        # Initialize device
-        if torch.cuda.is_available() and cfg.device == "cuda":
-            if torch.distributed.is_initialized():
-                self.device = torch.device(f"cuda:{os.environ.get('LOCAL_RANK', 0)}")
-            else:
-                self.device = torch.device("cuda")
-        else:
-            self.device = torch.device(cfg.device if hasattr(cfg, "device") else "cpu")
-
-        # Initialize device handling
         self._batch_size = self.trainer_cfg.batch_size
         self._minibatch_size = self.trainer_cfg.minibatch_size
         if torch.distributed.is_initialized():
@@ -101,7 +94,7 @@ class PufferTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.average_reward = 0.0
-        self._current_eval_score = 0.0
+        self._current_eval_score = None
         self._eval_grouped_scores = {}
         self._eval_suite_avgs = {}
         self._eval_categories = set()
@@ -117,23 +110,22 @@ class PufferTrainer:
             f"vecenv.driver_env type {type(metta_grid_env).__name__} is not MettaGridEnv"
         )
 
-        # Load policy
         logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
 
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
-        policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
+        pr = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
         if "average_reward" in checkpoint.extra_args:
             self.average_reward = checkpoint.extra_args["average_reward"]
 
         if self._master:
-            logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
+            logger.info(f"PufferTrainer loaded: {pr.policy()}")
 
-        self._initial_pr = policy_record
-        self.last_pr = policy_record
-        self.policy = policy_record.policy().to(self.device)
-        self.policy_record = policy_record
+        self._initial_pr = pr
+        self.last_pr = pr
+        self.policy = pr.policy().to(self.device)
+        self.policy_record = pr
         self.uncompiled_policy = self.policy
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
@@ -161,11 +153,10 @@ class PufferTrainer:
         self._total_minibatches = 0
 
         # Optimizer
-        optimizer_map = {"adam": torch.optim.Adam, "muon": ForeachMuon}
-        if self.trainer_cfg.optimizer.type not in optimizer_map:
-            raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}")
-
-        opt_cls = optimizer_map[self.trainer_cfg.optimizer.type]
+        assert self.trainer_cfg.optimizer.type in ("adam", "muon"), (
+            f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
+        )
+        opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
             lr=self.trainer_cfg.optimizer.learning_rate,
@@ -174,7 +165,6 @@ class PufferTrainer:
             weight_decay=self.trainer_cfg.optimizer.weight_decay,
         )
 
-        # Policy validation
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
 
@@ -229,7 +219,6 @@ class PufferTrainer:
                 with self.timer("_train"):
                     self._train()
 
-            # Processing stats
             with self.timer("_process_stats"):
                 self._process_stats()
 
@@ -247,12 +236,10 @@ class PufferTrainer:
                 f"[{steps_per_sec:.0f} steps/sec]"
             )
 
-            # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 with self.timer("_checkpoint_trainer", log=logging.INFO):
                     self._checkpoint_trainer()
 
-            # Evaluation
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
                 with self.timer("_evaluate_policy", log=logging.INFO):
                     self._evaluate_policy()
@@ -300,20 +287,14 @@ class PufferTrainer:
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
         logger.info("Simulation complete")
 
-        # Extract evaluation categories from simulation names
         self._eval_categories = {sim_name.split("/")[0] for sim_name in self.sim_suite_config.simulations.keys()}
         self._eval_suite_avgs = {}
-
-        # Compute scores for each evaluation category
         for category in self._eval_categories:
             score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
             self._eval_suite_avgs[f"{category}_score"] = score if score is not None else 0.0
 
-        # Get overall score
         self._current_eval_score = stats_db.get_average_metric_by_filter("reward", self.last_pr) or 0.0
-
-        # Categorize individual simulation scores
         self._eval_grouped_scores = {
             f"{category}/{sim_name.split('/')[-1]}": score
             for (_, sim_name, _), score in stats_db.simulation_scores(self.last_pr, "reward").items()
@@ -361,7 +342,6 @@ class PufferTrainer:
             with profile.eval_forward, torch.no_grad():
                 state = PolicyState()
 
-                # Get LSTM state from experience buffer
                 lstm_state = experience.get_lstm_state(env_id.start)
                 if lstm_state is not None:
                     state.lstm_h = lstm_state["lstm_h"]
@@ -374,7 +354,6 @@ class PufferTrainer:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
                     assert_shape(actions, ("BT", 2), "actions")
 
-                # Prepare LSTM state for storage
                 lstm_state_to_store = None
                 if self.trainer_cfg.get("use_rnn", True) and state.lstm_h is not None:
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
@@ -386,7 +365,6 @@ class PufferTrainer:
                 value = value.flatten()
                 mask_tensor = torch.as_tensor(mask)
 
-                # Store experience
                 experience.store(
                     obs=o if self.trainer_cfg.cpu_offload else o_device,
                     actions=actions,
@@ -474,7 +452,6 @@ class PufferTrainer:
 
         for mb in range(total_minibatches):
             with profile.train_misc:
-                # Sample prioritized minibatch
                 minibatch = experience.sample_minibatch(
                     advantages=advantages,
                     prio_alpha=a,
@@ -484,23 +461,19 @@ class PufferTrainer:
                 )
 
             with profile.train_forward:
-                # Handle RNN reshaping if needed
                 obs = minibatch["obs"]
                 if not config.get("use_rnn", True):
                     obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
 
-                # Forward pass
                 lstm_state = PolicyState()
                 _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
                     obs, lstm_state, action=minibatch["actions"]
                 )
 
             with profile.train_misc:
-                # Reshape logprobs if needed
                 if hasattr(new_logprobs, "reshape"):
                     new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
 
-                # Calculate ratios and KL divergence
                 logratio = new_logprobs - minibatch["logprobs"]
                 ratio = logratio.exp()
                 experience.update_ratio(minibatch["indices"], ratio)
@@ -540,12 +513,10 @@ class PufferTrainer:
                 v_loss = self._value_loss(newvalue, minibatch["returns"], minibatch["values"], config)
                 entropy_loss = entropy.mean()
 
-                # Additional losses with conditional computation
                 ks_action_loss, ks_value_loss = self.kickstarter.loss(self.agent_step, full_logprobs, newvalue, obs, [])
                 l2_reg_loss = self._compute_l2_loss(config.l2_reg_loss_coef, self.policy.l2_reg_loss)
                 l2_init_loss = self._compute_l2_loss(config.l2_init_loss_coef, self.policy.l2_init_loss)
 
-                # Total loss
                 loss = (
                     pg_loss
                     - config.ent_coef * entropy_loss
@@ -556,11 +527,9 @@ class PufferTrainer:
                     + ks_value_loss
                 )
 
-                # Update value estimates
                 newvalue_reshaped = newvalue.view(minibatch["values"].shape)
                 experience.update_values(minibatch["indices"], newvalue_reshaped)
 
-                # Update loss tracking
                 self._update_losses(
                     pg_loss,
                     v_loss,
@@ -576,7 +545,6 @@ class PufferTrainer:
                     importance=ratio.mean().item(),
                 )
 
-            # Learn on accumulated minibatches
             with profile.learn:
                 loss.backward()
                 if (mb + 1) % self.accumulate_minibatches == 0:
@@ -590,11 +558,9 @@ class PufferTrainer:
                     if str(self.device).startswith("cuda"):
                         torch.cuda.synchronize()
 
-            # Early stopping based on KL
             if config.target_kl is not None and approx_kl > config.target_kl:
                 break
 
-        # Post-training updates
         with profile.train_misc:
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
@@ -705,7 +671,7 @@ class PufferTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": training_time,
-                "score": self._current_eval_score,
+                "score": self._current_eval_score or 0.0,
                 "eval_scores": self._eval_suite_avgs,
             },
         )
@@ -899,18 +865,18 @@ class PufferTrainer:
         # Create experience buffer
         self.experience = Experience(
             total_agents=total_agents,
-            batch_size=self._batch_size,  # Total number of environment steps to collect before updating
-            bptt_horizon=self.trainer_cfg.bptt_horizon,  # Sequence length for BPTT (backpropagation through time)
-            minibatch_size=self._minibatch_size,  # Size of minibatches for training
-            max_minibatch_size=max_minibatch_size,  # Maximum size of a minibatch
-            obs_space=obs_space,  # Observation space
-            atn_space=atn_space,  # Action space
-            device=self.device,  # Device to store tensors on ("cuda" or "cpu")
-            cpu_offload=self.trainer_cfg.cpu_offload,  # Whether to store data on CPU and transfer to GPU as needed
-            use_rnn=use_rnn,  # Whether to use RNN
-            hidden_size=hidden_size,  # Dimension of the policy's hidden state
-            num_lstm_layers=num_lstm_layers,  # Number of LSTM layers
-            agents_per_batch=getattr(vecenv, "agents_per_batch", None),  # Agents per batch for LSTM states
+            batch_size=self._batch_size,
+            bptt_horizon=self.trainer_cfg.bptt_horizon,
+            minibatch_size=self._minibatch_size,
+            max_minibatch_size=max_minibatch_size,
+            obs_space=obs_space,
+            atn_space=atn_space,
+            device=self.device,
+            cpu_offload=self.trainer_cfg.cpu_offload,
+            use_rnn=use_rnn,
+            hidden_size=hidden_size,
+            num_lstm_layers=num_lstm_layers,
+            agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
 
     def _make_losses(self):
