@@ -82,6 +82,11 @@ jobs:
           echo "password ${{ secrets.WANDB_API_KEY }}" >> $HOME/.netrc
           chmod 600 $HOME/.netrc
 
+      - name: Configure SkyPilot API server
+        run: |
+          echo "api_server:" > $HOME/.sky/config.yaml
+          echo "  endpoint: ${{ secrets.SKYPILOT_API_URL }}" >> $HOME/.sky/config.yaml
+
       - name: Launch SkyPilot training job
         run: |
           ./devops/skypilot/launch.py \
