@@ -16,11 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class BucketedCurriculum(LowRewardCurriculum):
-    """
-    Build a dedicated sub-curriculum for **every** bucket combination once,
-    then let LowRewardCurriculum handle sampling / reweighting.
-    """
-
     def __init__(
         self,
         env_cfg_template: str,
