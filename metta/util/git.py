@@ -1,19 +1,17 @@
 import subprocess
-from typing import Optional
+from typing import Tuple
 
 
 class GitError(Exception):
     """Custom exception for git-related errors."""
 
 
-def run_git(*args: str, allow_codes: Optional[list[int]] = None) -> str:
+def run_git(*args: str) -> str:
     """Run a git command and return its output."""
     try:
         result = subprocess.run(["git", *args], capture_output=True, text=True, check=True)
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        if allow_codes and e.returncode in allow_codes:
-            return e.stdout.strip()
         if e.returncode == 129:
             raise GitError(f"Malformed git command or bad object: {e.stderr.strip()}") from e
         raise GitError(f"Git command failed ({e.returncode}): {e.stderr.strip()}") from e
@@ -72,18 +70,10 @@ def is_commit_pushed(commit_hash: str) -> bool:
         return False
 
 
-def validate_git_ref(ref: str) -> bool:
+def validate_git_ref(ref: str) -> Tuple[bool, str | None]:
     """Validate a git reference exists (locally or in remote)."""
     try:
-        _commit_hash = run_git("rev-parse", "--verify", ref)
+        commit_hash = run_git("rev-parse", "--verify", ref)
     except GitError:
-        return False
-    return True
-
-
-def ref_to_hash(ref: str) -> str | None:
-    """Validate a git reference exists (locally or in remote)."""
-    try:
-        return run_git("rev-parse", "--verify", ref)
-    except GitError:
-        return None
+        return False, None
+    return True, commit_hash

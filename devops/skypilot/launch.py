@@ -109,26 +109,28 @@ def main():
 
     cd_repo_root()
 
-    git_ref = args.git_ref
-    if not git_ref:
-        git_ref = get_current_commit()
-
-    # check that the parsed args.git_ref provides a valid branch
-    elif not validate_git_ref(git_ref):
-        print(red(f"❌ Invalid git reference: '{git_ref}'"))
-        sys.exit(1)
-
-    # check that the local git state is consistent with the git_ref (unless skipped)
-    if not args.skip_git_check:
-        ok, error_message = check_git_state(git_ref)
+    # check that the parsed args.git_ref provides a valid commit hash
+    if args.git_ref:
+        ok, commit_hash = validate_git_ref(args.git_ref)
         if not ok:
-            print(error_message)
-            print("  - Skip check: add --skip-git-check flag")
+            print(red(f"❌ Invalid git reference: '{args.git_ref}'"))
             sys.exit(1)
+    else:
+        commit_hash = get_current_commit()
+
+        # check that the commit has been pushed and there are no staged changes
+        if not args.skip_git_check:
+            ok, error_message = check_git_state(commit_hash)
+            if not ok:
+                print(error_message)
+                print("  - Skip check: add --skip-git-check flag")
+                sys.exit(1)
 
     # check that the files referenced in the cmd exist
     if not check_config_files(cmd_args):
         sys.exit(1)
+
+    assert commit_hash
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
     task = task.update_envs(
@@ -136,7 +138,7 @@ def main():
             METTA_RUN_ID=run_id,
             METTA_CMD=args.cmd,
             METTA_CMD_ARGS=" ".join(cmd_args),
-            METTA_GIT_REF=git_ref,
+            METTA_GIT_REF=commit_hash,
         )
     )
     task.name = run_id
@@ -155,7 +157,7 @@ def main():
             job_name=run_id,
             cmd=args.cmd,
             task_args=cmd_args,
-            git_ref=git_ref,
+            git_ref=commit_hash,
             timeout_hours=args.timeout_hours,
             task=task,
             **extra_details,

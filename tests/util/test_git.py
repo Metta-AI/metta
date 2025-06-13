@@ -11,7 +11,6 @@ from metta.util.git import (
     get_current_commit,
     has_unstaged_changes,
     is_commit_pushed,
-    ref_to_hash,
     run_git,
     validate_git_ref,
 )
@@ -108,44 +107,23 @@ def test_is_commit_pushed():
     ],
 )
 def test_validate_git_ref(ref, expected_valid):
-    assert validate_git_ref(ref) is expected_valid
+    is_valid, _ = validate_git_ref(ref)
+    assert is_valid is expected_valid
 
 
 def test_validate_git_ref_with_commit():
     # Test with current commit and short version
     current_commit = get_current_commit()
-    assert validate_git_ref(current_commit) is True
-    assert validate_git_ref(current_commit[:8]) is True
 
+    # Test with full commit hash
+    is_valid, commit_hash = validate_git_ref(current_commit)
+    assert is_valid is True
+    assert commit_hash == current_commit
 
-def test_ref_to_hash():
-    current_commit = get_current_commit()
-
-    # Test with valid refs
-    assert ref_to_hash("HEAD") == current_commit
-    assert ref_to_hash(current_commit) == current_commit
-    assert ref_to_hash(get_current_branch()) == current_commit
-
-    # Test with short commit
-    short_commit = current_commit[:8]
-    assert ref_to_hash(short_commit) == current_commit
-
-    # Test with invalid refs
-    assert ref_to_hash("non-existent-branch") is None
-    assert ref_to_hash("") is None
-    assert ref_to_hash("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz") is None
-
-
-def test_ref_to_hash_with_history():
-    # Test HEAD~1 if history exists
-    try:
-        run_git("rev-parse", "HEAD~1")
-        result = ref_to_hash("HEAD~1")
-        assert result is not None
-        assert len(result) == 40
-        assert result != get_current_commit()
-    except GitError:
-        pytest.skip("Cannot access commit history")
+    # Test with short commit hash
+    is_valid, commit_hash = validate_git_ref(current_commit[:8])
+    assert is_valid is True
+    assert commit_hash == current_commit  # Git should resolve short hash to full hash
 
 
 def test_remote_operations():
@@ -158,13 +136,41 @@ def test_remote_operations():
             assert len(commit) == 40
 
             # Test validate_git_ref with remote
-            assert validate_git_ref(remote_ref) is True
-
-            # Test ref_to_hash with remote
-            assert ref_to_hash(remote_ref) == commit
+            is_valid, commit_hash = validate_git_ref(remote_ref)
+            assert is_valid is True
+            assert commit_hash == commit  # Should match the commit we got from get_branch_commit
 
             return  # Found at least one valid remote ref
         except GitError:
             continue
 
     pytest.skip("No remote branches available")
+
+
+def test_validate_git_ref_returns_commit_hash():
+    # Test that validate_git_ref returns the commit hash
+    is_valid, commit_hash = validate_git_ref("HEAD")
+    assert is_valid is True
+    assert commit_hash == get_current_commit()
+
+    # Test invalid ref returns None
+    is_valid, commit_hash = validate_git_ref("invalid-ref")
+    assert is_valid is False
+    assert commit_hash is None
+
+
+def test_detached_head_fallback():
+    # Save current state
+    original_branch = get_current_branch()
+
+    try:
+        # Detach HEAD
+        run_git("checkout", "--detach")
+
+        # Should return commit hash when detached
+        result = get_current_branch()
+        assert result == get_current_commit()
+        assert len(result) == 40
+    finally:
+        # Restore original branch
+        run_git("checkout", original_branch)
