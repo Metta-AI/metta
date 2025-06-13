@@ -280,28 +280,49 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-#time-panel {
+#timeline-panel {
     position: absolute;
-    display: flex;
-    height: fit-content;
+    display: block;
+    height: 64px;
     left: 0px;
     right: 0px;
     bottom: 64px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 16px;
-    padding: 16px 32px 16px 32px;
     background-color: rgba(29, 29, 29, 1.00);
     overflow: hidden;
 }
 
-#time-panel input#main-scrubber {
-    position: relative;
+#timeline-panel #timeline-redout {
+    position: absolute;
     display: block;
-    width: 100%;
-    height: 32px;
-    align-self: stretch;
-    background-color: rgba(217, 217, 217, 1.00);
+    width: 46px;
+    height: 22px;
+    left: 50%;
+    top: 5px;
+    transform: translate(-22.50px, 0);
+    background-color: rgba(0, 0, 0, 1.00);
+    border-radius: 8px;
+    overflow: hidden;
+    border-color: rgba(85, 85, 85, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+#timeline-redout #step-counter {
+    position: absolute;
+    display: inline-block;
+    left: 0px;
+    right: 0px;
+    top: 1px;
+    bottom: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 18.20px;
 }
 
 #trace-panel {
@@ -1474,7 +1495,7 @@ button#help-button.hover-icon .icon {
     font-weight: 400;
     font-size: 16px;
     text-align: left;
-    vertical-align: center;
+    vertical-align: middle;
     letter-spacing: 0px;
     line-height: 20.80px;
 }

@@ -1,6 +1,12 @@
 name: "Setup uv"
 description: "Set up uv and activate the environment"
 
+inputs:
+  include-dev:
+    description: "Whether to include dev dependencies"
+    required: false
+    default: "false"
+
 runs:
   using: "composite"
   steps:
@@ -14,6 +20,10 @@ runs:
       shell: bash
       run: |
         uv venv
-        uv sync
+        if [ "${{ inputs.include-dev }}" = "true" ]; then
+          uv sync --extra dev
+        else
+          uv sync
+        fi
         echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
         echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
