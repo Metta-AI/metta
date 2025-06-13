@@ -468,6 +468,7 @@ class ObsCrossAttn(LayerBase):
                 nn.ModuleDict(
                     {
                         "q_proj": nn.Linear(self._query_token_dim, self._qk_dim, bias=False),
+                        "attn_out_proj": nn.Linear(self._v_dim, self._query_token_dim),
                         "norm1": nn.LayerNorm(self._query_token_dim),
                         "norm2": nn.LayerNorm(self._query_token_dim),
                         "mlp": nn.Sequential(
@@ -521,6 +522,7 @@ class ObsCrossAttn(LayerBase):
             attn_weights = torch.softmax(attn_scores, dim=-1)
             attn_output = torch.einsum("bhqk,bhkd->bhqd", attn_weights, v_p)
             attn_output = einops.rearrange(attn_output, "b h q d -> b q (h d)")
+            attn_output = layer["attn_out_proj"](attn_output)
 
             queries = queries_res + attn_output
 
