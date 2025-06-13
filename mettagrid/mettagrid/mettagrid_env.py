@@ -104,9 +104,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self.dump_profile()
 
     def dump_profile(self):
-        with open(f"profile_{self._uuid}.prof", "w") as f:
-            ps = pstats.Stats(self._profiler, stream=f).sort_stats('cumulative')
-            ps.print_stats()
+        self._profiler.dump_stats(f"profile_{self._uuid}.prof")
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
