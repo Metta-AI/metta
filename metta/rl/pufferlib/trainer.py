@@ -3,7 +3,6 @@ import os
 import time
 from collections import defaultdict
 from types import SimpleNamespace
-from typing import Optional
 
 import einops
 import numpy as np
@@ -50,8 +49,6 @@ logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
 class PufferTrainer:
-    experience: Optional[Experience]
-
     def __init__(
         self,
         cfg: DictConfig | ListConfig,
@@ -69,9 +66,9 @@ class PufferTrainer:
 
         self._master = True
         self._world_size = 1
-        self.device = torch.device(cfg.device if hasattr(cfg, "device") else "cpu")
+        self.device: torch.device = cfg.device
         if torch.distributed.is_initialized():
-            self.device = torch.device(f"cuda:{os.environ.get('LOCAL_RANK', 0)}")
+            self.device = f"cuda:{os.environ['LOCAL_RANK']}"
 
         self._batch_size = self.trainer_cfg.batch_size
         self._minibatch_size = self.trainer_cfg.minibatch_size
@@ -90,7 +87,6 @@ class PufferTrainer:
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
-        self.last_stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.average_reward = 0.0
@@ -114,18 +110,18 @@ class PufferTrainer:
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
 
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
-        pr = self._load_policy(checkpoint, policy_store, metta_grid_env)
+        policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
         if "average_reward" in checkpoint.extra_args:
             self.average_reward = checkpoint.extra_args["average_reward"]
 
         if self._master:
-            logger.info(f"PufferTrainer loaded: {pr.policy()}")
+            logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
 
-        self._initial_pr = pr
-        self.last_pr = pr
-        self.policy = pr.policy().to(self.device)
-        self.policy_record = pr
+        self._initial_pr = policy_record
+        self.last_pr = policy_record
+        self.policy = policy_record.policy().to(self.device)
+        self.policy_record = policy_record
         self.uncompiled_policy = self.policy
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep
@@ -168,9 +164,31 @@ class PufferTrainer:
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
 
-        environment_shape = tuple(metta_grid_env.single_observation_space.shape)
+        # validate that policy matches environment
+        _env_shape = metta_grid_env.single_observation_space.shape
+        environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
+
         if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
-            self._validate_observation_shapes(environment_shape)
+            found_match = False
+            for component_name, component in self.metta_agent.components.items():
+                if hasattr(component, "_obs_shape"):
+                    found_match = True
+                    component_shape = (
+                        tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
+                    )
+                    if component_shape != environment_shape:
+                        raise ValueError(
+                            f"Observation space mismatch error:\n"
+                            f"[policy] component_name: {component_name}\n"
+                            f"[policy] component_shape: {component_shape}\n"
+                            f"environment_shape: {environment_shape}\n"
+                        )
+
+            if not found_match:
+                raise ValueError(
+                    "No component with observation shape found in policy. "
+                    f"Environment observation shape: {environment_shape}"
+                )
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
@@ -330,7 +348,8 @@ class PufferTrainer:
                     )
 
             with profile.eval_misc:
-                env_id = slice(env_id[0], env_id[-1] + 1)
+                # Convert env_id slice to continuous range for indexing
+                training_env_id = slice(env_id[0], env_id[-1] + 1)
                 num_steps = sum(mask)
                 self.agent_step += num_steps * self._world_size
 
@@ -342,7 +361,7 @@ class PufferTrainer:
             with profile.eval_forward, torch.no_grad():
                 state = PolicyState()
 
-                lstm_state = experience.get_lstm_state(env_id.start)
+                lstm_state = experience.get_lstm_state(training_env_id.start)
                 if lstm_state is not None:
                     state.lstm_h = lstm_state["lstm_h"]
                     state.lstm_c = lstm_state["lstm_c"]
@@ -373,7 +392,7 @@ class PufferTrainer:
                     terminals=d.to(self.device, non_blocking=True),
                     truncations=t.to(self.device, non_blocking=True),
                     values=value,
-                    env_id=env_id,
+                    env_id=training_env_id,
                     mask=mask_tensor,
                     lstm_state=lstm_state_to_store,
                 )
@@ -555,7 +574,7 @@ class PufferTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if str(self.device).startswith("cuda"):
+                    if self.device == "cuda":
                         torch.cuda.synchronize()
 
             if config.target_kl is not None and approx_kl > config.target_kl:
@@ -631,17 +650,13 @@ class PufferTrainer:
         if not self._master:
             return
 
-        pr = self._checkpoint_policy()
-        if pr is None:
-            logger.warning("Failed to checkpoint policy")
-            return
-
+        policy_record = self._checkpoint_policy()
         extra_args = {}
         if self.trainer_cfg.average_reward:
             extra_args["average_reward"] = self.average_reward
 
         self.checkpoint = TrainerCheckpoint(
-            self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
+            self.agent_step, self.epoch, self.optimizer.state_dict(), policy_record.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
@@ -684,9 +699,9 @@ class PufferTrainer:
         if self.wandb_run is None:
             return
 
-        pr = self._checkpoint_policy()
-        if pr is not None:
-            self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+        policy_record = self._checkpoint_policy()
+        if policy_record is not None:
+            self.policy_store.add_to_wandb_run(self.wandb_run.name, policy_record)
 
     def _generate_and_upload_replay(self):
         if self._master:
@@ -903,17 +918,15 @@ class PufferTrainer:
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
-        forward_pass_batch_size = (
-            self.target_batch_size // self.trainer_cfg.num_workers
-        ) * self.trainer_cfg.num_workers
-        logger.info(f"forward_pass_batch_size: {forward_pass_batch_size}")
+        self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
+        logger.info(f"forward_pass_batch_size: {self.batch_size}")
 
-        num_envs = forward_pass_batch_size * self.trainer_cfg.async_factor
+        num_envs = self.batch_size * self.trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
             logger.error(
-                f"num_envs = batch_size ({forward_pass_batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
+                f"num_envs = batch_size ({self.batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
@@ -921,7 +934,7 @@ class PufferTrainer:
             self._curriculum,
             self.cfg.vectorization,
             num_envs=num_envs,
-            batch_size=forward_pass_batch_size,
+            batch_size=self.batch_size,
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy,
         )
@@ -932,7 +945,8 @@ class PufferTrainer:
         # Use rank-specific seed for environment reset to ensure different
         # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
-        self.vecenv.async_reset(self.cfg.seed + rank)
+        rank_specific_env_seed = self.cfg.seed + rank if self.cfg.seed is not None else rank
+        self.vecenv.async_reset(rank_specific_env_seed)
 
     def _load_policy(self, checkpoint, policy_store, metta_grid_env):
         """Load policy from checkpoint, initial_policy.uri, or create new."""
@@ -954,28 +968,6 @@ class PufferTrainer:
             time.sleep(5)
 
         raise RuntimeError("Failed to load policy after 10 attempts")
-
-    def _validate_observation_shapes(self, environment_shape):
-        found_match = False
-        for component_name, component in self.metta_agent.components.items():
-            if hasattr(component, "_obs_shape"):
-                found_match = True
-                component_shape = (
-                    tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                )
-                if component_shape != environment_shape:
-                    raise ValueError(
-                        f"Observation space mismatch error:\n"
-                        f"[policy] component_name: {component_name}\n"
-                        f"[policy] component_shape: {component_shape}\n"
-                        f"environment_shape: {environment_shape}\n"
-                    )
-
-        if not found_match:
-            raise ValueError(
-                "No component with observation shape found in policy. "
-                f"Environment observation shape: {environment_shape}"
-            )
 
     def _compute_l2_loss(self, coef: float, loss_fn):
         """Compute L2 loss only if coefficient is positive."""
