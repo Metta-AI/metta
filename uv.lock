@@ -8,6 +8,14 @@ resolution-markers = [
     "sys_platform != 'darwin' and sys_platform != 'linux'",
 ]
 
+[manifest]
+members = [
+    "metta",
+    "metta-app-backend",
+    "metta-common",
+    "metta-mettagrid",
+]
+
 [[package]]
 name = "aiofiles"
 version = "24.1.0"
@@ -802,6 +810,25 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "skypilot", specifier = "==0.9.3" }]
+
+[[package]]
+name = "metta-app-backend"
+version = "0.1.0"
+source = { editable = "app_backend" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "pydantic" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115.5" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2.9" },
+    { name = "pydantic", specifier = ">=2.11.5" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
+]
 
 [[package]]
 name = "metta-common"

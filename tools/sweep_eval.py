@@ -1,4 +1,11 @@
 #!/usr/bin/env -S uv run
+
+# NumPy 2.0 compatibility for WandB - must be imported before wandb
+import numpy as np  # noqa: E402
+
+if not hasattr(np, "byte"):
+    np.byte = np.int8
+
 import json
 import os
 import sys
@@ -16,7 +23,7 @@ from metta.common.util.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.sweep.protein_wandb import WandbProtein
+from metta.sweep.protein_metta import MettaProtein
 
 
 def log_file(run_dir, name, data, wandb_run):
@@ -60,10 +67,18 @@ def main(cfg: DictConfig | ListConfig) -> int:
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
-            policy_pr = policy_store.policy_record("wandb://run/" + cfg.run)
+            # First get the policy records from the run to find the artifact URI
+            policy_records = policy_store.policy_records("wandb://run/" + cfg.run)
+            if not policy_records:
+                raise ValueError(f"No policy records found for run {cfg.run}")
+
+            # Get the first policy record and load it directly using its wandb URI
+            # This will download the artifact and give us a local path
+            policy_pr = policy_store.load_from_uri(policy_records[0].uri)
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
-            WandbProtein._record_failure(wandb_run)
+            # Record failure in WandB directly since we don't have a Protein instance yet
+            wandb_run.summary.update({"protein.state": "failure", "protein.error": f"Policy loading failed: {e}"})
             return 1
 
         eval = SimulationSuite(
@@ -80,7 +95,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
         # Update sweep stats with initial information
         sweep_stats.update(
             {
-                "score.metric": cfg.metric,
+                "score.metric": cfg.sweep_job.sweep.parameters.metric,
             }
         )
         wandb_run.summary.update(sweep_stats)
@@ -94,7 +109,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
         results = eval.simulate()
         eval_time = time.time() - eval_start_time
         eval_stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
-        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.metric, policy_pr)
+        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.sweep_job.sweep.parameters.metric, policy_pr)
 
         # Get training stats from metadata if available
         train_time = policy_pr.metadata.get("train_time", 0)
@@ -131,13 +146,56 @@ def main(cfg: DictConfig | ListConfig) -> int:
         )
 
         # Add policy to wandb sweep
-        policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
+        policy_store.add_to_wandb_sweep(cfg.sweep_run, policy_pr)
 
-        # Record observation in Protein if enabled
+        # Record observation in Protein sweep
         total_time = train_time + eval_time
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
-        WandbProtein._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
+        try:
+            # Recreate the WandbProtein instance to properly record observations
+            # Create the protein with the sweep configuration
+            if hasattr(cfg.sweep_job, "sweep") and cfg.sweep_job.sweep:
+                protein_wandb = MettaProtein(cfg.sweep_job.sweep, wandb_run)
+
+                # Record the observation properly so the Protein learns
+                if eval_metric is None:
+                    logger.warning("Evaluation metric is None - recording as failure")
+                    protein_wandb.record_failure("Evaluation failed")
+                else:
+                    logger.info(f"Recording observation: objective={eval_metric}, cost={total_time}")
+                    protein_wandb.record_observation(eval_metric, total_time)
+            else:
+                logger.info("No sweep configuration found - not a Protein sweep")
+                wandb_run.summary.update(
+                    {
+                        "protein.objective": eval_metric or 0.0,
+                        "protein.cost": total_time,
+                        "protein.state": "failure" if eval_metric is None else "success",
+                    }
+                )
+
+        except AttributeError as e:
+            # Missing sweep config - this run is not part of a Protein sweep
+            logger.info(f"Not a Protein sweep (missing config): {e}")
+            wandb_run.summary.update(
+                {
+                    "protein.objective": eval_metric or 0.0,
+                    "protein.cost": total_time,
+                    "protein.state": "failure" if eval_metric is None else "success",
+                }
+            )
+        except Exception as e:
+            # Network issues, WandB API failures, etc.
+            logger.warning(f"Protein recording failed (network/API issue): {e}")
+            # Fallback to direct WandB update
+            wandb_run.summary.update(
+                {
+                    "protein.objective": eval_metric or 0.0,
+                    "protein.cost": total_time,
+                    "protein.state": "failure" if eval_metric is None else "success",
+                }
+            )
 
         wandb_run.summary.update({"run_time": total_time})
         return 0

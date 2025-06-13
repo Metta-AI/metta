@@ -189,6 +189,9 @@ class Hyperparameters:
     def _fill(self, params, spaces, flat_sample, idx=0):
         for name, space in spaces.items():
             if isinstance(space, dict):
+                # Create nested dict if it doesn't exist
+                if name not in params:
+                    params[name] = {}
                 idx = self._fill(params[name], spaces[name], flat_sample, idx=idx)
             else:
                 params[name] = spaces[name].unnormalize(flat_sample[idx])

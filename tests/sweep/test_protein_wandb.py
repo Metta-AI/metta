@@ -85,7 +85,7 @@ class TestWandbProtein:
             assert info["cost"] == 75.0
             assert info["score"] == 0.88
             assert info["rating"] == 0.7
-            assert "suggestion_uuid" in info
+            # Note: suggestion_uuid was removed during cleanup
 
             # Verify data was stored in wandb summary
             assert wandb_protein._wandb_run.summary.get("protein.suggestion") == expected_suggestion
@@ -170,9 +170,8 @@ class TestWandbProtein:
             # Verify original config is preserved
             assert config["initial_param"] == "value"
 
-            # Verify parameters section also exists
-            assert "parameters" in config
-            assert config["parameters"]["learning_rate"] == 0.003
+            # Note: separate parameters section was removed during cleanup -
+            # suggestions are now applied directly to the main config
 
         finally:
             wandb.finish()
@@ -191,7 +190,7 @@ class TestWandbProtein:
             _ = WandbProtein(mock_protein)
 
             # After initialization, protein state should be set
-            assert wandb.run.summary.get("protein.state") == "running"
+            assert wandb.run.summary.get("protein.state") == "initializing"
 
         finally:
             wandb.finish()

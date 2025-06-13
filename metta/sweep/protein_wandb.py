@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from copy import deepcopy
 from datetime import datetime, timezone
 
@@ -8,6 +9,10 @@ import wandb
 from .protein import Protein
 
 logger = logging.getLogger("wandb_protein")
+
+# Ensure appropriate logging level for debugging observation loading issues
+if logger.level == logging.NOTSET:
+    logger.setLevel(logging.INFO)
 
 
 class WandbProtein:
@@ -25,7 +30,14 @@ class WandbProtein:
         """
         self._wandb_run = wandb_run or wandb.run
         assert self._wandb_run is not None, "No active wandb run found"
-        self._sweep_id = self._wandb_run.sweep_id
+
+        # Get sweep ID - handle both sweep_id attribute and sweep.id fallback
+        self._sweep_id = getattr(self._wandb_run, "sweep_id", None)
+        if self._sweep_id is None and hasattr(self._wandb_run, "sweep") and self._wandb_run.sweep:
+            self._sweep_id = self._wandb_run.sweep.id
+
+        logger.info(f"WandbProtein sweep ID: {self._sweep_id}")
+
         self._api = wandb.Api()
 
         self._protein = protein
@@ -53,55 +65,54 @@ class WandbProtein:
         # Set the actual parameter keys that training will use (overwriting WandB agent)
         self._wandb_run.config.update(wandb_config, allow_val_change=True)
 
-        # Also store in parameters section for tracking
-        self._wandb_run.config.update({"parameters": wandb_config}, allow_val_change=True)
+        logger.info(f"Applied Protein suggestions to WandB config: {wandb_config}")
 
-        # Store prediction info in wandb summary
-        if self._suggestion_info:
-            self._wandb_run.summary.update(
-                {
-                    "protein.prediction.cost": self._suggestion_info.get("cost"),
-                    "protein.prediction.score": self._suggestion_info.get("score"),
-                    "protein.prediction.rating": self._suggestion_info.get("rating"),
-                }
-            )
-
-        # Store the complete suggestion for easy retrieval
-        self._wandb_run.summary.update({"protein.suggestion": self._suggestion})
-        self._wandb_run.summary.update({"protein.suggestion_info": self._suggestion_info})
+        # Update state to "running" after initialization is complete
         self._wandb_run.summary.update({"protein.state": "running"})
+        logger.info(f"WandbProtein initialization complete for run {self._wandb_run.name}")
 
-    def record_observation(self, objective: float, cost: float, allow_update: bool = False):
-        self._record_observation(self._wandb_run, objective, cost, allow_update)
-
-    @staticmethod
-    def _record_observation(wandb_run, objective: float, cost: float, allow_update: bool = False):
+    def record_observation(self, objective, cost):
         """
-        Record an observation for the current run.
+        Record an observation (objective, cost) for the current suggestion.
 
         Args:
-            objective (float): The objective value to record.
-            cost (float): The cost value to record.
-            allow_update (bool, optional): If True, allows updating even if the run is not in "running" state.
+            objective (float): The objective value to optimize (higher is better for maximization).
+            cost (float): The cost of this evaluation (e.g., time taken).
         """
-        if not allow_update:
-            assert wandb_run.summary["protein.state"] == "running", (
-                f"Run is not running, cannot record observation {wandb_run.summary}"
-            )
+        logger.info(f"Recording observation ({objective}, {cost}) for {self._wandb_run.name}")
 
-        wandb_run.summary.update({"protein.objective": objective, "protein.cost": cost, "protein.state": "success"})
-        logger.info(f"Recording observation ({objective}, {cost}) for {wandb_run.name}")
+        # Update WandB with the observation
+        self._wandb_run.summary.update(
+            {
+                "protein.objective": objective,
+                "protein.cost": cost,
+                "protein.state": "success",
+            }
+        )
 
-    def record_failure(self):
-        self._record_failure(self._wandb_run)
+        # CRITICAL: Also record the observation with the Protein for future runs
+        self._protein.observe(self._suggestion, objective, cost, False)
+        logger.info("Observation recorded successfully in Protein for future learning")
 
-    @staticmethod
-    def _record_failure(wandb_run):
+    def record_failure(self, error_message: str = "Unknown error"):
         """
-        Record a failure for the current run.
+        Record that the current suggestion failed.
+
+        Args:
+            error_message (str): Description of the failure.
         """
-        logger.info(f"Recording failure for {wandb_run.name}")
-        wandb_run.summary.update({"protein.state": "failure"})
+        logger.info(f"Recording failure for {self._wandb_run.name}: {error_message}")
+
+        # Update WandB with failure status
+        self._wandb_run.summary.update(
+            {
+                "protein.state": "failure",
+                "protein.error": error_message,
+            }
+        )
+
+        # CRITICAL: Also record the failure with the Protein
+        self._protein.observe(self._suggestion, 0.0, 0.0, True)
 
     def suggest(self, fill=None):
         """
@@ -120,8 +131,13 @@ class WandbProtein:
         logger.info(f"Loading previous runs from sweep {self._sweep_id}")
 
         try:
-            for run in self._get_runs_from_wandb():
+            runs = list(self._get_runs_from_wandb())
+            logger.info(f"Found {len(runs)} potential runs to process from WandB API")
+
+            for i, run in enumerate(runs):
+                logger.debug(f"Processing run {i + 1}/{len(runs)}: {run.name} (ID: {run.id})")
                 self._update_protein_from_run(run)
+
         except Exception as e:
             logger.warning(f"Could not load previous runs: {e}")
             logger.info("Continuing with fresh Protein (no previous observations)")
@@ -145,23 +161,45 @@ class WandbProtein:
             logger.info("No sweep ID found, skipping previous run loading")
             return []
 
-        runs = self._api.runs(
-            path=f"{self._wandb_run.entity}/{self._wandb_run.project}",
-            filters={
-                "sweep": self._sweep_id,
-                "summary_metrics.protein.state": {"$exists": True},
-                "id": {"$ne": self._wandb_run.id},
-            },
-            order="+created_at",
-        )
-        return runs
+        logger.info(f"Querying WandB API for runs in sweep {self._sweep_id}")
+
+        # Add retry logic for network calls
+        max_retries = 3
+        retry_delay = 2
+
+        for attempt in range(max_retries):
+            try:
+                runs = self._api.runs(
+                    path=f"{self._wandb_run.entity}/{self._wandb_run.project}",
+                    filters={
+                        "sweep": self._sweep_id,
+                        "summary_metrics.protein.state": {"$exists": True},
+                        "id": {"$ne": self._wandb_run.id},
+                    },
+                    order="+created_at",
+                )
+                logger.info("Successfully fetched runs from WandB API")
+                return runs
+
+            except Exception as e:
+                logger.warning(f"Network error fetching runs (attempt {attempt + 1}/{max_retries}): {e}")
+
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    logger.error(f"Failed to fetch runs after {max_retries} attempts")
+                    return []
 
     def _update_protein_from_run(self, run):
-        if run.summary["protein.state"] == "initializing":
+        logger.debug(f"Processing run {run.name} with state: {run.summary.get('protein.state', 'unknown')}")
+
+        if run.summary.get("protein.state") == "initializing":
             logger.debug(f"Skipping run {run.name} because it is initializing")
             return
 
-        if run.summary["protein.state"] == "running":
+        if run.summary.get("protein.state") == "running":
             last_hb = datetime.strptime(run._attrs["heartbeatAt"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
             if (datetime.now(timezone.utc) - last_hb).total_seconds() > 5 * 60:
                 logger.debug(f"Skipping run {run.name} - no heartbeat in last 5 minutes")
@@ -172,30 +210,34 @@ class WandbProtein:
 
         try:
             suggestion, info = self._suggestion_from_run(run)
+            logger.debug(f"Successfully extracted suggestion from run {run.name}")
         except Exception as e:
             logger.warning(f"Failed to get suggestion from run {run.name}: {e}")
             self._invalid += 1
             return
 
-        if run.summary["protein.state"] == "running":
+        # Check for duplicate "running" state check
+        if run.summary.get("protein.state") == "running":
             logger.debug(f"Recording suggestion run {run.name} that is still running")
             self._num_running += 1
             return
 
         objective = run.summary.get("protein.objective", 0)
         cost = run.summary.get("protein.cost", 0)
-        is_failure = run.summary["protein.state"] == "failure"
+        is_failure = run.summary.get("protein.state") == "failure"
 
         if is_failure:
             self._num_failures += 1
+            logger.info(f"Loaded failed observation from run {run.name}: cost={cost}")
         else:
             self._num_observations += 1
+            logger.info(f"Loaded successful observation from run {run.name}: objective={objective}, cost={cost}")
 
         logger.debug(
             f"Observation {run.name} "
             + f"{objective} / {cost} "
             + f"failure: {is_failure} "
-            + json.dumps(suggestion, indent=2)
+            + str(suggestion)  # Use str() instead of json.dumps to avoid serialization issues
         )
 
         self._observations.append(
@@ -209,47 +251,100 @@ class WandbProtein:
             }
         )
 
-        # Pass suggestion to Protein (no need to remove suggestion_uuid since it's now in info)
-        self._protein.observe(suggestion, objective, cost, is_failure)
+        # CRITICAL FIX: Flatten the nested suggestion dict before passing to Protein
+        # The suggestion from WandB is in nested format: {"trainer": {"optimizer": {"learning_rate": 0.0005}}}
+        # But protein.observe() expects flattened format: {"trainer/optimizer/learning_rate": 0.0005}
+        try:
+            import pufferlib
+
+            flattened_suggestion = dict(pufferlib.unroll_nested_dict(suggestion))
+            logger.debug(f"Flattened suggestion for Protein: {list(flattened_suggestion.keys())}")
+
+            # Pass flattened suggestion to Protein
+            self._protein.observe(flattened_suggestion, objective, cost, is_failure)
+            logger.debug(f"Successfully recorded observation in Protein for run {run.name}")
+        except Exception as e:
+            logger.warning(f"Failed to record observation in Protein for run {run.name}: {e}")
+            # Still increment invalid count since we couldn't learn from this observation
+            self._invalid += 1
+
         self._suggestion_info = info
 
     def _suggestion_from_run(self, run):
         """
         Extract parameters from a run config - just retrieve what we stored.
         """
+        logger.debug(f"Extracting suggestion from run {run.name}")
+
         # Get the stored suggestion
         suggestion = run.summary.get("protein.suggestion", {})
+        logger.debug(f"Raw suggestion from run {run.name}: {type(suggestion)} = {suggestion}")
+
+        # Handle case where WandB stored the suggestion as a string
+        if isinstance(suggestion, str):
+            try:
+                # Try to parse the string back to a dictionary
+                import ast
+
+                suggestion = ast.literal_eval(suggestion)
+                logger.debug(f"Successfully parsed suggestion string for run {run.name}")
+            except (ValueError, SyntaxError) as e:
+                logger.warning(f"Could not parse suggestion string from run {run.name}: {e}")
+                suggestion = {}
+
+        # Fallback: try to extract from run config if summary doesn't have suggestion
+        if not suggestion:
+            logger.warning(f"No protein.suggestion found in summary for run {run.name}, trying config fallback")
+            # Try to extract from the actual WandB config as fallback
+            try:
+                config_dict = dict(run.config)
+                # Filter out WandB internal keys and get actual parameters
+                suggestion = {k: v for k, v in config_dict.items() if not k.startswith("_") and k != "dummy_param"}
+                logger.debug(f"Extracted suggestion from config for run {run.name}: {suggestion}")
+            except Exception as e:
+                logger.warning(f"Could not extract suggestion from config for run {run.name}: {e}")
+                suggestion = {}
 
         # Get the stored prediction info
         info = run.summary.get("protein.suggestion_info", {})
+        logger.debug(f"Raw info from run {run.name}: {type(info)} = {info}")
+
+        # Handle case where info might also be stored as a string
+        if isinstance(info, str):
+            try:
+                import ast
+
+                info = ast.literal_eval(info)
+                logger.debug(f"Successfully parsed info string for run {run.name}")
+            except (ValueError, SyntaxError):
+                logger.warning(f"Could not parse info string from run {run.name}")
+                info = {}
 
         # Ensure suggestion_uuid is set in info
         if "suggestion_uuid" not in info:
             info["suggestion_uuid"] = run.id
 
+        logger.debug(f"Final extracted suggestion from run {run.name}: {suggestion}")
         return suggestion, info
 
     def _generate_protein_suggestion(self):
-        """Generate a suggestion from Protein optimizer."""
-        try:
-            self._suggestion, self._suggestion_info = self._protein.suggest(fill=None)
+        """Generate a suggestion from Protein and store it."""
+        suggestion, info = self._protein.suggest(self._suggestion_info)
+        self._suggestion = suggestion
+        self._suggestion_info = info
 
-            # Add suggestion UUID to info (metadata)
-            if "suggestion_uuid" not in self._suggestion_info:
-                self._suggestion_info["suggestion_uuid"] = self._wandb_run.id
-
-            # Update wandb summary with the new suggestion and info
-            self._wandb_run.summary.update({"protein.suggestion": self._suggestion})
-            self._wandb_run.summary.update({"protein.suggestion_info": self._suggestion_info})
-
-        except Exception as e:
-            logger.error(f"Failed to generate Protein suggestion: {e}")
-            raise e
+        # Save suggestion to wandb summary for debugging and sweep tracking
+        self._wandb_run.summary.update(
+            {
+                "protein.suggestion": suggestion,
+                "protein.suggestion_info": info,
+            }
+        )
 
 
 def create_sweep(sweep_name: str, wandb_entity: str, wandb_project: str):
     """
-    Create a new wandb sweep without parameters (Protein will control all suggestions).
+    Create a new wandb sweep with a dummy parameter (Protein will control all suggestions).
 
     Args:
         sweep_name (str): The name of the sweep.
@@ -264,7 +359,10 @@ def create_sweep(sweep_name: str, wandb_entity: str, wandb_project: str):
             "name": sweep_name,
             "method": "bayes",  # This won't actually be used since we override suggestions
             "metric": {"name": "protein.objective", "goal": "maximize"},
-            "parameters": {},  # Empty - Protein controls all parameters
+            "parameters": {
+                # WandB requires at least one parameter, but Protein will override all suggestions
+                "dummy_param": {"values": [1]}
+            },
         },
         project=wandb_project,
         entity=wandb_entity,
