@@ -5,8 +5,14 @@
 // * You can hover off the object, the panel will stay visible for 1 second.
 // * If you hover over the panel, the panel will stay visible as long as mouse is over the panel.
 // * If you drag the panel, it will detach and stay on screen.
-//   * It will be only closed by clicking on the X.
-//   * It will loose its hover stem on the bottom when it detached mode.
+//   - It will be only closed by clicking on the X.
+//   - It will loose its hover stem on the bottom when it detached mode.
+
+// Hover panels show:
+// * The properties of the object (like position is hidden).
+// * The inventory of the object.
+// * The recipe of the object.
+// * The memory menu button.
 
 import { find, findIn, onEvent, removeChildren, findAttr } from "./htmlutils.js";
 import { state, ui } from "./common.js";
@@ -75,7 +81,7 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
   ui.hoverPanels.push(panel);
 
   // Hide the old hover panel.
-  // THe new info panel should be identical to the old hover panel,
+  // The new info panel should be identical to the old hover panel,
   // so that the user sees no difference.
   hoverPanel.classList.add("hidden");
   ui.hoverObject = null;
@@ -143,13 +149,17 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
     }
   }
 
-  // Populate the recipe area if the object has input_ or output_ resources.
+  // Populate the recipe area if the object config has input_ or output_ resources.
   let recipe = findIn(htmlPanel, ".recipe");
   removeChildren(recipe);
   let recipeArea = findIn(htmlPanel, ".recipe-area");
   let config = state.replay.config;
   let displayedResources = 0;
   for (let name in config.game.objects) {
+    // I hope this will change in the future, but only way to match object to
+    // a config is to match split the config name into type-name and color-name and match
+    // that to the object's type-name and color-name. Keep in mind that the color 0
+    // is the default color which is red.
     let nameParts = name.split(".");
     let configTypeName = nameParts[0];
     let configColorName = nameParts[1] || "red"; // Red is the default 0 color.
@@ -159,11 +169,8 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
     if (object.color >= 0 && object.color < Common.COLORS.length) {
       objectColorName = Common.COLORS[object.color][0];
     }
-    console.log("configTypeName", configTypeName, "objectTypeName", objectTypeName, "configColorName", configColorName, "objectColorName", objectColorName);
-
     if (configTypeName == objectTypeName && (objectColorName === undefined || configColorName == objectColorName)) {
       let objectConfig = config.game.objects[name];
-      console.log("Found config:", name, objectConfig);
       recipeArea.classList.remove("hidden");
       // configs have input_{resource} and output_{resource}
       for (let key in objectConfig) {
