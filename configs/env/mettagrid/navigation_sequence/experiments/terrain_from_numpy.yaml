@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/mettagrid_deterministic@
   - _self_
 
 sampling: 1
@@ -7,12 +7,12 @@ sampling: 1
 game:
   num_agents: 4
   agent:
-    ore.red_max: ${sampling:5,25,15}
-    battery.red_max: ${sampling:5,25,15}
+    ore.red_max: 5
+    battery.red_max: 5
     rewards:
       action_failure_penalty: 0
-      ore.red: ${sampling:0.005,0.1, 0.01}
-      battery.red: ${sampling:0.01,0.3, 0.1}
+      ore.red: 0.005
+      battery.red: 0.01
       heart: 1
       heart_max: 1000
   map_builder:
@@ -21,19 +21,19 @@ game:
     border_width: 6
     room:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
-      border_width: ${sampling:1,6,3}
+      border_width: 1
       agents: ${div:${...num_agents},${..num_rooms}}
       objects:
-        mine.red: ${sampling:3,15,2}
-        generator.red: ${sampling:3,15,2}
+        mine.red: 3
+        generator.red: 3
         altar: 5
   objects:
     altar:
       input_battery.red: 1
-      initial_items: ${choose:0,0,0,1}
-      cooldown: ${sampling:5, 20, 10}
+      initial_items: 0
+      cooldown: 10
     generator.red:
-      initial_items: ${choose:0,0,0,1}
-      cooldown: ${sampling:5, 20, 10}
+      initial_items: 0
+      cooldown: 15
     mine.red:
-      cooldown: ${sampling:15, 50, 10}
+      cooldown: 15

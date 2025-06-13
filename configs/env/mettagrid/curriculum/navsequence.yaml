@@ -1,0 +1,5 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/curriculum/navsequence/memory: 1
+  /env/mettagrid/curriculum/navsequence/terrain_from_numpy: 1
