@@ -1,18 +1,18 @@
 sampling: 0
 desync_episodes: false
+replay_level_prob: 0.9
 game:
   num_agents: ???
   obs_width: 11
   obs_height: 11
   use_observation_tokens: false
   num_observation_tokens: 128
-  tile_size: 16
   max_steps: 1000
 
   diversity_bonus:
     enabled: false
-    similarity_coef: 0.5  # Coefficient for within-group similarity
-    diversity_coef: 0.5   # Coefficient for between-group diversity
+    similarity_coef: 0.5 # Coefficient for within-group similarity
+    diversity_coef: 0.5 # Coefficient for between-group diversity
 
   agent:
     default_item_max: ${sampling:0, 100, 50}

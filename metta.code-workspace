@@ -64,6 +64,9 @@
 		},
 		"terminal.integrated.cwd": "${workspaceFolder}",
 		"terminal.integrated.splitCwd": "workspaceRoot",
-		"files.autoGuessEncoding": false
+		"files.autoGuessEncoding": false,
+		"cSpell.words": [
+			"desync"
+		]
 	}
 }

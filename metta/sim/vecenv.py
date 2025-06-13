@@ -21,7 +21,6 @@ def make_env_func(
     render_mode="rgb_array",
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayWriter] = None,
-    training: bool = False,
     **kwargs,
 ):
     # we are not calling into our configs hierarchy here so we need to manually register the custom resolvers
@@ -34,7 +33,6 @@ def make_env_func(
         buf=buf,
         stats_writer=stats_writer,
         replay_writer=replay_writer,
-        training=training,
         **kwargs,
     )
     # Ensure the environment is properly initialized
@@ -53,7 +51,6 @@ def make_vecenv(
     render_mode=None,
     stats_writer: Optional[StatsWriter] = None,
     replay_writer: Optional[ReplayWriter] = None,
-    training: bool = False,
     **kwargs,
 ):
     # Determine the vectorization class
@@ -75,7 +72,6 @@ def make_vecenv(
         "render_mode": render_mode,
         "stats_writer": stats_writer,
         "replay_writer": replay_writer,
-        "training": training,
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,
