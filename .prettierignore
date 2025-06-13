@@ -1,3 +1,15 @@
 # Ignore Helm templates
 **/templates/**/*.yaml
 **/templates/**/*.yml
+
+.DS_Store
+node_modules/
+
+build/
+dist/
+.cache/
+coverage/
+
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
