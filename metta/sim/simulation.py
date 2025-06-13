@@ -329,6 +329,10 @@ class Simulation:
             raise ValueError("Attempting to get single env, but simulation has multiple envs")
         return self._vecenv.envs[0]
 
+    def get_policy_state(self):
+        """Get the policy state."""
+        return self._policy_state
+
 
 @dataclass
 class SimulationResults:
