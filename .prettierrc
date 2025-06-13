@@ -1,5 +1,6 @@
 {
   "singleQuote": true,
+  "trailingComma": "none",
   "overrides": [
     {
       "files": [".vscode/*.json", "*.code-workspace"],
