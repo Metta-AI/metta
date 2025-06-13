@@ -8,7 +8,6 @@ game:
     rewards:
       heart: 0.333
   map_builder:
-
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 2
     room:

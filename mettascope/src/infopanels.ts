@@ -8,7 +8,7 @@
 //   * It will be only closed by clicking on the X.
 //   * It will loose its hover stem on the bottom when it detached mode.
 
-import { find, findIn, onEvent, removeChildren } from "./htmlutils.js";
+import { find, findIn, onEvent, removeChildren, findAttr } from "./htmlutils.js";
 import { state, ui } from "./common.js";
 import { getAttr } from "./replay.js";
 import * as Common from "./common.js";
@@ -30,7 +30,6 @@ export class InfoPanel {
 }
 
 onEvent("click", ".infopanel .close", (target: HTMLElement, e: Event) => {
-  console.log("Info panel close clicked");
   let panel = target.parentElement as HTMLElement;
   panel.remove();
   ui.infoPanels = ui.infoPanels.filter(p => p.div !== panel);
@@ -41,11 +40,10 @@ infoPanelTemplate.remove();
 
 var hoverPanel = infoPanelTemplate.cloneNode(true) as HTMLElement;
 document.body.appendChild(hoverPanel);
+findIn(hoverPanel, ".actions").classList.add("hidden");
 hoverPanel.classList.add("hidden");
 
 hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
-  console.log("Info panel clicked");
-
   // Create a new info panel.
   let panel = new InfoPanel(ui.delayedHoverObject);
   panel.div = infoPanelTemplate.cloneNode(true) as HTMLElement;
@@ -56,6 +54,15 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
   updateDom(panel.div, panel.object);
   panel.div.style.top = hoverPanel.style.top;
   panel.div.style.left = hoverPanel.style.left;
+
+  // Show the actions buttons (memory, etc.) if the object is an agent
+  // and if the websocket is connected.
+  var actions = findIn(panel.div, ".actions");
+  if (state.ws != null && panel.object.hasOwnProperty("agent_id")) {
+    actions.classList.remove("hidden");
+  } else {
+    actions.classList.add("hidden");
+  }
 
   ui.dragHtml = panel.div;
   // Compute mouse position relative to the panel.
@@ -77,7 +84,6 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
 export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
     updateDom(hoverPanel, object);
-
     hoverPanel.classList.remove("hidden");
 
     let panelRect = hoverPanel.getBoundingClientRect();
@@ -90,7 +96,6 @@ export function updateHoverPanel(object: any) {
     // Put it in the center above the object.
     hoverPanel.style.left = uiPoint.x() - panelRect.width / 2 + "px";
     hoverPanel.style.top = uiPoint.y() - panelRect.height + "px";
-
   } else {
     hoverPanel.classList.add("hidden");
   }
@@ -100,12 +105,16 @@ export function updateHoverPanel(object: any) {
 /** Update the dom tree of the info panel. */
 function updateDom(htmlPanel: HTMLElement, object: any) {
   // Update the readout.
-  var top = findIn(htmlPanel, ".top");
+  htmlPanel.setAttribute("data-object-id", getAttr(object, "id"));
+  htmlPanel.setAttribute("data-agent-id", getAttr(object, "agent_id"));
+
+  var params = findIn(htmlPanel, ".params");
   var paramTemplate = findIn(infoPanelTemplate, ".param");
   var inventory = findIn(htmlPanel, ".inventory");
   var itemTemplate = findIn(infoPanelTemplate, ".item");
+  let actions = findIn(hoverPanel, ".actions");
 
-  removeChildren(top);
+  removeChildren(params);
   //top.appendChild(pin);
   removeChildren(inventory);
 
@@ -133,7 +142,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
       var param = paramTemplate.cloneNode(true) as HTMLElement;
       param.querySelector(".name")!.textContent = key;
       param.querySelector(".value")!.textContent = value;
-      top.appendChild(param);
+      params.appendChild(param);
     }
   }
 }

@@ -3,6 +3,8 @@ defaults:
   - _self_
 
 game:
+  num_agents: 4
+  max_steps: 2000
   map_builder:
     room:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
