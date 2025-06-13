@@ -84,6 +84,7 @@ jobs:
 
       - name: Configure SkyPilot API server
         run: |
+          mkdir -p $HOME/.sky
           echo "api_server:" > $HOME/.sky/config.yaml
           echo "  endpoint: ${{ secrets.SKYPILOT_API_URL }}" >> $HOME/.sky/config.yaml
 
