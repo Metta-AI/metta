@@ -7,5 +7,5 @@ tasks:
   /env/mettagrid/navigation_sequence/experiments/sparse_terrain: 1
   /env/mettagrid/navigation_sequence/experiments/maze_terrain: 1
   /env/mettagrid/navigation_sequence/experiments/dense_terrain: 1
-  /env/mettagrid/navigation_sequence/experiments/terrain_from_numpy: 10
+  /env/mettagrid/navigation_sequence/experiments/terrain_from_numpy: 3
   /env/mettagrid/curriculum/navigation: 4
