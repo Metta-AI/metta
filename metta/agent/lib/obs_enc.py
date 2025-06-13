@@ -8,13 +8,75 @@ from tensordict import TensorDict
 from metta.agent.lib.nn_layer_library import LayerBase
 
 
+class ObsTokenPadStripper(LayerBase):
+    """
+    This layer does not strip all padding. It finds the sequence (out of all sequences in the batch) that has the most
+    dense tokens, gets that index, and then slices the obs tensor at that point. That means that perfectly eliminates
+    the padding tokens from the the sequence with the fewest padding tokens and also removes that number of padding
+    tokens from all other sequences. In practice, the sequence with the most dense tokens can have many more dense
+    tokens than the average sequence so there is room for improvement by computing attention over ragged tensors.
+    """
+    def __init__(
+        self,
+        obs_shape: Tuple[int, ...],
+        **cfg,
+    ) -> None:
+        super().__init__(**cfg)
+        self._obs_shape = obs_shape
+        self._M = obs_shape[0]
+
+    def _make_net(self) -> None:
+        # unfortunately, we can't know the output shape's 0th dim (seq length) until we see the data. however,
+        # downstream layers should not need to know this in initializing any of their learnable parameters.
+        # so we just set it to 0 for now.
+        self._out_tensor_shape = [0, 3]
+
+    def _forward(self, td: TensorDict) -> TensorDict:
+        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
+        observations = td.get("x")
+
+        B = observations.shape[0]
+        TT = 1
+        td["_B_"] = B
+        td["_TT_"] = TT
+        if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
+            TT = observations.shape[1]
+            td["_TT_"] = TT
+            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
+        td["_BxTT_"] = B * TT
+
+        coords = observations[..., 0]
+        obs_mask = coords == 255  # important! true means mask me
+
+        # 1) find each row's flip‐point
+        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
+
+        # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
+        max_flip = flip_pts.max()  # e.g. tensor(3, device='cuda')
+        if max_flip == 0:
+            max_flip = max_flip + self._M  # hack to avoid 0. should instead grab
+
+        # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
+        positions = torch.arange(self._M, device=obs_mask.device)
+
+        # 4) make a boolean column mask: keep all columns strictly before max_flip
+        keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
+
+        # 5) now "slice" your batch in one go, on the GPU:
+        observations = observations[:, keep_cols]  # shape [B, max_flip]
+        obs_mask = obs_mask[:, keep_cols]
+
+        td[self._name] = observations
+        td["obs_mask"] = obs_mask
+        return td
+
+
 class ObsTokenShaper(LayerBase):
     def __init__(
         self,
         obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
         feature_normalizations: list[float],
-        use_max_n_dense: Optional[bool] = None,  # delete
         **cfg,
     ) -> None:
         super().__init__(**cfg)
