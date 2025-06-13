@@ -255,11 +255,6 @@ export function updateSelection(object: any, setFollow = false) {
   requestFrame();
 }
 
-// /** Handle scrubber change events. */
-// function onScrubberChange() {
-//   //updateStep(parseInt(html.scrubber.value), true);
-// }
-
 /** Handle key down events. */
 onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
   let event = e as KeyboardEvent;
