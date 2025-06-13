@@ -37,7 +37,7 @@ resource "aws_ecr_replication_configuration" "regions" {
       dynamic "destination" {
         for_each = var.replication_regions
         content {
-          region      = each.value
+          region      = destination.value
           registry_id = data.aws_caller_identity.current.account_id
         }
       }
