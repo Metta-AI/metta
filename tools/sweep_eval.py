@@ -10,12 +10,12 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.protein_opt.metta_protein import MettaProtein
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
-from wandb_carbs import WandbCarbs
 
 
 def log_file(run_dir, name, data, wandb_run):
@@ -61,7 +61,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
             policy_pr = policy_store.policy("wandb://run/" + cfg.run)
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
-            WandbCarbs._record_failure(wandb_run)
+            MettaProtein._record_observation(wandb_run, 0.0, 0.0, allow_update=True)  # Record as failure
             return 1
 
         eval = SimulationSuite(
@@ -131,11 +131,11 @@ def main(cfg: DictConfig | ListConfig) -> int:
         # Add policy to wandb sweep
         policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_pr)
 
-        # Record observation in CARBS if enabled
+        # Record observation in Protein optimizer
         total_time = train_time + eval_time
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
-        WandbCarbs._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
+        MettaProtein._record_observation(wandb_run, eval_metric or 0.0, total_time, allow_update=True)
 
         wandb_run.summary.update({"run_time": total_time})
         return 0
