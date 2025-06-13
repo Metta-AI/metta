@@ -1,0 +1,31 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - agent: simple
+  - sim: sweep_eval
+  - trainer: puffer
+  - _self_
+
+cmd: sweep
+sweep_name: protein_pong_test
+sweep_params: "sweep/protein_pong_sweep"
+sweep_params_override: {}
+sweep: ???
+
+metric: action.use.altar
+num_random_samples: 10
+
+trainer:
+  evaluate_interval: 300
+
+sim:
+  num_episodes: 5
+
+sweep_job:
+  evals: ${sim}
+
+data_dir: ./train_dir
+run: protein_pong_test  # Set a default run name
+sweep_dir: "${data_dir}/sweep/${sweep_name}"
+runs_dir: "${sweep_dir}/runs"
+dist_cfg_path: "${sweep_dir}/dist_cfg.yaml"
