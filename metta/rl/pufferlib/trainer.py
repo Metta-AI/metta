@@ -157,8 +157,6 @@ class PufferTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
-        self._last_agent_step = self.agent_step
-        self._total_minibatches = 0
 
         assert self.trainer_cfg.optimizer.type in (
             "adam",
@@ -211,10 +209,20 @@ class PufferTrainer:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
         if wandb_run and self._master:
-            wandb_run.define_metric("train/agent_step")
-            wandb_run.define_metric("train/avg_agent_steps_per_update", step_metric="train/agent_step")
-            for k in ["0verview", "env", "losses", "performance", "train"]:
-                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
+            # setup wandb x-axis values
+            wandb_run.define_metric("train/step")
+            wandb_run.define_metric("train/epoch")
+            wandb_run.define_metric("train/total_time")
+            wandb_run.define_metric("train/train_time")
+
+            # set the default x-axis to be step count
+            for k in ["overview", "env", "losses", "performance"]:
+                wandb_run.define_metric(f"{k}/*", step_metric="train/step")
+
+            # override some plots
+            wandb_run.define_metric("overview/reward_vs_train_time", step_metric="train/train_time")
+            wandb_run.define_metric("overview/reward_vs_total_time", step_metric="train/total_time")
+            wandb_run.define_metric("overview/reward_vs_epoch", step_metric="train/epoch")
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
@@ -461,9 +469,6 @@ class PufferTrainer:
     @with_instance_timer("_train")
     def _train(self):
         self.losses = self._make_losses()
-        self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
-        steps_since_last = self.agent_step - self._last_agent_step
-        self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
         with self.timer("_train.misc"):
             idxs = self.experience.sort_training_data()
@@ -738,32 +743,51 @@ class PufferTrainer:
                         weight_metrics[f"weights/{key}/{name}"] = value
 
         # Calculate derived stats from local roll-outs (master process will handle logging)
-        agent_steps = self.agent_step
-        avg_steps_per_update = 0.0
-        if self._total_minibatches:
-            avg_steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
-            self._last_agent_step = agent_steps
-
         learning_rate = self.optimizer.param_groups[0]["lr"]
         losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         if self.wandb_run and self._master:
+            elapsed_times = self.timer.get_all_elapsed()
+            wall_time = self.timer.get_elapsed()
+            epoch_time = elapsed_times.get("epoch", 0)
+            train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
+
+            # these were defined as wandb x-axis values (step_metric) in init()
+            x_axis_values = {
+                "train/step": self.agent_step,
+                "train/total_time": wall_time,
+                "train/epoch_time": epoch_time,
+                "train/train_time": train_time,
+            }
+
             lap_times = self.timer.lap_all(self.agent_step)
             wall_time_for_lap = self.timer.get_last_elapsed()
             training_time_for_lap = lap_times.get("_rollout", 0) + lap_times.get("_train", 0)
-            steps_per_second = self.timer.get_lap_rate(self.agent_step) if wall_time_for_lap > 0 else 0
 
             timing_logs = {
-                "timing/steps_per_second": steps_per_second,
                 "timing/training_efficiency": training_time_for_lap / wall_time_for_lap if wall_time_for_lap > 0 else 0,
                 **{
-                    f"timing/fraction/{op}": elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                    f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
+                    for op, elapsed in elapsed_times.items()
+                },
+                **{
+                    f"timing/lap_fraction/{op}": elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
                     for op, elapsed in lap_times.items()
                 },
             }
 
-            overview = {"SPS": steps_per_second}
+            steps_per_second = self.timer.get_lap_rate(self.agent_step) if wall_time_for_lap > 0 else 0
+
+            overview = {
+                "sps": steps_per_second,  # average rate since start
+                "lap_sps": steps_per_second,  # lap rate for the current epoch
+                "steps_per_training_sec": steps_per_second,  # average rate vs training time since start
+                "lap_steps_per_training_sec": steps_per_second,  # average rate vs training time since start
+                "reward_vs_train_time": steps_per_second,
+                "reward_vs_total_time": steps_per_second,
+                "reward_vs_epoch": steps_per_second,
+            }
 
             # Add custom overview items
             for k, v in self.trainer_cfg.stats.overview.items():
@@ -775,12 +799,11 @@ class PufferTrainer:
                 if score is not None:
                     overview[f"{category}_evals"] = score
 
-            # Build training metrics
             train_logs = {
-                "train/agent_step": self.agent_step,  # defined as the x-axis value (step_metric) in init()
                 "train/epoch": self.epoch,
                 "train/learning_rate": learning_rate,
                 "train/avg_agent_steps_per_update": avg_steps_per_update,
+                **x_axis_values,
             }
 
             # Add the IIR filtered average reward if using that RL formulation
