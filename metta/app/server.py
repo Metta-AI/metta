@@ -4,8 +4,8 @@ import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
-from metta.app.routes import dashboard_routes, stats_routes
 from metta.app.metta_repo import MettaRepo
+from metta.app.routes import dashboard_routes, stats_routes
 
 
 def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
