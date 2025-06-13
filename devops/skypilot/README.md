@@ -255,9 +255,6 @@ Sandboxes provide persistent development environments for experimentation.
 ```bash
 # SSH into sandbox (cluster name shown after creation)
 ssh <cluster_name>
-
-# Or use SkyPilot SSH
-sky ssh <cluster_name>
 ```
 
 ### Managing Sandboxes
