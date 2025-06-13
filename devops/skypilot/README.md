@@ -151,7 +151,6 @@ sky jobs cancel --all
 
 # Cancel jobs by name pattern
 sky jobs cancel -n "experiment_*"
-
 ```
 
 ### Job Status
