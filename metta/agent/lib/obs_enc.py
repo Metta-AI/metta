@@ -191,6 +191,28 @@ class ObsTokenShaperValueEmbed(LayerBase):
             observations = einops.rearrange(observations, "b t h c -> (b t) h c")
             # observations = observations.flatten(0, 1)
         td["_BxTT_"] = B * TT
+        M = observations.shape[1]
+
+        coords = observations[..., 0]
+        obs_mask = coords == 255  # important! true means mask me
+
+        # 1) find each row’s flip‐point
+        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
+
+        # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
+        max_flip = flip_pts.max()  # e.g. tensor(3, device='cuda')
+        if max_flip == 0:
+            max_flip = max_flip + M  # hack to avoid 0. should instead grab
+
+        # 3) build a 1‐D “positions” row [0,1,2,…,L−1]
+        positions = torch.arange(M, device=obs_mask.device)
+
+        # 4) make a boolean column mask: keep all columns strictly before max_flip
+        keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
+
+        # 5) now “slice” your batch in one go, on the GPU:
+        observations = observations[:, keep_cols]  # shape [B, max_flip]
+        obs_mask = obs_mask[:, keep_cols]
 
         # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
         coords_byte = observations[..., 0].to(torch.uint8)
@@ -235,8 +257,6 @@ class ObsTokenShaperValueEmbed(LayerBase):
         # Combined embedding portion
         feat_vectors[..., : self._atr_embed_dim] = combined_embeds
         feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = normalized_atr_values
-
-        obs_mask = atr_indices == 0  # important! true means 0 ie mask me
 
         td[self._name] = feat_vectors
         td["obs_mask"] = obs_mask
@@ -774,6 +794,28 @@ class ObsTokenCatFourier(LayerBase):
             observations = einops.rearrange(observations, "b t h c -> (b t) h c")
             # observations = observations.flatten(0, 1)
         td["_BxTT_"] = B * TT
+        M = observations.shape[1]
+
+        coords = observations[..., 0]
+        obs_mask = coords == 255  # important! true means mask me
+
+        # 1) find each row’s flip‐point
+        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
+
+        # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
+        max_flip = flip_pts.max()  # e.g. tensor(3, device='cuda')
+        if max_flip == 0:
+            max_flip = max_flip + M  # hack to avoid 0. should instead grab
+
+        # 3) build a 1‐D “positions” row [0,1,2,…,L−1]
+        positions = torch.arange(M, device=obs_mask.device)
+
+        # 4) make a boolean column mask: keep all columns strictly before max_flip
+        keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
+
+        # 5) now “slice” your batch in one go, on the GPU:
+        observations = observations[:, keep_cols]  # shape [B, max_flip]
+        obs_mask = obs_mask[:, keep_cols]
 
         atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
@@ -833,8 +875,6 @@ class ObsTokenCatFourier(LayerBase):
 
         # Place normalized attribute values in the feature vector
         feat_vectors[..., self._atr_embed_dim + self._coord_embed_dim :] = normalized_atr_values
-
-        obs_mask = atr_indices == 0  # important! true means 0 ie mask me
 
         td[self._name] = feat_vectors
         td["obs_mask"] = obs_mask
