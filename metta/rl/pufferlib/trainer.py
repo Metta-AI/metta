@@ -965,6 +965,10 @@ class PufferTrainer:
         # Read from config with a default of 1800 seconds (30 minutes)
         wandb_inactivity_timeout_seconds = self.trainer_cfg.get("wandb_inactivity_timeout_seconds", 1800)
 
+        # Get rank and local_rank from instance attributes or environment variables
+        rank = getattr(self, "rank", int(os.environ.get("RANK", 0)))
+        local_rank = getattr(self, "local_rank", int(os.environ.get("LOCAL_RANK", 0)))
+
         logger.info(
             f"W&B monitor thread started. Rank: {rank}, Local Rank: {local_rank}. "
             f"Check interval: {check_interval}s, Max log inactivity timeout: {wandb_inactivity_timeout_seconds}s."
