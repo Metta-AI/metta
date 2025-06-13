@@ -20,7 +20,7 @@ def validate_merged_config(
 
     if "trainer" in merged_cfg:
         try:
-            create_trainer_config(merged_cfg.trainer)
+            create_trainer_config(merged_cfg)  # type: ignore[arg-type]
         except (ValueError, TypeError, ValidationError) as e:
             raise ValueError("Invalid trainer config after applying overrides") from e
 
@@ -57,5 +57,7 @@ def load_train_job_config_with_overrides(cfg: DictConfig | ListConfig) -> DictCo
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
     if os.path.exists(overrides_path):
         override_cfg = OmegaConf.load(overrides_path)
+
+        # Since sweep_job mimics train_job.yaml, just merge them directly
         cfg = validate_merged_config(cfg, override_cfg)
     return cfg
