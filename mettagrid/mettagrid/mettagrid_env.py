@@ -21,6 +21,7 @@ from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.diversity import calculate_diversity_bonus
+from mettagrid.util.perf_profiler import PerfProfiler, profiled
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
@@ -79,6 +80,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
+        self._profiler = PerfProfiler()
 
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
@@ -99,6 +101,26 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
+    def _apply_diversity_bonus(self) -> None:
+        if not self._task.env_cfg().game.diversity_bonus.enabled:
+            return
+
+        self.rewards *= calculate_diversity_bonus(
+            self._c_env.get_episode_rewards(),
+            self._c_env.get_agent_groups(),
+            self._task.env_cfg().game.diversity_bonus.similarity_coef,
+            self._task.env_cfg().game.diversity_bonus.diversity_coef,
+        )
+
+    def _on_episode_end(self, infos: Dict[str, Any]) -> None:
+        with self._profiler.time("_on_episode_end"):
+            self._apply_diversity_bonus()
+            self.process_episode_stats(infos)
+            self._should_reset = True
+            self._task.complete(self._c_env.get_episode_rewards().mean())
+        infos["perf"] = dict(self._profiler.stats)
+        self._profiler.reset()
+
     def _initialize_c_env(self) -> None:
         """Initialize the C++ environment."""
         task = self._task
@@ -111,9 +133,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             level = last_level
 
         if level is None:
-            map_builder_config = task.env_cfg().game.map_builder
-            map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
-            level = map_builder.build()
+            with self._profiler.time("reset:map_gen"):
+                map_builder_config = task.env_cfg().game.map_builder
+                map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
+                level = map_builder.build()
 
         self._last_level_per_task[task.id()] = level
 
@@ -130,14 +153,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        self._c_env = MettaGrid(config_dict, level.grid.tolist())
+        with self._profiler.time("reset:make_c_env"):
+            self._c_env = MettaGrid(config_dict, level.grid.tolist())
 
         self._grid_env = self._c_env
 
     @override  # pufferlib.PufferEnv.reset
+    @profiled("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
         self._task = self._curriculum.get_task()
-
         self._initialize_c_env()
 
         assert self.observations.dtype == dtype_observations
@@ -158,6 +182,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
+    @profiled("step")
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         """
         Execute one timestep of the environment dynamics with the given actions.
@@ -189,17 +214,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
-            if self._task.env_cfg().game.diversity_bonus.enabled:
-                self.rewards *= calculate_diversity_bonus(
-                    self._c_env.get_episode_rewards(),
-                    self._c_env.get_agent_groups(),
-                    self._task.env_cfg().game.diversity_bonus.similarity_coef,
-                    self._task.env_cfg().game.diversity_bonus.diversity_coef,
-                )
-
-            self.process_episode_stats(infos)
-            self._should_reset = True
-            self._task.complete(self._c_env.get_episode_rewards().mean())
+            self._on_episode_end(infos)
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
