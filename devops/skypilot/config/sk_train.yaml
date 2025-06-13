@@ -3,7 +3,7 @@ resources:
     - cloud: aws
       region: us-east-1
       use_spot: true
-      accelerators: "L4:1"
+      accelerators: "L4:4"
     - cloud: aws
       region: us-east-1
       use_spot: true

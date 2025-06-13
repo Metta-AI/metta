@@ -11,6 +11,7 @@ total_timesteps: 50_000_000_000
 
 clip_coef: 0.1
 ent_coef: 0.0021
+ent_pred_coef: 0.0002 # assuming agents get 0.5 reward per 1,000 steps
 gae_lambda: 0.916
 gamma: 0.977
 
