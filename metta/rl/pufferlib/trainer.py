@@ -1006,6 +1006,7 @@ class PufferTrainer:
                     logger.error(f"Error closing vecenv during forced exit: {e}", exc_info=True)
 
                 logger.critical("Forcing process exit due to prolonged W&B inactivity.")
+                wandb.finish(exit_code=1)  # call wandb.finish() to ensure all the logs are flushed
                 os._exit(1)  # Terminate the entire process immediately
 
 
