@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import einops
 import numpy as np
 import torch
+import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
@@ -17,7 +18,6 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.fast_gae import compute_gae
 from metta.rl.pufferlib.experience import Experience
 from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.policy import PufferAgent
@@ -31,6 +31,14 @@ from metta.sim.vecenv import make_vecenv
 from metta.util.timing import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+
+try:
+    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
+except ImportError:
+    raise ImportError(
+        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
+        "try installing with --no-build-isolation"
+    ) from None
 
 torch.set_float32_matmul_precision("high")
 
@@ -51,12 +59,17 @@ class PufferTrainer:
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
-
         self.sim_suite_config = sim_suite_config
+
+        torch.backends.cudnn.deterministic = self.trainer_cfg.get("torch_deterministic", True)
+        torch.backends.cudnn.benchmark = True
 
         self._master = True
         self._world_size = 1
         self.device: torch.device = cfg.device
+        if torch.distributed.is_initialized():
+            self.device = f"cuda:{os.environ['LOCAL_RANK']}"
+
         self._batch_size = self.trainer_cfg.batch_size
         self._minibatch_size = self.trainer_cfg.minibatch_size
         if torch.distributed.is_initialized():
@@ -85,6 +98,7 @@ class PufferTrainer:
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -94,34 +108,12 @@ class PufferTrainer:
 
         logger.info("Loading checkpoint")
         os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
+
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
+        policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
-        policy_record = None
-        load_policy_attempts = 10
-        while policy_record is None and load_policy_attempts > 0:
-            if checkpoint.policy_path:
-                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                policy_record = policy_store.policy(checkpoint.policy_path)
-                if "average_reward" in checkpoint.extra_args:
-                    self.average_reward = checkpoint.extra_args["average_reward"]
-            elif cfg.trainer.initial_policy.uri is not None:
-                logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
-                policy_record = policy_store.policy(cfg.trainer.initial_policy)
-            else:
-                policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
-
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    policy_record = policy_store.policy(policy_path)
-                elif self._master:
-                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                    policy_record = policy_store.create(metta_grid_env)
-            if policy_record is not None:
-                break
-            load_policy_attempts -= 1
-            time.sleep(5)
-
-        assert policy_record is not None, "No policy found"
+        if "average_reward" in checkpoint.extra_args:
+            self.average_reward = checkpoint.extra_args["average_reward"]
 
         if self._master:
             logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
@@ -136,18 +128,16 @@ class PufferTrainer:
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
-
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if self.trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
+        self.kickstarter = Kickstarter(cfg, policy_store, actions_names, actions_max_params)
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
-            # Store the original policy for cleanup purposes
             self._original_policy = self.policy
             self.policy = DistributedMettaAgent(self.policy, self.device)
 
@@ -158,10 +148,10 @@ class PufferTrainer:
         self._last_agent_step = self.agent_step
         self._total_minibatches = 0
 
-        assert self.trainer_cfg.optimizer.type in (
-            "adam",
-            "muon",
-        ), f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
+        # Optimizer
+        assert self.trainer_cfg.optimizer.type in ("adam", "muon"), (
+            f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
+        )
         opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
@@ -171,9 +161,10 @@ class PufferTrainer:
             weight_decay=self.trainer_cfg.optimizer.weight_decay,
         )
 
-        # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
+
+        # validate that policy matches environment
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
@@ -213,6 +204,7 @@ class PufferTrainer:
             wandb_run.define_metric("train/avg_agent_steps_per_update", step_metric="train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
+        self.model_size = sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
@@ -228,7 +220,6 @@ class PufferTrainer:
     def train(self):
         logger.info("Starting training")
 
-        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
@@ -246,7 +237,6 @@ class PufferTrainer:
                 with self.timer("_train"):
                     self._train()
 
-            # Processing stats
             with self.timer("_process_stats"):
                 self._process_stats()
 
@@ -264,7 +254,6 @@ class PufferTrainer:
                 f"[{steps_per_sec:.0f} steps/sec]"
             )
 
-            # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 with self.timer("_checkpoint_trainer", log=logging.INFO):
                     self._checkpoint_trainer()
@@ -314,36 +303,22 @@ class PufferTrainer:
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-
         logger.info("Simulation complete")
 
-        self._eval_categories = set()
-        for sim_name in self.sim_suite_config.simulations.keys():
-            self._eval_categories.add(sim_name.split("/")[0])
+        self._eval_categories = {sim_name.split("/")[0] for sim_name in self.sim_suite_config.simulations.keys()}
         self._eval_suite_avgs = {}
-
-        # Compute scores for each evaluation category
         for category in self._eval_categories:
             score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
-            # Only add the score if we got a non-None result
-            if score is not None:
-                self._eval_suite_avgs[f"{category}_score"] = score
-            else:
-                self._eval_suite_avgs[f"{category}_score"] = 0.0
+            self._eval_suite_avgs[f"{category}_score"] = score if score is not None else 0.0
 
-        # Get overall score (average of all rewards)
-        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
-        self._current_eval_score = overall_score if overall_score is not None else 0.0
-        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
-
-        # Categorize scores by environment type
-        self._eval_grouped_scores = {}
-        # Process each score and assign to the right category
-        for (_, sim_name, _), score in all_scores.items():
-            for category in self._eval_categories:
-                if category in sim_name.lower():
-                    self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
+        self._current_eval_score = stats_db.get_average_metric_by_filter("reward", self.last_pr) or 0.0
+        self._eval_grouped_scores = {
+            f"{category}/{sim_name.split('/')[-1]}": score
+            for (_, sim_name, _), score in stats_db.simulation_scores(self.last_pr, "reward").items()
+            for category in self._eval_categories
+            if category in sim_name.lower()
+        }
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
@@ -354,13 +329,16 @@ class PufferTrainer:
     @profile_section("eval")
     def _rollout(self):
         experience, profile = self.experience, self.profile
+        assert experience is not None, "Experience buffer not initialized"
+        profile.start_epoch(self.epoch, "eval")
 
         with profile.eval_misc:
             policy = self.policy
             infos = defaultdict(list)
-            lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
 
-        while not experience.full:
+            experience.reset_for_rollout()
+
+        while not experience.ready_for_training:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
                 if self.trainer_cfg.require_contiguous_env_ids:
@@ -369,26 +347,24 @@ class PufferTrainer:
                         f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
                     )
 
-                training_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
-
             with profile.eval_misc:
+                # Convert env_id slice to continuous range for indexing
+                training_env_id = slice(env_id[0], env_id[-1] + 1)
                 num_steps = sum(mask)
                 self.agent_step += num_steps * self._world_size
 
                 o = torch.as_tensor(o)
                 r = torch.as_tensor(r)
                 d = torch.as_tensor(d)
+                t = torch.as_tensor(t)
 
             with profile.eval_forward, torch.no_grad():
-                assert training_env_id is not None and training_env_id.numel() > 0, (
-                    "training_env_id must exist and have elements"
-                )
-                assert training_env_id.device == lstm_h.device, "training_env_id must be on the same device as lstm_h"
-                assert training_env_id.dim() == 1, "training_env_id should be 1D (list of env indices)"
-                assert training_env_id.max() < lstm_h.shape[1], "Index out of bounds for lstm_h"
-                assert training_env_id.min() >= 0, "Negative index in training_env_id"
+                state = PolicyState()
 
-                state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
+                lstm_state = experience.get_lstm_state(training_env_id.start)
+                if lstm_state is not None:
+                    state.lstm_h = lstm_state["lstm_h"]
+                    state.lstm_c = lstm_state["lstm_c"]
 
                 o_device = o.to(self.device, non_blocking=True)
                 actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
@@ -397,21 +373,29 @@ class PufferTrainer:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
                     assert_shape(actions, ("BT", 2), "actions")
 
-                lstm_h[:, training_env_id] = (
-                    state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
-                )
-                lstm_c[:, training_env_id] = (
-                    state.lstm_c if state.lstm_c is not None else torch.zeros_like(lstm_c[:, training_env_id])
-                )
+                lstm_state_to_store = None
+                if self.trainer_cfg.get("use_rnn", True) and state.lstm_h is not None:
+                    lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
                 value = value.flatten()
-                mask = torch.as_tensor(mask)  # * policy.mask)
-                o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
+                mask_tensor = torch.as_tensor(mask)
+
+                experience.store(
+                    obs=o if self.trainer_cfg.cpu_offload else o_device,
+                    actions=actions,
+                    logprobs=selected_action_log_probs,
+                    rewards=r.to(self.device, non_blocking=True),
+                    terminals=d.to(self.device, non_blocking=True),
+                    truncations=t.to(self.device, non_blocking=True),
+                    values=value,
+                    env_id=training_env_id,
+                    mask=mask_tensor,
+                    lstm_state=lstm_state_to_store,
+                )
 
                 for i in info:
                     for k, v in unroll_nested_dict(i):
@@ -437,207 +421,248 @@ class PufferTrainer:
                         try:
                             self.stats[k] += v
                         except TypeError:
-                            self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
+                            self.stats[k] = [self.stats[k], v]
 
         # TODO: Better way to enable multiple collects
-        experience.ptr = 0
-        experience.step = 0
         return self.stats, infos
-
-    def _get_experience_buffer_mean_reward(self) -> float:
-        # Use rewards from experience buffer
-        if hasattr(self, "experience") and self.experience.rewards_np is not None:
-            return float(np.mean(self.experience.rewards_np))
-
-        return 0.0
 
     @profile_section("train")
     def _train(self):
         experience, profile = self.experience, self.profile
+        assert experience is not None, "Experience buffer not initialized"
+        profile.start_epoch(self.epoch, "train")
         self.losses = self._make_losses()
         self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         steps_since_last = self.agent_step - self._last_agent_step
         self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
         with profile.train_misc:
-            idxs = experience.sort_training_data()
-            dones_np = experience.dones_np[idxs]
-            values_np = experience.values_np[idxs]
-            rewards_np = experience.rewards_np[idxs]
+            config = self.trainer_cfg
 
-            if self.trainer_cfg.average_reward:
-                # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
-                # where ρ is the average reward estimate
+            # Reset importance sampling ratios
+            experience.reset_ratio()
 
-                current_batch_mean = self._get_experience_buffer_mean_reward()
+            # Prioritized sampling parameters
+            b0 = config.get("prio_beta0", 0.6)
+            a = config.get("prio_alpha", 0.0)
+            total_epochs = max(1, config.total_timesteps // config.batch_size)
+            anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
 
-                # Apply IIR filter (exponential moving average)
-                alpha = self.trainer_cfg.average_reward_alpha
+            # Update average reward estimate if enabled
+            if config.average_reward:
+                alpha = config.average_reward_alpha
+                current_batch_mean = experience.get_mean_reward()
                 self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
 
-                # Use filtered estimate for advantage computation
-                rewards_np_adjusted = (rewards_np - self.average_reward).astype(np.float32)
-                effective_gamma = 1.0
-                advantages_np = compute_gae(
-                    dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
-                )
-            else:
-                # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
-                effective_gamma = self.trainer_cfg.gamma
-                advantages_np = compute_gae(
-                    dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
-                )
+            # Compute advantages using puff_advantage
+            shape = experience.values.shape
+            advantages = torch.zeros(shape, device=self.device)
 
-            experience.returns_np = advantages_np + values_np
-            experience.flatten_batch(advantages_np)
+            # Adjust rewards for average reward if enabled
+            rewards_for_advantage = experience.rewards
+            if config.average_reward:
+                rewards_for_advantage = experience.rewards - self.average_reward
+
+            # Initial ratio is all ones
+            initial_ratio = torch.ones_like(experience.values)
+
+            advantages = self._compute_advantage(
+                experience.values,
+                rewards_for_advantage,
+                experience.dones,
+                initial_ratio,
+                advantages,
+                config.gamma if not config.average_reward else 1.0,
+                config.gae_lambda,
+                config.get("vtrace_rho_clip", 1.0),
+                config.get("vtrace_c_clip", 1.0)
+            )
 
         # Optimizing the policy and value network
-        total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
-        for _epoch in range(self.trainer_cfg.update_epochs):
-            lstm_state = PolicyState()
-            teacher_lstm_state = []
-            for mb in range(experience.num_minibatches):
-                with profile.train_misc:
-                    obs = experience.b_obs[mb]
-                    obs = obs.to(self.device, non_blocking=True)
-                    atn = experience.b_actions[mb]
-                    old_action_log_probs = experience.b_logprobs[mb]
-                    val = experience.b_values[mb]
-                    adv = experience.b_advantages[mb]
-                    ret = experience.b_returns[mb]
+        for mb in range(self._total_minibatches):
+            with profile.train_misc:
+                minibatch = experience.sample_minibatch(
+                    advantages=advantages,
+                    prio_alpha=a,
+                    prio_beta=anneal_beta,
+                    minibatch_idx=mb,
+                    total_minibatches=self._total_minibatches,
+                )
 
-                with profile.train_forward:
-                    # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
-                    _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
-                        obs, lstm_state, action=atn
-                    )
-                    if self.device == "cuda":
-                        torch.cuda.synchronize()
+            with profile.train_forward:
+                obs = minibatch["obs"]
+                if not config.get("use_rnn", True):
+                    obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
 
-                with profile.train_misc:
-                    if __debug__:
-                        assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
-                        assert_shape(old_action_log_probs, ("B", "T"), "old_action_log_probs")
+                lstm_state = PolicyState()
+                _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
+                    obs, lstm_state, action=minibatch["actions"]
+                )
 
-                    logratio = new_action_log_probs - old_action_log_probs.reshape(-1)
-                    ratio = logratio.exp()
+            with profile.train_misc:
+                new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
+                logratio = new_logprobs - minibatch["logprobs"]
+                ratio = logratio.exp()
+                experience.update_ratio(minibatch["indices"], ratio)
 
-                    with torch.no_grad():
-                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                        old_approx_kl = (-logratio).mean()
-                        approx_kl = ((ratio - 1) - logratio).mean()
-                        clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
+                with torch.no_grad():
+                    old_approx_kl = (-logratio).mean()
+                    approx_kl = ((ratio - 1) - logratio).mean()
+                    clipfrac = ((ratio - 1.0).abs() > config.clip_coef).float().mean()
 
-                    adv = self._compute_advantage(adv)
+                # Re-compute advantages with new ratios (V-trace)
+                rewards_adjusted = minibatch["rewards"] - (self.average_reward if config.average_reward else 0)
+                adv = self._compute_advantage(
+                    minibatch["values"],
+                    rewards_adjusted,
+                    minibatch["terminals"],
+                    ratio,
+                    minibatch["advantages"],
+                    1.0 if config.average_reward else config.gamma,
+                    config.gae_lambda,
+                    config.get("vtrace_rho_clip", 1.0),
+                    config.get("vtrace_c_clip", 1.0),
+                )
 
-                    # Policy loss
-                    pg_loss1 = -adv * ratio
-                    pg_loss2 = -adv * torch.clamp(ratio, 1 - self.trainer_cfg.clip_coef, 1 + self.trainer_cfg.clip_coef)
-                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+                # Normalize advantages with prioritized weights
+                if config.get("norm_adv", True):
+                    adv = minibatch["prio_weights"] * (adv - adv.mean()) / (adv.std() + 1e-8)
+                else:
+                    adv = minibatch["prio_weights"] * adv
 
-                    # Value loss
-                    newvalue = newvalue.view(-1)
-                    if self.trainer_cfg.clip_vloss:
-                        v_loss_unclipped = (newvalue - ret) ** 2
-                        v_clipped = val + torch.clamp(
-                            newvalue - val,
-                            -self.trainer_cfg.vf_clip_coef,
-                            self.trainer_cfg.vf_clip_coef,
-                        )
-                        v_loss_clipped = (v_clipped - ret) ** 2
-                        v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                        v_loss = 0.5 * v_loss_max.mean()
-                    else:
-                        v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
+                # Calculate losses
+                pg_loss = self._policy_loss(adv, ratio, config.clip_coef)
+                v_loss = self._value_loss(newvalue, minibatch["returns"], minibatch["values"], config)
+                entropy_loss = entropy.mean()
 
-                    entropy_loss = entropy.mean()
+                ks_action_loss, ks_value_loss = self.kickstarter.loss(self.agent_step, full_logprobs, newvalue, obs, [])
+                l2_reg_loss = self._compute_l2_loss(config.l2_reg_loss_coef, self.policy.l2_reg_loss)
+                l2_init_loss = self._compute_l2_loss(config.l2_init_loss_coef, self.policy.l2_init_loss)
 
-                    ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                        self.agent_step, full_log_probs_distribution, newvalue, obs, teacher_lstm_state
-                    )
+                loss = (
+                    pg_loss
+                    + config.vf_coef * v_loss
+                    - config.ent_coef * entropy_loss
+                    + l2_reg_loss
+                    + l2_init_loss
+                    + ks_action_loss
+                    + ks_value_loss
+                )
 
-                    l2_reg_loss = torch.tensor(0.0, device=self.device)
-                    if self.trainer_cfg.l2_reg_loss_coef > 0:
-                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
+                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
 
-                    l2_init_loss = torch.tensor(0.0, device=self.device)
-                    if self.trainer_cfg.l2_init_loss_coef > 0:
-                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
+                self._update_losses(
+                    pg_loss,
+                    v_loss,
+                    entropy_loss,
+                    old_approx_kl,
+                    approx_kl,
+                    clipfrac,
+                    l2_reg_loss,
+                    l2_init_loss,
+                    ks_action_loss,
+                    ks_value_loss,
+                    self._total_minibatches,
+                    importance=ratio.mean().item(),
+                )
 
-                    loss = (
-                        pg_loss
-                        - self.trainer_cfg.ent_coef * entropy_loss
-                        + v_loss * self.trainer_cfg.vf_coef
-                        + l2_reg_loss
-                        + l2_init_loss
-                        + ks_action_loss
-                        + ks_value_loss
-                    )
-
-                with profile.learn:
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+            with profile.learn:
+                self.optimizer.zero_grad()
+                loss.backward()
+                if (mb + 1) % self.experience.accumulate_minibatches == 0:
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), config.max_grad_norm)
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device == "cuda":
-                        torch.cuda.synchronize()
-
-                with profile.train_misc:
-                    if self.losses is None:
-                        raise ValueError("self.losses is None")
-
-                    self.losses.policy_loss += pg_loss.item() / total_minibatches
-                    self.losses.value_loss += v_loss.item() / total_minibatches
-                    self.losses.entropy += entropy_loss.item() / total_minibatches
-                    self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                    self.losses.approx_kl += approx_kl.item() / total_minibatches
-                    self.losses.clipfrac += clipfrac.item() / total_minibatches
-                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
-
-            if self.trainer_cfg.target_kl is not None:
-                if approx_kl > self.trainer_cfg.target_kl:
-                    break
+            if config.target_kl is not None and approx_kl > config.target_kl:
+                break
 
         with profile.train_misc:
             if self.lr_scheduler is not None:
                 self.lr_scheduler.step()
 
-            y_pred = experience.values_np
-            y_true = experience.returns_np
-            var_y = np.var(y_true)
-            explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-            self.losses.explained_variance = explained_var
-            self.epoch += 1
+            # Calculate explained variance
+            y_pred = experience.values.flatten()
+            y_true = advantages.flatten() + experience.values.flatten()
+            var_y = y_true.var()
+            explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
+            self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
+            self.epoch += 1
             profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
+
+    def _policy_loss(self, advantages, ratio, clip_coef):
+        """Calculate clipped policy loss."""
+        pg_loss1 = -advantages * ratio
+        pg_loss2 = -advantages * torch.clamp(ratio, 1 - clip_coef, 1 + clip_coef)
+        return torch.max(pg_loss1, pg_loss2).mean()
+
+    def _value_loss(self, newvalue, returns, oldvalue, config):
+        """Calculate clipped value loss."""
+        newvalue = newvalue.view(returns.shape)
+        if config.clip_vloss:
+            v_loss_unclipped = (newvalue - returns) ** 2
+            v_clipped = oldvalue + torch.clamp(
+                newvalue - oldvalue, -config.get("vf_clip_coef", 0.1), config.get("vf_clip_coef", 0.1)
+            )
+            v_loss_clipped = (v_clipped - returns) ** 2
+            return 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+        else:
+            return 0.5 * ((newvalue - returns) ** 2).mean()
+
+    def _update_losses(
+        self,
+        pg_loss,
+        v_loss,
+        entropy_loss,
+        old_approx_kl,
+        approx_kl,
+        clipfrac,
+        l2_reg_loss,
+        l2_init_loss,
+        ks_action_loss,
+        ks_value_loss,
+        total_minibatches,
+        importance=None,
+    ):
+        """Update loss tracking for logging."""
+        self.losses.policy_loss += pg_loss.item() / total_minibatches
+        self.losses.value_loss += v_loss.item() / total_minibatches
+        self.losses.entropy += entropy_loss.item() / total_minibatches
+        self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
+        self.losses.approx_kl += approx_kl.item() / total_minibatches
+        self.losses.clipfrac += clipfrac.item() / total_minibatches
+        self.losses.l2_reg_loss += (
+            l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
+        ) / total_minibatches
+        self.losses.l2_init_loss += (
+            l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
+        ) / total_minibatches
+        self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+        self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+        if importance is not None:
+            self.losses.importance += importance / total_minibatches
 
     def _checkpoint_trainer(self):
         if not self._master:
             return
 
-        pr = self._checkpoint_policy()
-
-        # Save filtered average reward estimate for restart continuity
+        policy_record = self._checkpoint_policy()
         extra_args = {}
         if self.trainer_cfg.average_reward:
             extra_args["average_reward"] = self.average_reward
 
         self.checkpoint = TrainerCheckpoint(
-            self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
+            self.agent_step, self.epoch, self.optimizer.state_dict(), policy_record.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
         if not self._master:
             return
 
-        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env
         assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv for checkpointing"
 
         name = self.policy_store.make_model_name(self.epoch)
@@ -660,12 +685,10 @@ class PufferTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": training_time,
-                "score": self._current_eval_score,
+                "score": self._current_eval_score or 0.0,  # Default to 0.0 if no evaluation yet
                 "eval_scores": self._eval_suite_avgs,
             },
         )
-        # this is hacky, but otherwise the initial_pr points
-        # at the same policy as the last_pr
         return self.last_pr
 
     def _save_policy_to_wandb(self):
@@ -675,8 +698,9 @@ class PufferTrainer:
         if self.wandb_run is None:
             return
 
-        pr = self._checkpoint_policy()
-        self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+        policy_record = self._checkpoint_policy()
+        if policy_record is not None:
+            self.policy_store.add_to_wandb_run(self.wandb_run.name, policy_record)
 
     def _generate_and_upload_replay(self):
         if self._master:
@@ -706,20 +730,13 @@ class PufferTrainer:
                     self.wandb_run.log(link_summary)
 
     def _process_stats(self):
-        # convert lists of values (collected across all environments and rollout steps on this GPU)
-        # into single mean values.
-        mean_stats = {}
-        for k, v in self.stats.items():
+        for k in list(self.stats.keys()):
             try:
-                mean_stats[k] = np.mean(v)
-            except (TypeError, ValueError) as e:
-                raise RuntimeError(
-                    f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
-                    f"All collected stats must be numeric values or lists of numeric values. "
-                    f"Error: {e}"
-                ) from e
-        self.stats = mean_stats
+                self.stats[k] = np.mean(self.stats[k])
+            except (TypeError, ValueError):
+                del self.stats[k]
 
+        # Collect weight metrics if needed
         weight_metrics = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
@@ -728,96 +745,91 @@ class PufferTrainer:
                     if key != "name":
                         weight_metrics[f"weights/{key}/{name}"] = value
 
-        # Calculate derived stats from local roll-outs (master process will handle logging)
-        sps = self.profile.SPS
-        agent_steps = self.agent_step
-        avg_steps_per_update = 0.0
-        if self._total_minibatches:
-            avg_steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
-            self._last_agent_step = agent_steps
-        epoch = self.epoch
-        learning_rate = self.optimizer.param_groups[0]["lr"]
-        losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
+        # Prepare logging data
+        losses = {k: v for k, v in self.losses.__dict__.items() if not k.startswith("_")}
         performance = {k: v for k, v in self.profile}
 
-        overview = {"SPS": sps}
+        # Overview metrics
+        overview = {"SPS": self.profile.SPS}
         for k, v in self.trainer_cfg.stats.overview.items():
             if k in self.stats:
                 overview[v] = self.stats[k]
 
+        # Add evaluation scores
         for category in self._eval_categories:
-            score = self._eval_suite_avgs.get(f"{category}_score", None)
+            score = self._eval_suite_avgs.get(f"{category}_score")
             if score is not None:
                 overview[f"{category}_evals"] = score
 
+        # Environment stats
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        # Add timing metrics to wandb
+        # Log to wandb if available
         if self.wandb_run and self._master:
-            timer_data = {}
-            wall_time = self.timer.get_elapsed()  # global timer
-            timer_data = self.timer.get_all_elapsed()
-
-            training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
-            overhead_time = wall_time - training_time
-            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
-
-            timing_logs = {
-                # Key performance indicators
-                "timing/steps_per_second": steps_per_sec,
-                "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
-                "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
-                # Breakdown by operation (as a single structured metric)
-                "timing/breakdown": {
-                    op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
-                    for op, elapsed in timer_data.items()
-                },
-                # Total time for reference
-                "timing/total_seconds": wall_time,
-            }
-
-            # Log everything to wandb
-            self.wandb_run.log(
-                {
-                    **{f"overview/{k}": v for k, v in overview.items()},
-                    **{f"losses/{k}": v for k, v in losses.items()},
-                    **{f"performance/{k}": v for k, v in performance.items()},
-                    **environment,
-                    **weight_metrics,
-                    **self._eval_grouped_scores,
-                    "train/agent_step": agent_steps,
-                    "train/avg_agent_steps_per_update": avg_steps_per_update,
-                    "train/epoch": epoch,
-                    "train/learning_rate": learning_rate,
-                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
-                    **timing_logs,
-                }
-            )
+            self._log_to_wandb(overview, losses, performance, environment, weight_metrics)
 
         self._eval_grouped_scores = {}
         self.stats.clear()
 
-    def _compute_advantage(self, adv: torch.Tensor) -> torch.Tensor:
-        """Compute normalized advantages, handling distributed training synchronization."""
-        adv = adv.reshape(-1)
-        if self.trainer_cfg.norm_adv:
-            if torch.distributed.is_initialized():
-                local_sum = einops.rearrange(adv.sum(), "-> 1")
-                local_sq_sum = einops.rearrange((adv * adv).sum(), "-> 1")
-                local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
+    def _log_to_wandb(self, overview, losses, performance, environment, weight_metrics):
+        """Log metrics to wandb."""
+        # Timing metrics
+        wall_time = self.timer.get_elapsed()
+        timer_data = self.timer.get_all_elapsed()
+        training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
+        overhead_time = wall_time - training_time
+        steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
 
-                stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
-                torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
+        timing_logs = {
+            "timing/steps_per_second": steps_per_sec,
+            "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
+            "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
+            "timing/breakdown": {
+                op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
+                for op, elapsed in timer_data.items()
+            },
+            "timing/total_seconds": wall_time,
+        }
 
-                global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
-                mu = global_sum / global_count
-                var = (global_sq_sum / global_count) - (mu * mu)
-                std = torch.sqrt(var.clamp(min=1e-8))
+        # Log everything to wandb
+        self.wandb_run.log(
+            {
+                **{f"overview/{k}": v for k, v in overview.items()},
+                **{f"losses/{k}": v for k, v in losses.items()},
+                **{f"performance/{k}": v for k, v in performance.items()},
+                **environment,
+                **weight_metrics,
+                **self._eval_grouped_scores,
+                "train/agent_step": self.agent_step,
+                "train/avg_agent_steps_per_update": self._agent_steps_per_update,
+                "train/epoch": self.epoch,
+                "train/learning_rate": self.optimizer.param_groups[0]["lr"],
+                "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+                **timing_logs,
+            }
+        )
 
-                adv = (adv - mu) / (std + 1e-8)
-            else:
-                adv = (adv - adv.mean()) / (adv.std() + 1e-8)
-        return adv
+    def _compute_advantage(self, values, rewards, terminals,
+            ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip):
+        '''CUDA kernel for puffer advantage with automatic CPU fallback.'''
+        try:
+            torch.ops.pufferlib.compute_puff_advantage(values, rewards, terminals,
+                ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip)
+        except (RuntimeError, AssertionError):
+            # Fallback to CPU if CUDA kernel fails or not available
+            device = values.device
+            values_cpu = values.cpu()
+            rewards_cpu = rewards.cpu()
+            terminals_cpu = terminals.cpu()
+            ratio_cpu = ratio.cpu()
+            advantages_cpu = advantages.cpu()
+
+            torch.ops.pufferlib.compute_puff_advantage(values_cpu, rewards_cpu, terminals_cpu,
+                ratio_cpu, advantages_cpu, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip)
+
+            advantages.copy_(advantages_cpu.to(device))
+
+        return advantages
 
     def close(self):
         self.vecenv.close()
@@ -829,47 +841,47 @@ class PufferTrainer:
         return self.last_pr.uri
 
     def _make_experience_buffer(self):
-        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv), (
-            "vecenv.driver_env must be a MettaGridEnv for experience buffer"
-        )
+        """Create experience buffer with tensor-based storage for prioritized sampling."""
+        vecenv = self.vecenv
 
-        # Extract environment specifications
-        obs_shape = metta_grid_env.single_observation_space.shape
-        obs_dtype = metta_grid_env.single_observation_space.dtype
-        atn_shape = metta_grid_env.single_action_space.shape
-        atn_dtype = metta_grid_env.single_action_space.dtype
+        # Get environment info
+        obs_space = vecenv.single_observation_space
+        atn_space = vecenv.single_action_space
+        total_agents = vecenv.num_agents
 
-        # Use num_agents for the total number of environments/states to track
-        lstm_total_agents = getattr(self.vecenv, "num_agents", 0)
-        assert lstm_total_agents > 0, "self.vecenv.num_agents not found!"
-        logging.info(f"Creating experience buffer with lstm_total_agents={lstm_total_agents} (from vecenv.num_agents)")
+        # Calculate minibatch parameters
+        batch_size = self.trainer_cfg.batch_size
+        minibatch_size = self.trainer_cfg.minibatch_size
+        max_minibatch_size = self.trainer_cfg.get("max_minibatch_size", minibatch_size)
 
-        # Handle policy fields with assertions
-        assert hasattr(self.policy, "hidden_size"), "Policy must have hidden_size attribute"
-        hidden_size = int(getattr(self.policy, "hidden_size", -1))
-        assert hidden_size > 0, f"Policy hidden_size cannot be converted to int: {type(hidden_size)}"
+        # Get LSTM parameters if using RNN
+        use_rnn = self.trainer_cfg.get("use_rnn", True)
+        hidden_size = getattr(self.policy, "hidden_size", 256)
+        num_lstm_layers = 2  # Default value
 
-        assert hasattr(self.policy, "lstm"), "Policy must have lstm attribute"
-        lstm = getattr(self.policy, "lstm", {})
-        assert isinstance(lstm, torch.nn.modules.rnn.LSTM), (
-            f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
-        )
+        # Try to get actual number of LSTM layers from policy
+        lstm = None
+        if hasattr(self.policy, "components") and "_core_" in self.policy.components:
+            lstm_module = self.policy.components["_core_"]
+            if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
+                num_lstm_layers = lstm_module._net.num_layers
+                lstm = lstm_module._net
 
-        # Create the Experience buffer with appropriate parameters
+        # Create experience buffer
         self.experience = Experience(
-            batch_size=self._batch_size,  # Total number of environment steps to collect before updating
-            bptt_horizon=self.trainer_cfg.bptt_horizon,  # Sequence length for BPTT (backpropagation through time)
-            minibatch_size=self._minibatch_size,  # Size of minibatches for training
-            hidden_size=hidden_size,  # Dimension of the policy's hidden state
-            obs_shape=obs_shape,  # Shape of a single observation
-            obs_dtype=obs_dtype,  # Data type of observations
-            atn_shape=atn_shape,  # Shape of a single action
-            atn_dtype=atn_dtype,  # Data type of actions
-            cpu_offload=self.trainer_cfg.cpu_offload,  # Whether to store data on CPU and transfer to GPU as needed
-            device=self.device,  # Device to store tensors on ("cuda" or "cpu")
-            lstm=lstm,  # LSTM module from the policy (needed for dimensions) # type: ignore - Pylance is wrong
-            lstm_total_agents=lstm_total_agents,  # Total number of LSTM states to maintain
+            total_agents=total_agents,
+            batch_size=self._batch_size,
+            bptt_horizon=self.trainer_cfg.bptt_horizon,
+            minibatch_size=self._minibatch_size,
+            max_minibatch_size=max_minibatch_size,
+            obs_space=obs_space,
+            atn_space=atn_space,
+            device=self.device,
+            cpu_offload=self.trainer_cfg.cpu_offload,
+            use_rnn=use_rnn,
+            hidden_size=hidden_size,
+            num_lstm_layers=num_lstm_layers,
+            agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
 
     def _make_losses(self):
@@ -885,28 +897,26 @@ class PufferTrainer:
             l2_init_loss=0,
             ks_action_loss=0,
             ks_value_loss=0,
+            importance=0,
         )
 
     def _make_vecenv(self):
         """Create a vectorized environment."""
-
         num_agents = self._curriculum.get_task().env_cfg().game.num_agents
 
         self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // num_agents
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
-        forward_pass_batch_size = (
-            self.target_batch_size // self.trainer_cfg.num_workers
-        ) * self.trainer_cfg.num_workers
-        logger.info(f"vecenv_batch_size: {forward_pass_batch_size}")
+        self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
+        logger.info(f"forward_pass_batch_size: {self.batch_size}")
 
-        num_envs = forward_pass_batch_size * self.trainer_cfg.async_factor
+        num_envs = self.batch_size * self.trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
             logger.error(
-                f"num_envs = batch_size ({forward_pass_batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
+                f"num_envs = batch_size ({self.batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
@@ -914,7 +924,7 @@ class PufferTrainer:
             self._curriculum,
             self.cfg.vectorization,
             num_envs=num_envs,
-            batch_size=forward_pass_batch_size,
+            batch_size=self.batch_size,
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy,
         )
@@ -925,7 +935,33 @@ class PufferTrainer:
         # Use rank-specific seed for environment reset to ensure different
         # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
-        self.vecenv.async_reset(self.cfg.seed + rank)
+        rank_specific_env_seed = self.cfg.seed + rank if self.cfg.seed is not None else rank
+        self.vecenv.async_reset(rank_specific_env_seed)
+
+    def _load_policy(self, checkpoint, policy_store, metta_grid_env):
+        """Load policy from checkpoint, initial_policy.uri, or create new."""
+        for attempt in range(10):
+            if checkpoint.policy_path:
+                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+                return policy_store.policy(checkpoint.policy_path)
+            elif self.cfg.trainer.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy URI: {self.cfg.trainer.initial_policy.uri}")
+                return policy_store.policy(self.cfg.trainer.initial_policy)
+            else:
+                policy_path = os.path.join(self.cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
+                if os.path.exists(policy_path):
+                    logger.info(f"Loading policy from checkpoint: {policy_path}")
+                    return policy_store.policy(policy_path)
+                elif self._master:
+                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
+                    return policy_store.create(metta_grid_env)
+            time.sleep(5)
+
+        raise RuntimeError("Failed to load policy after 10 attempts")
+
+    def _compute_l2_loss(self, coef: float, loss_fn):
+        """Compute L2 loss only if coefficient is positive."""
+        return coef * loss_fn() if coef > 0 else 0
 
 
 class AbortingTrainer(PufferTrainer):
