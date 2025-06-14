@@ -454,29 +454,39 @@ class PufferTrainer:
                 current_batch_mean = experience.get_mean_reward()
                 self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
 
-            # Compute advantages
-            advantages = experience.compute_advantages(
-                gamma=config.gamma,
-                gae_lambda=config.gae_lambda,
-                vtrace_rho_clip=config.get("vtrace_rho_clip", 1.0),
-                vtrace_c_clip=config.get("vtrace_c_clip", 1.0),
-                average_reward=self.average_reward if config.average_reward else 0.0,
-                use_average_reward=config.average_reward,
+            # Compute advantages using puff_advantage
+            shape = experience.values.shape
+            advantages = torch.zeros(shape, device=self.device)
+
+            # Adjust rewards for average reward if enabled
+            rewards_for_advantage = experience.rewards
+            if config.average_reward:
+                rewards_for_advantage = experience.rewards - self.average_reward
+
+            # Initial ratio is all ones
+            initial_ratio = torch.ones_like(experience.values)
+
+            advantages = self._compute_advantage(
+                experience.values,
+                rewards_for_advantage,
+                experience.terminals,
+                initial_ratio,
+                advantages,
+                config.gamma if not config.average_reward else 1.0,
+                config.gae_lambda,
+                config.get("vtrace_rho_clip", 1.0),
+                config.get("vtrace_c_clip", 1.0)
             )
 
         # Optimizing the policy and value network
-        total_minibatches = self._total_minibatches
-        self.accumulate_minibatches = experience.accumulate_minibatches
-        self.num_minibatches = experience.num_minibatches
-
-        for mb in range(total_minibatches):
+        for mb in range(self._total_minibatches):
             with profile.train_misc:
                 minibatch = experience.sample_minibatch(
                     advantages=advantages,
                     prio_alpha=a,
                     prio_beta=anneal_beta,
                     minibatch_idx=mb,
-                    total_minibatches=total_minibatches,
+                    total_minibatches=self._total_minibatches,
                 )
 
             with profile.train_forward:
@@ -490,9 +500,7 @@ class PufferTrainer:
                 )
 
             with profile.train_misc:
-                if hasattr(new_logprobs, "reshape"):
-                    new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
-
+                new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
                 logratio = new_logprobs - minibatch["logprobs"]
                 ratio = logratio.exp()
                 experience.update_ratio(minibatch["indices"], ratio)
@@ -503,19 +511,14 @@ class PufferTrainer:
                     clipfrac = ((ratio - 1.0).abs() > config.clip_coef).float().mean()
 
                 # Re-compute advantages with new ratios (V-trace)
-                adv = minibatch["advantages"]
-                effective_gamma = 1.0 if config.average_reward else config.gamma
-                rewards_adjusted = (
-                    minibatch["rewards"] - self.average_reward if config.average_reward else minibatch["rewards"]
-                )
-
-                torch.ops.pufferlib.compute_puff_advantage(
+                rewards_adjusted = minibatch["rewards"] - (self.average_reward if config.average_reward else 0)
+                adv = self._compute_advantage(
                     minibatch["values"],
                     rewards_adjusted,
                     minibatch["terminals"],
                     ratio,
-                    adv,
-                    effective_gamma,
+                    minibatch["advantages"],
+                    1.0 if config.average_reward else config.gamma,
                     config.gae_lambda,
                     config.get("vtrace_rho_clip", 1.0),
                     config.get("vtrace_c_clip", 1.0),
@@ -538,16 +541,15 @@ class PufferTrainer:
 
                 loss = (
                     pg_loss
-                    - config.ent_coef * entropy_loss
                     + config.vf_coef * v_loss
+                    - config.ent_coef * entropy_loss
                     + l2_reg_loss
                     + l2_init_loss
                     + ks_action_loss
                     + ks_value_loss
                 )
 
-                newvalue_reshaped = newvalue.view(minibatch["values"].shape)
-                experience.update_values(minibatch["indices"], newvalue_reshaped)
+                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
 
                 self._update_losses(
                     pg_loss,
@@ -560,7 +562,7 @@ class PufferTrainer:
                     l2_init_loss,
                     ks_action_loss,
                     ks_value_loss,
-                    total_minibatches,
+                    self._total_minibatches,
                     importance=ratio.mean().item(),
                 )
 
@@ -573,9 +575,6 @@ class PufferTrainer:
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
-
-                    if str(self.device).startswith("cuda"):
-                        torch.cuda.synchronize()
 
             if config.target_kl is not None and approx_kl > config.target_kl:
                 break
@@ -810,27 +809,27 @@ class PufferTrainer:
             }
         )
 
-    def _compute_advantage(self, adv: torch.Tensor) -> torch.Tensor:
-        """Compute normalized advantages, handling distributed training synchronization."""
-        adv = adv.reshape(-1)
-        if self.trainer_cfg.norm_adv:
-            if torch.distributed.is_initialized():
-                local_sum = einops.rearrange(adv.sum(), "-> 1")
-                local_sq_sum = einops.rearrange((adv * adv).sum(), "-> 1")
-                local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
+    def _compute_advantage(self, values, rewards, terminals,
+            ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip):
+        '''CUDA kernel for puffer advantage with automatic CPU fallback.'''
+        try:
+            torch.ops.pufferlib.compute_puff_advantage(values, rewards, terminals,
+                ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip)
+        except (RuntimeError, AssertionError):
+            # Fallback to CPU if CUDA kernel fails or not available
+            device = values.device
+            values_cpu = values.cpu()
+            rewards_cpu = rewards.cpu()
+            terminals_cpu = terminals.cpu()
+            ratio_cpu = ratio.cpu()
+            advantages_cpu = advantages.cpu()
 
-                stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
-                torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
+            torch.ops.pufferlib.compute_puff_advantage(values_cpu, rewards_cpu, terminals_cpu,
+                ratio_cpu, advantages_cpu, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip)
 
-                global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
-                mu = global_sum / global_count
-                var = (global_sq_sum / global_count) - (mu * mu)
-                std = torch.sqrt(var.clamp(min=1e-8))
+            advantages.copy_(advantages_cpu.to(device))
 
-                adv = (adv - mu) / (std + 1e-8)
-            else:
-                adv = (adv - adv.mean()) / (adv.std() + 1e-8)
-        return adv
+        return advantages
 
     def close(self):
         self.vecenv.close()
