@@ -261,14 +261,17 @@ class PufferTrainer:
             train_time = self.timer.get_last_elapsed("_train")
             stats_time = self.timer.get_last_elapsed("_process_stats")
             steps_calculated = self.agent_step - steps_before
-            steps_per_sec = steps_calculated / (train_time + rollout_time)
+            total_time = train_time + rollout_time + stats_time
+            steps_per_sec = steps_calculated / total_time
+
+            train_pct = (train_time / total_time) * 100
+            rollout_pct = (rollout_time / total_time) * 100
+            stats_pct = (stats_time / total_time) * 100
 
             logger.info(
                 f"Epoch {self.epoch} - "
-                f"rollout: {rollout_time:.3f}s, "
-                f"train: {train_time:.3f}s, "
-                f"stats: {stats_time:.3f}s, "
-                f"[{steps_per_sec:.0f} steps/sec]"
+                f"{steps_per_sec:.0f} steps/sec "
+                f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
 
             # Checkpointing trainer
@@ -381,7 +384,7 @@ class PufferTrainer:
             r = torch.as_tensor(r)
             d = torch.as_tensor(d)
 
-            with self.timer("_rollout.forward"), torch.no_grad():
+            with torch.no_grad():
                 assert training_env_id is not None and training_env_id.numel() > 0, (
                     "training_env_id must exist and have elements"
                 )
@@ -509,13 +512,12 @@ class PufferTrainer:
                 adv = self.experience.b_advantages[mb]
                 ret = self.experience.b_returns[mb]
 
-                with self.timer("_train.forward"):
-                    # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
-                    _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
-                        obs, lstm_state, action=atn
-                    )
-                    if self.device == "cuda":
-                        torch.cuda.synchronize()
+                # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
+                _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
+                    obs, lstm_state, action=atn
+                )
+                if self.device == "cuda":
+                    torch.cuda.synchronize()
 
                 if __debug__:
                     assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
@@ -576,17 +578,16 @@ class PufferTrainer:
                     + ks_value_loss
                 )
 
-                with self.timer("_train.learn"):
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
-                    self.optimizer.step()
+                self.optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                self.optimizer.step()
 
-                    if self.cfg.agent.clip_range > 0:
-                        self.policy.clip_weights()
+                if self.cfg.agent.clip_range > 0:
+                    self.policy.clip_weights()
 
-                    if self.device == "cuda":
-                        torch.cuda.synchronize()
+                if self.device == "cuda":
+                    torch.cuda.synchronize()
 
                 if self.losses is None:
                     raise ValueError("self.losses is None")
@@ -761,7 +762,7 @@ class PufferTrainer:
         if delta_steps is None:
             delta_steps = self.agent_step
 
-        wall_time_for_lap = lap_times.get("__global__", 0)
+        wall_time_for_lap = lap_times.pop("__global__", 0)
         training_time_for_lap = lap_times.get("_rollout", 0) + lap_times.get("_train", 0)
 
         # Timing logs
@@ -865,7 +866,6 @@ class PufferTrainer:
     def last_pr_uri(self):
         return self.last_pr.uri
 
-    @with_instance_timer("_make_experience_buffer")
     def _make_experience_buffer(self):
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), (
