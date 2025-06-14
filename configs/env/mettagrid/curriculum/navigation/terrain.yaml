@@ -1,0 +1,13 @@
+_target_: mettagrid.curriculum.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/navigation/training/balanced_terrain
+
+buckets:
+  game.map_builder.room.width:
+    range: [75, 120]
+    bins: 3
+  game.map_builder.room.height:
+    range: [75, 120]
+    bins: 3
+  game.map_builder.room.style:
+    values: ["all-sparse", "balanced", "dense", "maze"]
