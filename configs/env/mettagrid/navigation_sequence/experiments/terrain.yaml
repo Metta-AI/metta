@@ -7,9 +7,6 @@ defaults:
   - /env/mettagrid/mettagrid_deterministic@
   - _self_
 
-sampling: 1
-labels:
-  - memory
 game:
   num_agents: 4
   agent:
@@ -30,7 +27,7 @@ game:
       width: 25
       height: 25
       border_width: 3
-      agents: ${div:${...num_agents},${..num_rooms}}
+      agents: 1
       style: balanced #${choose:"dense","all-sparse","balanced","maze"}
       objects:
         mine.red: 3

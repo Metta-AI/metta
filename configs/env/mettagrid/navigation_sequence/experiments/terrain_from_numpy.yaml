@@ -2,8 +2,6 @@ defaults:
   - /env/mettagrid/mettagrid_deterministic@
   - _self_
 
-sampling: 1
-
 game:
   num_agents: 4
   agent:
@@ -22,7 +20,7 @@ game:
     room:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 1
-      agents: ${div:${...num_agents},${..num_rooms}}
+      agents: 1
       objects:
         mine.red: 3
         generator.red: 3
