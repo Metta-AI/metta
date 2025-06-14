@@ -6,7 +6,7 @@ defaults:
 
 trainer:
   # env: /env/mettagrid/multienv_mettagrid
-  curriculum: /env/mettagrid/curriculum/all
+  curriculum: /env/mettagrid/curriculum/simple
 
   env_overrides:
     sampling: 0.7
