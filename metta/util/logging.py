@@ -1,6 +1,5 @@
 import logging
 import os
-import shutil
 import sys
 from datetime import datetime
 
@@ -68,62 +67,6 @@ def get_log_level(provided_level=None):
     return "INFO"
 
 
-def debug_logging_state(logger: logging.Logger) -> None:
-    """Log detailed debugging information about the logging environment."""
-    logger.info("LOGGING DEBUG INFORMATION")
-
-    # Environment variables
-    logger.info("Environment Variables:")
-    for key, value in sorted(os.environ.items()):
-        # Mask sensitive values
-        if any(sensitive in key.upper() for sensitive in ["PASSWORD", "SECRET", "TOKEN", "KEY"]):
-            logger.info(f"{key}=<MASKED>")
-        else:
-            logger.info(f"{key}={value}")
-
-    # Terminal information
-    logger.info("Terminal Information:")
-    if hasattr(sys.stdin, "fileno"):
-        logger.info(f"stdin isatty: {os.isatty(sys.stdin.fileno())}")
-    if hasattr(sys.stdout, "fileno"):
-        logger.info(f"stdout isatty: {os.isatty(sys.stdout.fileno())}")
-    if hasattr(sys.stderr, "fileno"):
-        logger.info(f"stderr isatty: {os.isatty(sys.stderr.fileno())}")
-
-    # Terminal size
-    try:
-        size = shutil.get_terminal_size()
-        logger.info(f"Terminal size: {size.columns}x{size.lines}")
-    except Exception as e:
-        logger.info(f"Terminal size: error - {e}")
-
-    logger.info(f"COLUMNS env: {os.environ.get('COLUMNS', 'Not set')}")
-    logger.info(f"LINES env: {os.environ.get('LINES', 'Not set')}")
-
-    # AWS environment variables
-    logger.info("AWS Environment Variables:")
-    aws_vars = {k: v for k, v in os.environ.items() if k.startswith("AWS_")}
-    if aws_vars:
-        for key, value in sorted(aws_vars.items()):
-            logger.info(f"{key}={value}")
-    else:
-        logger.info("No AWS environment variables found")
-
-    # System information
-    logger.info("System Information:")
-    logger.info(f"Python: {sys.version.split()[0]}")
-    logger.info(f"Platform: {sys.platform}")
-    logger.info(f"Executable: {sys.executable}")
-
-    # Logging configuration
-    logger.info("Logging Configuration:")
-    logger.info(f"Logger name: {logger.name}")
-    logger.info(f"Logger level: {logging.getLevelName(logger.level)}")
-    root_level = logging.getLogger().level
-    logger.info(f"Root logger level: {logging.getLevelName(root_level)}")
-    logger.info(f"Handler count: {len(logger.handlers)}")
-
-
 def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
     # Get the appropriate log level based on priority
     log_level = get_log_level(level)
@@ -142,16 +85,8 @@ def setup_mettagrid_logger(name: str, level=None) -> logging.Logger:
     # Set the level
     root_logger.setLevel(getattr(logging, log_level))
 
-    # Get the logger for the specified name
-    logger = logging.getLogger(name)
+    # set env COLUMNS if we are in a batch job
+    if os.environ.get("AWS_BATCH_JOB_ID") or os.environ.get("SKYPILOT_TASK_ID"):
+        os.environ["COLUMNS"] = "200"
 
-    # Log debugging information
-    debug_logging_state(logger)
-
-    # Set env COLUMNS if we are on AWS
-    if any(key.startswith("AWS_") for key in os.environ):
-        if "COLUMNS" not in os.environ:
-            os.environ["COLUMNS"] = "200"
-            logger.info("Set COLUMNS=200 (AWS environment)")
-
-    return logger
+    return logging.getLogger(name)
