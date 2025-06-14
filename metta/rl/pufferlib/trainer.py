@@ -569,7 +569,7 @@ class PufferTrainer:
             with profile.learn:
                 self.optimizer.zero_grad()
                 loss.backward()
-                if (mb + 1) % self.accumulate_minibatches == 0:
+                if (mb + 1) % self.experience.accumulate_minibatches == 0:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), config.max_grad_norm)
                     self.optimizer.step()
 
