@@ -197,12 +197,15 @@ class VariedTerrain(Room):
         H, W = self._occupancy.shape
         # The shuffled_product is lazy, so we'll only calculate as much as we need to
         num_guesses = 0
-        for r, c in shuffled_product(range(H - r_h + 1), range(W - r_w + 1)):
-            num_guesses += 1
+        positions = [(r, c) for r, c in shuffled_product(range(H - r_h + 1), range(W - r_w + 1))]
+        np.random.shuffle(positions)
+        # for r, c in shuffled_product(range(H - r_h + 1), range(W - r_w + 1)):
+        for r, c in positions:
+            # num_guesses += 1
             if not self._occupancy[r:r+r_h, c:c+r_w].any():
-                print(f"xcxc found candidate after {num_guesses} guesses")
+                # print(f"xcxc found candidate after {num_guesses} guesses")
                 return (r, c)
-        print(f"xcxc no candidate found after {num_guesses} guesses")
+        # print(f"xcxc no candidate found after {num_guesses} guesses")
         return None
 
     def _choose_random_empty(self) -> Optional[Tuple[int, int]]:
