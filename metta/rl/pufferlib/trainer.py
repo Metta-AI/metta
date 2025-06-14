@@ -565,11 +565,11 @@ class PufferTrainer:
                 )
 
             with profile.learn:
+                self.optimizer.zero_grad()
                 loss.backward()
                 if (mb + 1) % self.accumulate_minibatches == 0:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), config.max_grad_norm)
                     self.optimizer.step()
-                    self.optimizer.zero_grad()
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
@@ -731,45 +731,36 @@ class PufferTrainer:
                     self.wandb_run.log(link_summary)
 
     def _process_stats(self):
-        # Clean up stats - convert lists to means where possible
-        self.stats = {
-            k: np.mean(v) if isinstance(v, list) and len(v) > 0 else v
-            for k, v in self.stats.items()
-            if not (isinstance(v, list) and len(v) == 0)
-        }
+        for k in list(self.stats.keys()):
+            try:
+                self.stats[k] = np.mean(self.stats[k])
+            except (TypeError, ValueError):
+                del self.stats[k]
 
         # Collect weight metrics if needed
         weight_metrics = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
-            weight_metrics = {
-                f"weights/{key}/{metrics.get('name', 'unknown')}": value
-                for metrics in self.policy.compute_weight_metrics()
-                for key, value in metrics.items()
-                if key != "name"
-            }
+            for metrics in self.policy.compute_weight_metrics():
+                name = metrics.get("name", "unknown")
+                for key, value in metrics.items():
+                    if key != "name":
+                        weight_metrics[f"weights/{key}/{name}"] = value
 
-        # Calculate derived stats
-        losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
+        # Prepare logging data
+        losses = {k: v for k, v in self.losses.__dict__.items() if not k.startswith("_")}
         performance = {k: v for k, v in self.profile}
 
         # Overview metrics
         overview = {"SPS": self.profile.SPS}
-        overview.update(
-            {
-                self.trainer_cfg.stats.overview[k]: self.stats[k]
-                for k in self.trainer_cfg.stats.overview
-                if k in self.stats
-            }
-        )
+        for k, v in self.trainer_cfg.stats.overview.items():
+            if k in self.stats:
+                overview[v] = self.stats[k]
 
         # Add evaluation scores
-        overview.update(
-            {
-                f"{category}_evals": self._eval_suite_avgs.get(f"{category}_score")
-                for category in self._eval_categories
-                if self._eval_suite_avgs.get(f"{category}_score") is not None
-            }
-        )
+        for category in self._eval_categories:
+            score = self._eval_suite_avgs.get(f"{category}_score")
+            if score is not None:
+                overview[f"{category}_evals"] = score
 
         # Environment stats
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
