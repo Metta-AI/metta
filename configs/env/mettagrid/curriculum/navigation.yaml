@@ -4,3 +4,7 @@ tasks:
   /env/mettagrid/curriculum/navigation/terrain: 3
   /env/mettagrid/curriculum/navigation/cylinder_world: 1
   /env/mettagrid/navigation/training/terrain_from_numpy: 1
+
+env_overrides:
+  game:
+    num_agents: 12
