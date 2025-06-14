@@ -1,4 +1,4 @@
-FROM mettaai/metta-base:latest
+FROM mettaai/metta-base:3.0
 
 ARG CACHE_DATE
 RUN echo "Cache breaker: ${CACHE_DATE}"
@@ -21,6 +21,9 @@ RUN git checkout ${BRANCH}
 RUN uv sync
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
+
+RUN sed -i '\#cd /puffertank/pufferlib#d' /root/.bashrc \
+ && echo 'cd /workspace/metta' >> /root/.bashrc
 
 WORKDIR /workspace/metta/
 ENTRYPOINT ["/bin/bash", "-c"]

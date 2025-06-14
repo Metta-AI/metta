@@ -4,7 +4,7 @@
 username="mettaai" # replace with your Docker Hub username
 dockerfile=""      # Dockerfile to use
 image="metta"
-tag="latest"
+tag="3.0"
 name="metta"
 
 # Function for building Docker image
