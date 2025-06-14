@@ -196,6 +196,8 @@ class VariedTerrain(Room):
         r_h, r_w = region_shape
         H, W = self._occupancy.shape
         cumulative_occupancy = self._occupancy.cumsum(axis=0).cumsum(axis=1)
+        # Add row and column of zeros at top and left
+        cumulative_occupancy = np.pad(cumulative_occupancy, ((1, 0), (1, 0)), mode='constant', constant_values=0)
         # The shuffled_product is lazy, so we'll only calculate as much as we need to
         positions = [(r, c) for r in range(H - r_h + 1) for c in range(W - r_w + 1)]
         np.random.shuffle(positions)
