@@ -16,7 +16,7 @@ The build order is:
     mini labyrinths → obstacles (large, small, crosses) → scattered walls → blocks → altars → agents.
 """
 
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 from omegaconf import DictConfig
@@ -129,7 +129,17 @@ class VariedTerrain(Room):
             "count": clamp_count(base_params["scattered_walls"]["count"], avg_sizes["scattered_walls"])
         }
         self._blocks = {"count": clamp_count(base_params["blocks"]["count"], avg_sizes["blocks"])}
-        self._objects = objects
+        # if objects are colored, catch any misconfigured keys
+        self._objects = {}
+        for obj, count in objects.items():
+            if isinstance(objects[obj], dict):
+                color = list(objects[obj].keys())
+                count = list(objects[obj].values())[0]
+                assert len(color) == 1
+                new_key = f"{obj}.{color[0]}"
+                self._objects[new_key] = count
+            else:
+                self._objects[obj] = count
 
     def _build(self) -> np.ndarray:
         # Prepare agent symbols.
@@ -146,6 +156,10 @@ class VariedTerrain(Room):
         grid = np.full((self._height, self._width), "empty", dtype=object)
         # Initialize an occupancy mask: False means cell is empty, True means occupied.
         self._occupancy = np.zeros((self._height, self._width), dtype=bool)
+
+        # Initialize candidate cache - this will store available positions for different region sizes
+        self._candidate_cache: Dict[Tuple[int, int], List[Tuple[int, int]]] = {}
+        self._initialize_candidate_cache()
 
         # Place features in order.
         grid = self._place_labyrinths(grid)
@@ -179,6 +193,64 @@ class VariedTerrain(Room):
     # ---------------------------
     # Helper Functions
     # ---------------------------
+    def _initialize_candidate_cache(self) -> None:
+        """
+        Pre-compute all possible region sizes we'll need and cache their candidates.
+        This runs _find_candidates only once per unique region size.
+        """
+        # Determine all region sizes we'll need
+        region_sizes: Set[Tuple[int, int]] = set()
+
+        # Labyrinths: sizes between 11x11 and 25x25 (odd numbers)
+        for h in range(11, 26):
+            for w in range(11, 26):
+                if h % 2 == 1 and w % 2 == 1:
+                    region_sizes.add((h, w))
+
+        # Large obstacles with clearance: max 25x25 + 2*clearance = 27x27
+        for size in range(10, 26):
+            # Approximate bounding box (worst case: elongated shape)
+            max_dim = size + 2  # clearance
+            region_sizes.add((max_dim, max_dim))
+
+        # Small obstacles with clearance: max 6x6 + 2*clearance = 8x8
+        for size in range(3, 7):
+            max_dim = size + 2  # clearance
+            region_sizes.add((max_dim, max_dim))
+
+        # Cross patterns: max 8x8 (no clearance needed for crosses)
+        for h in range(1, 9):
+            for w in range(1, 9):
+                region_sizes.add((h, w))
+
+        # Blocks: 2x2 to 14x14
+        for h in range(2, 15):
+            for w in range(2, 15):
+                region_sizes.add((h, w))
+
+        # Now compute candidates for all these sizes
+        for region_size in region_sizes:
+            self._candidate_cache[region_size] = self._find_candidates(region_size)
+
+    def _get_cached_candidates(self, region_shape: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """
+        Get candidates for a region shape, filtering out any that are now occupied.
+        """
+        if region_shape not in self._candidate_cache:
+            # Fallback: compute on demand if not cached
+            return self._find_candidates(region_shape)
+
+        # Filter cached candidates to remove occupied regions
+        valid_candidates = []
+        r_h, r_w = region_shape
+
+        for r, c in self._candidate_cache[region_shape]:
+            # Check if this region is still completely empty
+            if not self._occupancy[r : r + r_h, c : c + r_w].any():
+                valid_candidates.append((r, c))
+
+        return valid_candidates
+
     def _update_occupancy(self, top_left: Tuple[int, int], pattern: np.ndarray) -> None:
         """
         Updates the occupancy mask for the region where the pattern was placed.
@@ -222,7 +294,7 @@ class VariedTerrain(Room):
         """
         p_h, p_w = pattern.shape
         eff_h, eff_w = p_h + 2 * clearance, p_w + 2 * clearance
-        candidates = self._find_candidates((eff_h, eff_w))
+        candidates = self._get_cached_candidates((eff_h, eff_w))
         if candidates:
             r, c = candidates[self._rng.integers(0, len(candidates))]
             # Place pattern with clearance offset.
@@ -238,7 +310,7 @@ class VariedTerrain(Room):
         labyrinth_count = self._labyrinths.get("count", 0)
         for _ in range(labyrinth_count):
             pattern = self._generate_labyrinth_pattern()
-            candidates = self._find_candidates(pattern.shape)
+            candidates = self._get_cached_candidates(pattern.shape)
             if candidates:
                 r, c = candidates[self._rng.integers(0, len(candidates))]
                 grid[r : r + pattern.shape[0], c : c + pattern.shape[1]] = pattern
@@ -265,7 +337,7 @@ class VariedTerrain(Room):
         crosses_count = self._crosses.get("count", 0)
         for _ in range(crosses_count):
             pattern = self._generate_cross_pattern()
-            candidates = self._find_candidates(pattern.shape)
+            candidates = self._get_cached_candidates(pattern.shape)
             if candidates:
                 r, c = candidates[self._rng.integers(0, len(candidates))]
                 grid[r : r + pattern.shape[0], c : c + pattern.shape[1]] = pattern
@@ -295,7 +367,7 @@ class VariedTerrain(Room):
         for _ in range(block_count):
             block_w = self._rng.integers(2, 15)  # 2 to 14 inclusive.
             block_h = self._rng.integers(2, 15)
-            candidates = self._find_candidates((block_h, block_w))
+            candidates = self._get_cached_candidates((block_h, block_w))
             if candidates:
                 r, c = candidates[self._rng.integers(0, len(candidates))]
                 grid[r : r + block_h, c : c + block_w] = "wall"
