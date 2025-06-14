@@ -738,11 +738,6 @@ class PufferTrainer:
                     if key != "name":
                         weight_metrics[f"weights/{key}/{name}"] = value
 
-        # Prepare basic metrics
-        learning_rate = self.optimizer.param_groups[0]["lr"]
-        losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
-        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
-
         # Calculate timing metrics
         elapsed_times = self.timer.get_all_elapsed()
         wall_time = self.timer.get_elapsed()
@@ -766,7 +761,7 @@ class PufferTrainer:
         training_time_for_lap = lap_times.get("_rollout", 0) + lap_times.get("_train", 0)
 
         # Timing logs
-        timing_logs = {
+        timing_stats = {
             "timing/training_efficiency": training_time_for_lap / wall_time_for_lap if wall_time_for_lap > 0 else 0,
             **{
                 f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
@@ -805,27 +800,30 @@ class PufferTrainer:
                 overview[f"{category}_evals"] = score
 
         # Training logs
-        train_logs = {
+        train_stats = {
             "train/epoch": self.epoch,
-            "train/learning_rate": learning_rate,
+            "train/learning_rate": self.optimizer.param_groups[0]["lr"],
             "train/delta_steps_vs_epoch": delta_steps,
             **x_axis_values,
         }
 
+        loss_stats = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
+        environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
+
         # Add filtered average reward if applicable
         if self.trainer_cfg.average_reward:
-            train_logs["train/filtered_mean_reward"] = self.filtered_mean_reward
+            train_stats["train/filtered_mean_reward"] = self.filtered_mean_reward
 
         # Log everything to wandb
         self.wandb_run.log(
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
-                **{f"losses/{k}": v for k, v in losses.items()},
-                **environment,
+                **{f"losses/{k}": v for k, v in loss_stats.items()},
+                **environment_stats,
                 **weight_metrics,
                 **self._eval_grouped_scores,
-                **train_logs,
-                **timing_logs,
+                **train_stats,
+                **timing_stats,
             }
         )
 
