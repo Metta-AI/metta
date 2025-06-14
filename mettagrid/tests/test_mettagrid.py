@@ -102,6 +102,7 @@ class TestObservations:
             location = x << 4 | y
             token_matches = obs[0, :, 0] == location
             assert not token_matches.any(), f"Expected no tokens at location {x}, {y}"
+        assert (obs[0, -1, :] == [0xFF, 0xFF, 0xFF]).all(), "Last token should be empty"
 
     def test_observation_token_order(self):
         """Test observation token order."""
