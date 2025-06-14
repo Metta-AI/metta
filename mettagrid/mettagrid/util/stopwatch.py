@@ -543,33 +543,25 @@ class Stopwatch:
 
         return end_checkpoint["steps"] - start_steps
 
-    def get_references(self, name: Optional[str] = None) -> List[TimerReference]:
-        """Get all file references where this timer was used.
+    def get_filename(self, name: Optional[str] = None) -> str:
+        """Get a file reference for where this timer is used
 
         Args:
             name: Timer name (None for global)
 
         Returns:
-            List of TimerReference TypedDicts
+            Filename where timer was used, or "multifile" if used in multiple files
         """
         timer = self._get_timer(name)
-        return timer["references"].copy()
+        if not timer["references"]:
+            return "unknown"
 
-    def get_unique_references(self, name: Optional[str] = None) -> List[TimerReference]:
-        """Get unique file references where this timer was used.
+        # Get unique filenames efficiently
+        first_file = timer["references"][0]["filename"]
 
-        Args:
-            name: Timer name (None for global)
+        # Check if all references are from the same file
+        for ref in timer["references"][1:]:
+            if ref["filename"] != first_file:
+                return "multifile"
 
-        Returns:
-            List of unique TimerReference TypedDicts
-        """
-        timer = self._get_timer(name)
-        seen = set()
-        unique_refs = []
-        for ref in timer["references"]:
-            key = (ref["filename"], ref["lineno"])
-            if key not in seen:
-                seen.add(key)
-                unique_refs.append(ref)
-        return unique_refs
+        return first_file

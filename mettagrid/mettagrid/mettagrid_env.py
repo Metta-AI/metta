@@ -249,12 +249,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
 
+        elapsed_times = self.timer.get_all_elapsed()
+        wall_time = self.timer.get_elapsed()
         lap_times = self.timer.lap_all()
         wall_time_for_lap = self.timer.get_last_elapsed()
         infos["timing"] = {
+            **{f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0 for op, elapsed in elapsed_times.items()},
             **{
-                f"fraction/{op}": elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
-                for op, elapsed in lap_times.items()
+                f"lap_fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                for op, lap_elapsed in lap_times.items()
             },
         }
 

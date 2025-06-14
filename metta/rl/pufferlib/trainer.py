@@ -768,8 +768,8 @@ class PufferTrainer:
                 for op, elapsed in elapsed_times.items()
             },
             **{
-                f"timing/lap_fraction/{op}": elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
-                for op, elapsed in lap_times.items()
+                f"timing/lap_fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                for op, lap_elapsed in lap_times.items()
             },
         }
 
