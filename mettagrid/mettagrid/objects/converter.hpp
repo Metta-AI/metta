@@ -99,6 +99,10 @@ public:
         HasInventory::update_inventory(static_cast<InventoryItem>(i), initial_items);
       }
     }
+
+    _obs_features.reserve(5 + InventoryItem::InventoryItemCount);
+    _obs_features.push_back({ObservationFeature::TypeId, _type_id});
+    _obs_features.push_back({ObservationFeature::Color, color});
   }
 
   Converter(GridCoord r, GridCoord c, ObjectConfig cfg) : Converter(r, c, cfg, ObjectType::GenericConverterT) {}
@@ -154,18 +158,15 @@ public:
     return delta;
   }
 
-  virtual vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
-    features.reserve(5 + InventoryItem::InventoryItemCount);
-    features.push_back({ObservationFeature::TypeId, _type_id});
-    features.push_back({ObservationFeature::Color, color});
-    features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
+  virtual const vector<PartialObservationToken>& obs_features() const override {
+    _obs_features.resize(2);  // truncate, aside from type_id and color
+    _obs_features.push_back({ObservationFeature::ConvertingOrCoolingDown, this->converting || this->cooling_down});
     for (uint8_t i = 0; i < InventoryItem::InventoryItemCount; i++) {
       if (inventory[i] > 0) {
-        features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
+        _obs_features.push_back({static_cast<uint8_t>(InventoryFeatureOffset + i), inventory[i]});
       }
     }
-    return features;
+    return _obs_features;
   }
 
   void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
@@ -194,6 +195,9 @@ public:
     }
     return names;
   }
+
+private:
+  mutable std::vector<PartialObservationToken> _obs_features;
 };
 
 #endif  // METTAGRID_METTAGRID_OBJECTS_CONVERTER_HPP_
