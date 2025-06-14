@@ -5,6 +5,7 @@
 
 #include "action_handler.hpp"
 #include "objects/agent.hpp"
+#include "types.hpp"
 
 class Noop : public ActionHandler {
 public:
