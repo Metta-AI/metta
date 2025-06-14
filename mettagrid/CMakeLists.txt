@@ -40,6 +40,10 @@ pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
 
 install(TARGETS mettagrid_c DESTINATION "mettagrid")
 
+# Extension for building terrain maps quickly
+pybind11_add_module(terrain_builder "mettagrid/room/terrain_builder.cpp")
+install(TARGETS terrain_builder DESTINATION "mettagrid/room")
+
 # ========================= TESTS =========================
 
 if(BUILD_TESTS)
