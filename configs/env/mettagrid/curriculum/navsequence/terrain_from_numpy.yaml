@@ -3,16 +3,16 @@ _target_: mettagrid.curriculum.BucketedCurriculum
 env_cfg_template: /env/mettagrid/navigation_sequence/experiments/terrain_from_numpy
 
 buckets:
-  game.agent.ore.red_max:
-    range: [2, 15]
-    bins: 2
-  game.agent.battery.red_max:
-    range: [2, 15]
-    bins: 2
-  game.agent.rewards.ore.red:
-    range: [0.005, 0.05]
-  game.agent.rewards.battery.red:
-    range: [0.01, 0.1]
+  # game.agent.ore.red_max:
+  #   range: [2, 15]
+  #   bins: 2
+  # game.agent.battery.red_max:
+  #   range: [2, 15]
+  #   bins: 2
+  # game.agent.rewards.ore.red:
+  #   range: [0.005, 0.05]
+  # game.agent.rewards.battery.red:
+  #   range: [0.01, 0.1]
   game.map_builder.room.objects.mine.red:
     range: [2, 15]
     bins: 2
