@@ -117,6 +117,28 @@ class TerrainFromNumpy(Room):
         elif isinstance(self._agents, DictConfig):
             agents = ["agent." + agent for agent, na in self._agents.items() for _ in range(na)]
 
-        level = build_terrain(level, agents, dict(self._objects))
-        self._level = level
+        # C++ extension expects a char array.
+        # We convert our string array to a char array.
+        char_level = np.full(level.shape, ord(" "), dtype=np.int8)
+        char_level[level == "empty"] = ord("e")
+        char_level[level == "wall"] = ord("w")
+
+        # The C++ function modifies the array in place and returns it.
+        returned_char_level = build_terrain(char_level, agents, dict(self._objects))
+
+        # Now we convert back to a string array for the rest of the python code.
+        str_level = np.full(level.shape, "", dtype=level.dtype)
+
+        char_to_str = {
+            ord("e"): "empty",
+            ord("w"): "wall",
+            ord("a"): "agent.agent",
+        }
+        for name in self._objects.keys():
+            char_to_str[ord(name[0])] = name
+
+        for char_val, str_val in char_to_str.items():
+            str_level[returned_char_level == char_val] = str_val
+
+        self._level = str_level
         return self._level

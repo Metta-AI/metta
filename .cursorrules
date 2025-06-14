@@ -84,6 +84,16 @@
       "name": "Bash Environment",
       "pattern": ".*",
       "message": "Use bash with PATH including /opt/homebrew/bin and source .venv/bin/activate before python or pytest commands"
+    },
+    {
+      "name": "Rebuild",
+      "pattern": ".*",
+      "message": "Rebuild the project before running any commands. use 'uv sync'"
+    },
+    {
+      "name": "Run tests",
+      "pattern": ".*",
+      "message": "Run tests with 'uv run pytest'. run from both root dir and ./mettagrid"
     }
   ]
 }
