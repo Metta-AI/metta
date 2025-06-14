@@ -9,7 +9,7 @@ game:
     num_rooms: ${..num_agents}
     border_width: 6
     room:
-      agents: 1
+      agents: ${div:${...num_agents},${..num_rooms}}
       border_width: 2
   objects:
     altar:

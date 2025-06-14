@@ -31,7 +31,7 @@ game:
       width: 30
       height: 30
       border_width: 3
-      agents: 1
+      agents: ${div:${...num_agents},${..num_rooms}}
       objects:
         mine.red: 2
         generator.red: 3
