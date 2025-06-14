@@ -1,3 +1,4 @@
+import hydra
 import numpy as np
 import pytest
 from omegaconf import OmegaConf
@@ -5,7 +6,15 @@ from omegaconf import OmegaConf
 from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 from mettagrid.util.actions import generate_valid_random_actions
-from mettagrid.util.hydra import get_cfg
+from mettagrid.util.hydra import config_from_path, get_cfg
+from mettagrid.util.resolvers import register_resolvers
+
+register_resolvers()
+
+@pytest.fixture(scope="session")
+def hydra_initialized():
+    if not hydra.core.global_hydra.GlobalHydra().is_initialized():
+        hydra.initialize(config_path="../configs", version_base=None)
 
 
 @pytest.fixture
@@ -150,6 +159,50 @@ def test_create_env_performance(benchmark, cfg):
     env_rate = 1.0 / create_reset_time
 
     print("\nCreate & Reset Performance Results:")
+    print(f"Create + Reset time: {create_reset_time:.6f} seconds")
+    print(f"Create + Reset operations per second: {env_rate:.2f}")
+
+    # Report KPIs
+    benchmark.extra_info.update({"env_rate": env_rate})
+
+
+@pytest.mark.usefixtures("hydra_initialized")
+def test_create_env_from_numpy_performance_manual_config(benchmark):
+    """
+    Benchmark environment creation from a numpy array using a manually merged config.
+    """
+    # config_from_path expects a path relative to the `metta/configs` directory
+    # and it needs to be initialized. The tests are run from `mettagrid` directory.
+    # The `metta` package is in the python path.
+    # So we can load the configs and merge them.
+    mettagrid_cfg = config_from_path("env/mettagrid/mettagrid")
+    terrain_cfg = config_from_path("env/mettagrid/navigation/training/terrain_from_numpy")
+
+    # Merge configs
+    cfg = OmegaConf.merge(mettagrid_cfg, terrain_cfg)
+
+    def create_and_reset():
+        """Create a new environment and reset it."""
+        curriculum = SingleTaskCurriculum("test", task_cfg=cfg)
+        env = MettaGridEnv(curriculum, render_mode="human", recursive=False)
+        obs = env.reset()
+        # Cleanup
+        del env
+        return obs
+
+    # Run the benchmark
+    benchmark.pedantic(
+        create_and_reset,
+        iterations=10,
+        rounds=3,
+        warmup_rounds=1,
+    )
+
+    # Calculate KPIs
+    create_reset_time = benchmark.stats["mean"]
+    env_rate = 1.0 / create_reset_time
+
+    print("\nCreate & Reset Performance Results (terrain_from_numpy):")
     print(f"Create + Reset time: {create_reset_time:.6f} seconds")
     print(f"Create + Reset operations per second: {env_rate:.2f}")
 

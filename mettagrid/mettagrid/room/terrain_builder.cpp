@@ -66,13 +66,12 @@ py::array_t<char> build_terrain(py::array_t<char> level, py::list agents, py::di
         }
     }
 
-    std::vector<std::pair<int, int>> valid = get_valid_positions(level);
-    auto agent_positions = sample_positions(valid, agents.size());
+    std::vector<std::pair<int, int>> valid_positions = get_valid_positions(level);
+    std::vector<std::pair<int, int>> agent_positions = sample_positions(valid_positions, agents.size());
 
     // Place agents
-    for (size_t i = 0; i < agents.size() && i < agent_positions.size(); ++i) {
-        auto [r_pos, c_pos] = agent_positions[i];
-        arr(r_pos, c_pos) = 'a';
+    for (const auto& pos : agent_positions) {
+        arr(pos.first, pos.second) = 'a';
     }
 
     // Calculate total objects and adjust if needed
@@ -98,10 +97,10 @@ py::array_t<char> build_terrain(py::array_t<char> level, py::list agents, py::di
 
     // Place objects
     for (const auto& [name, count] : object_counts) {
-        valid = get_valid_positions(level);
-        auto spots = sample_positions(valid, count);
-        for (auto [r_pos, c_pos] : spots) {
-            arr(r_pos, c_pos) = name[0]; // Use first character as identifier
+        valid_positions = get_valid_positions(level);
+        auto spots = sample_positions(valid_positions, count);
+        for (const auto& spot : spots) {
+            arr(spot.first, spot.second) = name[0]; // Use first character as identifier
         }
     }
 

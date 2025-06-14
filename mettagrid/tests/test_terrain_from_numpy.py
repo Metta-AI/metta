@@ -42,3 +42,16 @@ def test_build_with_border(tmp_path):
     np.random.seed(0)
     level = env.build()
     assert level.grid.shape == (7, 7)
+
+
+def test_agent_placement(tmp_path):
+    create_map(tmp_path)
+    objs = OmegaConf.create({})
+    num_agents = 4
+    env = TerrainFromNumpy(
+        objs, agents=num_agents, dir=str(tmp_path), file="test.npy", border_width=1
+    )
+    random.seed(0)
+    np.random.seed(0)
+    level = env.build()
+    assert (level.grid == "agent.agent").sum() == num_agents
