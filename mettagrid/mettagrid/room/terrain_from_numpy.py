@@ -10,6 +10,7 @@ from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
 from omegaconf import DictConfig
 
+from mettagrid.room import terrain_utils
 from mettagrid.room.room import Room
 
 logger = logging.getLogger("terrain_from_numpy")
@@ -88,19 +89,7 @@ class TerrainFromNumpy(Room):
         super().__init__(border_width=border_width, border_object=border_object, labels=["terrain"])
 
     def get_valid_positions(self, level):
-        valid_positions = []
-        for i in range(1, level.shape[0] - 1):
-            for j in range(1, level.shape[1] - 1):
-                if level[i, j] == "empty":
-                    # Check if position is accessible from at least one direction
-                    if (
-                        level[i - 1, j] == "empty"
-                        or level[i + 1, j] == "empty"
-                        or level[i, j - 1] == "empty"
-                        or level[i, j + 1] == "empty"
-                    ):
-                        valid_positions.append((i, j))
-        return valid_positions
+        return terrain_utils.get_valid_positions(level)
 
     def _build(self):
         # TODO: add some way of sampling

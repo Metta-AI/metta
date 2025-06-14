@@ -15,3 +15,6 @@ find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(fast_gae "metta/rl/fast_gae.cpp")
 install(TARGETS fast_gae DESTINATION "metta/rl")
+
+pybind11_add_module(terrain_utils "mettagrid/mettagrid/room/terrain_utils.cpp")
+install(TARGETS terrain_utils DESTINATION "mettagrid/room")
