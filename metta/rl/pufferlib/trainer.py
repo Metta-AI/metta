@@ -469,7 +469,7 @@ class PufferTrainer:
             advantages = self._compute_advantage(
                 experience.values,
                 rewards_for_advantage,
-                experience.terminals,
+                experience.dones,
                 initial_ratio,
                 advantages,
                 config.gamma if not config.average_reward else 1.0,
