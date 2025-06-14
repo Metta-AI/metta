@@ -10,16 +10,14 @@ buckets:
     bins: 2
   game.agent.rewards.ore.red:
     range: [0.005, 0.05]
-    bins: 2
   game.agent.rewards.battery.red:
     range: [0.01, 0.1]
-    bins: 2
   game.map_builder.room.width:
     range: [15, 100]
-    bins: 3
+    bins: 2
   game.map_builder.room.height:
     range: [15, 100]
-    bins: 3
+    bins: 2
   game.map_builder.room.style:
     values: [balanced]
   game.map_builder.room.objects.mine.red:

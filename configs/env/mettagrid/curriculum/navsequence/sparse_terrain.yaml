@@ -11,10 +11,8 @@ buckets:
     bins: 2
   game.agent.rewards.ore.red:
     range: [0.005, 0.05]
-    bins: 2
   game.agent.rewards.battery.red:
     range: [0.01, 0.1]
-    bins: 2
   game.map_builder.room.width:
     range: [15, 100]
     bins: 2
@@ -22,7 +20,7 @@ buckets:
     range: [15, 100]
     bins: 2
   game.map_builder.room.style:
-    values: [all-sparse]
+    values: ["all-sparse"]
   game.map_builder.room.objects.mine.red:
     range: [2, 15]
     bins: 2

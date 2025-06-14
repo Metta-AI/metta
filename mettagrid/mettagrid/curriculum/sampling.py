@@ -48,9 +48,9 @@ class SampledTaskCurriculum(Curriculum):
 
 
 def _sample(choice: Any) -> Any:
-    if isinstance(choice, dict) and "range" in choice:
+    if "range" in choice:
         lo, hi = choice["range"]
         value = np.random.uniform(lo, hi)
         if choice.get("want_int", False):
-            value = int(value)
-        return value
+            choice = int(value)
+    return choice

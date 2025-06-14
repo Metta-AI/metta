@@ -82,7 +82,16 @@ class TerrainFromNumpy(Room):
         self.files = os.listdir(dir)
         self.dir = dir
         self._agents = agents
-        self._objects = objects
+        self._objects = {}
+        for obj, count in objects.items():
+            if isinstance(objects[obj], dict):
+                color = list(objects[obj].keys())
+                count = list(objects[obj].values())[0]
+                assert len(color) == 1
+                new_key = f"{obj}.{color[0]}"
+                self._objects[new_key] = count
+            else:
+                self._objects[obj] = count
         self.uri = file
         self.team = team
         super().__init__(border_width=border_width, border_object=border_object, labels=["terrain"])

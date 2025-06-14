@@ -31,7 +31,7 @@ game:
       height: 25
       border_width: 3
       agents: ${div:${...num_agents},${..num_rooms}}
-      style: ${choose:"dense","all-sparse","balanced","maze"}
+      style: balanced #${choose:"dense","all-sparse","balanced","maze"}
       objects:
         mine.red: 3
         generator.red: 3

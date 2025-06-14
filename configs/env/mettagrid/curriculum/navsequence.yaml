@@ -2,7 +2,7 @@ _target_: mettagrid.curriculum.LowRewardCurriculum
 
 tasks:
   /env/mettagrid/curriculum/navsequence/balanced_terrain: 1
-  /env/mettagrid/curriculum/navsequence/sparse_terrain: 1
-  /env/mettagrid/curriculum/navsequence/maze_terrain: 1
-  /env/mettagrid/curriculum/navsequence/dense_terrain: 1
-  /env/mettagrid/curriculum/navsequence/terrain_from_numpy: 4
+  # /env/mettagrid/curriculum/navsequence/sparse_terrain: 1
+  # /env/mettagrid/curriculum/navsequence/maze_terrain: 1
+  # /env/mettagrid/curriculum/navsequence/dense_terrain: 1
+  # /env/mettagrid/curriculum/navsequence/terrain_from_numpy: 4
