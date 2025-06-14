@@ -15,3 +15,7 @@ find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(fast_gae "metta/rl/fast_gae.cpp")
 install(TARGETS fast_gae DESTINATION "metta/rl")
+
+# Extension for building terrain maps quickly
+pybind11_add_module(terrain_builder "mettagrid/mettagrid/room/terrain_builder.cpp")
+install(TARGETS terrain_builder DESTINATION "mettagrid/mettagrid/room")

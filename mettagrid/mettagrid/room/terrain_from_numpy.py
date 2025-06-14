@@ -1,6 +1,5 @@
 import logging
 import os
-import random
 import time
 import zipfile
 
@@ -11,6 +10,7 @@ from filelock import FileLock
 from omegaconf import DictConfig
 
 from mettagrid.room.room import Room
+from mettagrid.room.terrain_builder import build_terrain
 
 logger = logging.getLogger("terrain_from_numpy")
 
@@ -114,31 +114,9 @@ class TerrainFromNumpy(Room):
 
         if isinstance(self._agents, int):
             agents = ["agent.agent"] * self._agents
-            num_agents = self._agents
         elif isinstance(self._agents, DictConfig):
             agents = ["agent." + agent for agent, na in self._agents.items() for _ in range(na)]
-            num_agents = len(agents)
 
-        valid_positions = self.get_valid_positions(level)
-        positions = random.sample(valid_positions, num_agents)
-
-        for pos, agent in zip(positions, agents, strict=False):
-            level[pos] = agent
-
-        area = level.shape[0] * level.shape[1]
-
-        # Check if total objects exceed room size and halve counts if needed
-        total_objects = sum(count for count in self._objects.values()) + len(agents)
-        while total_objects > 2 * area / 3:
-            for obj_name in self._objects:
-                self._objects[obj_name] = max(1, self._objects[obj_name] // 2)
-                total_objects = sum(count for count in self._objects.values()) + len(agents)
-
-        for obj_name, count in self._objects.items():
-            valid_positions = self.get_valid_positions(level)
-            positions = random.sample(valid_positions, count)
-            for pos in positions:
-                level[pos] = obj_name
-
+        level = build_terrain(level, agents, dict(self._objects))
         self._level = level
         return self._level
