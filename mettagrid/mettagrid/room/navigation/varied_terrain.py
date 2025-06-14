@@ -195,17 +195,15 @@ class VariedTerrain(Room):
         """
         r_h, r_w = region_shape
         H, W = self._occupancy.shape
+        cumulative_occupancy = self._occupancy.cumsum(axis=0).cumsum(axis=1)
         # The shuffled_product is lazy, so we'll only calculate as much as we need to
-        num_guesses = 0
         positions = [(r, c) for r in range(H - r_h + 1) for c in range(W - r_w + 1)]
         np.random.shuffle(positions)
         # for r, c in shuffled_product(range(H - r_h + 1), range(W - r_w + 1)):
         for r, c in positions:
             # num_guesses += 1
-            if not self._occupancy[r:r+r_h, c:c+r_w].any():
-                # print(f"xcxc found candidate after {num_guesses} guesses")
+            if cumulative_occupancy[r+r_h, c+r_w] - cumulative_occupancy[r, c+r_w] - cumulative_occupancy[r+r_h, c] + cumulative_occupancy[r, c] == 0:
                 return (r, c)
-        # print(f"xcxc no candidate found after {num_guesses} guesses")
         return None
 
     def _choose_random_empty(self) -> Optional[Tuple[int, int]]:
