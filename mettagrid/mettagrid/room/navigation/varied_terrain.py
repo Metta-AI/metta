@@ -195,6 +195,13 @@ class VariedTerrain(Room):
         """
         r_h, r_w = region_shape
         H, W = self._occupancy.shape
+        # try to get lucky, if we're sparse
+        for i in range(10):
+            r = self._rng.integers(0, H - r_h + 1)
+            c = self._rng.integers(0, W - r_w + 1)
+            if not self._occupancy[r:r+r_h, c:c+r_w].any():
+                return (r, c)
+        # if we're not lucky, we need to do the full search. Try to do this efficiently.
         cumulative_occupancy = self._occupancy.cumsum(axis=0).cumsum(axis=1)
         # Add row and column of zeros at top and left
         cumulative_occupancy = np.pad(cumulative_occupancy, ((1, 0), (1, 0)), mode='constant', constant_values=0)
