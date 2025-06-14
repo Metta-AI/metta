@@ -4,7 +4,8 @@ defaults:
   - _self_
 
 trainer:
-  total_timesteps: 100000
+  curriculum:
+    env/mettagrid/curriculum/navigation
 
 seed: null
 run_id: 20250613.01
