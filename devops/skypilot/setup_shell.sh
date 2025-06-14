@@ -4,10 +4,8 @@ export AWS_PROFILE=softmax
 alias jq="sky jobs queue --skip-finished"
 alias jqa="sky jobs queue"
 
-# cancel job
+# cancel ("kill") job
 alias jk="sky jobs cancel"
-alias jc="sky jobs cancel"
-alias jkl="sky jobs cancel"
 
 # get logs
 alias jl="sky jobs logs"

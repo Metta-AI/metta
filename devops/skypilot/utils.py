@@ -34,10 +34,10 @@ def launch_task(task: sky.Task, dry_run=False):
 
     short_request_id = request_id.split("-")[0]
 
-    print(f"- Check logs with: {bold(f'sky api logs {short_request_id}')}")
-    print(f"- Or, visit: {bold(f'{dashboard_url()}/api/stream?request_id={short_request_id}')}")
-    print("  - To sign in, use credentials from your ~/.skypilot/config.yaml file.")
-    print(f"- To cancel the request, run: {bold(f'sky api cancel {short_request_id}')}")
+    print(f"- Check logs with: {magenta(f'sky api logs {short_request_id}')}")
+    print(f"- Or, visit: {yellow(f'{dashboard_url()}/api/stream?request_id={short_request_id}')}")
+    print(f"  - To sign in, use credentials from your {cyan('~/.sky/config.yaml')} file.")
+    print(f"- To cancel the request, run: {magenta(f'sky api cancel {short_request_id}')}")
 
 
 def check_git_state(commit_hash: str) -> str | None:
@@ -186,7 +186,7 @@ def display_job_summary(
             print(f"{bold('Commit Message:')} {yellow(first_line)}")
 
     print(blue("-" * divider_length))
-    print(f"{bold('Command:')} {magenta(cmd)}")
+    print(f"{bold('Command:')} {yellow(cmd)}")
 
     if task_args:
         print(bold("Task Arguments:"))

@@ -60,7 +60,7 @@ dependencies = [
     "wandb-core>=0.17.0b11",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = ["skypilot==0.9.3"]
 
 [project.scripts]
@@ -88,6 +88,7 @@ cache-keys = [
     { file = "CMakeLists.txt" },
     { file = "metta/**/*.{cpp,hpp}" },
 ]
+default-groups = ["dev"]
 
 [tool.uv.workspace]
 members = ["mettagrid", "wandb_carbs"]

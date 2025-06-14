@@ -811,7 +811,7 @@ dependencies = [
     { name = "wandb-core" },
 ]
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "skypilot" },
 ]
@@ -855,7 +855,6 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "setuptools", specifier = ">=80.9.0" },
     { name = "shimmy", specifier = ">=2.0.0" },
-    { name = "skypilot", marker = "extra == 'dev'", specifier = "==0.9.3" },
     { name = "sympy", specifier = ">=1.13.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
     { name = "tensordict", specifier = ">=0.8.3" },
@@ -868,7 +867,9 @@ requires-dist = [
     { name = "wandb-carbs", editable = "wandb_carbs" },
     { name = "wandb-core", specifier = ">=0.17.0b11" },
 ]
-provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "skypilot", specifier = "==0.9.3" }]
 
 [[package]]
 name = "mettagrid"

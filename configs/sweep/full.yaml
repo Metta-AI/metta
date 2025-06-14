@@ -20,7 +20,3 @@ trainer:
     beta2: ${ss:logit, 0.0, 1.0}
     eps: ${ss:log, 1e-14, 1e-6}
 
-agent:
-  components:
-    _obs_:
-      atr_embed_dim: ${ss:pow2, 16, 128}
