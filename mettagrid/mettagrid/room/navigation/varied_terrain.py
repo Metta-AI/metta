@@ -197,7 +197,7 @@ class VariedTerrain(Room):
         H, W = self._occupancy.shape
         # The shuffled_product is lazy, so we'll only calculate as much as we need to
         num_guesses = 0
-        positions = [(r, c) for r, c in shuffled_product(range(H - r_h + 1), range(W - r_w + 1))]
+        positions = [(r, c) for r in range(H - r_h + 1) for c in range(W - r_w + 1)]
         np.random.shuffle(positions)
         # for r, c in shuffled_product(range(H - r_h + 1), range(W - r_w + 1)):
         for r, c in positions:
