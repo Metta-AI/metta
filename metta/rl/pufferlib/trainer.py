@@ -281,8 +281,7 @@ class PufferTrainer:
             self.torch_profiler.on_epoch_end(self.epoch)
 
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
-                with self.timer("_save_policy_to_wandb"):
-                    self._save_policy_to_wandb()
+                self._save_policy_to_wandb()
 
             if (
                 self.cfg.agent.l2_init_weight_update_interval != 0
@@ -359,15 +358,13 @@ class PufferTrainer:
 
     @with_instance_timer("_rollout")
     def _rollout(self):
-        with self.timer("_rollout.misc"):
-            policy = self.policy
-            infos = defaultdict(list)
-            lstm_h, lstm_c = self.experience.lstm_h, self.experience.lstm_c
+        policy = self.policy
+        infos = defaultdict(list)
+        lstm_h, lstm_c = self.experience.lstm_h, self.experience.lstm_c
 
         while not self.experience.full:
             with self.timer("_rollout.env"):
-                with self.timer("_rollout.vecenv.recv"):
-                    o, r, d, t, info, env_id, mask = self.vecenv.recv()
+                o, r, d, t, info, env_id, mask = self.vecenv.recv()
 
                 if self.trainer_cfg.require_contiguous_env_ids:
                     raise ValueError(
@@ -377,13 +374,12 @@ class PufferTrainer:
 
                 training_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
-            with self.timer("_rollout.misc"):
-                num_steps = sum(mask)
-                self.agent_step += num_steps * self._world_size
+            num_steps = sum(mask)
+            self.agent_step += num_steps * self._world_size
 
-                o = torch.as_tensor(o)
-                r = torch.as_tensor(r)
-                d = torch.as_tensor(d)
+            o = torch.as_tensor(o)
+            r = torch.as_tensor(r)
+            d = torch.as_tensor(d)
 
             with self.timer("_rollout.forward"), torch.no_grad():
                 assert training_env_id is not None and training_env_id.numel() > 0, (
@@ -413,49 +409,46 @@ class PufferTrainer:
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
-            with self.timer("_rollout.misc"):
-                value = value.flatten()
-                mask = torch.as_tensor(mask)  # * policy.mask)
-                o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
+            value = value.flatten()
+            mask = torch.as_tensor(mask)  # * policy.mask)
+            o = o if self.trainer_cfg.cpu_offload else o_device
+            self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
-                # At this point, infos contains lists of values collected across:
-                # 1. Multiple vectorized environments managed by this GPU's vecenv
-                # 2. Multiple rollout steps (until experience buffer is full)
-                #
-                # - Some stats (like "episode/reward") appear only when episodes complete
-                # - Other stats might appear every step
-                #
-                # These will later be averaged in _process_stats() to get mean values
-                # across all environments on this GPU. Stats from other GPUs (if using
-                # distributed training) are handled separately and not aggregated here.
+            # At this point, infos contains lists of values collected across:
+            # 1. Multiple vectorized environments managed by this GPU's vecenv
+            # 2. Multiple rollout steps (until experience buffer is full)
+            #
+            # - Some stats (like "episode/reward") appear only when episodes complete
+            # - Other stats might appear every step
+            #
+            # These will later be averaged in _process_stats() to get mean values
+            # across all environments on this GPU. Stats from other GPUs (if using
+            # distributed training) are handled separately and not aggregated here.
 
-                for i in info:
-                    for k, v in unroll_nested_dict(i):
-                        infos[k].append(v)
+            for i in info:
+                for k, v in unroll_nested_dict(i):
+                    infos[k].append(v)
 
             with self.timer("_rollout.env"):
                 actions_np = actions.cpu().numpy().astype(dtype_actions)
-                with self.timer("_rollout.vecenv.send"):
-                    self.vecenv.send(actions_np)
+                self.vecenv.send(actions_np)
 
-        with self.timer("_rollout.misc"):
-            for k, v in infos.items():
-                if isinstance(v, np.ndarray):
-                    v = v.tolist()
+        for k, v in infos.items():
+            if isinstance(v, np.ndarray):
+                v = v.tolist()
 
-                if isinstance(v, list):
-                    if k not in self.stats:
-                        self.stats[k] = []
-                    self.stats[k].extend(v)
+            if isinstance(v, list):
+                if k not in self.stats:
+                    self.stats[k] = []
+                self.stats[k].extend(v)
+            else:
+                if k not in self.stats:
+                    self.stats[k] = v
                 else:
-                    if k not in self.stats:
-                        self.stats[k] = v
-                    else:
-                        try:
-                            self.stats[k] += v
-                        except TypeError:
-                            self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
+                    try:
+                        self.stats[k] += v
+                    except TypeError:
+                        self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         # TODO: Better way to enable multiple collects
         self.experience.ptr = 0
@@ -473,37 +466,34 @@ class PufferTrainer:
     def _train(self):
         self.losses = self._make_losses()
 
-        with self.timer("_train.misc"):
-            idxs = self.experience.sort_training_data()
-            dones_np = self.experience.dones_np[idxs]
-            values_np = self.experience.values_np[idxs]
-            rewards_np = self.experience.rewards_np[idxs]
+        idxs = self.experience.sort_training_data()
+        dones_np = self.experience.dones_np[idxs]
+        values_np = self.experience.values_np[idxs]
+        rewards_np = self.experience.rewards_np[idxs]
 
-            self.mean_reward = self._get_experience_buffer_mean_reward()
+        self.mean_reward = self._get_experience_buffer_mean_reward()
 
-            if self.trainer_cfg.average_reward:
-                # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
-                # where ρ is the average reward estimate
+        if self.trainer_cfg.average_reward:
+            # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
+            # where ρ is the average reward estimate
 
-                # Apply IIR filter (exponential moving average)
-                alpha = self.trainer_cfg.average_reward_alpha
-                self.filtered_mean_reward = (1 - alpha) * self.filtered_mean_reward + alpha * self.mean_reward
+            # Apply IIR filter (exponential moving average)
+            alpha = self.trainer_cfg.average_reward_alpha
+            self.filtered_mean_reward = (1 - alpha) * self.filtered_mean_reward + alpha * self.mean_reward
 
-                # Use filtered estimate for advantage computation
-                rewards_np_adjusted = (rewards_np - self.filtered_mean_reward).astype(np.float32)
-                effective_gamma = 1.0
-                advantages_np = compute_gae(
-                    dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
-                )
-            else:
-                # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
-                effective_gamma = self.trainer_cfg.gamma
-                advantages_np = compute_gae(
-                    dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
-                )
+            # Use filtered estimate for advantage computation
+            rewards_np_adjusted = (rewards_np - self.filtered_mean_reward).astype(np.float32)
+            effective_gamma = 1.0
+            advantages_np = compute_gae(
+                dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
+            )
+        else:
+            # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
+            effective_gamma = self.trainer_cfg.gamma
+            advantages_np = compute_gae(dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda)
 
-            self.experience.returns_np = advantages_np + values_np
-            self.experience.flatten_batch(advantages_np)
+        self.experience.returns_np = advantages_np + values_np
+        self.experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
         total_minibatches = self.experience.num_minibatches * self.trainer_cfg.update_epochs
@@ -511,14 +501,13 @@ class PufferTrainer:
             lstm_state = PolicyState()
             teacher_lstm_state = []
             for mb in range(self.experience.num_minibatches):
-                with self.timer("_train.misc"):
-                    obs = self.experience.b_obs[mb]
-                    obs = obs.to(self.device, non_blocking=True)
-                    atn = self.experience.b_actions[mb]
-                    old_action_log_probs = self.experience.b_logprobs[mb]
-                    val = self.experience.b_values[mb]
-                    adv = self.experience.b_advantages[mb]
-                    ret = self.experience.b_returns[mb]
+                obs = self.experience.b_obs[mb]
+                obs = obs.to(self.device, non_blocking=True)
+                atn = self.experience.b_actions[mb]
+                old_action_log_probs = self.experience.b_logprobs[mb]
+                val = self.experience.b_values[mb]
+                adv = self.experience.b_advantages[mb]
+                ret = self.experience.b_returns[mb]
 
                 with self.timer("_train.forward"):
                     # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
@@ -528,65 +517,64 @@ class PufferTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-                with self.timer("_train.misc"):
-                    if __debug__:
-                        assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
-                        assert_shape(old_action_log_probs, ("B", "T"), "old_action_log_probs")
+                if __debug__:
+                    assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
+                    assert_shape(old_action_log_probs, ("B", "T"), "old_action_log_probs")
 
-                    logratio = new_action_log_probs - old_action_log_probs.reshape(-1)
-                    ratio = logratio.exp()
+                logratio = new_action_log_probs - old_action_log_probs.reshape(-1)
+                ratio = logratio.exp()
 
-                    with torch.no_grad():
-                        # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                        old_approx_kl = (-logratio).mean()
-                        approx_kl = ((ratio - 1) - logratio).mean()
-                        clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
+                with torch.no_grad():
+                    # calculate approx_kl http://joschu.net/blog/kl-approx.html
+                    old_approx_kl = (-logratio).mean()
+                    approx_kl = ((ratio - 1) - logratio).mean()
+                    clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
 
-                    adv = self._compute_advantage(adv)
+                adv = self._compute_advantage(adv)
 
-                    # Policy loss
-                    pg_loss1 = -adv * ratio
-                    pg_loss2 = -adv * torch.clamp(ratio, 1 - self.trainer_cfg.clip_coef, 1 + self.trainer_cfg.clip_coef)
-                    pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+                # Policy loss
+                pg_loss1 = -adv * ratio
+                pg_loss2 = -adv * torch.clamp(ratio, 1 - self.trainer_cfg.clip_coef, 1 + self.trainer_cfg.clip_coef)
+                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
-                    # Value loss
-                    newvalue = newvalue.view(-1)
-                    if self.trainer_cfg.clip_vloss:
-                        v_loss_unclipped = (newvalue - ret) ** 2
-                        v_clipped = val + torch.clamp(
-                            newvalue - val,
-                            -self.trainer_cfg.vf_clip_coef,
-                            self.trainer_cfg.vf_clip_coef,
-                        )
-                        v_loss_clipped = (v_clipped - ret) ** 2
-                        v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                        v_loss = 0.5 * v_loss_max.mean()
-                    else:
-                        v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
-
-                    entropy_loss = entropy.mean()
-
-                    ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                        self.agent_step, full_log_probs_distribution, newvalue, obs, teacher_lstm_state
+                # Value loss
+                newvalue = newvalue.view(-1)
+                if self.trainer_cfg.clip_vloss:
+                    v_loss_unclipped = (newvalue - ret) ** 2
+                    v_clipped = val + torch.clamp(
+                        newvalue - val,
+                        -self.trainer_cfg.vf_clip_coef,
+                        self.trainer_cfg.vf_clip_coef,
                     )
+                    v_loss_clipped = (v_clipped - ret) ** 2
+                    v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                    v_loss = 0.5 * v_loss_max.mean()
+                else:
+                    v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
 
-                    l2_reg_loss = torch.tensor(0.0, device=self.device)
-                    if self.trainer_cfg.l2_reg_loss_coef > 0:
-                        l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
+                entropy_loss = entropy.mean()
 
-                    l2_init_loss = torch.tensor(0.0, device=self.device)
-                    if self.trainer_cfg.l2_init_loss_coef > 0:
-                        l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
+                ks_action_loss, ks_value_loss = self.kickstarter.loss(
+                    self.agent_step, full_log_probs_distribution, newvalue, obs, teacher_lstm_state
+                )
 
-                    loss = (
-                        pg_loss
-                        - self.trainer_cfg.ent_coef * entropy_loss
-                        + v_loss * self.trainer_cfg.vf_coef
-                        + l2_reg_loss
-                        + l2_init_loss
-                        + ks_action_loss
-                        + ks_value_loss
-                    )
+                l2_reg_loss = torch.tensor(0.0, device=self.device)
+                if self.trainer_cfg.l2_reg_loss_coef > 0:
+                    l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
+
+                l2_init_loss = torch.tensor(0.0, device=self.device)
+                if self.trainer_cfg.l2_init_loss_coef > 0:
+                    l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
+
+                loss = (
+                    pg_loss
+                    - self.trainer_cfg.ent_coef * entropy_loss
+                    + v_loss * self.trainer_cfg.vf_coef
+                    + l2_reg_loss
+                    + l2_init_loss
+                    + ks_action_loss
+                    + ks_value_loss
+                )
 
                 with self.timer("_train.learn"):
                     self.optimizer.zero_grad()
@@ -600,37 +588,37 @@ class PufferTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-                with self.timer("_train.misc"):
-                    if self.losses is None:
-                        raise ValueError("self.losses is None")
+                if self.losses is None:
+                    raise ValueError("self.losses is None")
 
-                    self.losses.policy_loss += pg_loss.item() / total_minibatches
-                    self.losses.value_loss += v_loss.item() / total_minibatches
-                    self.losses.entropy += entropy_loss.item() / total_minibatches
-                    self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                    self.losses.approx_kl += approx_kl.item() / total_minibatches
-                    self.losses.clipfrac += clipfrac.item() / total_minibatches
-                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                self.losses.policy_loss += pg_loss.item() / total_minibatches
+                self.losses.value_loss += v_loss.item() / total_minibatches
+                self.losses.entropy += entropy_loss.item() / total_minibatches
+                self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
+                self.losses.approx_kl += approx_kl.item() / total_minibatches
+                self.losses.clipfrac += clipfrac.item() / total_minibatches
+                self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
+                self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
+                self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
+                self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                # end loop over minibatches
 
             if self.trainer_cfg.target_kl is not None:
                 if approx_kl > self.trainer_cfg.target_kl:
                     break
-
-        with self.timer("_train.misc"):
-            if self.lr_scheduler is not None:
-                self.lr_scheduler.step()
-
-            y_pred = self.experience.values_np
-            y_true = self.experience.returns_np
-            var_y = np.var(y_true)
-            explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-            self.losses.explained_variance = explained_var
             self.epoch += 1
+            # end loop over epochs
 
-    @with_instance_timer("_checkpoint_trainer", log_level=logging.INFO)
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
+
+        y_pred = self.experience.values_np
+        y_true = self.experience.returns_np
+
+        var_y = np.var(y_true)
+        explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
+        self.losses.explained_variance = explained_var
+
     def _checkpoint_trainer(self):
         if not self._master:
             return
@@ -646,7 +634,6 @@ class PufferTrainer:
             self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
-    @with_instance_timer("_checkpoint_policy")
     def _checkpoint_policy(self):
         if not self._master:
             return
@@ -682,7 +669,6 @@ class PufferTrainer:
         # at the same policy as the last_pr
         return self.last_pr
 
-    @with_instance_timer("_save_policy_to_wandb", log_level=logging.INFO)
     def _save_policy_to_wandb(self):
         if not self._master:
             return
@@ -723,6 +709,11 @@ class PufferTrainer:
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
+        # Early exit if no wandb logging
+        if not self.wandb_run or not self._master:
+            self.stats.clear()
+            return
+
         # convert lists of values (collected across all environments and rollout steps on this GPU)
         # into single mean values.
         mean_stats = {}
@@ -737,6 +728,7 @@ class PufferTrainer:
                 ) from e
         self.stats = mean_stats
 
+        # Collect weight metrics if needed
         weight_metrics = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
@@ -745,91 +737,98 @@ class PufferTrainer:
                     if key != "name":
                         weight_metrics[f"weights/{key}/{name}"] = value
 
-        # Calculate derived stats from local roll-outs (master process will handle logging)
+        # Prepare basic metrics
         learning_rate = self.optimizer.param_groups[0]["lr"]
         losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        if self.wandb_run and self._master:
-            elapsed_times = self.timer.get_all_elapsed()
-            wall_time = self.timer.get_elapsed()
-            train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
+        # Calculate timing metrics
+        elapsed_times = self.timer.get_all_elapsed()
+        wall_time = self.timer.get_elapsed()
+        train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
 
-            # these were defined as wandb x-axis values (step_metric) in init()
-            x_axis_values = {
-                "train/step": self.agent_step,
-                "train/epoch": self.epoch,
-                "train/total_time": wall_time,
-                "train/train_time": train_time,
+        # X-axis values for wandb
+        x_axis_values = {
+            "train/step": self.agent_step,
+            "train/epoch": self.epoch,
+            "train/total_time": wall_time,
+            "train/train_time": train_time,
+        }
+
+        # Lap timing calculations
+        lap_times = self.timer.lap_all(self.agent_step, exclude_global=False)
+        delta_steps = self.timer.get_lap_steps()
+        if delta_steps is None:
+            delta_steps = self.agent_step
+
+        wall_time_for_lap = lap_times.get("__global__", 0)
+        training_time_for_lap = lap_times.get("_rollout", 0) + lap_times.get("_train", 0)
+
+        # Timing logs
+        timing_logs = {
+            "timing/training_efficiency": training_time_for_lap / wall_time_for_lap if wall_time_for_lap > 0 else 0,
+            **{
+                f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
+                for op, elapsed in elapsed_times.items()
+            },
+            **{
+                f"timing/lap_fraction/{op}": elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                for op, elapsed in lap_times.items()
+            },
+        }
+
+        # Calculate rates
+        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+        lap_steps_per_second = self.timer.get_lap_rate(self.agent_step) if wall_time_for_lap > 0 else 0
+
+        # Overview metrics
+        overview = {
+            "sps": steps_per_second,
+            "lap_sps": lap_steps_per_second,
+            "steps_per_training_sec": steps_per_second,
+            "lap_steps_per_training_sec": lap_steps_per_second,
+            "reward_vs_train_time": self.mean_reward,
+            "reward_vs_total_time": self.mean_reward,
+            "reward_vs_epoch": self.mean_reward,
+        }
+
+        # Add custom overview items
+        for k, v in self.trainer_cfg.stats.overview.items():
+            if k in self.stats:
+                overview[v] = self.stats[k]
+
+        # Add evaluation scores
+        for category in self._eval_categories:
+            score = self._eval_suite_avgs.get(f"{category}_score", None)
+            if score is not None:
+                overview[f"{category}_evals"] = score
+
+        # Training logs
+        train_logs = {
+            "train/epoch": self.epoch,
+            "train/learning_rate": learning_rate,
+            "train/delta_steps_vs_epoch": delta_steps,
+            **x_axis_values,
+        }
+
+        # Add filtered average reward if applicable
+        if self.trainer_cfg.average_reward:
+            train_logs["train/filtered_mean_reward"] = self.filtered_mean_reward
+
+        # Log everything to wandb
+        self.wandb_run.log(
+            {
+                **{f"overview/{k}": v for k, v in overview.items()},
+                **{f"losses/{k}": v for k, v in losses.items()},
+                **environment,
+                **weight_metrics,
+                **self._eval_grouped_scores,
+                **train_logs,
+                **timing_logs,
             }
+        )
 
-            lap_times = self.timer.lap_all(self.agent_step)  # declares a new lap
-            delta_steps = self.timer.get_lap_steps()
-            if delta_steps is None:
-                delta_steps = self.agent_step
-
-            wall_time_for_lap = self.timer.get_last_elapsed()
-            training_time_for_lap = lap_times.get("_rollout", 0) + lap_times.get("_train", 0)
-
-            timing_logs = {
-                "timing/training_efficiency": training_time_for_lap / wall_time_for_lap if wall_time_for_lap > 0 else 0,
-                **{
-                    f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
-                    for op, elapsed in elapsed_times.items()
-                },
-                **{
-                    f"timing/lap_fraction/{op}": elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
-                    for op, elapsed in lap_times.items()
-                },
-            }
-
-            steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
-            lap_steps_per_second = self.timer.get_lap_rate(self.agent_step) if wall_time_for_lap > 0 else 0
-
-            overview = {
-                "sps": steps_per_second,  # average rate since start
-                "lap_sps": lap_steps_per_second,  # rate during the current epoch
-                "steps_per_training_sec": steps_per_second,
-                "lap_steps_per_training_sec": lap_steps_per_second,
-                "reward_vs_train_time": self.mean_reward,
-                "reward_vs_total_time": self.mean_reward,
-                "reward_vs_epoch": self.mean_reward,
-            }
-
-            # Add custom overview items
-            for k, v in self.trainer_cfg.stats.overview.items():
-                if k in self.stats:
-                    overview[v] = self.stats[k]
-
-            for category in self._eval_categories:
-                score = self._eval_suite_avgs.get(f"{category}_score", None)
-                if score is not None:
-                    overview[f"{category}_evals"] = score
-
-            train_logs = {
-                "train/epoch": self.epoch,
-                "train/learning_rate": learning_rate,
-                "train/delta_steps_vs_epoch": delta_steps,
-                **x_axis_values,
-            }
-
-            # Add the IIR filtered average reward if using that RL formulation
-            if self.trainer_cfg.average_reward:
-                train_logs["train/filtered_mean_reward"] = self.filtered_mean_reward
-
-            # Log everything to wandb
-            self.wandb_run.log(
-                {
-                    **{f"overview/{k}": v for k, v in overview.items()},
-                    **{f"losses/{k}": v for k, v in losses.items()},
-                    **environment,
-                    **weight_metrics,
-                    **self._eval_grouped_scores,
-                    **train_logs,
-                    **timing_logs,
-                }
-            )
-
+        # Clear state for next iteration
         self._eval_grouped_scores = {}
         self.stats.clear()
 
