@@ -921,6 +921,7 @@ class PufferTrainer:
             batch_size=forward_pass_batch_size,
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy,
+            training=True,
         )
 
         if self.cfg.seed is None:
