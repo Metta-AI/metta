@@ -22,6 +22,7 @@ import numpy as np
 from omegaconf import DictConfig
 
 from mettagrid.room.room import Room
+from mettagrid.room.utils import shuffled_product
 
 
 class VariedTerrain(Room):
@@ -194,25 +195,10 @@ class VariedTerrain(Room):
         """
         r_h, r_w = region_shape
         H, W = self._occupancy.shape
-        if H < r_h or W < r_w:
-            return []
-        # See if we can just get lucky
-        for i in range(3):
-            r = self._rng.integers(0, H - r_h + 1)
-            c = self._rng.integers(0, W - r_w + 1)
-            if self._occupancy[r:r+r_h, c:c+r_w].sum() == 0:
+        # The shuffled_product is lazy, so we'll only calculate as much as we need to
+        for r, c in shuffled_product(range(H - r_h + 1), range(W - r_w + 1)):
+            if not self._occupancy[r:r+r_h, c:c+r_w].any():
                 return (r, c)
-        # If we can't get lucky, we need to do the full search
-        # xcxc optimize this
-        shape = (H - r_h + 1, W - r_w + 1, r_h, r_w)
-        strides = self._occupancy.strides * 2
-        submats = np.lib.stride_tricks.as_strided(self._occupancy, shape=shape, strides=strides)
-        # Sum over each submatrix; candidate if sum == 0 (i.e., completely empty)
-        window_sums = submats.sum(axis=(2, 3))
-        candidates = np.argwhere(window_sums == 0)
-        np.random.shuffle(candidates)
-        for candidate in candidates:
-            return tuple(candidate)
         return None
 
     def _choose_random_empty(self) -> Optional[Tuple[int, int]]:

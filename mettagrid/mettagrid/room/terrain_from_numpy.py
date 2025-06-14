@@ -1,6 +1,5 @@
 import logging
 import os
-import random
 import time
 import zipfile
 
@@ -11,6 +10,7 @@ from filelock import FileLock
 from omegaconf import DictConfig
 
 from mettagrid.room.room import Room
+from mettagrid.room.utils import shuffled_product
 
 logger = logging.getLogger("terrain_from_numpy")
 
@@ -87,23 +87,22 @@ class TerrainFromNumpy(Room):
         self.team = team
         super().__init__(border_width=border_width, border_object=border_object, labels=["terrain"])
 
-    def get_valid_positions(self, level):
-        valid_positions = []
-        for i in range(1, level.shape[0] - 1):
-            for j in range(1, level.shape[1] - 1):
-                if level[i, j] == "empty":
-                    # Check if position is accessible from at least one direction
-                    if (
-                        level[i - 1, j] == "empty"
-                        or level[i + 1, j] == "empty"
-                        or level[i, j - 1] == "empty"
-                        or level[i, j + 1] == "empty"
-                    ):
-                        valid_positions.append((i, j))
-        return valid_positions
+    def shuffled_valid_positions(self, level):
+        # xcxc note that this updates based on current occupancy
+        for (i, j) in shuffled_product(range(1, level.shape[0] - 1), range(1, level.shape[1] - 1)):
+            if level[i, j] == "empty":
+                if (
+                    level[i - 1, j] == "empty"
+                    or level[i + 1, j] == "empty"
+                    or level[i, j - 1] == "empty"
+                    or level[i, j + 1] == "empty"
+                ):
+                    yield (i, j)
+
 
     def _build(self):
         # TODO: add some way of sampling
+        # xcxc handle stop iteration
         uri = self.uri or np.random.choice(self.files)
         level = safe_load(f"{self.dir}/{uri}")
         self.set_size_labels(level.shape[1], level.shape[0])
@@ -112,6 +111,8 @@ class TerrainFromNumpy(Room):
         agents = level == "agent.agent"
         level[agents] = "empty"
 
+        position_iter = self.shuffled_valid_positions(level)
+
         if isinstance(self._agents, int):
             agents = ["agent.agent"] * self._agents
             num_agents = self._agents
@@ -119,10 +120,8 @@ class TerrainFromNumpy(Room):
             agents = ["agent." + agent for agent, na in self._agents.items() for _ in range(na)]
             num_agents = len(agents)
 
-        valid_positions = self.get_valid_positions(level)
-        positions = random.sample(valid_positions, num_agents)
-
-        for pos, agent in zip(positions, agents, strict=False):
+        for agent in agents:
+            pos = next(position_iter)
             level[pos] = agent
 
         area = level.shape[0] * level.shape[1]
@@ -135,9 +134,8 @@ class TerrainFromNumpy(Room):
                 total_objects = sum(count for count in self._objects.values()) + len(agents)
 
         for obj_name, count in self._objects.items():
-            valid_positions = self.get_valid_positions(level)
-            positions = random.sample(valid_positions, count)
-            for pos in positions:
+            for i in range(count):
+                pos = next(position_iter)
                 level[pos] = obj_name
 
         self._level = level

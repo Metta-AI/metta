@@ -124,3 +124,33 @@ def set_position(x, upper_bound):
     if x >= upper_bound:
         return upper_bound - 1 if x % 2 == 0 else upper_bound - 2
     return x
+
+def lazy_permutation(n):
+    if n <= 4:
+        for i in np.random.permutation(n):
+            yield i
+        return
+    mid = n // 2
+    left_half = lazy_permutation(mid)
+    left_count = mid
+    right_half = lazy_permutation(n - mid)
+    right_count = n - mid
+    while left_count > 0 and right_count > 0:
+        # pick randomly, weighted by the size of the half
+        rand_idx = np.random.randint(0, left_count + right_count)
+        if rand_idx < left_count:
+            yield next(left_half)
+            left_count -= 1
+        else:
+            yield mid + next(right_half)
+            right_count -= 1
+    # one of them is empty, so we can just yield the rest
+    for left_idx in left_half:
+        yield left_idx
+    for right_idx in right_half:
+        yield mid + right_idx
+
+
+def shuffled_product(list1, list2):
+    for i in lazy_permutation(len(list1) * len(list2)):
+        yield list1[i // len(list2)], list2[i % len(list2)]
