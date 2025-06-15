@@ -2,6 +2,8 @@
 
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+#include <algorithm>
+#include <cmath>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
@@ -222,7 +224,9 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
                                      unsigned int observer_col,
                                      unsigned short obs_width,
                                      unsigned short obs_height,
-                                     size_t agent_idx) {
+                                     size_t agent_idx,
+                                     ActionType action,
+                                     ActionArg action_arg) {
   // Calculate observation boundaries
   unsigned int obs_width_radius = obs_width >> 1;
   unsigned int obs_height_radius = obs_height >> 1;
@@ -243,8 +247,27 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // we don't need to do that here.
   if (_use_observation_tokens) {
     size_t attempted_tokens_written = 0;
-    size_t tokens_written = 0;
+    size_t tokens_written = 4;
     auto observation_view = _observations.mutable_unchecked<3>();
+    auto rewards_view = _rewards.unchecked<1>();
+
+    // Global tokens
+    ObservationToken* tokens = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+    unsigned int episode_completion_pct = 0;
+    if (max_steps > 0) {
+      episode_completion_pct = static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
+    }
+    tokens[0] = {0, ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)};
+    tokens[1] = {0, ObservationFeature::LastAction,
+                  static_cast<uint8_t>(action)};
+    tokens[2] = {0, ObservationFeature::LastActionArg,
+                  static_cast<uint8_t>(action_arg)};
+    int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
+    reward_int = std::clamp(reward_int, 0, 255);
+    tokens[3] = {0, ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)};
+
+
+
     // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
     for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
       for (unsigned int r = r_start; r < r_end; r++) {
@@ -310,9 +333,18 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 }
 
 void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
-  for (size_t idx = 0; idx < _agents.size(); idx++) {
-    auto& agent = _agents[idx];
-    _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx);
+  auto actions_view = actions.unchecked<2>();
+  if (_use_observation_tokens) {
+    auto observation_view = _observations.mutable_unchecked<3>();
+    for (size_t idx = 0; idx < _agents.size(); idx++) {
+      auto& agent = _agents[idx];
+      _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
+    }
+  } else {
+    for (size_t idx = 0; idx < _agents.size(); idx++) {
+      auto& agent = _agents[idx];
+      _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, 0, 0);
+    }
   }
 }
 
@@ -407,7 +439,11 @@ py::tuple MettaGrid::reset() {
   // Clear observations
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
-  std::fill(obs_ptr, obs_ptr + obs_size, 0);
+  if (_use_observation_tokens) {
+    std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
+  } else {
+    std::fill(obs_ptr, obs_ptr + obs_size, 0);
+  }
 
   // Compute initial observations
   std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
