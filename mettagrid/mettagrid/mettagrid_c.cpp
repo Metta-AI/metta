@@ -2,6 +2,7 @@
 
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+
 #include <algorithm>
 #include <cmath>
 
@@ -245,18 +246,15 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     ObservationToken* tokens = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
     unsigned int episode_completion_pct = 0;
     if (max_steps > 0) {
-      episode_completion_pct = static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
+      episode_completion_pct =
+          static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
     }
     tokens[0] = {0, ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)};
-    tokens[1] = {0, ObservationFeature::LastAction,
-                  static_cast<uint8_t>(action)};
-    tokens[2] = {0, ObservationFeature::LastActionArg,
-                  static_cast<uint8_t>(action_arg)};
+    tokens[1] = {0, ObservationFeature::LastAction, static_cast<uint8_t>(action)};
+    tokens[2] = {0, ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)};
     int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
     reward_int = std::clamp(reward_int, 0, 255);
     tokens[3] = {0, ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)};
-
-
 
     // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
     for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
@@ -328,7 +326,8 @@ void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style
     auto observation_view = _observations.mutable_unchecked<3>();
     for (size_t idx = 0; idx < _agents.size(); idx++) {
       auto& agent = _agents[idx];
-      _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
+      _compute_observation(
+          agent->location.r, agent->location.c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
     }
   } else {
     for (size_t idx = 0; idx < _agents.size(); idx++) {
@@ -336,6 +335,14 @@ void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style
       _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, 0, 0);
     }
   }
+}
+
+void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg) {
+  auto& agent = _agents[agent_idx];
+  agent->stats.incr(stat);
+  agent->stats.incr(stat + "." + std::to_string(type) + "." + std::to_string(arg));
+  _action_success[agent_idx] = false;
+  *agent->reward -= agent->action_failure_penalty;
 }
 
 void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
@@ -361,30 +368,35 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
   current_step++;
   _event_manager->process_events(current_step);
 
-  // Process actions by priority
-  for (unsigned char p = 0; p <= _max_action_priority; p++) {
-    for (size_t idx = 0; idx < _agents.size(); idx++) {
-      int action = actions_view(idx, 0);
+  // Process actions by priority levels (highest to lowest)
+  for (unsigned char offset = 0; offset <= _max_action_priority; offset++) {
+    unsigned char current_priority = _max_action_priority - offset;
+
+    for (size_t agent_idx = 0; agent_idx < _agents.size(); agent_idx++) {
+      ActionType action = actions_view(agent_idx, 0);
+      ActionArg arg = actions_view(agent_idx, 1);
+
+      // Tolerate invalid action types
       if (action < 0 || action >= _num_action_handlers) {
-        printf("Invalid action: %d\n", action);
+        _handle_invalid_action(agent_idx, "action.invalid_type", action, arg);
         continue;
       }
 
-      ActionArg arg = actions_view(idx, 1);
-      auto& agent = _agents[idx];
       auto& handler = _action_handlers[action];
-
-      if (handler->priority != _max_action_priority - p) {
+      if (handler->priority != current_priority) {
         continue;
       }
 
+      // Tolerate invalid action arguments
       if (arg > _max_action_args[action]) {
+        _handle_invalid_action(agent_idx, "action.invalid_arg", action, arg);
         continue;
       }
 
+      auto& agent = _agents[agent_idx];
       // handle_action expects a GridObjectId, rather than an agent_id, because of where it does its lookup
-      bool success = handler->handle_action(agent->id, arg);
-      _action_success[idx] = success;
+      // note that handle_action will assign a penalty for attempting invalid actions as a side effect
+      _action_success[agent_idx] = handler->handle_action(agent->id, arg);
     }
   }
 

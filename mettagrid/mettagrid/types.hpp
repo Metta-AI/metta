@@ -47,7 +47,7 @@ typedef bool TerminalType;
 typedef bool TruncationType;
 typedef float RewardType;
 typedef int32_t ActionType;
-typedef unsigned char ActionArg;
+typedef ActionType ActionArg;
 typedef bool MaskType;
 typedef bool SuccessType;
 

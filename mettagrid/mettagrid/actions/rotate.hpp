@@ -5,6 +5,7 @@
 
 #include "action_handler.hpp"
 #include "objects/agent.hpp"
+#include "types.hpp"
 
 class Rotate : public ActionHandler {
 public:
