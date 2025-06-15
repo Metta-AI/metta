@@ -115,7 +115,8 @@ private:
                             unsigned short obs_width,
                             unsigned short obs_height,
                             size_t agent_idx,
-                            size_t start_idx);
+                            ActionType action,
+                            ActionArg action_arg);
   void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
   void _step(py::array_t<ActionType, py::array::c_style> actions);
 };
