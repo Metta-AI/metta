@@ -214,18 +214,18 @@ class PufferTrainer:
             # Define metrics (wandb x-axis values)
             metrics = ["step", "epoch", "total_time", "train_time"]
             for metric in metrics:
-                wandb_run.define_metric(f"train/{metric}")
+                wandb_run.define_metric(f"metric/{metric}")
 
             # set the default x-axis to be step count
             for k in ["overview", "env", "losses", "performance"]:
-                wandb_run.define_metric(f"{k}/*", step_metric="train/step")
+                wandb_run.define_metric(f"{k}/*", step_metric="metric/step")
 
             # Define metrics with their corresponding step metrics
             metric_definitions = [
-                ("overview/reward_vs_train_time", "train/train_time"),
-                ("overview/reward_vs_total_time", "train/total_time"),
-                ("overview/reward_vs_epoch", "train/epoch"),
-                ("train/delta_steps_vs_epoch", "train/epoch"),
+                ("overview/reward_vs_train_time", "metric/train_time"),
+                ("overview/reward_vs_total_time", "metric/total_time"),
+                ("overview/reward_vs_epoch", "metric/epoch"),
+                ("train/delta_steps_vs_epoch", "metric/epoch"),
             ]
 
             for metric_name, step_metric in metric_definitions:
@@ -748,11 +748,11 @@ class PufferTrainer:
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
 
         # X-axis values for wandb
-        x_axis_values = {
-            "train/step": self.agent_step,
-            "train/epoch": self.epoch,
-            "train/total_time": wall_time,
-            "train/train_time": train_time,
+        metric_stats = {
+            "metric/step": self.agent_step,
+            "metric/epoch": self.epoch,
+            "metric/total_time": wall_time,
+            "metric/train_time": train_time,
         }
 
         # Lap timing calculations
@@ -805,10 +805,8 @@ class PufferTrainer:
 
         # Training logs
         train_stats = {
-            "train/epoch": self.epoch,
             "train/learning_rate": self.optimizer.param_groups[0]["lr"],
             "train/delta_steps_vs_epoch": delta_steps,
-            **x_axis_values,
         }
 
         loss_stats = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
@@ -828,6 +826,7 @@ class PufferTrainer:
                 **self._eval_grouped_scores,
                 **train_stats,
                 **timing_stats,
+                **metric_stats,
             }
         )
 
