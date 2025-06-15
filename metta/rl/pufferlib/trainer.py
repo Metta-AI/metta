@@ -145,6 +145,7 @@ class PufferTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
+        self.profile.start_agent_steps = self.agent_step
         self._last_agent_step = self.agent_step
         self._total_minibatches = 0
 
@@ -220,6 +221,7 @@ class PufferTrainer:
     def train(self):
         logger.info("Starting training")
 
+        # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
         if (
             self.trainer_cfg.evaluate_interval != 0
             and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
@@ -303,22 +305,36 @@ class PufferTrainer:
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
+
         logger.info("Simulation complete")
 
-        self._eval_categories = {sim_name.split("/")[0] for sim_name in self.sim_suite_config.simulations.keys()}
+        self._eval_categories = set()
+        for sim_name in self.sim_suite_config.simulations.keys():
+            self._eval_categories.add(sim_name.split("/")[0])
         self._eval_suite_avgs = {}
+
+        # Compute scores for each evaluation category
         for category in self._eval_categories:
             score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
-            self._eval_suite_avgs[f"{category}_score"] = score if score is not None else 0.0
+            # Only add the score if we got a non-None result
+            if score is not None:
+                self._eval_suite_avgs[f"{category}_score"] = score
+            else:
+                self._eval_suite_avgs[f"{category}_score"] = 0.0
 
-        self._current_eval_score = stats_db.get_average_metric_by_filter("reward", self.last_pr) or 0.0
-        self._eval_grouped_scores = {
-            f"{category}/{sim_name.split('/')[-1]}": score
-            for (_, sim_name, _), score in stats_db.simulation_scores(self.last_pr, "reward").items()
-            for category in self._eval_categories
-            if category in sim_name.lower()
-        }
+        # Get overall score (average of all rewards)
+        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
+        self._current_eval_score = overall_score if overall_score is not None else 0.0
+        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
+
+        # Categorize scores by environment type
+        self._eval_grouped_scores = {}
+        # Process each score and assign to the right category
+        for (_, sim_name, _), score in all_scores.items():
+            for category in self._eval_categories:
+                if category in sim_name.lower():
+                    self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
 
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
@@ -535,14 +551,16 @@ class PufferTrainer:
                 v_loss = self._value_loss(newvalue, minibatch["returns"], minibatch["values"], config)
                 entropy_loss = entropy.mean()
 
-                ks_action_loss, ks_value_loss = self.kickstarter.loss(self.agent_step, full_logprobs, newvalue, obs, [])
+                ks_action_loss, ks_value_loss = self.kickstarter.loss(
+                    self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
+                )
                 l2_reg_loss = self._compute_l2_loss(config.l2_reg_loss_coef, self.policy.l2_reg_loss)
                 l2_init_loss = self._compute_l2_loss(config.l2_init_loss_coef, self.policy.l2_init_loss)
 
                 loss = (
                     pg_loss
-                    + config.vf_coef * v_loss
                     - config.ent_coef * entropy_loss
+                    + v_loss * config.vf_coef
                     + l2_reg_loss
                     + l2_init_loss
                     + ks_action_loss
@@ -575,6 +593,9 @@ class PufferTrainer:
 
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
+
+                    if self.device == "cuda":
+                        torch.cuda.synchronize()
 
             if config.target_kl is not None and approx_kl > config.target_kl:
                 break
@@ -649,13 +670,15 @@ class PufferTrainer:
         if not self._master:
             return
 
-        policy_record = self._checkpoint_policy()
+        pr = self._checkpoint_policy()
+
+        # Save filtered average reward estimate for restart continuity
         extra_args = {}
         if self.trainer_cfg.average_reward:
             extra_args["average_reward"] = self.average_reward
 
         self.checkpoint = TrainerCheckpoint(
-            self.agent_step, self.epoch, self.optimizer.state_dict(), policy_record.local_path(), **extra_args
+            self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
@@ -685,10 +708,12 @@ class PufferTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": training_time,
-                "score": self._current_eval_score or 0.0,  # Default to 0.0 if no evaluation yet
+                "score": self._current_eval_score,
                 "eval_scores": self._eval_suite_avgs,
             },
         )
+        # this is hacky, but otherwise the initial_pr points
+        # at the same policy as the last_pr
         return self.last_pr
 
     def _save_policy_to_wandb(self):
@@ -698,9 +723,9 @@ class PufferTrainer:
         if self.wandb_run is None:
             return
 
-        policy_record = self._checkpoint_policy()
-        if policy_record is not None:
-            self.policy_store.add_to_wandb_run(self.wandb_run.name, policy_record)
+        pr = self._checkpoint_policy()
+        if pr is not None:
+            self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _generate_and_upload_replay(self):
         if self._master:
@@ -730,6 +755,8 @@ class PufferTrainer:
                     self.wandb_run.log(link_summary)
 
     def _process_stats(self):
+        # convert lists of values (collected across all environments and rollout steps on this GPU)
+        # into single mean values.
         for k in list(self.stats.keys()):
             try:
                 self.stats[k] = np.mean(self.stats[k])
