@@ -220,7 +220,7 @@ class PufferTrainer:
             for k in ["overview", "env", "losses", "performance"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="metric/step")
 
-            # Define metrics with their corresponding step metrics
+            # set up plots that do not use steps as the x-axis
             metric_definitions = [
                 ("overview/reward_vs_train_time", "metric/train_time"),
                 ("overview/reward_vs_total_time", "metric/total_time"),
@@ -761,19 +761,19 @@ class PufferTrainer:
         if delta_steps is None:
             delta_steps = self.agent_step
 
-        wall_time_for_lap = lap_times.pop("__global__", 0)
+        wall_time_for_lap = lap_times.pop("global", 0)
         training_time_for_lap = lap_times.get("_rollout", 0) + lap_times.get("_train", 0)
 
         # Timing logs
         timing_stats = {
             "timing/training_efficiency": training_time_for_lap / wall_time_for_lap if wall_time_for_lap > 0 else 0,
             **{
-                f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
-                for op, elapsed in elapsed_times.items()
-            },
-            **{
                 f"timing/lap_fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
+            },
+            **{
+                f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
+                for op, elapsed in elapsed_times.items()
             },
         }
 

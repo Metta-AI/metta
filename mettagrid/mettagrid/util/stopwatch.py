@@ -117,11 +117,13 @@ def with_instance_timer(timer_name: str, log_level: Optional[int] = None, timer_
 class Stopwatch:
     """A utility class for timing code execution with support for multiple named timers."""
 
+    GLOBAL_TIMER_NAME = "global"  # Reserved name for the global timer
+
     def __init__(self, logger: Optional[logging.Logger] = None):
         self.logger = logger or logging.getLogger("Stopwatch")
         self._timers: Dict[str, TimerDict] = {}
         # Create global timer but don't start it automatically
-        self._timers["__global__"] = self._create_timer("__global__")
+        self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
 
     def _create_timer(self, name: str) -> TimerDict:
         """Create a new timer instance."""
@@ -139,7 +141,14 @@ class Stopwatch:
     def _get_timer(self, name: Optional[str] = None) -> TimerDict:
         """Get or create a timer. None defaults to global timer."""
         if name is None:
-            name = "__global__"
+            name = self.GLOBAL_TIMER_NAME
+
+        # Prevent users from manually creating a timer with the reserved name
+        if name == self.GLOBAL_TIMER_NAME and name not in self._timers:
+            raise ValueError(
+                f"'{self.GLOBAL_TIMER_NAME}' is a reserved timer name. Use None to access the global timer."
+            )
+
         if name not in self._timers:
             self._timers[name] = self._create_timer(name)
         return self._timers[name]
@@ -172,14 +181,16 @@ class Stopwatch:
         """Reset timing data for a specific timer or all timers."""
         if name is None:
             # Reset just the global timer
-            self._timers["__global__"] = self._create_timer("__global__")
+            self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
         else:
+            if name == self.GLOBAL_TIMER_NAME:
+                raise ValueError(f"Use None to reset the global timer, not '{self.GLOBAL_TIMER_NAME}'")
             self._timers[name] = self._create_timer(name)
 
     def reset_all(self):
         """Reset all timers including global."""
         self._timers.clear()
-        self._timers["__global__"] = self._create_timer("__global__")
+        self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
 
     def start(self, name: Optional[str] = None, filename: Optional[str] = None, lineno: Optional[int] = None):
         """Start a timer.
@@ -363,14 +374,13 @@ class Stopwatch:
         lap_times = {}
         for timer_name, timer in self._timers.items():
             if timer["is_running"]:
-                # Always record the lap to keep timers in sync
-                actual_name = timer_name if timer_name != "__global__" else None
+                # Use None for global timer in internal API
+                actual_name = None if timer_name == self.GLOBAL_TIMER_NAME else timer_name
                 lap_time = self.lap(steps, actual_name)
 
                 # Only include in results if not excluding global or not global timer
-                if not (exclude_global and timer_name == "__global__"):
-                    display_name = "global" if timer_name == "__global__" else timer_name
-                    lap_times[display_name] = lap_time
+                if not (exclude_global and timer_name == self.GLOBAL_TIMER_NAME):
+                    lap_times[timer_name] = lap_time
         return lap_times
 
     def get_elapsed(self, name: Optional[str] = None) -> float:
@@ -477,8 +487,8 @@ class Stopwatch:
         summaries = {}
         for timer_name, timer in self._timers.items():
             if timer["is_running"] or timer["total_elapsed"] > 0:
-                display_name = "global" if timer_name == "__global__" else timer_name
-                summaries[display_name] = self.get_summary(timer_name if timer_name != "__global__" else None)
+                actual_name = None if timer_name == self.GLOBAL_TIMER_NAME else timer_name
+                summaries[timer_name] = self.get_summary(actual_name)
         return summaries
 
     def get_all_elapsed(self, exclude_global: bool = True) -> Dict[str, float]:
@@ -492,10 +502,11 @@ class Stopwatch:
         """
         results = {}
         for timer_name in self._timers:
-            if exclude_global and timer_name == "__global__":
+            if exclude_global and timer_name == self.GLOBAL_TIMER_NAME:
                 continue
 
-            elapsed = self.get_elapsed(timer_name if timer_name != "__global__" else None)
+            actual_name = None if timer_name == self.GLOBAL_TIMER_NAME else timer_name
+            elapsed = self.get_elapsed(actual_name)
             results[timer_name] = elapsed
 
         return results
