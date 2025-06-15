@@ -46,7 +46,7 @@ PYTHONPATH=$PYTHONPATH:. torchrun \
   --master-port=$MASTER_PORT \
   --node-rank=$NODE_INDEX \
   tools/train.py \
-  trainer.num_workers=$NUM_CPUS \
+  trainer.num_workers=$((NUM_CPUS / NUM_GPUS)) \
   wandb.enabled=true \
   $args
 

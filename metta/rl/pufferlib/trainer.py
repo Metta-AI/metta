@@ -155,6 +155,7 @@ class PufferTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
+        self.profile.start_agent_steps = self.agent_step
         self._last_agent_step = self.agent_step
         self._total_minibatches = 0
 
@@ -616,7 +617,10 @@ class PufferTrainer:
             self.losses.explained_variance = explained_var
             self.epoch += 1
 
-            profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
+            profile.update_stats(
+                self.agent_step,
+                self.trainer_cfg.total_timesteps,
+            )
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -760,7 +764,7 @@ class PufferTrainer:
 
             training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
             overhead_time = wall_time - training_time
-            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
+            steps_per_sec = (self.agent_step - self._last_agent_step) / training_time if training_time > 0 else 0
 
             timing_logs = {
                 # Key performance indicators
