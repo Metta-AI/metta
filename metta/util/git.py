@@ -16,6 +16,15 @@ def run_git(*args: str) -> str:
         raise GitError(f"Git command failed ({e.returncode}): {e.stderr.strip()}") from e
 
 
+def run_gh(*args: str) -> str:
+    """Run a GitHub CLI command and return its output."""
+    try:
+        result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"GitHub CLI command failed ({e.returncode}): {e.stderr.strip()}") from e
+
+
 def get_current_branch() -> str:
     """Get the current git branch name."""
     try:
@@ -81,38 +90,31 @@ def validate_git_ref(ref: str) -> str | None:
 def get_current_repo() -> str | None:
     """Get the current GitHub repository in owner/repo format."""
     try:
-        result = subprocess.run(
-            ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
+        return run_gh("repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner")
+    except GitError:
         return None
 
 
 def get_github_variable(variable_name: str, repo: str | None = None) -> str | None:
     """Get the current value of a GitHub variable."""
-    cmd = ["gh", "variable", "get", variable_name]
+    cmd = ["variable", "get", variable_name]
     if repo:
         cmd.extend(["--repo", repo])
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except subprocess.CalledProcessError:
+        return run_gh(*cmd)
+    except GitError:
         return None
 
 
 def set_github_variable(variable_name: str, value: str, repo: str | None = None) -> bool:
     """Set a GitHub variable using the GitHub CLI."""
-    cmd = ["gh", "variable", "set", variable_name, "--body", value]
+    cmd = ["variable", "set", variable_name, "--body", value]
     if repo:
         cmd.extend(["--repo", repo])
 
     try:
-        subprocess.run(cmd, check=True)
+        run_gh(*cmd)
         return True
-    except subprocess.CalledProcessError:
+    except GitError:
         return False
