@@ -1,72 +1,69 @@
 {
-  "folders": [
-    {
-      "name": "metta",
-      "path": "."
-    },
-    {
-      "path": "personal"
-    }
-  ],
-  "settings": {
-    "yaml.schemas": {
-      "envs/griddly/gdy-schema.json": "envs/griddly/power_grid/*.yaml"
-    },
-    "ruff.enable": true,
-    "ruff.nativeServer": "on",
-    "files.excludeGitIgnored": true,
-    "terminal.integrated.profiles.osx": {
-      "metta-0": {
-        "path": "bash",
-        "args": [
-          "-c",
-          "WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta0 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
-        ],
-        "overrideName": true,
-        "name": "metta-0"
-      },
-      "metta-1": {
-        "path": "bash",
-        "args": [
-          "-c",
-          "WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta1 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
-        ],
-        "overrideName": true,
-        "name": "metta-1"
-      },
-      "metta-2": {
-        "path": "bash",
-        "args": [
-          "-c",
-          "WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta2 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
-        ],
-        "overrideName": true,
-        "name": "metta-2"
-      },
-      "metta-3": {
-        "path": "bash",
-        "args": [
-          "-c",
-          "WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta3 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
-        ],
-        "overrideName": true,
-        "name": "metta-3"
-      },
-      "metta-4": {
-        "path": "bash",
-        "args": [
-          "-c",
-          "WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta4 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
-        ],
-        "overrideName": true,
-        "name": "metta-4"
-      }
-    },
-    "terminal.integrated.cwd": "${workspaceFolder}",
-    "terminal.integrated.splitCwd": "workspaceRoot",
-    "files.autoGuessEncoding": false,
-    "files.associations": {
-      "*.json": "jsonc"
-    }
-  }
+	"folders": [
+		{
+			"name": "metta",
+			"path": "."
+		},
+		{
+			"path": "personal"
+		}
+	],
+	"settings": {
+		"yaml.schemas": {
+			"envs/griddly/gdy-schema.json": "envs/griddly/power_grid/*.yaml"
+		},
+		"ruff.enable": true,
+		"ruff.nativeServer": "on",
+		"files.excludeGitIgnored": true,
+		"terminal.integrated.profiles.osx": {
+			"metta-0": {
+				"path": "bash",
+				"args": [
+					"-c",
+					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta0 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
+				],
+				"overrideName": true,
+				"name": "metta-0"
+			},
+			"metta-1": {
+				"path": "bash",
+				"args": [
+					"-c",
+					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta1 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
+				],
+				"overrideName": true,
+				"name": "metta-1"
+			},
+			"metta-2": {
+				"path": "bash",
+				"args": [
+					"-c",
+					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta2 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
+				],
+				"overrideName": true,
+				"name": "metta-2"
+			},
+			"metta-3": {
+				"path": "bash",
+				"args": [
+					"-c",
+					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta3 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
+				],
+				"overrideName": true,
+				"name": "metta-3"
+			},
+			"metta-4": {
+				"path": "bash",
+				"args": [
+					"-c",
+					"WANDB_KEY=$(cat ~/.netrc | awk '/machine api.wandb.ai/{getline; getline; print $2}') && ssh -i ~/.ssh/id_ed25519 -t metta@metta4 'export WANDB_API_KEY=\"'\"$WANDB_KEY\"'\" SSH_USER=\"'\"$USER\"'\"; bash'"
+				],
+				"overrideName": true,
+				"name": "metta-4"
+			}
+		},
+		"terminal.integrated.cwd": "${workspaceFolder}",
+		"terminal.integrated.splitCwd": "workspaceRoot",
+		"files.autoGuessEncoding": false
+	}
 }
