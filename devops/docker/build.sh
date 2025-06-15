@@ -55,21 +55,10 @@ echo "Docker is installed and running ✓"
 echo ""
 echo "Building Docker images..."
 
-# Get current git branch
-branch=$(git rev-parse --abbrev-ref HEAD) || {
-  echo "Warning: Could not determine git branch, using 'main'"
-  branch="main"
-}
-
-echo "Using branch: $branch"
-echo ""
-
 # Build base image
 echo "Building metta-base image for linux/amd64 (AWS compatible)..."
 docker build --platform linux/amd64 \
   -f devops/docker/Dockerfile.base \
-  --build-arg CACHE_DATE="$(date +%Y%m%d_%H%M%S)" \
-  --build-arg BRANCH="$branch" \
   -t mettaai/metta-base:latest .
 
 if [ $? -ne 0 ]; then
@@ -84,8 +73,6 @@ echo ""
 echo "Building metta image for linux/amd64 (AWS compatible)..."
 docker build --platform linux/amd64 \
   -f devops/docker/Dockerfile \
-  --build-arg CACHE_DATE="$(date +%Y%m%d_%H%M%S)" \
-  --build-arg BRANCH="$branch" \
   -t mettaai/metta:latest .
 
 if [ $? -ne 0 ]; then
