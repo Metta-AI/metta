@@ -15,7 +15,7 @@ components:
   _obs_:
     _target_: metta.agent.lib.obs_enc.ObsTokenCatFourier
     atr_embed_dim: 16
-    num_freqs: 4
+    num_freqs: 8
     sources:
       null
 
