@@ -211,21 +211,25 @@ class PufferTrainer:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
         if wandb_run and self._master:
-            # setup wandb x-axis values
-            wandb_run.define_metric("train/step")
-            wandb_run.define_metric("train/epoch")
-            wandb_run.define_metric("train/total_time")
-            wandb_run.define_metric("train/train_time")
+            # Define metrics (wandb x-axis values)
+            metrics = ["step", "epoch", "total_time", "train_time"]
+            for metric in metrics:
+                wandb_run.define_metric(f"train/{metric}")
 
             # set the default x-axis to be step count
             for k in ["overview", "env", "losses", "performance"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/step")
 
-            # override some plots
-            wandb_run.define_metric("overview/reward_vs_train_time", step_metric="train/train_time")
-            wandb_run.define_metric("overview/reward_vs_total_time", step_metric="train/total_time")
-            wandb_run.define_metric("overview/reward_vs_epoch", step_metric="train/epoch")
-            wandb_run.define_metric("train/delta_steps_vs_epoch", step_metric="train/epoch")
+            # Define metrics with their corresponding step metrics
+            metric_definitions = [
+                ("overview/reward_vs_train_time", "train/train_time"),
+                ("overview/reward_vs_total_time", "train/total_time"),
+                ("overview/reward_vs_epoch", "train/epoch"),
+                ("train/delta_steps_vs_epoch", "train/epoch"),
+            ]
+
+            for metric_name, step_metric in metric_definitions:
+                wandb_run.define_metric(metric_name, step_metric=step_metric, overwrite=True)
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",

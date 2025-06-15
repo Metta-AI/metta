@@ -120,9 +120,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
-            with self.timer("_initialize_c_env.hydra"):
+            with self.timer("_initialize_c_env.build_map"):
                 map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
-            with self.timer("_initialize_c_env.map_builder"):
                 level = map_builder.build()
 
         # Validate the level
@@ -138,7 +137,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        with self.timer("_initialize_c_env.MettaGrid"):
+        with self.timer("_initialize_c_env.make_c_env"):
             self._c_env = MettaGrid(config_dict, level.grid.tolist())
 
         self._grid_env = self._c_env
