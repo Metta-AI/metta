@@ -108,7 +108,7 @@ class TestStopwatch:
         # Check checkpoints were recorded
         timer = stopwatch._get_timer("test_timer")
         assert "checkpoint1" in timer["checkpoints"]
-        assert timer["checkpoints"]["checkpoint1"][1] == 100
+        assert timer["checkpoints"]["checkpoint1"]["steps"] == 100
         assert len(timer["checkpoints"]) == 2
 
         # Verify anonymous checkpoint naming
@@ -362,6 +362,30 @@ class TestStopwatch:
         stopwatch.reset()
         assert stopwatch.get_elapsed() == 0.0
 
+    def test_get_filename(self, stopwatch):
+        """Test get_filename method."""
+        # Test unknown (no references)
+        assert stopwatch.get_filename("unknown_timer") == "unknown"
+
+        # Test single file
+        stopwatch.start("single_file")
+        stopwatch.stop("single_file")
+        filename = stopwatch.get_filename("single_file")
+        assert filename.endswith("test_stopwatch.py")
+
+        # Test multifile
+        # We simulate multiple references by manually adding them
+        timer = stopwatch._get_timer("multifile_test")
+        timer["references"].append({"filename": "file1.py", "lineno": 10})
+        timer["references"].append({"filename": "file2.py", "lineno": 20})
+        assert stopwatch.get_filename("multifile_test") == "multifile"
+
+        # Test multiple references from same file
+        timer2 = stopwatch._get_timer("samefile_test")
+        timer2["references"].append({"filename": "same.py", "lineno": 10})
+        timer2["references"].append({"filename": "same.py", "lineno": 20})
+        assert stopwatch.get_filename("samefile_test") == "same.py"
+
 
 class TestStopwatchIntegration:
     """Integration tests for more complex scenarios."""
@@ -426,10 +450,10 @@ class TestStopwatchIntegration:
         assert len(checkpoints) == 3
 
         # Extract checkpoint data for verification
-        checkpoint_list = sorted(checkpoints.items(), key=lambda x: x[1][0])
-        assert checkpoint_list[0][1][1] == 100  # First checkpoint at 100 steps
-        assert checkpoint_list[1][1][1] == 300  # Second checkpoint at 300 steps
-        assert checkpoint_list[2][1][1] == 600  # Third checkpoint at 600 steps
+        checkpoint_list = sorted(checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
+        assert checkpoint_list[0][1]["steps"] == 100  # First checkpoint at 100 steps
+        assert checkpoint_list[1][1]["steps"] == 300  # Second checkpoint at 300 steps
+        assert checkpoint_list[2][1]["steps"] == 600  # Third checkpoint at 600 steps
 
     def test_real_world_scenario(self):
         """Test a realistic usage scenario."""
