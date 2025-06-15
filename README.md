@@ -171,7 +171,12 @@ If you want to run evaluation post-training to compare different policies, you c
 To add your policy to the existing navigation evals DB:
 
 ```
-./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
+./tools/sim.py \
+    sim=navigation \
+    run=navigation101 \
+    policy_uri=wandb://run/YOUR_POLICY_URI \
+    sim_job.stats_db_uri=wandb://stats/navigation_db \
+    device=cpu
 ```
 
 This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db` artifact on WandB.
@@ -179,12 +184,16 @@ This will run your policy through the `configs/eval/navigation` eval_suite and t
 Then, to see the results in the heatmap along with the other policies in the database, you can run:
 
 ```
-./tools/analyze.py run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
+./tools/analyze.py run=analyze +eval_db_uri=wandb://stats/navigation_db analyzer.policy_uri=YOUR_POLICY_URI
 ```
 
-Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation DB, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that.
+Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation DB, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that. You can do the same process for the object-use eval artifact using: `wandb://stats/object_use_db`
 
-You can do the same process for the object-use eval artifact using: `wandb://artifacts/object_use_db`
+Furthermore, you can post your results to the dashboard here:
+
+```
+./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
+```
 
 ## Development Setup
 
