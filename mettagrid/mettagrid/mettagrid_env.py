@@ -68,39 +68,38 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        self._render_mode = render_mode
+        self._curriculum = curriculum
+        self._task = self._curriculum.get_task()
+        self._level = level
+        self._last_level_per_task = {self._task.id(): level}
+        self._renderer = None
+        self._map_labels = []
+        self._stats_writer = stats_writer
+        self._replay_writer = replay_writer
+        self._episode_id: str | None = None
+        self._reset_at = datetime.datetime.now()
+        self._current_seed = 0
+
+        self.labels = self._task.env_cfg().get("labels", None)
+        self._should_reset = False
+
+        self._initialize_c_env()
+        super().__init__(buf)
+
+        if self._render_mode is not None:
+            if self._render_mode == "human":
+                from .renderer.nethack import NethackRenderer
+
+                self._renderer = NethackRenderer(self.object_type_names)
+            elif self._render_mode == "miniscope":
+                from .renderer.miniscope import MiniscopeRenderer
+
+                self._renderer = MiniscopeRenderer(self.object_type_names)
+
         self.timer = Stopwatch(logger)
         self.timer.start()
         self._steps = 0
-
-        with self.timer("__init__"):
-            self._render_mode = render_mode
-            self._curriculum = curriculum
-            self._task = self._curriculum.get_task()
-            self._level = level
-            self._last_level_per_task = {self._task.id(): level}
-            self._renderer = None
-            self._map_labels = []
-            self._stats_writer = stats_writer
-            self._replay_writer = replay_writer
-            self._episode_id: str | None = None
-            self._reset_at = datetime.datetime.now()
-            self._current_seed = 0
-
-            self.labels = self._task.env_cfg().get("labels", None)
-            self._should_reset = False
-
-            self._initialize_c_env()
-            super().__init__(buf)
-
-            if self._render_mode is not None:
-                if self._render_mode == "human":
-                    from .renderer.nethack import NethackRenderer
-
-                    self._renderer = NethackRenderer(self.object_type_names)
-                elif self._render_mode == "miniscope":
-                    from .renderer.miniscope import MiniscopeRenderer
-
-                    self._renderer = MiniscopeRenderer(self.object_type_names)
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
@@ -145,9 +144,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @override  # pufferlib.PufferEnv.reset
     @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
-        with self.timer("_curriculum.get_task"):
-            self._task = self._curriculum.get_task()
-
+        self._task = self._curriculum.get_task()
         self._initialize_c_env()
 
         assert self.observations.dtype == dtype_observations
@@ -163,8 +160,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._replay_writer:
             self._replay_writer.start_episode(self._episode_id, self)
 
-        with self.timer("_c_env.reset"):
-            obs, infos = self._c_env.reset()
+        obs, infos = self._c_env.reset()
 
         self._should_reset = False
         return obs, infos
@@ -222,8 +218,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @with_instance_timer("process_episode_stats")
     def process_episode_stats(self, infos: Dict[str, Any]):
-        with self.timer("_c_env.get_episode_rewards"):
-            episode_rewards = self._c_env.get_episode_rewards()
+        episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 

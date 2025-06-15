@@ -222,10 +222,7 @@ class PufferTrainer:
 
             # set up plots that do not use steps as the x-axis
             metric_definitions = [
-                ("overview/reward_vs_train_time", "metric/train_time"),
-                ("overview/reward_vs_total_time", "metric/total_time"),
-                ("overview/reward_vs_epoch", "metric/epoch"),
-                ("train/delta_steps_vs_epoch", "metric/epoch"),
+                ("overview/reward", "metric/total_time"),
             ]
 
             for metric_name, step_metric in metric_definitions:
@@ -762,11 +759,10 @@ class PufferTrainer:
             delta_steps = self.agent_step
 
         wall_time_for_lap = lap_times.pop("global", 0)
-        training_time_for_lap = lap_times.get("_rollout", 0) + lap_times.get("_train", 0)
 
         # Timing logs
         timing_stats = {
-            "timing/training_efficiency": training_time_for_lap / wall_time_for_lap if wall_time_for_lap > 0 else 0,
+            "timing/training_efficiency": train_time / wall_time if wall_time > 0 else 0,
             **{
                 f"timing/lap_fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
@@ -779,17 +775,13 @@ class PufferTrainer:
 
         # Calculate rates
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
-        lap_steps_per_second = self.timer.get_lap_rate(self.agent_step) if wall_time_for_lap > 0 else 0
+        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
 
         # Overview metrics
         overview = {
             "sps": steps_per_second,
             "lap_sps": lap_steps_per_second,
-            "steps_per_training_sec": steps_per_second,
-            "lap_steps_per_training_sec": lap_steps_per_second,
-            "reward_vs_train_time": self.mean_reward,
-            "reward_vs_total_time": self.mean_reward,
-            "reward_vs_epoch": self.mean_reward,
+            "reward": self.mean_reward,
         }
 
         # Add custom overview items
@@ -806,7 +798,7 @@ class PufferTrainer:
         # Training logs
         train_stats = {
             "train/learning_rate": self.optimizer.param_groups[0]["lr"],
-            "train/delta_steps_vs_epoch": delta_steps,
+            "train/delta_steps": delta_steps,
         }
 
         loss_stats = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
