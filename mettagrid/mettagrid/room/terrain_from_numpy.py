@@ -105,44 +105,63 @@ class TerrainFromNumpy(Room):
 
     def get_valid_positions(self, level, num_needed):
         """
-        Fastest approach: Vectorized operations with random sampling
-        This is the best balance of speed and true randomness
+        Fastest possible: flat array operations
         """
-        # Convert to boolean for faster operations
-        empty_mask = level == "empty"
-        h, w = empty_mask.shape
+        # Work with flattened array
+        flat_level = level.ravel()
+        empty_indices = np.where(flat_level == "empty")[0]
 
-        # Use slicing instead of roll (faster, no copies)
-        valid_mask = np.zeros((h, w), dtype=bool)
-
-        # Interior cells only
-        interior = empty_mask[1:-1, 1:-1]
-
-        # Check all four neighbors at once
-        has_neighbor = (
-            empty_mask[:-2, 1:-1]  # up
-            | empty_mask[2:, 1:-1]  # down
-            | empty_mask[1:-1, :-2]  # left
-            | empty_mask[1:-1, 2:]  # right
-        )
-
-        valid_mask[1:-1, 1:-1] = interior & has_neighbor
-
-        # Get flat indices (faster than coordinate pairs)
-        valid_flat = np.flatnonzero(valid_mask)
-
-        if len(valid_flat) <= num_needed:
-            # Need all positions
-            np.random.shuffle(valid_flat)
-            indices = valid_flat
+        if len(empty_indices) <= num_needed:
+            np.random.shuffle(empty_indices)
+            selected = empty_indices
         else:
-            # Random sample without replacement
-            indices = np.random.choice(valid_flat, size=num_needed, replace=False)
+            selected = np.random.choice(empty_indices, size=num_needed, replace=False)
 
-        # Convert flat indices back to coordinates
-        return [(idx // w, idx % w) for idx in indices]
+        # Convert back to 2D coordinates
+        h, w = level.shape
+        return [(idx // w, idx % w) for idx in selected]
+
+    # def get_valid_positions(self, level, num_needed):
+    #     """
+    #     Fastest approach: Vectorized operations with random sampling
+    #     This is the best balance of speed and true randomness
+    #     """
+    #     # Convert to boolean for faster operations
+    #     empty_mask = level == "empty"
+    #     h, w = empty_mask.shape
+
+    #     # Use slicing instead of roll (faster, no copies)
+    #     valid_mask = np.zeros((h, w), dtype=bool)
+
+    #     # Interior cells only
+    #     interior = empty_mask[1:-1, 1:-1]
+
+    #     # Check all four neighbors at once
+    #     has_neighbor = (
+    #         empty_mask[:-2, 1:-1]  # up
+    #         | empty_mask[2:, 1:-1]  # down
+    #         | empty_mask[1:-1, :-2]  # left
+    #         | empty_mask[1:-1, 2:]  # right
+    #     )
+
+    #     valid_mask[1:-1, 1:-1] = interior & has_neighbor
+
+    #     # Get flat indices (faster than coordinate pairs)
+    #     valid_flat = np.flatnonzero(valid_mask)
+
+    #     if len(valid_flat) <= num_needed:
+    #         # Need all positions
+    #         np.random.shuffle(valid_flat)
+    #         indices = valid_flat
+    #     else:
+    #         # Random sample without replacement
+    #         indices = np.random.choice(valid_flat, size=num_needed, replace=False)
+
+    #     # Convert flat indices back to coordinates
+    #     return [(idx // w, idx % w) for idx in indices]
 
     def _build(self):
+        start_time = time.time()
         level = safe_load(f"{self.dir}/{self.uri}")
         height, width = level.shape
         self.set_size_labels(width, height)
@@ -177,5 +196,6 @@ class TerrainFromNumpy(Room):
                     idx += 1
 
         self._level = level
-
+        end_time = time.time()
+        logger.info(f"Time taken to build level: {end_time - start_time} seconds")
         return self._level
