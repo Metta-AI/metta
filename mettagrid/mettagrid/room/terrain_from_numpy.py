@@ -80,7 +80,6 @@ class TerrainFromNumpy(Room):
         file: str | None = None,
         team: str | None = None,
     ):
-        start_time = time.time()
         root = dir.split("/")[0]
         zipped_dir = root + ".zip"
         lock_path = zipped_dir + ".lock"
@@ -103,32 +102,6 @@ class TerrainFromNumpy(Room):
         self._objects = objects
         self.team = team
         super().__init__(border_width=border_width, border_object=border_object, labels=[root])
-        end_time = time.time()
-        logger.info(f"Time taken to initialize level: {end_time - start_time} seconds")
-
-    # def get_valid_positions(self, level):
-    #     # Create a boolean mask for empty cells
-    #     empty_mask = level == "empty"
-
-    #     # Use numpy's roll to check adjacent cells efficiently
-    #     has_empty_neighbor = (
-    #         np.roll(empty_mask, 1, axis=0)  # Check up
-    #         | np.roll(empty_mask, -1, axis=0)  # Check down
-    #         | np.roll(empty_mask, 1, axis=1)  # Check left
-    #         | np.roll(empty_mask, -1, axis=1)  # Check right
-    #     )
-
-    #     # Valid positions are empty cells with at least one empty neighbor
-    #     # Exclude border cells (indices 0 and -1)
-    #     valid_mask = empty_mask & has_empty_neighbor
-    #     valid_mask[0, :] = False
-    #     valid_mask[-1, :] = False
-    #     valid_mask[:, 0] = False
-    #     valid_mask[:, -1] = False
-
-    #     # Get coordinates of valid positions
-    #     valid_positions = list(zip(*np.where(valid_mask), strict=False))
-    #     return valid_positions
 
     def get_valid_positions(self, level, num_needed):
         """
@@ -170,7 +143,6 @@ class TerrainFromNumpy(Room):
         return [(idx // w, idx % w) for idx in indices]
 
     def _build(self):
-        start_time = time.time()
         level = safe_load(f"{self.dir}/{self.uri}")
         height, width = level.shape
         self.set_size_labels(width, height)
@@ -205,6 +177,5 @@ class TerrainFromNumpy(Room):
                     idx += 1
 
         self._level = level
-        end_time = time.time()
-        logger.info(f"Time taken to build level: {end_time - start_time} seconds")
+
         return self._level
