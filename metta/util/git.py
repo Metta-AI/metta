@@ -53,21 +53,16 @@ def get_commit_message(commit_hash: str) -> str:
 
 def has_unstaged_changes() -> bool:
     """Check if there are any unstaged changes."""
-    try:
-        status_output = run_git("status", "--porcelain")
-        return bool(status_output)
-    except GitError:
-        return False
+    status_output = run_git("status", "--porcelain")
+    return bool(status_output)
 
 
 def is_commit_pushed(commit_hash: str) -> bool:
     """Check if a commit has been pushed to any remote branch."""
-    try:
-        # Get all remote branches that contain this commit
-        remote_branches = run_git("branch", "-r", "--contains", commit_hash)
-        return bool(remote_branches.strip())
-    except GitError:
-        return False
+
+    # Get all remote branches that contain this commit
+    remote_branches = run_git("branch", "-r", "--contains", commit_hash)
+    return bool(remote_branches.strip())
 
 
 def validate_git_ref(ref: str) -> str | None:
@@ -97,20 +92,17 @@ def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
     Returns:
         tuple(pr_number, pr_title) if commit is HEAD of an open PR, None otherwise
     """
-    try:
-        # Get all open PRs
-        pr_json = run_gh("pr", "list", "--state", "open", "--json", "number,title,headRefOid")
-        prs = json.loads(pr_json)
 
-        for pr in prs:
-            # Check if this PR's HEAD commit matches our commit
-            pr_head_sha = pr.get("headRefOid", "")
+    # Get all open PRs
+    pr_json = run_gh("pr", "list", "--state", "open", "--json", "number,title,headRefOid")
+    prs = json.loads(pr_json)
 
-            # Compare commits (handle both short and full hashes)
-            if pr_head_sha.startswith(commit_hash):
-                return (pr["number"], pr["title"])
+    for pr in prs:
+        # Check if this PR's HEAD commit matches our commit
+        pr_head_sha = pr.get("headRefOid", "")
 
-        return None
+        # Compare commits (handle both short and full hashes)
+        if pr_head_sha.startswith(commit_hash):
+            return (pr["number"], pr["title"])
 
-    except Exception:
-        return None
+    return None
