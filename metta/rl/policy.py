@@ -28,11 +28,11 @@ def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
 
     policy = instantiate(puffer, env=env, policy=None)
     policy.load_state_dict(weights)
-    policy = MettaAgentAdapter(policy).to(device)
+    policy = PytorchAgent(policy).to(device)
     return policy
 
 
-class MettaAgentAdapter(nn.Module):
+class PytorchAgent(nn.Module):
     """Adapter to make loaded Puffer policies compatible with MettaAgent interface.
 
     This adapter wraps policies loaded from checkpoints and translates their

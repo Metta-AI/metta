@@ -22,7 +22,7 @@ from metta.rl.experience import Experience
 from metta.rl.fast_gae import compute_gae
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
-from metta.rl.policy import MettaAgentAdapter
+from metta.rl.policy import PytorchAgent
 from metta.rl.profile import Profile, profile_section
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
@@ -176,7 +176,7 @@ class MettaTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, MettaAgentAdapter)), self.metta_agent
+        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
