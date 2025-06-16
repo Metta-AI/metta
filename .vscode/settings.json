@@ -3,7 +3,6 @@
   "editor.formatOnSave": true,
   "files.trimTrailingWhitespace": true,
   "files.insertFinalNewline": true,
-
   // C/C++ Configuration
   "[cpp]": {
     "editor.rulers": [120]
@@ -13,7 +12,6 @@
   "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4 }",
   "C_Cpp.errorSquiggles": "enabled",
   "C_Cpp.intelliSenseEngine": "default",
-
   // Python Configuration
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
@@ -24,19 +22,9 @@
     "editor.rulers": [120],
     "editor.renderWhitespace": "trailing"
   },
-  "python.analysis.typeCheckingMode": "basic",
-  "python.analysis.extraPaths": ["mettagrid"],
-  "python.autoComplete.extraPaths": ["mettagrid"],
   "python.testing.unittestEnabled": true,
   "python.testing.pytestEnabled": false,
-  "python.testing.unittestArgs": [
-    "-v",
-    "-s",
-    "./tests",
-    "-p",
-    "test_*.py"
-  ],
-
+  "python.testing.unittestArgs": ["-v", "-s", "./tests", "-p", "test_*.py"],
   // YAML Configuration
   "[yaml]": {
     "editor.insertSpaces": true,
@@ -48,18 +36,15 @@
       "strings": true
     }
   },
-
   // Terminal Configuration
   "terminal.integrated.cwd": "${workspaceFolder}",
-
   // File Explorer Configuration
   "files.exclude": {
-    "**/*.egg-info": true,
     "**/__pycache__": true,
     "**/.pytest_cache": true,
-    "**/wandb": true,
-    "replays": true,
+    "**/*.egg-info": true,
+    "outputs": true,
     "train_dir": true,
-    "outputs": true
+    "wandb": true
   }
 }

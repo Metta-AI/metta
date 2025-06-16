@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/navigation_sequence/training/mem_defaults@
+  - /env/mettagrid/navigation_sequence/experiments/mem_defaults@
   - _self_
 
 game:

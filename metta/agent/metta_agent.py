@@ -56,7 +56,9 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
 class DistributedMettaAgent(DistributedDataParallel):
     """Distributed wrapper for MettaAgent that preserves the interface."""
 
-    def __init__(self, agent: "MettaAgent", device):
+    def __init__(self, agent: MettaAgent, device):
+        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
         super().__init__(agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name):

@@ -41,8 +41,10 @@
         <img src="data/ui/cloud.png" alt="#fog-of-war-toggle.hover-icon" id="fog-of-war-toggle" class="hover-icon">
       </div>
     </div>
-    <div id="time-panel">
-      <input id="main-scrubber">
+    <div id="timeline-panel">
+      <div id="timeline-redout">
+        <span id="step-counter">1999</span>
+      </div>
     </div>
     <div id="trace-panel"></div>
     <div id="worldmap-panel"></div>
@@ -197,14 +199,14 @@
     </div>
     <div class="infopanel">
       <div class="panel-body">
-        <div class="top">
+        <div class="params">
           <img src="data/ui/tack.png" alt="pin-info-panel.hover-icon" class="pin-info-panel hover-icon">
           <div class="param">
             <span class="name">agent:really_long_name</span>
             <span class="value">Agent</span>
           </div>
         </div>
-        <div class="bottom">
+        <div class="inventory-area">
           <span class="label">Inventory</span>
           <div class="inventory">
             <div class="item">
@@ -213,9 +215,38 @@
             </div>
           </div>
         </div>
+        <div class="actions">
+          <button class="memory">
+            <img src="data/ui/brain.png" alt="ui/brain" class="ui/brain">
+            <span class="text">Memory</span>
+          </button>
+        </div>
       </div>
       <img src="data/ui/panel-tip.png" alt="tip" class="tip">
       <img src="data/ui/close.png" alt="close.hover-icon" class="close hover-icon">
+    </div>
+    <div id="object-menu">
+      <div class="set-memory-to-0 hover">
+        <span class="text">Set Memory to 0</span>
+        <img src="data/ui/brain0.png" alt="icon" class="icon">
+      </div>
+      <div class="set-memory-to-1 hover">
+        <span class="text">Set Memory to 1</span>
+        <img src="data/ui/brain1.png" alt="icon" class="icon">
+      </div>
+      <div class="set-memory-to-random hover">
+        <span class="text">Scramble Memory</span>
+        <img src="data/ui/brainr.png" alt="icon" class="icon">
+      </div>
+      <div class="sep"></div>
+      <div class="copy-memory hover">
+        <span class="text">Copy Memory</span>
+        <img src="data/ui/copy.png" alt="icon" class="icon">
+      </div>
+      <div class="paste-memory hover">
+        <span class="text">Paste Memory</span>
+        <img src="data/ui/paste.png" alt="icon" class="icon">
+      </div>
     </div>
   </body>
 </html>

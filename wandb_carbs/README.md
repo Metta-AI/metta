@@ -30,10 +30,10 @@ Wandb Carbs is a Python package that integrates the [CARBS](https://github.com/i
 
 ## Installation
 
-You can install Wandb Carbs via pip:
+You can install Wandb Carbs using UV:
 
 ```bash
-pip install wandb_carbs
+uv pip install wandb_carbs
 ```
 
 For local development, refer to the top-level [README.md](../README.md) in this repository.

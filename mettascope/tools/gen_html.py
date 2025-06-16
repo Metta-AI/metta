@@ -585,7 +585,14 @@ html, body {
 
             if "textAlignVertical" in style:
                 # No exact match in CSS for vertical text alignment on blocks
-                css["vertical-align"] = style["textAlignVertical"].lower()
+                if style["textAlignVertical"].lower() == "top":
+                    css["vertical-align"] = "top"
+                elif style["textAlignVertical"].lower() == "center":
+                    css["vertical-align"] = "middle"
+                elif style["textAlignVertical"].lower() == "bottom":
+                    css["vertical-align"] = "bottom"
+                else:
+                    print("Unknown vertical text alignment:", style["textAlignVertical"])
 
             if "letterSpacing" in style:
                 css["letter-spacing"] = px(style["letterSpacing"])
