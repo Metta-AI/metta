@@ -88,10 +88,6 @@ public:
     return _feature_normalizations;
   }
 
-  const std::vector<std::vector<std::string>>& type_feature_names() const {
-    return _type_feature_names;
-  }
-
 private:
   std::vector<std::vector<uint8_t>> _offsets;
   std::vector<std::vector<std::string>> _type_feature_names;

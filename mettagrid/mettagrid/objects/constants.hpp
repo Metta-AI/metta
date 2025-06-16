@@ -108,6 +108,30 @@ constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = 
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
+constexpr std::array<const char*, ObservationFeature::ObservationFeatureCount> ObservationFeatureNamesArray = {
+    {"type_id",
+     "agent:group",
+     "hp",
+     "agent:frozen",
+     "agent:orientation",
+     "agent:color",
+     "converting",
+     "swappable",
+     "episode_completion_pct",
+     "last_action",
+     "last_action_arg",
+     "last_reward"}};
+
+const std::vector<std::string> ObservationFeatureNames = []() {
+  std::vector<std::string> names;
+  names.reserve(ObservationFeatureNamesArray.size() + InventoryItemNamesArray.size());
+  names.insert(names.end(), ObservationFeatureNamesArray.begin(), ObservationFeatureNamesArray.end());
+  for (const auto& name : InventoryItemNames) {
+    names.push_back("inv:" + name);
+  }
+  return names;
+}();
+
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 // but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
