@@ -127,32 +127,32 @@ public:
     return features;
   }
 
-  virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = 1;
-    obs[offsets[1]] = _type_id;
-    obs[offsets[2]] = group;
-    obs[offsets[3]] = hp;
-    obs[offsets[4]] = frozen;
-    obs[offsets[5]] = orientation;
-    obs[offsets[6]] = color;
+  virtual void obs(ObsType* obs) const override {
+    const auto offsets = Agent::offsets();
+    size_t offset_idx = 0;
+    obs[offsets[offset_idx++]] = _type_id;
+    obs[offsets[offset_idx++]] = group;
+    obs[offsets[offset_idx++]] = hp;
+    obs[offsets[offset_idx++]] = frozen;
+    obs[offsets[offset_idx++]] = orientation;
+    obs[offsets[offset_idx++]] = color;
 
-    for (int i = 0; i < InventoryItemCount; i++) {
-      obs[offsets[7 + i]] = inventory[i];
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      obs[offsets[offset_idx++]] = inventory[i];
     }
   }
 
-  static std::vector<std::string> feature_names() {
-    std::vector<std::string> names;
-    names.push_back("agent");
-    names.push_back("type_id");
-    names.push_back("agent:group");
-    names.push_back("hp");
-    names.push_back("agent:frozen");
-    names.push_back("agent:orientation");
-    names.push_back("agent:color");
+  static std::vector<uint8_t> offsets() {
+    std::vector<uint8_t> names;
+    names.push_back(ObservationFeature::TypeId);
+    names.push_back(ObservationFeature::Group);
+    names.push_back(ObservationFeature::Hp);
+    names.push_back(ObservationFeature::Frozen);
+    names.push_back(ObservationFeature::Orientation);
+    names.push_back(ObservationFeature::Color);
 
-    for (const auto& name : InventoryItemNames) {
-      names.push_back("inv:" + name);
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      names.push_back(static_cast<uint8_t>(InventoryFeatureOffset + i));
     }
     return names;
   }

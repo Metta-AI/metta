@@ -17,7 +17,7 @@ export function initObjectMenu() {
 }
 
 /** Show the object menu when the memory button is on the info panel is clicked. */
-onEvent("click", ".infopanel .memory", (target: HTMLElement, e: Event) => {
+onEvent("click", ".hover-panel .memory", (target: HTMLElement, e: Event) => {
   let agentId = findAttr(target, "data-agent-id");
   objectMenu.setAttribute("data-agent-id", agentId);
   showMenu(target, objectMenu);

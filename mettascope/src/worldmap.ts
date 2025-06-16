@@ -6,7 +6,7 @@ import { getAttr, sendAction } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame, updateSelection } from './main.js';
 import { parseHtmlColor, find } from './htmlutils.js';
-import { updateHoverPanel, updateReadout, InfoPanel } from './infopanels.js';
+import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js';
 
 /** Flag to prevent multiple calls to requestAnimationFrame */
 let frameRequested = false;
@@ -721,7 +721,7 @@ function drawAttackMode() {
 }
 
 /** Draw the info line from the object to the info panel. */
-function drawInfoLine(panel: InfoPanel) {
+function drawInfoLine(panel: HoverPanel) {
   const x = getAttr(panel.object, "c");
   const y = getAttr(panel.object, "r");
   ctx.drawSprite("info.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
@@ -838,7 +838,7 @@ export function drawMap(panel: PanelInfo) {
 
   updateHoverPanel(ui.delayedHoverObject)
   updateReadout()
-  for (const panel of ui.infoPanels) {
+  for (const panel of ui.hoverPanels) {
     panel.update();
     drawInfoLine(panel);
   }
