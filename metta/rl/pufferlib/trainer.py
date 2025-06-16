@@ -61,6 +61,10 @@ class PufferTrainer:
 
         self.sim_suite_config = sim_suite_config
 
+        # Set deterministic settings for reproducibility
+        torch.backends.cudnn.deterministic = self.trainer_cfg.get("torch_deterministic", True)
+        torch.backends.cudnn.benchmark = True
+
         self._master = True
         self._world_size = 1
         self.device: torch.device = cfg.device
@@ -197,7 +201,7 @@ class PufferTrainer:
         if wandb_run and self._master:
             wandb_run.define_metric("train/agent_step")
             wandb_run.define_metric("train/avg_agent_steps_per_update", step_metric="train/agent_step")
-            for k in ["0verview", "env", "losses", "performance", "train"]:
+            for k in ["overview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
         self.replay_sim_config = SingleEnvSimulationConfig(
@@ -337,6 +341,7 @@ class PufferTrainer:
     @profile_section("eval")
     def _rollout(self):
         experience, profile = self.experience, self.profile
+        profile.start_epoch(self.epoch, "eval")
 
         with profile.eval_misc:
             policy = self.policy
@@ -353,7 +358,7 @@ class PufferTrainer:
                         f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
                     )
 
-                training_env_id = slice(env_id[0], env_id[-1] + 1)
+                env_id = slice(env_id[0], env_id[-1] + 1)
 
             with profile.eval_misc:
                 num_steps = sum(mask)
@@ -367,7 +372,7 @@ class PufferTrainer:
             with profile.eval_forward, torch.no_grad():
                 state = PolicyState()
 
-                lstm_state = experience.get_lstm_state(training_env_id.start)
+                lstm_state = experience.get_lstm_state(env_id.start)
                 if lstm_state is not None:
                     state.lstm_h = lstm_state["lstm_h"]
                     state.lstm_c = lstm_state["lstm_c"]
@@ -398,7 +403,7 @@ class PufferTrainer:
                     dones=d.to(self.device, non_blocking=True),
                     truncations=t.to(self.device, non_blocking=True),
                     values=value,
-                    env_id=training_env_id,
+                    env_id=env_id,
                     mask=mask,
                     lstm_state=lstm_state_to_store,
                 )
@@ -435,8 +440,10 @@ class PufferTrainer:
     @profile_section("train")
     def _train(self):
         experience, profile = self.experience, self.profile
+        profile.start_epoch(self.epoch, "train")
         self.losses = self._make_losses()
-        self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
+
+        self._total_minibatches = int(self.trainer_cfg.update_epochs * self._batch_size / self._minibatch_size)
         steps_since_last = self.agent_step - self._last_agent_step
         self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
@@ -458,27 +465,13 @@ class PufferTrainer:
                 current_batch_mean = experience.get_mean_reward()
                 self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
 
-            # Compute advantages using puff_advantage
-            advantages = torch.zeros(experience.values.shape, device=self.device)
-
-            # Adjust rewards for average reward if enabled
-            rewards_for_advantage = experience.rewards
-            if config.average_reward:
-                rewards_for_advantage = experience.rewards - self.average_reward
-
-            # Initial ratio is all ones
-            initial_ratio = torch.ones_like(experience.values)
-
-            advantages = self._compute_advantage(
-                experience.values,
-                rewards_for_advantage,
-                experience.dones,
-                initial_ratio,
-                advantages,
-                config.gamma if not config.average_reward else 1.0,
-                config.gae_lambda,
-                config.get("vtrace_rho_clip", 1.0),
-                config.get("vtrace_c_clip", 1.0),
+            advantages = experience.compute_advantages(
+                gamma=config.gamma,
+                gae_lambda=config.gae_lambda,
+                vtrace_rho_clip=config.get("vtrace_rho_clip", 1.0),
+                vtrace_c_clip=config.get("vtrace_c_clip", 1.0),
+                average_reward=self.average_reward if config.average_reward else 0.0,
+                use_average_reward=config.average_reward,
             )
 
         # Optimizing the policy and value network
@@ -515,21 +508,19 @@ class PufferTrainer:
 
                 # Re-compute advantages with new ratios (V-trace)
                 rewards_adjusted = minibatch["rewards"] - (self.average_reward if config.average_reward else 0)
-                adv = self._compute_advantage(
+                adv = minibatch["advantages"]
+
+                torch.ops.pufferlib.compute_puff_advantage(
                     minibatch["values"],
                     rewards_adjusted,
                     minibatch["dones"],
                     ratio,
-                    minibatch["advantages"],
+                    adv,
                     1.0 if config.average_reward else config.gamma,
                     config.gae_lambda,
                     config.get("vtrace_rho_clip", 1.0),
                     config.get("vtrace_c_clip", 1.0),
                 )
-
-                # Not using V-trace corrected advantages because not empirically better
-                # TODO: Experiment with V-trace to see if it helps
-                # adv = minibatch["advantages"]
 
                 # Normalize advantages with distributed support, then apply prioritized weights
                 adv = self._normalize_advantage_distributed(adv)
@@ -598,7 +589,6 @@ class PufferTrainer:
                 ) / self._total_minibatches
                 self.losses.ks_action_loss += ks_action_loss.item() / self._total_minibatches
                 self.losses.ks_value_loss += ks_value_loss.item() / self._total_minibatches
-                self.losses.importance += ratio.mean().item() / self._total_minibatches
 
             with profile.learn:
                 self.optimizer.zero_grad()
@@ -812,39 +802,6 @@ class PufferTrainer:
         self._eval_grouped_scores = {}
         self.stats.clear()
 
-    def _compute_advantage(
-        self, values, rewards, dones, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
-    ):
-        """CUDA kernel for puffer advantage with automatic CPU fallback."""
-        try:
-            torch.ops.pufferlib.compute_puff_advantage(
-                values, rewards, dones, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
-            )
-        except (RuntimeError, AssertionError):
-            # Fallback to CPU if CUDA kernel fails or not available
-            device = values.device
-            values_cpu = values.cpu()
-            rewards_cpu = rewards.cpu()
-            dones_cpu = dones.cpu()
-            ratio_cpu = ratio.cpu()
-            advantages_cpu = advantages.cpu()
-
-            torch.ops.pufferlib.compute_puff_advantage(
-                values_cpu,
-                rewards_cpu,
-                dones_cpu,
-                ratio_cpu,
-                advantages_cpu,
-                gamma,
-                gae_lambda,
-                vtrace_rho_clip,
-                vtrace_c_clip,
-            )
-
-            advantages.copy_(advantages_cpu.to(device))
-
-        return advantages
-
     def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
         """Normalize advantages with distributed training support while preserving shape."""
         if not self.trainer_cfg.get("norm_adv", True):
@@ -938,7 +895,6 @@ class PufferTrainer:
             l2_init_loss=0,
             ks_action_loss=0,
             ks_value_loss=0,
-            importance=0,
         )
 
     def _make_vecenv(self):

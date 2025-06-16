@@ -255,3 +255,51 @@ class Experience:
     def get_mean_reward(self) -> float:
         """Get mean reward from the buffer."""
         return self.rewards.mean().item()
+
+    def compute_advantages(
+        self,
+        gamma: float,
+        gae_lambda: float,
+        vtrace_rho_clip: float = 1.0,
+        vtrace_c_clip: float = 1.0,
+        average_reward: float = 0.0,
+        use_average_reward: bool = False,
+    ) -> Tensor:
+        """Compute advantages using the pufferlib kernel.
+
+        Args:
+            gamma: Discount factor
+            gae_lambda: GAE lambda parameter
+            vtrace_rho_clip: V-trace rho clipping parameter
+            vtrace_c_clip: V-trace c clipping parameter
+            average_reward: Average reward for average reward formulation
+            use_average_reward: Whether to use average reward
+
+        Returns:
+            Advantages tensor
+        """
+        shape = self.values.shape
+        advantages = torch.zeros(shape, device=self.device)
+
+        # Adjust rewards for average reward if needed
+        if use_average_reward:
+            rewards_adjusted = self.rewards - average_reward
+            effective_gamma = 1.0
+        else:
+            rewards_adjusted = self.rewards
+            effective_gamma = gamma
+
+        # Compute advantages using pufferlib kernel
+        torch.ops.pufferlib.compute_puff_advantage(
+            self.values,
+            rewards_adjusted,
+            self.dones,
+            self.ratio,
+            advantages,
+            effective_gamma,
+            gae_lambda,
+            vtrace_rho_clip,
+            vtrace_c_clip,
+        )
+
+        return advantages
