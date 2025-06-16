@@ -68,6 +68,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        self.timer = Stopwatch(logger)
+        self.timer.start()
+        self._steps = 0
+
         self._render_mode = render_mode
         self._curriculum = curriculum
         self._task = self._curriculum.get_task()
@@ -96,10 +100,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 from .renderer.miniscope import MiniscopeRenderer
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
-
-        self.timer = Stopwatch(logger)
-        self.timer.start()
-        self._steps = 0
 
     def _make_episode_id(self):
         return str(uuid.uuid4())
