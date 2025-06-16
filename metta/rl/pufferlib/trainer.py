@@ -529,7 +529,7 @@ class PufferTrainer:
 
                 # Not using V-trace corrected advantages because not empirically better
                 # TODO: Experiment with V-trace to see if it helps
-                adv = minibatch["advantages"]
+                #adv = minibatch["advantages"]
 
                 # Normalize advantages with distributed support, then apply prioritized weights
                 adv = self._normalize_advantage_distributed(adv)
