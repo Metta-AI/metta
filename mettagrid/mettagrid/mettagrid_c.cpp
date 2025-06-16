@@ -238,6 +238,9 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // we don't need to do that here.
   if (_use_observation_tokens) {
     // We have 4 global tokens.
+    if (_num_observation_tokens < 4) {
+      throw std::runtime_error("We require at least 4 observation tokens for global observations");
+    }
     size_t attempted_tokens_written = 4;
     size_t tokens_written = 4;
     auto observation_view = _observations.mutable_unchecked<3>();
