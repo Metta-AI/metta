@@ -7,6 +7,29 @@ import time
 
 logger = logging.getLogger(__name__)
 
+# Global variable to cache the heartbeat file path
+_heartbeat_file_path = None
+
+
+def record_heartbeat() -> None:
+    """Record a heartbeat timestamp to the file specified by HEARTBEAT_FILE env var."""
+    global _heartbeat_file_path
+
+    # Cache the file path on first call
+    if _heartbeat_file_path is None:
+        _heartbeat_file_path = os.environ.get("HEARTBEAT_FILE")
+        if _heartbeat_file_path:
+            os.makedirs(os.path.dirname(_heartbeat_file_path), exist_ok=True)
+
+    # Only write if we have a valid path
+    if _heartbeat_file_path:
+        try:
+            with open(_heartbeat_file_path, "w") as f:
+                f.write(str(time.time()))
+        except Exception:
+            # Silently ignore errors to avoid disrupting training
+            pass
+
 
 def start_heartbeat(file_path: str, interval: float = 60.0) -> threading.Thread:
     """Start a background thread to update the heartbeat file."""

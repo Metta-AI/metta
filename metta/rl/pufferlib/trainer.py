@@ -28,6 +28,7 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
+from metta.util.heartbeat import record_heartbeat
 from metta.util.timing import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
@@ -238,6 +239,7 @@ class PufferTrainer:
 
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
+            record_heartbeat()
             steps_before = self.agent_step
 
             with self.torch_profiler:
@@ -304,6 +306,7 @@ class PufferTrainer:
         if not self._master:
             return
 
+        record_heartbeat()
         logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
             config=self.sim_suite_config,
@@ -362,6 +365,7 @@ class PufferTrainer:
             lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
 
         while not experience.full:
+            record_heartbeat()
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
                 if self.trainer_cfg.require_contiguous_env_ids:
@@ -498,6 +502,7 @@ class PufferTrainer:
             lstm_state = PolicyState()
             teacher_lstm_state = []
             for mb in range(experience.num_minibatches):
+                record_heartbeat()
                 with profile.train_misc:
                     obs = experience.b_obs[mb]
                     obs = obs.to(self.device, non_blocking=True)
@@ -626,6 +631,7 @@ class PufferTrainer:
         if not self._master:
             return
 
+        record_heartbeat()
         pr = self._checkpoint_policy()
 
         # Save filtered average reward estimate for restart continuity
