@@ -239,7 +239,7 @@ class MettaTrainer:
             env_overrides=self._curriculum.get_task().env_cfg(),
         )
 
-        logger.info(f"PufferTrainer initialization complete on device: {self.device}")
+        logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     @with_instance_timer("train")
     def train(self):
@@ -509,6 +509,7 @@ class MettaTrainer:
         for _epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = PolicyState()
             teacher_lstm_state = []
+
             for mb in range(self.experience.num_minibatches):
                 obs = self.experience.b_obs[mb]
                 obs = obs.to(self.device, non_blocking=True)
@@ -594,9 +595,6 @@ class MettaTrainer:
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
-                if self.losses is None:
-                    raise ValueError("self.losses is None")
-
                 self.losses.policy_loss += pg_loss.item() / total_minibatches
                 self.losses.value_loss += v_loss.item() / total_minibatches
                 self.losses.entropy += entropy_loss.item() / total_minibatches
@@ -608,9 +606,11 @@ class MettaTrainer:
                 self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
                 # end loop over minibatches
 
+            # check early exit if we have reached target_kl
             if self.trainer_cfg.target_kl is not None:
-                if approx_kl > self.trainer_cfg.target_kl:
+                if self.losses.approx_kl > self.trainer_cfg.target_kl:
                     break
+
             self.epoch += 1
             # end loop over epochs
 
@@ -622,7 +622,7 @@ class MettaTrainer:
 
         var_y = np.var(y_true)
         explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-        self.losses.explained_variance = explained_var
+        self.losses.explained_variance = float(explained_var)
 
     def _checkpoint_trainer(self):
         if not self._master:
