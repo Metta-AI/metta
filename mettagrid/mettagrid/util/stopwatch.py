@@ -4,7 +4,7 @@ import logging
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, ContextManager, Dict, List, Optional, Tuple, TypedDict, TypeVar, cast
+from typing import Any, Callable, ContextManager, Dict, Final, List, Optional, Tuple, TypedDict, TypeVar, cast
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -121,13 +121,18 @@ def with_instance_timer(timer_name: str, log_level: Optional[int] = None, timer_
 class Stopwatch:
     """A utility class for timing code execution with support for multiple named timers."""
 
-    GLOBAL_TIMER_NAME = "global"  # Reserved name for the global timer
+    _GLOBAL_TIMER_NAME: Final[str] = "global"  # Reserved name for the global timer
 
     def __init__(self, logger: Optional[logging.Logger] = None):
         self.logger = logger or logging.getLogger("Stopwatch")
         self._timers: Dict[str, Timer] = {}
         # Create global timer but don't start it automatically
         self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
+
+    @property
+    def GLOBAL_TIMER_NAME(self) -> str:
+        """Read-only access to the global timer name."""
+        return self._GLOBAL_TIMER_NAME
 
     def _create_timer(self, name: str) -> Timer:
         """Create a new timer instance."""
@@ -143,17 +148,17 @@ class Stopwatch:
 
     def _get_timer(self, name: Optional[str] = None) -> Timer:
         """Get or create a timer. None defaults to global timer."""
-        if name is None:
-            name = self.GLOBAL_TIMER_NAME
-
-        # Prevent users from manually creating a timer with the reserved name
-        if name == self.GLOBAL_TIMER_NAME and name not in self._timers:
+        if name == self.GLOBAL_TIMER_NAME:
             raise ValueError(
                 f"'{self.GLOBAL_TIMER_NAME}' is a reserved timer name. Use None to access the global timer."
             )
 
+        if name is None:
+            name = self.GLOBAL_TIMER_NAME
+
         if name not in self._timers:
             self._timers[name] = self._create_timer(name)
+
         return self._timers[name]
 
     def _capture_caller_info(self, skip_frames: int = 2) -> Tuple[str, int]:

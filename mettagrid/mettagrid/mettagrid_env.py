@@ -4,6 +4,7 @@ import datetime
 import logging
 import random
 import uuid
+from contextlib import nullcontext
 from typing import Any, Dict, Optional, cast
 
 import gymnasium as gym
@@ -249,12 +250,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             infos["agent"][n] = v / self._c_env.num_agents
 
         replay_url = None
-        if self._replay_writer:
+
+        with self.timer("_replay_writer") if self._replay_writer else nullcontext():
+            assert self._replay_writer is not None  # Type hint for Pylance
             assert self._episode_id is not None, "Episode ID must be set before writing a replay"
             replay_url = self._replay_writer.write_replay(self._episode_id)
             infos["replay_url"] = replay_url
 
-        if self._stats_writer:
+        with self.timer("_stats_writer") if self._stats_writer else nullcontext():
+            assert self._stats_writer is not None  # Type hint for Pylance
             assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
             attributes: dict[str, str] = {
@@ -279,17 +283,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
             }
 
-            self.timer.stop("process_episode_stats")
-
-            elapsed_times = self.timer.get_all_elapsed()
-            wall_time = self.timer.get_elapsed()
-            infos["timing"] = {
-                **{
-                    f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
-                    for op, elapsed in elapsed_times.items()
-                },
-            }
-
             self._stats_writer.record_episode(
                 self._episode_id,
                 attributes,
@@ -300,6 +293,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 self._reset_at,
             )
 
+        self.timer.stop("process_episode_stats")
+
+        elapsed_times = self.timer.get_all_elapsed()
+        wall_time = self.timer.get_elapsed()
+        infos["timing"] = {
+            **{f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0 for op, elapsed in elapsed_times.items()},
+        }
         self._episode_id = None
 
     @property
