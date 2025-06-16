@@ -172,10 +172,7 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
     onScrubberChange(event);
   }
 
-
-  console.log("Mouse targets: ", ui.mouseTargets);
   if (!ui.mouseTargets.includes("#worldmap-panel") && !ui.mouseTargets.includes(".hover-panel")) {
-    console.log("Hiding because: ", ui.mouseTargets);
     hideHoverPanel();
   }
 
