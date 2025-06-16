@@ -155,47 +155,49 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   let recipeArea = findIn(htmlPanel, ".recipe-area");
   let config = state.replay.config;
   let displayedResources = 0;
-  for (let name in config.game.objects) {
-    // I hope this will change in the future, but only way to match object to
-    // a config is to match split the config name into type-name and color-name and match
-    // that to the object's type-name and color-name. Keep in mind that the color 0
-    // is the default color which is red.
-    let nameParts = name.split(".");
-    let configTypeName = nameParts[0];
-    let configColorName = nameParts[1] || "red"; // Red is the default 0 color.
+  if (config != null && config.game != null && config.game.objects != null) {
+    for (let name in config.game.objects) {
+      // I hope this will change in the future, but only way to match object to
+      // a config is to match split the config name into type-name and color-name and match
+      // that to the object's type-name and color-name. Keep in mind that the color 0
+      // is the default color which is red.
+      let nameParts = name.split(".");
+      let configTypeName = nameParts[0];
+      let configColorName = nameParts[1] || "red"; // Red is the default 0 color.
 
-    let objectTypeName = state.replay.object_types[object.type];
-    let objectColorName = undefined;
-    if (object.color >= 0 && object.color < Common.COLORS.length) {
-      objectColorName = Common.COLORS[object.color][0];
-    }
-    if (configTypeName == objectTypeName && (objectColorName === undefined || configColorName == objectColorName)) {
-      let objectConfig = config.game.objects[name];
-      recipeArea.classList.remove("hidden");
-      // configs have input_{resource} and output_{resource}
-      for (let key in objectConfig) {
-        if (key.startsWith("input_")) {
-          let resource = key.replace("input_", "");
-          let amount = objectConfig[key];
-          let item = itemTemplate.cloneNode(true) as HTMLElement;
-          item.querySelector(".amount")!.textContent = amount;
-          item.querySelector(".icon")!.setAttribute("src", "data/resources/" + resource + ".png");
-          recipe.appendChild(item);
-          displayedResources++;
-        }
+      let objectTypeName = state.replay.object_types[object.type];
+      let objectColorName = undefined;
+      if (object.color >= 0 && object.color < Common.COLORS.length) {
+        objectColorName = Common.COLORS[object.color][0];
       }
-      // Add the arrow.
-      recipe.appendChild(recipeArrow.cloneNode(true));
-      // Add the output.
-      for (let key in objectConfig) {
-        if (key.startsWith("output_")) {
-          let resource = key.replace("output_", "");
-          let amount = objectConfig[key];
-          let item = itemTemplate.cloneNode(true) as HTMLElement;
-          item.querySelector(".amount")!.textContent = amount;
-          item.querySelector(".icon")!.setAttribute("src", "data/resources/" + resource + ".png");
-          recipe.appendChild(item);
-          displayedResources++;
+      if (configTypeName == objectTypeName && (objectColorName === undefined || configColorName == objectColorName)) {
+        let objectConfig = config.game.objects[name];
+        recipeArea.classList.remove("hidden");
+        // configs have input_{resource} and output_{resource}
+        for (let key in objectConfig) {
+          if (key.startsWith("input_")) {
+            let resource = key.replace("input_", "");
+            let amount = objectConfig[key];
+            let item = itemTemplate.cloneNode(true) as HTMLElement;
+            item.querySelector(".amount")!.textContent = amount;
+            item.querySelector(".icon")!.setAttribute("src", "data/resources/" + resource + ".png");
+            recipe.appendChild(item);
+            displayedResources++;
+          }
+        }
+        // Add the arrow.
+        recipe.appendChild(recipeArrow.cloneNode(true));
+        // Add the output.
+        for (let key in objectConfig) {
+          if (key.startsWith("output_")) {
+            let resource = key.replace("output_", "");
+            let amount = objectConfig[key];
+            let item = itemTemplate.cloneNode(true) as HTMLElement;
+            item.querySelector(".amount")!.textContent = amount;
+            item.querySelector(".icon")!.setAttribute("src", "data/resources/" + resource + ".png");
+            recipe.appendChild(item);
+            displayedResources++;
+          }
         }
       }
     }
