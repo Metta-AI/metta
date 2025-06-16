@@ -48,7 +48,7 @@ public:
   }
   void obs(ObsType* obs) const override {
     // Simple implementation for testing
-    obs[1] = 1;
+    obs[0] = 1;
   }
 };
 
