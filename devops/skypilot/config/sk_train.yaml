@@ -15,7 +15,7 @@ resources:
       region: us-east-1
       accelerators: "A10G:1"
   cpus: 8+
-  image_id: 751442549699.dkr.ecr.us-east-1.amazonaws.com/metta:3.0
+  image_id: docker:metta:3.0
 
 setup: |
   cd /workspace/metta
