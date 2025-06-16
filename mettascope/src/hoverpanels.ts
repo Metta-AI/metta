@@ -158,9 +158,10 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   if (config != null && config.game != null && config.game.objects != null) {
     for (let name in config.game.objects) {
       // I hope this will change in the future, but only way to match object to
-      // a config is to match split the config name into type-name and color-name and match
+      // a config is to split a config name into type-name and color-name and match
       // that to the object's type-name and color-name. Keep in mind that the color 0
       // is the default color which is red.
+      // In the future I hope the type name will just match the config name.
       let nameParts = name.split(".");
       let configTypeName = nameParts[0];
       let configColorName = nameParts[1] || "red"; // Red is the default 0 color.
