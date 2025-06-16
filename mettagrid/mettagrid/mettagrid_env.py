@@ -245,7 +245,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         wall_time_for_lap = lap_times.pop("global", 0)
 
         # debug
-        lap_times["idle"] = wall_time_for_lap - sum(lap_times.values())
+        lap_times["parent"] = wall_time_for_lap - sum(lap_times.values())
         lap_times["global"] = wall_time_for_lap
 
         infos["timing"] = {

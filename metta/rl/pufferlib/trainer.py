@@ -229,7 +229,7 @@ class PufferTrainer:
             ]
 
             for metric_name, step_metric in metric_definitions:
-                wandb_run.define_metric(metric_name, step_metric=step_metric, overwrite=False)
+                wandb_run.define_metric(metric_name, step_metric=step_metric)
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
