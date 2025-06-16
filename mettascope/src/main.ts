@@ -126,7 +126,6 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
   while (target.id === "" && target.parentElement != null) {
     target = target.parentElement as HTMLElement;
   }
-  ui.mouseTarget = target.id;
   ui.mouseTargets = [];
   let p = event.target as HTMLElement;
   while (p != null) {

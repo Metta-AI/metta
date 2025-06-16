@@ -55,7 +55,7 @@ export class PanelInfo {
   /** Update the pan and zoom level based on the mouse position and scroll delta. */
   updatePanAndZoom(): boolean {
 
-    if ("#" + ui.mouseTarget != this.name || ui.dragging != "") {
+    if (!ui.mouseTargets.includes(this.name) || ui.dragging != "") {
       return false;
     }
 
