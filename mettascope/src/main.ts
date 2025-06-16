@@ -7,9 +7,10 @@ import { drawTrace } from './traces.js';
 import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
 import { initAgentTable, updateAgentTable } from './agentpanel.js';
-import { localStorageSetNumber, onEvent } from './htmlutils.js';
-import { updateReadout } from './infopanels.js';
+import { localStorageSetNumber, onEvent, find } from './htmlutils.js';
+import { updateReadout } from './hoverpanels.js';
 import { initObjectMenu } from './objmenu.js';
+import { drawTimeline, initTimeline, updateTimeline, onScrubberChange } from './timeline.js';
 
 /** Handles resize events. */
 export function onResize() {
@@ -27,7 +28,7 @@ export function onResize() {
   ui.mapPanel.x = 0;
   ui.mapPanel.y = Common.HEADER_HEIGHT;
   ui.mapPanel.width = screenWidth;
-  let maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.SCRUBBER_HEIGHT;
+  let maxMapHeight = screenHeight - Common.HEADER_HEIGHT - Common.FOOTER_HEIGHT;
   ui.mapPanel.height = Math.min(screenHeight * ui.traceSplit - Common.HEADER_HEIGHT, maxMapHeight);
 
   // Minimap goes in the bottom left corner of the mapPanel.
@@ -49,7 +50,13 @@ export function onResize() {
   ui.tracePanel.x = 0;
   ui.tracePanel.y = ui.mapPanel.y + ui.mapPanel.height;
   ui.tracePanel.width = screenWidth;
-  ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.SCRUBBER_HEIGHT;
+  ui.tracePanel.height = screenHeight - ui.tracePanel.y - Common.FOOTER_HEIGHT;
+
+  // Timeline panel is always on the bottom of the screen.
+  ui.timelinePanel.x = 0;
+  ui.timelinePanel.y = screenHeight - 64 - 64;
+  ui.timelinePanel.width = screenWidth;
+  ui.timelinePanel.height = 64;
 
   // Agent panel is always on the top of the screen.
   ui.agentPanel.x = 0;
@@ -64,6 +71,9 @@ export function onResize() {
   ui.infoPanel.updateDiv();
   ui.tracePanel.updateDiv();
   ui.agentPanel.updateDiv();
+  ui.timelinePanel.updateDiv();
+
+  updateTimeline();
 
   // Redraw the square after resizing.
   requestFrame();
@@ -97,6 +107,7 @@ onEvent("mouseup", "body", () => {
   ui.dragging = "";
   ui.dragHtml = null;
   ui.dragOffset = new Vec2f(0, 0);
+  ui.mainScrubberDown = false;
 
   // Due to how we select objects on mouse-up (mouse-down is drag/pan),
   // we need to check for double-click on mouse-up as well.
@@ -142,6 +153,10 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
   if (ui.dragHtml != null) {
     ui.dragHtml.style.left = (ui.mousePos.x() - ui.dragOffset.x()) + "px";
     ui.dragHtml.style.top = (ui.mousePos.y() - ui.dragOffset.y()) + "px";
+  }
+
+  if (ui.mainScrubberDown) {
+    onScrubberChange(event);
   }
 
   requestFrame();
@@ -221,7 +236,8 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 
   // Update the scrubber value (unless told to skip)
   if (!skipScrubberUpdate) {
-    html.scrubber.value = state.step.toString();
+    console.info("Scrubber value:", state.step);
+    updateTimeline();
   }
   updateAgentTable();
   requestFrame();
@@ -236,11 +252,6 @@ export function updateSelection(object: any, setFollow = false) {
   console.info("Selected object:", state.selectedGridObject);
   updateAgentTable();
   requestFrame();
-}
-
-/** Handle scrubber change events. */
-function onScrubberChange() {
-  updateStep(parseInt(html.scrubber.value), true);
 }
 
 /** Handle key down events. */
@@ -304,6 +315,9 @@ export function onFrame() {
 
   ctx.useMesh("trace");
   drawTrace(ui.tracePanel);
+
+  ctx.useMesh("timeline");
+  drawTimeline(ui.timelinePanel);
 
   if (state.showInfo) {
     ui.infoPanel.div.classList.remove("hidden");
@@ -492,6 +506,7 @@ ui.agentPanel.div.classList.add("hidden");
 ui.mapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 ui.tracePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 ui.miniMapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
+ui.timelinePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 
 // Add event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize);
@@ -507,11 +522,6 @@ onEvent("click", "#share-button", () => {
 onEvent("click", "#help-button", () => {
   window.open("https://github.com/Metta-AI/metta/blob/main/mettascope/README.md", "_blank");
 });
-
-// Bottom area
-html.scrubber.addEventListener('input', onScrubberChange);
-html.scrubber.setAttribute("type", "range");
-html.scrubber.setAttribute("value", "0");
 
 onEvent("click", "#rewind-to-start", () => {
   setIsPlaying(false);
@@ -641,6 +651,7 @@ toggleOpacity(html.agentPanelToggle, state.showAgentPanel);
 initActionButtons();
 initAgentTable();
 initObjectMenu();
+initTimeline();
 
 window.addEventListener('load', async () => {
   // Use local atlas texture.
