@@ -28,6 +28,7 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
+from metta.util.heartbeat import record_heartbeat
 from metta.util.timing import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
@@ -263,6 +264,7 @@ class PufferTrainer:
                 f"stats: {stats_time:.3f}s, "
                 f"[{steps_per_sec:.0f} steps/sec]"
             )
+            record_heartbeat()
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
@@ -326,6 +328,7 @@ class PufferTrainer:
         for category in self._eval_categories:
             score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
+            record_heartbeat()
             # Only add the score if we got a non-None result
             if score is not None:
                 self._eval_suite_avgs[f"{category}_score"] = score
