@@ -127,6 +127,7 @@ class TerrainFromNumpy(Room):
 
         for pos, agent in zip(positions, agents, strict=False):
             level[pos] = agent
+            valid_positions.remove(pos)
 
         area = level.shape[0] * level.shape[1]
 
@@ -138,10 +139,9 @@ class TerrainFromNumpy(Room):
                 total_objects = sum(count for count in self._objects.values()) + len(agents)
 
         for obj_name, count in self._objects.items():
-            valid_positions = self.get_valid_positions(level)
             positions = random.sample(valid_positions, count)
             for pos in positions:
                 level[pos] = obj_name
-
+                valid_positions.remove(pos)
         self._level = level
         return self._level
