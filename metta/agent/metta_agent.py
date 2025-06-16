@@ -85,6 +85,13 @@ class MettaAgent(nn.Module):
         uri: str = "",
         metadata: Optional[dict] = None,
         local_path: Optional[str] = None,
+        obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
+        obs_width: int,
+        obs_height: int,
+        action_space: gym.spaces.Space,
+        feature_normalizations: dict[int, float],
+        device: str,
+        **cfg,
     ):
         super().__init__()
         self.model: Optional[Union[BrainPolicy, PufferAgent]] = model

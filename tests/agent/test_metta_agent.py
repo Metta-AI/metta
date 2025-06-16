@@ -24,7 +24,7 @@ def create_metta_agent():
     )
 
     action_space = gym.spaces.MultiDiscrete([3, 2])
-    feature_normalizations = [1.0, 30.0, 10.0]
+    feature_normalizations = {0: 1.0, 1: 30.0, 2: 10.0}
 
     config_dict = {
         "clip_range": 0.1,
