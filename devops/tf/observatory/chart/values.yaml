@@ -3,4 +3,4 @@ image:
   name: metta
   tag: latest
 
-envSecretName: observatory-env
+db_uri: ""
