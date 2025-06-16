@@ -1,3 +1,4 @@
+import json
 import subprocess
 
 
@@ -11,9 +12,20 @@ def run_git(*args: str) -> str:
         result = subprocess.run(["git", *args], capture_output=True, text=True, check=True)
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        if e.returncode == 129:
-            raise GitError(f"Malformed git command or bad object: {e.stderr.strip()}") from e
         raise GitError(f"Git command failed ({e.returncode}): {e.stderr.strip()}") from e
+    except FileNotFoundError as e:
+        raise GitError("Git is not installed!") from e
+
+
+def run_gh(*args: str) -> str:
+    """Run a GitHub CLI command and return its output."""
+    try:
+        result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"GitHub CLI command failed ({e.returncode}): {e.stderr.strip()}") from e
+    except FileNotFoundError as e:
+        raise GitError("GitHub CLI (gh) is not installed!") from e
 
 
 def get_current_branch() -> str:
@@ -52,21 +64,16 @@ def get_commit_message(commit_hash: str) -> str:
 
 def has_unstaged_changes() -> bool:
     """Check if there are any unstaged changes."""
-    try:
-        status_output = run_git("status", "--porcelain")
-        return bool(status_output)
-    except GitError:
-        return False
+    status_output = run_git("status", "--porcelain")
+    return bool(status_output)
 
 
 def is_commit_pushed(commit_hash: str) -> bool:
     """Check if a commit has been pushed to any remote branch."""
-    try:
-        # Get all remote branches that contain this commit
-        remote_branches = run_git("branch", "-r", "--contains", commit_hash)
-        return bool(remote_branches.strip())
-    except GitError:
-        return False
+
+    # Get all remote branches that contain this commit
+    remote_branches = run_git("branch", "-r", "--contains", commit_hash)
+    return bool(remote_branches.strip())
 
 
 def validate_git_ref(ref: str) -> str | None:
@@ -76,3 +83,26 @@ def validate_git_ref(ref: str) -> str | None:
     except GitError:
         return None
     return commit_hash
+
+
+def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
+    """
+    Check if a commit is the HEAD of an open PR.
+
+    Returns:
+        tuple(pr_number, pr_title) if commit is HEAD of an open PR, None otherwise
+    """
+
+    # Get all open PRs
+    pr_json = run_gh("pr", "list", "--state", "open", "--json", "number,title,headRefOid")
+    prs = json.loads(pr_json)
+
+    for pr in prs:
+        # Check if this PR's HEAD commit matches our commit
+        pr_head_sha = pr.get("headRefOid", "")
+
+        # Compare commits (handle both short and full hashes)
+        if pr_head_sha.startswith(commit_hash):
+            return (int(pr["number"]), pr["title"])
+
+    return None
