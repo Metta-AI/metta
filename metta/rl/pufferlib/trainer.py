@@ -589,7 +589,6 @@ class PufferTrainer:
                 ) / self._total_minibatches
                 self.losses.ks_action_loss += ks_action_loss.item() / self._total_minibatches
                 self.losses.ks_value_loss += ks_value_loss.item() / self._total_minibatches
-                self.losses.importance += ratio.mean().item() / self._total_minibatches
 
             with profile.learn:
                 self.optimizer.zero_grad()
@@ -713,14 +712,17 @@ class PufferTrainer:
 
     def _process_stats(self):
         # convert lists of values (collected across all environments and rollout steps on this GPU)
-        # into single mean values, handling non-numeric values gracefully
+        # into single mean values.
         mean_stats = {}
         for k, v in self.stats.items():
             try:
                 mean_stats[k] = np.mean(v)
-            except (TypeError, ValueError):
-                # Skip non-numeric stats instead of raising an error
-                pass
+            except (TypeError, ValueError) as e:
+                raise RuntimeError(
+                    f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
+                    f"All collected stats must be numeric values or lists of numeric values. "
+                    f"Error: {e}"
+                ) from e
         self.stats = mean_stats
 
         weight_metrics = {}
@@ -893,7 +895,6 @@ class PufferTrainer:
             l2_init_loss=0,
             ks_action_loss=0,
             ks_value_loss=0,
-            importance=0,
         )
 
     def _make_vecenv(self):
