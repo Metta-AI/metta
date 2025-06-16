@@ -111,6 +111,7 @@
     "minibatches",
     "minigrid",
     "MINISCOPE",
+    "multifile",
     "multinomial",
     "mxgmn",
     "NCCL",
@@ -189,5 +190,9 @@
     "yrange"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }

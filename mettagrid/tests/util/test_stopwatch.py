@@ -108,12 +108,12 @@ class TestStopwatch:
 
         # Check checkpoints were recorded
         timer = stopwatch._get_timer("test_timer")
-        assert "checkpoint1" in timer["checkpoints"]
-        assert timer["checkpoints"]["checkpoint1"]["steps"] == 100
-        assert len(timer["checkpoints"]) == 2
+        assert "checkpoint1" in timer.checkpoints
+        assert timer.checkpoints["checkpoint1"]["steps"] == 100
+        assert len(timer.checkpoints) == 2
 
         # Verify anonymous checkpoint naming
-        assert any(k.startswith("_lap_") for k in timer["checkpoints"])
+        assert any(k.startswith("_lap_") for k in timer.checkpoints)
 
     def test_lap_functionality(self, stopwatch):
         """Test lap timing."""
@@ -333,15 +333,6 @@ class TestStopwatch:
             assert caplog.records[0].levelname == "WARNING"
             assert "Timer 'double_start' already running" in caplog.records[0].message
 
-            # Clear for next test
-            caplog.clear()
-
-            # Checkpoint on non-running timer
-            stopwatch.checkpoint(100, "check1", "not_running")
-            assert len(caplog.records) == 1
-            assert caplog.records[0].levelname == "WARNING"
-            assert "Timer 'not_running' not running" in caplog.records[0].message
-
         # Rate with zero elapsed time
         rate = stopwatch.get_rate(100, "zero_timer")
         assert rate == 0.0
@@ -377,14 +368,14 @@ class TestStopwatch:
         # Test multifile
         # We simulate multiple references by manually adding them
         timer = stopwatch._get_timer("multifile_test")
-        timer["references"].append({"filename": "file1.py", "lineno": 10})
-        timer["references"].append({"filename": "file2.py", "lineno": 20})
+        timer.references.append({"filename": "file1.py", "lineno": 10})
+        timer.references.append({"filename": "file2.py", "lineno": 20})
         assert stopwatch.get_filename("multifile_test") == "multifile"
 
         # Test multiple references from same file
         timer2 = stopwatch._get_timer("samefile_test")
-        timer2["references"].append({"filename": "same.py", "lineno": 10})
-        timer2["references"].append({"filename": "same.py", "lineno": 20})
+        timer2.references.append({"filename": "same.py", "lineno": 10})
+        timer2.references.append({"filename": "same.py", "lineno": 20})
         assert stopwatch.get_filename("samefile_test") == "same.py"
 
 
@@ -447,7 +438,7 @@ class TestStopwatchIntegration:
 
         # Verify the checkpoint data
         timer = sw._get_timer("training")
-        checkpoints = timer["checkpoints"]
+        checkpoints = timer.checkpoints
         assert len(checkpoints) == 3
 
         # Extract checkpoint data for verification
