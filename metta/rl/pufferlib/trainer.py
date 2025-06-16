@@ -1,6 +1,5 @@
 import logging
 import os
-import threading
 import time
 from collections import defaultdict
 from types import SimpleNamespace
@@ -12,7 +11,6 @@ import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib import unroll_nested_dict
-from wandb import AlertLevel
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -226,25 +224,6 @@ class PufferTrainer:
         self.timer.start()
 
         logger.info(f"PufferTrainer initialization complete on device: {self.device}")
-
-        # W&B Stuck Run Detection - Initialize attributes
-        self.last_wandb_log_time = time.time()  # Start with current time
-        self._original_wandb_log_fn = None
-        self.wandb_stuck_monitor_thread = None
-
-        if self.wandb_run and self._master:
-            # Wrap wandb.log
-            if hasattr(self.wandb_run, "log") and callable(self.wandb_run.log):
-                self._original_wandb_log_fn = self.wandb_run.log
-                self.wandb_run.log = self._wandb_log_with_timestamp_update
-                logger.info("Wrapped wandb.run.log for activity monitoring.")
-            else:
-                logger.warning("wandb_run.log is not available or not callable. Cannot wrap for monitoring.")
-
-            # Dispatch monitor thread
-            self.wandb_stuck_monitor_thread = threading.Thread(target=self._monitor_wandb_activity, daemon=True)
-            self.wandb_stuck_monitor_thread.start()
-            # Logging for thread start is now inside _monitor_wandb_activity itself
 
     def train(self):
         logger.info("Starting training")
@@ -947,71 +926,6 @@ class PufferTrainer:
         # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
         self.vecenv.async_reset(self.cfg.seed + rank)
-
-    # Method to wrap wandb.log and update timestamp
-    def _wandb_log_with_timestamp_update(self, data: dict, **kwargs):
-        if self._original_wandb_log_fn:
-            self._original_wandb_log_fn(data, **kwargs)
-        elif self.wandb_run:  # Fallback if somehow not initialized via the main path
-            logger.warning("Original W&B log function not found for wrapper, calling wandb_run.log directly.")
-            self.wandb_run.log(data, **kwargs)
-
-        self.last_wandb_log_time = time.time()
-
-    # Method for the monitoring thread
-    def _monitor_wandb_activity(self):
-        # Fixed check interval: 60 seconds
-        check_interval = 60
-        # Read from config with a default of 1800 seconds (30 minutes)
-        wandb_inactivity_timeout_seconds = self.trainer_cfg.get("wandb_inactivity_timeout_seconds", 1800)
-
-        # Get rank and local_rank from instance attributes or environment variables
-        rank = getattr(self, "rank", int(os.environ.get("RANK", 0)))
-        local_rank = getattr(self, "local_rank", int(os.environ.get("LOCAL_RANK", 0)))
-
-        logger.info(
-            f"W&B monitor thread started. Rank: {rank}, Local Rank: {local_rank}. "
-            f"Check interval: {check_interval}s, Max log inactivity timeout: {wandb_inactivity_timeout_seconds}s."
-        )
-
-        while True:  # Loop indefinitely
-            time.sleep(check_interval)  # Pause for the check interval
-
-            elapsed_since_last_log = time.time() - self.last_wandb_log_time
-
-            if elapsed_since_last_log > wandb_inactivity_timeout_seconds:
-                timestamp_last_log = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.last_wandb_log_time))
-                alert_message = (
-                    f"CRITICAL: Training run appears stuck on rank {rank} (local_rank {local_rank}).\\n"
-                    f"No wandb.log activity for over {elapsed_since_last_log:.0f} seconds"
-                    f"(>{wandb_inactivity_timeout_seconds // 60} minutes).\\n"
-                    f"Last log detected at: {timestamp_last_log}.\\n"
-                    f"Current agent_step: {self.agent_step}, Epoch: {self.epoch}.\\n"
-                    f"Terminating run."
-                )
-                logger.critical(alert_message)
-
-                if self.wandb_run:
-                    try:
-                        self.wandb_run.alert(
-                            title="Critical: Training Run Stuck",
-                            text=alert_message,
-                            level=AlertLevel.ERROR,
-                        )
-                    except Exception as e:
-                        # This will catch errors if .alert() is missing, not callable, or fails internally
-                        logger.error(f"Failed to send wandb.alert for stuck run: {e}", exc_info=True)
-
-                logger.info("Attempting to close vecenv before forced exit due to W&B inactivity...")
-                try:
-                    if hasattr(self, "vecenv") and self.vecenv is not None:
-                        self.vecenv.close()
-                except Exception as e:
-                    logger.error(f"Error closing vecenv during forced exit: {e}", exc_info=True)
-
-                logger.critical("Forcing process exit due to prolonged W&B inactivity.")
-                wandb.finish(exit_code=1)  # call wandb.finish() to ensure all the logs are flushed
-                os._exit(1)  # Terminate the entire process immediately
 
 
 class AbortingTrainer(PufferTrainer):
