@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ $.Release.Name }}-backend
+  name: {{ .Release.Name }}-backend
 spec:
   selector:
     matchLabels:
-      app: {{ $.Release.Name }}-backend
+      app: {{ .Release.Name }}-backend
   template:
     metadata:
       labels:
-        app: {{ $.Release.Name }}-backend
+        app: {{ .Release.Name }}-backend
     spec:
       imagePullSecrets:
       - name: dockerconfig
@@ -19,7 +19,7 @@ spec:
           imagePullPolicy: Always
           envFrom:
           - secretRef:
-              name: {{ $.Values.envSecretName }}
+              name: {{ .Release.Name }}-env
           env:
           - name: HOST
             value: "0.0.0.0"
