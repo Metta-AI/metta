@@ -86,7 +86,11 @@ public:
     return features.size();
   }
 
-  virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const = 0;
+  /**
+   * Grid-based observations. This is an older style than tokens, and
+   * should be deprecated soon.
+   */
+  virtual void obs(ObsType* obs) const = 0;
 };
 
 #endif  // METTAGRID_METTAGRID_GRID_OBJECT_HPP_
