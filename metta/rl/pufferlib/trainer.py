@@ -389,7 +389,7 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 value = value.flatten()
-                mask = torch.as_tensor(mask)
+                mask = torch.as_tensor(mask)  # * policy.mask)
 
                 experience.store(
                     obs=o if self.trainer_cfg.cpu_offload else o_device,
@@ -438,6 +438,8 @@ class PufferTrainer:
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
         self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
+        steps_since_last = self.agent_step - self._last_agent_step
+        self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
         with profile.train_misc:
             config = self.trainer_cfg
@@ -735,10 +737,7 @@ class PufferTrainer:
         # Calculate derived stats from local roll-outs (master process will handle logging)
         sps = self.profile.SPS
         agent_steps = self.agent_step
-        avg_steps_per_update = 0.0
-        if self._total_minibatches:
-            avg_steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
-            self._last_agent_step = agent_steps
+        avg_steps_per_update = self._agent_steps_per_update
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
         losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
@@ -800,6 +799,7 @@ class PufferTrainer:
 
         self._eval_grouped_scores = {}
         self.stats.clear()
+        self._last_agent_step = self.agent_step
 
     def _compute_advantage(
         self, values, rewards, terminals, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
