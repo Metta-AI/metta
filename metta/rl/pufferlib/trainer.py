@@ -395,7 +395,7 @@ class PufferTrainer:
                     actions=actions,
                     logprobs=selected_action_log_probs,
                     rewards=r.to(self.device, non_blocking=True),
-                    terminals=d.to(self.device, non_blocking=True),
+                    dones=d.to(self.device, non_blocking=True),
                     truncations=t.to(self.device, non_blocking=True),
                     values=value,
                     env_id=training_env_id,
@@ -518,7 +518,7 @@ class PufferTrainer:
                 adv = self._compute_advantage(
                     minibatch["values"],
                     rewards_adjusted,
-                    minibatch["terminals"],
+                    minibatch["dones"],
                     ratio,
                     minibatch["advantages"],
                     1.0 if config.average_reward else config.gamma,
@@ -809,26 +809,26 @@ class PufferTrainer:
         self.stats.clear()
 
     def _compute_advantage(
-        self, values, rewards, terminals, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
+        self, values, rewards, dones, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
     ):
         """CUDA kernel for puffer advantage with automatic CPU fallback."""
         try:
             torch.ops.pufferlib.compute_puff_advantage(
-                values, rewards, terminals, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
+                values, rewards, dones, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
             )
         except (RuntimeError, AssertionError):
             # Fallback to CPU if CUDA kernel fails or not available
             device = values.device
             values_cpu = values.cpu()
             rewards_cpu = rewards.cpu()
-            terminals_cpu = terminals.cpu()
+            dones_cpu = dones.cpu()
             ratio_cpu = ratio.cpu()
             advantages_cpu = advantages.cpu()
 
             torch.ops.pufferlib.compute_puff_advantage(
                 values_cpu,
                 rewards_cpu,
-                terminals_cpu,
+                dones_cpu,
                 ratio_cpu,
                 advantages_cpu,
                 gamma,

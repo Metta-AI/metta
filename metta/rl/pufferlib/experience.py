@@ -108,7 +108,7 @@ class Experience:
         actions: Tensor,
         logprobs: Tensor,
         rewards: Tensor,
-        terminals: Tensor,
+        dones: Tensor,
         truncations: Tensor,
         values: Tensor,
         env_id: slice,
@@ -126,7 +126,7 @@ class Experience:
         self.actions[batch_slice] = actions
         self.logprobs[batch_slice] = logprobs
         self.rewards[batch_slice] = rewards
-        self.dones[batch_slice] = terminals.float()
+        self.dones[batch_slice] = dones.float()
         self.truncateds[batch_slice] = truncations.float()
         self.values[batch_slice] = values
 
@@ -228,7 +228,7 @@ class Experience:
             "logprobs": self.logprobs[idx],
             "values": self.values[idx],
             "rewards": self.rewards[idx],
-            "terminals": self.dones[idx],  # Keep "terminals" key for trainer.py compatibility
+            "dones": self.dones[idx],
             "advantages": advantages[idx],
             "returns": advantages[idx] + self.values[idx],
             "indices": idx,
