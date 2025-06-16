@@ -86,7 +86,7 @@ public:
     return features.size();
   }
 
-  virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const = 0;
+  virtual void obs(ObsType* obs) const = 0;
 };
 
 #endif  // METTAGRID_METTAGRID_GRID_OBJECT_HPP_
