@@ -60,15 +60,9 @@ class PufferTrainer:
         self.trainer_cfg = cfg.trainer
         self.sim_suite_config = sim_suite_config
 
-        torch.backends.cudnn.deterministic = self.trainer_cfg.get("torch_deterministic", True)
-        torch.backends.cudnn.benchmark = True
-
         self._master = True
         self._world_size = 1
         self.device: torch.device = cfg.device
-        if torch.distributed.is_initialized():
-            self.device = f"cuda:{os.environ['LOCAL_RANK']}"
-
         self._batch_size = self.trainer_cfg.batch_size
         self._minibatch_size = self.trainer_cfg.minibatch_size
         if torch.distributed.is_initialized():
@@ -111,6 +105,7 @@ class PufferTrainer:
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
         policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
+        assert policy_record is not None, "No policy found"
         if "average_reward" in checkpoint.extra_args:
             self.average_reward = checkpoint.extra_args["average_reward"]
 
@@ -127,6 +122,7 @@ class PufferTrainer:
         # self.vecenv.driver_env as just the parent class pufferlib.PufferEnv
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
+
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if self.trainer_cfg.compile:
@@ -161,10 +157,10 @@ class PufferTrainer:
             weight_decay=self.trainer_cfg.optimizer.weight_decay,
         )
 
+        # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
 
-        # validate that policy matches environment
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
@@ -204,7 +200,6 @@ class PufferTrainer:
             wandb_run.define_metric("train/avg_agent_steps_per_update", step_metric="train/agent_step")
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
-        self.model_size = sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
@@ -238,6 +233,7 @@ class PufferTrainer:
                 with self.timer("_train"):
                     self._train()
 
+            # Processing stats
             with self.timer("_process_stats"):
                 self._process_stats()
 
@@ -255,6 +251,7 @@ class PufferTrainer:
                 f"[{steps_per_sec:.0f} steps/sec]"
             )
 
+            # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
                 with self.timer("_checkpoint_trainer", log=logging.INFO):
                     self._checkpoint_trainer()
@@ -341,8 +338,6 @@ class PufferTrainer:
     @profile_section("eval")
     def _rollout(self):
         experience, profile = self.experience, self.profile
-        assert experience is not None, "Experience buffer not initialized"
-        profile.start_epoch(self.epoch, "eval")
 
         with profile.eval_misc:
             policy = self.policy
@@ -359,9 +354,9 @@ class PufferTrainer:
                         f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
                     )
 
-            with profile.eval_misc:
-                # Convert env_id slice to continuous range for indexing
                 training_env_id = slice(env_id[0], env_id[-1] + 1)
+
+            with profile.eval_misc:
                 num_steps = sum(mask)
                 self.agent_step += num_steps * self._world_size
 
@@ -394,7 +389,7 @@ class PufferTrainer:
 
             with profile.eval_misc:
                 value = value.flatten()
-                mask_tensor = torch.as_tensor(mask)
+                mask = torch.as_tensor(mask)
 
                 experience.store(
                     obs=o if self.trainer_cfg.cpu_offload else o_device,
@@ -405,7 +400,7 @@ class PufferTrainer:
                     truncations=t.to(self.device, non_blocking=True),
                     values=value,
                     env_id=training_env_id,
-                    mask=mask_tensor,
+                    mask=mask,
                     lstm_state=lstm_state_to_store,
                 )
 
@@ -433,7 +428,7 @@ class PufferTrainer:
                         try:
                             self.stats[k] += v
                         except TypeError:
-                            self.stats[k] = [self.stats[k], v]
+                            self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         # TODO: Better way to enable multiple collects
         return self.stats, infos
@@ -441,8 +436,6 @@ class PufferTrainer:
     @profile_section("train")
     def _train(self):
         experience, profile = self.experience, self.profile
-        assert experience is not None, "Experience buffer not initialized"
-        profile.start_epoch(self.epoch, "train")
         self.losses = self._make_losses()
         self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         steps_since_last = self.agent_step - self._last_agent_step
@@ -467,8 +460,7 @@ class PufferTrainer:
                 self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
 
             # Compute advantages using puff_advantage
-            shape = experience.values.shape
-            advantages = torch.zeros(shape, device=self.device)
+            advantages = torch.zeros(experience.values.shape, device=self.device)
 
             # Adjust rewards for average reward if enabled
             rewards_for_advantage = experience.rewards
