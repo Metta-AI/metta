@@ -2,6 +2,7 @@
 
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+
 #include <algorithm>
 #include <cmath>
 
@@ -236,7 +237,8 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
   if (_use_observation_tokens) {
-    size_t attempted_tokens_written = 0;
+    // We have 4 global tokens.
+    size_t attempted_tokens_written = 4;
     size_t tokens_written = 4;
     auto observation_view = _observations.mutable_unchecked<3>();
     auto rewards_view = _rewards.unchecked<1>();
@@ -245,18 +247,15 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     ObservationToken* tokens = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
     unsigned int episode_completion_pct = 0;
     if (max_steps > 0) {
-      episode_completion_pct = static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
+      episode_completion_pct =
+          static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
     }
     tokens[0] = {0, ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)};
-    tokens[1] = {0, ObservationFeature::LastAction,
-                  static_cast<uint8_t>(action)};
-    tokens[2] = {0, ObservationFeature::LastActionArg,
-                  static_cast<uint8_t>(action_arg)};
+    tokens[1] = {0, ObservationFeature::LastAction, static_cast<uint8_t>(action)};
+    tokens[2] = {0, ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)};
     int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
     reward_int = std::clamp(reward_int, 0, 255);
     tokens[3] = {0, ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)};
-
-
 
     // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
     for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
@@ -279,22 +278,16 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
             auto obj = _grid->object_at(object_loc);
             if (!obj) continue;
 
-            int obs_r = object_loc.r + obs_height_radius - observer_row;
-            int obs_c = object_loc.c + obs_width_radius - observer_col;
-
             uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
             ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
             ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
-            size_t attempted_obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
-            size_t obj_tokens_written = std::min(attempted_obj_tokens_written, agent_obs_tokens.size());
-
+            int obs_r = object_loc.r + obs_height_radius - observer_row;
+            int obs_c = object_loc.c + obs_width_radius - observer_col;
             uint8_t location = obs_r << 4 | obs_c;
-            for (size_t i = 0; i < obj_tokens_written; i++) {
-              agent_obs_tokens[i].location = location;
-            }
-            attempted_tokens_written += attempted_obj_tokens_written;
-            tokens_written += obj_tokens_written;
+
+            attempted_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens, location);
+            tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
           }
         }
       }
@@ -328,7 +321,8 @@ void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style
     auto observation_view = _observations.mutable_unchecked<3>();
     for (size_t idx = 0; idx < _agents.size(); idx++) {
       auto& agent = _agents[idx];
-      _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
+      _compute_observation(
+          agent->location.r, agent->location.c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
     }
   } else {
     for (size_t idx = 0; idx < _agents.size(); idx++) {
