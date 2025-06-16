@@ -38,6 +38,13 @@ def load_policy(path: str, device: str = "cpu", puffer: Optional[DictConfig] = N
 
 
 class PytorchAgent(nn.Module):
+    """Adapter to make torch.nn.Module-based policies compatible with MettaAgent interface.
+
+    This adapter wraps policies loaded from checkpoints and translates their
+    outputs to match the expected MettaAgent interface, handling naming
+    differences like critic→value, hidden→logits, etc.
+    """
+
     def __init__(self, policy: nn.Module):
         super().__init__()
         self.policy = policy
@@ -60,7 +67,6 @@ class PytorchAgent(nn.Module):
         """
         hidden, critic = self.policy(obs, state)  # using variable names from LSTMWrapper
         action, logprob, logits_entropy = sample_logits(hidden, action)
-        # explanation of var names in the docstring above
         return action, logprob, logits_entropy, critic, hidden
 
     def activate_actions(self, actions_names, actions_max_params, device):

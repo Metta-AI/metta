@@ -26,9 +26,9 @@ from omegaconf import OmegaConf
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
+from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.sim.vecenv import make_vecenv
 from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.replay_writer import ReplayWriter
@@ -113,13 +113,13 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent = self._policy_agent.policy_as_metta_agent()
-        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent)), metta_agent
+        metta_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._policy_agent.policy_as_metta_agent()
+        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), metta_agent
         metta_agent.activate_actions(action_names, max_args, self._device)
 
         if self._npc_agent is not None:
-            npc_agent: MettaAgent | DistributedMettaAgent = self._npc_agent.policy_as_metta_agent()
-            assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent)), npc_agent
+            npc_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._npc_agent.policy_as_metta_agent()
+            assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), npc_agent
             try:
                 npc_agent.activate_actions(action_names, max_args, self._device)
             except Exception as e:

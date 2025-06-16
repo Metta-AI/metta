@@ -12,7 +12,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.brain_policy import BrainPolicy
 from metta.agent.policy_state import PolicyState
-from metta.rl.pufferlib.policy import PytorchAgent
+from metta.rl.policy import PytorchAgent
 from mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
