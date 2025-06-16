@@ -47,9 +47,9 @@ public:
           assert(index < 256);
           features.insert({feature_name, index});
           if (FeatureNormalizations.count(feature_name) > 0) {
-            _feature_normalizations.push_back(FeatureNormalizations.at(feature_name));
+            _feature_normalizations.insert({index, FeatureNormalizations.at(feature_name)});
           } else {
-            _feature_normalizations.push_back(DEFAULT_NORMALIZATION);
+            _feature_normalizations.insert({index, DEFAULT_NORMALIZATION});
           }
         }
       }
@@ -65,8 +65,15 @@ public:
 
   // Returns the number of tokens that were available to write. This will be the number of tokens actually
   // written if there was enough space -- or a greater number if there was not enough space.
-  size_t encode_tokens(const GridObject* obj, ObservationTokens tokens) {
-    return obj->obs_tokens(tokens);
+  size_t encode_tokens(const GridObject* obj, ObservationTokens tokens, uint8_t location) {
+    size_t attempted_tokens_written = obj->obs_tokens(tokens);
+    size_t tokens_written = std::min(attempted_tokens_written, tokens.size());
+
+    for (size_t i = 0; i < tokens_written; i++) {
+      tokens[i].location = location;
+    }
+
+    return attempted_tokens_written;
   }
 
   void encode(const GridObject* obj, ObsType* obs) {
@@ -77,7 +84,7 @@ public:
     obj->obs(obs, offsets);
   }
 
-  const std::vector<float>& feature_normalizations() const {
+  const std::map<uint8_t, float>& feature_normalizations() const {
     return _feature_normalizations;
   }
 
@@ -88,7 +95,7 @@ public:
 private:
   std::vector<std::vector<uint8_t>> _offsets;
   std::vector<std::vector<std::string>> _type_feature_names;
-  std::vector<float> _feature_normalizations;
+  std::map<uint8_t, float> _feature_normalizations;
 };
 
 #endif  // METTAGRID_METTAGRID_OBSERVATION_ENCODER_HPP_
