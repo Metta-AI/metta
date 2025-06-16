@@ -98,28 +98,16 @@ def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
         tuple(pr_number, pr_title) if commit is HEAD of an open PR, None otherwise
     """
     try:
-        # Check if we're in a GitHub repository
-        try:
-            run_gh("repo", "view", "--json", "name")
-        except GitError:
-            # Not a GitHub repo or gh not configured
-            return None
-
         # Get all open PRs
         pr_json = run_gh("pr", "list", "--state", "open", "--json", "number,title,headRefOid")
         prs = json.loads(pr_json)
-
-        # Get full commit hash to ensure accurate comparison
-        full_hash = validate_git_ref(commit_hash)
-        if not full_hash:
-            return None
 
         for pr in prs:
             # Check if this PR's HEAD commit matches our commit
             pr_head_sha = pr.get("headRefOid", "")
 
             # Compare commits (handle both short and full hashes)
-            if pr_head_sha.startswith(full_hash) or full_hash.startswith(pr_head_sha):
+            if pr_head_sha.startswith(commit_hash):
                 return (pr["number"], pr["title"])
 
         return None
