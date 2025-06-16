@@ -246,7 +246,7 @@ python batch_setup.py \
 # Customize job definition
 python batch_setup.py \
   --job-definition-name metta-custom-job \
-  --image mettaai/metta:latest \
+  --image mettaai/metta:3.0 \
   --job-role-name ecsTaskExecutionRole \
   --execution-role-name ecsTaskExecutionRole \
   --efs-name metta \
