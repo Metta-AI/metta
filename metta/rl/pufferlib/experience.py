@@ -9,6 +9,13 @@ The Experience class provides:
 - LSTM state management for recurrent policies
 - Zero-copy operations where possible
 - Efficient minibatch creation for training
+
+Key features:
+- Stores trajectories in segmented tensors for BPTT
+- Supports both CPU and GPU storage with optional CPU offloading
+- Handles LSTM hidden states if using recurrent policies
+- Provides prioritized sampling for training
+- Manages minibatch creation for training
 """
 
 from typing import Dict, Optional
@@ -38,9 +45,10 @@ class Experience:
         agents_per_batch: Optional[int] = None,
     ):
         """Initialize experience buffer with segmented storage."""
+        # Store parameters
         self.total_agents = total_agents
-        self.batch_size = batch_size
-        self.bptt_horizon = bptt_horizon
+        self.batch_size: int = batch_size
+        self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
         self.cpu_offload = cpu_offload
         self.use_rnn = use_rnn
@@ -50,17 +58,18 @@ class Experience:
         if total_agents > self.segments:
             raise ValueError(f"Total agents {total_agents} > segments {self.segments}")
 
-        # Create segmented tensor storage
+        # Determine tensor device and dtype
         obs_device = "cpu" if cpu_offload else self.device
         obs_dtype = torch.float32 if obs_space.dtype == np.float32 else torch.uint8
+        pin = str(self.device).startswith("cuda") and cpu_offload
 
-        # Use 'obs' to match main branch naming
+        # Create segmented tensor storage
         self.obs = torch.zeros(
             self.segments,
             bptt_horizon,
             *obs_space.shape,
             dtype=obs_dtype,
-            pin_memory=str(self.device).startswith("cuda") and cpu_offload,
+            pin_memory=pin,
             device=obs_device,
         )
 
@@ -68,6 +77,7 @@ class Experience:
         atn_dtype = torch.int32 if np.issubdtype(atn_space.dtype, np.integer) else torch.float32
         self.actions = torch.zeros(self.segments, bptt_horizon, *atn_space.shape, device=self.device, dtype=atn_dtype)
 
+        # Create value and policy tensors
         self.values = torch.zeros(self.segments, bptt_horizon, device=self.device)
         self.logprobs = torch.zeros(self.segments, bptt_horizon, device=self.device)
         self.rewards = torch.zeros(self.segments, bptt_horizon, device=self.device)
@@ -80,10 +90,13 @@ class Experience:
         self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
 
-        # Simplified LSTM state management
+        # LSTM state management
         self.lstm_h: Dict[int, Tensor] = {}
         self.lstm_c: Dict[int, Tensor] = {}
         if use_rnn:
+            assert num_lstm_layers > 0, f"num_lstm_layers must be positive, got {num_lstm_layers}"
+            assert hidden_size > 0, f"hidden_size must be positive, got {hidden_size}"
+
             # Use provided agents_per_batch or default to total_agents
             if agents_per_batch is None:
                 agents_per_batch = total_agents
@@ -95,12 +108,34 @@ class Experience:
                 self.lstm_c[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
 
         # Minibatch configuration
-        self.minibatch_size = min(minibatch_size, max_minibatch_size)
+        self.minibatch_size: int = min(minibatch_size, max_minibatch_size)
         self.accumulate_minibatches = max(1, minibatch_size // max_minibatch_size)
-        self.minibatch_segments = self.minibatch_size // bptt_horizon
+
+        minibatch_segments = self.minibatch_size / bptt_horizon
+        self.minibatch_segments: int = int(minibatch_segments)
+        if self.minibatch_segments != minibatch_segments:
+            raise ValueError(f"minibatch_size {self.minibatch_size} must be divisible by bptt_horizon {bptt_horizon}")
 
         # Tracking for rollout completion
         self.full_rows = 0
+
+        # Calculate num_minibatches for compatibility
+        num_minibatches = self.segments / self.minibatch_segments
+        self.num_minibatches: int = int(num_minibatches)
+        if self.num_minibatches != num_minibatches:
+            raise ValueError(
+                f"segments {self.segments} must be divisible by minibatch_segments {self.minibatch_segments}"
+            )
+
+    @property
+    def full(self) -> bool:
+        """Alias for ready_for_training for compatibility."""
+        return self.ready_for_training
+
+    @property
+    def ready_for_training(self) -> bool:
+        """Check if buffer has enough data for training."""
+        return self.full_rows >= self.segments
 
     def store(
         self,
@@ -116,11 +151,15 @@ class Experience:
         lstm_state: Optional[Dict[str, Tensor]] = None,
     ) -> int:
         """Store a batch of experience."""
+        assert isinstance(env_id, slice), (
+            f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
+        )
+
         num_steps = sum(mask)
         episode_length = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
-        # Store data
+        # Store data in segmented tensors
         batch_slice = (indices, episode_length)
         self.obs[batch_slice] = obs if self.cpu_offload else obs
         self.actions[batch_slice] = actions
@@ -216,13 +255,3 @@ class Experience:
     def get_mean_reward(self) -> float:
         """Get mean reward from the buffer."""
         return self.rewards.mean().item()
-
-    @property
-    def ready_for_training(self) -> bool:
-        """Check if buffer has enough data for training."""
-        return self.full_rows >= self.segments
-
-    @property
-    def num_minibatches(self) -> int:
-        """Number of minibatches that can be created from the buffer."""
-        return self.segments // self.minibatch_segments
