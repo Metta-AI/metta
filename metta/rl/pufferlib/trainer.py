@@ -753,7 +753,7 @@ class PufferTrainer:
         }
 
         # Lap timing calculations
-        lap_times = self.timer.lap_all(self.agent_step, exclude_global=False)
+        lap_times = self.timer.lap_all(self.agent_step)
         delta_steps = self.timer.get_lap_steps()
         if delta_steps is None:
             delta_steps = self.agent_step

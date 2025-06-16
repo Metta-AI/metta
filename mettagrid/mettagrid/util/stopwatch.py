@@ -361,7 +361,7 @@ class Stopwatch:
                 actual_name = timer_name if timer_name != "__global__" else None
                 self.checkpoint(steps, checkpoint_name, actual_name)
 
-    def lap_all(self, steps: Optional[int] = None, exclude_global: bool = True) -> Dict[str, float]:
+    def lap_all(self, steps: Optional[int] = None, exclude_global: bool = False) -> Dict[str, float]:
         """Mark a lap on all active timers and return lap times.
 
         Args:
