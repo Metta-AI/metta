@@ -222,11 +222,13 @@ class PufferTrainer:
 
             # set up plots that do not use steps as the x-axis
             metric_definitions = [
-                ("overview/reward", "metric/total_time"),
+                ("overview/reward_vs_wall_time", "metric/total_time"),
+                ("overview/reward_vs_train_time", "metric/train_time"),
+                ("overview/reward_vs_epoch", "metric/epoch"),
             ]
 
             for metric_name, step_metric in metric_definitions:
-                wandb_run.define_metric(metric_name, step_metric=step_metric, overwrite=True)
+                wandb_run.define_metric(metric_name, step_metric=step_metric, overwrite=False)
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
@@ -782,6 +784,9 @@ class PufferTrainer:
             "sps": steps_per_second,
             "lap_sps": lap_steps_per_second,
             "reward": self.mean_reward,
+            "reward_vs_wall_time": self.mean_reward,
+            "reward_vs_train_time": self.mean_reward,
+            "reward_vs_epoch": self.mean_reward,
         }
 
         # Add custom overview items
@@ -795,10 +800,9 @@ class PufferTrainer:
             if score is not None:
                 overview[f"{category}_evals"] = score
 
-        # Training logs
-        train_stats = {
-            "train/learning_rate": self.optimizer.param_groups[0]["lr"],
-            "train/delta_steps": delta_steps,
+        parameter_stats = {
+            "parameter/learning_rate": self.optimizer.param_groups[0]["lr"],
+            "parameter/delta_steps": delta_steps,
         }
 
         loss_stats = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
@@ -806,7 +810,7 @@ class PufferTrainer:
 
         # Add filtered average reward if applicable
         if self.trainer_cfg.average_reward:
-            train_stats["train/filtered_mean_reward"] = self.filtered_mean_reward
+            overview["filtered_mean_reward"] = self.filtered_mean_reward
 
         # Log everything to wandb
         self.wandb_run.log(
@@ -816,7 +820,7 @@ class PufferTrainer:
                 **environment_stats,
                 **weight_metrics,
                 **self._eval_grouped_scores,
-                **train_stats,
+                **parameter_stats,
                 **timing_stats,
                 **metric_stats,
             }
