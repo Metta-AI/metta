@@ -76,11 +76,11 @@ class TerrainFromNumpy(Room):
             with FileLock(lock_path):
                 s3_path = f"s3://softmax-public/maps/{zipped_dir}"
                 download_from_s3(s3_path, zipped_dir)
-            if not os.path.exists(root) and os.path.exists(zipped_dir):
-                with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
-                    zip_ref.extractall(os.path.dirname(root))
-                os.remove(zipped_dir)
-                logger.info(f"Extracted {zipped_dir} to {root}")
+        if not os.path.exists(root) and os.path.exists(zipped_dir):
+            with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
+                zip_ref.extractall(os.path.dirname(root))
+            os.remove(zipped_dir)
+            logger.info(f"Extracted {zipped_dir} to {root}")
 
         self.files = os.listdir(dir)
         self.dir = dir
@@ -106,8 +106,6 @@ class TerrainFromNumpy(Room):
         return valid_positions
 
     def _build(self):
-        start_time = time.time()
-        # TODO: add some way of sampling
         uri = self.uri or np.random.choice(self.files)
         level = safe_load(f"{self.dir}/{uri}")
         self.set_size_labels(level.shape[1], level.shape[0])
@@ -145,6 +143,4 @@ class TerrainFromNumpy(Room):
                 level[pos] = obj_name
                 valid_positions.remove(pos)
         self._level = level
-        end_time = time.time()
-        logger.info(f"Time taken to build level: {end_time - start_time} seconds")
         return self._level
