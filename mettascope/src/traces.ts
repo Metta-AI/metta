@@ -13,7 +13,7 @@ export function drawTrace(panel: PanelInfo) {
   }
 
   // Handle mouse events for the trace panel.
-  if (ui.mouseTarget == "trace-panel") {
+  if (ui.mouseTargets.includes("#trace-panel")) {
     if (ui.mouseDoubleClick) {
       // Toggle followSelection on double-click
       console.info("Trace double click - following selection");
