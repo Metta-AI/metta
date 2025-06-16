@@ -103,6 +103,6 @@ def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
 
         # Compare commits (handle both short and full hashes)
         if pr_head_sha.startswith(commit_hash):
-            return (pr["number"], pr["title"])
+            return (int(pr["number"]), pr["title"])
 
     return None
