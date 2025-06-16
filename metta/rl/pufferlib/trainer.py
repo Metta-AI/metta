@@ -23,6 +23,7 @@ from metta.rl.pufferlib.kickstarter import Kickstarter
 from metta.rl.pufferlib.policy import PufferAgent
 from metta.rl.pufferlib.torch_profiler import TorchProfiler
 from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.vecenv_timing import TimedVecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
@@ -953,7 +954,7 @@ class PufferTrainer:
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
-        self.vecenv = make_vecenv(
+        vecenv = make_vecenv(
             self._curriculum,
             self.cfg.vectorization,
             num_envs=num_envs,
@@ -961,6 +962,8 @@ class PufferTrainer:
             num_workers=self.trainer_cfg.num_workers,
             zero_copy=self.trainer_cfg.zero_copy,
         )
+
+        self.vecenv = TimedVecenv(vecenv, self.timer)
 
         if self.cfg.seed is None:
             self.cfg.seed = np.random.randint(0, 1000000)
