@@ -92,7 +92,8 @@ class TimedVecenv:
                 return self._vecenv.close()
         finally:
             # Stop overhead timer permanently on close
-            if self._timer._timers["pufferlib_overhead"]["is_running"]:
+            overhead_timer = self._timer._get_timer("pufferlib_overhead")
+            if overhead_timer.is_running():
                 self._timer.stop("pufferlib_overhead")
 
     def notify(self) -> None:
