@@ -20,7 +20,7 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
         git-lfs \
         tmux \
         iproute2 \
-        netcat \
+        netcat-openbsd \
         iputils-ping \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*

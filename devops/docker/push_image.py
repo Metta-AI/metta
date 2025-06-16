@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 """
-Push the local mettaai/metta:latest image to an ECR registry.
+Push the local mettaai/metta:3.0 image to an ECR registry.
 """
 
 import argparse
@@ -16,8 +16,8 @@ def main():
     cd_repo_root()
 
     parser = argparse.ArgumentParser(description="Upload metta image to ECR")
-    parser.add_argument("--local-image-name", default="mettaai/metta:latest")
-    parser.add_argument("--remote-image-name", default="metta:latest")
+    parser.add_argument("--local-image-name", default="mettaai/metta:3.0")
+    parser.add_argument("--remote-image-name", default="metta:3.0")
     parser.add_argument("--region", default="us-east-1")
     parser.add_argument("--account-id", type=int, help="AWS account ID. If omitted, current account is used.")
     args = parser.parse_args()
