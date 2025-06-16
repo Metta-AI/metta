@@ -15,51 +15,12 @@
 class ObservationEncoder {
 public:
   ObservationEncoder() {
-    _offsets.resize(ObjectType::ObjectTypeCount);
-    _type_feature_names.resize(ObjectType::ObjectTypeCount);
-
-    _type_feature_names[ObjectType::AgentT] = Agent::feature_names();
-    _type_feature_names[ObjectType::WallT] = Wall::feature_names();
-
-    // These are different types of Converters. They all have the same feature names,
-    // so this is somewhat redundant.
-    for (auto type_id : {ObjectType::AltarT,
-                         ObjectType::ArmoryT,
-                         ObjectType::FactoryT,
-                         ObjectType::GeneratorT,
-                         ObjectType::LabT,
-                         ObjectType::LaseryT,
-                         ObjectType::MineT,
-                         ObjectType::TempleT}) {
-      _type_feature_names[type_id] = Converter::feature_names();
+    _feature_normalizations = FeatureNormalizations;
+    for (int i = 0; i < ObservationFeature::ObservationFeatureCount; i++) {
+      _feature_normalizations.insert({i, DEFAULT_NORMALIZATION});
     }
-
-    // Generate an offset for each unique feature name.
-    std::map<std::string, uint8_t> features;
-
-    for (size_t type_id = 0; type_id < ObjectType::ObjectTypeCount; ++type_id) {
-      for (size_t i = 0; i < _type_feature_names[type_id].size(); ++i) {
-        std::string feature_name = _type_feature_names[type_id][i];
-        if (features.count(feature_name) == 0) {
-          size_t index = features.size();
-          // We want to keep the index within the range of a byte since we plan to
-          // use this as a feature_id.
-          assert(index < 256);
-          features.insert({feature_name, index});
-          if (FeatureNormalizations.count(feature_name) > 0) {
-            _feature_normalizations.insert({index, FeatureNormalizations.at(feature_name)});
-          } else {
-            _feature_normalizations.insert({index, DEFAULT_NORMALIZATION});
-          }
-        }
-      }
-    }
-
-    // Set the offset for each feature, using the global offsets.
-    for (size_t type_id = 0; type_id < ObjectType::ObjectTypeCount; ++type_id) {
-      for (size_t i = 0; i < _type_feature_names[type_id].size(); ++i) {
-        _offsets[type_id].push_back(features[_type_feature_names[type_id][i]]);
-      }
+    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
+      _feature_normalizations.insert({static_cast<uint8_t>(InventoryFeatureOffset + i), DEFAULT_NORMALIZATION});
     }
   }
 
@@ -77,11 +38,7 @@ public:
   }
 
   void encode(const GridObject* obj, ObsType* obs) {
-    encode(obj, obs, _offsets[obj->_type_id]);
-  }
-
-  void encode(const GridObject* obj, ObsType* obs, const std::vector<uint8_t>& offsets) {
-    obj->obs(obs, offsets);
+    obj->obs(obs);
   }
 
   const std::map<uint8_t, float>& feature_normalizations() const {
@@ -89,8 +46,6 @@ public:
   }
 
 private:
-  std::vector<std::vector<uint8_t>> _offsets;
-  std::vector<std::vector<std::string>> _type_feature_names;
   std::map<uint8_t, float> _feature_normalizations;
 };
 
