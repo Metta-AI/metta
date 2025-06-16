@@ -11,7 +11,7 @@ on:
       - ci-docker # for testing
 
 env:
-  IMAGE_NAME: mettaai/metta
+  IMAGE_NAME: metta
 
 jobs:
   build-and-push-image:
