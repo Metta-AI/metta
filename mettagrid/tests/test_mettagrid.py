@@ -138,8 +138,7 @@ def test_grid_objects():
         if obj.get("type_id") == 0:
             # Agents
             assert set(obj).issuperset(
-                {"agent:group", "agent:frozen", "agent:orientation", "agent:color"}
-                | common_properties
+                {"agent:group", "agent:frozen", "agent:orientation", "agent:color"} | common_properties
             )
             assert obj["agent:group"] == 0, "Agent should be in group 0"
             assert obj["agent:frozen"] == 0, "Agent should not be frozen"
