@@ -72,8 +72,8 @@ class TerrainFromNumpy(Room):
         zipped_dir = root + ".zip"
         lock_path = zipped_dir + ".lock"
         # Only one process can hold this lock at a time:
-        with FileLock(lock_path):
-            if not os.path.exists(dir) and not os.path.exists(zipped_dir):
+        if not os.path.exists(dir) and not os.path.exists(zipped_dir):
+            with FileLock(lock_path):
                 s3_path = f"s3://softmax-public/maps/{zipped_dir}"
                 download_from_s3(s3_path, zipped_dir)
             if not os.path.exists(root) and os.path.exists(zipped_dir):
@@ -106,6 +106,7 @@ class TerrainFromNumpy(Room):
         return valid_positions
 
     def _build(self):
+        start_time = time.time()
         # TODO: add some way of sampling
         uri = self.uri or np.random.choice(self.files)
         level = safe_load(f"{self.dir}/{uri}")
@@ -144,4 +145,6 @@ class TerrainFromNumpy(Room):
                 level[pos] = obj_name
                 valid_positions.remove(pos)
         self._level = level
+        end_time = time.time()
+        logger.info(f"Time taken to build level: {end_time - start_time} seconds")
         return self._level
