@@ -4,7 +4,7 @@ sampling: 1
 
 game:
   num_agents: 16
-  max_steps: 80
+  max_steps: 100
   agent:
     rewards:
       heart: 1

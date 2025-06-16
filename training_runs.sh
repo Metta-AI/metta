@@ -69,10 +69,10 @@
 
 # ./devops/skypilot/launch.py train georgedeane.nav_backchain_mem_pretrained trainer.curriculum=env/mettagrid/curriculum/navsequence/nav_backchain_mem trainer.initial_policy.uri=dd_navigation_curriculum:54 \
 
-./devops/skypilot/launch.py train georgedeane.memory_pretrained trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=gd_backchain_mem_pretrained:v18 \
+./devops/skypilot/launch.py train georgedeane.memory_pretrained trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope \
 
 ./devops/skypilot/launch.py train georgedeane.memory_scratch trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope \
 
 # ./devops/skypilot/launch.py train georgedeane.mem_general trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_general trainer.initial_policy.uri=gd_backchain_mem_pretrained:v18 \
 
-./devops/skypilot/launch.py train georgedeane.mem_general_pretrained trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=gd_backchain_mem_pretrained:v18 \
+./devops/skypilot/launch.py train georgedeane.mem_minimal trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope  \
