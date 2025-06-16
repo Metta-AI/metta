@@ -32,7 +32,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["max_steps"] = 10000;
   game_cfg["obs_width"] = 11;
   game_cfg["obs_height"] = 11;
-  game_cfg["use_observation_tokens"] = false;
+  game_cfg["use_observation_tokens"] = true;
 
   // Actions configuration
   py::dict actions_cfg;
