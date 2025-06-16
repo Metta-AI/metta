@@ -65,8 +65,15 @@ public:
 
   // Returns the number of tokens that were available to write. This will be the number of tokens actually
   // written if there was enough space -- or a greater number if there was not enough space.
-  size_t encode_tokens(const GridObject* obj, ObservationTokens tokens) {
-    return obj->obs_tokens(tokens);
+  size_t encode_tokens(const GridObject* obj, ObservationTokens tokens, uint8_t location) {
+    size_t attempted_tokens_written = obj->obs_tokens(tokens);
+    size_t tokens_written = std::min(attempted_tokens_written, tokens.size());
+
+    for (size_t i = 0; i < tokens_written; i++) {
+      tokens[i].location = location;
+    }
+
+    return attempted_tokens_written;
   }
 
   void encode(const GridObject* obj, ObsType* obs) {
