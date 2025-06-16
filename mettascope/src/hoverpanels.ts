@@ -92,6 +92,13 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
 /** Update the hover panel, visibility and position, and dom tree. */
 export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
+    let typeName = state.replay.object_types[getAttr(object, "type")];
+    if (typeName == "wall") {
+      // Don't show hover panel for walls.
+      hoverPanel.classList.add("hidden");
+      return;
+    }
+
     updateDom(hoverPanel, object);
     hoverPanel.classList.remove("hidden");
 
@@ -109,6 +116,12 @@ export function updateHoverPanel(object: any) {
     hoverPanel.classList.add("hidden");
   }
   findIn(hoverPanel, ".close").classList.add("hidden");
+}
+
+/** Hides the hover panel. */
+export function hideHoverPanel() {
+  ui.delayedHoverObject = null;
+  hoverPanel.classList.add("hidden");
 }
 
 /** Update the dom tree of the info panel. */
