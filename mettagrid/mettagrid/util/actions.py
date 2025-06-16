@@ -357,7 +357,7 @@ def get_agent_position(env: MettaGrid, agent_idx: int = 0) -> Optional[tuple]:
     try:
         grid_objects = env.grid_objects()
         for _obj_id, obj_data in grid_objects.items():
-            if "agent" in obj_data and obj_data.get("agent_id") == agent_idx:
+            if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
                 return (obj_data["r"], obj_data["c"])
         return None
     except Exception:
@@ -369,7 +369,7 @@ def get_agent_orientation(env: MettaGrid, agent_idx: int = 0) -> Optional[int]:
     try:
         grid_objects = env.grid_objects()
         for _obj_id, obj_data in grid_objects.items():
-            if "agent" in obj_data and obj_data.get("agent_id") == agent_idx:
+            if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
                 return obj_data.get("agent:orientation", None)
         return None
     except Exception:

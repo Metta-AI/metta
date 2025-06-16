@@ -132,19 +132,15 @@ def test_grid_objects():
     common_properties = {"r", "c", "layer", "type", "id"}
 
     for obj in objects.values():
-        if obj.get("type_id"):
-            assert set(obj) == {"type_id", "hp", "swappable"} | common_properties
-            assert obj["type_id"] == 1, "Wall should have type 1"
-            assert obj["hp"] == 100, "Wall should have 100 hp"
-        if obj.get("agent"):
-            # agents will also have various inventory, which we don't list here
+        if obj.get("type_id") == 1:
+            # Walls
+            assert set(obj) == {"type_id"} | common_properties
+        if obj.get("type_id") == 0:
+            # Agents
             assert set(obj).issuperset(
-                {"agent", "agent:group", "hp", "agent:frozen", "agent:orientation", "agent:color", "inv:heart"}
-                | common_properties
+                {"agent:group", "agent:frozen", "agent:orientation", "agent:color"} | common_properties
             )
-            assert obj["agent"] == 1, "Agent should have type 1"
             assert obj["agent:group"] == 0, "Agent should be in group 0"
-            assert obj["hp"] == 100, "Agent should have 100 hp"
             assert obj["agent:frozen"] == 0, "Agent should not be frozen"
 
 
