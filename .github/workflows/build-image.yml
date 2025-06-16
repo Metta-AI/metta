@@ -21,10 +21,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build Docker image
-        run: |
-          ./devops/docker/build.sh
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
