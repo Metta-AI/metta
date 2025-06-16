@@ -17,17 +17,17 @@ from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.experience import Experience
 from metta.rl.fast_gae import compute_gae
-from metta.rl.pufferlib.experience import Experience
-from metta.rl.pufferlib.kickstarter import Kickstarter
-from metta.rl.pufferlib.policy import PufferAgent
-from metta.rl.pufferlib.profile import Profile, profile_section
-from metta.rl.pufferlib.torch_profiler import TorchProfiler
-from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.policy import PufferAgent
+from metta.rl.profile import Profile, profile_section
+from metta.rl.torch_profiler import TorchProfiler
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.sim.vecenv import make_vecenv
 from metta.util.timing import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
@@ -40,7 +40,7 @@ local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
-class PufferTrainer:
+class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig | ListConfig,
@@ -124,7 +124,7 @@ class PufferTrainer:
         assert policy_record is not None, "No policy found"
 
         if self._master:
-            logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
+            logger.info(f"MettaTrainer loaded: {policy_record.policy()}")
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
@@ -224,7 +224,7 @@ class PufferTrainer:
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        logger.info(f"PufferTrainer initialization complete on device: {self.device}")
+        logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self):
         logger.info("Starting training")
@@ -932,7 +932,7 @@ class PufferTrainer:
         self.vecenv.async_reset(self.cfg.seed + rank)
 
 
-class AbortingTrainer(PufferTrainer):
+class AbortingTrainer(MettaTrainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
