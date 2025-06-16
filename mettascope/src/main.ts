@@ -201,7 +201,6 @@ onEvent("wheel", "body", (target: HTMLElement, e: Event) => {
 /** Mouse moved outside the window. */
 document.addEventListener('mouseout', function (e) {
   if (!e.relatedTarget) {
-    console.log('Mouse has left the document/window.');
     hideHoverPanel();
     requestFrame();
   }
@@ -209,7 +208,6 @@ document.addEventListener('mouseout', function (e) {
 
 /** The window got de-focused. */
 document.addEventListener('blur', function (e) {
-  console.log('Window got de-focused.');
   hideHoverPanel();
   requestFrame();
 });
