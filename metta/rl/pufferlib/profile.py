@@ -51,6 +51,7 @@ class Profile:
     def __init__(self, frequency=1):
         self._profile = PufferProfile(frequency=frequency)
         self.start_time = time.time()
+        self.start_agent_steps = 0
         self.epoch = 0
 
         # Timing stats
@@ -111,7 +112,7 @@ class Profile:
         elapsed = current_time - self.start_time
 
         if elapsed > self.uptime:  # Avoid division by zero on first call
-            self.SPS = global_step / elapsed
+            self.SPS = (global_step - self.start_agent_steps) / elapsed
             self.remaining = (total_timesteps - global_step) / self.SPS if self.SPS > 0 else 0
 
         self.uptime = elapsed

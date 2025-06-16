@@ -280,28 +280,48 @@ canvas#global-canvas {
     overflow: hidden;
 }
 
-#time-panel {
+#timeline-panel {
     position: absolute;
-    display: flex;
-    height: fit-content;
+    display: block;
+    height: 64px;
     left: 0px;
     right: 0px;
     bottom: 64px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    gap: 16px;
-    padding: 16px 32px 16px 32px;
     background-color: rgba(29, 29, 29, 1.00);
     overflow: hidden;
 }
 
-#time-panel input#main-scrubber {
-    position: relative;
+#timeline-panel #timeline-redout {
+    position: absolute;
     display: block;
-    width: 100%;
-    height: 32px;
-    align-self: stretch;
-    background-color: rgba(217, 217, 217, 1.00);
+    width: 46px;
+    height: 22px;
+    left: 851px;
+    top: 5px;
+    background-color: rgba(0, 0, 0, 1.00);
+    border-radius: 8px;
+    overflow: hidden;
+    border-color: rgba(85, 85, 85, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+#timeline-redout #step-counter {
+    position: absolute;
+    display: inline-block;
+    left: 0px;
+    right: 0px;
+    top: 1px;
+    bottom: 0px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Mono;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: center;
+    vertical-align: middle;
+    letter-spacing: 0px;
+    line-height: 18.20px;
 }
 
 #trace-panel {
@@ -1474,7 +1494,7 @@ button#help-button.hover-icon .icon {
     font-weight: 400;
     font-size: 16px;
     text-align: left;
-    vertical-align: center;
+    vertical-align: middle;
     letter-spacing: 0px;
     line-height: 20.80px;
 }
@@ -1748,12 +1768,12 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.infopanel {
+.hover-panel {
     position: absolute;
     display: flex;
     height: fit-content;
     left: 40px;
-    top: 730px;
+    top: 600px;
     min-width: 300px;
     flex-direction: column;
     flex-wrap: nowrap;
@@ -1764,7 +1784,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.infopanel .panel-body {
+.hover-panel .panel-body {
     position: relative;
     display: flex;
     height: fit-content;
@@ -1779,7 +1799,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.panel-body .top {
+.panel-body .params {
     position: relative;
     display: flex;
     width: fit-content;
@@ -1793,7 +1813,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.top .pin-info-panel.hover-icon {
+.params .pin-info-panel.hover-icon {
     position: relative;
     display: block;
     width: 32px;
@@ -1802,7 +1822,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.top .param {
+.params .param {
     position: relative;
     display: flex;
     width: fit-content;
@@ -1844,7 +1864,7 @@ button#help-button.hover-icon .icon {
     line-height: 28.60px;
 }
 
-.panel-body .bottom {
+.panel-body .inventory-area {
     position: relative;
     display: flex;
     width: 100%;
@@ -1858,7 +1878,7 @@ button#help-button.hover-icon .icon {
     overflow: hidden;
 }
 
-.bottom .label {
+.inventory-area .label {
     position: relative;
     display: inline-block;
     width: 100%;
@@ -1875,7 +1895,7 @@ button#help-button.hover-icon .icon {
     line-height: 20.80px;
 }
 
-.bottom .inventory {
+.inventory-area .inventory {
     position: relative;
     display: flex;
     width: 100%;
@@ -1930,7 +1950,198 @@ button#help-button.hover-icon .icon {
     top: 4px;
 }
 
-.infopanel .tip {
+.panel-body .recipe-area {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: fit-content;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 1px 2px 1px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.recipe-area .label {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    height: fit-content;
+    align-self: stretch;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 16px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 20.80px;
+}
+
+.recipe-area .recipe {
+    position: relative;
+    display: flex;
+    width: 100%;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 8px;
+    padding: 4px 1px 4px 1px;
+    align-items: center;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.recipe .item {
+    position: relative;
+    display: block;
+    width: 40px;
+    height: 64px;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    overflow: hidden;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+.item .amount {
+    position: absolute;
+    display: inline-block;
+    width: 40px;
+    height: 25px;
+    left: 0px;
+    top: 36px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 26px;
+}
+
+.item .icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 4px;
+    top: 4px;
+}
+
+.recipe .arrow {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.recipe .item {
+    position: relative;
+    display: block;
+    width: 40px;
+    height: 64px;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    overflow: hidden;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+.item .amount {
+    position: absolute;
+    display: inline-block;
+    width: 40px;
+    height: 25px;
+    left: 0px;
+    top: 36px;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 26px;
+}
+
+.item .icon {
+    position: absolute;
+    display: block;
+    width: 32px;
+    height: 32px;
+    left: 4px;
+    top: 4px;
+}
+
+.panel-body .actions {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    padding: 2px 1px 2px 1px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.actions button.memory {
+    position: relative;
+    display: flex;
+    width: fit-content;
+    height: fit-content;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 8px 12px 8px 12px;
+    align-items: center;
+    background-color: rgba(20, 27, 35, 1.00);
+    border-radius: 5px;
+    overflow: hidden;
+    border-color: rgba(53, 53, 53, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+button.memory .ui/brain {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+button.memory .text {
+    position: relative;
+    display: inline-block;
+    width: fit-content;
+    height: fit-content;
+    color: rgba(255, 255, 255, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 20px;
+    text-align: center;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 26px;
+}
+
+.hover-panel .tip {
     position: relative;
     display: block;
     width: 32px;
@@ -1938,13 +2149,236 @@ button#help-button.hover-icon .icon {
     background-color: rgba(0, 0, 0, 0.00);
 }
 
-.infopanel .close.hover-icon {
+.hover-panel .close.hover-icon {
     position: absolute;
     display: block;
     width: 32px;
     height: 32px;
     right: 0px;
     top: 0px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu {
+    position: absolute;
+    display: flex;
+    width: 162px;
+    height: fit-content;
+    left: 1196px;
+    top: 662px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding: 5px 0px 5px 0px;
+    background-color: rgba(28, 29, 30, 1.00);
+    border-radius: 4px;
+    overflow: hidden;
+    border-color: rgba(79, 79, 79, 1.00);
+    border-width: 1px;
+    border-style: solid;
+}
+
+#object-menu .set-memory-to-0.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.set-memory-to-0.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.set-memory-to-0.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .set-memory-to-1.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.set-memory-to-1.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.set-memory-to-1.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .set-memory-to-random.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.set-memory-to-random.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.set-memory-to-random.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .sep {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 1px;
+    align-self: stretch;
+    background-color: rgba(53, 54, 55, 1.00);
+}
+
+#object-menu .copy-memory.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.copy-memory.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.copy-memory.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+#object-menu .paste-memory.hover {
+    position: relative;
+    display: block;
+    width: 100%;
+    height: 36px;
+    align-self: stretch;
+    background-color: rgba(0, 0, 0, 0.00);
+    overflow: hidden;
+}
+
+.paste-memory.hover .text {
+    position: absolute;
+    display: inline-block;
+    width: 124px;
+    height: 18px;
+    left: 36px;
+    top: 9px;
+    color: rgba(224, 224, 224, 1.00);
+    font-family: IBM Plex Sans;
+    font-style: normal;
+    font-weight: 400;
+    font-size: 14px;
+    text-align: left;
+    vertical-align: top;
+    letter-spacing: 0px;
+    line-height: 18.20px;
+}
+
+.paste-memory.hover .icon {
+    position: absolute;
+    display: block;
+    width: 20px;
+    height: 20px;
+    left: 8px;
+    top: 8px;
     background-color: rgba(0, 0, 0, 0.00);
     overflow: hidden;
 }

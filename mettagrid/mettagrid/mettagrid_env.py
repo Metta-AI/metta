@@ -104,11 +104,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         task = self._task
         level = self._level
         last_level = self._last_level_per_task.get(task.id(), None)
-        if (
-            level is None
-            and last_level is not None
-            and random.random() < task.env_cfg().get("replay_level_prob", 0)
-        ):
+        if level is None and last_level is not None and random.random() < task.env_cfg().get("replay_level_prob", 0):
             # Replay the last level we had for this task, rather than building a new one.
             # This will be less adaptive to changes in the task config, but will save a lot
             # of CPU, and so is helpful if we're CPU bound.
@@ -178,10 +174,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         """
 
-        if __debug__:
-            from mettagrid.util.actions import validate_actions
-
-            validate_actions(self, actions, logger)
+        # Note: We explicitly allow invalid actions to be used. The environment will
+        # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
 
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_pre_step(self._episode_id, actions)
@@ -345,7 +339,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._should_reset
 
     @property
-    def feature_normalizations(self) -> list[float]:
+    def feature_normalizations(self) -> dict[int, float]:
         return self._c_env.feature_normalizations()
 
     @property
@@ -401,3 +395,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     def inventory_item_names(self) -> list[str]:
         return self._c_env.inventory_item_names()
+
+    @property
+    def config(self) -> dict[str, Any]:
+        return cast(dict[str, Any], OmegaConf.to_container(self._task.env_cfg(), resolve=False))

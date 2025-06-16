@@ -42,6 +42,10 @@ enum ObservationFeatureEnum : uint8_t {
   Color = 5,
   ConvertingOrCoolingDown = 6,
   Swappable = 7,
+  EpisodeCompletionPct = 8,
+  LastAction = 9,
+  LastActionArg = 10,
+  LastReward = 11,
   ObservationFeatureCount
 };
 }  // namespace ObservationFeature
@@ -104,11 +108,40 @@ constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = 
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
+constexpr std::array<const char*, ObservationFeature::ObservationFeatureCount> ObservationFeatureNamesArray = {
+    {"type_id",
+     "agent:group",
+     "hp",
+     "agent:frozen",
+     "agent:orientation",
+     "agent:color",
+     "converting",
+     "swappable",
+     "episode_completion_pct",
+     "last_action",
+     "last_action_arg",
+     "last_reward"}};
+
+const std::vector<std::string> ObservationFeatureNames = []() {
+  std::vector<std::string> names;
+  names.reserve(ObservationFeatureNamesArray.size() + InventoryItemNamesArray.size());
+  names.insert(names.end(), ObservationFeatureNamesArray.begin(), ObservationFeatureNamesArray.end());
+  for (const auto& name : InventoryItemNames) {
+    names.push_back("inv:" + name);
+  }
+  return names;
+}();
+
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 // but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
 // These should move to configuration "soon". E.g., by 2025-06-10.
 const std::map<std::string, float> FeatureNormalizations = {
+    {"last_action", 10.0},
+    {"last_action_argument", 10.0},
+    {"episode_completion_pct", 255.0},
+    {"last_reward", 100.0},
+
     {"agent", 1.0},
     {"agent:group", 10.0},
     {"agent:hp", 30.0},
@@ -128,8 +161,6 @@ const std::map<std::string, float> FeatureNormalizations = {
     {"inv:laser", 100.0},
     {"inv:armor", 100.0},
     {"inv:blueprint", 100.0},
-    {"last_action", 10.0},
-    {"last_action_argument", 10.0},
     {"agent:kinship", 10.0},
     {"hp", 30.0},
     {"converting", 1.0},

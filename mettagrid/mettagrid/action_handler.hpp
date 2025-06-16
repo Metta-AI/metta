@@ -9,8 +9,8 @@
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
+#include "types.hpp"
 
-typedef unsigned char ActionArg;
 typedef std::map<std::string, int> ActionConfig;
 
 class ActionHandler {
