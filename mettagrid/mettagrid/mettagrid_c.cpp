@@ -243,12 +243,16 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
     auto rewards_view = _rewards.unchecked<1>();
 
     // Global tokens
-    ObservationToken* tokens = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+    ObservationToken* agent_obs_ptr =
+        reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+    ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
     unsigned int episode_completion_pct = 0;
     if (max_steps > 0) {
       episode_completion_pct =
           static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
     }
+    int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
+    reward_int = std::clamp(reward_int, 0, 255);
     std::vector<PartialObservationToken> global_tokens = {
         {ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)},
         {ObservationFeature::LastAction, static_cast<uint8_t>(action)},
@@ -256,7 +260,8 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
         {ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)}};
     // Global tokens are always at the center of the observation.
     uint8_t global_location = obs_height_radius << 4 | obs_width_radius;
-    attempted_tokens_written += _obs_encoder->append_tokens_if_room_available(tokens, global_tokens, global_location);
+    attempted_tokens_written +=
+        _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
     tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
 
     // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
