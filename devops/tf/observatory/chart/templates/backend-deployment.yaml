@@ -20,6 +20,11 @@ spec:
           envFrom:
           - secretRef:
               name: {{ $.Values.envSecretName }}
+          env:
+          - name: HOST
+            value: "0.0.0.0"
+          - name: PORT
+            value: "8000"
           command: ["uv", "run", "-m", "metta.app.server"]
           resources:
             requests:
@@ -35,6 +40,6 @@ spec:
           readinessProbe:
             httpGet:
               path: /
-              port: 3000
+              port: 8000
             timeoutSeconds: 3
             periodSeconds: 1
