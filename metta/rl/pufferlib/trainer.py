@@ -798,6 +798,7 @@ class PufferTrainer:
         parameter_stats = {
             "parameter/learning_rate": self.optimizer.param_groups[0]["lr"],
             "parameter/delta_steps": delta_steps,
+            "parameter/num_minibatches": self.experience.num_minibatches,
         }
 
         loss_stats = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
