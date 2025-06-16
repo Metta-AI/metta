@@ -79,6 +79,8 @@ class TerrainFromNumpy(Room):
             if not os.path.exists(root) and os.path.exists(zipped_dir):
                 with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
                     zip_ref.extractall(os.path.dirname(root))
+                os.remove(zipped_dir)
+                logger.info(f"Extracted {zipped_dir} to {root}")
 
         self.files = os.listdir(dir)
         self.dir = dir
