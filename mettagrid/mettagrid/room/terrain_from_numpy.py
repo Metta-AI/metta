@@ -27,9 +27,15 @@ def safe_load(path, retries=5, delay=1.0):
 
 
 def pick_random_file(path):
+    chosen = None
+    count = 0
     with os.scandir(path) as it:
-        entries = [entry.name for entry in it if entry.is_file()]
-    return random.choice(entries)
+        for entry in it:
+            count += 1
+            # with probability 1/count, pick this entry
+            if random.randrange(count) == 0:
+                chosen = entry.name
+    return chosen
 
 
 def download_from_s3(s3_path: str, save_path: str, location: str = "us-east-1"):
