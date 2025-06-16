@@ -11,8 +11,12 @@ env:
   IMAGE_NAME: mettaai/metta-ci # TODO: change to mettaai/metta
 
 jobs:
-  build-image:
+  build-and-push-image:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
