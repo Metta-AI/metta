@@ -495,7 +495,6 @@ class MettaTrainer:
             experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
-        total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = PolicyState()
             teacher_lstm_state = []
