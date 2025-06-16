@@ -198,14 +198,3 @@ def display_job_summary(
                 print(f"  {i + 1}. {yellow(arg)}")
 
     print(f"\n{divider}")
-
-
-def get_user_confirmation(prompt: str = "Should we proceed?") -> bool:
-    """Get user confirmation before proceeding with an action."""
-
-    response = input(f"{prompt} (Y/n): ").strip().lower()
-    if response not in ["", "y", "yes"]:
-        print(yellow("Action cancelled by user."))
-        return False
-
-    return True
