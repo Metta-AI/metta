@@ -737,7 +737,10 @@ class PufferTrainer:
         # Calculate derived stats from local roll-outs (master process will handle logging)
         sps = self.profile.SPS
         agent_steps = self.agent_step
-        avg_steps_per_update = self._agent_steps_per_update
+        avg_steps_per_update = 0.0
+        if self._total_minibatches:
+            avg_steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
+            self._last_agent_step = agent_steps
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
         losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
@@ -763,7 +766,7 @@ class PufferTrainer:
 
             training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
             overhead_time = wall_time - training_time
-            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
+            steps_per_sec = (self.agent_step - self._last_agent_step) / training_time if training_time > 0 else 0
 
             timing_logs = {
                 # Key performance indicators
@@ -938,8 +941,7 @@ class PufferTrainer:
         # Use rank-specific seed for environment reset to ensure different
         # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
-        rank_specific_env_seed = self.cfg.seed + rank if self.cfg.seed is not None else rank
-        self.vecenv.async_reset(rank_specific_env_seed)
+        self.vecenv.async_reset(self.cfg.seed + rank)
 
     def _load_policy(self, checkpoint, policy_store, metta_grid_env):
         """Load policy from checkpoint, initial_policy.uri, or create new."""
