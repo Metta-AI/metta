@@ -31,9 +31,10 @@ public:
 
   virtual void obs(ObsType* obs) const override {
     const auto offsets = Wall::offsets();
-    obs[offsets[0]] = _type_id;
-    obs[offsets[1]] = this->hp;
-    obs[offsets[2]] = this->_swappable;
+    size_t offset_idx = 0;
+    obs[offsets[offset_idx++]] = _type_id;
+    obs[offsets[offset_idx++]] = this->hp;
+    obs[offsets[offset_idx++]] = this->_swappable;
   }
 
   static std::vector<uint8_t> offsets() {

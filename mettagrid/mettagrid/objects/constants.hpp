@@ -159,12 +159,6 @@ const std::map<uint8_t, float> FeatureNormalizations = {
     {InventoryFeatureOffset + InventoryItem::laser, 100.0},
     {InventoryFeatureOffset + InventoryItem::armor, 100.0},
     {InventoryFeatureOffset + InventoryItem::blueprint, 100.0},
-    {ObservationFeature::Group, 10.0},
-    {ObservationFeature::Hp, 30.0},
-    {ObservationFeature::ConvertingOrCoolingDown, 1.0},
-    {ObservationFeature::Color, 10.0},
-    {ObservationFeature::Swappable, 1.0},
-    {ObservationFeature::TypeId, 10.0},
 };
 
 const float DEFAULT_NORMALIZATION = 1.0;

@@ -170,12 +170,13 @@ public:
 
   void obs(ObsType* obs) const override {
     const auto offsets = Converter::offsets();
-    obs[offsets[0]] = _type_id;
-    obs[offsets[1]] = this->hp;
-    obs[offsets[2]] = this->color;
-    obs[offsets[3]] = this->converting || this->cooling_down;
+    size_t offset_idx = 0;
+    obs[offsets[offset_idx++]] = _type_id;
+    obs[offsets[offset_idx++]] = this->hp;
+    obs[offsets[offset_idx++]] = this->color;
+    obs[offsets[offset_idx++]] = this->converting || this->cooling_down;
     for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      obs[offsets[4 + i]] = this->inventory[i];
+      obs[offsets[offset_idx++]] = this->inventory[i];
     }
   }
 

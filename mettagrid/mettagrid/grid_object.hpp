@@ -86,6 +86,10 @@ public:
     return features.size();
   }
 
+  /**
+   * Grid-based observations. This is an older style than tokens, and
+   * should be deprecated soon.
+   */
   virtual void obs(ObsType* obs) const = 0;
 };
 

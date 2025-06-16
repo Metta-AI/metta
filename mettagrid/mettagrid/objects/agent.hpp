@@ -138,16 +138,7 @@ public:
     obs[offsets[offset_idx++]] = color;
 
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      obs[offsets[offset_idx + i]] = inventory[i];
-    }
-    obs[offsets[1]] = group;
-    obs[offsets[2]] = hp;
-    obs[offsets[3]] = frozen;
-    obs[offsets[4]] = orientation;
-    obs[offsets[5]] = color;
-
-    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      obs[offsets[6 + i]] = inventory[i];
+      obs[offsets[offset_idx++]] = inventory[i];
     }
   }
 
