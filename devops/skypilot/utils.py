@@ -197,7 +197,7 @@ def display_job_summary(
         print(f"{bold('PR:')} {red('Not a PR HEAD')}")
 
     print(blue("-" * divider_length))
-    print(f"{bold('\nCommand:')} {yellow(cmd)}")
+    print(f"\n{bold('Command:')} {yellow(cmd)}")
 
     if task_args:
         print(bold("Task Arguments:"))
