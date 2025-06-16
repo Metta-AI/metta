@@ -49,6 +49,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
 
 # Install sources
 ADD . .
+COPY .git .git
 
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --locked
