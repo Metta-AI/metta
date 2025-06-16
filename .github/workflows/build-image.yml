@@ -1,4 +1,7 @@
 name: 'Build Docker Image'
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
 
 on:
   workflow_dispatch: {}
@@ -18,6 +21,9 @@ jobs:
       contents: read
 
     steps:
+      - name: Check disk space
+        run: df -h
+
       - name: Checkout code
         uses: actions/checkout@v4
 
