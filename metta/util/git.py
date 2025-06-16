@@ -1,3 +1,4 @@
+import json
 import subprocess
 
 
@@ -76,3 +77,52 @@ def validate_git_ref(ref: str) -> str | None:
     except GitError:
         return None
     return commit_hash
+
+
+def run_gh(*args: str) -> str:
+    """Run a GitHub CLI command and return its output."""
+    try:
+        result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"GitHub CLI command failed ({e.returncode}): {e.stderr.strip()}") from e
+    except FileNotFoundError as e:
+        raise GitError("GitHub CLI (gh) is not installed!") from e
+
+
+def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
+    """
+    Check if a commit is the HEAD of an open PR.
+
+    Returns:
+        tuple(pr_number, pr_title) if commit is HEAD of an open PR, None otherwise
+    """
+    try:
+        # Check if we're in a GitHub repository
+        try:
+            run_gh("repo", "view", "--json", "name")
+        except GitError:
+            # Not a GitHub repo or gh not configured
+            return None
+
+        # Get all open PRs
+        pr_json = run_gh("pr", "list", "--state", "open", "--json", "number,title,headRefOid")
+        prs = json.loads(pr_json)
+
+        # Get full commit hash to ensure accurate comparison
+        full_hash = validate_git_ref(commit_hash)
+        if not full_hash:
+            return None
+
+        for pr in prs:
+            # Check if this PR's HEAD commit matches our commit
+            pr_head_sha = pr.get("headRefOid", "")
+
+            # Compare commits (handle both short and full hashes)
+            if pr_head_sha.startswith(full_hash) or full_hash.startswith(pr_head_sha):
+                return (pr["number"], pr["title"])
+
+        return None
+
+    except Exception:
+        return None
