@@ -438,8 +438,6 @@ class PufferTrainer:
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
         self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
-        steps_since_last = self.agent_step - self._last_agent_step
-        self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
         with profile.train_misc:
             config = self.trainer_cfg
@@ -714,13 +712,18 @@ class PufferTrainer:
     def _process_stats(self):
         # convert lists of values (collected across all environments and rollout steps on this GPU)
         # into single mean values.
-        for k in list(self.stats.keys()):
+        mean_stats = {}
+        for k, v in self.stats.items():
             try:
-                self.stats[k] = np.mean(self.stats[k])
-            except (TypeError, ValueError):
-                del self.stats[k]
+                mean_stats[k] = np.mean(v)
+            except (TypeError, ValueError) as e:
+                raise RuntimeError(
+                    f"Cannot compute mean for stat '{k}' with value {v!r} (type: {type(v)}). "
+                    f"All collected stats must be numeric values or lists of numeric values. "
+                    f"Error: {e}"
+                ) from e
+        self.stats = mean_stats
 
-        # Collect weight metrics if needed
         weight_metrics = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
@@ -729,42 +732,51 @@ class PufferTrainer:
                     if key != "name":
                         weight_metrics[f"weights/{key}/{name}"] = value
 
-        # Prepare logging data
-        losses = {k: v for k, v in self.losses.__dict__.items() if not k.startswith("_")}
+        # Calculate derived stats from local roll-outs (master process will handle logging)
+        sps = self.profile.SPS
+        agent_steps = self.agent_step
+        avg_steps_per_update = 0.0
+        if self._total_minibatches:
+            avg_steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
+            self._last_agent_step = agent_steps
+        epoch = self.epoch
+        learning_rate = self.optimizer.param_groups[0]["lr"]
+        losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
         performance = {k: v for k, v in self.profile}
 
-        # Overview metrics
-        overview = {"SPS": self.profile.SPS}
+        overview = {"SPS": sps}
         for k, v in self.trainer_cfg.stats.overview.items():
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        # Add evaluation scores
         for category in self._eval_categories:
-            score = self._eval_suite_avgs.get(f"{category}_score")
+            score = self._eval_suite_avgs.get(f"{category}_score", None)
             if score is not None:
                 overview[f"{category}_evals"] = score
 
-        # Environment stats
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        # Log to wandb if available
+        # Add timing metrics to wandb
         if self.wandb_run and self._master:
-            # Timing metrics
-            wall_time = self.timer.get_elapsed()
+            timer_data = {}
+            wall_time = self.timer.get_elapsed()  # global timer
             timer_data = self.timer.get_all_elapsed()
+
             training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
             overhead_time = wall_time - training_time
             steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
 
             timing_logs = {
+                # Key performance indicators
                 "timing/steps_per_second": steps_per_sec,
                 "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
                 "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
+                # Breakdown by operation (as a single structured metric)
                 "timing/breakdown": {
                     op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
                     for op, elapsed in timer_data.items()
                 },
+                # Total time for reference
                 "timing/total_seconds": wall_time,
             }
 
@@ -777,10 +789,10 @@ class PufferTrainer:
                     **environment,
                     **weight_metrics,
                     **self._eval_grouped_scores,
-                    "train/agent_step": self.agent_step,
-                    "train/avg_agent_steps_per_update": self._agent_steps_per_update,
-                    "train/epoch": self.epoch,
-                    "train/learning_rate": self.optimizer.param_groups[0]["lr"],
+                    "train/agent_step": agent_steps,
+                    "train/avg_agent_steps_per_update": avg_steps_per_update,
+                    "train/epoch": epoch,
+                    "train/learning_rate": learning_rate,
                     "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
                     **timing_logs,
                 }
