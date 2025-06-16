@@ -47,7 +47,8 @@ class TestStatsServerSimple:
     @pytest.fixture(scope="class")
     def stats_client(self, test_client):
         """Create a stats client for testing."""
-        return StatsClient(test_client)
+        return StatsClient(test_client, user="test_user")
+
 
     def test_complete_workflow(self, stats_client: StatsClient):
         """Test the complete end-to-end workflow."""
@@ -55,7 +56,6 @@ class TestStatsServerSimple:
         # 1. Create a training run
         training_run = stats_client.create_training_run(
             name="test_training_run",
-            user_id="test_user",
             attributes={"environment": "test_env", "algorithm": "test_alg"},
             url="https://example.com/run",
         )
@@ -108,7 +108,7 @@ class TestStatsServerSimple:
         """Test recording multiple episodes."""
 
         # Create a training run
-        training_run = stats_client.create_training_run(name="multi_episode_test", user_id="test_user")
+        training_run = stats_client.create_training_run(name="multi_episode_test")
 
         # Create an epoch
         epoch = stats_client.create_epoch(run_id=training_run.id, start_training_epoch=0, end_training_epoch=10)
