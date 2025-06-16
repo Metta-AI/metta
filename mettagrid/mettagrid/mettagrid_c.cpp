@@ -40,7 +40,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
 
-  _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
+  _use_observation_tokens = cfg.contains("use_observation_tokens") ? cfg["use_observation_tokens"].cast<bool>() : true;
   _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
@@ -238,6 +238,9 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // we don't need to do that here.
   if (_use_observation_tokens) {
     // We have 4 global tokens.
+    if (_num_observation_tokens < 4) {
+      throw std::runtime_error("We require at least 4 observation tokens for global observations");
+    }
     size_t attempted_tokens_written = 4;
     size_t tokens_written = 4;
     auto observation_view = _observations.mutable_unchecked<3>();
