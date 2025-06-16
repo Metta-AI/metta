@@ -1,6 +1,13 @@
+resource "kubernetes_namespace" "observatory" {
+  metadata {
+    name = "observatory"
+  }
+}
+
 resource "kubernetes_secret" "observatory" {
   metadata {
-    name = "observatory-env"
+    name      = "observatory-env"
+    namespace = "observatory"
   }
 
   data = {
