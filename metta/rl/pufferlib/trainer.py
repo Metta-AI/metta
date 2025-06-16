@@ -58,6 +58,7 @@ class PufferTrainer:
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
+
         self.sim_suite_config = sim_suite_config
 
         self._master = True
@@ -91,7 +92,6 @@ class PufferTrainer:
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
-
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -160,7 +160,6 @@ class PufferTrainer:
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
         assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
-
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
@@ -558,8 +557,14 @@ class PufferTrainer:
                 ks_action_loss, ks_value_loss = self.kickstarter.loss(
                     self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
                 )
-                l2_reg_loss = self._compute_l2_loss(config.l2_reg_loss_coef, self.policy.l2_reg_loss)
-                l2_init_loss = self._compute_l2_loss(config.l2_init_loss_coef, self.policy.l2_init_loss)
+
+                l2_reg_loss = torch.tensor(0.0, device=self.device)
+                if self.trainer_cfg.l2_reg_loss_coef > 0:
+                    l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
+
+                l2_init_loss = torch.tensor(0.0, device=self.device)
+                if self.trainer_cfg.l2_init_loss_coef > 0:
+                    l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
                 loss = (
                     pg_loss
@@ -642,7 +647,7 @@ class PufferTrainer:
         if not self._master:
             return
 
-        metta_grid_env: MettaGridEnv = self.vecenv.driver_env
+        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv), "vecenv.driver_env must be a MettaGridEnv for checkpointing"
 
         name = self.policy_store.make_model_name(self.epoch)
@@ -681,8 +686,7 @@ class PufferTrainer:
             return
 
         pr = self._checkpoint_policy()
-        if pr is not None:
-            self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+        self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
     def _generate_and_upload_replay(self):
         if self._master:
@@ -802,7 +806,6 @@ class PufferTrainer:
 
         self._eval_grouped_scores = {}
         self.stats.clear()
-        self._last_agent_step = self.agent_step
 
     def _compute_advantage(
         self, values, rewards, terminals, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
@@ -963,10 +966,6 @@ class PufferTrainer:
             time.sleep(5)
 
         raise RuntimeError("Failed to load policy after 10 attempts")
-
-    def _compute_l2_loss(self, coef: float, loss_fn):
-        """Compute L2 loss only if coefficient is positive."""
-        return coef * loss_fn() if coef > 0 else 0
 
 
 class AbortingTrainer(PufferTrainer):
