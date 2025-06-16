@@ -531,7 +531,6 @@ class PufferTrainer:
 
                 with torch.no_grad():
                     # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                    old_approx_kl = (-logratio).mean()
                     approx_kl = ((ratio - 1) - logratio).mean()
                     clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
 
@@ -598,7 +597,6 @@ class PufferTrainer:
                 self.losses.policy_loss += pg_loss.item() / total_minibatches
                 self.losses.value_loss += v_loss.item() / total_minibatches
                 self.losses.entropy += entropy_loss.item() / total_minibatches
-                self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
                 self.losses.approx_kl += approx_kl.item() / total_minibatches
                 self.losses.clipfrac += clipfrac.item() / total_minibatches
                 self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
@@ -806,6 +804,16 @@ class PufferTrainer:
         }
 
         loss_stats = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
+
+        # don't plot losses that are unused
+        if self.trainer_cfg.l2_reg_loss_coef == 0:
+            loss_stats.pop("l2_reg_loss")
+        if self.trainer_cfg.l2_init_loss_coef == 0:
+            loss_stats.pop("l2_init_loss")
+        if not self.kickstarter.enabled:
+            loss_stats.pop("ks_action_loss")
+            loss_stats.pop("ks_value_loss")
+
         environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         # Add filtered average reward if applicable
@@ -912,7 +920,6 @@ class PufferTrainer:
             policy_loss=0,
             value_loss=0,
             entropy=0,
-            old_approx_kl=0,
             approx_kl=0,
             clipfrac=0,
             explained_variance=0,
