@@ -11,11 +11,11 @@ def record_heartbeat() -> None:
     """Record a heartbeat timestamp to the globally configured file path."""
     heartbeat_file_path = os.environ.get("HEARTBEAT_FILE")
 
-    # Only write if we have a valid path (set by start_heartbeat)
     if heartbeat_file_path:
         try:
             with open(heartbeat_file_path, "w") as f:
                 f.write(str(time.time()))
+                print(f"Heartbeat recorded at {time.time()}")
         except Exception as exc:
             logger.warning("Failed to write heartbeat: %s", exc)
 

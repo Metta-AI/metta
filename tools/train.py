@@ -13,7 +13,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config, setup_metta_environment
-from metta.util.heartbeat import start_heartbeat
+from metta.util.heartbeat import record_heartbeat
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
@@ -63,9 +63,7 @@ def main(cfg: ListConfig | DictConfig) -> int:
     setup_metta_environment(cfg)
     setup_mettagrid_environment(cfg)
 
-    hb_file = os.environ.get("HEARTBEAT_FILE")
-    if hb_file:
-        start_heartbeat(hb_file)
+    record_heartbeat()
 
     logger = setup_mettagrid_logger("train")
     logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")

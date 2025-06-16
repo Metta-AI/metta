@@ -1,0 +1,13 @@
+# @package __global__
+
+defaults:
+  - _self_
+
+trainer:
+  env: /env/mettagrid/navigation/training/multienv
+
+wandb:
+  enabled: true
+
+run_id: 480
+run: ${oc.env:USER}.local.${run_id}
