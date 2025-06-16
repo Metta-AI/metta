@@ -2,7 +2,7 @@ import { state } from './common.js';
 import { getAttr, sendAction } from './replay.js';
 import { find } from './htmlutils.js';
 
-/** Initialize the action buttons. */
+/** Initializes the action buttons. */
 export function initActionButtons() {
   find("#action-buttons .north").addEventListener('click', () => {
     sendAction("rotate", 0)
@@ -57,9 +57,9 @@ export function initActionButtons() {
   })
 }
 
-/** Process keyboard actions. */
+/** Processes keyboard actions. */
 export function processActions(event: KeyboardEvent) {
-  // Smart navigation, where pressing key rotations the agent in the
+  // Smart navigation, where pressing a key rotates the agent in the
   // direction of the key, but if the agent is already facing in that
   // direction, it moves forward.
 
@@ -112,7 +112,7 @@ export function processActions(event: KeyboardEvent) {
       sendAction("move", 0)
     }
     if (event.key == "r") {
-      // Just move backwards/reverse.
+      // Just move backward/reverse.
       sendAction("move", 1)
     }
     if (event.key == "q") {
@@ -120,23 +120,23 @@ export function processActions(event: KeyboardEvent) {
       sendAction("put_recipe_items", 0)
     }
     if (event.key == "e") {
-      // Get output.
+      // Get the output.
       sendAction("get_output", 0)
     }
     if (event.key == "x") {
-      // Noop.
+      // No-op.
       sendAction("noop", 0)
     }
     if (event.key >= "1" && event.key <= "9") {
-      // Keys 1-9 is the attack matrix.
+      // Keys 1-9 are the attack matrix.
       sendAction("attack", parseInt(event.key))
     }
     if (event.key == "Z") {
-      // Attack nearest.
+      // Show attack mode menu (a bunch of little circles that you can click on).
       state.showAttackMode = !state.showAttackMode;
     }
     if (event.key == "z") {
-      // Attack nearest.
+      // Attack the nearest agent.
       sendAction("attack_nearest", 0)
     }
     if (event.key == "c") {

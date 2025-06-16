@@ -1,15 +1,15 @@
 // Info panels are used to display information about the current state of objects.
 
-// Lower level hover rules:
-// * You need to hover over the object for 1 second for the info panel to show.
-// * You can hover off the object, the panel will stay visible for 1 second.
-// * If you hover over the panel, the panel will stay visible as long as mouse is over the panel.
-// * If you drag the panel, it will detach and stay on screen.
-//   - It will be only closed by clicking on the X.
-//   - It will loose its hover stem on the bottom when it detached mode.
+// Lower-level hover rules:
+// * You need to hover over an object for one second for the info panel to show.
+// * You can hover off the object, and the panel will stay visible for one second.
+// * If you hover over the panel, it will stay visible as long as the mouse is over it.
+// * If you drag the panel, it will detach and stay on the screen.
+//   - It will only be closed by clicking on the X.
+//   - It will lose its hover stem on the bottom when it's in detached mode.
 
 // Hover panels show:
-// * The properties of the object (like position is hidden).
+// * The properties of the object (like position, which is hidden).
 // * The inventory of the object.
 // * The recipe of the object.
 // * The memory menu button.
@@ -89,7 +89,7 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
   e.stopPropagation();
 });
 
-/** Update the hover panel, visibility and position, and dom tree. */
+/** Updates the hover panel's visibility, position, and DOM tree. */
 export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
     let typeName = state.replay.object_types[getAttr(object, "type")];
@@ -124,7 +124,7 @@ export function hideHoverPanel() {
   hoverPanel.classList.add("hidden");
 }
 
-/** Update the dom tree of the info panel. */
+/** Updates the DOM tree of the info panel. */
 function updateDom(htmlPanel: HTMLElement, object: any) {
   // Update the readout.
   htmlPanel.setAttribute("data-object-id", getAttr(object, "id"));
@@ -148,7 +148,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
       } else if (key == "agent:color" && value >= 0 && value < Common.COLORS.length) {
         value = Common.COLORS[value][0];
       } else if (["group", "total_reward", "agent_id"].includes(key)) {
-        // if value is a float and not an integer, round it to 3 decimal places
+        // If the value is a float and not an integer, round it to three decimal places.
         if (typeof value === "number" && !Number.isInteger(value)) {
           value = value.toFixed(3);
         }
@@ -170,11 +170,11 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   let displayedResources = 0;
   if (config != null && config.game != null && config.game.objects != null) {
     for (let name in config.game.objects) {
-      // I hope this will change in the future, but only way to match object to
-      // a config is to split a config name into type-name and color-name and match
-      // that to the object's type-name and color-name. Keep in mind that the color 0
-      // is the default color which is red.
-      // In the future I hope the type name will just match the config name.
+      // I hope this will change in the future, but the only way to match an object to
+      // a config is to split a config name into a type-name and color-name and match
+      // that to the object's type-name and color-name. Keep in mind that color 0
+      // is the default color, which is red.
+      // In the future, I hope the type name will just match the config name.
       let nameParts = name.split(".");
       let configTypeName = nameParts[0];
       let configColorName = nameParts[1] || "red"; // Red is the default 0 color.
@@ -187,7 +187,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
       if (configTypeName == objectTypeName && (objectColorName === undefined || configColorName == objectColorName)) {
         let objectConfig = config.game.objects[name];
         recipeArea.classList.remove("hidden");
-        // configs have input_{resource} and output_{resource}
+        // Configs have input_{resource} and output_{resource}.
         for (let key in objectConfig) {
           if (key.startsWith("input_")) {
             let resource = key.replace("input_", "");
