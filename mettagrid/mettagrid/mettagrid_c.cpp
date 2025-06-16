@@ -556,23 +556,9 @@ py::dict MettaGrid::grid_objects() {
     obj_dict["c"] = obj->location.c;
     obj_dict["layer"] = obj->location.layer;
 
-    // Get feature offsets for this object type
-    auto type_features = _obs_encoder->type_feature_names()[obj->_type_id];
-    std::vector<uint8_t> offsets(type_features.size());
-    // We shouldn't have more than 256 features, since we're storing the feature_ids
-    // as uint_8ts.
-    assert(offsets.size() < 256);
-    for (uint8_t i = 0; i < offsets.size(); i++) {
-      offsets[i] = i;
-    }
-    unsigned char obj_data[type_features.size()];
-
-    // Encode object features
-    _obs_encoder->encode(obj, obj_data, offsets);
-
-    // Add features to object dict
-    for (size_t i = 0; i < type_features.size(); i++) {
-      obj_dict[py::str(type_features[i])] = obj_data[i];
+    auto features = obj->obs_features();
+    for (const auto& feature : features) {
+      obj_dict[py::str(ObservationFeatureNames[feature.feature_id])] = feature.value;
     }
 
     objects[py::int_(obj_id)] = obj_dict;

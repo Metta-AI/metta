@@ -8,7 +8,7 @@ import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
 import { initAgentTable, updateAgentTable } from './agentpanel.js';
 import { localStorageSetNumber, onEvent, find } from './htmlutils.js';
-import { updateReadout } from './infopanels.js';
+import { updateReadout } from './hoverpanels.js';
 import { initObjectMenu } from './objmenu.js';
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange } from './timeline.js';
 
