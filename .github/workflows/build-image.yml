@@ -8,11 +8,7 @@ on:
       - ci-docker # for testing
 
 env:
-  AWS_ACCOUNT_ID: 751442549699
-  AWS_REGION: us-east-1
-  REGISTRY: 751442549699.dkr.ecr.us-east-1.amazonaws.com
   IMAGE_NAME: mettaai/metta-ci # TODO: change to mettaai/metta
-  REGISTRY_USERNAME: AWS
 
 jobs:
   build-image:
@@ -24,8 +20,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions
-          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ROLE }}
+          aws-region: us-east-1
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -33,9 +29,9 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v5.7.0
+        uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_NAME }}
           tags: |
             type=sha
             type=sha,format=long

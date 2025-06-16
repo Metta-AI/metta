@@ -10,3 +10,13 @@ variable "github_token" {
   description = "GitHub token"
   sensitive   = true
 }
+
+variable "github_org" {
+  type    = string
+  default = "Metta-AI"
+}
+
+variable "github_repo" {
+  type    = string
+  default = "metta"
+}
