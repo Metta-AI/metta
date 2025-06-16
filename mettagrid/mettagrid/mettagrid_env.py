@@ -226,19 +226,15 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         infos.update(
             {
-                f"task/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
-                f"task/{self._task.short_name()}/rewards.min": episode_rewards.min(),
-                f"task/{self._task.short_name()}/rewards.max": episode_rewards.max(),
-                f"task/{self._task.short_name()}/init_time": init_time,
+                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
+                f"task_reward/{self._task.short_name()}/rewards.min": episode_rewards.min(),
+                f"task_reward/{self._task.short_name()}/rewards.max": episode_rewards.max(),
+                f"task_timing/{self._task.short_name()}/init_time": init_time,
             }
         )
 
         for label in self._map_labels:
-            infos[f"rewards/map:{label}"] = episode_rewards_mean
-
-        if self.labels is not None:
-            for label in self.labels:
-                infos[f"rewards/env:{label}"] = episode_rewards_mean
+            infos[f"map_rewards:{label}"] = episode_rewards_mean
 
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
