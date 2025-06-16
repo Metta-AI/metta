@@ -33,7 +33,7 @@ def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
 
 
 class PytorchAgent(nn.Module):
-    """Adapter to make loaded Puffer policies compatible with MettaAgent interface.
+    """Adapter to make torch.nn.Module-based policies compatible with MettaAgent interface.
 
     This adapter wraps policies loaded from checkpoints and translates their
     outputs to match the expected MettaAgent interface, handling naming

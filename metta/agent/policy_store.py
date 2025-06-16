@@ -248,8 +248,8 @@ class PolicyStore:
                 prs = self._prs_from_wandb_artifact(wandb_uri, version)
         elif uri.startswith("file://"):
             prs = self._prs_from_path(uri[len("file://") :])
-        elif uri.startswith("puffer://"):
-            prs = self._prs_from_puffer(uri[len("puffer://") :])
+        elif uri.startswith("pytorch://"):
+            prs = self._prs_from_pytorch(uri[len("pytorch://") :])
         else:
             prs = self._prs_from_path(uri)
 
@@ -428,16 +428,16 @@ class PolicyStore:
             f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/model/{run_id}", version
         )
 
-    def _prs_from_puffer(self, path: str) -> List[PolicyRecord]:
-        return [self._load_from_puffer(path)]
+    def _prs_from_pytorch(self, path: str) -> List[PolicyRecord]:
+        return [self._load_from_pytorch(path)]
 
     def load_from_uri(self, uri: str) -> PolicyRecord:
         if uri.startswith("wandb://"):
             return self._load_wandb_artifact(uri[len("wandb://") :])
         if uri.startswith("file://"):
             return self._load_from_file(uri[len("file://") :])
-        if uri.startswith("puffer://"):
-            return self._load_from_puffer(uri[len("puffer://") :])
+        if uri.startswith("pytorch://"):
+            return self._load_from_pytorch(uri[len("pytorch://") :])
         if "://" not in uri:
             return self._load_from_file(uri)
 
@@ -490,13 +490,13 @@ class PolicyStore:
                 if submodule_name in sys.modules:
                     modules_queue.append(submodule_name)
 
-    def _load_from_puffer(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+    def _load_from_pytorch(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         policy = load_policy(path, self._device, puffer=self._cfg.puffer)
         name = os.path.basename(path)
         pr = PolicyRecord(
             self,
             name,
-            "puffer://" + name,
+            "pytorch://" + name,
             {
                 "action_names": [],
                 "agent_step": 0,
