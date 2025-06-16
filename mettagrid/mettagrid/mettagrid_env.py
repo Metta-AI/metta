@@ -4,7 +4,6 @@ import datetime
 import logging
 import random
 import uuid
-from contextlib import nullcontext
 from typing import Any, Dict, Optional, cast
 
 import gymnasium as gym
@@ -251,47 +250,47 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         replay_url = None
 
-        with self.timer("_replay_writer") if self._replay_writer else nullcontext():
-            assert self._replay_writer is not None  # Type hint for Pylance
-            assert self._episode_id is not None, "Episode ID must be set before writing a replay"
-            replay_url = self._replay_writer.write_replay(self._episode_id)
-            infos["replay_url"] = replay_url
+        if self._replay_writer:
+            with self.timer("_replay_writer"):
+                assert self._episode_id is not None, "Episode ID must be set before writing a replay"
+                replay_url = self._replay_writer.write_replay(self._episode_id)
+                infos["replay_url"] = replay_url
 
-        with self.timer("_stats_writer") if self._stats_writer else nullcontext():
-            assert self._stats_writer is not None  # Type hint for Pylance
-            assert self._episode_id is not None, "Episode ID must be set before writing stats"
+        if self._stats_writer:
+            with self.timer("_stats_writer"):
+                assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-            attributes: dict[str, str] = {
-                "seed": str(self._current_seed),
-                "map_w": str(self.map_width),
-                "map_h": str(self.map_height),
-            }
+                attributes: dict[str, str] = {
+                    "seed": str(self._current_seed),
+                    "map_w": str(self.map_width),
+                    "map_h": str(self.map_height),
+                }
 
-            for k, v in unroll_nested_dict(OmegaConf.to_container(self._task.env_cfg(), resolve=False)):
-                attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
+                for k, v in unroll_nested_dict(OmegaConf.to_container(self._task.env_cfg(), resolve=False)):
+                    attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
 
-            agent_metrics = {}
-            for agent_idx, agent_stats in enumerate(stats["agent"]):
-                agent_metrics[agent_idx] = {}
-                agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
-                for k, v in agent_stats.items():
-                    agent_metrics[agent_idx][k] = float(v)
+                agent_metrics = {}
+                for agent_idx, agent_stats in enumerate(stats["agent"]):
+                    agent_metrics[agent_idx] = {}
+                    agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
+                    for k, v in agent_stats.items():
+                        agent_metrics[agent_idx][k] = float(v)
 
-            grid_objects: Dict[int, Any] = self._c_env.grid_objects()
-            # iterate over grid_object values
-            agent_groups: Dict[int, int] = {
-                v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
-            }
+                grid_objects: Dict[int, Any] = self._c_env.grid_objects()
+                # iterate over grid_object values
+                agent_groups: Dict[int, int] = {
+                    v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+                }
 
-            self._stats_writer.record_episode(
-                self._episode_id,
-                attributes,
-                agent_metrics,
-                agent_groups,
-                self.max_steps,
-                replay_url,
-                self._reset_at,
-            )
+                self._stats_writer.record_episode(
+                    self._episode_id,
+                    attributes,
+                    agent_metrics,
+                    agent_groups,
+                    self.max_steps,
+                    replay_url,
+                    self._reset_at,
+                )
 
         self.timer.stop("process_episode_stats")
 
