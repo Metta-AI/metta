@@ -4,7 +4,6 @@ import time
 from collections import defaultdict
 from types import SimpleNamespace
 
-import einops
 import numpy as np
 import torch
 import torch.distributed
@@ -274,7 +273,7 @@ class PufferTrainer:
                 self.cfg.agent.l2_init_weight_update_interval != 0
                 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0
             ):
-                self._update_l2_init_weight_copy()
+                self.policy.update_l2_init_weight_copy()
 
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 with self.timer("_generate_and_upload_replay", log=logging.INFO):
@@ -335,9 +334,6 @@ class PufferTrainer:
             for category in self._eval_categories:
                 if category in sim_name.lower():
                     self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
-
-    def _update_l2_init_weight_copy(self):
-        self.policy.update_l2_init_weight_copy()
 
     def _on_train_step(self):
         pass
@@ -491,7 +487,7 @@ class PufferTrainer:
                 config.gamma if not config.average_reward else 1.0,
                 config.gae_lambda,
                 config.get("vtrace_rho_clip", 1.0),
-                config.get("vtrace_c_clip", 1.0)
+                config.get("vtrace_c_clip", 1.0),
             )
 
         # Optimizing the policy and value network
@@ -546,9 +542,25 @@ class PufferTrainer:
                 else:
                     adv = minibatch["prio_weights"] * adv
 
-                # Calculate losses
-                pg_loss = self._policy_loss(adv, ratio, config.clip_coef)
-                v_loss = self._value_loss(newvalue, minibatch["returns"], minibatch["values"], config)
+                # Policy loss
+                pg_loss1 = -adv * ratio
+                pg_loss2 = -adv * torch.clamp(ratio, 1 - config.clip_coef, 1 + config.clip_coef)
+                pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+                # Value loss
+                newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
+                if config.clip_vloss:
+                    v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
+                    v_clipped = minibatch["values"] + torch.clamp(
+                        newvalue_reshaped - minibatch["values"],
+                        -config.get("vf_clip_coef", 0.1),
+                        config.get("vf_clip_coef", 0.1),
+                    )
+                    v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
+                    v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
+                else:
+                    v_loss = 0.5 * ((newvalue_reshaped - minibatch["returns"]) ** 2).mean()
+
                 entropy_loss = entropy.mean()
 
                 ks_action_loss, ks_value_loss = self.kickstarter.loss(
@@ -569,20 +581,22 @@ class PufferTrainer:
 
                 experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
 
-                self._update_losses(
-                    pg_loss,
-                    v_loss,
-                    entropy_loss,
-                    old_approx_kl,
-                    approx_kl,
-                    clipfrac,
-                    l2_reg_loss,
-                    l2_init_loss,
-                    ks_action_loss,
-                    ks_value_loss,
-                    self._total_minibatches,
-                    importance=ratio.mean().item(),
-                )
+                # Update loss tracking for logging
+                self.losses.policy_loss += pg_loss.item() / self._total_minibatches
+                self.losses.value_loss += v_loss.item() / self._total_minibatches
+                self.losses.entropy += entropy_loss.item() / self._total_minibatches
+                self.losses.old_approx_kl += old_approx_kl.item() / self._total_minibatches
+                self.losses.approx_kl += approx_kl.item() / self._total_minibatches
+                self.losses.clipfrac += clipfrac.item() / self._total_minibatches
+                self.losses.l2_reg_loss += (
+                    l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
+                ) / self._total_minibatches
+                self.losses.l2_init_loss += (
+                    l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
+                ) / self._total_minibatches
+                self.losses.ks_action_loss += ks_action_loss.item() / self._total_minibatches
+                self.losses.ks_value_loss += ks_value_loss.item() / self._total_minibatches
+                self.losses.importance += ratio.mean().item() / self._total_minibatches
 
             with profile.learn:
                 self.optimizer.zero_grad()
@@ -612,59 +626,10 @@ class PufferTrainer:
             self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
             self.epoch += 1
-            profile.update_stats(self.agent_step, self.trainer_cfg.total_timesteps)
-
-    def _policy_loss(self, advantages, ratio, clip_coef):
-        """Calculate clipped policy loss."""
-        pg_loss1 = -advantages * ratio
-        pg_loss2 = -advantages * torch.clamp(ratio, 1 - clip_coef, 1 + clip_coef)
-        return torch.max(pg_loss1, pg_loss2).mean()
-
-    def _value_loss(self, newvalue, returns, oldvalue, config):
-        """Calculate clipped value loss."""
-        newvalue = newvalue.view(returns.shape)
-        if config.clip_vloss:
-            v_loss_unclipped = (newvalue - returns) ** 2
-            v_clipped = oldvalue + torch.clamp(
-                newvalue - oldvalue, -config.get("vf_clip_coef", 0.1), config.get("vf_clip_coef", 0.1)
+            profile.update_stats(
+                self.agent_step,
+                self.trainer_cfg.total_timesteps,
             )
-            v_loss_clipped = (v_clipped - returns) ** 2
-            return 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
-        else:
-            return 0.5 * ((newvalue - returns) ** 2).mean()
-
-    def _update_losses(
-        self,
-        pg_loss,
-        v_loss,
-        entropy_loss,
-        old_approx_kl,
-        approx_kl,
-        clipfrac,
-        l2_reg_loss,
-        l2_init_loss,
-        ks_action_loss,
-        ks_value_loss,
-        total_minibatches,
-        importance=None,
-    ):
-        """Update loss tracking for logging."""
-        self.losses.policy_loss += pg_loss.item() / total_minibatches
-        self.losses.value_loss += v_loss.item() / total_minibatches
-        self.losses.entropy += entropy_loss.item() / total_minibatches
-        self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-        self.losses.approx_kl += approx_kl.item() / total_minibatches
-        self.losses.clipfrac += clipfrac.item() / total_minibatches
-        self.losses.l2_reg_loss += (
-            l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
-        ) / total_minibatches
-        self.losses.l2_init_loss += (
-            l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
-        ) / total_minibatches
-        self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-        self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
-        if importance is not None:
-            self.losses.importance += importance / total_minibatches
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -793,55 +758,53 @@ class PufferTrainer:
 
         # Log to wandb if available
         if self.wandb_run and self._master:
-            self._log_to_wandb(overview, losses, performance, environment, weight_metrics)
+            # Timing metrics
+            wall_time = self.timer.get_elapsed()
+            timer_data = self.timer.get_all_elapsed()
+            training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
+            overhead_time = wall_time - training_time
+            steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
+
+            timing_logs = {
+                "timing/steps_per_second": steps_per_sec,
+                "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
+                "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
+                "timing/breakdown": {
+                    op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
+                    for op, elapsed in timer_data.items()
+                },
+                "timing/total_seconds": wall_time,
+            }
+
+            # Log everything to wandb
+            self.wandb_run.log(
+                {
+                    **{f"overview/{k}": v for k, v in overview.items()},
+                    **{f"losses/{k}": v for k, v in losses.items()},
+                    **{f"performance/{k}": v for k, v in performance.items()},
+                    **environment,
+                    **weight_metrics,
+                    **self._eval_grouped_scores,
+                    "train/agent_step": self.agent_step,
+                    "train/avg_agent_steps_per_update": self._agent_steps_per_update,
+                    "train/epoch": self.epoch,
+                    "train/learning_rate": self.optimizer.param_groups[0]["lr"],
+                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
+                    **timing_logs,
+                }
+            )
 
         self._eval_grouped_scores = {}
         self.stats.clear()
 
-    def _log_to_wandb(self, overview, losses, performance, environment, weight_metrics):
-        """Log metrics to wandb."""
-        # Timing metrics
-        wall_time = self.timer.get_elapsed()
-        timer_data = self.timer.get_all_elapsed()
-        training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
-        overhead_time = wall_time - training_time
-        steps_per_sec = self.agent_step / training_time if training_time > 0 else 0
-
-        timing_logs = {
-            "timing/steps_per_second": steps_per_sec,
-            "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
-            "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
-            "timing/breakdown": {
-                op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
-                for op, elapsed in timer_data.items()
-            },
-            "timing/total_seconds": wall_time,
-        }
-
-        # Log everything to wandb
-        self.wandb_run.log(
-            {
-                **{f"overview/{k}": v for k, v in overview.items()},
-                **{f"losses/{k}": v for k, v in losses.items()},
-                **{f"performance/{k}": v for k, v in performance.items()},
-                **environment,
-                **weight_metrics,
-                **self._eval_grouped_scores,
-                "train/agent_step": self.agent_step,
-                "train/avg_agent_steps_per_update": self._agent_steps_per_update,
-                "train/epoch": self.epoch,
-                "train/learning_rate": self.optimizer.param_groups[0]["lr"],
-                "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
-                **timing_logs,
-            }
-        )
-
-    def _compute_advantage(self, values, rewards, terminals,
-            ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip):
-        '''CUDA kernel for puffer advantage with automatic CPU fallback.'''
+    def _compute_advantage(
+        self, values, rewards, terminals, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
+    ):
+        """CUDA kernel for puffer advantage with automatic CPU fallback."""
         try:
-            torch.ops.pufferlib.compute_puff_advantage(values, rewards, terminals,
-                ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip)
+            torch.ops.pufferlib.compute_puff_advantage(
+                values, rewards, terminals, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
+            )
         except (RuntimeError, AssertionError):
             # Fallback to CPU if CUDA kernel fails or not available
             device = values.device
@@ -851,8 +814,17 @@ class PufferTrainer:
             ratio_cpu = ratio.cpu()
             advantages_cpu = advantages.cpu()
 
-            torch.ops.pufferlib.compute_puff_advantage(values_cpu, rewards_cpu, terminals_cpu,
-                ratio_cpu, advantages_cpu, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip)
+            torch.ops.pufferlib.compute_puff_advantage(
+                values_cpu,
+                rewards_cpu,
+                terminals_cpu,
+                ratio_cpu,
+                advantages_cpu,
+                gamma,
+                gae_lambda,
+                vtrace_rho_clip,
+                vtrace_c_clip,
+            )
 
             advantages.copy_(advantages_cpu.to(device))
 
