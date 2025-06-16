@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from collections import defaultdict
-from types import SimpleNamespace
+from typing import Any
 
 import einops
 import numpy as np
@@ -11,15 +11,17 @@ import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib import unroll_nested_dict
+from wandb.sdk import wandb_run
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.experience import Experience
 from metta.rl.fast_gae import compute_gae
 from metta.rl.kickstarter import Kickstarter
+from metta.rl.losses import Losses
 from metta.rl.policy import MettaAgentAdapter
 from metta.rl.profile import Profile, profile_section
 from metta.rl.torch_profiler import TorchProfiler
@@ -44,10 +46,10 @@ class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig | ListConfig,
-        wandb_run,
+        wandb_run: wandb_run.Run | None,
         policy_store: PolicyStore,
         sim_suite_config: SimulationSuiteConfig,
-        **kwargs,
+        **kwargs: Any,
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
@@ -72,7 +74,7 @@ class MettaTrainer:
 
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
-        self.losses = self._make_losses()
+        self.losses = Losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
@@ -226,7 +228,7 @@ class MettaTrainer:
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
-    def train(self):
+    def train(self) -> None:
         logger.info("Starting training")
 
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
@@ -455,7 +457,7 @@ class MettaTrainer:
     @profile_section("train")
     def _train(self):
         experience, profile = self.experience, self.profile
-        self.losses = self._make_losses()
+        self.losses.zero()
         self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         steps_since_last = self.agent_step - self._last_agent_step
         self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
@@ -588,9 +590,6 @@ class MettaTrainer:
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
-                    if self.losses is None:
-                        raise ValueError("self.losses is None")
-
                     self.losses.policy_loss += pg_loss.item() / total_minibatches
                     self.losses.value_loss += v_loss.item() / total_minibatches
                     self.losses.entropy += entropy_loss.item() / total_minibatches
@@ -614,7 +613,7 @@ class MettaTrainer:
             y_true = experience.returns_np
             var_y = np.var(y_true)
             explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-            self.losses.explained_variance = explained_var
+            self.losses.explained_variance = float(explained_var)
             self.epoch += 1
 
             profile.update_stats(
@@ -637,7 +636,7 @@ class MettaTrainer:
             self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
-    def _checkpoint_policy(self):
+    def _checkpoint_policy(self) -> PolicyRecord | None:
         if not self._master:
             return
 
@@ -741,7 +740,7 @@ class MettaTrainer:
             self._last_agent_step = agent_steps
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
-        losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
+        losses = self.losses.to_dict()
         performance = {k: v for k, v in self.profile}
 
         overview = {"SPS": sps}
@@ -826,10 +825,10 @@ class MettaTrainer:
     def close(self):
         self.vecenv.close()
 
-    def initial_pr_uri(self):
+    def initial_pr_uri(self) -> str:
         return self._initial_pr.uri
 
-    def last_pr_uri(self):
+    def last_pr_uri(self) -> str:
         return self.last_pr.uri
 
     def _make_experience_buffer(self):
@@ -876,21 +875,6 @@ class MettaTrainer:
             lstm_total_agents=lstm_total_agents,  # Total number of LSTM states to maintain
         )
 
-    def _make_losses(self):
-        return SimpleNamespace(
-            policy_loss=0,
-            value_loss=0,
-            entropy=0,
-            old_approx_kl=0,
-            approx_kl=0,
-            clipfrac=0,
-            explained_variance=0,
-            l2_reg_loss=0,
-            l2_init_loss=0,
-            ks_action_loss=0,
-            ks_value_loss=0,
-        )
-
     def _make_vecenv(self):
         """Create a vectorized environment."""
 
@@ -933,7 +917,7 @@ class MettaTrainer:
 
 
 class AbortingTrainer(MettaTrainer):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
     def _on_train_step(self):
