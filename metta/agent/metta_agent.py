@@ -53,24 +53,6 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
     )
 
 
-class DistributedMettaAgent(DistributedDataParallel):
-    """Distributed wrapper for MettaAgent that preserves the interface."""
-
-    def __init__(self, agent: MettaAgent, device):
-        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-        super().__init__(agent, device_ids=[device], output_device=device)
-
-    def __getattr__(self, name):
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
-        return self.module.activate_actions(action_names, action_max_params, device)
-
-
 class MettaAgent(nn.Module):
     """
     Wrapper class for all policy models (BrainPolicy, PytorchPolicy).
@@ -85,13 +67,6 @@ class MettaAgent(nn.Module):
         uri: str = "",
         metadata: Optional[dict] = None,
         local_path: Optional[str] = None,
-        obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
-        obs_width: int,
-        obs_height: int,
-        action_space: gym.spaces.Space,
-        feature_normalizations: dict[int, float],
-        device: str,
-        **cfg,
     ):
         super().__init__()
         self.model: Optional[Union[BrainPolicy, PytorchAgent]] = model
@@ -453,3 +428,21 @@ class MettaAgent(nn.Module):
             logger.warning("No model found in checkpoint")
 
         return agent
+
+
+class DistributedMettaAgent(DistributedDataParallel):
+    """Distributed wrapper for MettaAgent that preserves the interface."""
+
+    def __init__(self, agent: MettaAgent, device):
+        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
+        super().__init__(agent, device_ids=[device], output_device=device)
+
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
+
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
+        return self.module.activate_actions(action_names, action_max_params, device)
