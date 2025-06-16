@@ -5,8 +5,14 @@
 // * You can hover off the object, the panel will stay visible for 1 second.
 // * If you hover over the panel, the panel will stay visible as long as mouse is over the panel.
 // * If you drag the panel, it will detach and stay on screen.
-//   * It will be only closed by clicking on the X.
-//   * It will loose its hover stem on the bottom when it detached mode.
+//   - It will be only closed by clicking on the X.
+//   - It will loose its hover stem on the bottom when it detached mode.
+
+// Hover panels show:
+// * The properties of the object (like position is hidden).
+// * The inventory of the object.
+// * The recipe of the object.
+// * The memory menu button.
 
 import { find, findIn, onEvent, removeChildren, findAttr } from "./htmlutils.js";
 import { state, ui } from "./common.js";
@@ -15,7 +21,7 @@ import * as Common from "./common.js";
 import { Vec2f } from "./vector_math.js";
 
 /** An info panel. */
-export class InfoPanel {
+export class HoverPanel {
   public object: any;
   public div: HTMLElement;
 
@@ -29,24 +35,27 @@ export class InfoPanel {
   }
 }
 
-onEvent("click", ".infopanel .close", (target: HTMLElement, e: Event) => {
+onEvent("click", ".hover-panel .close", (target: HTMLElement, e: Event) => {
   let panel = target.parentElement as HTMLElement;
   panel.remove();
-  ui.infoPanels = ui.infoPanels.filter(p => p.div !== panel);
+  ui.hoverPanels = ui.hoverPanels.filter(p => p.div !== panel);
 })
 
-var infoPanelTemplate = find(".infopanel") as HTMLElement;
-infoPanelTemplate.remove();
+let hoverPanelTemplate = find(".hover-panel") as HTMLElement;
+let paramTemplate = findIn(hoverPanelTemplate, ".param");
+let itemTemplate = findIn(hoverPanelTemplate, ".inventory .item");
+let recipeArrow = findIn(hoverPanelTemplate, ".recipe .arrow");
+hoverPanelTemplate.remove();
 
-var hoverPanel = infoPanelTemplate.cloneNode(true) as HTMLElement;
+let hoverPanel = hoverPanelTemplate.cloneNode(true) as HTMLElement;
 document.body.appendChild(hoverPanel);
 findIn(hoverPanel, ".actions").classList.add("hidden");
 hoverPanel.classList.add("hidden");
 
 hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
   // Create a new info panel.
-  let panel = new InfoPanel(ui.delayedHoverObject);
-  panel.div = infoPanelTemplate.cloneNode(true) as HTMLElement;
+  let panel = new HoverPanel(ui.delayedHoverObject);
+  panel.div = hoverPanelTemplate.cloneNode(true) as HTMLElement;
   panel.div.classList.add("draggable");
   let tip = findIn(panel.div, ".tip");
   tip.remove();
@@ -57,7 +66,7 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
 
   // Show the actions buttons (memory, etc.) if the object is an agent
   // and if the websocket is connected.
-  var actions = findIn(panel.div, ".actions");
+  let actions = findIn(panel.div, ".actions");
   if (state.ws != null && panel.object.hasOwnProperty("agent_id")) {
     actions.classList.remove("hidden");
   } else {
@@ -69,10 +78,10 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
   let rect = panel.div.getBoundingClientRect();
   ui.dragOffset = new Vec2f(e.clientX - rect.left, e.clientY - rect.top);
   ui.dragging = "info-panel";
-  ui.infoPanels.push(panel);
+  ui.hoverPanels.push(panel);
 
   // Hide the old hover panel.
-  // THe new info panel should be identical to the old hover panel,
+  // The new info panel should be identical to the old hover panel,
   // so that the user sees no difference.
   hoverPanel.classList.add("hidden");
   ui.hoverObject = null;
@@ -108,20 +117,14 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
   htmlPanel.setAttribute("data-object-id", getAttr(object, "id"));
   htmlPanel.setAttribute("data-agent-id", getAttr(object, "agent_id"));
 
-  var params = findIn(htmlPanel, ".params");
-  var paramTemplate = findIn(infoPanelTemplate, ".param");
-  var inventory = findIn(htmlPanel, ".inventory");
-  var itemTemplate = findIn(infoPanelTemplate, ".item");
-  let actions = findIn(hoverPanel, ".actions");
-
+  let params = findIn(htmlPanel, ".params");
   removeChildren(params);
-  //top.appendChild(pin);
+  let inventory = findIn(htmlPanel, ".inventory");
   removeChildren(inventory);
-
   for (const key in object) {
     let value = getAttr(object, key);
     if ((key.startsWith("inv:") || key.startsWith("agent:inv:")) && value > 0) {
-      var item = itemTemplate.cloneNode(true) as HTMLElement;
+      let item = itemTemplate.cloneNode(true) as HTMLElement;
       item.querySelector(".amount")!.textContent = value;
       let resource = key.replace("inv:", "").replace("agent:", "");
       item.querySelector(".icon")!.setAttribute("src", "data/resources/" + resource + ".png");
@@ -139,23 +142,83 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
       } else {
         continue;
       }
-      var param = paramTemplate.cloneNode(true) as HTMLElement;
+      let param = paramTemplate.cloneNode(true) as HTMLElement;
       param.querySelector(".name")!.textContent = key;
       param.querySelector(".value")!.textContent = value;
       params.appendChild(param);
     }
   }
+
+  // Populate the recipe area if the object config has input_ or output_ resources.
+  let recipe = findIn(htmlPanel, ".recipe");
+  removeChildren(recipe);
+  let recipeArea = findIn(htmlPanel, ".recipe-area");
+  let config = state.replay.config;
+  let displayedResources = 0;
+  if (config != null && config.game != null && config.game.objects != null) {
+    for (let name in config.game.objects) {
+      // I hope this will change in the future, but only way to match object to
+      // a config is to split a config name into type-name and color-name and match
+      // that to the object's type-name and color-name. Keep in mind that the color 0
+      // is the default color which is red.
+      // In the future I hope the type name will just match the config name.
+      let nameParts = name.split(".");
+      let configTypeName = nameParts[0];
+      let configColorName = nameParts[1] || "red"; // Red is the default 0 color.
+
+      let objectTypeName = state.replay.object_types[object.type];
+      let objectColorName = undefined;
+      if (object.color >= 0 && object.color < Common.COLORS.length) {
+        objectColorName = Common.COLORS[object.color][0];
+      }
+      if (configTypeName == objectTypeName && (objectColorName === undefined || configColorName == objectColorName)) {
+        let objectConfig = config.game.objects[name];
+        recipeArea.classList.remove("hidden");
+        // configs have input_{resource} and output_{resource}
+        for (let key in objectConfig) {
+          if (key.startsWith("input_")) {
+            let resource = key.replace("input_", "");
+            let amount = objectConfig[key];
+            let item = itemTemplate.cloneNode(true) as HTMLElement;
+            item.querySelector(".amount")!.textContent = amount;
+            item.querySelector(".icon")!.setAttribute("src", "data/resources/" + resource + ".png");
+            recipe.appendChild(item);
+            displayedResources++;
+          }
+        }
+        // Add the arrow.
+        recipe.appendChild(recipeArrow.cloneNode(true));
+        // Add the output.
+        for (let key in objectConfig) {
+          if (key.startsWith("output_")) {
+            let resource = key.replace("output_", "");
+            let amount = objectConfig[key];
+            let item = itemTemplate.cloneNode(true) as HTMLElement;
+            item.querySelector(".amount")!.textContent = amount;
+            item.querySelector(".icon")!.setAttribute("src", "data/resources/" + resource + ".png");
+            recipe.appendChild(item);
+            displayedResources++;
+          }
+        }
+      }
+    }
+  }
+  if (displayedResources > 0) {
+    recipeArea.classList.remove("hidden");
+  } else {
+    recipeArea.classList.add("hidden");
+  }
 }
 
 /** Updates the readout of the selected object or replay info. */
 export function updateReadout() {
-  var readout = ""
+  let readout = ""
   readout += "Step: " + state.step + "\n";
   readout += "Map size: " + state.replay.map_size[0] + "x" + state.replay.map_size[1] + "\n";
   readout += "Num agents: " + state.replay.num_agents + "\n";
   readout += "Max steps: " + state.replay.max_steps + "\n";
 
-  var objectTypeCounts = new Map<string, number>();
+  let objectTypeCounts = new Map<string, number>();
   for (const gridObject of state.replay.grid_objects) {
     const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
