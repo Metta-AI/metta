@@ -28,7 +28,8 @@ class TestStopwatch:
         sw = Stopwatch()
         assert isinstance(sw.logger, logging.Logger)
         assert sw.logger.name == "Stopwatch"
-        assert "__global__" in sw._timers
+        assert sw.GLOBAL_TIMER_NAME == "global"
+        assert sw.GLOBAL_TIMER_NAME in sw._timers
 
         # Test with custom logger
         custom_logger = logging.getLogger("custom")
@@ -172,7 +173,7 @@ class TestStopwatch:
 
         stopwatch.reset_all()
         assert len(stopwatch._timers) == 1  # Only global timer
-        assert "__global__" in stopwatch._timers
+        assert stopwatch.GLOBAL_TIMER_NAME in stopwatch._timers
 
     def test_get_last_elapsed(self, stopwatch):
         """Test getting last elapsed time."""
@@ -306,11 +307,11 @@ class TestStopwatch:
         all_elapsed = stopwatch.get_all_elapsed(exclude_global=True)
         assert "timer1" in all_elapsed
         assert "timer2" in all_elapsed
-        assert "__global__" not in all_elapsed
+        assert stopwatch.GLOBAL_TIMER_NAME not in all_elapsed
 
         # Include global
         all_elapsed_with_global = stopwatch.get_all_elapsed(exclude_global=False)
-        assert "__global__" in all_elapsed_with_global
+        assert stopwatch.GLOBAL_TIMER_NAME in all_elapsed_with_global
 
     def test_edge_cases(self, stopwatch, caplog):
         """Test edge cases and error handling."""
@@ -478,7 +479,7 @@ class TestStopwatchIntegration:
 
         # Verify timing relationships
         all_elapsed = sw.get_all_elapsed(exclude_global=False)  # Include global timer
-        total_time = all_elapsed["__global__"]  # total timer
+        total_time = all_elapsed["global"]  # total timer
         component_sum = all_elapsed["load_data"] + all_elapsed["process_data"] + all_elapsed["save_results"]
 
         # Total should be approximately the sum of components

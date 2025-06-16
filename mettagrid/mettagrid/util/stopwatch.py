@@ -358,7 +358,7 @@ class Stopwatch:
         """
         for timer_name, timer in self._timers.items():
             if timer["is_running"]:
-                actual_name = timer_name if timer_name != "__global__" else None
+                actual_name = timer_name if timer_name != self.GLOBAL_TIMER_NAME else None
                 self.checkpoint(steps, checkpoint_name, actual_name)
 
     def lap_all(self, steps: Optional[int] = None, exclude_global: bool = False) -> Dict[str, float]:
