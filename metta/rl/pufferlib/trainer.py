@@ -852,7 +852,6 @@ class PufferTrainer:
 
         if torch.distributed.is_initialized():
             # Compute local statistics
-            original_shape = adv.shape
             adv_flat = adv.view(-1)
             local_sum = adv_flat.sum()
             local_sq_sum = (adv_flat * adv_flat).sum()
@@ -895,7 +894,6 @@ class PufferTrainer:
         total_agents = vecenv.num_agents
 
         # Calculate minibatch parameters
-        batch_size = self.trainer_cfg.batch_size
         minibatch_size = self.trainer_cfg.minibatch_size
         max_minibatch_size = self.trainer_cfg.get("max_minibatch_size", minibatch_size)
 
@@ -905,12 +903,10 @@ class PufferTrainer:
         num_lstm_layers = 2  # Default value
 
         # Try to get actual number of LSTM layers from policy
-        lstm = None
         if hasattr(self.policy, "components") and "_core_" in self.policy.components:
             lstm_module = self.policy.components["_core_"]
             if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
                 num_lstm_layers = lstm_module._net.num_layers
-                lstm = lstm_module._net
 
         # Create experience buffer
         self.experience = Experience(
@@ -984,7 +980,7 @@ class PufferTrainer:
 
     def _load_policy(self, checkpoint, policy_store, metta_grid_env):
         """Load policy from checkpoint, initial_policy.uri, or create new."""
-        for attempt in range(10):
+        for _attempt in range(10):
             if checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
                 return policy_store.policy(checkpoint.policy_path)
