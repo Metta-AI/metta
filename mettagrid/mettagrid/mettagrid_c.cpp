@@ -605,7 +605,7 @@ unsigned int MettaGrid::map_height() {
 
 // These should correspond to the features we emit in the observations -- either
 // the channel or the feature_id.
-py::list MettaGrid::feature_normalizations() {
+py::dict MettaGrid::feature_normalizations() {
   return py::cast(_feature_normalizations);
 }
 

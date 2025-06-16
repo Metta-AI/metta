@@ -15,7 +15,7 @@ class ObsTokenShaper(LayerBase):
         self,
         obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
-        feature_normalizations: list[float],
+        feature_normalizations: dict[int, float],
         **cfg,
     ) -> None:
         super().__init__(**cfg)
@@ -24,7 +24,7 @@ class ObsTokenShaper(LayerBase):
         self._value_dim = 1
         self._feat_dim = self._atr_embed_dim + self._value_dim
         self.M = obs_shape[0]
-        self._feature_normalizations = list(feature_normalizations)
+        self._feature_normalizations = feature_normalizations
         self._max_embeds = 256
 
     def _make_net(self) -> None:
@@ -42,7 +42,7 @@ class ObsTokenShaper(LayerBase):
         # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
         # Initialize with 1.0 to avoid division by zero for unmapped indices.
         norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
-        for i, val in enumerate(self._feature_normalizations):
+        for i, val in self._feature_normalizations.items():
             if i < len(norm_tensor):  # Ensure we don't go out of bounds
                 norm_tensor[i] = val
             else:
@@ -477,7 +477,7 @@ class ObsTokenCat(LayerBase):
         obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
         coord_embed_dim: int,
-        feature_normalizations: list[float],
+        feature_normalizations: dict[int, float],
         **cfg,
     ) -> None:
         super().__init__(**cfg)
@@ -487,7 +487,7 @@ class ObsTokenCat(LayerBase):
         self._value_dim = 1
         self._feat_dim = self._atr_embed_dim + self._coord_embed_dim + self._value_dim
         self.M = obs_shape[0]
-        self._feature_normalizations = list(feature_normalizations)
+        self._feature_normalizations = feature_normalizations
         self._max_embeds = 256
 
     def _make_net(self) -> None:
@@ -505,7 +505,7 @@ class ObsTokenCat(LayerBase):
         # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
         # Initialize with 1.0 to avoid division by zero for unmapped indices.
         norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
-        for i, val in enumerate(self._feature_normalizations):
+        for i, val in self._feature_normalizations.items():
             if i < len(norm_tensor):  # Ensure we don't go out of bounds
                 norm_tensor[i] = val
             else:
@@ -580,7 +580,7 @@ class ObsTokenCatFourier(LayerBase):
         self,
         obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
-        feature_normalizations: list[float],
+        feature_normalizations: dict[int, float],
         num_freqs: int = 3,
         **cfg,
     ) -> None:
@@ -592,7 +592,7 @@ class ObsTokenCatFourier(LayerBase):
         self._value_dim = 1
         self._feat_dim = self._atr_embed_dim + self._coord_embed_dim + self._value_dim
         self.M = obs_shape[0]
-        self._feature_normalizations = list(feature_normalizations)
+        self._feature_normalizations = feature_normalizations
         self._max_embeds = 256
         self._mu = 11.0  # hardcoding 11 as the max coord value for now (range 0-10). can grab from mettagrid_env.py
 
@@ -607,7 +607,7 @@ class ObsTokenCatFourier(LayerBase):
         # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
         # Initialize with 1.0 to avoid division by zero for unmapped indices.
         norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
-        for i, val in enumerate(self._feature_normalizations):
+        for i, val in self._feature_normalizations.items():
             if i < len(norm_tensor):  # Ensure we don't go out of bounds
                 norm_tensor[i] = val
             else:
@@ -705,7 +705,7 @@ class ObsTokenRoPE(LayerBase):
         self,
         obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
-        feature_normalizations: list[float],
+        feature_normalizations: dict[int, float],
         rope_base: float = 10000.0,
         **cfg,
     ) -> None:
@@ -718,7 +718,7 @@ class ObsTokenRoPE(LayerBase):
         self._value_dim = 1
         self._feat_dim = self._atr_embed_dim + self._value_dim
         self.M = obs_shape[0]
-        self._feature_normalizations = list(feature_normalizations)
+        self._feature_normalizations = feature_normalizations
         self._max_embeds = 256
         self._rope_base = rope_base
 
@@ -729,7 +729,7 @@ class ObsTokenRoPE(LayerBase):
         nn.init.uniform_(self._atr_embeds.weight, -0.1, 0.1)
 
         norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
-        for i, val in enumerate(self._feature_normalizations):
+        for i, val in self._feature_normalizations.items():
             if i < len(norm_tensor):
                 norm_tensor[i] = val
             else:
