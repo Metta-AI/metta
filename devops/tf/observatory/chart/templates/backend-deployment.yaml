@@ -33,13 +33,13 @@ spec:
               memory: "4Gi"
           livenessProbe:
             httpGet:
-              path: /
+              path: /suites # TODO: change to /health
               port: 8000
             timeoutSeconds: 30
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /
+              path: /suites
               port: 8000
             timeoutSeconds: 3
             periodSeconds: 1
