@@ -80,6 +80,7 @@ class TerrainFromNumpy(Room):
         file: str | None = None,
         team: str | None = None,
     ):
+        start_time = time.time()
         root = dir.split("/")[0]
         zipped_dir = root + ".zip"
         lock_path = zipped_dir + ".lock"
@@ -102,32 +103,74 @@ class TerrainFromNumpy(Room):
         self._objects = objects
         self.team = team
         super().__init__(border_width=border_width, border_object=border_object, labels=[root])
+        end_time = time.time()
+        logger.info(f"Time taken to initialize level: {end_time - start_time} seconds")
 
-    def get_valid_positions(self, level):
-        # Create a boolean mask for empty cells
+    # def get_valid_positions(self, level):
+    #     # Create a boolean mask for empty cells
+    #     empty_mask = level == "empty"
+
+    #     # Use numpy's roll to check adjacent cells efficiently
+    #     has_empty_neighbor = (
+    #         np.roll(empty_mask, 1, axis=0)  # Check up
+    #         | np.roll(empty_mask, -1, axis=0)  # Check down
+    #         | np.roll(empty_mask, 1, axis=1)  # Check left
+    #         | np.roll(empty_mask, -1, axis=1)  # Check right
+    #     )
+
+    #     # Valid positions are empty cells with at least one empty neighbor
+    #     # Exclude border cells (indices 0 and -1)
+    #     valid_mask = empty_mask & has_empty_neighbor
+    #     valid_mask[0, :] = False
+    #     valid_mask[-1, :] = False
+    #     valid_mask[:, 0] = False
+    #     valid_mask[:, -1] = False
+
+    #     # Get coordinates of valid positions
+    #     valid_positions = list(zip(*np.where(valid_mask), strict=False))
+    #     return valid_positions
+
+    def get_valid_positions(self, level, num_needed):
+        """
+        Fastest approach: Vectorized operations with random sampling
+        This is the best balance of speed and true randomness
+        """
+        # Convert to boolean for faster operations
         empty_mask = level == "empty"
+        h, w = empty_mask.shape
 
-        # Use numpy's roll to check adjacent cells efficiently
-        has_empty_neighbor = (
-            np.roll(empty_mask, 1, axis=0)  # Check up
-            | np.roll(empty_mask, -1, axis=0)  # Check down
-            | np.roll(empty_mask, 1, axis=1)  # Check left
-            | np.roll(empty_mask, -1, axis=1)  # Check right
+        # Use slicing instead of roll (faster, no copies)
+        valid_mask = np.zeros((h, w), dtype=bool)
+
+        # Interior cells only
+        interior = empty_mask[1:-1, 1:-1]
+
+        # Check all four neighbors at once
+        has_neighbor = (
+            empty_mask[:-2, 1:-1]  # up
+            | empty_mask[2:, 1:-1]  # down
+            | empty_mask[1:-1, :-2]  # left
+            | empty_mask[1:-1, 2:]  # right
         )
 
-        # Valid positions are empty cells with at least one empty neighbor
-        # Exclude border cells (indices 0 and -1)
-        valid_mask = empty_mask & has_empty_neighbor
-        valid_mask[0, :] = False
-        valid_mask[-1, :] = False
-        valid_mask[:, 0] = False
-        valid_mask[:, -1] = False
+        valid_mask[1:-1, 1:-1] = interior & has_neighbor
 
-        # Get coordinates of valid positions
-        valid_positions = list(zip(*np.where(valid_mask), strict=False))
-        return valid_positions
+        # Get flat indices (faster than coordinate pairs)
+        valid_flat = np.flatnonzero(valid_mask)
+
+        if len(valid_flat) <= num_needed:
+            # Need all positions
+            np.random.shuffle(valid_flat)
+            indices = valid_flat
+        else:
+            # Random sample without replacement
+            indices = np.random.choice(valid_flat, size=num_needed, replace=False)
+
+        # Convert flat indices back to coordinates
+        return [(idx // w, idx % w) for idx in indices]
 
     def _build(self):
+        start_time = time.time()
         level = safe_load(f"{self.dir}/{self.uri}")
         height, width = level.shape
         self.set_size_labels(width, height)
@@ -143,33 +186,25 @@ class TerrainFromNumpy(Room):
         else:
             raise TypeError("Unsupported _agents type")
         num_agents = len(agent_labels)
+        num_objects = sum(self._objects.values())
+        num_needed = num_agents + num_objects
 
-        valid_positions = self.get_valid_positions(level)
-        random.shuffle(valid_positions)
+        valid_positions = self.get_valid_positions(level, num_needed)
 
-        # 5. Place agents in first slice
-        agent_positions = valid_positions[:num_agents]
-        for pos, label in zip(agent_positions, agent_labels, strict=False):
-            level[pos] = label
+        # Place agents first
+        for i, label in enumerate(agent_labels):
+            if i < len(valid_positions):
+                level[valid_positions[i]] = label
 
-        # Convert to set for O(1) removal operations
-        valid_positions_set = set(valid_positions[num_agents:])
-
-        area = height * width
-
-        # Check if total objects exceed room size and halve counts if needed
-        total_objects = sum(count for count in self._objects.values()) + num_agents
-        while total_objects > 2 * area / 3:
-            for obj_name in self._objects:
-                self._objects[obj_name] = max(1, self._objects[obj_name] // 2)
-            total_objects = sum(count for count in self._objects.values()) + num_agents
-
+        # Place objects
+        idx = num_agents
         for obj_name, count in self._objects.items():
-            # Sample from remaining valid positions
-            positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
-            for pos in positions:
-                level[pos] = obj_name
-                valid_positions_set.remove(pos)
+            for j in range(count):
+                if idx < len(valid_positions):
+                    level[valid_positions[idx]] = obj_name
+                    idx += 1
 
         self._level = level
+        end_time = time.time()
+        logger.info(f"Time taken to build level: {end_time - start_time} seconds")
         return self._level
