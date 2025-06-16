@@ -74,7 +74,6 @@ class TerrainFromNumpy(Room):
         file: str | None = None,
         team: str | None = None,
     ):
-        start_time = time.time()
         root = dir.split("/")[0]
         zipped_dir = root + ".zip"
         lock_path = zipped_dir + ".lock"
@@ -97,8 +96,6 @@ class TerrainFromNumpy(Room):
         self._objects = objects
         self.team = team
         super().__init__(border_width=border_width, border_object=border_object, labels=[root])
-        end_time = time.time()
-        logger.info(f"Time taken to initialize level: {end_time - start_time} seconds")
 
     def get_valid_positions(self, level):
         valid_positions = []
