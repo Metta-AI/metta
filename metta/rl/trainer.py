@@ -742,7 +742,18 @@ class MettaTrainer:
             self._last_agent_step = agent_steps
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
-        losses = self.losses.to_dict()
+
+        loss_stats = self.losses.to_dict()
+
+        # don't plot losses that are unused
+        if self.trainer_cfg.l2_reg_loss_coef == 0:
+            loss_stats.pop("l2_reg_loss")
+        if self.trainer_cfg.l2_init_loss_coef == 0:
+            loss_stats.pop("l2_init_loss")
+        if not self.kickstarter.enabled:
+            loss_stats.pop("ks_action_loss")
+            loss_stats.pop("ks_value_loss")
+
         performance = {k: v for k, v in self.profile}
 
         overview = {"SPS": sps}
@@ -785,7 +796,7 @@ class MettaTrainer:
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
-                    **{f"losses/{k}": v for k, v in losses.items()},
+                    **loss_stats,
                     **{f"performance/{k}": v for k, v in performance.items()},
                     **environment,
                     **weight_metrics,
