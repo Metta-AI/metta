@@ -803,7 +803,7 @@ class MettaTrainer:
             "parameter/num_minibatches": self.experience.num_minibatches,
         }
 
-        loss_stats = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
+        loss_stats = self.losses.to_dict()
 
         # don't plot losses that are unused
         if self.trainer_cfg.l2_reg_loss_coef == 0:
@@ -820,7 +820,7 @@ class MettaTrainer:
         self.wandb_run.log(
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
-                **{f"losses/{k}": v for k, v in loss_stats.items()},
+                **loss_stats,
                 **environment_stats,
                 **weight_metrics,
                 **self._eval_grouped_scores,
