@@ -26,6 +26,12 @@ def safe_load(path, retries=5, delay=1.0):
             raise
 
 
+def pick_random_file(path):
+    with os.scandir(path) as it:
+        entries = [entry.name for entry in it if entry.is_file()]
+    return random.choice(entries)
+
+
 def download_from_s3(s3_path: str, save_path: str, location: str = "us-east-1"):
     if not s3_path.startswith("s3://"):
         raise ValueError(f"Invalid S3 path: {s3_path}. Must start with s3://")
@@ -68,6 +74,7 @@ class TerrainFromNumpy(Room):
         file: str | None = None,
         team: str | None = None,
     ):
+        start_time = time.time()
         root = dir.split("/")[0]
         zipped_dir = root + ".zip"
         lock_path = zipped_dir + ".lock"
@@ -81,14 +88,17 @@ class TerrainFromNumpy(Room):
                 zip_ref.extractall(os.path.dirname(root))
             os.remove(zipped_dir)
             logger.info(f"Extracted {zipped_dir} to {root}")
-
-        self.files = os.listdir(dir)
+        if file is None:
+            self.uri = pick_random_file(dir)
+        else:
+            self.uri = file
         self.dir = dir
         self._agents = agents
         self._objects = objects
-        self.uri = file
         self.team = team
         super().__init__(border_width=border_width, border_object=border_object, labels=[root])
+        end_time = time.time()
+        logger.info(f"Time taken to initialize level: {end_time - start_time} seconds")
 
     def get_valid_positions(self, level):
         valid_positions = []
@@ -106,8 +116,7 @@ class TerrainFromNumpy(Room):
         return valid_positions
 
     def _build(self):
-        uri = self.uri or np.random.choice(self.files)
-        level = safe_load(f"{self.dir}/{uri}")
+        level = safe_load(f"{self.dir}/{self.uri}")
         self.set_size_labels(level.shape[1], level.shape[0])
 
         # remove agents to then repopulate
