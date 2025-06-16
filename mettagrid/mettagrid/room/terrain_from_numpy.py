@@ -88,7 +88,7 @@ class TerrainFromNumpy(Room):
         self._objects = objects
         self.uri = file
         self.team = team
-        super().__init__(border_width=border_width, border_object=border_object, labels=["terrain"])
+        super().__init__(border_width=border_width, border_object=border_object, labels=[root])
 
     def get_valid_positions(self, level):
         valid_positions = []
