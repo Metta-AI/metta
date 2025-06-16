@@ -75,3 +75,21 @@ python -m pytest tests/
 ```
 
 By consistently turning our debugging work into permanent tests, we'll build a more stable and reliable codebase.
+
+### 2.2 Test Scenarios
+
+#### Basic Policy Loading
+```python
+def test_load_external_policy():
+    """Verify that a PytorchAgent can be loaded from a pytorch:// URI."""
+    cfg = OmegaConf.create({
+        # ... config ...
+    })
+
+    policy_store = PolicyStore(cfg, None)
+
+    # Load external model
+    pytorch_agent = policy_store.load_from_uri("pytorch://checkpoints/metta-new/metta.pt")
+    assert isinstance(pytorch_agent, MettaAgent)
+    assert pytorch_agent.model is not None
+```

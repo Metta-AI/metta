@@ -39,7 +39,7 @@ local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
-class PufferTrainer:
+class PytorchTrainer:
     def __init__(
         self,
         cfg: DictConfig | ListConfig,
@@ -126,7 +126,7 @@ class PufferTrainer:
         assert agent is not None, "No policy found"
 
         if self._master:
-            logger.info(f"PufferTrainer loaded: {agent.model}")
+            logger.info(f"PytorchTrainer loaded: {agent.model}")
 
         self._initial_agent = agent
         self.last_agent = agent
@@ -225,7 +225,7 @@ class PufferTrainer:
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        logger.info(f"PufferTrainer initialization complete on device: {self.device}")
+        logger.info(f"PytorchTrainer initialization complete on device: {self.device}")
 
     def train(self):
         logger.info("Starting training")
@@ -935,7 +935,7 @@ class PufferTrainer:
         self.vecenv.async_reset(self.cfg.seed + rank)
 
 
-class AbortingTrainer(PufferTrainer):
+class AbortingTrainer(PytorchTrainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

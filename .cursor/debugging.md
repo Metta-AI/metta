@@ -29,7 +29,7 @@
 ./tools/train.py +user=cursor run=test_$TEST_ID device=cpu vectorization=serial trainer.num_workers=1
 
 # With puffer initial policy
-./tools/train.py +user=cursor run=test_$TEST_ID device=cpu vectorization=serial trainer.num_workers=1 trainer.initial_policy.uri=puffer://checkpoints/metta-new/metta.pt
+./tools/train.py +user=cursor run=test_$TEST_ID device=cpu vectorization=serial trainer.num_workers=1 trainer.initial_policy.uri=pytorch://checkpoints/metta-new/metta.pt
 
 # Using hardware config
 ./tools/train.py +user=cursor run=test_$TEST_ID +hardware=macbook
@@ -61,4 +61,13 @@ top -l 1 | head -20
 
 # Check for zombie processes
 ps aux | grep defunct
+```
+
+### 2. Run Training with Minimal Configuration
+```bash
+# Create a test ID for easier tracking
+export TEST_ID=$(date +%Y%m%d_%H%M%S)
+
+# Run minimal training job
+./tools/train.py +user=cursor run=test_$TEST_ID device=cpu vectorization=serial trainer.num_workers=1 trainer.initial_policy.uri=pytorch://checkpoints/metta-new/metta.pt
 ```

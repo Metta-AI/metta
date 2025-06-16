@@ -29,15 +29,15 @@ def load_policy(path: str, device: str = "cpu", puffer: Optional[DictConfig] = N
     )
 
     if puffer is None:
-        raise ValueError("Puffer config is required to load a Puffer policy.")
+        raise ValueError("Puffer config is required to load a Pytorch policy.")
 
     policy = instantiate(puffer, env=env, policy=None)
     policy.load_state_dict(weights)
-    policy = PufferAgent(policy).to(device)
+    policy = PytorchAgent(policy).to(device)
     return policy
 
 
-class PufferAgent(nn.Module):
+class PytorchAgent(nn.Module):
     def __init__(self, policy: nn.Module):
         super().__init__()
         self.policy = policy
@@ -65,10 +65,10 @@ class PufferAgent(nn.Module):
 
     def activate_actions(self, actions_names, actions_max_params, device):
         """
-        Activates the action space for the Puffer policy.
+        Activates the action space for the Pytorch policy.
         This is a simple check to ensure the number of action heads matches.
         A more thorough check could compare action names and parameter counts if
-        that metadata were available on the Puffer model.
+        that metadata were available on the Pytorch model.
         """
         # Check if actor is a ModuleList or similar container
         if hasattr(self.policy.actor, "__len__"):
@@ -77,18 +77,18 @@ class PufferAgent(nn.Module):
             # If it's a single module, assume 1 action head
             num_action_heads = 1
         else:
-            logging.warning("Could not determine number of action heads in Puffer model")
+            logging.warning("Could not determine number of action heads in Pytorch model")
             return
 
         if num_action_heads != len(actions_max_params):
             logging.warning(
-                f"Action space mismatch: Puffer model has {num_action_heads} action heads, "
+                f"Action space mismatch: Pytorch model has {num_action_heads} action heads, "
                 f"but environment expects {len(actions_max_params)}. This may lead to errors."
             )
         else:
             logging.info(
-                f"PufferAgent action space activated with {num_action_heads} heads. "
-                "No-op, as Puffer models are not reconfigured at runtime."
+                f"PytorchAgent action space activated with {num_action_heads} heads. "
+                "No-op, as Pytorch models are not reconfigured at runtime."
             )
 
     def l2_reg_loss(self) -> torch.Tensor:

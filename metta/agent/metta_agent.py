@@ -12,7 +12,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.brain_policy import BrainPolicy
 from metta.agent.policy_state import PolicyState
-from metta.rl.pufferlib.policy import PufferAgent
+from metta.rl.pufferlib.policy import PytorchAgent
 from mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
@@ -73,13 +73,13 @@ class DistributedMettaAgent(DistributedDataParallel):
 
 class MettaAgent(nn.Module):
     """
-    Wrapper class for all policy models (BrainPolicy, PufferPolicy).
+    Wrapper class for all policy models (BrainPolicy, PytorchPolicy).
     This class combines the functionality of the old PolicyRecord with the model itself.
     """
 
     def __init__(
         self,
-        model: Optional[Union[BrainPolicy, PufferAgent]] = None,
+        model: Optional[Union[BrainPolicy, PytorchAgent]] = None,
         model_type: str = "brain",
         name: str = "",
         uri: str = "",
@@ -94,7 +94,7 @@ class MettaAgent(nn.Module):
         **cfg,
     ):
         super().__init__()
-        self.model: Optional[Union[BrainPolicy, PufferAgent]] = model
+        self.model: Optional[Union[BrainPolicy, PytorchAgent]] = model
         self.model_type = model_type
         self.name = name
         self.uri = uri
@@ -376,7 +376,7 @@ class MettaAgent(nn.Module):
     def version(self) -> int:
         return self.key_and_version()[1]
 
-    def policy(self) -> Union[BrainPolicy, PufferAgent]:
+    def policy(self) -> Union[BrainPolicy, PytorchAgent]:
         """
         Get the underlying policy model.
 
@@ -395,7 +395,7 @@ class MettaAgent(nn.Module):
     def components(self):
         """
         Get the components from the underlying model.
-        Returns an empty dict if the model is not component-based (e.g., PufferAgent).
+        Returns an empty dict if the model is not component-based (e.g., PytorchAgent).
         """
         if self.model and hasattr(self.model, "components"):
             return self.model.components

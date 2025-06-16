@@ -9,7 +9,7 @@ trainer:
   env: /env/mettagrid/simple
   evaluate_interval: 200
 
-policy_uri: puffer:///tmp/puffer_metta.pt
+policy_uri: pytorch:///tmp/puffer_metta.pt
 npc_policy_uri: null
 eval_db_uri: null
 
@@ -18,9 +18,9 @@ env_overrides:
     max_steps: 1000
 
 eval:
-  policy_uri: ${..policy_uri}
-  npc_policy_uri: ${..npc_policy_uri}
-  eval_db_uri: ${..eval_db_uri}
+  policy_uri: pytorch:///tmp/puffer_metta.pt
+  npc_policy_uri: null
+  eval_db_uri: null
 
 analyzer:
   analysis:
@@ -38,3 +38,8 @@ run_id: 6
 run: ${oc.env:USER}.local.${now:MMDD}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+
+hardware: macbook
+device: cpu
+run: evo.test_metta
+run_dir: ${data_dir}/${run}
