@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Policy Evaluation Report: episode_reward</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+body{
+  font-family:Arial, sans-serif;margin:0;padding:20px;background:#f8f9fa;
+}
+.container{
+  max-width:1200px;margin:0 auto;background:#fff;padding:20px;border-radius:5px;
+  box-shadow:0 2px 4px rgba(0,0,0,.1);
+}
+h1{color:#333;border-bottom:1px solid #ddd;padding-bottom:10px}
+
+.map-viewer {
+    position: relative;
+    width: 100%;
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #f9f9f9;
+    min-height: 300px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.map-viewer-title {
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 18px;
+}
+.map-viewer-img {
+    max-width: 100%;
+    max-height: 350px;
+    display: block;
+    margin: 0 auto;
+}
+.map-viewer-placeholder {
+    text-align: center;
+    color: #666;
+    padding: 50px 0;
+    font-style: italic;
+}
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Policy Evaluation Report: episode_reward</h1>
+    
+<!-- enable pointer events on axis labels and cells -->
+<style>
+  .xaxislayer-above .xtick text,
+  .yaxislayer-above .ytick text {
+      pointer-events: all !important;
+      cursor: pointer;
+  }
+</style>
+
+<div class="heatmap-wrapper">
+  <div id="heat_57e35b34"></div>
+  
+  
+<!-- Map Viewer Panel -->
+<div class="map-viewer" id="heat_57e35b34_map">
+  <div class="map-viewer-title" id="heat_57e35b34_map_title">Map Viewer</div>
+  <div class="map-viewer-placeholder" id="heat_57e35b34_map_placeholder">
+    Hover over an evaluation name or cell to see the environment map
+  </div>
+  <img class="map-viewer-img" id="heat_57e35b34_map_img" alt="Environment map" style="display: none;">
+</div>
+
+</div>
+
+<script>
+(function() {
+  const fig = {"data": [{"colorbar": {"title": {"text": "Score"}}, "colorscale": [[0.0, "rgb(235, 40, 40)"], [0.5, "rgb(235, 40, 40)"], [0.8, "rgb(225,210,80)"], [0.95, "rgb(195,230,80)"], [1.0, "rgb(20, 230, 80)"]], "customdata": [["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/corridors.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/cylinder.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/cylinder_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_outofsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_sparse.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_withinsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/honeypot.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/knotty.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/labyrinth.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_palace.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles0.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles1.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles2.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles3.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_large.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_mini.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radialmaze.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/swirls.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/thecube.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walkaround.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_outofsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_sparse.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_withinsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/wanderout.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/corridors.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/cylinder.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/cylinder_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_outofsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_sparse.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_withinsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/honeypot.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/knotty.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/labyrinth.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_palace.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles0.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles1.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles2.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles3.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_large.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_mini.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radialmaze.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/swirls.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/thecube.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walkaround.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_outofsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_sparse.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_withinsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/wanderout.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/corridors.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/cylinder.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/cylinder_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_outofsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_sparse.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_withinsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/honeypot.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/knotty.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/labyrinth.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_palace.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles0.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles1.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles2.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles3.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_large.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_mini.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radialmaze.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/swirls.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/thecube.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walkaround.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_outofsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_sparse.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_withinsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/wanderout.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/corridors.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/cylinder.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/cylinder_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_outofsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_sparse.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_withinsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/honeypot.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/knotty.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/labyrinth.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_palace.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles0.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles1.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles2.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles3.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_large.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_mini.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radialmaze.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/swirls.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/thecube.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walkaround.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_outofsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_sparse.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_withinsight.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/wanderout.png"]], "hovertemplate": "<b>Policy:</b> %{y}<br><b>Evaluation:</b> %{x}<br><b>Score:</b> %{z:.2f}<extra></extra>", "x": ["Overall", "corridors", "cylinder", "cylinder_easy", "emptyspace_outofsight", "emptyspace_sparse", "emptyspace_withinsight", "honeypot", "knotty", "labyrinth", "memory_palace", "obstacles0", "obstacles1", "obstacles2", "obstacles3", "radial_large", "radial_mini", "radial_small", "radialmaze", "swirls", "thecube", "walkaround", "walls_outofsight", "walls_sparse", "walls_withinsight", "wanderout"], "y": ["Mean", "Max", "b.daphne.varied_terrain_lessactions:v48", "b.daphne.varied_terrain_lessactions:v47"], "z": [[0.8005320103168487, 0.9157500118017197, 0.05827500075101852, 0.715950009226799, 0.8991000115871429, 0.807525010406971, 0.9990000128746033, 0.9324000120162964, 0.5161500066518784, 0.9740250125527382, 0.8658000111579895, 0.9990000128746033, 0.8325000107288361, 0.990675012767315, 0.9990000128746033, 0.7076250091195107, 0.9990000128746033, 0.9990000128746033, 0.9990000128746033, 0.4495500057935715, 0.2913750037550926, 0.9157500118017197, 0.8907750114798545, 0.7742250099778175, 0.9823500126600265, 0.49950000643730164], [0.8491500109434128, 0.9490500122308732, 0.09990000128746032, 0.9657000124454498, 0.9990000128746033, 0.9990000128746033, 0.9990000128746033, 0.9990000128746033, 0.6160500079393387, 0.9990000128746033, 0.9990000128746033, 0.9990000128746033, 0.9324000120162964, 0.9990000128746033, 0.9990000128746033, 0.7326000094413757, 0.9990000128746033, 0.9990000128746033, 0.9990000128746033, 0.7659000098705292, 0.5827500075101852, 0.9990000128746033, 0.9657000124454498, 0.9657000124454498, 0.9990000128746033, 0.9990000128746033], [0.7519140096902848, 0.9490500122308732, 0.09990000128746032, 0.4662000060081482, 0.7992000102996826, 0.6160500079393387, 0.9990000128746033, 0.9990000128746033, 0.6160500079393387, 0.9490500122308732, 0.7326000094413757, 0.9990000128746033, 0.9324000120162964, 0.9990000128746033, 0.9990000128746033, 0.6826500087976456, 0.9990000128746033, 0.9990000128746033, 0.9990000128746033, 0.7659000098705292, 0.0, 0.8325000107288361, 0.8158500105142593, 0.5827500075101852, 0.9657000124454498, 0.0], [0.8491500109434128, 0.8824500113725662, 0.016650000214576723, 0.9657000124454498, 0.9990000128746033, 0.9990000128746033, 0.9990000128746033, 0.8658000111579895, 0.41625000536441803, 0.9990000128746033, 0.9990000128746033, 0.9990000128746033, 0.7326000094413757, 0.9823500126600265, 0.9990000128746033, 0.7326000094413757, 0.9990000128746033, 0.9990000128746033, 0.9990000128746033, 0.13320000171661378, 0.5827500075101852, 0.9990000128746033, 0.9657000124454498, 0.9657000124454498, 0.9990000128746033, 0.9990000128746033]], "zmax": 1, "zmin": 0, "type": "heatmap"}], "layout": {"template": {"data": {"histogram2dcontour": [{"type": "histogram2dcontour", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "choropleth": [{"type": "choropleth", "colorbar": {"outlinewidth": 0, "ticks": ""}}], "histogram2d": [{"type": "histogram2d", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "heatmap": [{"type": "heatmap", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "contourcarpet": [{"type": "contourcarpet", "colorbar": {"outlinewidth": 0, "ticks": ""}}], "contour": [{"type": "contour", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "surface": [{"type": "surface", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "mesh3d": [{"type": "mesh3d", "colorbar": {"outlinewidth": 0, "ticks": ""}}], "scatter": [{"fillpattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}, "type": "scatter"}], "parcoords": [{"type": "parcoords", "line": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatterpolargl": [{"type": "scatterpolargl", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "bar": [{"error_x": {"color": "#2a3f5f"}, "error_y": {"color": "#2a3f5f"}, "marker": {"line": {"color": "#E5ECF6", "width": 0.5}, "pattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}}, "type": "bar"}], "scattergeo": [{"type": "scattergeo", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatterpolar": [{"type": "scatterpolar", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "histogram": [{"marker": {"pattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}}, "type": "histogram"}], "scattergl": [{"type": "scattergl", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatter3d": [{"type": "scatter3d", "line": {"colorbar": {"outlinewidth": 0, "ticks": ""}}, "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scattermap": [{"type": "scattermap", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scattermapbox": [{"type": "scattermapbox", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatterternary": [{"type": "scatterternary", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scattercarpet": [{"type": "scattercarpet", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "carpet": [{"aaxis": {"endlinecolor": "#2a3f5f", "gridcolor": "white", "linecolor": "white", "minorgridcolor": "white", "startlinecolor": "#2a3f5f"}, "baxis": {"endlinecolor": "#2a3f5f", "gridcolor": "white", "linecolor": "white", "minorgridcolor": "white", "startlinecolor": "#2a3f5f"}, "type": "carpet"}], "table": [{"cells": {"fill": {"color": "#EBF0F8"}, "line": {"color": "white"}}, "header": {"fill": {"color": "#C8D4E3"}, "line": {"color": "white"}}, "type": "table"}], "barpolar": [{"marker": {"line": {"color": "#E5ECF6", "width": 0.5}, "pattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}}, "type": "barpolar"}], "pie": [{"automargin": true, "type": "pie"}]}, "layout": {"autotypenumbers": "strict", "colorway": ["#636efa", "#EF553B", "#00cc96", "#ab63fa", "#FFA15A", "#19d3f3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"], "font": {"color": "#2a3f5f"}, "hovermode": "closest", "hoverlabel": {"align": "left"}, "paper_bgcolor": "white", "plot_bgcolor": "#E5ECF6", "polar": {"bgcolor": "#E5ECF6", "angularaxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}, "radialaxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}}, "ternary": {"bgcolor": "#E5ECF6", "aaxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}, "baxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}, "caxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}}, "coloraxis": {"colorbar": {"outlinewidth": 0, "ticks": ""}}, "colorscale": {"sequential": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]], "sequentialminus": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]], "diverging": [[0, "#8e0152"], [0.1, "#c51b7d"], [0.2, "#de77ae"], [0.3, "#f1b6da"], [0.4, "#fde0ef"], [0.5, "#f7f7f7"], [0.6, "#e6f5d0"], [0.7, "#b8e186"], [0.8, "#7fbc41"], [0.9, "#4d9221"], [1, "#276419"]]}, "xaxis": {"gridcolor": "white", "linecolor": "white", "ticks": "", "title": {"standoff": 15}, "zerolinecolor": "white", "automargin": true, "zerolinewidth": 2}, "yaxis": {"gridcolor": "white", "linecolor": "white", "ticks": "", "title": {"standoff": 15}, "zerolinecolor": "white", "automargin": true, "zerolinewidth": 2}, "scene": {"xaxis": {"backgroundcolor": "#E5ECF6", "gridcolor": "white", "linecolor": "white", "showbackground": true, "ticks": "", "zerolinecolor": "white", "gridwidth": 2}, "yaxis": {"backgroundcolor": "#E5ECF6", "gridcolor": "white", "linecolor": "white", "showbackground": true, "ticks": "", "zerolinecolor": "white", "gridwidth": 2}, "zaxis": {"backgroundcolor": "#E5ECF6", "gridcolor": "white", "linecolor": "white", "showbackground": true, "ticks": "", "zerolinecolor": "white", "gridwidth": 2}}, "shapedefaults": {"line": {"color": "#2a3f5f"}}, "annotationdefaults": {"arrowcolor": "#2a3f5f", "arrowhead": 0, "arrowwidth": 1}, "geo": {"bgcolor": "white", "landcolor": "#E5ECF6", "subunitcolor": "white", "showland": true, "showlakes": true, "lakecolor": "white"}, "title": {"x": 0.05}, "mapbox": {"style": "light"}}}, "yaxis": {"tickmode": "array", "tickvals": [0, 1, 2, 3], "ticktext": ["<b>Mean</b>", "<b>Max</b>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.daphne.varied_terrain_lessactions\">b.daphne.varied_terrain_lessactions:v48</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.daphne.varied_terrain_lessactions\">b.daphne.varied_terrain_lessactions:v47</a>"]}, "xaxis": {"tickangle": -45}, "margin": {"l": 50, "r": 50, "t": 50, "b": 100}, "title": {"text": "Episode reward Policy\u2011Evaluation Matrix"}, "height": 650, "width": 900, "plot_bgcolor": "white", "showlegend": false, "meta": {"eval_image_map": {"Overall": "", "corridors": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/corridors.png", "cylinder": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/cylinder.png", "cylinder_easy": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/cylinder_easy.png", "emptyspace_outofsight": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_outofsight.png", "emptyspace_sparse": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_sparse.png", "emptyspace_withinsight": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/emptyspace_withinsight.png", "honeypot": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/honeypot.png", "knotty": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/knotty.png", "labyrinth": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/labyrinth.png", "memory_palace": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_palace.png", "obstacles0": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles0.png", "obstacles1": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles1.png", "obstacles2": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles2.png", "obstacles3": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/obstacles3.png", "radial_large": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_large.png", "radial_mini": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_mini.png", "radial_small": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radial_small.png", "radialmaze": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/radialmaze.png", "swirls": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/swirls.png", "thecube": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/thecube.png", "walkaround": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walkaround.png", "walls_outofsight": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_outofsight.png", "walls_sparse": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_sparse.png", "walls_withinsight": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/walls_withinsight.png", "wanderout": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/wanderout.png"}}, "shapes": [{"fillcolor": "rgba(0,0,0,0)", "layer": "above", "line": {"color": "rgba(0,0,0,0.45)", "dash": "dash", "width": 2}, "type": "rect", "x0": -0.5, "x1": 25.5, "y0": -0.5, "y1": 1.5}]}};
+  const el = document.getElementById("heat_57e35b34");
+  const imgs = fig.layout.meta.eval_image_map;
+  const evalNames = ["Overall", "corridors", "cylinder", "cylinder_easy", "emptyspace_outofsight", "emptyspace_sparse", "emptyspace_withinsight", "honeypot", "knotty", "labyrinth", "memory_palace", "obstacles0", "obstacles1", "obstacles2", "obstacles3", "radial_large", "radial_mini", "radial_small", "radialmaze", "swirls", "thecube", "walkaround", "walls_outofsight", "walls_sparse", "walls_withinsight", "wanderout"];
+  
+  // Track if the mouse is over the heatmap
+  let isMouseOverHeatmap = false;
+  el.addEventListener('mouseenter', function() {
+    isMouseOverHeatmap = true;
+  });
+  el.addEventListener('mouseleave', function() {
+    isMouseOverHeatmap = false;
+    setTimeout(() => {
+      if (!isMouseOverHeatmap && !isMouseOverMap) {
+        hideMap();
+      }
+    }, 100);
+  });
+
+  
+const mapPanel = document.getElementById("heat_57e35b34_map");
+const mapTitle = document.getElementById("heat_57e35b34_map_title");
+const mapImg = document.getElementById("heat_57e35b34_map_img");
+const mapPlaceholder = document.getElementById("heat_57e35b34_map_placeholder");
+let currentDisplayedEvalName = null;
+let isMouseOverMap = false;
+
+// Track when mouse enters/leaves the map viewer
+mapPanel.addEventListener('mouseenter', function() {
+    isMouseOverMap = true;
+});
+
+mapPanel.addEventListener('mouseleave', function() {
+    isMouseOverMap = false;
+});
+
+function showMap(name, title) {
+  if (name.toLowerCase() === "overall") return;
+  
+  // Store the currently displayed evaluation name
+  currentDisplayedEvalName = name;
+  
+  const url = imgs[name] || "";
+  
+  // Show only the eval name in the title (ignore the policy part)
+  mapTitle.textContent = name;
+  
+  if (url) {
+    mapImg.src = url;
+    mapImg.style.display = "block";
+    mapPlaceholder.style.display = "none";
+  } else {
+    mapImg.style.display = "none";
+    mapPlaceholder.textContent = "No map available for " + name;
+    mapPlaceholder.style.display = "block";
+  }
+}
+
+function hideMap() {
+  // Only hide if we're not hovering over the map panel itself
+  if (isMouseOverMap) {
+    return;
+  }
+  
+  // Reset the current displayed evaluation name
+  currentDisplayedEvalName = null;
+  
+  mapImg.style.display = "none";
+  mapPlaceholder.textContent = "Hover over an evaluation name or cell to see the map";
+  mapPlaceholder.style.display = "block";
+}
+
+
+  Plotly.newPlot(el, fig.data, fig.layout)
+        .then(() => {
+          setTimeout(attachAxisHover, 500); // Ensure DOM is fully rendered
+          attachHeatmapHover();
+        });
+
+  /* ------------------------------------------------ axis‑label hover ----- */
+  function attachAxisHover() {
+    // Get all x-axis tick labels
+    const ticks = el.querySelectorAll(".xaxislayer-above .xtick text");
+    
+    // Enhanced event binding for axis labels
+    ticks.forEach((tick, i) => {
+        if (i >= evalNames.length) return; // Safety check
+        const evalName = evalNames[i];
+        if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+        
+        // Make sure these elements have proper cursor and pointer events
+        tick.style.pointerEvents = "all";
+        tick.style.cursor = "pointer";
+        
+        // Add multiple event handlers for redundancy
+        tick.addEventListener('click', () => showMap(evalName));
+        tick.addEventListener('mouseenter', () => showMap(evalName));
+        tick.addEventListener('mouseover', () => showMap(evalName));
+        
+        // Add a data attribute for easier debugging
+        tick.setAttribute('data-eval-name', evalName);
+    });
+    
+    // Add a click handler to the entire axis as a fallback
+    const xAxis = el.querySelector('.xaxislayer-above');
+    if (xAxis) {
+      xAxis.addEventListener('click', function(e) {
+        // Find the closest tick text element
+        const target = e.target.closest('.xtick text');
+        if (target && target.hasAttribute('data-eval-name')) {
+          showMap(target.getAttribute('data-eval-name'));
+        }
+      });
+    }
+  }
+
+  /* ------------------------------------------------ heatmap cell hover --- */
+  function attachHeatmapHover() {
+    el.on('plotly_hover', function(data) {
+      const pts = data.points[0];
+      const evalName = pts.x;
+      if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+      showMap(evalName);
+    });
+    
+    // Only trigger unhover when we're sure we've left both the heatmap and the map viewer
+    el.on('plotly_unhover', function() {
+      setTimeout(() => {
+        if (!isMouseOverHeatmap && !isMouseOverMap) {
+          hideMap();
+        }
+      }, 100);
+    });
+  }
+})();
+</script>
+
+  </div>
+</body>
+</html>

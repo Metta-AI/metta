@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Policy Evaluation Report: episode_reward</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+body{
+  font-family:Arial, sans-serif;margin:0;padding:20px;background:#f8f9fa;
+}
+.container{
+  max-width:1200px;margin:0 auto;background:#fff;padding:20px;border-radius:5px;
+  box-shadow:0 2px 4px rgba(0,0,0,.1);
+}
+h1{color:#333;border-bottom:1px solid #ddd;padding-bottom:10px}
+
+.map-viewer {
+    position: relative;
+    width: 100%;
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #f9f9f9;
+    min-height: 300px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.map-viewer-title {
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 18px;
+}
+.map-viewer-img {
+    max-width: 100%;
+    max-height: 350px;
+    display: block;
+    margin: 0 auto;
+}
+.map-viewer-placeholder {
+    text-align: center;
+    color: #666;
+    padding: 50px 0;
+    font-style: italic;
+}
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Policy Evaluation Report: episode_reward</h1>
+    
+<!-- enable pointer events on axis labels and cells -->
+<style>
+  .xaxislayer-above .xtick text,
+  .yaxislayer-above .ytick text {
+      pointer-events: all !important;
+      cursor: pointer;
+  }
+</style>
+
+<div class="heatmap-wrapper">
+  <div id="heat_a6cbca96"></div>
+  
+  
+<!-- Map Viewer Panel -->
+<div class="map-viewer" id="heat_a6cbca96_map">
+  <div class="map-viewer-title" id="heat_a6cbca96_map_title">Map Viewer</div>
+  <div class="map-viewer-placeholder" id="heat_a6cbca96_map_placeholder">
+    Hover over an evaluation name or cell to see the environment map
+  </div>
+  <img class="map-viewer-img" id="heat_a6cbca96_map_img" alt="Environment map" style="display: none;">
+</div>
+
+</div>
+
+<script>
+(function() {
+  const fig = {"data": [{"colorbar": {"title": {"text": "Score"}}, "colorscale": [[0.0, "rgb(235, 40, 40)"], [0.5, "rgb(235, 40, 40)"], [0.8, "rgb(225,210,80)"], [0.95, "rgb(195,230,80)"], [1.0, "rgb(20, 230, 80)"]], "customdata": [["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"]], "hovertemplate": "<b>Policy:</b> %{y}<br><b>Evaluation:</b> %{x}<br><b>Score:</b> %{z:.2f}<extra></extra>", "x": ["Overall", "memory_easy", "memory_hard", "memory_medium"], "y": ["Mean", "Max", "b.georgedeane.terrain_multienv_uniform:v44", "b.georgedeane.terrain_multienv_unstable_pretrained_mb3:v1", "b.georgedeane.terrain_multienv_fromscratch:v12", "terrain_multienv_3_single_agent:v63", "b.daphne.terrain_multienv_singleA_50hearts:v27", "b.daphne.terrain_multienv_3_no_blocks4:v9", "b.daphne.terrain_multienv_prioritized_multienv_cylinders:v22", "b.daphne.terrain_multienv_prioritized_multienv_cylinders2:v29", "b.daphne.terrain_multienv_prioritized_george_maps:v20", "b.georgedeane.terrain_multienv:v49", "b.georgedeane.terrain_multienv_stable_pretrained_mb4:v0", "b.daphne.terrain_varied_cyl_lab_pretrained:v0"], "z": [[0.3642187546938658, 0.36768750473856926, 0.38850000500679016, 0.3364687543362379], [0.7076250091195107, 0.9990000128746033, 0.7492500096559525, 0.624375008046627], [0.0, 0.0, 0.0, 0.0], [0.1665000021457672, 0.0832500010728836, 0.24975000321865082, 0.1665000021457672], [0.22200000286102295, 0.0832500010728836, 0.41625000536441803, 0.1665000021457672], [0.24975000321865082, 0.20812500268220901, 0.12487500160932541, 0.41625000536441803], [0.2913750037550926, 0.20812500268220901, 0.1665000021457672, 0.49950000643730164], [0.3330000042915344, 0.3330000042915344, 0.49950000643730164, 0.1665000021457672], [0.41625000536441803, 0.45787500590085983, 0.41625000536441803, 0.3746250048279762], [0.45787500590085983, 0.3746250048279762, 0.3746250048279762, 0.624375008046627], [0.47175000607967377, 0.624375008046627, 0.5411250069737434, 0.24975000321865082], [0.49950000643730164, 0.49950000643730164, 0.3746250048279762, 0.624375008046627], [0.5550000071525574, 0.5411250069737434, 0.7492500096559525, 0.3746250048279762], [0.7076250091195107, 0.9990000128746033, 0.7492500096559525, 0.3746250048279762]], "zmax": 1, "zmin": 0, "type": "heatmap"}], "layout": {"template": {"data": {"histogram2dcontour": [{"type": "histogram2dcontour", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "choropleth": [{"type": "choropleth", "colorbar": {"outlinewidth": 0, "ticks": ""}}], "histogram2d": [{"type": "histogram2d", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "heatmap": [{"type": "heatmap", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "contourcarpet": [{"type": "contourcarpet", "colorbar": {"outlinewidth": 0, "ticks": ""}}], "contour": [{"type": "contour", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "surface": [{"type": "surface", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "mesh3d": [{"type": "mesh3d", "colorbar": {"outlinewidth": 0, "ticks": ""}}], "scatter": [{"fillpattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}, "type": "scatter"}], "parcoords": [{"type": "parcoords", "line": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatterpolargl": [{"type": "scatterpolargl", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "bar": [{"error_x": {"color": "#2a3f5f"}, "error_y": {"color": "#2a3f5f"}, "marker": {"line": {"color": "#E5ECF6", "width": 0.5}, "pattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}}, "type": "bar"}], "scattergeo": [{"type": "scattergeo", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatterpolar": [{"type": "scatterpolar", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "histogram": [{"marker": {"pattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}}, "type": "histogram"}], "scattergl": [{"type": "scattergl", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatter3d": [{"type": "scatter3d", "line": {"colorbar": {"outlinewidth": 0, "ticks": ""}}, "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scattermap": [{"type": "scattermap", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scattermapbox": [{"type": "scattermapbox", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatterternary": [{"type": "scatterternary", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scattercarpet": [{"type": "scattercarpet", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "carpet": [{"aaxis": {"endlinecolor": "#2a3f5f", "gridcolor": "white", "linecolor": "white", "minorgridcolor": "white", "startlinecolor": "#2a3f5f"}, "baxis": {"endlinecolor": "#2a3f5f", "gridcolor": "white", "linecolor": "white", "minorgridcolor": "white", "startlinecolor": "#2a3f5f"}, "type": "carpet"}], "table": [{"cells": {"fill": {"color": "#EBF0F8"}, "line": {"color": "white"}}, "header": {"fill": {"color": "#C8D4E3"}, "line": {"color": "white"}}, "type": "table"}], "barpolar": [{"marker": {"line": {"color": "#E5ECF6", "width": 0.5}, "pattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}}, "type": "barpolar"}], "pie": [{"automargin": true, "type": "pie"}]}, "layout": {"autotypenumbers": "strict", "colorway": ["#636efa", "#EF553B", "#00cc96", "#ab63fa", "#FFA15A", "#19d3f3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"], "font": {"color": "#2a3f5f"}, "hovermode": "closest", "hoverlabel": {"align": "left"}, "paper_bgcolor": "white", "plot_bgcolor": "#E5ECF6", "polar": {"bgcolor": "#E5ECF6", "angularaxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}, "radialaxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}}, "ternary": {"bgcolor": "#E5ECF6", "aaxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}, "baxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}, "caxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}}, "coloraxis": {"colorbar": {"outlinewidth": 0, "ticks": ""}}, "colorscale": {"sequential": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]], "sequentialminus": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]], "diverging": [[0, "#8e0152"], [0.1, "#c51b7d"], [0.2, "#de77ae"], [0.3, "#f1b6da"], [0.4, "#fde0ef"], [0.5, "#f7f7f7"], [0.6, "#e6f5d0"], [0.7, "#b8e186"], [0.8, "#7fbc41"], [0.9, "#4d9221"], [1, "#276419"]]}, "xaxis": {"gridcolor": "white", "linecolor": "white", "ticks": "", "title": {"standoff": 15}, "zerolinecolor": "white", "automargin": true, "zerolinewidth": 2}, "yaxis": {"gridcolor": "white", "linecolor": "white", "ticks": "", "title": {"standoff": 15}, "zerolinecolor": "white", "automargin": true, "zerolinewidth": 2}, "scene": {"xaxis": {"backgroundcolor": "#E5ECF6", "gridcolor": "white", "linecolor": "white", "showbackground": true, "ticks": "", "zerolinecolor": "white", "gridwidth": 2}, "yaxis": {"backgroundcolor": "#E5ECF6", "gridcolor": "white", "linecolor": "white", "showbackground": true, "ticks": "", "zerolinecolor": "white", "gridwidth": 2}, "zaxis": {"backgroundcolor": "#E5ECF6", "gridcolor": "white", "linecolor": "white", "showbackground": true, "ticks": "", "zerolinecolor": "white", "gridwidth": 2}}, "shapedefaults": {"line": {"color": "#2a3f5f"}}, "annotationdefaults": {"arrowcolor": "#2a3f5f", "arrowhead": 0, "arrowwidth": 1}, "geo": {"bgcolor": "white", "landcolor": "#E5ECF6", "subunitcolor": "white", "showland": true, "showlakes": true, "lakecolor": "white"}, "title": {"x": 0.05}, "mapbox": {"style": "light"}}}, "yaxis": {"tickmode": "array", "tickvals": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], "ticktext": ["<b>Mean</b>", "<b>Max</b>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv_uniform\">b.georgedeane.terrain_multienv_uniform:v44</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv_unstable_pretrained_mb3\">b.georgedeane.terrain_multienv_unstable_pretrained_mb3:v1</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv_fromscratch\">b.georgedeane.terrain_multienv_fromscratch:v12</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/terrain_multienv_3_single_agent\">terrain_multienv_3_single_agent:v63</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.daphne.terrain_multienv_singleA_50hearts\">b.daphne.terrain_multienv_singleA_50hearts:v27</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.daphne.terrain_multienv_3_no_blocks4\">b.daphne.terrain_multienv_3_no_blocks4:v9</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.daphne.terrain_multienv_prioritized_multienv_cylinders\">b.daphne.terrain_multienv_prioritized_multienv_cylinders:v22</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.daphne.terrain_multienv_prioritized_multienv_cylinders2\">b.daphne.terrain_multienv_prioritized_multienv_cylinders2:v29</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.daphne.terrain_multienv_prioritized_george_maps\">b.daphne.terrain_multienv_prioritized_george_maps:v20</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv\">b.georgedeane.terrain_multienv:v49</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv_stable_pretrained_mb4\">b.georgedeane.terrain_multienv_stable_pretrained_mb4:v0</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.daphne.terrain_varied_cyl_lab_pretrained\">b.daphne.terrain_varied_cyl_lab_pretrained:v0</a>"]}, "xaxis": {"tickangle": -45}, "margin": {"l": 50, "r": 50, "t": 50, "b": 100}, "title": {"text": "Episode reward Policy\u2011Evaluation Matrix"}, "height": 650, "width": 900, "plot_bgcolor": "white", "showlegend": false, "meta": {"eval_image_map": {"Overall": "", "memory_easy": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_easy.png", "memory_hard": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_hard.png", "memory_medium": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/memory_medium.png"}}, "shapes": [{"fillcolor": "rgba(0,0,0,0)", "layer": "above", "line": {"color": "rgba(0,0,0,0.45)", "dash": "dash", "width": 2}, "type": "rect", "x0": -0.5, "x1": 3.5, "y0": -0.5, "y1": 1.5}]}};
+  const el = document.getElementById("heat_a6cbca96");
+  const imgs = fig.layout.meta.eval_image_map;
+  const evalNames = ["Overall", "memory_easy", "memory_hard", "memory_medium"];
+  
+  // Track if the mouse is over the heatmap
+  let isMouseOverHeatmap = false;
+  el.addEventListener('mouseenter', function() {
+    isMouseOverHeatmap = true;
+  });
+  el.addEventListener('mouseleave', function() {
+    isMouseOverHeatmap = false;
+    setTimeout(() => {
+      if (!isMouseOverHeatmap && !isMouseOverMap) {
+        hideMap();
+      }
+    }, 100);
+  });
+
+  
+const mapPanel = document.getElementById("heat_a6cbca96_map");
+const mapTitle = document.getElementById("heat_a6cbca96_map_title");
+const mapImg = document.getElementById("heat_a6cbca96_map_img");
+const mapPlaceholder = document.getElementById("heat_a6cbca96_map_placeholder");
+let currentDisplayedEvalName = null;
+let isMouseOverMap = false;
+
+// Track when mouse enters/leaves the map viewer
+mapPanel.addEventListener('mouseenter', function() {
+    isMouseOverMap = true;
+});
+
+mapPanel.addEventListener('mouseleave', function() {
+    isMouseOverMap = false;
+});
+
+function showMap(name, title) {
+  if (name.toLowerCase() === "overall") return;
+  
+  // Store the currently displayed evaluation name
+  currentDisplayedEvalName = name;
+  
+  const url = imgs[name] || "";
+  
+  // Show only the eval name in the title (ignore the policy part)
+  mapTitle.textContent = name;
+  
+  if (url) {
+    mapImg.src = url;
+    mapImg.style.display = "block";
+    mapPlaceholder.style.display = "none";
+  } else {
+    mapImg.style.display = "none";
+    mapPlaceholder.textContent = "No map available for " + name;
+    mapPlaceholder.style.display = "block";
+  }
+}
+
+function hideMap() {
+  // Only hide if we're not hovering over the map panel itself
+  if (isMouseOverMap) {
+    return;
+  }
+  
+  // Reset the current displayed evaluation name
+  currentDisplayedEvalName = null;
+  
+  mapImg.style.display = "none";
+  mapPlaceholder.textContent = "Hover over an evaluation name or cell to see the map";
+  mapPlaceholder.style.display = "block";
+}
+
+
+  Plotly.newPlot(el, fig.data, fig.layout)
+        .then(() => {
+          setTimeout(attachAxisHover, 500); // Ensure DOM is fully rendered
+          attachHeatmapHover();
+        });
+
+  /* ------------------------------------------------ axis‑label hover ----- */
+  function attachAxisHover() {
+    // Get all x-axis tick labels
+    const ticks = el.querySelectorAll(".xaxislayer-above .xtick text");
+    
+    // Enhanced event binding for axis labels
+    ticks.forEach((tick, i) => {
+        if (i >= evalNames.length) return; // Safety check
+        const evalName = evalNames[i];
+        if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+        
+        // Make sure these elements have proper cursor and pointer events
+        tick.style.pointerEvents = "all";
+        tick.style.cursor = "pointer";
+        
+        // Add multiple event handlers for redundancy
+        tick.addEventListener('click', () => showMap(evalName));
+        tick.addEventListener('mouseenter', () => showMap(evalName));
+        tick.addEventListener('mouseover', () => showMap(evalName));
+        
+        // Add a data attribute for easier debugging
+        tick.setAttribute('data-eval-name', evalName);
+    });
+    
+    // Add a click handler to the entire axis as a fallback
+    const xAxis = el.querySelector('.xaxislayer-above');
+    if (xAxis) {
+      xAxis.addEventListener('click', function(e) {
+        // Find the closest tick text element
+        const target = e.target.closest('.xtick text');
+        if (target && target.hasAttribute('data-eval-name')) {
+          showMap(target.getAttribute('data-eval-name'));
+        }
+      });
+    }
+  }
+
+  /* ------------------------------------------------ heatmap cell hover --- */
+  function attachHeatmapHover() {
+    el.on('plotly_hover', function(data) {
+      const pts = data.points[0];
+      const evalName = pts.x;
+      if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+      showMap(evalName);
+    });
+    
+    // Only trigger unhover when we're sure we've left both the heatmap and the map viewer
+    el.on('plotly_unhover', function() {
+      setTimeout(() => {
+        if (!isMouseOverHeatmap && !isMouseOverMap) {
+          hideMap();
+        }
+      }, 100);
+    });
+  }
+})();
+</script>
+
+  </div>
+</body>
+</html>

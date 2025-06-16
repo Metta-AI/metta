@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Policy Evaluation Report: episode_reward</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+body{
+  font-family:Arial, sans-serif;margin:0;padding:20px;background:#f8f9fa;
+}
+.container{
+  max-width:1200px;margin:0 auto;background:#fff;padding:20px;border-radius:5px;
+  box-shadow:0 2px 4px rgba(0,0,0,.1);
+}
+h1{color:#333;border-bottom:1px solid #ddd;padding-bottom:10px}
+
+.map-viewer {
+    position: relative;
+    width: 100%;
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #f9f9f9;
+    min-height: 300px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.map-viewer-title {
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 18px;
+}
+.map-viewer-img {
+    max-width: 100%;
+    max-height: 350px;
+    display: block;
+    margin: 0 auto;
+}
+.map-viewer-placeholder {
+    text-align: center;
+    color: #666;
+    padding: 50px 0;
+    font-style: italic;
+}
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Policy Evaluation Report: episode_reward</h1>
+    
+<!-- enable pointer events on axis labels and cells -->
+<style>
+  .xaxislayer-above .xtick text,
+  .yaxislayer-above .ytick text {
+      pointer-events: all !important;
+      cursor: pointer;
+  }
+</style>
+
+<div class="heatmap-wrapper">
+  <div id="heat_5d38d881"></div>
+  
+  
+<!-- Map Viewer Panel -->
+<div class="map-viewer" id="heat_5d38d881_map">
+  <div class="map-viewer-title" id="heat_5d38d881_map_title">Map Viewer</div>
+  <div class="map-viewer-placeholder" id="heat_5d38d881_map_placeholder">
+    Hover over an evaluation name or cell to see the environment map
+  </div>
+  <img class="map-viewer-img" id="heat_5d38d881_map_img" alt="Environment map" style="display: none;">
+</div>
+
+</div>
+
+<script>
+(function() {
+  const fig = {"data": [{"colorbar": {"title": {"text": "Score"}}, "customdata": [["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_small.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_small.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_small.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_small.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_small.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_small.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_small.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_small.png"], ["", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_small.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_big.png", "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_small.png"]], "hovertemplate": "<b>Policy:</b> %{y}<br><b>Evaluation:</b> %{x}<br><b>Score:</b> %{z:.2f}<extra></extra>", "x": ["Overall", "varied_terrain_all_dense_big", "varied_terrain_all_dense_small", "varied_terrain_all_sparse_big", "varied_terrain_all_sparse_small", "varied_terrain_balanced_big", "varied_terrain_balanced_small", "varied_terrain_sparse_altars_dense_objects_big", "varied_terrain_sparse_altars_dense_objects_small", "varied_terrain_sparse_objects_dense_altars_big", "varied_terrain_sparse_objects_dense_altars_small"], "y": ["Mean", "Max", "b.georgedeane.terrain_multienv_uniform:v25", "b.georgedeane.terrain_multienv_unstable_pretrained_mb3:v1", "b.georgedeane.terrain_multienv_stable_pretrained_mb4:v0", "b.georgedeane.terrain_multienv_homogenous_pretrained:v6", "b.georgedeane.terrain_multienv:v49", "b.georgedeane.terrain_multienv_fromscratch:v12", "terrain_multienv_3_single_agent:v63"], "z": [[21.567857142857143, 0.12214285714285714, 0.26035714285714284, 0.6428571428571429, 0.7485714285714287, 0.41357142857142853, 0.27571428571428575, 0.20857142857142857, 0.28571428571428575, 0.3489285714285715, 0.2646428571428572], [25.225, 0.2275, 0.3425, 0.73, 0.98, 0.43, 0.3, 0.38, 0.32, 0.41, 0.27], [18.275, 0.0525, 0.07, 0.61, 0.75, 0.43, 0.3, 0.1, 0.28, 0.27, 0.27], [20.575, 0.0975, 0.1925, 0.72, 0.79, 0.43, 0.265, 0.15, 0.32, 0.34, 0.2375], [20.9, 0.1175, 0.3, 0.59, 0.51, 0.43, 0.2825, 0.23, 0.2, 0.3075, 0.27], [21.85, 0.085, 0.3275, 0.73, 0.86, 0.43, 0.2, 0.1, 0.32, 0.37, 0.27], [22.0, 0.125, 0.3425, 0.63, 0.68, 0.3225, 0.2825, 0.38, 0.32, 0.355, 0.27], [22.15, 0.15, 0.2825, 0.52, 0.67, 0.4225, 0.3, 0.19, 0.24, 0.39, 0.265], [25.225, 0.2275, 0.3075, 0.7, 0.98, 0.43, 0.3, 0.31, 0.32, 0.41, 0.27]], "zmax": 1, "zmin": 0, "type": "heatmap"}], "layout": {"template": {"data": {"histogram2dcontour": [{"type": "histogram2dcontour", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "choropleth": [{"type": "choropleth", "colorbar": {"outlinewidth": 0, "ticks": ""}}], "histogram2d": [{"type": "histogram2d", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "heatmap": [{"type": "heatmap", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "contourcarpet": [{"type": "contourcarpet", "colorbar": {"outlinewidth": 0, "ticks": ""}}], "contour": [{"type": "contour", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "surface": [{"type": "surface", "colorbar": {"outlinewidth": 0, "ticks": ""}, "colorscale": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]]}], "mesh3d": [{"type": "mesh3d", "colorbar": {"outlinewidth": 0, "ticks": ""}}], "scatter": [{"fillpattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}, "type": "scatter"}], "parcoords": [{"type": "parcoords", "line": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatterpolargl": [{"type": "scatterpolargl", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "bar": [{"error_x": {"color": "#2a3f5f"}, "error_y": {"color": "#2a3f5f"}, "marker": {"line": {"color": "#E5ECF6", "width": 0.5}, "pattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}}, "type": "bar"}], "scattergeo": [{"type": "scattergeo", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatterpolar": [{"type": "scatterpolar", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "histogram": [{"marker": {"pattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}}, "type": "histogram"}], "scattergl": [{"type": "scattergl", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatter3d": [{"type": "scatter3d", "line": {"colorbar": {"outlinewidth": 0, "ticks": ""}}, "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scattermap": [{"type": "scattermap", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scattermapbox": [{"type": "scattermapbox", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scatterternary": [{"type": "scatterternary", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "scattercarpet": [{"type": "scattercarpet", "marker": {"colorbar": {"outlinewidth": 0, "ticks": ""}}}], "carpet": [{"aaxis": {"endlinecolor": "#2a3f5f", "gridcolor": "white", "linecolor": "white", "minorgridcolor": "white", "startlinecolor": "#2a3f5f"}, "baxis": {"endlinecolor": "#2a3f5f", "gridcolor": "white", "linecolor": "white", "minorgridcolor": "white", "startlinecolor": "#2a3f5f"}, "type": "carpet"}], "table": [{"cells": {"fill": {"color": "#EBF0F8"}, "line": {"color": "white"}}, "header": {"fill": {"color": "#C8D4E3"}, "line": {"color": "white"}}, "type": "table"}], "barpolar": [{"marker": {"line": {"color": "#E5ECF6", "width": 0.5}, "pattern": {"fillmode": "overlay", "size": 10, "solidity": 0.2}}, "type": "barpolar"}], "pie": [{"automargin": true, "type": "pie"}]}, "layout": {"autotypenumbers": "strict", "colorway": ["#636efa", "#EF553B", "#00cc96", "#ab63fa", "#FFA15A", "#19d3f3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"], "font": {"color": "#2a3f5f"}, "hovermode": "closest", "hoverlabel": {"align": "left"}, "paper_bgcolor": "white", "plot_bgcolor": "#E5ECF6", "polar": {"bgcolor": "#E5ECF6", "angularaxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}, "radialaxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}}, "ternary": {"bgcolor": "#E5ECF6", "aaxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}, "baxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}, "caxis": {"gridcolor": "white", "linecolor": "white", "ticks": ""}}, "coloraxis": {"colorbar": {"outlinewidth": 0, "ticks": ""}}, "colorscale": {"sequential": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]], "sequentialminus": [[0.0, "#0d0887"], [0.1111111111111111, "#46039f"], [0.2222222222222222, "#7201a8"], [0.3333333333333333, "#9c179e"], [0.4444444444444444, "#bd3786"], [0.5555555555555556, "#d8576b"], [0.6666666666666666, "#ed7953"], [0.7777777777777778, "#fb9f3a"], [0.8888888888888888, "#fdca26"], [1.0, "#f0f921"]], "diverging": [[0, "#8e0152"], [0.1, "#c51b7d"], [0.2, "#de77ae"], [0.3, "#f1b6da"], [0.4, "#fde0ef"], [0.5, "#f7f7f7"], [0.6, "#e6f5d0"], [0.7, "#b8e186"], [0.8, "#7fbc41"], [0.9, "#4d9221"], [1, "#276419"]]}, "xaxis": {"gridcolor": "white", "linecolor": "white", "ticks": "", "title": {"standoff": 15}, "zerolinecolor": "white", "automargin": true, "zerolinewidth": 2}, "yaxis": {"gridcolor": "white", "linecolor": "white", "ticks": "", "title": {"standoff": 15}, "zerolinecolor": "white", "automargin": true, "zerolinewidth": 2}, "scene": {"xaxis": {"backgroundcolor": "#E5ECF6", "gridcolor": "white", "linecolor": "white", "showbackground": true, "ticks": "", "zerolinecolor": "white", "gridwidth": 2}, "yaxis": {"backgroundcolor": "#E5ECF6", "gridcolor": "white", "linecolor": "white", "showbackground": true, "ticks": "", "zerolinecolor": "white", "gridwidth": 2}, "zaxis": {"backgroundcolor": "#E5ECF6", "gridcolor": "white", "linecolor": "white", "showbackground": true, "ticks": "", "zerolinecolor": "white", "gridwidth": 2}}, "shapedefaults": {"line": {"color": "#2a3f5f"}}, "annotationdefaults": {"arrowcolor": "#2a3f5f", "arrowhead": 0, "arrowwidth": 1}, "geo": {"bgcolor": "white", "landcolor": "#E5ECF6", "subunitcolor": "white", "showland": true, "showlakes": true, "lakecolor": "white"}, "title": {"x": 0.05}, "mapbox": {"style": "light"}}}, "yaxis": {"tickmode": "array", "tickvals": [0, 1, 2, 3, 4, 5, 6, 7, 8], "ticktext": ["<b>Mean</b>", "<b>Max</b>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv_uniform\">b.georgedeane.terrain_multienv_uniform:v25</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv_unstable_pretrained_mb3\">b.georgedeane.terrain_multienv_unstable_pretrained_mb3:v1</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv_stable_pretrained_mb4\">b.georgedeane.terrain_multienv_stable_pretrained_mb4:v0</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv_homogenous_pretrained\">b.georgedeane.terrain_multienv_homogenous_pretrained:v6</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv\">b.georgedeane.terrain_multienv:v49</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/b.georgedeane.terrain_multienv_fromscratch\">b.georgedeane.terrain_multienv_fromscratch:v12</a>", "<a href=\"https://wandb.ai/metta-research/metta/runs/terrain_multienv_3_single_agent\">terrain_multienv_3_single_agent:v63</a>"]}, "xaxis": {"tickangle": -45}, "margin": {"l": 50, "r": 50, "t": 50, "b": 100}, "title": {"text": "Episode reward Policy\u2011Evaluation Matrix"}, "height": 650, "width": 900, "plot_bgcolor": "white", "showlegend": false, "meta": {"eval_image_map": {"Overall": "", "varied_terrain_all_dense_big": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_big.png", "varied_terrain_all_dense_small": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_dense_small.png", "varied_terrain_all_sparse_big": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_big.png", "varied_terrain_all_sparse_small": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_all_sparse_small.png", "varied_terrain_balanced_big": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_big.png", "varied_terrain_balanced_small": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_balanced_small.png", "varied_terrain_sparse_altars_dense_objects_big": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_big.png", "varied_terrain_sparse_altars_dense_objects_small": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_altars_dense_objects_small.png", "varied_terrain_sparse_objects_dense_altars_big": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_big.png", "varied_terrain_sparse_objects_dense_altars_small": "https://softmax-public.s3.amazonaws.com/policydash/evals/img/varied_terrain_sparse_objects_dense_altars_small.png"}}, "shapes": [{"fillcolor": "rgba(0,0,0,0)", "layer": "above", "line": {"color": "rgba(0,0,0,0.45)", "dash": "dash", "width": 2}, "type": "rect", "x0": -0.5, "x1": 10.5, "y0": -0.5, "y1": 1.5}]}};
+  const el = document.getElementById("heat_5d38d881");
+  const imgs = fig.layout.meta.eval_image_map;
+  const evalNames = ["Overall", "varied_terrain_all_dense_big", "varied_terrain_all_dense_small", "varied_terrain_all_sparse_big", "varied_terrain_all_sparse_small", "varied_terrain_balanced_big", "varied_terrain_balanced_small", "varied_terrain_sparse_altars_dense_objects_big", "varied_terrain_sparse_altars_dense_objects_small", "varied_terrain_sparse_objects_dense_altars_big", "varied_terrain_sparse_objects_dense_altars_small"];
+  
+  // Track if the mouse is over the heatmap
+  let isMouseOverHeatmap = false;
+  el.addEventListener('mouseenter', function() {
+    isMouseOverHeatmap = true;
+  });
+  el.addEventListener('mouseleave', function() {
+    isMouseOverHeatmap = false;
+    setTimeout(() => {
+      if (!isMouseOverHeatmap && !isMouseOverMap) {
+        hideMap();
+      }
+    }, 100);
+  });
+
+  
+const mapPanel = document.getElementById("heat_5d38d881_map");
+const mapTitle = document.getElementById("heat_5d38d881_map_title");
+const mapImg = document.getElementById("heat_5d38d881_map_img");
+const mapPlaceholder = document.getElementById("heat_5d38d881_map_placeholder");
+let currentDisplayedEvalName = null;
+let isMouseOverMap = false;
+
+// Track when mouse enters/leaves the map viewer
+mapPanel.addEventListener('mouseenter', function() {
+    isMouseOverMap = true;
+});
+
+mapPanel.addEventListener('mouseleave', function() {
+    isMouseOverMap = false;
+});
+
+function showMap(name, title) {
+  if (name.toLowerCase() === "overall") return;
+  
+  // Store the currently displayed evaluation name
+  currentDisplayedEvalName = name;
+  
+  const url = imgs[name] || "";
+  
+  // Show only the eval name in the title (ignore the policy part)
+  mapTitle.textContent = name;
+  
+  if (url) {
+    mapImg.src = url;
+    mapImg.style.display = "block";
+    mapPlaceholder.style.display = "none";
+  } else {
+    mapImg.style.display = "none";
+    mapPlaceholder.textContent = "No map available for " + name;
+    mapPlaceholder.style.display = "block";
+  }
+}
+
+function hideMap() {
+  // Only hide if we're not hovering over the map panel itself
+  if (isMouseOverMap) {
+    return;
+  }
+  
+  // Reset the current displayed evaluation name
+  currentDisplayedEvalName = null;
+  
+  mapImg.style.display = "none";
+  mapPlaceholder.textContent = "Hover over an evaluation name or cell to see the map";
+  mapPlaceholder.style.display = "block";
+}
+
+
+  Plotly.newPlot(el, fig.data, fig.layout)
+        .then(() => {
+          setTimeout(attachAxisHover, 500); // Ensure DOM is fully rendered
+          attachHeatmapHover();
+        });
+
+  /* ------------------------------------------------ axis‑label hover ----- */
+  function attachAxisHover() {
+    // Get all x-axis tick labels
+    const ticks = el.querySelectorAll(".xaxislayer-above .xtick text");
+    
+    // Enhanced event binding for axis labels
+    ticks.forEach((tick, i) => {
+        if (i >= evalNames.length) return; // Safety check
+        const evalName = evalNames[i];
+        if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+        
+        // Make sure these elements have proper cursor and pointer events
+        tick.style.pointerEvents = "all";
+        tick.style.cursor = "pointer";
+        
+        // Add multiple event handlers for redundancy
+        tick.addEventListener('click', () => showMap(evalName));
+        tick.addEventListener('mouseenter', () => showMap(evalName));
+        tick.addEventListener('mouseover', () => showMap(evalName));
+        
+        // Add a data attribute for easier debugging
+        tick.setAttribute('data-eval-name', evalName);
+    });
+    
+    // Add a click handler to the entire axis as a fallback
+    const xAxis = el.querySelector('.xaxislayer-above');
+    if (xAxis) {
+      xAxis.addEventListener('click', function(e) {
+        // Find the closest tick text element
+        const target = e.target.closest('.xtick text');
+        if (target && target.hasAttribute('data-eval-name')) {
+          showMap(target.getAttribute('data-eval-name'));
+        }
+      });
+    }
+  }
+
+  /* ------------------------------------------------ heatmap cell hover --- */
+  function attachHeatmapHover() {
+    el.on('plotly_hover', function(data) {
+      const pts = data.points[0];
+      const evalName = pts.x;
+      if (evalName.toLowerCase() === "overall") return;  // skip aggregate
+      showMap(evalName);
+    });
+    
+    // Only trigger unhover when we're sure we've left both the heatmap and the map viewer
+    el.on('plotly_unhover', function() {
+      setTimeout(() => {
+        if (!isMouseOverHeatmap && !isMouseOverMap) {
+          hideMap();
+        }
+      }, 100);
+    });
+  }
+})();
+</script>
+
+  </div>
+</body>
+</html>
