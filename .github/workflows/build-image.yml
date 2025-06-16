@@ -5,11 +5,13 @@ on:
   push:
     branches:
       - main
+      - ci-docker # for testing
 
 env:
   AWS_ACCOUNT_ID: 751442549699
+  AWS_REGION: us-east-1
   REGISTRY: 751442549699.dkr.ecr.us-east-1.amazonaws.com
-  IMAGE_NAME: mettaai/metta-ci
+  IMAGE_NAME: mettaai/metta-ci # TODO: change to mettaai/metta
   REGISTRY_USERNAME: AWS
 
 jobs:
@@ -27,7 +29,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -35,11 +37,13 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804
+        uses: docker/metadata-action@v5.7.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=sha
             type=sha,format=long
+            type=ref,event=pr
             type=ref,event=branch
 
       - name: Set up Docker Buildx
