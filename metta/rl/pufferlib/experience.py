@@ -169,37 +169,6 @@ class Experience:
         """Reset the importance sampling ratio to 1.0."""
         self.ratio.fill_(1.0)
 
-    def compute_advantages(
-        self,
-        gamma: float,
-        gae_lambda: float,
-        vtrace_rho_clip: float = 1.0,
-        vtrace_c_clip: float = 1.0,
-        average_reward: float = 0.0,
-        use_average_reward: bool = False,
-    ) -> Tensor:
-        """Compute advantages using the pufferlib kernel."""
-        advantages = torch.zeros_like(self.values)
-
-        # Adjust rewards and gamma for average reward formulation
-        rewards = self.rewards - average_reward if use_average_reward else self.rewards
-        gamma = 1.0 if use_average_reward else gamma
-
-        # Compute advantages using pufferlib kernel
-        torch.ops.pufferlib.compute_puff_advantage(
-            self.values,
-            rewards,
-            self.dones,
-            self.ratio,
-            advantages,
-            gamma,
-            gae_lambda,
-            vtrace_rho_clip,
-            vtrace_c_clip,
-        )
-
-        return advantages
-
     def sample_minibatch(
         self,
         advantages: Tensor,
@@ -247,11 +216,6 @@ class Experience:
     def get_mean_reward(self) -> float:
         """Get mean reward from the buffer."""
         return self.rewards.mean().item()
-
-    @property
-    def full(self) -> bool:
-        """Check if buffer has enough data for training (matches main branch interface)."""
-        return self.full_rows >= self.segments
 
     @property
     def ready_for_training(self) -> bool:
