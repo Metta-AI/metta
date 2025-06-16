@@ -246,7 +246,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # debug
         lap_times["parent"] = wall_time_for_lap - sum(lap_times.values())
-        lap_times["global"] = wall_time_for_lap
+        lap_times["total"] = wall_time_for_lap
 
         infos["timing"] = {
             **{f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0 for op, elapsed in elapsed_times.items()},

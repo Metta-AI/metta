@@ -757,7 +757,7 @@ class PufferTrainer:
 
         timing_stats = {
             **{
-                f"timing_lap/fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                f"timing_per_epoch/fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
             **{
