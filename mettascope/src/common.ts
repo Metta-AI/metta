@@ -49,6 +49,7 @@ export const ui = {
   mouseDoubleClick: false,
   mousePos: new Vec2f(0, 0),
   mouseTarget: "",
+  mouseTargets: [] as string[],
   dragging: "",
   dragHtml: null as HTMLElement | null,
   dragOffset: new Vec2f(0, 0),

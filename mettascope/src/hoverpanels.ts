@@ -111,6 +111,12 @@ export function updateHoverPanel(object: any) {
   findIn(hoverPanel, ".close").classList.add("hidden");
 }
 
+/** Hides the hover panel. */
+export function hideHoverPanel() {
+  ui.delayedHoverObject = null;
+  hoverPanel.classList.add("hidden");
+}
+
 /** Update the dom tree of the info panel. */
 function updateDom(htmlPanel: HTMLElement, object: any) {
   // Update the readout.
