@@ -25,7 +25,7 @@ public:
   }
 
   size_t append_tokens_if_room_available(ObservationTokens tokens,
-                                         std::vector<PartialObservationToken> tokens_to_append,
+                                         const std::vector<PartialObservationToken>& tokens_to_append,
                                          uint8_t location) {
     size_t tokens_to_write = std::min(tokens.size(), tokens_to_append.size());
     for (size_t i = 0; i < tokens_to_write; i++) {
