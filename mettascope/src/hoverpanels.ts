@@ -92,6 +92,13 @@ hoverPanel.addEventListener("mousedown", (e: MouseEvent) => {
 /** Update the hover panel, visibility and position, and dom tree. */
 export function updateHoverPanel(object: any) {
   if (object !== null && object !== undefined) {
+    let typeName = state.replay.object_types[getAttr(object, "type")];
+    if (typeName == "wall") {
+      // Don't show hover panel for walls.
+      hoverPanel.classList.add("hidden");
+      return;
+    }
+
     updateDom(hoverPanel, object);
     hoverPanel.classList.remove("hidden");
 
