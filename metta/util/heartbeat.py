@@ -15,7 +15,6 @@ def record_heartbeat() -> None:
         try:
             with open(heartbeat_file_path, "w") as f:
                 f.write(str(time.time()))
-                print(f"Heartbeat recorded at {time.time()}")
         except Exception as exc:
             logger.warning("Failed to write heartbeat: %s", exc)
 
