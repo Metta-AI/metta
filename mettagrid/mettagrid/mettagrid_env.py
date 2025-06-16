@@ -197,7 +197,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
 
         infos = {}
-        if self.terminals.all() or self.truncations.all():
+        if (self.terminals.all() or self.truncations.all()) and not self._should_reset:
             if self._task.env_cfg().game.diversity_bonus.enabled:
                 self.rewards *= calculate_diversity_bonus(
                     self._c_env.get_episode_rewards(),
@@ -207,8 +207,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 )
 
             self.process_episode_stats(infos)
-            self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
+            self._should_reset = True
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
@@ -216,13 +216,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def close(self):
         pass
 
-    @with_instance_timer("process_episode_stats")
     def process_episode_stats(self, infos: Dict[str, Any]):
+        self.timer.start("process_episode_stats")
+
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 
-        init_time = self.timer.get_last_elapsed("_initialize_c_env")
+        init_time = self.timer.get_elapsed("_initialize_c_env")
 
         infos.update(
             {
@@ -238,23 +239,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
-
-        elapsed_times = self.timer.get_all_elapsed()
-        wall_time = self.timer.get_elapsed()
-        lap_times = self.timer.lap_all(self._steps)
-        wall_time_for_lap = lap_times.pop("global", 0)
-
-        # debug
-        lap_times["parent"] = wall_time_for_lap - sum(lap_times.values())
-        lap_times["total"] = wall_time_for_lap
-
-        infos["timing"] = {
-            **{f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0 for op, elapsed in elapsed_times.items()},
-            **{
-                f"lap_fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
-                for op, lap_elapsed in lap_times.items()
-            },
-        }
 
         infos["game"] = stats["game"]
         infos["agent"] = {}
@@ -273,14 +257,14 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         if self._stats_writer:
             assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-            attributes = {
-                "seed": self._current_seed,
-                "map_w": self.map_width,
-                "map_h": self.map_height,
+            attributes: dict[str, str] = {
+                "seed": str(self._current_seed),
+                "map_w": str(self.map_width),
+                "map_h": str(self.map_height),
             }
 
             for k, v in unroll_nested_dict(OmegaConf.to_container(self._task.env_cfg(), resolve=False)):
-                attributes[f"config.{k.replace('/', '.')}"] = str(v)
+                attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
 
             agent_metrics = {}
             for agent_idx, agent_stats in enumerate(stats["agent"]):
@@ -295,16 +279,27 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
             }
 
-            with self.timer("record_episode"):
-                self._stats_writer.record_episode(
-                    self._episode_id,
-                    attributes,
-                    agent_metrics,
-                    agent_groups,
-                    self.max_steps,
-                    replay_url,
-                    self._reset_at,
-                )
+            self.timer.stop("process_episode_stats")
+
+            elapsed_times = self.timer.get_all_elapsed()
+            wall_time = self.timer.get_elapsed()
+            infos["timing"] = {
+                **{
+                    f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
+                    for op, elapsed in elapsed_times.items()
+                },
+            }
+
+            self._stats_writer.record_episode(
+                self._episode_id,
+                attributes,
+                agent_metrics,
+                agent_groups,
+                self.max_steps,
+                replay_url,
+                self._reset_at,
+            )
+
         self._episode_id = None
 
     @property
