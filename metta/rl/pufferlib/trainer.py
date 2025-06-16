@@ -527,11 +527,9 @@ class PufferTrainer:
                     config.get("vtrace_c_clip", 1.0),
                 )
 
-                # Normalize advantages with prioritized weights
-                if config.get("norm_adv", True):
-                    adv = minibatch["prio_weights"] * (adv - adv.mean()) / (adv.std() + 1e-8)
-                else:
-                    adv = minibatch["prio_weights"] * adv
+                # Normalize advantages with distributed support, then apply prioritized weights
+                adv = self._normalize_advantage_distributed(adv)
+                adv = minibatch["prio_weights"] * adv
 
                 # Policy loss
                 pg_loss1 = -adv * ratio
@@ -577,6 +575,9 @@ class PufferTrainer:
                 )
 
                 experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
+
+                if self.losses is None:
+                    raise ValueError("self.losses is None")
 
                 # Update loss tracking for logging
                 self.losses.policy_loss += pg_loss.item() / self._total_minibatches
@@ -839,6 +840,37 @@ class PufferTrainer:
             advantages.copy_(advantages_cpu.to(device))
 
         return advantages
+
+    def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
+        """Normalize advantages with distributed training support while preserving shape."""
+        if not self.trainer_cfg.get("norm_adv", True):
+            return adv
+
+        if torch.distributed.is_initialized():
+            # Compute local statistics
+            original_shape = adv.shape
+            adv_flat = adv.view(-1)
+            local_sum = adv_flat.sum()
+            local_sq_sum = (adv_flat * adv_flat).sum()
+            local_count = torch.tensor([adv_flat.numel()], dtype=adv.dtype, device=adv.device)
+
+            # Combine statistics for single all_reduce
+            stats = torch.stack([local_sum, local_sq_sum, local_count])
+            torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
+
+            # Extract global statistics
+            global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
+            global_mean = global_sum / global_count
+            global_var = (global_sq_sum / global_count) - (global_mean * global_mean)
+            global_std = torch.sqrt(global_var.clamp(min=1e-8))
+
+            # Normalize and reshape back
+            adv = (adv - global_mean) / (global_std + 1e-8)
+        else:
+            # Local normalization
+            adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+
+        return adv
 
     def close(self):
         self.vecenv.close()
