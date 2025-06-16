@@ -22,6 +22,7 @@ import numpy as np
 from omegaconf import DictConfig
 
 from mettagrid.room.room import Room
+from mettagrid.room.utils import shuffled_product
 
 
 class VariedTerrain(Room):
@@ -187,23 +188,32 @@ class VariedTerrain(Room):
         p_h, p_w = pattern.shape
         self._occupancy[r : r + p_h, c : c + p_w] |= pattern != "empty"
 
-    def _find_candidates(self, region_shape: Tuple[int, int]) -> List[Tuple[int, int]]:
+    def _find_candidate(self, region_shape: Tuple[int, int]) -> Optional[Tuple[int, int]]:
         """
         Efficiently finds candidate top-left positions where a subregion of shape 'region_shape'
         is completely empty using a sliding window approach on the occupancy mask.
         """
         r_h, r_w = region_shape
         H, W = self._occupancy.shape
-        if H < r_h or W < r_w:
-            return []
-        # Create a view of all submatrices of shape (r_h, r_w)
-        shape = (H - r_h + 1, W - r_w + 1, r_h, r_w)
-        strides = self._occupancy.strides * 2
-        submats = np.lib.stride_tricks.as_strided(self._occupancy, shape=shape, strides=strides)
-        # Sum over each submatrix; candidate if sum == 0 (i.e., completely empty)
-        window_sums = submats.sum(axis=(2, 3))
-        candidates = np.argwhere(window_sums == 0)
-        return [tuple(idx) for idx in candidates]
+        # try to get lucky, if we're sparse
+        for i in range(10):
+            r = self._rng.integers(0, H - r_h + 1)
+            c = self._rng.integers(0, W - r_w + 1)
+            if not self._occupancy[r:r+r_h, c:c+r_w].any():
+                return (r, c)
+        # if we're not lucky, we need to do the full search. Try to do this efficiently.
+        cumulative_occupancy = self._occupancy.cumsum(axis=0).cumsum(axis=1)
+        # Add row and column of zeros at top and left
+        cumulative_occupancy = np.pad(cumulative_occupancy, ((1, 0), (1, 0)), mode='constant', constant_values=0)
+        # The shuffled_product is lazy, so we'll only calculate as much as we need to
+        positions = [(r, c) for r in range(H - r_h + 1) for c in range(W - r_w + 1)]
+        np.random.shuffle(positions)
+        # for r, c in shuffled_product(range(H - r_h + 1), range(W - r_w + 1)):
+        for r, c in positions:
+            # num_guesses += 1
+            if cumulative_occupancy[r+r_h, c+r_w] - cumulative_occupancy[r, c+r_w] - cumulative_occupancy[r+r_h, c] + cumulative_occupancy[r, c] == 0:
+                return (r, c)
+        return None
 
     def _choose_random_empty(self) -> Optional[Tuple[int, int]]:
         """
@@ -222,9 +232,9 @@ class VariedTerrain(Room):
         """
         p_h, p_w = pattern.shape
         eff_h, eff_w = p_h + 2 * clearance, p_w + 2 * clearance
-        candidates = self._find_candidates((eff_h, eff_w))
-        if candidates:
-            r, c = candidates[self._rng.integers(0, len(candidates))]
+        candidate = self._find_candidate((eff_h, eff_w))
+        if candidate:
+            r, c = candidate
             # Place pattern with clearance offset.
             grid[r + clearance : r + clearance + p_h, c + clearance : c + clearance + p_w] = pattern
             self._update_occupancy((r + clearance, c + clearance), pattern)
@@ -238,9 +248,9 @@ class VariedTerrain(Room):
         labyrinth_count = self._labyrinths.get("count", 0)
         for _ in range(labyrinth_count):
             pattern = self._generate_labyrinth_pattern()
-            candidates = self._find_candidates(pattern.shape)
-            if candidates:
-                r, c = candidates[self._rng.integers(0, len(candidates))]
+            candidate = self._find_candidate(pattern.shape)
+            if candidate:
+                r, c = candidate
                 grid[r : r + pattern.shape[0], c : c + pattern.shape[1]] = pattern
                 self._update_occupancy((r, c), pattern)
         return grid
@@ -265,9 +275,9 @@ class VariedTerrain(Room):
         crosses_count = self._crosses.get("count", 0)
         for _ in range(crosses_count):
             pattern = self._generate_cross_pattern()
-            candidates = self._find_candidates(pattern.shape)
-            if candidates:
-                r, c = candidates[self._rng.integers(0, len(candidates))]
+            candidate = self._find_candidate(pattern.shape)
+            if candidate:
+                r, c = candidate
                 grid[r : r + pattern.shape[0], c : c + pattern.shape[1]] = pattern
                 self._update_occupancy((r, c), pattern)
         return grid
@@ -295,9 +305,9 @@ class VariedTerrain(Room):
         for _ in range(block_count):
             block_w = self._rng.integers(2, 15)  # 2 to 14 inclusive.
             block_h = self._rng.integers(2, 15)
-            candidates = self._find_candidates((block_h, block_w))
-            if candidates:
-                r, c = candidates[self._rng.integers(0, len(candidates))]
+            candidate = self._find_candidate((block_h, block_w))
+            if candidate:
+                r, c = candidate
                 grid[r : r + block_h, c : c + block_w] = "wall"
                 block_pattern = np.full((block_h, block_w), "wall", dtype=object)
                 self._update_occupancy((r, c), block_pattern)
