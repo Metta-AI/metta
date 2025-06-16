@@ -223,7 +223,7 @@ class PufferTrainer:
 
             # set up plots that do not use steps as the x-axis
             metric_definitions = [
-                ("overview/reward_vs_wall_time", "metric/total_time"),
+                ("overview/reward_vs_total_time", "metric/total_time"),
                 ("overview/reward_vs_train_time", "metric/train_time"),
                 ("overview/reward_vs_epoch", "metric/epoch"),
             ]
@@ -740,7 +740,6 @@ class PufferTrainer:
                     if key != "name":
                         weight_metrics[f"weights/{key}/{name}"] = value
 
-        # Calculate timing metrics
         elapsed_times = self.timer.get_all_elapsed()
         wall_time = self.timer.get_elapsed()
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
@@ -753,37 +752,31 @@ class PufferTrainer:
             "metric/train_time": train_time,
         }
 
-        # Lap timing calculations
         lap_times = self.timer.lap_all(self.agent_step)
-        delta_steps = self.timer.get_lap_steps()
-        if delta_steps is None:
-            delta_steps = self.agent_step
-
         wall_time_for_lap = lap_times.pop("global", 0)
 
-        # Timing logs
         timing_stats = {
-            "timing/training_efficiency": train_time / wall_time if wall_time > 0 else 0,
             **{
-                f"timing/lap_fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                f"timing_lap/fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
             **{
-                f"timing/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
+                f"timing_cumulative/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
                 for op, elapsed in elapsed_times.items()
             },
         }
 
-        # Calculate rates
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+        delta_steps = self.timer.get_lap_steps()
+        if delta_steps is None:
+            delta_steps = self.agent_step
         lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
-        # Overview metrics
         overview = {
             "sps": steps_per_second,
             "lap_sps": lap_steps_per_second,
             "reward": self.mean_reward,
-            "reward_vs_wall_time": self.mean_reward,
+            "reward_vs_total_time": self.mean_reward,
             "reward_vs_train_time": self.mean_reward,
             "reward_vs_epoch": self.mean_reward,
         }
@@ -793,7 +786,10 @@ class PufferTrainer:
             if k in self.stats:
                 overview[v] = self.stats[k]
 
-        # Add evaluation scores
+        # Add filtered average reward if applicable
+        if self.trainer_cfg.average_reward:
+            overview["filtered_mean_reward"] = self.filtered_mean_reward
+
         for category in self._eval_categories:
             score = self._eval_suite_avgs.get(f"{category}_score", None)
             if score is not None:
@@ -816,10 +812,6 @@ class PufferTrainer:
             loss_stats.pop("ks_value_loss")
 
         environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
-
-        # Add filtered average reward if applicable
-        if self.trainer_cfg.average_reward:
-            overview["filtered_mean_reward"] = self.filtered_mean_reward
 
         # Log everything to wandb
         self.wandb_run.log(
