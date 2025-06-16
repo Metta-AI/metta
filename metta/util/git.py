@@ -12,9 +12,20 @@ def run_git(*args: str) -> str:
         result = subprocess.run(["git", *args], capture_output=True, text=True, check=True)
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        if e.returncode == 129:
-            raise GitError(f"Malformed git command or bad object: {e.stderr.strip()}") from e
         raise GitError(f"Git command failed ({e.returncode}): {e.stderr.strip()}") from e
+    except FileNotFoundError as e:
+        raise GitError("Git is not installed!") from e
+
+
+def run_gh(*args: str) -> str:
+    """Run a GitHub CLI command and return its output."""
+    try:
+        result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        raise GitError(f"GitHub CLI command failed ({e.returncode}): {e.stderr.strip()}") from e
+    except FileNotFoundError as e:
+        raise GitError("GitHub CLI (gh) is not installed!") from e
 
 
 def get_current_branch() -> str:
@@ -72,17 +83,6 @@ def validate_git_ref(ref: str) -> str | None:
     except GitError:
         return None
     return commit_hash
-
-
-def run_gh(*args: str) -> str:
-    """Run a GitHub CLI command and return its output."""
-    try:
-        result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True)
-        return result.stdout.strip()
-    except subprocess.CalledProcessError as e:
-        raise GitError(f"GitHub CLI command failed ({e.returncode}): {e.stderr.strip()}") from e
-    except FileNotFoundError as e:
-        raise GitError("GitHub CLI (gh) is not installed!") from e
 
 
 def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
