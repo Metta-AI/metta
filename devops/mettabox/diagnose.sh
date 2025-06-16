@@ -3,7 +3,7 @@
 # This script gathers logs and crash-related data from the previous boot
 # and packages everything into a tarball for offline inspection.
 #
-# Usage: Run as root (e.g., sudo ./gather_crash_info.sh). It will:
+# Usage: Run as root (e.g., sudo ./diagnose.sh). It will:
 #   1. Ensure systemd-journald persistence is enabled.
 #   2. Identify the previous boot (“-1”).
 #   3. Dump the full journal of the previous boot and filter for common errors.
