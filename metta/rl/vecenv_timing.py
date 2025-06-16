@@ -12,10 +12,11 @@ class TimedVecenv:
         self._vecenv = vecenv
         self._timer = timer
         self._in_user_code = False
+        self._overhead_timer_running = False
 
         # Start timing overhead immediately - we're in "framework" code
         # until we enter one of our wrapped methods
-        self._timer.start("pufferlib_overhead")
+        self._start_overhead_timer()
 
     def __getattr__(self, name: str) -> Any:
         """Delegate all non-overridden attributes to the wrapped vecenv.
@@ -91,10 +92,11 @@ class TimedVecenv:
             with self._timer("vecenv.close"):
                 return self._vecenv.close()
         finally:
-            # Stop overhead timer permanently on close
-            overhead_timer = self._timer._get_timer("pufferlib_overhead")
-            if overhead_timer.is_running():
-                self._timer.stop("pufferlib_overhead")
+            # Don't call _exit_user_code() since we're shutting down
+            # Just reset the state flags
+            self._in_user_code = False
+            # Overhead timer is already stopped by _enter_user_code()
+            self._overhead_timer_running = False
 
     def notify(self) -> None:
         """Notify the environment (used for async coordination)."""
@@ -105,15 +107,27 @@ class TimedVecenv:
         finally:
             self._exit_user_code()
 
+    def _start_overhead_timer(self) -> None:
+        """Start the overhead timer if not already running."""
+        assert not self._overhead_timer_running
+        self._timer.start("pufferlib_overhead")
+        self._overhead_timer_running = True
+
+    def _stop_overhead_timer(self) -> None:
+        """Stop the overhead timer if running."""
+        assert self._overhead_timer_running
+        self._timer.stop("pufferlib_overhead")
+        self._overhead_timer_running = False
+
     def _enter_user_code(self) -> None:
         """Stop overhead timer when entering vecenv methods.
 
         This is called at the start of each wrapped method to pause
         the overhead timer while we're executing vecenv code.
         """
-        if not self._in_user_code:
-            self._timer.stop("pufferlib_overhead")
-            self._in_user_code = True
+        assert not self._in_user_code
+        self._stop_overhead_timer()
+        self._in_user_code = True
 
     def _exit_user_code(self) -> None:
         """Restart overhead timer when exiting vecenv methods.
@@ -121,6 +135,6 @@ class TimedVecenv:
         This is called at the end of each wrapped method to resume
         the overhead timer when we return to framework code.
         """
-        if self._in_user_code:
-            self._timer.start("pufferlib_overhead")
-            self._in_user_code = False
+        assert self._in_user_code
+        self._in_user_code = False
+        self._start_overhead_timer()
