@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: observatory-backend
+  namespace: observatory
+spec:
+  selector:
+    app: observatory-backend
+  ports:
+    - port: 8000
+      targetPort: 8000
