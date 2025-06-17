@@ -1,15 +1,20 @@
 let
   pkgs = import (fetchTarball {
     url = "https://nixos.org/channels/nixos-24.11/nixexprs.tar.xz";
+    sha256 = "1a6qqh62vcl61x07s26jxrqjq725v49qrg4w5bzwk1mh73sx6iy9";
   }) {
     config.allowUnfree = true;
   };
 
   flake-compat = import (fetchTarball {
     url = "https://github.com/edolstra/flake-compat/archive/master.tar.gz";
+    sha256 = "09m84vsz1py50giyfpx0fpc7a4i0r1xsb54dh0dpdg308lp4p188";
   });
   nixpkgs-python = (flake-compat {
-    src = fetchTarball "https://github.com/cachix/nixpkgs-python/archive/master.tar.gz";
+    src = fetchTarball {
+      url = "https://github.com/cachix/nixpkgs-python/archive/master.tar.gz";
+      sha256 = "12pdyv8pf99jdp7aw7x1qgd6ralg1j6dd6k79cr1xbfmb2fz10lj";
+    };
   }).defaultNix;
   mettaPython = nixpkgs-python.packages.x86_64-linux."3.11.7";
 in
