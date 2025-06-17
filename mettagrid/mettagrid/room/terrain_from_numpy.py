@@ -133,7 +133,7 @@ class TerrainFromNumpy(Room):
         self.set_size_labels(width, height)
 
         # remove agents to then repopulate
-        level[level == "agent.agent"] = "empty"
+        level[level != "wall"] = "empty"
 
         # 3. Prepare agent labels
         if isinstance(self._agents, int):

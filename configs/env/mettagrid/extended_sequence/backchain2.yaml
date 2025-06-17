@@ -26,35 +26,28 @@ game:
 
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
+    num_rooms: ${..num_agents}
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:12,25,15}
-      height: ${sampling:12,25,15}
+      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: ${sampling:1,6,3}
       agents: 1
-      style: all-sparse
-
+      dir: ${choose:varied_terrain/sparse_small,varied_terrain/balanced_small,varied_terrain/dense_small}
       objects:
-        altar: ${sampling:1,2,3}
+        altar: 2
         mine.red: 0
         generator.red: ${sampling:1,2,3}
-        mine.blue: 0
-        generator.blue: 0
-        mine.green: 0
-        generator.green: 0
   objects:
     altar:
-      cooldown: 10
+      cooldown: ${sampling:15,100,45}
       input_battery.red: 1
       output_heart: 1
       max_output: 1
       conversion_ticks: 1
       initial_items: ${choose:0,0,0,0,0,0,0,0,0,0,1}
     generator.red:
-      cooldown: ${sampling:6,20,3}
+      cooldown: ${sampling:15,100,45}
       input_ore.red: 0
       output_battery.red: 1
       max_output: 1

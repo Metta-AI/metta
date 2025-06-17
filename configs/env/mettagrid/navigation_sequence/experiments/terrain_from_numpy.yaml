@@ -31,9 +31,9 @@ game:
     altar:
       input_battery.red: 1
       initial_items: ${choose:0,0,0,1}
-      cooldown: ${sampling:5, 20, 10}
+      cooldown: 1000
     generator.red:
       initial_items: ${choose:0,0,0,1}
-      cooldown: ${sampling:5, 20, 10}
+      cooldown: 1000
     mine.red:
-      cooldown: ${sampling:15, 50, 10}
+      cooldown: 1000
