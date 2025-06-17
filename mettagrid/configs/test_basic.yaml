@@ -15,7 +15,7 @@ game:
     objects:
       altar: 1
       converter: 3
-      generator: 15
+      generator.red: 15
       wall: 40
 
   num_agents: 5

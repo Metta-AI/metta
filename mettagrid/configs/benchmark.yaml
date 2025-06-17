@@ -22,8 +22,8 @@ game:
       agents: 6
 
       objects:
-        mine: 10
-        generator: 2
+        mine.red: 10
+        generator.red: 2
         altar: 1
         armory: 1
         lasery: 1
