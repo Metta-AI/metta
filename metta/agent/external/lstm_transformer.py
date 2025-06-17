@@ -44,7 +44,11 @@ def token_to_box(token_observations, num_layers, height, width):
 
     # Fill in the box observations
     batch_indices = torch.arange(BT, device=token_observations.device).unsqueeze(-1).expand_as(attr_values)
-    valid_tokens = coords_byte != 0xFF
+
+    # Filter out invalid tokens:
+    # 1. coords_byte != 0xFF (standard invalid token marker)
+    # 2. attr_indices < num_layers (ensure attribute index is within bounds)
+    valid_tokens = (coords_byte != 0xFF) & (attr_indices < num_layers)
 
     box_obs[batch_indices[valid_tokens], attr_indices[valid_tokens], x_coords[valid_tokens], y_coords[valid_tokens]] = (
         attr_values[valid_tokens]
@@ -66,14 +70,23 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         """Forward function for inference. 3x faster than using LSTM directly"""
         # Check if observations are tokens (shape ends with 3)
         if observations.shape[-1] == 3:
+            # Determine the number of layers based on the model architecture
+            # Check the first conv layer's input channels to determine expected observation channels
+            if hasattr(self.policy, "conv_stem"):
+                first_conv = self.policy.conv_stem[0]
+                num_layers = first_conv.in_channels if hasattr(first_conv, "in_channels") else 34
+            else:
+                # Fallback to checking max_vec shape
+                num_layers = self.policy.max_vec.shape[1] if hasattr(self.policy, "max_vec") else 22
+
             # Token observations: convert to box format
             if len(observations.shape) == 3:
                 # Inference: [B, M, 3] -> [B, C, H, W]
-                box_obs = token_to_box(observations, num_layers=34, height=11, width=11)
+                box_obs = token_to_box(observations, num_layers=num_layers, height=11, width=11)
                 x = box_obs.float() / self.policy.max_vec
             else:
                 # Training: [B, T, M, 3] -> [B, T, C, H, W]
-                box_obs = token_to_box(observations, num_layers=34, height=11, width=11)
+                box_obs = token_to_box(observations, num_layers=num_layers, height=11, width=11)
                 x = box_obs.float() / self.policy.max_vec
                 return self.forward_train(x, state)
         else:

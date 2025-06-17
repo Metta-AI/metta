@@ -42,7 +42,11 @@ def token_to_box(token_observations, num_layers, height, width):
 
     # Fill in the box observations
     batch_indices = torch.arange(BT, device=token_observations.device).unsqueeze(-1).expand_as(attr_values)
-    valid_tokens = coords_byte != 0xFF
+
+    # Filter out invalid tokens:
+    # 1. coords_byte != 0xFF (standard invalid token marker)
+    # 2. attr_indices < num_layers (ensure attribute index is within bounds)
+    valid_tokens = (coords_byte != 0xFF) & (attr_indices < num_layers)
 
     box_obs[batch_indices[valid_tokens], attr_indices[valid_tokens], x_coords[valid_tokens], y_coords[valid_tokens]] = (
         attr_values[valid_tokens]

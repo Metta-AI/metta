@@ -104,14 +104,25 @@ class MettaTrainer:
         agent = None
         load_policy_attempts = 10
         while agent is None and load_policy_attempts > 0:
-            if checkpoint.policy_path:
+            # Check if we're explicitly requesting an external PyTorch agent
+            # This should take precedence over existing checkpoints
+            initial_policy_uri = cfg.trainer.initial_policy.uri
+            # Fallback to top-level policy_uri if trainer.initial_policy.uri is not set
+            if initial_policy_uri is None and hasattr(cfg, "policy_uri"):
+                initial_policy_uri = cfg.policy_uri
+
+            if initial_policy_uri is not None and initial_policy_uri.startswith("pytorch://"):
+                logger.info(f"Loading external PyTorch agent from URI: {initial_policy_uri}")
+                # Use the URI directly since policy_store.policy expects a string or config
+                agent = policy_store.policy(initial_policy_uri)
+            elif checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
                 agent = policy_store.policy(checkpoint.policy_path)
                 if "average_reward" in checkpoint.extra_args:
                     self.average_reward = checkpoint.extra_args["average_reward"]
-            elif cfg.trainer.initial_policy.uri is not None:
-                logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
-                agent = policy_store.policy(cfg.trainer.initial_policy)
+            elif initial_policy_uri is not None:
+                logger.info(f"Loading initial policy URI: {initial_policy_uri}")
+                agent = policy_store.policy(initial_policy_uri)
             else:
                 policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
 
@@ -182,7 +193,9 @@ class MettaTrainer:
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
         # For brain models, check that the observation space of a component matches the env
-        if self.metta_agent.model_type == "brain":
+        # External PyTorch agents may expect different observation formats (e.g., non-tokenized)
+        # so we skip validation for them
+        if hasattr(self.metta_agent, "model_type") and self.metta_agent.model_type == "brain":
             found_match = False
             for component_name, component in self.metta_agent.components.items():
                 if hasattr(component, "_obs_shape"):
@@ -203,6 +216,12 @@ class MettaTrainer:
                     "No component with observation shape found in BrainPolicy. "
                     f"Environment observation shape: {environment_shape}"
                 )
+        elif isinstance(self.metta_agent, PytorchAgent):
+            # External PyTorch agents handle their own observation space expectations
+            logger.info(
+                f"External PyTorch agent loaded. Environment provides observations in shape {environment_shape}. "
+                "PyTorch agents handle their own observation space conversion if needed."
+            )
 
         self.lr_scheduler = None
         if self.trainer_cfg.lr_scheduler.enabled:
@@ -211,7 +230,15 @@ class MettaTrainer:
             )
 
         if checkpoint.agent_step > 0 and checkpoint.optimizer_state_dict is not None:
-            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            # Only load optimizer state if we're continuing with the same type of model
+            # to avoid parameter mismatch when switching between BrainPolicy and PyTorch agents
+            try:
+                self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+            except ValueError as e:
+                logger.warning(
+                    f"Could not load optimizer state dict, likely due to model architecture change: {e}. "
+                    "Starting with fresh optimizer state."
+                )
 
         if wandb_run and self._master:
             wandb_run.define_metric("train/agent_step")

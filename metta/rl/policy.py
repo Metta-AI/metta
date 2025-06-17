@@ -76,10 +76,22 @@ class PytorchAgent(nn.Module):
         A more thorough check could compare action names and parameter counts if
         that metadata were available on the Pytorch model.
         """
+        # Try to find the actor module in different locations
+        actor = None
+        if hasattr(self.policy, "actor"):
+            actor = self.policy.actor
+        elif hasattr(self.policy, "policy") and hasattr(self.policy.policy, "actor"):
+            # Handle nested structure like Recurrent -> Policy -> actor
+            actor = self.policy.policy.actor
+
+        if actor is None:
+            logging.warning("Could not find actor module in Pytorch model")
+            return
+
         # Check if actor is a ModuleList or similar container
-        if hasattr(self.policy.actor, "__len__"):
-            num_action_heads = len(self.policy.actor)
-        elif hasattr(self.policy, "actor") and isinstance(self.policy.actor, nn.Module):
+        if hasattr(actor, "__len__"):
+            num_action_heads = len(actor)
+        elif isinstance(actor, nn.Module):
             # If it's a single module, assume 1 action head
             num_action_heads = 1
         else:
