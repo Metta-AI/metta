@@ -49,7 +49,6 @@ class TestStatsServerSimple:
         """Create a stats client for testing."""
         return StatsClient(test_client, user="test_user")
 
-
     def test_complete_workflow(self, stats_client: StatsClient):
         """Test the complete end-to-end workflow."""
 
