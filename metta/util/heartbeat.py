@@ -95,7 +95,10 @@ def _send_wandb_alert_with_timeout(title: str, wandb_ipc_file_path: str | None) 
         except Exception as e:
             is_wandb_specific_error = isinstance(e, wandb.errors.Error)
             (logger.warning if is_wandb_specific_error else logger.error)(
-                f"{'W&B ' if is_wandb_specific_error else 'Unexpected '}error in alert for {log_ctx} (trigger: '{alert_title_arg}'): {type(e).__name__} - {e}",
+                (
+                    f"{'W&B ' if is_wandb_specific_error else 'Unexpected '}error in alert for {log_ctx} "
+                    f"(trigger: '{alert_title_arg}'): {type(e).__name__} - {e}"
+                ),
                 exc_info=not is_wandb_specific_error,
             )
         finally:
