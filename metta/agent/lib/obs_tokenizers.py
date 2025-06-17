@@ -177,7 +177,7 @@ class ObsAttrCoordEmbed(LayerBase):
         atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
 
         # Step 2: Get all embeddings. For now, grad path exists for all of them.
-        embeddings = self._atr_embeds[atr_indices]
+        embeddings = self._atr_embeds(atr_indices)
 
         # Step 3: Create a mask to find where the padding tokens are.
         # The .unsqueeze(-1) adds a dimension to match the embedding dim for broadcasting.
