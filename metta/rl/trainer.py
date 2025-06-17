@@ -627,8 +627,8 @@ class MettaTrainer:
         pr = self._checkpoint_policy()
 
         extra_args = {}
-        if self.kickstarter.teacher_pr is not None:
-            extra_args["teacher_pr_uri"] = self.kickstarter.teacher_pr.uri
+        if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
+            extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
 
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
