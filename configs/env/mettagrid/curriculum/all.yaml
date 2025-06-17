@@ -4,6 +4,6 @@ tasks:
   /env/mettagrid/curriculum/navsequence/navsequence_all: 4
   /env/mettagrid/curriculum/navigation: 2
   /env/mettagrid/curriculum/object_use: 1
-# env_overrides:
-#   game:
-#     num_agents: 12
+env_overrides:
+  game:
+    num_agents: 12
