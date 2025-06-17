@@ -19,8 +19,8 @@ export function drawMiniMap(panel: PanelInfo) {
       Math.round(localMousePos.y() / Common.MINI_MAP_TILE_SIZE)
     )
     ui.mapPanel.panPos = new Vec2f(
-      -miniMapMousePos.x() * Common.TILE_SIZE - state.replay.map_size[0] * Common.TILE_SIZE / 2,
-      -miniMapMousePos.y() * Common.TILE_SIZE - state.replay.map_size[1] * Common.TILE_SIZE / 2
+      -miniMapMousePos.x() * Common.TILE_SIZE - (state.replay.map_size[0] * Common.TILE_SIZE) / 2,
+      -miniMapMousePos.y() * Common.TILE_SIZE - (state.replay.map_size[1] * Common.TILE_SIZE) / 2
     )
     state.followSelection = false
   }
@@ -36,19 +36,19 @@ export function drawMiniMap(panel: PanelInfo) {
     0,
     state.replay.map_size[0] * Common.MINI_MAP_TILE_SIZE,
     state.replay.map_size[1] * Common.MINI_MAP_TILE_SIZE,
-    parseHtmlColor("#E7D4B7")
+    parseHtmlColor('#E7D4B7')
   )
 
   // Draw the grid objects on the minimap.
   for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, "c")
-    const y = getAttr(gridObject, "r")
-    const type = getAttr(gridObject, "type")
+    const x = getAttr(gridObject, 'c')
+    const y = getAttr(gridObject, 'r')
+    const type = getAttr(gridObject, 'type')
     const typeName = state.replay.object_types[type]
-    var color = parseHtmlColor("#FFFFFF")
-    if (typeName === "wall") {
-      color = parseHtmlColor("#61574B")
-    } else if (typeName === "agent") {
+    var color = parseHtmlColor('#FFFFFF')
+    if (typeName === 'wall') {
+      color = parseHtmlColor('#61574B')
+    } else if (typeName === 'agent') {
       continue
     }
     ctx.drawSolidRect(
@@ -62,38 +62,32 @@ export function drawMiniMap(panel: PanelInfo) {
 
   // Draw the agent pips on top.
   for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, "c")
-    const y = getAttr(gridObject, "r")
-    const type = getAttr(gridObject, "type")
+    const x = getAttr(gridObject, 'c')
+    const y = getAttr(gridObject, 'r')
+    const type = getAttr(gridObject, 'type')
     const typeName = state.replay.object_types[type]
-    if (typeName === "agent") {
+    if (typeName === 'agent') {
       ctx.drawSprite(
-        "minimapPip.png",
+        'minimapPip.png',
         x * Common.MINI_MAP_TILE_SIZE + 1,
         y * Common.MINI_MAP_TILE_SIZE + 1,
         [1, 0, 0, 1],
         1,
-        0)
+        0
+      )
       continue
     }
   }
 
   // Draw where the screen is on the minimap.
   const pos = new Vec2f(
-    -ui.mapPanel.panPos.x() / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE,
-    -ui.mapPanel.panPos.y() / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE
+    (-ui.mapPanel.panPos.x() / Common.TILE_SIZE) * Common.MINI_MAP_TILE_SIZE,
+    (-ui.mapPanel.panPos.y() / Common.TILE_SIZE) * Common.MINI_MAP_TILE_SIZE
   )
-  const width = ui.mapPanel.width / ui.mapPanel.zoomLevel / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE
-  const height = ui.mapPanel.height / ui.mapPanel.zoomLevel / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE
+  const width = (ui.mapPanel.width / ui.mapPanel.zoomLevel / Common.TILE_SIZE) * Common.MINI_MAP_TILE_SIZE
+  const height = (ui.mapPanel.height / ui.mapPanel.zoomLevel / Common.TILE_SIZE) * Common.MINI_MAP_TILE_SIZE
 
-  ctx.drawStrokeRect(
-    pos.x() - width / 2,
-    pos.y() - height / 2,
-    width,
-    height,
-    1,
-    [1, 1, 1, 1]
-  )
+  ctx.drawStrokeRect(pos.x() - width / 2, pos.y() - height / 2, width, height, 1, [1, 1, 1, 1])
 
   ctx.restore()
 }
