@@ -75,16 +75,16 @@
 
 # ./devops/skypilot/launch.py train georgedeane.mem_general trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=dd_navigation_curriculum \
 
-# ./devops/skypilot/launch.py train georgedeane.mem_pretrained5 trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=dd_navigation_curriculum \
+#
 
 # New training runs - June 17th
 
 # 1. Navigation curriculum from scratch
-./devops/skypilot/launch.py train run=georgedeane.nav_scratch trainer.curriculum=env/mettagrid/curriculum/navigation \
+./devops/skypilot/launch.py train run=georgedeane.nav_scratch trainer.curriculum=env/mettagrid/curriculum/navigation --skip-git-check \
 
 # 2. Memory mettascope curriculum with daphne.navigation.fromnumpy.skypilot initial policy
-./devops/skypilot/launch.py train run=georgedeane.mem_daphne_init trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=daphne.navigation.fromnumpy.skypilot \
+./devops/skypilot/launch.py train run=georgedeane.mem_daphne_init trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=daphne.navigation.fromnumpy.skypilot --skip-git-check \
 
 # 3. Memory mettascope curriculum with relh.nav.new.42 initial policy
-./devops/skypilot/launch.py train run=georgedeane.mem_relh_init trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=relh.nav.new.42 \
+./devops/skypilot/launch.py train run=georgedeane.mem_relh_init trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=relh.nav.new.42 --skip-git-check \
 
