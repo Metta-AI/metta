@@ -7,21 +7,23 @@ on:
   workflow_dispatch: {}
   schedule:
     - cron: '0 7 * * *' # 7 AM UTC (12 AM PST)
+  push:
+    branches:
+      - ci-docker # for testing
 
 env:
   IMAGE_NAME: metta
 
 jobs:
   build-and-push-image:
+    # the build requires a lot of disk space so we use the large runner
+    # (runner group is configured to be allowed only for this workflow on `main`)
     runs-on: large
     permissions:
       id-token: write
       contents: read
 
     steps:
-      - name: Check disk space
-        run: df -h
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -43,8 +45,6 @@ jobs:
           tags: |
             type=sha
             type=sha,format=long
-            type=ref,event=pr
-            type=ref,event=branch
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Set up Docker Buildx
@@ -59,8 +59,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Check disk space
-        run: df -h
+          # GitHub cache is too slow and has 10Gb limit so they aren't very useful
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
