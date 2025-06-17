@@ -237,28 +237,32 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
   if (_use_observation_tokens) {
-    // We have 4 global tokens.
-    if (_num_observation_tokens < 4) {
-      throw std::runtime_error("We require at least 4 observation tokens for global observations");
-    }
-    size_t attempted_tokens_written = 4;
-    size_t tokens_written = 4;
+    size_t attempted_tokens_written = 0;
+    size_t tokens_written = 0;
     auto observation_view = _observations.mutable_unchecked<3>();
     auto rewards_view = _rewards.unchecked<1>();
 
     // Global tokens
-    ObservationToken* tokens = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+    ObservationToken* agent_obs_ptr =
+        reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+    ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
     unsigned int episode_completion_pct = 0;
     if (max_steps > 0) {
       episode_completion_pct =
           static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
     }
-    tokens[0] = {0, ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)};
-    tokens[1] = {0, ObservationFeature::LastAction, static_cast<uint8_t>(action)};
-    tokens[2] = {0, ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)};
     int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
     reward_int = std::clamp(reward_int, 0, 255);
-    tokens[3] = {0, ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)};
+    std::vector<PartialObservationToken> global_tokens = {
+        {ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)},
+        {ObservationFeature::LastAction, static_cast<uint8_t>(action)},
+        {ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)},
+        {ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)}};
+    // Global tokens are always at the center of the observation.
+    uint8_t global_location = obs_height_radius << 4 | obs_width_radius;
+    attempted_tokens_written +=
+        _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
+    tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
 
     // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
     for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
