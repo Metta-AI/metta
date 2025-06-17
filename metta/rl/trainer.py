@@ -505,7 +505,6 @@ class MettaTrainer:
         self.experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
-        total_minibatches = self.experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = PolicyState()
             teacher_lstm_state = []
@@ -595,20 +594,23 @@ class MettaTrainer:
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
-                self.losses.policy_loss += pg_loss.item() / total_minibatches
-                self.losses.value_loss += v_loss.item() / total_minibatches
-                self.losses.entropy += entropy_loss.item() / total_minibatches
-                self.losses.approx_kl += approx_kl.item() / total_minibatches
-                self.losses.clipfrac += clipfrac.item() / total_minibatches
-                self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                self.losses.policy_loss_sum += pg_loss.item()
+                self.losses.value_loss_sum += v_loss.item()
+                self.losses.entropy_sum += entropy_loss.item()
+                self.losses.old_approx_kl_sum += old_approx_kl.item()
+                self.losses.approx_kl_sum += approx_kl.item()
+                self.losses.clipfrac_sum += clipfrac.item()
+                self.losses.l2_reg_loss_sum += l2_reg_loss.item()
+                self.losses.l2_init_loss_sum += l2_init_loss.item()
+                self.losses.ks_action_loss_sum += ks_action_loss.item()
+                self.losses.ks_value_loss_sum += ks_value_loss.item()
+                self.losses.minibatches_processed += 1
                 # end loop over minibatches
 
             # check early exit if we have reached target_kl
             if self.trainer_cfg.target_kl is not None:
-                if self.losses.approx_kl > self.trainer_cfg.target_kl:
+                average_approx_kl = self.losses.approx_kl_sum / self.losses.minibatches_processed
+                if average_approx_kl > self.trainer_cfg.target_kl:
                     break
 
             self.epoch += 1
