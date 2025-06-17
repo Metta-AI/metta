@@ -1,7 +1,6 @@
 
 /**
  * Vec2f class - Represents a 2D vector with x and y components.
- * Implements common vector operations with immutable design (returns new instances).
  */
 class Vec2f {
   public data: Float32Array
