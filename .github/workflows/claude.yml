@@ -13,6 +13,7 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write
+  actions: write  # Added to trigger workflows
 
 env:
   CLAUDE_MODEL: "claude-sonnet-4-20250514"
@@ -35,34 +36,136 @@ jobs:
           echo "Is Pull Request: ${{ !!github.event.issue.pull_request }}"
           echo "==========================="
 
-      - name: Check for PR creation request
+      - name: Check for action type
         id: check_action
         run: |
           echo "=== ACTION DETECTION DEBUG ==="
           echo "Full comment: ${{ github.event.comment.body }}"
-          if echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
-            echo "✅ Detected: PR creation request"
-            echo "action=create_pr" >> $GITHUB_OUTPUT
-            echo "fetch_depth=0" >> $GITHUB_OUTPUT
+
+          # Check for review commands first (must be on a PR)
+          if [[ "${{ !!github.event.issue.pull_request }}" == "true" ]]; then
+            if echo "${{ github.event.comment.body }}" | grep -q "@claude review"; then
+              echo "✅ Detected: Review request"
+              echo "action=review" >> $GITHUB_OUTPUT
+              echo "fetch_depth=0" >> $GITHUB_OUTPUT
+
+              # Extract review types from the comment
+              # This regex captures everything after "review" until end of line or next @claude
+              REVIEW_ARGS=$(echo "${{ github.event.comment.body }}" | sed -n 's/.*@claude review\s*\([^@]*\).*/\1/p' | head -1)
+              echo "Review arguments: '$REVIEW_ARGS'"
+
+              # Parse the review types
+              REVIEW_TYPES=""
+
+              # Check for special keywords first
+              if echo "$REVIEW_ARGS" | grep -qw "all"; then
+                echo "✅ Detected: All reviews requested"
+                REVIEW_TYPES="readme,comments,types,einops"
+              else
+                # Parse comma-separated list
+                # Remove brackets if present, normalize spacing
+                PARSED_TYPES=$(echo "$REVIEW_ARGS" | sed 's/[\[\]]//g' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -E '^(readme|comments|types|einops)$' | tr '\n' ',' | sed 's/,$//')
+
+                if [ -z "$PARSED_TYPES" ]; then
+                  echo "⚠️ No valid review types found, defaulting to all"
+                  REVIEW_TYPES="readme,comments,types,einops"
+                else
+                  REVIEW_TYPES="$PARSED_TYPES"
+                fi
+              fi
+
+              echo "review_types=$REVIEW_TYPES" >> $GITHUB_OUTPUT
+              echo "✅ Review types to run: $REVIEW_TYPES"
+
+            elif echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
+              echo "✅ Detected: PR creation request"
+              echo "action=create_pr" >> $GITHUB_OUTPUT
+              echo "fetch_depth=0" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Detected: Regular comment request"
+              echo "action=comment" >> $GITHUB_OUTPUT
+              echo "fetch_depth=1" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "✅ Detected: Regular comment request"
-            echo "action=comment" >> $GITHUB_OUTPUT
-            echo "fetch_depth=1" >> $GITHUB_OUTPUT
+            # Not on a PR, check for open-pr or default to comment
+            if echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
+              echo "✅ Detected: PR creation request"
+              echo "action=create_pr" >> $GITHUB_OUTPUT
+              echo "fetch_depth=0" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Detected: Regular comment request"
+              echo "action=comment" >> $GITHUB_OUTPUT
+              echo "fetch_depth=1" >> $GITHUB_OUTPUT
+            fi
           fi
           echo "=============================="
 
+      # Trigger review workflows
+      - name: Trigger Review
+        if: steps.check_action.outputs.action == 'review'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const reviewTypes = '${{ steps.check_action.outputs.review_types }}'.split(',');
+              const reviewTypesDisplay = reviewTypes.map(t =>
+                t.charAt(0).toUpperCase() + t.slice(1)
+              ).join(', ');
+
+              // Post acknowledgment comment
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `🔍 **Starting Claude review...**\n\nI'll analyze:\n${reviewTypes.map(t => `- ${t.charAt(0).toUpperCase() + t.slice(1)}`).join('\n')}\n\nThis may take a few minutes. You can check the progress in the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions).`
+              });
+
+              // Build inputs object based on requested reviews
+              const inputs = {
+                pr_number: context.issue.number.toString(),
+                run_readme: reviewTypes.includes('readme') ? 'true' : 'false',
+                run_comments: reviewTypes.includes('comments') ? 'true' : 'false',
+                run_types: reviewTypes.includes('types') ? 'true' : 'false',
+                run_einops: reviewTypes.includes('einops') ? 'true' : 'false'
+              };
+
+              // Trigger the orchestrator workflow
+              const result = await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'claude-review-orchestrator.yml',
+                ref: context.payload.repository.default_branch,
+                inputs: inputs
+              });
+
+              console.log(`✅ Triggered review for: ${reviewTypesDisplay}`);
+            } catch (error) {
+              console.error('Error triggering workflow:', error);
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `❌ **Failed to trigger review**\n\nError: ${error.message}\n\nPlease check that the workflow file exists and you have the necessary permissions.`
+              });
+            }
+
+      # Only checkout and run Claude if not a review action
       - name: Checkout repository
+        if: contains(fromJson('["comment", "create_pr"]'), steps.check_action.outputs.action)
         uses: actions/checkout@v4
         with:
           fetch-depth: ${{ steps.check_action.outputs.fetch_depth == '0' && 0 || 1 }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
+        if: steps.check_action.outputs.action == 'create_pr'
         run: |
           git config --global user.name "Claude Assistant"
           git config --global user.email "claude-assistant@users.noreply.github.com"
 
       - name: Debug - Check Secrets
+        if: contains(fromJson('["comment", "create_pr"]'), steps.check_action.outputs.action)
         run: |
           echo "=== SECRETS DEBUG ==="
           if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
@@ -272,7 +375,7 @@ jobs:
               const targetBranch = "${{ steps.branches.outputs.target_branch }}";
               const newBranch = "${{ steps.branches.outputs.new_branch }}";
               const contextInfo = "${{ steps.branches.outputs.context_info }}";
-              const commitCount = "${{ steps.verify_git.outputs.commit_count }}";
+              const commitCount = "${{ steps.push_branch.outputs.commit_count }}";
 
               console.log(`Creating PR: ${newBranch} -> ${targetBranch}`);
               console.log(`Context: ${contextInfo}`);
@@ -349,9 +452,9 @@ jobs:
                   "**Debug info:**",
                   `- New branch: \`${{ steps.branches.outputs.new_branch }}\``,
                   `- Target branch: \`${{ steps.branches.outputs.target_branch }}\``,
-                  `- Branch pushed: ${{ steps.verify_git.outputs.branch_pushed }}`,
-                  `- Has commits: ${{ steps.verify_git.outputs.has_commits }}`,
-                  `- Commit count: ${{ steps.verify_git.outputs.commit_count }}`,
+                  `- Branch pushed: ${{ steps.push_branch.outputs.branch_pushed }}`,
+                  `- Has commits: ${{ steps.push_branch.outputs.has_commits }}`,
+                  `- Commit count: ${{ steps.push_branch.outputs.commit_count }}`,
                   "",
                   "Please check the Actions logs for more details."
                 ].join('\n')
@@ -397,6 +500,49 @@ jobs:
                 "You can view the full execution logs in the Actions tab for more details."
               ].join('\n')
             });
+
+      # Add help message for unrecognized commands on PRs
+      - name: Post Help Message
+        if: steps.check_action.outputs.action == 'comment' && github.event.issue.pull_request
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Check if the comment might have been trying to use a review command
+            const comment = "${{ github.event.comment.body }}".toLowerCase();
+            if (comment.includes('review')) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: [
+                  "💡 **Claude Review Commands Available**",
+                  "",
+                  "I noticed you mentioned 'review'. Here's how to use review commands:",
+                  "",
+                  "**Syntax:** `@claude review <types>`",
+                  "",
+                  "**Examples:**",
+                  "- `@claude review all` - Run all review types",
+                  "- `@claude review einops` - Check for einops optimization opportunities",
+                  "- `@claude review comments, types` - Review comments and type annotations",
+                  "- `@claude review readme, einops, comments` - Run multiple specific reviews",
+                  "",
+                  "**Available review types:**",
+                  "- `readme` - Verify README accuracy",
+                  "- `comments` - Review code comments and docstrings",
+                  "- `types` - Check type annotations",
+                  "- `einops` - Suggest einops optimizations",
+                  "- `all` - Run all review types",
+                  "",
+                  "You can also:",
+                  "- `@claude open-pr` - Create a new PR with changes",
+                  "- `@claude [question]` - Ask me anything about the code",
+                  "",
+                  "*Note: Review commands only work on pull requests.*"
+                ].join('\n')
+              });
+            }
 
       - name: Final Debug Summary
         if: always()
