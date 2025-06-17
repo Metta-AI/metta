@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 from typing import Any
 
 import einops
@@ -825,35 +826,19 @@ class MettaTrainer:
     ):
         """CUDA kernel for puffer advantage with automatic CPU fallback."""
 
-        # Ensure tensors are on the correct device for this process
+        # Get correct device for this process
         device = torch.device(self.device) if isinstance(self.device, str) else self.device
-        if torch.distributed.is_initialized():
-            # In distributed mode, each process should only see its own device
-            local_rank = int(os.environ.get("LOCAL_RANK", 0))
-            if str(device).startswith("cuda"):
-                device = torch.device(f"cuda:{local_rank}")
+        if torch.distributed.is_initialized() and str(device).startswith("cuda"):
+            device = torch.device(f"cuda:{int(os.environ.get('LOCAL_RANK', 0))}")
 
-        # Move tensors to the correct device if needed
-        values = values.to(device)
-        rewards = rewards.to(device)
-        dones = dones.to(device)
-        importance_sampling_ratio = importance_sampling_ratio.to(device)
-        advantages = advantages.to(device)
+        # Move tensors to device and compute advantage
+        tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
+        tensors = [t.to(device) for t in tensors]
+        values, rewards, dones, importance_sampling_ratio, advantages = tensors
 
-        if str(device).startswith("cuda"):
-            with torch.cuda.device(device):
-                torch.ops.pufferlib.compute_puff_advantage(
-                    values,
-                    rewards,
-                    dones,
-                    importance_sampling_ratio,
-                    advantages,
-                    gamma,
-                    gae_lambda,
-                    vtrace_rho_clip,
-                    vtrace_c_clip,
-                )
-        else:
+        # Create context manager that only applies CUDA device context if needed
+        device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
+        with device_context:
             torch.ops.pufferlib.compute_puff_advantage(
                 values,
                 rewards,
