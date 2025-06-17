@@ -84,15 +84,15 @@ class TerrainFromNumpy(Room):
         zipped_dir = root + ".zip"
         lock_path = zipped_dir + ".lock"
         # Only one process can hold this lock at a time:
-        if not os.path.exists(dir) and not os.path.exists(zipped_dir):
-            with FileLock(lock_path):
+        with FileLock(lock_path):
+            if not os.path.exists(dir) and not os.path.exists(zipped_dir):
                 s3_path = f"s3://softmax-public/maps/{zipped_dir}"
                 download_from_s3(s3_path, zipped_dir)
-        if not os.path.exists(root) and os.path.exists(zipped_dir):
-            with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
-                zip_ref.extractall(os.path.dirname(root))
-            os.remove(zipped_dir)
-            logger.info(f"Extracted {zipped_dir} to {root}")
+            if not os.path.exists(root) and os.path.exists(zipped_dir):
+                with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
+                    zip_ref.extractall(os.path.dirname(root))
+                os.remove(zipped_dir)
+                logger.info(f"Extracted {zipped_dir} to {root}")
         if file is None:
             self.uri = pick_random_file(dir)
         else:
