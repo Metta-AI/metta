@@ -5,14 +5,14 @@ import { find } from './htmlutils.js'
 
 /** A main UI panel. */
 export class PanelInfo {
-  public x: number = 0;
-  public y: number = 0;
-  public width: number = 0;
-  public height: number = 0;
-  public name: string = "";
-  public isPanning: boolean = false;
-  public panPos: Vec2f = new Vec2f(0, 0);
-  public zoomLevel: number = Common.DEFAULT_ZOOM_LEVEL;
+  public x: number = 0
+  public y: number = 0
+  public width: number = 0
+  public height: number = 0
+  public name: string = ""
+  public isPanning: boolean = false
+  public panPos: Vec2f = new Vec2f(0, 0)
+  public zoomLevel: number = Common.DEFAULT_ZOOM_LEVEL
   public div: HTMLElement
 
   constructor(name: string) {

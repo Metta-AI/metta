@@ -16,8 +16,8 @@ export function clamp(value: number, min: number, max: number): number {
 class Mesh {
   private name: string
   private device: GPUDevice
-  private vertexBuffer: GPUBuffer | null = null;
-  private indexBuffer: GPUBuffer | null = null;
+  private vertexBuffer: GPUBuffer | null = null
+  private indexBuffer: GPUBuffer | null = null
 
   // Buffer management
   private maxQuads: number
@@ -25,11 +25,11 @@ class Mesh {
   private indexCapacity: number
   private vertexData: Float32Array
   private indexData: Uint32Array
-  private currentQuad: number = 0;
-  private currentVertex: number = 0;
+  private currentQuad: number = 0
+  private currentVertex: number = 0
 
   // Scissor properties
-  public scissorEnabled: boolean = false;
+  public scissorEnabled: boolean = false
   public scissorRect: [number, number, number, number] = [0, 0, 0, 0]; // x, y, width, height
 
   constructor(name: string, device: GPUDevice, maxQuads: number = 1024 * 8) {
@@ -261,13 +261,13 @@ export class Context3d {
   private atlasMargin: number
 
   // Mesh management
-  private meshes: Map<string, Mesh> = new Map();
-  private currentMesh: Mesh | null = null;
-  private currentMeshName: string = "";
+  private meshes: Map<string, Mesh> = new Map()
+  private currentMesh: Mesh | null = null
+  private currentMeshName: string = ""
 
   // Transformation state
   private currentTransform: Mat3f
-  private transformStack: Mat3f[] = [];
+  private transformStack: Mat3f[] = []
 
   // State tracking
   public ready: boolean
