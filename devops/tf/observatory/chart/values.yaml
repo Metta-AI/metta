@@ -4,3 +4,15 @@ image:
   tag: latest
 
 db_uri: ""
+
+host: "api.observatory.softmax-research.net"
+
+cert_manager_issuer: "letsencrypt"
+
+oauth2_proxy:
+  email_domains:
+  - stem.ai
+  - softmax.com
+
+# Must include a key called google-service-account.json
+secret_name: observatory-secrets

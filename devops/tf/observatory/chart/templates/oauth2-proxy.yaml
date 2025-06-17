@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Release.name }}-oauth2-proxy"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: "{{ .Release.name }}-oauth2-proxy"
+  template:
+    metadata:
+      labels:
+        k8s-app: "{{ .Release.name }}-oauth2-proxy"
+    spec:
+      containers:
+      - name: oauth2-proxy
+        image: quay.io/oauth2-proxy/oauth2-proxy:latest
+        imagePullPolicy: Always
+        args:
+        - --upstream=file:///dev/null
+        - --http-address=0.0.0.0:4180
+        {{- range .Values.oauth2_proxy.email_domains }}
+        - --email-domain={{ . }}
+        {{- end }}
+        - --google-service-account-json=/mnt/secrets/google-service-account.json
+        ports:
+        - containerPort: 4180
+          protocol: TCP
+        volumeMounts:
+        - name: secrets
+          mountPath: /mnt/secrets
+          readOnly: true
+      volumes:
+      - name: secrets
+        secret:
+          secretName: {{ .Values.secret_name }}
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{ .Release.name }}-oauth2-proxy"
+spec:
+  ports:
+  - port: 4180
+    targetPort: 4180
+  selector:
+    k8s-app: "{{ .Release.name }}-oauth2-proxy"
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "{{ .Release.name }}-oauth2-proxy"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: "{{ .Values.host | required "host is required" }}"
+    http:
+      paths:
+      - path: /oauth2
+        pathType: Prefix
+        backend:
+          service:
+            name: "{{ .Release.name }}-oauth2-proxy"
+            port:
+              number: 4180
+  tls:
+  - hosts:
+    - {{ .Values.host }}
+    secretName: {{ .Release.name }}-tls
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: "{{ .Release.name }}"
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: "https://$host/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
+    cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer }}
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: "{{ .Values.host }}"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.name }}-backend
+            port:
+              number: 8000
+  tls:
+  - hosts:
+    - {{ .Values.host }}
+    secretName: {{ .Release.name }}-tls
