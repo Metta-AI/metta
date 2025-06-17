@@ -32,7 +32,7 @@ components:
   obs_latent_query_attn:
     _target_: metta.agent.lib.obs_enc.ObsLatentAttn
     out_dim: 32
-    use_mask: true
+    use_mask: false
     num_query_tokens: 7
     query_token_dim: 32
     num_heads: 1
