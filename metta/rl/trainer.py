@@ -89,8 +89,7 @@ class MettaTrainer:
         self.timer.start()
 
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
-        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
-        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+        self._curriculum = curriculum_from_config_path(curriculum_config, self.trainer_cfg.env_overrides)
 
         self._make_vecenv()
 
@@ -232,12 +231,6 @@ class MettaTrainer:
 
             for metric_name, step_metric in metric_definitions:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
-
-        self.replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -687,11 +680,16 @@ class MettaTrainer:
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
         if self._master:
+            replay_sim_config = SingleEnvSimulationConfig(
+                env="/env/mettagrid/mettagrid",
+                num_episodes=1,
+                env_overrides=self._curriculum.get_task().env_cfg(),
+            )
             logger.info("Generating and saving a replay to wandb and S3.")
 
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
-                config=self.replay_sim_config,
+                config=replay_sim_config,
                 policy_pr=self.last_pr,
                 policy_store=self.policy_store,
                 device=self.device,
@@ -734,13 +732,13 @@ class MettaTrainer:
         self.stats = mean_stats
 
         # Collect weight metrics if needed
-        weight_metrics = {}
+        weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
                 name = metrics.get("name", "unknown")
                 for key, value in metrics.items():
                     if key != "name":
-                        weight_metrics[f"weights/{key}/{name}"] = value
+                        weight_stats[f"weights/{key}/{name}"] = value
 
         elapsed_times = self.timer.get_all_elapsed()
         wall_time = self.timer.get_elapsed()
@@ -822,7 +820,7 @@ class MettaTrainer:
                 **{f"overview/{k}": v for k, v in overview.items()},
                 **{f"losses/{k}": v for k, v in losses.items()},
                 **environment_stats,
-                **weight_metrics,
+                **weight_stats,
                 **self._eval_grouped_scores,
                 **parameter_stats,
                 **timing_stats,
