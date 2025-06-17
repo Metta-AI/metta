@@ -8,7 +8,7 @@ import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
 import { initAgentTable, updateAgentTable } from './agentpanel.js';
 import { localStorageSetNumber, onEvent, find } from './htmlutils.js';
-import { updateReadout } from './hoverpanels.js';
+import { updateReadout, hideHoverPanel } from './hoverpanels.js';
 import { initObjectMenu } from './objmenu.js';
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange } from './timeline.js';
 
@@ -126,14 +126,26 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
   while (target.id === "" && target.parentElement != null) {
     target = target.parentElement as HTMLElement;
   }
-  ui.mouseTarget = target.id;
+  ui.mouseTargets = [];
+  let p = event.target as HTMLElement;
+  while (p != null) {
+    if (p.id !== "") {
+      ui.mouseTargets.push("#" + p.id);
+    }
+    for (const className of p.classList) {
+      ui.mouseTargets.push("." + className);
+    }
+    p = p.parentElement as HTMLElement;
+  }
 
   // If mouse is close to a panels edge change cursor to edge changer.
   document.body.style.cursor = "default";
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ns-resize";
   }
-  if (Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD) {
+  if (state.showAgentPanel &&
+    Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD
+  ) {
     document.body.style.cursor = "ns-resize";
   }
 
@@ -159,6 +171,10 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
     onScrubberChange(event);
   }
 
+  if (!ui.mouseTargets.includes("#worldmap-panel") && !ui.mouseTargets.includes(".hover-panel")) {
+    hideHoverPanel();
+  }
+
   requestFrame();
 })
 
@@ -180,6 +196,20 @@ onEvent("wheel", "body", (target: HTMLElement, e: Event) => {
   event.preventDefault();
   requestFrame();
 })
+
+/** Mouse moved outside the window. */
+document.addEventListener('mouseout', function (e) {
+  if (!e.relatedTarget) {
+    hideHoverPanel();
+    requestFrame();
+  }
+});
+
+/** The window got de-focused. */
+document.addEventListener('blur', function (e) {
+  hideHoverPanel();
+  requestFrame();
+});
 
 /** Update all URL parameters without creating browser history entries. */
 function updateUrlParams() {
