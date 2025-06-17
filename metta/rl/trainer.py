@@ -824,90 +824,32 @@ class MettaTrainer:
         vtrace_c_clip,
     ):
         """CUDA kernel for puffer advantage with automatic CPU fallback."""
-        force_cpu = self.trainer_cfg.get("force_cpu_advantage", False)
 
-        # Ensure all tensors are contiguous for CUDA kernel
-        values = values.contiguous()
-        rewards = rewards.contiguous()
-        dones = dones.contiguous()
-        importance_sampling_ratio = importance_sampling_ratio.contiguous()
-        advantages = advantages.contiguous()
-
-        if force_cpu:
-            # Force CPU execution when explicitly requested
-            device = values.device
-            values_cpu = values.cpu()
-            rewards_cpu = rewards.cpu()
-            dones_cpu = dones.cpu()
-            importance_sampling_ratio_cpu = importance_sampling_ratio.cpu()
-            advantages_cpu = advantages.cpu()
-
-            torch.ops.pufferlib.compute_puff_advantage(
-                values_cpu,
-                rewards_cpu,
-                dones_cpu,
-                importance_sampling_ratio_cpu,
-                advantages_cpu,
-                gamma,
-                gae_lambda,
-                vtrace_rho_clip,
-                vtrace_c_clip,
-            )
-
-            advantages.copy_(advantages_cpu.to(device))
-        else:
-            # Try CUDA kernel first, fallback to CPU on error
-            try:
-                # Ensure we're on the correct CUDA device
-                if values.is_cuda:
-                    with torch.cuda.device(values.device):
-                        torch.ops.pufferlib.compute_puff_advantage(
-                            values,
-                            rewards,
-                            dones,
-                            importance_sampling_ratio,
-                            advantages,
-                            gamma,
-                            gae_lambda,
-                            vtrace_rho_clip,
-                            vtrace_c_clip,
-                        )
-                else:
-                    # CPU tensors
-                    torch.ops.pufferlib.compute_puff_advantage(
-                        values,
-                        rewards,
-                        dones,
-                        importance_sampling_ratio,
-                        advantages,
-                        gamma,
-                        gae_lambda,
-                        vtrace_rho_clip,
-                        vtrace_c_clip,
-                    )
-            except (RuntimeError, AssertionError) as e:
-                logger.warning(f"CUDA advantage kernel failed: {e}. Falling back to CPU.")
-                # Fallback to CPU
-                device = values.device
-                values_cpu = values.cpu()
-                rewards_cpu = rewards.cpu()
-                dones_cpu = dones.cpu()
-                importance_sampling_ratio_cpu = importance_sampling_ratio.cpu()
-                advantages_cpu = advantages.cpu()
-
+        if self.device.type == "cuda":
+            with torch.cuda.device(self.device):
                 torch.ops.pufferlib.compute_puff_advantage(
-                    values_cpu,
-                    rewards_cpu,
-                    dones_cpu,
-                    importance_sampling_ratio_cpu,
-                    advantages_cpu,
+                    values,
+                    rewards,
+                    dones,
+                    importance_sampling_ratio,
+                    advantages,
                     gamma,
                     gae_lambda,
                     vtrace_rho_clip,
                     vtrace_c_clip,
                 )
-
-                advantages.copy_(advantages_cpu.to(device))
+        else:
+            torch.ops.pufferlib.compute_puff_advantage(
+                values,
+                rewards,
+                dones,
+                importance_sampling_ratio,
+                advantages,
+                gamma,
+                gae_lambda,
+                vtrace_rho_clip,
+                vtrace_c_clip,
+            )
 
         return advantages
 
