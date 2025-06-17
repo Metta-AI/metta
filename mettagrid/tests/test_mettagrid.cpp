@@ -224,7 +224,6 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
 
   // Create a generator that takes red ore and outputs batteries
   ObjectConfig generator_cfg;
-  generator_cfg["hp"] = 30;
   generator_cfg["input_ore.red"] = 1;
   generator_cfg["output_battery.red"] = 1;
   // Set the max_output to 0 so it won't consume things we put in it.
@@ -355,7 +354,6 @@ TEST_F(MettaGridCppTest, InventoryItems) {
 
 TEST_F(MettaGridCppTest, WallCreation) {
   ObjectConfig wall_cfg;
-  wall_cfg["hp"] = 100;
 
   std::unique_ptr<Wall> wall(new Wall(2, 3, wall_cfg));
 
@@ -369,7 +367,6 @@ TEST_F(MettaGridCppTest, WallCreation) {
 
 TEST_F(MettaGridCppTest, ConverterCreation) {
   ObjectConfig converter_cfg;
-  converter_cfg["hp"] = 50;
   converter_cfg["input_ore.red"] = 2;
   converter_cfg["output_battery"] = 1;
   converter_cfg["conversion_ticks"] = 5;
