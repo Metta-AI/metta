@@ -35,6 +35,7 @@ run: |
   export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
   export MASTER_PORT=8008
   export NODE_INDEX=$SKYPILOT_NODE_RANK
+  export NCCL_SHM_DISABLE=1
 
   ./devops/$METTA_CMD.sh \
     +hardware=$METTA_HARDWARE \
