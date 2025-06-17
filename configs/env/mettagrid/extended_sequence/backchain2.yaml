@@ -34,7 +34,7 @@ game:
       width: ${sampling:12,25,15}
       height: ${sampling:12,25,15}
       border_width: ${sampling:1,6,3}
-      agents: 1
+      agents: ${div:${...num_agents},${..num_rooms}}
       style: all-sparse
 
       objects:
