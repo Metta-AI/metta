@@ -8,7 +8,7 @@ import { drawMiniMap } from './minimap.js';
 import { processActions, initActionButtons } from './actions.js';
 import { initAgentTable, updateAgentTable } from './agentpanel.js';
 import { localStorageSetNumber, onEvent, find } from './htmlutils.js';
-import { updateReadout } from './infopanels.js';
+import { updateReadout, hideHoverPanel } from './hoverpanels.js';
 import { initObjectMenu } from './objmenu.js';
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange } from './timeline.js';
 
@@ -79,7 +79,7 @@ export function onResize() {
   requestFrame();
 }
 
-/** Handle mouse down events. */
+/** Handles mouse down events. */
 onEvent("mousedown", "body", () => {
   ui.lastMousePos = ui.mousePos;
   ui.mouseDownPos = ui.mousePos;
@@ -100,7 +100,7 @@ onEvent("mousedown", "body", () => {
   requestFrame();
 })
 
-/** Handle mouse up events. */
+/** Handles mouse up events. */
 onEvent("mouseup", "body", () => {
   ui.mouseUp = true;
   ui.mouseDown = false;
@@ -118,7 +118,7 @@ onEvent("mouseup", "body", () => {
   requestFrame();
 })
 
-/** Handle mouse move events. */
+/** Handles mouse move events. */
 onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
   let event = e as MouseEvent;
   ui.mousePos = new Vec2f(event.clientX, event.clientY);
@@ -126,14 +126,26 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
   while (target.id === "" && target.parentElement != null) {
     target = target.parentElement as HTMLElement;
   }
-  ui.mouseTarget = target.id;
+  ui.mouseTargets = [];
+  let p = event.target as HTMLElement;
+  while (p != null) {
+    if (p.id !== "") {
+      ui.mouseTargets.push("#" + p.id);
+    }
+    for (const className of p.classList) {
+      ui.mouseTargets.push("." + className);
+    }
+    p = p.parentElement as HTMLElement;
+  }
 
-  // If mouse is close to a panels edge change cursor to edge changer.
+  // If the mouse is close to a panel's edge, change the cursor.
   document.body.style.cursor = "default";
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
     document.body.style.cursor = "ns-resize";
   }
-  if (Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD) {
+  if (state.showAgentPanel &&
+    Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD
+  ) {
     document.body.style.cursor = "ns-resize";
   }
 
@@ -159,10 +171,14 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
     onScrubberChange(event);
   }
 
+  if (!ui.mouseTargets.includes("#worldmap-panel") && !ui.mouseTargets.includes(".hover-panel")) {
+    hideHoverPanel();
+  }
+
   requestFrame();
 })
 
-/** Handle dragging draggable elements. */
+/** Handles dragging draggable elements. */
 onEvent("mousedown", ".draggable", (target: HTMLElement, e: Event) => {
   let event = e as MouseEvent;
   ui.dragHtml = target;
@@ -176,65 +192,79 @@ onEvent("mousedown", ".draggable", (target: HTMLElement, e: Event) => {
 onEvent("wheel", "body", (target: HTMLElement, e: Event) => {
   let event = e as WheelEvent;
   ui.scrollDelta = event.deltaY;
-  // Prevent pinch to zoom
+  // Prevent pinch-to-zoom.
   event.preventDefault();
   requestFrame();
 })
 
-/** Update all URL parameters without creating browser history entries. */
+/** Handles the mouse moving outside the window. */
+document.addEventListener('mouseout', function (e) {
+  if (!e.relatedTarget) {
+    hideHoverPanel();
+    requestFrame();
+  }
+});
+
+/** Handles the window losing focus. */
+document.addEventListener('blur', function (e) {
+  hideHoverPanel();
+  requestFrame();
+});
+
+/** Updates all URL parameters without creating browser history entries. */
 function updateUrlParams() {
-  // Get current URL params
+  // Get the current URL parameters.
   const urlParams = new URLSearchParams(window.location.search);
 
-  // Update step when its not zero:
+  // Update the step when it's not zero.
   if (state.step !== 0) {
     urlParams.set('step', state.step.toString());
   } else {
     urlParams.delete('step');
   }
 
-  // Handle selected object
+  // Handle the selected object.
   if (state.selectedGridObject !== null) {
-    // Find the index of the selected object
+    // Find the index of the selected object.
     const selectedObjectIndex = state.replay.grid_objects.indexOf(state.selectedGridObject);
     if (selectedObjectIndex !== -1) {
       urlParams.set('selectedObjectId', (selectedObjectIndex + 1).toString());
-      // Remove map position parameters when an object is selected
+      // Remove map position parameters when an object is selected.
       urlParams.delete('mapPanX');
       urlParams.delete('mapPanY');
     }
   } else {
-    // Include map position
+    // Include the map position.
     urlParams.set('mapPanX', Math.round(ui.mapPanel.panPos.x()).toString());
     urlParams.set('mapPanY', Math.round(ui.mapPanel.panPos.y()).toString());
-    // Remove selected object when there is no selection
+    // Remove the selected object when there is no selection.
     urlParams.delete('selectedObjectId');
   }
 
-  // Include map zoom level
+  // Include the map zoom level.
   if (ui.mapPanel.zoomLevel != 1) {
-    // Only include zoom to 3 decimal places.
+    // Only include zoom to three decimal places.
     urlParams.set('mapZoom', ui.mapPanel.zoomLevel.toFixed(3));
   }
 
-  // Handle play state - only include when true
+  // Handle the play state; only include it when true.
   if (state.isPlaying) {
     urlParams.set('play', 'true');
   } else {
     urlParams.delete('play');
   }
 
-  // Replace current state without creating history entry
+  // Replace the current state without creating a history entry.
   const newUrl = window.location.pathname + '?' + urlParams.toString();
   history.replaceState(null, '', newUrl);
 }
 
 /** Centralized function to update the step and handle all related updates. */
 export function updateStep(newStep: number, skipScrubberUpdate = false) {
-  // Update the step variable
+  // Update the step variable.
   state.step = newStep;
 
-  // Update the scrubber value (unless told to skip)
+  // Update the scrubber value (unless told to skip).
   if (!skipScrubberUpdate) {
     console.info("Scrubber value:", state.step);
     updateTimeline();
@@ -254,14 +284,14 @@ export function updateSelection(object: any, setFollow = false) {
   requestFrame();
 }
 
-/** Handle key down events. */
+/** Handles key down events. */
 onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
   let event = e as KeyboardEvent;
   if (event.key == "Escape") {
     updateSelection(null);
     setFollowSelection(false);
   }
-  // '[' and ']' to scrub forward and backward.
+  // '[' and ']' scrub forward and backward.
   if (event.key == "[") {
     setIsPlaying(false);
     updateStep(Math.max(state.step - 1, 0));
@@ -277,7 +307,7 @@ onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
   if (event.key == ".") {
     state.playbackSpeed = Math.min(state.playbackSpeed * 1.1, 1000);
   }
-  // If space make it press the play button.
+  // The space bar presses the play button.
   if (event.key == " ") {
     setIsPlaying(!state.isPlaying);
   }
@@ -287,7 +317,7 @@ onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
   requestFrame();
 })
 
-/** Draw a frame. */
+/** Draws a frame. */
 export function onFrame() {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -340,7 +370,7 @@ export function onFrame() {
 
   ctx.flush();
 
-  // Update URL parameters with current state once per frame
+  // Update URL parameters with the current state once per frame.
   updateUrlParams();
 
   if (state.isPlaying) {
@@ -362,13 +392,13 @@ export function onFrame() {
   ui.mouseDoubleClick = false;
 }
 
-/** Prevent default event handling. */
+/** Prevents default event handling. */
 function preventDefaults(event: Event) {
   event.preventDefault();
   event.stopPropagation();
 }
 
-/** Handle file drop events. */
+/** Handles file drop events. */
 function handleDrop(event: DragEvent) {
   event.preventDefault();
   event.stopPropagation();
@@ -379,7 +409,7 @@ function handleDrop(event: DragEvent) {
   }
 }
 
-/** Parse URL parameters, and modify the map and trace panels accordingly. */
+/** Parses URL parameters and modifies the map and trace panels accordingly. */
 async function parseUrlParams() {
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -420,7 +450,7 @@ async function parseUrlParams() {
       console.info("Playing state via query parameter:", state.isPlaying);
     }
 
-    // Set selected object.
+    // Set the selected object.
     if (urlParams.get('selectedObjectId') !== null) {
       const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1;
       if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
@@ -448,15 +478,15 @@ async function parseUrlParams() {
   requestFrame();
 }
 
-/** Handle share button click. */
+/** Handles share button clicks. */
 function onShareButtonClick() {
-  // Copy the current URL to the clipboard
+  // Copy the current URL to the clipboard.
   navigator.clipboard.writeText(window.location.href);
-  // Show a toast notification
+  // Show a toast notification.
   Common.showToast("URL copied to clipboard");
 }
 
-/** Set the playing state and update the play button icon. */
+/** Sets the playing state and updates the play button icon. */
 function setIsPlaying(isPlaying: boolean) {
   state.isPlaying = isPlaying;
   if (state.isPlaying) {
@@ -467,7 +497,7 @@ function setIsPlaying(isPlaying: boolean) {
   requestFrame();
 }
 
-/** Toggle the opacity of a button. */
+/** Toggles the opacity of a button. */
 function toggleOpacity(button: HTMLImageElement, show: boolean) {
   if (show) {
     button.style.opacity = "1";
@@ -476,7 +506,7 @@ function toggleOpacity(button: HTMLImageElement, show: boolean) {
   }
 }
 
-/** Set the playback speed and update the speed buttons. */
+/** Sets the playback speed and updates the speed buttons. */
 function setPlaybackSpeed(speed: number) {
   state.playbackSpeed = speed;
   // Update the speed buttons to show the current speed.
@@ -488,7 +518,7 @@ function setPlaybackSpeed(speed: number) {
 // Initial resize.
 onResize();
 
-// Disable pinch to zoom
+// Disable pinch-to-zoom.
 let meta = document.createElement('meta');
 meta.name = 'viewport';
 meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
@@ -501,14 +531,14 @@ ui.infoPanel.div.classList.add("hidden");
 ui.agentPanel.div.classList.add("hidden");
 
 // Each panel has a div we use for event handling.
-// But rendering happens bellow on global canvas.
-// We make divs transparent to see through them.
+// But rendering happens below on the global canvas.
+// We make the divs transparent to see through them.
 ui.mapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 ui.tracePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 ui.miniMapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 ui.timelinePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
 
-// Add event listener to resize the canvas when the window is resized.
+// Add an event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize);
 window.addEventListener('dragenter', preventDefaults, false);
 window.addEventListener('dragleave', preventDefaults, false);
@@ -654,7 +684,7 @@ initObjectMenu();
 initTimeline();
 
 window.addEventListener('load', async () => {
-  // Use local atlas texture.
+  // Use a local atlas texture.
   const atlasImageUrl = 'dist/atlas.png';
   const atlasJsonUrl = 'dist/atlas.json';
 

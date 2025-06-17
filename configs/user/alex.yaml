@@ -7,7 +7,7 @@ defaults:
   - override /agent: latent_fourier
   - _self_
 
-policy_uri: puffer:///tmp/puffer_metta.pt
+policy_uri: pytorch:///tmp/puffer_metta.pt
 npc_policy_uri: null
 
 # env_overrides:

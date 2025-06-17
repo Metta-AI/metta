@@ -364,7 +364,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._should_reset
 
     @property
-    def feature_normalizations(self) -> list[float]:
+    def feature_normalizations(self) -> dict[int, float]:
         return self._c_env.feature_normalizations()
 
     @property
@@ -420,3 +420,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     @property
     def inventory_item_names(self) -> list[str]:
         return self._c_env.inventory_item_names()
+
+    @property
+    def config(self) -> dict[str, Any]:
+        return cast(dict[str, Any], OmegaConf.to_container(self._task.env_cfg(), resolve=False))

@@ -94,8 +94,9 @@ def test_is_commit_pushed():
     result = is_commit_pushed(current_commit)
     assert isinstance(result, bool)
 
-    # Test with invalid commit
-    assert not is_commit_pushed("invalid-commit-hash")
+    # Test with invalid commit - should raise GitError
+    with pytest.raises(GitError):
+        is_commit_pushed("invalid-commit-hash")
 
 
 @pytest.mark.parametrize(

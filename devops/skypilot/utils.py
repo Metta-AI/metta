@@ -7,7 +7,7 @@ import sky.jobs
 import sky.server.common
 
 from metta.util.colorama import blue, bold, cyan, green, magenta, red, yellow
-from metta.util.git import has_unstaged_changes, is_commit_pushed
+from metta.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
 
 
 def print_tip(text: str):
@@ -112,8 +112,8 @@ def display_job_summary(
     job_name: str,
     cmd: str,
     task_args: list[str],
+    commit_hash: str,
     git_ref: str | None = None,
-    commit_message: str | None = None,
     timeout_hours: float | None = None,
     task: sky.Task | None = None,
     **kwargs,
@@ -178,15 +178,26 @@ def display_job_summary(
     else:
         print(f"{bold('Auto-termination:')} {yellow('None')}")
 
-    # Display git information
     if git_ref:
         print(f"{bold('Git Reference:')} {yellow(git_ref)}")
-        if commit_message:
-            first_line = commit_message.split("\n")[0]
-            print(f"{bold('Commit Message:')} {yellow(first_line)}")
+
+    print(f"{bold('Commit Hash:')} {yellow(commit_hash)}")
+
+    commit_message = get_commit_message(commit_hash)
+    if commit_message:
+        first_line = commit_message.split("\n")[0]
+        print(f"{bold('Commit Message:')} {yellow(first_line)}")
+
+    pr_info = get_matched_pr(commit_hash)
+    if pr_info:
+        pr_number, pr_title = pr_info
+        first_line = pr_title.split("\n")[0]
+        print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
+    else:
+        print(f"{bold('PR:')} {red('Not a PR HEAD')}")
 
     print(blue("-" * divider_length))
-    print(f"{bold('Command:')} {yellow(cmd)}")
+    print(f"\n{bold('Command:')} {yellow(cmd)}")
 
     if task_args:
         print(bold("Task Arguments:"))
