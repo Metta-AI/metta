@@ -5,7 +5,7 @@ import { getAttr } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { parseHtmlColor } from './htmlutils.js';
 
-/** Draw the mini map. */
+/** Draws the minimap. */
 export function drawMiniMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -13,7 +13,7 @@ export function drawMiniMap(panel: PanelInfo) {
 
   if (ui.mouseDown && panel.inside(ui.mousePos)) {
     const localMousePos = panel.transformOuter(ui.mousePos);
-    // Pan the main map to the mini map's mouse position.
+    // Pan the main map to the minimap's mouse position.
     const miniMapMousePos = new Vec2f(
       Math.round(localMousePos.x() / Common.MINI_MAP_TILE_SIZE),
       Math.round(localMousePos.y() / Common.MINI_MAP_TILE_SIZE)
@@ -25,12 +25,12 @@ export function drawMiniMap(panel: PanelInfo) {
     state.followSelection = false;
   }
 
-  // Mini map is always drawn as colored rectangles.
+  // The minimap is always drawn as colored rectangles.
   ctx.save();
   ctx.setScissorRect(panel.x, panel.y, panel.width, panel.height);
   ctx.translate(panel.x, panel.y);
 
-  // Draw background rect thats the size of the map.
+  // Draw a background rect that's the size of the map.
   ctx.drawSolidRect(
     0,
     0,
@@ -39,7 +39,7 @@ export function drawMiniMap(panel: PanelInfo) {
     parseHtmlColor("#E7D4B7")
   );
 
-  // Draw grid objects on the mini map.
+  // Draw the grid objects on the minimap.
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c");
     const y = getAttr(gridObject, "r");
@@ -60,7 +60,7 @@ export function drawMiniMap(panel: PanelInfo) {
     );
   }
 
-  // Draw agent pips on top
+  // Draw the agent pips on top.
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c");
     const y = getAttr(gridObject, "r");
@@ -78,7 +78,7 @@ export function drawMiniMap(panel: PanelInfo) {
     }
   }
 
-  // Draw where the screen is on the mini map.
+  // Draw where the screen is on the minimap.
   const pos = new Vec2f(
     -ui.mapPanel.panPos.x() / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE,
     -ui.mapPanel.panPos.y() / Common.TILE_SIZE * Common.MINI_MAP_TILE_SIZE

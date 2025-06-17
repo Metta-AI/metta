@@ -20,7 +20,7 @@ export class PanelInfo {
     this.div = find(name)
   }
 
-  /** Check if a point is inside the panel. */
+  /** Checks if a point is inside the panel. */
   inside(point: Vec2f): boolean {
     return point.x() >= this.x && point.x() < this.x + this.width &&
       point.y() >= this.y && point.y() < this.y + this.height;
@@ -33,17 +33,17 @@ export class PanelInfo {
       .mul(Mat3f.translate(this.panPos.x(), this.panPos.y()));
   }
 
-  /** Transform a point from the outer coordinate system to the panel's inner coordinate system. */
+  /** Transforms a point from the outer coordinate system to the panel's inner coordinate system. */
   transformOuter(point: Vec2f): Vec2f {
     return this.transform().inverse().transform(point);
   }
 
-  /** Transform a point from the panel's inner coordinate system to the outer coordinate system. */
+  /** Transforms a point from the panel's inner coordinate system to the outer coordinate system. */
   transformInner(point: Vec2f): Vec2f {
     return this.transform().transform(point);
   }
 
-  /** Make the panel focus on a specific position in the panel. */
+  /** Makes the panel focus on a specific position in the panel. */
   focusPos(x: number, y: number, zoomLevel: number) {
     this.panPos = new Vec2f(
       -x,
@@ -52,10 +52,10 @@ export class PanelInfo {
     this.zoomLevel = zoomLevel;
   }
 
-  /** Update the pan and zoom level based on the mouse position and scroll delta. */
+  /** Updates the pan and zoom level based on the mouse position and scroll delta. */
   updatePanAndZoom(): boolean {
 
-    if ("#" + ui.mouseTarget != this.name || ui.dragging != "") {
+    if (!ui.mouseTargets.includes(this.name) || ui.dragging != "") {
       return false;
     }
 
@@ -88,7 +88,7 @@ export class PanelInfo {
     return false;
   }
 
-  /** Update the div position and size. */
+  /** Updates the div's position and size. */
   updateDiv() {
     this.div.style.top = this.y + 'px';
     this.div.style.left = this.x + 'px';

@@ -155,15 +155,6 @@ class TerrainFromNumpy(Room):
         # Convert to set for O(1) removal operations
         valid_positions_set = set(valid_positions[num_agents:])
 
-        area = height * width
-
-        # Check if total objects exceed room size and halve counts if needed
-        total_objects = sum(count for count in self._objects.values()) + num_agents
-        while total_objects > 2 * area / 3:
-            for obj_name in self._objects:
-                self._objects[obj_name] = max(1, self._objects[obj_name] // 2)
-            total_objects = sum(count for count in self._objects.values()) + num_agents
-
         for obj_name, count in self._objects.items():
             # Sample from remaining valid positions
             positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
