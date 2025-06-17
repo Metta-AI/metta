@@ -862,16 +862,18 @@ class MettaTrainer:
         if torch.distributed.is_initialized():
             # Compute local statistics
             adv_flat = adv.view(-1)
-            local_sum = adv_flat.sum()
-            local_sq_sum = (adv_flat * adv_flat).sum()
+            local_sum = adv_flat.sum().unsqueeze(0)  # Make it 1D tensor with shape [1]
+            local_sq_sum = (adv_flat * adv_flat).sum().unsqueeze(0)  # Make it 1D tensor with shape [1]
             local_count = torch.tensor([adv_flat.numel()], dtype=adv.dtype, device=adv.device)
 
             # Combine statistics for single all_reduce
             stats = torch.stack([local_sum, local_sq_sum, local_count])
             torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
 
-            # Extract global statistics
-            global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
+            # Extract global statistics (squeeze to get scalars)
+            global_sum = stats[0].squeeze()
+            global_sq_sum = stats[1].squeeze()
+            global_count = stats[2].squeeze()
             global_mean = global_sum / global_count
             global_var = (global_sq_sum / global_count) - (global_mean * global_mean)
             global_std = torch.sqrt(global_var.clamp(min=1e-8))
