@@ -459,7 +459,6 @@ class PolicyStore:
 
         We can use this function to alias old layout structures. For now we are supporting:
         - agent --> metta.agent
-        - metta.rl.policy --> metta.rl.pufferlib.policy
         """
         # Memoize
         if getattr(self, "_made_codebase_backwards_compatible", False):
@@ -468,16 +467,6 @@ class PolicyStore:
 
         # Handle agent --> metta.agent
         sys.modules["agent"] = sys.modules["metta.agent"]
-
-        # Handle metta.rl.policy --> metta.rl.pufferlib.policy
-        # First ensure the module is imported
-        try:
-            import metta.rl.pufferlib.policy
-
-            sys.modules["metta.rl.policy"] = sys.modules["metta.rl.pufferlib.policy"]
-        except ImportError:
-            pass  # Module might not exist in this context
-
         modules_queue = collections.deque(["metta.agent"])
 
         processed = set()

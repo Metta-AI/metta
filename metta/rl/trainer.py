@@ -624,7 +624,7 @@ class MettaTrainer:
         if not self._master:
             return
 
-        pr = self._checkpoint_policy()
+        self._checkpoint_policy()
 
         extra_args = {}
         if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
