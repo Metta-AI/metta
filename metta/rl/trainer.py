@@ -28,8 +28,8 @@ from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
+from metta.sim.types.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.util.stopwatch import Stopwatch

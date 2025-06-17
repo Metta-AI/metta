@@ -1,33 +1,8 @@
-# metta/sim/simulation_config.py
-
-from typing import Dict, Optional
+from typing import Dict
 
 from pydantic import model_validator
 
-from metta.util.config import Config
-
-
-class SimulationConfig(Config):
-    """Configuration for a single simulation run."""
-
-    __init__ = Config.__init__
-
-    # Core simulation config
-    num_episodes: int
-    max_time_s: int = 120
-    env_overrides: dict = {}
-
-    npc_policy_uri: Optional[str] = None
-    policy_agents_pct: float = 1.0
-
-
-class SingleEnvSimulationConfig(SimulationConfig):
-    """Configuration for a single simulation run."""
-
-    __init__ = SimulationConfig.__init__
-
-    env: str
-    env_overrides: dict = {}
+from metta.sim.types.simulation_config import SimulationConfig
 
 
 class SimulationSuiteConfig(SimulationConfig):
