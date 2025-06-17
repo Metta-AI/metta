@@ -28,13 +28,13 @@ class TimedVecenv:
         with self._timer("vecenv.step"):
             return self._vecenv.step(actions)
 
-    def async_reset(self, seed: Optional[int] = None) -> None:
-        with self._timer("vecenv.async_reset"):
-            return self._vecenv.async_reset(seed)
+    # def async_reset(self, seed: Optional[int] = None) -> None:
+    #     with self._timer("vecenv.async_reset"):
+    #         return self._vecenv.async_reset(seed)
 
-    def send(self, actions: np.ndarray) -> None:
-        with self._timer("vecenv.send"):
-            return self._vecenv.send(actions)
+    # def send(self, actions: np.ndarray) -> None:
+    #     with self._timer("vecenv.send"):
+    #         return self._vecenv.send(actions)
 
     def recv(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict, np.ndarray, np.ndarray]:
         with self._timer("vecenv.recv"):

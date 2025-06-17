@@ -241,7 +241,6 @@ class MettaTrainer:
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
-    @with_instance_timer("train")
     def train(self):
         logger.info("Starting training")
 

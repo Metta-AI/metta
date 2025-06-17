@@ -142,8 +142,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._grid_env = self._c_env
 
     @override  # pufferlib.PufferEnv.reset
-    @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+        self.timer.reset_all()
+        self.timer.start("reset")
+
         self._task = self._curriculum.get_task()
         self._initialize_c_env()
 
@@ -161,8 +163,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._replay_writer.start_episode(self._episode_id, self)
 
         obs, infos = self._c_env.reset()
-
         self._should_reset = False
+        self.timer.stop("reset")
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
@@ -296,8 +298,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         elapsed_times = self.timer.get_all_elapsed()
         wall_time = self.timer.get_elapsed()
-        elapsed_times["parent"] = wall_time - sum(elapsed_times.values())
-        elapsed_times["total"] = wall_time
 
         infos["timing"] = {
             **{f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0 for op, elapsed in elapsed_times.items()},
