@@ -13,7 +13,7 @@ components:
   #necessary input_source: _obs_
 
   _obs_:
-    _target_: metta.agent.lib.obs_enc.ObsTokenCatFourier
+    _target_: metta.agent.lib.obs_tokenizers.ObsTokenCatFourier
     atr_embed_dim: 16
     sources:
       null

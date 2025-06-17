@@ -123,10 +123,6 @@ class ObsLatentAttn(LayerBase):
     """
     Performs multi-layer cross-attention between learnable query tokens and input features.
 
-    This layer implements a stack of `num_layers` cross-attention blocks, inspired by
-    transformer decoders. A set of `num_query_tokens` learnable parameters are used as
-    queries to iteratively attend to the input features `x_features`.
-
     !!! Note About Output Shape: !!!
     The output shape depends on the `_use_cls_token` parameter:
     - If `_use_cls_token == True`, the output tensor shape will be `[B_TT, out_dim]`.
@@ -201,15 +197,12 @@ class ObsLatentAttn(LayerBase):
         self._v_dim = v_dim
         self._mlp_ratio = mlp_ratio
         self._use_cls_token = use_cls_token  # simply output one latent token (the same one)
-        self._scale = (self._qk_dim // self._num_heads) ** -0.5
-
-        if self._num_layers > 1 and self._query_token_dim != self._v_dim:
-            raise ValueError(
-                f"For multi-layer cross attention (num_layers > 1), query_token_dim ({self._query_token_dim}) must"
-                f"equal v_dim ({self._v_dim}) for residual connections."
-            )
 
     def _make_net(self) -> None:
+        self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
+        if self._use_cls_token:
+            self._out_tensor_shape = [self._out_dim]
+
         # we expect input shape to be [B, M, feat_dim] where we don't know M
         self._feat_dim = self._in_tensor_shapes[0][1]
 
@@ -224,10 +217,13 @@ class ObsLatentAttn(LayerBase):
             raise ValueError(f"qk_dim ({self._qk_dim}) must be divisible by num_heads ({self._num_heads})")
         if self._v_dim % self._num_heads != 0:
             raise ValueError(f"v_dim ({self._v_dim}) must be divisible by num_heads ({self._num_heads})")
+        if self._num_layers > 1 and self._query_token_dim != self._v_dim:
+            raise ValueError(
+                f"For multi-layer cross attention (num_layers > 1), query_token_dim ({self._query_token_dim}) must"
+                f"equal v_dim ({self._v_dim}) for residual connections."
+            )
 
-        self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
-        if self._use_cls_token:
-            self._out_tensor_shape = [self._out_dim]
+        self._scale = (self._qk_dim // self._num_heads) ** -0.5
 
         self._q_token = nn.Parameter(torch.randn(1, self._num_query_tokens, self._query_token_dim))
         nn.init.trunc_normal_(self._q_token, std=0.02)
@@ -269,14 +265,6 @@ class ObsLatentAttn(LayerBase):
         if self._use_mask:
             key_mask = td["obs_mask"]
         B_TT = td["_BxTT_"]
-
-        # Check if we're working with nested tensors
-        is_nested = td.get("is_nested", False)
-
-        if is_nested:
-            # Handle nested tensors with torch.compile-friendly operations
-            # For nested tensors, we need to process them differently
-            return self._forward_nested(td, x_features, B_TT)
 
         queries = self._q_token.expand(B_TT, -1, -1)
 
@@ -322,71 +310,6 @@ class ObsLatentAttn(LayerBase):
             x = x[:, 0]
 
         td[self._name] = x
-        return td
-
-    def _forward_nested(self, td: TensorDict, x_features, B_TT):
-        """Handle forward pass for nested tensors."""
-        # For nested tensors, we'll use scaled_dot_product_attention which supports nested tensors
-
-        # Convert nested tensor list for processing
-        features_list = list(x_features.unbind())
-        output_list = []
-
-        # Process each sequence in the batch
-        for feat in features_list:
-            # feat shape: [seq_len, feat_dim]
-            feat = feat.unsqueeze(0)  # Add batch dimension: [1, seq_len, feat_dim]
-
-            # Initialize query for this sequence
-            queries = self._q_token  # [1, num_query_tokens, query_token_dim]
-
-            # Normalize and project keys/values
-            kv_norm = self.norm_kv(feat)
-            k_p = self.k_proj(kv_norm)  # [1, seq_len, qk_dim]
-            v_p = self.v_proj(kv_norm)  # [1, seq_len, v_dim]
-
-            # Reshape for multi-head attention
-            k_p = einops.rearrange(k_p, "b m (h d) -> b h m d", h=self._num_heads)
-            v_p = einops.rearrange(v_p, "b m (h d) -> b h m d", h=self._num_heads)
-
-            # Process through layers
-            for layer in self.layers:
-                # Attention block
-                queries_res = queries
-                queries_norm = layer["norm1"](queries)
-                q_p = layer["q_proj"](queries_norm)
-                q_p = einops.rearrange(q_p, "b q (h d) -> b h q d", h=self._num_heads)
-
-                # Use scaled_dot_product_attention for efficiency
-                attn_output = torch.nn.functional.scaled_dot_product_attention(
-                    q_p, k_p, v_p, dropout_p=0.0, scale=self._scale
-                )
-                attn_output = einops.rearrange(attn_output, "b h q d -> b q (h d)")
-                attn_output = layer["attn_out_proj"](attn_output)
-
-                queries = queries_res + attn_output
-
-                # MLP block
-                queries_res = queries
-                queries_norm = layer["norm2"](queries)
-                mlp_output = layer["mlp"](queries_norm)
-                queries = queries_res + mlp_output
-
-            # Final processing
-            x = self.final_norm(queries)
-            x = self.output_proj(x)
-
-            if self._use_cls_token:
-                x = x[:, 0]  # [1, out_dim]
-                output_list.append(x.squeeze(0))  # Remove batch dimension
-            else:
-                output_list.append(x.squeeze(0))  # [num_query_tokens, out_dim]
-
-        # Stack outputs back into a regular tensor since we're outputting fixed-size features
-        output = torch.stack(output_list, dim=0)  # [B_TT, out_dim] or [B_TT, num_query_tokens, out_dim]
-
-        td[self._name] = output
-        td["is_nested"] = False  # Output is no longer nested
         return td
 
 

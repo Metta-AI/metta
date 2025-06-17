@@ -302,83 +302,7 @@ class ObsAttrEmbedFourier(LayerBase):
 
     def _forward(self, td: TensorDict) -> TensorDict:
         observations = td[self._sources[0]["name"]]
-        is_nested = td.get("is_nested", False)
 
-        if is_nested:
-            # Handle nested tensor case
-            obs_list = list(observations.unbind())
-            feat_list = []
-
-            for obs in obs_list:
-                feat = self._process_single_sequence(obs)
-                feat_list.append(feat)
-
-            # Convert back to nested tensor
-            feat_vectors = torch.nested.nested_tensor(feat_list, layout=torch.jagged, device=observations.device)
-        else:
-            # Original implementation for regular tensors
-            feat_vectors = self._process_batch(observations)
-
-        td[self._name] = feat_vectors
-        return td
-
-    def _process_single_sequence(self, observations):
-        """Process a single sequence (used for nested tensors)."""
-        atr_indices = observations[..., 1].long()
-        atr_embeds = self._atr_embeds(atr_indices)
-
-        # Pre-allocate feature vector
-        feat_vectors = torch.empty(
-            (*atr_embeds.shape[:-1], self._feat_dim),
-            dtype=atr_embeds.dtype,
-            device=atr_embeds.device,
-        )
-        feat_vectors[..., : self._atr_embed_dim] = atr_embeds
-
-        # Extract and process coordinates
-        coords_byte = observations[..., 0].to(torch.uint8)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).float()
-        y_coord_indices = (coords_byte & 0x0F).float()
-
-        # Normalize coordinates
-        x_coords_norm = x_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
-        y_coords_norm = y_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
-
-        # Expand dims for broadcasting
-        x_coords_norm = x_coords_norm.unsqueeze(-1)
-        y_coords_norm = y_coords_norm.unsqueeze(-1)
-
-        # Get frequencies
-        frequencies = (
-            self.get_buffer("frequencies").view(1, -1)
-            if observations.dim() == 2
-            else self.get_buffer("frequencies").view(1, 1, -1)
-        )
-
-        # Compute Fourier features
-        x_scaled = x_coords_norm * frequencies
-        y_scaled = y_coords_norm * frequencies
-
-        # Place Fourier features
-        offset = self._atr_embed_dim
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(x_scaled)
-        offset += self._num_freqs
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(x_scaled)
-        offset += self._num_freqs
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(y_scaled)
-        offset += self._num_freqs
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(y_scaled)
-
-        # Add attribute values
-        atr_values = observations[..., 2].float()
-        feat_vectors[..., self._atr_embed_dim + self._coord_rep_dim :] = (
-            atr_values.unsqueeze(-1) if atr_values.dim() == 0 else atr_values
-        )
-
-        return feat_vectors
-
-    def _process_batch(self, observations):
-        """Process a regular batch tensor (original implementation)."""
         # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
         atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
         atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
@@ -429,9 +353,10 @@ class ObsAttrEmbedFourier(LayerBase):
         atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
 
         # Place normalized attribute values in the feature vector
-        feat_vectors[..., self._atr_embed_dim + self._coord_rep_dim :] = atr_values
+        feat_vectors[..., self._atr_embed_dim + self._coord_rep_dim :] = einops.rearrange(atr_values, "... -> ... 1")
 
-        return feat_vectors
+        td[self._name] = feat_vectors
+        return td
 
 
 class ObsAttrCoordValueEmbed(LayerBase):

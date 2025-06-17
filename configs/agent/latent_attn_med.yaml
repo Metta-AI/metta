@@ -13,17 +13,17 @@ components:
   #necessary input_source: _obs_
 
   _obs_:
-    _target_: metta.agent.lib.obs_enc.ObsTokenPadStrip
+    _target_: metta.agent.lib.obs_tokenizers.ObsTokenPadStrip
     sources:
       null
 
   obs_normalize:
-    _target_: metta.agent.lib.obs_enc.ObsAttrValNorm
+    _target_: metta.agent.lib.obs_tokenizers.ObsAttrValNorm
     sources:
       - name: _obs_
 
   obs_fourier:
-    _target_: metta.agent.lib.obs_enc.ObsAttrEmbedFourier
+    _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
     sources:
       - name: obs_normalize
     num_freqs: 8
