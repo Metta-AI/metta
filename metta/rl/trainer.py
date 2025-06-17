@@ -232,12 +232,6 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        self.replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self) -> None:
@@ -691,35 +685,40 @@ class MettaTrainer:
 
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
-        if self._master:
-            logger.info("Generating and saving a replay to wandb and S3.")
+        if not self._master:
+            return
 
-            replay_simulator = Simulation(
-                name=f"replay_{self.epoch}",
-                config=self.replay_sim_config,
-                policy_pr=self.last_pr,
-                policy_store=self.policy_store,
-                device=self.device,
-                vectorization=self.cfg.vectorization,
-                replay_dir=self.cfg.trainer.replay_dir,
+        replay_sim_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
+
+        replay_simulator = Simulation(
+            name=f"replay_{self.epoch}",
+            config=replay_sim_config,
+            policy_pr=self.last_pr,
+            policy_store=self.policy_store,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
+            replay_dir=self.cfg.trainer.replay_dir,
+        )
+        results = replay_simulator.simulate()
+
+        if self.wandb_run is not None:
+            replay_urls = results.stats_db.get_replay_urls(
+                policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
             )
-            results = replay_simulator.simulate()
-
-            if self.wandb_run is not None:
-                replay_urls = results.stats_db.get_replay_urls(
-                    policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
-                )
-                if len(replay_urls) > 0:
-                    replay_url = replay_urls[0]
-                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                    link_summary = {
-                        "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                    }
-                    self.wandb_run.log(link_summary)
+            if len(replay_urls) > 0:
+                replay_url = replay_urls[0]
+                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                link_summary = {
+                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                }
+                self.wandb_run.log(link_summary)
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
-        # Early exit if no wandb logging
         if not self.wandb_run or not self._master:
             self.stats.clear()
             return
