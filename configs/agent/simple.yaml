@@ -31,7 +31,7 @@ components:
     atr_embed_dim: 12
 
   obs_cross_attn:
-    _target_: metta.agent.lib.obs_enc.ObsLatentAttn
+    _target_: metta.agent.lib.obs_enc.ObsLatentAttnBisect
     out_dim: 128
     use_mask: true
     num_query_tokens: 1

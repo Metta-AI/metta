@@ -313,6 +313,159 @@ class ObsLatentAttn(LayerBase):
         return td
 
 
+class ObsLatentAttnBisect(LayerBase):
+    def __init__(
+        self,
+        out_dim: int,
+        use_mask: bool = False,
+        num_query_tokens: int = 1,
+        num_heads: int = 1,
+        num_layers: int = 1,
+        query_token_dim: Optional[int] = None,
+        qk_dim: Optional[int] = None,
+        v_dim: Optional[int] = None,
+        mlp_ratio: float = 4.0,
+        use_cls_token: bool = False,
+        **cfg,
+    ) -> None:
+        super().__init__(**cfg)
+        self._out_dim = out_dim
+        self._use_mask = use_mask
+        self._num_query_tokens = num_query_tokens
+        self._num_heads = num_heads
+        self._num_layers = num_layers
+        self._query_token_dim = query_token_dim
+        assert self._num_query_tokens > 0, "num_query_tokens must be greater than 0"
+        self._qk_dim = qk_dim
+        self._v_dim = v_dim
+        self._mlp_ratio = mlp_ratio
+        self._use_cls_token = use_cls_token  # simply output one latent token (the same one)
+
+    def _make_net(self) -> None:
+        self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
+        if self._use_cls_token:
+            self._out_tensor_shape = [self._out_dim]
+
+        # we expect input shape to be [B, M, feat_dim] where we don't know M
+        self._feat_dim = self._in_tensor_shapes[0][1]
+
+        if self._query_token_dim is None:
+            self._query_token_dim = self._feat_dim
+        if self._qk_dim is None:
+            self._qk_dim = self._query_token_dim
+        if self._v_dim is None:
+            self._v_dim = self._query_token_dim
+
+        if self._qk_dim % self._num_heads != 0:
+            raise ValueError(f"qk_dim ({self._qk_dim}) must be divisible by num_heads ({self._num_heads})")
+        if self._v_dim % self._num_heads != 0:
+            raise ValueError(f"v_dim ({self._v_dim}) must be divisible by num_heads ({self._num_heads})")
+        if self._num_layers > 1 and self._query_token_dim != self._v_dim:
+            raise ValueError(
+                f"For multi-layer cross attention (num_layers > 1), query_token_dim ({self._query_token_dim}) must"
+                f"equal v_dim ({self._v_dim}) for residual connections."
+            )
+
+        self._scale = (self._qk_dim // self._num_heads) ** -0.5
+
+        self._q_token = nn.Parameter(torch.randn(1, self._num_query_tokens, self._query_token_dim))
+        nn.init.trunc_normal_(self._q_token, std=0.02)
+
+        self.norm_kv = nn.LayerNorm(self._feat_dim)
+        self.k_proj = nn.Linear(self._feat_dim, self._qk_dim, bias=False)
+        self.v_proj = nn.Linear(self._feat_dim, self._v_dim, bias=False)
+
+        self.q_proj = nn.Linear(self._query_token_dim, self._qk_dim, bias=False)
+        self.attn_out_proj = nn.Linear(self._v_dim, self._query_token_dim)
+        self.norm1 = nn.LayerNorm(self._query_token_dim)
+        self.norm2 = nn.LayerNorm(self._query_token_dim)
+        self.MLP = nn.Sequential(
+            nn.Linear(self._query_token_dim, int(self._query_token_dim * self._mlp_ratio)),
+            nn.GELU(),
+            nn.Linear(int(self._query_token_dim * self._mlp_ratio), self._query_token_dim),
+        )
+
+        # self.layers = nn.ModuleList([])
+        # for _ in range(self._num_layers):
+        #     self.layers.append(
+        #         nn.ModuleDict(
+        #             {
+        #                 "q_proj": nn.Linear(self._query_token_dim, self._qk_dim, bias=False),
+        #                 "attn_out_proj": nn.Linear(self._v_dim, self._query_token_dim),
+        #                 "norm1": nn.LayerNorm(self._query_token_dim),
+        #                 "norm2": nn.LayerNorm(self._query_token_dim),
+        #                 "mlp": nn.Sequential(
+        #                     nn.Linear(self._query_token_dim, int(self._query_token_dim * self._mlp_ratio)),
+        #                     nn.GELU(),
+        #                     nn.Linear(int(self._query_token_dim * self._mlp_ratio), self._query_token_dim),
+        #                 ),
+        #             }
+        #         )
+        #     )
+
+        self.final_norm = nn.LayerNorm(self._query_token_dim)
+
+        if self._query_token_dim == self._out_dim:
+            self.output_proj = nn.Identity()
+        else:
+            self.output_proj = nn.Linear(self._query_token_dim, self._out_dim)
+
+        return None
+
+    def _forward(self, td: TensorDict) -> TensorDict:
+        x_features = td[self._sources[0]["name"]]
+        key_mask = None
+        if self._use_mask:
+            key_mask = td["obs_mask"]
+        B_TT = td["_BxTT_"]
+
+        queries = self._q_token.expand(B_TT, -1, -1)
+
+        kv_norm = self.norm_kv(x_features)
+        k_p = self.k_proj(kv_norm)
+        v_p = self.v_proj(kv_norm)
+
+        k_p = einops.rearrange(k_p, "b m (h d) -> b h m d", h=self._num_heads)
+        v_p = einops.rearrange(v_p, "b m (h d) -> b h m d", h=self._num_heads)
+
+        # for layer in self.layers:
+        # Attention block
+        queries_res = queries
+        queries_norm = self.norm1(queries)
+        q_p = self.q_proj(queries_norm)
+        q_p = einops.rearrange(q_p, "b q (h d) -> b h q d", h=self._num_heads)
+
+        attn_scores = torch.einsum("bhqd,bhkd->bhqk", q_p, k_p) * self._scale
+
+        if key_mask is not None:
+            mask_value = -torch.finfo(attn_scores.dtype).max
+            # key_mask: [B_TT, M] -> [B_TT, 1, 1, M] for broadcasting
+            attn_scores = attn_scores + key_mask.unsqueeze(1).unsqueeze(1).to(attn_scores.dtype) * mask_value
+
+        attn_weights = torch.softmax(attn_scores, dim=-1)
+        attn_output = torch.einsum("bhqk,bhkd->bhqd", attn_weights, v_p)
+        attn_output = einops.rearrange(attn_output, "b h q d -> b q (h d)")
+        attn_output = self.attn_out_proj(attn_output)
+
+        queries = queries_res + attn_output
+
+        # MLP block
+        queries_res = queries
+        queries_norm = self.norm2(queries)
+        mlp_output = self.MLP(queries_norm)
+        queries = queries_res + mlp_output
+
+        x = self.final_norm(queries)
+        x = self.output_proj(x)
+
+        if self._use_cls_token:
+            # Select first query token from [B_TT, num_query_tokens, self._out_dim] to [B_TT, self._out_dim]
+            x = x[:, 0]
+
+        td[self._name] = x
+        return td
+
+
 class ObsSlotAttn(LayerBase):
     def __init__(
         self,
