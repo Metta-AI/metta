@@ -4,6 +4,7 @@ import time
 from collections import defaultdict
 from types import SimpleNamespace
 
+import einops
 import numpy as np
 import torch
 import torch.distributed
@@ -83,7 +84,6 @@ class PufferTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.average_reward = 0.0
         self._current_eval_score = None
         self._eval_grouped_scores = {}
         self._eval_suite_avgs = {}
@@ -106,8 +106,6 @@ class PufferTrainer:
         policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
         assert policy_record is not None, "No policy found"
-        if "average_reward" in checkpoint.extra_args:
-            self.average_reward = checkpoint.extra_args["average_reward"]
 
         if self._master:
             logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
@@ -441,44 +439,35 @@ class PufferTrainer:
         self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
         with profile.train_misc:
-            config = self.trainer_cfg
+            cfg = self.trainer_cfg
 
             # Reset importance sampling ratios
-            experience.reset_ratio()
+            experience.reset_importance_sampling_ratios()
 
             # Prioritized sampling parameters
-            b0 = config.get("prio_beta0", 0.6)
-            a = config.get("prio_alpha", 0.0)
-            total_epochs = max(1, config.total_timesteps // config.batch_size)
+            prio_config = cfg.get("prioritized_experience_replay", {})
+            b0 = prio_config.get("prio_beta0", 0.6)
+            a = prio_config.get("prio_alpha", 0.0)
+            total_epochs = max(1, cfg.total_timesteps // cfg.batch_size)
             anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
-
-            # Update average reward estimate if enabled
-            if config.average_reward:
-                alpha = config.average_reward_alpha
-                current_batch_mean = experience.get_mean_reward()
-                self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
 
             # Compute advantages using puff_advantage
             advantages = torch.zeros(experience.values.shape, device=self.device)
 
-            # Adjust rewards for average reward if enabled
-            rewards_for_advantage = experience.rewards
-            if config.average_reward:
-                rewards_for_advantage = experience.rewards - self.average_reward
-
             # Initial ratio is all ones
             initial_ratio = torch.ones_like(experience.values)
 
+            vtrace_config = cfg.get("vtrace", {})
             advantages = self._compute_advantage(
                 experience.values,
-                rewards_for_advantage,
+                experience.rewards,
                 experience.dones,
                 initial_ratio,
                 advantages,
-                config.gamma if not config.average_reward else 1.0,
-                config.gae_lambda,
-                config.get("vtrace_rho_clip", 1.0),
-                config.get("vtrace_c_clip", 1.0),
+                cfg.gamma,
+                cfg.gae_lambda,
+                vtrace_config.get("vtrace_rho_clip", 1.0),
+                vtrace_config.get("vtrace_c_clip", 1.0),
             )
 
         # Optimizing the policy and value network
@@ -494,8 +483,8 @@ class PufferTrainer:
 
             with profile.train_forward:
                 obs = minibatch["obs"]
-                if not config.get("use_rnn", True):
-                    obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
+                if not cfg.get("use_rnn", True):
+                    obs = einops.rearrange(obs, "b t ... -> (b t) ...")
 
                 lstm_state = PolicyState()
                 _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
@@ -511,25 +500,21 @@ class PufferTrainer:
                 with torch.no_grad():
                     old_approx_kl = (-logratio).mean()
                     approx_kl = ((ratio - 1) - logratio).mean()
-                    clipfrac = ((ratio - 1.0).abs() > config.clip_coef).float().mean()
+                    clipfrac = ((ratio - 1.0).abs() > cfg.clip_coef).float().mean()
 
                 # Re-compute advantages with new ratios (V-trace)
-                rewards_adjusted = minibatch["rewards"] - (self.average_reward if config.average_reward else 0)
+                vtrace_config = cfg.get("vtrace", {})
                 adv = self._compute_advantage(
                     minibatch["values"],
-                    rewards_adjusted,
+                    minibatch["rewards"],
                     minibatch["dones"],
                     ratio,
                     minibatch["advantages"],
-                    1.0 if config.average_reward else config.gamma,
-                    config.gae_lambda,
-                    config.get("vtrace_rho_clip", 1.0),
-                    config.get("vtrace_c_clip", 1.0),
+                    cfg.gamma,
+                    cfg.gae_lambda,
+                    vtrace_config.get("vtrace_rho_clip", 1.0),
+                    vtrace_config.get("vtrace_c_clip", 1.0),
                 )
-
-                # Not using V-trace corrected advantages because not empirically better
-                # TODO: Experiment with V-trace to see if it helps
-                # adv = minibatch["advantages"]
 
                 # Normalize advantages with distributed support, then apply prioritized weights
                 adv = self._normalize_advantage_distributed(adv)
@@ -537,17 +522,17 @@ class PufferTrainer:
 
                 # Policy loss
                 pg_loss1 = -adv * ratio
-                pg_loss2 = -adv * torch.clamp(ratio, 1 - config.clip_coef, 1 + config.clip_coef)
+                pg_loss2 = -adv * torch.clamp(ratio, 1 - cfg.clip_coef, 1 + cfg.clip_coef)
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
                 newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
-                if config.clip_vloss:
+                if cfg.clip_vloss:
                     v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
                     v_clipped = minibatch["values"] + torch.clamp(
                         newvalue_reshaped - minibatch["values"],
-                        -config.get("vf_clip_coef", 0.1),
-                        config.get("vf_clip_coef", 0.1),
+                        -cfg.get("vf_clip_coef", 0.1),
+                        cfg.get("vf_clip_coef", 0.1),
                     )
                     v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
                     v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
@@ -570,8 +555,8 @@ class PufferTrainer:
 
                 loss = (
                     pg_loss
-                    - config.ent_coef * entropy_loss
-                    + v_loss * config.vf_coef
+                    - cfg.ent_coef * entropy_loss
+                    + v_loss * cfg.vf_coef
                     + l2_reg_loss
                     + l2_init_loss
                     + ks_action_loss
@@ -604,7 +589,7 @@ class PufferTrainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 if (mb + 1) % self.experience.accumulate_minibatches == 0:
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), config.max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), cfg.max_grad_norm)
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
@@ -613,7 +598,7 @@ class PufferTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-            if config.target_kl is not None and approx_kl > config.target_kl:
+            if cfg.target_kl is not None and approx_kl > cfg.target_kl:
                 break
 
         with profile.train_misc:
@@ -639,14 +624,20 @@ class PufferTrainer:
 
         pr = self._checkpoint_policy()
 
-        # Save filtered average reward estimate for restart continuity
         extra_args = {}
-        if self.trainer_cfg.average_reward:
-            extra_args["average_reward"] = self.average_reward
+        if self.kickstarter.teacher_pr is not None:
+            extra_args["teacher_pr_uri"] = self.kickstarter.teacher_pr.uri
 
-        self.checkpoint = TrainerCheckpoint(
-            self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
-        ).save(self.cfg.run_dir)
+        checkpoint = TrainerCheckpoint(
+            agent_step=self.agent_step,
+            epoch=self.epoch,
+            total_agent_step=self.agent_step * torch.distributed.get_world_size()
+            if torch.distributed.is_initialized()
+            else self.agent_step,
+            optimizer_state_dict=self.optimizer.state_dict(),
+            extra_args=extra_args,
+        )
+        checkpoint.save(self.cfg.run_dir)
 
     def _checkpoint_policy(self):
         if not self._master:
@@ -804,7 +795,6 @@ class PufferTrainer:
                     "train/avg_agent_steps_per_update": avg_steps_per_update,
                     "train/epoch": epoch,
                     "train/learning_rate": learning_rate,
-                    "train/average_reward": self.average_reward if self.trainer_cfg.average_reward else None,
                     **timing_logs,
                 }
             )

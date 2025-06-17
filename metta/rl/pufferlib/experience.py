@@ -39,8 +39,8 @@ class Experience:
         atn_space,
         device: torch.device | str,
         cpu_offload: bool = False,
-        use_rnn: bool = False,
-        hidden_size: int = 256,
+        use_rnn: bool,
+        hidden_size: int,
         num_lstm_layers: int = 2,
         agents_per_batch: Optional[int] = None,
     ):
@@ -204,7 +204,7 @@ class Experience:
         self.ep_indices = torch.arange(self.total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.ep_lengths.zero_()
 
-    def reset_ratio(self) -> None:
+    def reset_importance_sampling_ratios(self) -> None:
         """Reset the importance sampling ratio to 1.0."""
         self.ratio.fill_(1.0)
 
