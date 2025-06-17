@@ -2,9 +2,9 @@ import { Vec2f } from './vector_math.js';
 import { Context3d } from './context3d.js';
 import { find, parseHtmlColor, localStorageGetNumber } from './htmlutils.js';
 import { PanelInfo } from './panels.js';
-import { InfoPanel } from './infopanels.js';
+import { HoverPanel } from './hoverpanels.js';
 
-// The 3d context, used for nearly everything.
+// The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement);
 
 // Constants
@@ -12,11 +12,11 @@ export const MIN_ZOOM_LEVEL = 0.025;
 export const MAX_ZOOM_LEVEL = 2.0;
 export const DEFAULT_ZOOM_LEVEL = 1 / 2;
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4;
-export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
-export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
-export const PANEL_BOTTOM_MARGIN = 60;    // bottom margin for panels
-export const HEADER_HEIGHT = 60;          // height of the header
-export const SCRUBBER_HEIGHT = 120;        // height of the scrubber
+export const SPLIT_DRAG_THRESHOLD = 10;  // Pixels to detect split dragging.
+export const SCROLL_ZOOM_FACTOR = 1000;  // Divisor for scroll delta to zoom conversion.
+export const PANEL_BOTTOM_MARGIN = 60;
+export const HEADER_HEIGHT = 60;
+export const FOOTER_HEIGHT = 128;
 export const SPEEDS = [0.02, 0.1, 0.25, 0.5, 1.0, 5.0];
 
 // Map constants
@@ -48,14 +48,15 @@ export const ui = {
   mouseClick: false,
   mouseDoubleClick: false,
   mousePos: new Vec2f(0, 0),
-  mouseTarget: "",
+  mouseTargets: [] as string[],
   dragging: "",
   dragHtml: null as HTMLElement | null,
   dragOffset: new Vec2f(0, 0),
   lastMousePos: new Vec2f(0, 0),
   mouseDownPos: new Vec2f(0, 0),
   scrollDelta: 0,
-  lastClickTime: 0, // For double-click detection
+  lastClickTime: 0, // For double-click detection.
+  mainScrubberDown: false,
 
   // Split between trace and info panels.
   traceSplit: localStorageGetNumber("traceSplit", 0.8),
@@ -67,8 +68,9 @@ export const ui = {
   tracePanel: new PanelInfo("#trace-panel"),
   infoPanel: new PanelInfo("#info-panel"),
   agentPanel: new PanelInfo("#agent-panel"),
+  timelinePanel: new PanelInfo("#timeline-panel"),
 
-  infoPanels: [] as InfoPanel[],
+  hoverPanels: [] as HoverPanel[],
   hoverObject: null as any,
   hoverTimer: null as any,
   delayedHoverObject: null as any,
@@ -78,7 +80,7 @@ export const state = {
   // Replay data and player state
   replay: null as any,
   selectedGridObject: null as any,
-  followSelection: false, // Flag to follow selected entity
+  followSelection: false, // Flag to follow the selected entity.
 
   // Playback state
   step: 0,
@@ -98,7 +100,7 @@ export const state = {
 
   showAttackMode: false,
 
-  // Playing over WebSocket
+  // Playing over a WebSocket
   ws: null as WebSocket | null,
   isOneToOneAction: false,
 };
@@ -110,9 +112,6 @@ export const html = {
   fileName: find('#file-name') as HTMLDivElement,
   helpButton: find('#help-button') as HTMLButtonElement,
   shareButton: find('#share-button') as HTMLButtonElement,
-
-  // Bottom area
-  scrubber: find('#main-scrubber') as HTMLInputElement,
 
   rewindToStartButton: find('#rewind-to-start') as HTMLImageElement,
   stepBackButton: find('#step-back') as HTMLImageElement,
@@ -143,13 +142,14 @@ export const html = {
   visualRangeToggle: find('#visual-range-toggle') as HTMLImageElement,
   fogOfWarToggle: find('#fog-of-war-toggle') as HTMLImageElement,
 
+  stepCounter: find('#step-counter') as HTMLSpanElement,
 
   // Utility
   modal: find('#modal') as HTMLDivElement,
   toast: find('#toast') as HTMLDivElement,
 }
 
-/** Set the follow selection state, you can pass null to leave a state unchanged. */
+/** Sets the follow selection state. You can pass null to leave a state unchanged. */
 export function setFollowSelection(map: boolean | null) {
   if (map != null) {
     state.followSelection = map;
@@ -161,7 +161,7 @@ export function setFollowSelection(map: boolean | null) {
   }
 }
 
-/** Show the modal. */
+/** Shows the modal. */
 export function showModal(type: string, title: string, message: string) {
   html.modal.classList.remove('hidden');
   html.modal.classList.add(type);
@@ -175,7 +175,7 @@ export function showModal(type: string, title: string, message: string) {
   }
 }
 
-/** Close the modal. */
+/** Closes the modal. */
 export function closeModal() {
   // Remove error class from modal.
   html.modal.classList.remove('error');

@@ -4,10 +4,10 @@ import { focusFullMap, requestFrame } from './worldmap.js';
 import { onResize, updateStep } from './main.js';
 import { updateAgentTable } from './agentpanel.js';
 
-/** Gets an attribute from a grid object respecting the current step. */
+/** Gets an attribute from a grid object, respecting the current step. */
 export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): any {
   if (atStep == -1) {
-    // When step is not defined, use global step.
+    // When the step is not passed in, use the global step.
     atStep = state.step;
   }
   if (obj[attr] === undefined) {
@@ -15,12 +15,12 @@ export function getAttr(obj: any, attr: string, atStep = -1, defaultValue = 0): 
   } else if (obj[attr] instanceof Array) {
     return obj[attr][atStep];
   } else {
-    // Must be a constant that does not change over time.
+    // This must be a constant that does not change over time.
     return obj[attr];
   }
 }
 
-/** Decompress a stream, used for compressed JSON from fetch or drag and drop. */
+/** Decompresses a stream. Used for compressed JSON from fetch or drag-and-drop. */
 async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<string> {
   const decompressionStream = new DecompressionStream('deflate');
   const decompressedStream = stream.pipeThrough(decompressionStream);
@@ -45,10 +45,10 @@ async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<str
   return decoder.decode(flattenedChunks);
 }
 
-/** Load the replay from a URL. */
+/** Loads the replay from a URL. */
 export async function fetchReplay(replayUrl: string) {
 
-  // If its an S3 url, we can convert it to a http url.
+  // If it's an S3 URL, we can convert it to an HTTP URL.
   const s3Prefix = "s3://softmax-public/";
   let httpUrl = replayUrl;
   if (replayUrl.startsWith(s3Prefix)) {
@@ -65,14 +65,14 @@ export async function fetchReplay(replayUrl: string) {
     if (response.body === null) {
       throw new Error("Response body is null");
     }
-    // Check the Content-Type header
+    // Check the Content-Type header.
     const contentType = response.headers.get('Content-Type');
     console.info("Content-Type: ", contentType);
     if (contentType === "application/json") {
       let replayData = await response.text();
       loadReplayText(replayUrl, replayData);
     } else if (contentType === "application/x-compress" || contentType === "application/octet-stream") {
-      // Compressed JSON.
+      // This is compressed JSON.
       const decompressedData = await decompressStream(response.body);
       loadReplayText(replayUrl, decompressedData);
     } else {
@@ -83,7 +83,7 @@ export async function fetchReplay(replayUrl: string) {
   }
 }
 
-/** Read a file from drag and drop. */
+/** Reads a file from drag-and-drop. */
 export async function readFile(file: File) {
   try {
     const contentType = file.type;
@@ -91,7 +91,7 @@ export async function readFile(file: File) {
     if (contentType === "application/json") {
       loadReplayText(file.name, await file.text());
     } else if (contentType === "application/x-compress" || contentType === "application/octet-stream") {
-      // Compressed JSON.
+      // This is compressed JSON.
       const decompressedData = await decompressStream(file.stream());
       loadReplayText(file.name, decompressedData);
     }
@@ -101,7 +101,7 @@ export async function readFile(file: File) {
 }
 
 /**
- * Expand a sequence of values.
+ * Expands a sequence of values.
  * Example: [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
  */
 // [[0, value1], [2, value2], ...] -> [value1, value1, value2, ...]
@@ -120,24 +120,24 @@ function expandSequence(sequence: any[], numSteps: number): any[] {
   return expanded;
 }
 
-// Remove a prefix from a string.
+// Removes a prefix from a string.
 function removePrefix(str: string, prefix: string) {
   return str.startsWith(prefix) ? str.slice(prefix.length) : str;
 }
 
-// Remove a suffix from a string.
+// Removes a suffix from a string.
 function removeSuffix(str: string, suffix: string) {
   return str.endsWith(suffix) ? str.slice(0, -suffix.length) : str;
 }
 
-// Load the replay text.
+// Loads the replay text.
 async function loadReplayText(url: string, replayData: string) {
   loadReplayJson(url, JSON.parse(replayData));
 }
 
 // Replays can be in many different formats, with stuff missing or broken.
-// This function fixes the replay to be in a consistent format.
-// Adding missing keys, recomputing invalid values. etc...
+// This function fixes the replay to be in a consistent format,
+// adding missing keys, recomputing invalid values, etc.
 // It also creates some internal data structures for faster access to images.
 function fixReplay() {
   // Create action image mappings for faster access.
@@ -152,7 +152,7 @@ function fixReplay() {
     }
   }
 
-  // Create a list of all keys objects can have.
+  // Create a list of all keys that objects can have.
   state.replay.all_keys = new Set();
   for (const gridObject of state.replay.grid_objects) {
     for (const key in gridObject) {
@@ -160,7 +160,7 @@ function fixReplay() {
     }
   }
 
-  // Create object image mapping for faster access.
+  // Create an object image mapping for faster access.
   // Example: 3 -> ["objects/altar.png", "objects/altar.item.png", "objects/altar.color.png"]
   // Example: 1 -> ["objects/unknown.png", "objects/unknown.item.png", "objects/unknown.color.png"]
   state.replay.object_images = []
@@ -171,7 +171,7 @@ function fixReplay() {
     var imageColor = "objects/" + typeName + ".color.png";
     if (!ctx.hasImage(image)) {
       console.warn("Object not supported: ", typeName);
-      // Use the unknown image.
+      // Use the "unknown" image.
       image = "objects/unknown.png";
       imageItem = "objects/unknown.item.png";
       imageColor = "objects/unknown.color.png";
@@ -179,7 +179,7 @@ function fixReplay() {
     state.replay.object_images.push([image, imageItem, imageColor]);
   }
 
-  // Create resource inventory mapping for faster access.
+  // Create a resource inventory mapping for faster access.
   // Example: "inv:heart" -> ["resources/heart.png", [1, 1, 1, 1]]
   // Example: "inv:ore.red" -> ["resources/ore.red.png", [1, 1, 1, 1]]
   // Example: "agent:inv:heart.blue" -> ["resources/heart.png", [0, 0, 1, 1]]
@@ -194,14 +194,14 @@ function fixReplay() {
       for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
           if (ctx.hasImage("resources/" + type + ".png")) {
-            // Use the resource.color.png with white color.
+            // Use the resource.color.png with a white color.
             break;
           } else {
-            // Use the resource.png with specific color.
+            // Use the resource.png with a specific color.
             type = removeSuffix(type, "." + colorName);
             color = colorValue as number[];
             if (!ctx.hasImage("resources/" + type + ".png")) {
-              // Use the unknown.png with specific color.
+              // Use the unknown.png with a specific color.
               console.warn("Resource not supported: ", type);
               type = "unknown";
             }
@@ -213,7 +213,7 @@ function fixReplay() {
     }
   }
 
-  // Map size is not to be trusted. Recompute map size just in case.
+  // The map size is not to be trusted. Recompute the map size just in case.
   let oldMapSize = [state.replay.map_size[0], state.replay.map_size[1]];
   state.replay.map_size[0] = 1;
   state.replay.map_size[1] = 1;
@@ -224,7 +224,7 @@ function fixReplay() {
     state.replay.map_size[1] = Math.max(state.replay.map_size[1], y);
   }
   if (oldMapSize[0] != state.replay.map_size[0] || oldMapSize[1] != state.replay.map_size[1]) {
-    // Map size changed, update the map.
+    // The map size changed, so update the map.
     console.info("Map size changed to: ", state.replay.map_size[0], "x", state.replay.map_size[1]);
     focusFullMap(ui.mapPanel);
     // Force a resize to update the minimap panel.
@@ -235,7 +235,7 @@ function fixReplay() {
 
 }
 
-/** Load a replay from a JSON object. */
+/** Loads a replay from a JSON object. */
 async function loadReplayJson(url: string, replayData: any) {
   state.replay = replayData;
 
@@ -261,10 +261,6 @@ async function loadReplayJson(url: string, replayData: any) {
 
   fixReplay();
 
-
-  // Set the scrubber max value to the max steps.
-  html.scrubber.max = (state.replay.max_steps - 1).toString();
-
   if (state.replay.file_name) {
     html.fileName.textContent = state.replay.file_name;
   } else {
@@ -278,7 +274,7 @@ async function loadReplayJson(url: string, replayData: any) {
   requestFrame();
 }
 
-/** Load a single step of a replay. */
+/** Loads a single step of a replay. */
 export function loadReplayStep(replayStep: any) {
   // This gets us a simple replay step that we can overwrite.
 
@@ -293,11 +289,11 @@ export function loadReplayStep(replayStep: any) {
     const index = gridObject.id - 1;
     for (const key in gridObject) {
       const value = gridObject[key];
-      // Ensure the grid object exists.
+      // Ensure that the grid object exists.
       while (state.replay.grid_objects.length <= index) {
         state.replay.grid_objects.push({});
       }
-      // Ensure the key exists.
+      // Ensure that the key exists.
       if (state.replay.grid_objects[index][key] === undefined) {
         state.replay.grid_objects[index][key] = [];
         while (state.replay.grid_objects[index][key].length <= step) {
@@ -324,7 +320,7 @@ export function loadReplayStep(replayStep: any) {
   requestFrame();
 }
 
-/** Initialize the WebSocket connection. */
+/** Initializes the WebSocket connection. */
 export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl);
   state.ws.onmessage = (event) => {
@@ -362,7 +358,7 @@ export function initWebSocket(wsUrl: string) {
   };
 }
 
-/** Send an action to the server. */
+/** Sends an action to the server. */
 export function sendAction(actionName: string, actionParam: number) {
   if (state.ws === null) {
     console.error("WebSocket is not connected");

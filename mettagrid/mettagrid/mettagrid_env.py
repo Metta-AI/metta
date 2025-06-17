@@ -126,6 +126,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
+
+        # During training, we run a lot of envs in parallel, and it's better if they are not
+        # all synced together. The desync_episodes flag is used to desync the episodes.
+        # Ideally vecenv would have a way to desync the episodes, but it doesn't.
         if self._num_episodes == 0 and task.env_cfg().desync_episodes:
             max_steps = int(task.env_cfg().game.max_steps)
             config_game = cast(Dict[str, Any], config_dict.get("game", {}))
@@ -140,13 +144,13 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._c_env = MettaGrid(config_dict, level.grid.tolist())
 
         self._grid_env = self._c_env
-        self._num_episodes += 1
 
     @override  # pufferlib.PufferEnv.reset
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
         self._task = self._curriculum.get_task()
 
         self._initialize_c_env()
+        self._num_episodes += 1
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -182,10 +186,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         """
 
-        if __debug__:
-            from mettagrid.util.actions import validate_actions
-
-            validate_actions(self, actions, logger)
+        # Note: We explicitly allow invalid actions to be used. The environment will
+        # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
 
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_pre_step(self._episode_id, actions)
@@ -349,7 +351,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._should_reset
 
     @property
-    def feature_normalizations(self) -> list[float]:
+    def feature_normalizations(self) -> dict[int, float]:
         return self._c_env.feature_normalizations()
 
     @property
@@ -405,3 +407,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     def inventory_item_names(self) -> list[str]:
         return self._c_env.inventory_item_names()
+
+    @property
+    def config(self) -> dict[str, Any]:
+        return cast(dict[str, Any], OmegaConf.to_container(self._task.env_cfg(), resolve=False))
