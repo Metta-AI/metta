@@ -486,7 +486,7 @@ class MettaTrainer:
             self.filtered_mean_reward = (1 - alpha) * self.filtered_mean_reward + alpha * self.mean_reward
 
             # Use filtered estimate for advantage computation
-            rewards_np_adjusted = (rewards_np - self.mean_reward).astype(np.float32)
+            rewards_np_adjusted = (rewards_np - self.filtered_mean_reward).astype(np.float32)
             effective_gamma = 1.0
             advantages_np = compute_gae(
                 dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
