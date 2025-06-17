@@ -465,7 +465,7 @@ class ObsLatentAttnBisect(LayerBase):
         #     x = x[:, 0]
 
         # B_TT = x_features.shape[0]
-        # x_features = x_features[:, 0]
+        x_features = x_features[:, 0]
         x_features = self.linear(x_features)
 
 

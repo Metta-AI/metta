@@ -154,12 +154,15 @@ class ObsAttrCoordEmbed(LayerBase):
         self._max_embeds = 256
 
     def _make_net(self) -> None:
-        self.linear = nn.Linear(150, self._atr_embed_dim) # delete this
+        # self.linear = nn.Linear(150, self._atr_embed_dim) # delete this
 
         self._out_tensor_shape = [0, self._feat_dim]
 
-        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
+        # self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
+        self._atr_embeds = nn.Parameter(torch.Tensor(256, self._atr_embed_dim))
+        nn.init.trunc_normal_(self._atr_embeds, std=0.02)
+        with torch.no_grad():
+            self._atr_embeds[255] = 0.0
 
         # # Coord byte supports up to 16x16, so 256 possible coord values
         # self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
@@ -171,11 +174,28 @@ class ObsAttrCoordEmbed(LayerBase):
         # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
 
         observations = td[self._sources[0]["name"]]
-        atr_indices = observations[..., 1].float()  # Shape: [B_TT, M], ready for embedding
+        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
 
-        # atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
+        # Step 2: Get all embeddings. For now, grad path exists for all of them.
+        embeddings = self._atr_embeds[atr_indices]
 
-        td[self._name] = self.linear(atr_indices)
+        # Step 3: Create a mask to find where the padding tokens are.
+        # The .unsqueeze(-1) adds a dimension to match the embedding dim for broadcasting.
+        # Shape: [B, M] -> [B, M, 1]
+        padding_mask = (atr_indices == 255).unsqueeze(-1)
+
+        # Step 4: "Snip" the gradient path for the padding tokens.
+        # We use torch.where to choose between two options:
+        # - If mask is True (it's a pad token): use a detached zero vector.
+        # - If mask is False (a real token): use the original looked-up embedding.
+        # The key is that embeddings.detach() has no grad_fn.
+        final_embeddings = torch.where(
+            padding_mask,
+            self._atr_embeds[255].detach(),  # Use the detached padding vector
+            embeddings,  # Use the normal, gradient-connected vector
+        )
+
+        td[self._name] = final_embeddings
         return td
 
         # observations = td[self._sources[0]["name"]]
