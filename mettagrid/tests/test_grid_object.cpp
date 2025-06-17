@@ -43,12 +43,12 @@ class TestGridObject : public GridObject {
 public:
   std::vector<PartialObservationToken> obs_features() const override {
     std::vector<PartialObservationToken> features;
-    features.push_back({1, 1});
+    features.push_back({0, 1});
     return features;
   }
-  void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
+  void obs(ObsType* obs) const override {
     // Simple implementation for testing
-    obs[offsets[0]] = 1;
+    obs[0] = 1;
   }
 };
 
@@ -96,9 +96,8 @@ TEST_F(GridObjectTest, InitWithCoordinatesAndLayer) {
 // Test obs method
 TEST_F(GridObjectTest, ObsMethod) {
   ObsType observations[1] = {0};
-  std::vector<uint8_t> offsets = {0};
 
-  obj.obs(observations, offsets);
+  obj.obs(observations);
 
   EXPECT_EQ(1, observations[0]);
 }

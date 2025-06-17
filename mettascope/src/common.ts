@@ -2,9 +2,9 @@ import { Vec2f } from './vector_math.js';
 import { Context3d } from './context3d.js';
 import { find, parseHtmlColor, localStorageGetNumber } from './htmlutils.js';
 import { PanelInfo } from './panels.js';
-import { InfoPanel } from './infopanels.js';
+import { HoverPanel } from './hoverpanels.js';
 
-// The 3d context, used for nearly everything.
+// The 3D context, used for nearly everything.
 export const ctx = new Context3d(find('#global-canvas') as HTMLCanvasElement);
 
 // Constants
@@ -12,8 +12,8 @@ export const MIN_ZOOM_LEVEL = 0.025;
 export const MAX_ZOOM_LEVEL = 2.0;
 export const DEFAULT_ZOOM_LEVEL = 1 / 2;
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4;
-export const SPLIT_DRAG_THRESHOLD = 10;  // pixels to detect split dragging
-export const SCROLL_ZOOM_FACTOR = 1000;  // divisor for scroll delta to zoom conversion
+export const SPLIT_DRAG_THRESHOLD = 10;  // Pixels to detect split dragging.
+export const SCROLL_ZOOM_FACTOR = 1000;  // Divisor for scroll delta to zoom conversion.
 export const PANEL_BOTTOM_MARGIN = 60;
 export const HEADER_HEIGHT = 60;
 export const FOOTER_HEIGHT = 128;
@@ -48,14 +48,14 @@ export const ui = {
   mouseClick: false,
   mouseDoubleClick: false,
   mousePos: new Vec2f(0, 0),
-  mouseTarget: "",
+  mouseTargets: [] as string[],
   dragging: "",
   dragHtml: null as HTMLElement | null,
   dragOffset: new Vec2f(0, 0),
   lastMousePos: new Vec2f(0, 0),
   mouseDownPos: new Vec2f(0, 0),
   scrollDelta: 0,
-  lastClickTime: 0, // For double-click detection
+  lastClickTime: 0, // For double-click detection.
   mainScrubberDown: false,
 
   // Split between trace and info panels.
@@ -70,7 +70,7 @@ export const ui = {
   agentPanel: new PanelInfo("#agent-panel"),
   timelinePanel: new PanelInfo("#timeline-panel"),
 
-  infoPanels: [] as InfoPanel[],
+  hoverPanels: [] as HoverPanel[],
   hoverObject: null as any,
   hoverTimer: null as any,
   delayedHoverObject: null as any,
@@ -80,7 +80,7 @@ export const state = {
   // Replay data and player state
   replay: null as any,
   selectedGridObject: null as any,
-  followSelection: false, // Flag to follow selected entity
+  followSelection: false, // Flag to follow the selected entity.
 
   // Playback state
   step: 0,
@@ -100,7 +100,7 @@ export const state = {
 
   showAttackMode: false,
 
-  // Playing over WebSocket
+  // Playing over a WebSocket
   ws: null as WebSocket | null,
   isOneToOneAction: false,
 };
@@ -149,7 +149,7 @@ export const html = {
   toast: find('#toast') as HTMLDivElement,
 }
 
-/** Set the follow selection state, you can pass null to leave a state unchanged. */
+/** Sets the follow selection state. You can pass null to leave a state unchanged. */
 export function setFollowSelection(map: boolean | null) {
   if (map != null) {
     state.followSelection = map;
@@ -161,7 +161,7 @@ export function setFollowSelection(map: boolean | null) {
   }
 }
 
-/** Show the modal. */
+/** Shows the modal. */
 export function showModal(type: string, title: string, message: string) {
   html.modal.classList.remove('hidden');
   html.modal.classList.add(type);
@@ -175,7 +175,7 @@ export function showModal(type: string, title: string, message: string) {
   }
 }
 
-/** Close the modal. */
+/** Closes the modal. */
 export function closeModal() {
   // Remove error class from modal.
   html.modal.classList.remove('error');

@@ -93,5 +93,5 @@ jobs:
           ./devops/skypilot/launch.py \
             --timeout-hours=$TIMEOUT_HOURS \
             train \
-            ${{ steps.generate_run_name.outputs.run_name }} \
+            run=${{ steps.generate_run_name.outputs.run_name }} \
             trainer.curriculum=$TRAINER_ENV
