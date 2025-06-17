@@ -836,7 +836,8 @@ class MettaTrainer:
                 vtrace_rho_clip,
                 vtrace_c_clip,
             )
-        except (RuntimeError, AssertionError):
+        except (RuntimeError, AssertionError) as e:
+            print(e)
             # Fallback to CPU if CUDA kernel fails or not available
             device = values.device
             values_cpu = values.cpu()
