@@ -2,7 +2,8 @@ import logging
 import os
 import time
 from collections import defaultdict
-from typing import Any
+from typing import Any, Dict, Set
+from uuid import UUID
 
 import einops
 import numpy as np
@@ -11,12 +12,12 @@ import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib import unroll_nested_dict
-from wandb.sdk import wandb_run
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
+from metta.app.stats_client import StatsClient
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.experience import Experience
 from metta.rl.fast_gae import compute_gae
@@ -30,6 +31,7 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
+from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.util.stopwatch import Stopwatch
@@ -46,15 +48,17 @@ class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig | ListConfig,
-        wandb_run: wandb_run.Run | None,
+        wandb_run: WandbRun | None,
         policy_store: PolicyStore,
         sim_suite_config: SimulationSuiteConfig,
+        stats_client: StatsClient | None,
         **kwargs: Any,
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
 
         self.sim_suite_config = sim_suite_config
+        self._stats_client = stats_client
 
         self._master = True
         self._world_size = 1
@@ -79,10 +83,10 @@ class MettaTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self.average_reward = 0.0
-        self._current_eval_score = None
-        self._eval_grouped_scores = {}
-        self._eval_suite_avgs = {}
-        self._eval_categories = set()
+        self._current_eval_score: float | None = None
+        self._eval_grouped_scores: Dict[str, float] = {}
+        self._eval_suite_avgs: Dict[str, float] = {}
+        self._eval_categories: Set[str] = set()
 
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         self._curriculum = curriculum_from_config_path(curriculum_config, self.trainer_cfg.env_overrides)
@@ -160,6 +164,10 @@ class MettaTrainer:
         self._last_agent_step = self.agent_step
         self._total_minibatches = 0
 
+        self._stats_epoch_start = self.epoch
+        self._stats_epoch_id: UUID | None = None
+        self._stats_run_id: UUID | None = None
+
         assert self.trainer_cfg.optimizer.type in (
             "adam",
             "muon",
@@ -231,6 +239,11 @@ class MettaTrainer:
         ):
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
+        if self._stats_client is not None:
+            name = self.wandb_run.name if self.wandb_run is not None and self.wandb_run.name is not None else "unknown"
+            url = self.wandb_run.url if self.wandb_run is not None else None
+            self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
+
         logger.info(f"Training on {self.device}")
         while self.agent_step < self.trainer_cfg.total_timesteps:
             steps_before = self.agent_step
@@ -299,6 +312,15 @@ class MettaTrainer:
         if not self._master:
             return
 
+        if self._stats_run_id is not None and self._stats_client is not None:
+            self._stats_epoch_id = self._stats_client.create_epoch(
+                run_id=self._stats_run_id,
+                start_training_epoch=self._stats_epoch_start,
+                end_training_epoch=self.epoch,
+                attributes={},
+            ).id
+            self._stats_epoch_start = self.epoch + 1
+
         logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
             config=self.sim_suite_config,
@@ -307,13 +329,15 @@ class MettaTrainer:
             device=self.device,
             vectorization=self.cfg.vectorization,
             stats_dir="/tmp/stats",
+            stats_client=self._stats_client,
+            stats_epoch_id=self._stats_epoch_id,
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
 
         logger.info("Simulation complete")
 
-        self._eval_categories = set()
+        self._eval_categories: Set[str] = set()
         for sim_name in self.sim_suite_config.simulations.keys():
             self._eval_categories.add(sim_name.split("/")[0])
         self._eval_suite_avgs = {}
