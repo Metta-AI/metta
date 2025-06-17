@@ -269,14 +269,10 @@ class Simulation:
 
         # ---------------- doxascope logging -------------------- #
         if self._doxascope_logger.enabled:
-            try:
-                # Get grid objects from the underlying MettaGridEnv
-                metta_grid_env = self._vecenv.driver_env
-                assert isinstance(metta_grid_env, MettaGridEnv)
-                grid_objects = metta_grid_env.grid_objects
-                self._doxascope_logger.log_timestep(self._policy_state, self._policy_idxs, grid_objects)
-            except Exception as e:
-                logger.warning(f"Doxascope logging failed: {e}")
+            metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
+            assert isinstance(metta_grid_env, MettaGridEnv)
+            grid_objects = metta_grid_env.grid_objects
+            self._doxascope_logger.log_timestep(self._policy_state, self._policy_idxs, grid_objects)
 
     def end_simulation(self) -> SimulationResults:
         # ---------------- teardown & DB merge ------------------------ #
