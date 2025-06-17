@@ -30,16 +30,15 @@ game:
     num_rooms: 4
     border_width: 6
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:20,60,50}
-      height: ${sampling:20,60,50}
-      border_width: ${sampling:1,6,3}
-      agents: 1
-      style: ??? # ${choose:"sparse-altars-dense-objects","all-sparse","all-dense","balanced","dense-altars-sparse-objects"}
+      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: 3
+      agents: ${div:${...num_agents},${..num_rooms}}
+      dir: ${choose:varied_terrain/sparse_small,varied_terrain/balanced_small,varied_terrain/dense_small,varied_terrain/maze_small}
       objects:
         mine.red: ${sampling:1,3,2}
         generator.red: ${sampling:1,3,2}
-        altar: ${sampling:2,5,2}
+        altar: 5
+
   objects:
     altar:
       input_battery.red: 1

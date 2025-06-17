@@ -30,9 +30,9 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.util.timing import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from mettagrid.util.stopwatch import Stopwatch
 
 torch.set_float32_matmul_precision("high")
 
@@ -269,11 +269,11 @@ class MettaTrainer:
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                with self.timer("_checkpoint_trainer", log=logging.INFO):
+                with self.timer("_checkpoint_trainer", log_level=logging.INFO):
                     self._checkpoint_trainer()
 
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                with self.timer("_evaluate_policy", log=logging.INFO):
+                with self.timer("_evaluate_policy", log_level=logging.INFO):
                     self._evaluate_policy()
 
             self.torch_profiler.on_epoch_end(self.epoch)
@@ -289,7 +289,7 @@ class MettaTrainer:
                 self._update_l2_init_weight_copy()
 
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
-                with self.timer("_generate_and_upload_replay", log=logging.INFO):
+                with self.timer("_generate_and_upload_replay", log_level=logging.INFO):
                     self._generate_and_upload_replay()
 
             self._on_train_step()
@@ -495,7 +495,6 @@ class MettaTrainer:
             experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
-        total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = PolicyState()
             teacher_lstm_state = []
@@ -590,19 +589,21 @@ class MettaTrainer:
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
-                    self.losses.policy_loss += pg_loss.item() / total_minibatches
-                    self.losses.value_loss += v_loss.item() / total_minibatches
-                    self.losses.entropy += entropy_loss.item() / total_minibatches
-                    self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                    self.losses.approx_kl += approx_kl.item() / total_minibatches
-                    self.losses.clipfrac += clipfrac.item() / total_minibatches
-                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                    self.losses.policy_loss_sum += pg_loss.item()
+                    self.losses.value_loss_sum += v_loss.item()
+                    self.losses.entropy_sum += entropy_loss.item()
+                    self.losses.old_approx_kl_sum += old_approx_kl.item()
+                    self.losses.approx_kl_sum += approx_kl.item()
+                    self.losses.clipfrac_sum += clipfrac.item()
+                    self.losses.l2_reg_loss_sum += l2_reg_loss.item()
+                    self.losses.l2_init_loss_sum += l2_init_loss.item()
+                    self.losses.ks_action_loss_sum += ks_action_loss.item()
+                    self.losses.ks_value_loss_sum += ks_value_loss.item()
+                    self.losses.minibatches_processed += 1
 
             if self.trainer_cfg.target_kl is not None:
-                if approx_kl > self.trainer_cfg.target_kl:
+                average_approx_kl = self.losses.approx_kl_sum / self.losses.minibatches_processed
+                if average_approx_kl > self.trainer_cfg.target_kl:
                     break
 
         with profile.train_misc:
@@ -750,7 +751,7 @@ class MettaTrainer:
             self._last_agent_step = agent_steps
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
-        losses = self.losses.to_dict()
+
         performance = {k: v for k, v in self.profile}
 
         overview = {"SPS": sps}
@@ -762,6 +763,17 @@ class MettaTrainer:
             score = self._eval_suite_avgs.get(f"{category}_score", None)
             if score is not None:
                 overview[f"{category}_evals"] = score
+
+        losses = self.losses.to_dict()
+
+        # don't plot losses that are unused
+        if self.trainer_cfg.l2_reg_loss_coef == 0:
+            losses.pop("l2_reg_loss")
+        if self.trainer_cfg.l2_init_loss_coef == 0:
+            losses.pop("l2_init_loss")
+        if not self.kickstarter.enabled:
+            losses.pop("ks_action_loss")
+            losses.pop("ks_value_loss")
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 

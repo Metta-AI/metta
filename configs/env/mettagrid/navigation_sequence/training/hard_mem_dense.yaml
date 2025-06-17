@@ -5,4 +5,4 @@ defaults:
 game:
   map_builder:
     room:
-      style: dense
+      dir: varied_terrain/dense_small

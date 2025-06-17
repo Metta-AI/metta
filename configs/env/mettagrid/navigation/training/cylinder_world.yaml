@@ -1,4 +1,3 @@
-# Config: choose any style, including the new "cylinder_world"
 defaults:
   - /env/mettagrid/mettagrid_deterministic@
   - _self_
@@ -7,18 +6,24 @@ sampling: 1
 
 game:
   num_agents: 4
+  max_steps: 1000
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.cylinder_world.CylinderWorld
-      width: 60
-      height: 60
-      border_width: 1
+      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: 3
       agents: 1
-
+      dir: ${choose:varied_terrain/cylinder-world_large,varied_terrain/cylinder-world_medium,varied_terrain/cylinder-world_small}
+      objects:
+        altar: ${sampling:30,75,50}
   objects:
     altar:
-      cooldown: 255
+      cooldown: 1000
+      input_battery.red: 3
+      output_heart: 1
+      max_output: 5
+      conversion_ticks: 1
+      initial_items: 1
