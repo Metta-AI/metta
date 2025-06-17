@@ -40,7 +40,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
 
-  _use_observation_tokens = cfg.contains("use_observation_tokens") && cfg["use_observation_tokens"].cast<bool>();
+  _use_observation_tokens = cfg.contains("use_observation_tokens") ? cfg["use_observation_tokens"].cast<bool>() : true;
   _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
@@ -237,7 +237,11 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
   if (_use_observation_tokens) {
-    size_t attempted_tokens_written = 0;
+    // We have 4 global tokens.
+    if (_num_observation_tokens < 4) {
+      throw std::runtime_error("We require at least 4 observation tokens for global observations");
+    }
+    size_t attempted_tokens_written = 4;
     size_t tokens_written = 4;
     auto observation_view = _observations.mutable_unchecked<3>();
     auto rewards_view = _rewards.unchecked<1>();
@@ -277,22 +281,16 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
             auto obj = _grid->object_at(object_loc);
             if (!obj) continue;
 
-            int obs_r = object_loc.r + obs_height_radius - observer_row;
-            int obs_c = object_loc.c + obs_width_radius - observer_col;
-
             uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
             ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
             ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
 
-            size_t attempted_obj_tokens_written = _obs_encoder->encode_tokens(obj, agent_obs_tokens);
-            size_t obj_tokens_written = std::min(attempted_obj_tokens_written, agent_obs_tokens.size());
-
+            int obs_r = object_loc.r + obs_height_radius - observer_row;
+            int obs_c = object_loc.c + obs_width_radius - observer_col;
             uint8_t location = obs_r << 4 | obs_c;
-            for (size_t i = 0; i < obj_tokens_written; i++) {
-              agent_obs_tokens[i].location = location;
-            }
-            attempted_tokens_written += attempted_obj_tokens_written;
-            tokens_written += obj_tokens_written;
+
+            attempted_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens, location);
+            tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
           }
         }
       }
@@ -574,23 +572,9 @@ py::dict MettaGrid::grid_objects() {
     obj_dict["c"] = obj->location.c;
     obj_dict["layer"] = obj->location.layer;
 
-    // Get feature offsets for this object type
-    auto type_features = _obs_encoder->type_feature_names()[obj->_type_id];
-    std::vector<uint8_t> offsets(type_features.size());
-    // We shouldn't have more than 256 features, since we're storing the feature_ids
-    // as uint_8ts.
-    assert(offsets.size() < 256);
-    for (uint8_t i = 0; i < offsets.size(); i++) {
-      offsets[i] = i;
-    }
-    unsigned char obj_data[type_features.size()];
-
-    // Encode object features
-    _obs_encoder->encode(obj, obj_data, offsets);
-
-    // Add features to object dict
-    for (size_t i = 0; i < type_features.size(); i++) {
-      obj_dict[py::str(type_features[i])] = obj_data[i];
+    auto features = obj->obs_features();
+    for (const auto& feature : features) {
+      obj_dict[py::str(ObservationFeatureNames[feature.feature_id])] = feature.value;
     }
 
     objects[py::int_(obj_id)] = obj_dict;
@@ -623,7 +607,7 @@ unsigned int MettaGrid::map_height() {
 
 // These should correspond to the features we emit in the observations -- either
 // the channel or the feature_id.
-py::list MettaGrid::feature_normalizations() {
+py::dict MettaGrid::feature_normalizations() {
   return py::cast(_feature_normalizations);
 }
 

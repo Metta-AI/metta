@@ -6,7 +6,7 @@ import { getAttr, sendAction } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame, updateSelection } from './main.js';
 import { parseHtmlColor, find } from './htmlutils.js';
-import { updateHoverPanel, updateReadout, InfoPanel } from './infopanels.js';
+import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js';
 
 /** Flag to prevent multiple calls to requestAnimationFrame */
 let frameRequested = false;
@@ -688,7 +688,7 @@ function attackGrid(orientation: number, idx: number) {
 function drawAttackMode() {
   // We might be clicking on the map to attack something.
   var gridMousePos: Vec2f | null = null;
-  if (ui.mouseUp && ui.mouseTarget == "worldmap-panel" && state.showAttackMode) {
+  if (ui.mouseUp && ui.mouseTargets.includes("#worldmap-panel") && state.showAttackMode) {
     state.showAttackMode = false;
     const localMousePos = ui.mapPanel.transformOuter(ui.mousePos);
     if (localMousePos != null) {
@@ -721,7 +721,7 @@ function drawAttackMode() {
 }
 
 /** Draw the info line from the object to the info panel. */
-function drawInfoLine(panel: InfoPanel) {
+function drawInfoLine(panel: HoverPanel) {
   const x = getAttr(panel.object, "c");
   const y = getAttr(panel.object, "r");
   ctx.drawSprite("info.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
@@ -751,7 +751,7 @@ export function drawMap(panel: PanelInfo) {
   }
 
   // Handle mouse events for the map panel.
-  if (ui.mouseTarget == "worldmap-panel" && ui.dragging == "" && !state.showAttackMode) {
+  if (ui.mouseTargets.includes("#worldmap-panel") && ui.dragging == "" && !state.showAttackMode) {
     // Find object under the mouse:
     var objectUnderMouse = null;
     const localMousePos = panel.transformOuter(ui.mousePos);
@@ -798,7 +798,7 @@ export function drawMap(panel: PanelInfo) {
     ui.hoverObject = objectUnderMouse;
     clearTimeout(ui.hoverTimer);
     ui.hoverTimer = setTimeout(() => {
-      if (ui.mouseTarget == "worldmap-panel") {
+      if (ui.mouseTargets.includes("#worldmap-panel")) {
         ui.delayedHoverObject = ui.hoverObject;
         updateHoverPanel(ui.delayedHoverObject)
       }
@@ -838,7 +838,7 @@ export function drawMap(panel: PanelInfo) {
 
   updateHoverPanel(ui.delayedHoverObject)
   updateReadout()
-  for (const panel of ui.infoPanels) {
+  for (const panel of ui.hoverPanels) {
     panel.update();
     drawInfoLine(panel);
   }
