@@ -1,5 +1,3 @@
-# customize which environments you want to include
-
 _target_: mettagrid.curriculum.LowRewardCurriculum
 
 tasks:
@@ -7,11 +5,12 @@ tasks:
   /env/mettagrid/navigation_sequence/experiments/mem_sparse: 1
   /env/mettagrid/navigation_sequence/experiments/mem_maze: 1
   /env/mettagrid/navigation_sequence/experiments/mem_dense: 1
+  /env/mettagrid/navigation_sequence/experiments/terrain_from_numpy: 5
   /env/mettagrid/navigation_sequence/experiments/sequence_sparse: 1
   /env/mettagrid/navigation_sequence/experiments/sequence_balanced: 1
   /env/mettagrid/navigation_sequence/experiments/sequence_maze: 1
   /env/mettagrid/navigation_sequence/experiments/sequence_dense: 1
-  /env/mettagrid/navigation_sequence/experiments/triplets_balanced: 1
-  /env/mettagrid/navigation_sequence/experiments/triplets_sparse: 1
-  /env/mettagrid/navigation_sequence/experiments/triplets_maze: 1
-  /env/mettagrid/navigation_sequence/experiments/triplets_dense: 1
+  /env/mettagrid/navigation_sequence/experiments/hard_mem_sparse: 1
+  /env/mettagrid/navigation_sequence/experiments/hard_mem_balanced: 1
+  /env/mettagrid/navigation_sequence/experiments/hard_mem_maze: 1
+  /env/mettagrid/navigation_sequence/experiments/hard_mem_dense: 1
