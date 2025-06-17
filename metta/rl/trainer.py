@@ -811,7 +811,7 @@ class MettaTrainer:
         self._eval_grouped_scores = {}
         self.stats.clear()
 
-        def _compute_advantage(
+    def _compute_advantage(
         self,
         values,
         rewards,
