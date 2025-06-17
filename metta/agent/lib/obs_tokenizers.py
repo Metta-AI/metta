@@ -182,20 +182,20 @@ class ObsAttrCoordEmbed(LayerBase):
         # Step 3: Create a mask to find where the padding tokens are.
         # The .unsqueeze(-1) adds a dimension to match the embedding dim for broadcasting.
         # Shape: [B, M] -> [B, M, 1]
-        padding_mask = (atr_indices == 255).unsqueeze(-1)
+        # padding_mask = (atr_indices == 255).unsqueeze(-1)
 
         # Step 4: "Snip" the gradient path for the padding tokens.
         # We use torch.where to choose between two options:
         # - If mask is True (it's a pad token): use a detached zero vector.
         # - If mask is False (a real token): use the original looked-up embedding.
         # The key is that embeddings.detach() has no grad_fn.
-        final_embeddings = torch.where(
-            padding_mask,
-            self._atr_embeds[255].detach(),  # Use the detached padding vector
-            embeddings,  # Use the normal, gradient-connected vector
-        )
+        # final_embeddings = torch.where(
+        #     padding_mask,
+        #     self._atr_embeds[255].detach(),  # Use the detached padding vector
+        #     embeddings,  # Use the normal, gradient-connected vector
+        # )
 
-        td[self._name] = final_embeddings
+        td[self._name] = embeddings
         return td
 
         # observations = td[self._sources[0]["name"]]
