@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Mind Reader Neural Network
+Doxascope Neural Network
 
 A PyTorch implementation of a neural network that predicts agent movement
 from LSTM memory vectors, revealing whether the agent's memory encodes
@@ -116,9 +116,11 @@ class DoxascopeNet(nn.Module):
 class DoxascopeTrainer:
     """Training and evaluation pipeline for the doxascope network."""
 
-    def __init__(self, model, device="cpu"):
+    def __init__(self, model, output_dir: Path, device="cpu"):
         self.model = model.to(device)
         self.device = device
+        self.output_dir = output_dir
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         self.train_losses = []
         self.val_losses = []
         self.train_accuracies = []
@@ -208,7 +210,7 @@ class DoxascopeTrainer:
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
                 patience_counter = 0
-                torch.save(self.model.state_dict(), "best_model.pth")
+                torch.save(self.model.state_dict(), self.output_dir / "best_model.pth")
             else:
                 patience_counter += 1
 
@@ -226,15 +228,13 @@ class DoxascopeTrainer:
                 break
 
         # Load best model
-        self.model.load_state_dict(torch.load("best_model.pth"))
+        self.model.load_state_dict(torch.load(self.output_dir / "best_model.pth"))
         print(f"🎯 Training completed! Best validation accuracy: {best_val_acc:.2f}%")
 
         return best_val_acc
 
-    def analyze_results(self, test_loader, output_dir="../data/preprocessed_data"):
+    def analyze_results(self, test_loader):
         """Analyze and visualize results."""
-        output_dir = Path(output_dir)
-
         # Get predictions
         _, test_acc, preds, targets = self.evaluate(test_loader, nn.CrossEntropyLoss())
 
@@ -248,133 +248,131 @@ class DoxascopeTrainer:
         print("\n📋 Classification Report:")
         print(classification_report(targets, preds, target_names=movement_names))
 
-        # Create visualizations
-        self.plot_training_curves(output_dir)
-        self.plot_confusion_matrix(targets, preds, movement_names, output_dir)
-        self.analyze_attention_patterns(test_loader, output_dir)
+        # Generate plots
+        self.plot_training_curves()
+        self.plot_confusion_matrix(targets, preds, movement_names)
+        self.analyze_attention_patterns(test_loader)
 
         return test_acc
 
-    def plot_training_curves(self, output_dir):
-        """Plot training curves."""
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    def plot_training_curves(self):
+        """Plot training and validation loss/accuracy curves."""
+        plt.figure(figsize=(12, 5))
 
-        # Loss curves
-        ax1.plot(self.train_losses, label="Train Loss", color="blue")
-        ax1.plot(self.val_losses, label="Val Loss", color="red")
-        ax1.set_xlabel("Epoch")
-        ax1.set_ylabel("Loss")
-        ax1.set_title("Training and Validation Loss")
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-
-        # Accuracy curves
-        ax2.plot(self.train_accuracies, label="Train Acc", color="blue")
-        ax2.plot(self.val_accuracies, label="Val Acc", color="red")
-        ax2.set_xlabel("Epoch")
-        ax2.set_ylabel("Accuracy (%)")
-        ax2.set_title("Training and Validation Accuracy")
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
-
-        plt.tight_layout()
-        plt.savefig(output_dir / "training_curves.png", dpi=150, bbox_inches="tight")
-        print(f"📈 Training curves saved to {output_dir}/training_curves.png")
-
-    def plot_confusion_matrix(self, targets, preds, movement_names, output_dir):
-        """Plot confusion matrix."""
-        cm = confusion_matrix(targets, preds)
-
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=movement_names, yticklabels=movement_names)
-        plt.title("Doxascope Confusion Matrix")
-        plt.xlabel("Predicted Movement")
-        plt.ylabel("True Movement")
-        plt.tight_layout()
-        plt.savefig(output_dir / "confusion_matrix.png", dpi=150, bbox_inches="tight")
-        print(f"🎯 Confusion matrix saved to {output_dir}/confusion_matrix.png")
-
-    def analyze_attention_patterns(self, test_loader, output_dir):
-        """Analyze attention patterns to understand what the network focuses on."""
-        self.model.eval()
-        attention_weights = []
-
-        with torch.no_grad():
-            for batch_x, batch_y in test_loader:
-                batch_x = batch_x.to(self.device)
-                _, attention = self.model(batch_x)
-                attention_weights.append(attention.cpu().numpy())
-
-        attention_weights = np.concatenate(attention_weights, axis=0)
-        mean_attention = attention_weights.mean(axis=0)
-
-        plt.figure(figsize=(12, 4))
-        plt.plot(mean_attention, color="green", alpha=0.7)
-        plt.axvline(x=len(mean_attention) // 2, color="red", linestyle="--", alpha=0.5, label="Hidden/Cell split")
-        plt.title("Average Attention Weights Across Memory Dimensions")
-        plt.xlabel("Memory Dimension")
-        plt.ylabel("Attention Weight")
+        plt.subplot(1, 2, 1)
+        plt.plot(self.train_losses, label="Train Loss")
+        plt.plot(self.val_losses, label="Val Loss")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.title("Training and Validation Loss")
         plt.legend()
         plt.grid(True, alpha=0.3)
+
+        plt.subplot(1, 2, 2)
+        plt.plot(self.train_accuracies, label="Train Acc")
+        plt.plot(self.val_accuracies, label="Val Acc")
+        plt.xlabel("Epoch")
+        plt.ylabel("Accuracy (%)")
+        plt.title("Training and Validation Accuracy")
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+
         plt.tight_layout()
-        plt.savefig(output_dir / "attention_analysis.png", dpi=150, bbox_inches="tight")
-        print(f"🔍 Attention analysis saved to {output_dir}/attention_analysis.png")
+        plt.savefig(self.output_dir / "training_curves.png")
+        plt.close()
+
+    def plot_confusion_matrix(self, targets, preds, movement_names):
+        """Plot the confusion matrix."""
+        cm = confusion_matrix(targets, preds)
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(
+            cm,
+            annot=True,
+            fmt="d",
+            cmap="Blues",
+            xticklabels=movement_names,
+            yticklabels=movement_names,
+        )
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.title("Confusion Matrix")
+        plt.savefig(self.output_dir / "confusion_matrix.png")
+        plt.close()
+
+    def analyze_attention_patterns(self, test_loader):
+        """Analyze and visualize attention weights (dummy function for compatibility)."""
+        attention_path = self.output_dir / "attention_analysis.png"
+        if attention_path.exists():
+            return  # Avoid re-generating if it exists
+
+        # Since attention is removed, create a placeholder plot
+        plt.figure(figsize=(10, 6))
+        plt.text(
+            0.5,
+            0.5,
+            "Attention mechanism removed for optimization.\nNo analysis to display.",
+            ha="center",
+            va="center",
+            fontsize=12,
+            color="gray",
+        )
+        plt.title("Attention Analysis")
+        plt.xticks([])
+        plt.yticks([])
+        plt.savefig(attention_path)
+        plt.close()
 
 
 def train_doxascope(
-    data_path="../data/preprocessed_data/training_data.npz", batch_size=32, test_split=0.2, val_split=0.1
+    data_path: Path,
+    output_dir: Path,
+    batch_size=32,
+    test_split=0.2,
+    val_split=0.1,
+    num_epochs=100,
+    lr=0.001,
 ):
     """Main function to train the doxascope network."""
-
     # Load data
-    print("📊 Loading training data...")
-    data = np.load(data_path)
-    X, y = data["X"], data["y"]
-
-    print(f"Dataset: {X.shape[0]} samples, {X.shape[1]} features, {len(np.unique(y))} classes")
+    try:
+        with np.load(data_path) as data:
+            X = data["X"]
+            y = data["y"]
+    except FileNotFoundError:
+        print(f"❌ Error: Data file not found at {data_path}")
+        return None, 0
 
     # Create dataset
     dataset = DoxascopeDataset(X, y)
 
-    # Split data
-    total_size = len(dataset)
-    test_size = int(total_size * test_split)
-    val_size = int(total_size * val_split)
-    train_size = total_size - test_size - val_size
+    # Split dataset
+    test_size = int(len(dataset) * test_split)
+    val_size = int(len(dataset) * val_split)
+    train_size = len(dataset) - test_size - val_size
+    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
 
-    train_dataset, val_dataset, test_dataset = random_split(
-        dataset, [train_size, val_size, test_size], generator=torch.Generator().manual_seed(42)
-    )
-
-    print(f"Data split: Train={len(train_dataset)}, Val={len(val_dataset)}, Test={len(test_dataset)}")
-
-    # Create data loaders
+    # Create dataloaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-    # Create model
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"🔧 Using device: {device}")
-
+    # Initialize model and trainer
     model = DoxascopeNet(input_dim=X.shape[1], num_classes=len(np.unique(y)))
-    trainer = DoxascopeTrainer(model, str(device))
+    trainer = DoxascopeTrainer(model, output_dir=output_dir)
 
-    # Train
-    best_val_acc = trainer.train(train_loader, val_loader, num_epochs=100, lr=0.001)
+    # Train the model
+    trainer.train(train_loader, val_loader, num_epochs=num_epochs, lr=lr)
 
     # Analyze results
-    test_acc = trainer.analyze_results(test_loader)
+    test_accuracy = trainer.analyze_results(test_loader)
 
-    return trainer, test_acc
+    return trainer, test_accuracy
 
 
 if __name__ == "__main__":
-    trainer, test_accuracy = train_doxascope()
-    print("\n🎉 Doxascope training complete!")
-    print(f"🎯 Final test accuracy: {test_accuracy:.2f}%")
-
-    if test_accuracy > 25:  # Better than 5-class random (20%)
-        print("✅ SUCCESS: Doxascope found spatial-temporal patterns in LSTM memory!")
-    else:
-        print("❌ No clear spatial-temporal encoding detected in memory vectors")
+    # Example usage for direct execution
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    train_doxascope(
+        data_path=repo_root / "doxascope/data/preprocessed_data/training_data.npz",
+        output_dir=repo_root / "doxascope/data/preprocessed_data/",
+    )

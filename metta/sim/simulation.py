@@ -23,7 +23,7 @@ import torch
 from einops import rearrange
 from omegaconf import OmegaConf
 
-from doxascope.data.doxascope_data import DoxascopeLogger
+from doxascope.doxascope_data import DoxascopeLogger
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
