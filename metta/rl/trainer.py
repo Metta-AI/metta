@@ -469,9 +469,6 @@ class MettaTrainer:
     def _train(self):
         experience = self.experience
         self.losses.zero()
-        self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
-        steps_since_last = self.agent_step - self._last_agent_step
-        self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
         idxs = experience.sort_training_data()
         dones_np = experience.dones_np[idxs]
