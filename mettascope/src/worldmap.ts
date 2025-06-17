@@ -744,7 +744,7 @@ function drawInfoLine(panel: HoverPanel) {
   );
 }
 
-/** Draw the world map. */
+/** Draws the world map. */
 export function drawMap(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -752,7 +752,7 @@ export function drawMap(panel: PanelInfo) {
 
   // Handle mouse events for the map panel.
   if (ui.mouseTargets.includes("#worldmap-panel") && ui.dragging == "" && !state.showAttackMode) {
-    // Find object under the mouse:
+    // Find the object under the mouse.
     var objectUnderMouse = null;
     const localMousePos = panel.transformOuter(ui.mousePos);
     if (localMousePos != null) {
@@ -769,13 +769,13 @@ export function drawMap(panel: PanelInfo) {
   }
 
   if (ui.mouseDoubleClick) {
-    // Toggle followSelection on double-click
+    // Toggle followSelection on double-click.
     console.info("Map double click - following selection");
     setFollowSelection(true);
     panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL;
     ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL;
   } else if (ui.mouseClick) {
-    // Map click - likely a drag/pan
+    // A map click is likely a drag/pan.
     console.info("Map click - clearing follow selection");
     setFollowSelection(false);
   } else if (ui.mouseUp &&
@@ -806,8 +806,7 @@ export function drawMap(panel: PanelInfo) {
 
   }
 
-
-  // If we're following a selection, center the map on it
+  // If we're following a selection, center the map on it.
   if (state.followSelection && state.selectedGridObject !== null) {
     const x = getAttr(state.selectedGridObject, "c");
     const y = getAttr(state.selectedGridObject, "r");
@@ -832,12 +831,14 @@ export function drawMap(panel: PanelInfo) {
   drawVisibility();
   drawGrid();
   drawThoughtBubbles();
+
   if (state.showAttackMode) {
     drawAttackMode();
   }
 
   updateHoverPanel(ui.delayedHoverObject)
   updateReadout()
+
   for (const panel of ui.hoverPanels) {
     panel.update();
     drawInfoLine(panel);
