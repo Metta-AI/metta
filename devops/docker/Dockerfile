@@ -52,7 +52,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
 ADD . .
 
 # When building in CI, actions/checkout stores an auth token in .git/config that we need to remove
-RUN git config --remove-section http."https://github.com/"
+RUN git config --remove-section http."https://github.com/" || true
 
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --locked
