@@ -26,6 +26,18 @@ def safe_load(path, retries=5, delay=1.0):
             raise
 
 
+def pick_random_file(path):
+    chosen = None
+    count = 0
+    with os.scandir(path) as it:
+        for entry in it:
+            count += 1
+            # with probability 1/count, pick this entry
+            if random.randrange(count) == 0:
+                chosen = entry.name
+    return chosen
+
+
 def download_from_s3(s3_path: str, save_path: str, location: str = "us-east-1"):
     if not s3_path.startswith("s3://"):
         raise ValueError(f"Invalid S3 path: {s3_path}. Must start with s3://")
@@ -68,77 +80,87 @@ class TerrainFromNumpy(Room):
         file: str | None = None,
         team: str | None = None,
     ):
-        zipped_dir = dir + ".zip"
+        root = dir.split("/")[0]
+        zipped_dir = root + ".zip"
         lock_path = zipped_dir + ".lock"
         # Only one process can hold this lock at a time:
         with FileLock(lock_path):
             if not os.path.exists(dir) and not os.path.exists(zipped_dir):
                 s3_path = f"s3://softmax-public/maps/{zipped_dir}"
                 download_from_s3(s3_path, zipped_dir)
-            if not os.path.exists(dir) and os.path.exists(zipped_dir):
+            if not os.path.exists(root) and os.path.exists(zipped_dir):
                 with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
-                    zip_ref.extractall(os.path.dirname(dir))
-
-        self.files = os.listdir(dir)
+                    zip_ref.extractall(os.path.dirname(root))
+                os.remove(zipped_dir)
+                logger.info(f"Extracted {zipped_dir} to {root}")
+        if file is None:
+            self.uri = pick_random_file(dir)
+        else:
+            self.uri = file
         self.dir = dir
         self._agents = agents
         self._objects = objects
-        self.uri = file
         self.team = team
-        super().__init__(border_width=border_width, border_object=border_object, labels=["terrain"])
+        super().__init__(border_width=border_width, border_object=border_object, labels=[root])
 
     def get_valid_positions(self, level):
-        valid_positions = []
-        for i in range(1, level.shape[0] - 1):
-            for j in range(1, level.shape[1] - 1):
-                if level[i, j] == "empty":
-                    # Check if position is accessible from at least one direction
-                    if (
-                        level[i - 1, j] == "empty"
-                        or level[i + 1, j] == "empty"
-                        or level[i, j - 1] == "empty"
-                        or level[i, j + 1] == "empty"
-                    ):
-                        valid_positions.append((i, j))
+        # Create a boolean mask for empty cells
+        empty_mask = level == "empty"
+
+        # Use numpy's roll to check adjacent cells efficiently
+        has_empty_neighbor = (
+            np.roll(empty_mask, 1, axis=0)  # Check up
+            | np.roll(empty_mask, -1, axis=0)  # Check down
+            | np.roll(empty_mask, 1, axis=1)  # Check left
+            | np.roll(empty_mask, -1, axis=1)  # Check right
+        )
+
+        # Valid positions are empty cells with at least one empty neighbor
+        # Exclude border cells (indices 0 and -1)
+        valid_mask = empty_mask & has_empty_neighbor
+        valid_mask[0, :] = False
+        valid_mask[-1, :] = False
+        valid_mask[:, 0] = False
+        valid_mask[:, -1] = False
+
+        # Get coordinates of valid positions
+        valid_positions = list(zip(*np.where(valid_mask), strict=False))
         return valid_positions
 
     def _build(self):
-        # TODO: add some way of sampling
-        uri = self.uri or np.random.choice(self.files)
-        level = safe_load(f"{self.dir}/{uri}")
-        self.set_size_labels(level.shape[1], level.shape[0])
+        level = safe_load(f"{self.dir}/{self.uri}")
+        height, width = level.shape
+        self.set_size_labels(width, height)
 
         # remove agents to then repopulate
-        agents = level == "agent.agent"
-        level[agents] = "empty"
+        level[level == "agent.agent"] = "empty"
 
+        # 3. Prepare agent labels
         if isinstance(self._agents, int):
-            agents = ["agent.agent"] * self._agents
-            num_agents = self._agents
+            agent_labels = ["agent.agent"] * self._agents
         elif isinstance(self._agents, DictConfig):
-            agents = ["agent." + agent for agent, na in self._agents.items() for _ in range(na)]
-            num_agents = len(agents)
+            agent_labels = [f"agent.{name}" for name, count in self._agents.items() for _ in range(count)]
+        else:
+            raise TypeError("Unsupported _agents type")
+        num_agents = len(agent_labels)
 
         valid_positions = self.get_valid_positions(level)
-        positions = random.sample(valid_positions, num_agents)
+        random.shuffle(valid_positions)
 
-        for pos, agent in zip(positions, agents, strict=False):
-            level[pos] = agent
+        # 5. Place agents in first slice
+        agent_positions = valid_positions[:num_agents]
+        for pos, label in zip(agent_positions, agent_labels, strict=False):
+            level[pos] = label
 
-        area = level.shape[0] * level.shape[1]
-
-        # Check if total objects exceed room size and halve counts if needed
-        total_objects = sum(count for count in self._objects.values()) + len(agents)
-        while total_objects > 2 * area / 3:
-            for obj_name in self._objects:
-                self._objects[obj_name] = max(1, self._objects[obj_name] // 2)
-                total_objects = sum(count for count in self._objects.values()) + len(agents)
+        # Convert to set for O(1) removal operations
+        valid_positions_set = set(valid_positions[num_agents:])
 
         for obj_name, count in self._objects.items():
-            valid_positions = self.get_valid_positions(level)
-            positions = random.sample(valid_positions, count)
+            # Sample from remaining valid positions
+            positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
                 level[pos] = obj_name
+                valid_positions_set.remove(pos)
 
         self._level = level
         return self._level

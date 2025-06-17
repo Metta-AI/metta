@@ -6,12 +6,12 @@ import { getAttr, sendAction } from './replay.js';
 import { PanelInfo } from './panels.js';
 import { onFrame, updateSelection } from './main.js';
 import { parseHtmlColor, find } from './htmlutils.js';
-import { updateHoverPanel, updateReadout, InfoPanel } from './infopanels.js';
+import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js';
 
-/** Flag to prevent multiple calls to requestAnimationFrame */
+/** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false;
 
-/** Function to safely request animation frame */
+/** A function to safely request an animation frame. */
 export function requestFrame() {
   if (!frameRequested) {
     frameRequested = true;
@@ -22,7 +22,7 @@ export function requestFrame() {
   }
 }
 
-/** Generate a color from an agent id. */
+/** Generates a color from an agent ID. */
 function colorFromId(agentId: number) {
   let n = agentId + Math.PI + Math.E + Math.SQRT2;
   return [
@@ -33,7 +33,7 @@ function colorFromId(agentId: number) {
   ]
 }
 
-/** Checks to see of object has any inventory. */
+/** Checks to see if an object has any inventory. */
 function hasInventory(obj: any) {
   for (const [key, [icon, color]] of state.replay.resource_inventory) {
     if (getAttr(obj, key) > 0) {
@@ -43,7 +43,7 @@ function hasInventory(obj: any) {
   return false;
 }
 
-/** Make the panel focus on the full map, used at the start of the replay. */
+/** Makes the panel focus on the full map; used at the start of the replay. */
 export function focusFullMap(panel: PanelInfo) {
   if (state.replay === null) {
     return;
@@ -53,7 +53,7 @@ export function focusFullMap(panel: PanelInfo) {
   panel.focusPos(width / 2, height / 2, Math.min(panel.width / width, panel.height / height));
 }
 
-/** Draw the floor. */
+/** Draws the floor. */
 function drawFloor() {
   const floorColor = parseHtmlColor("#CFA970");
   ctx.drawSolidRect(
@@ -65,9 +65,9 @@ function drawFloor() {
   );
 }
 
-/** Draw the walls, based on the adjacency map, and fill any holes. */
+/** Draws the walls, based on the adjacency map, and fills any holes. */
 function drawWalls() {
-  // Construct wall adjacency map.
+  // Construct a wall adjacency map.
   var wallMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
   for (const gridObject of state.replay.grid_objects) {
     const type = getAttr(gridObject, "type");
@@ -80,7 +80,7 @@ function drawWalls() {
     wallMap.set(x, y, true);
   }
 
-  // Draw the walls following the adjacency map.
+  // Draw the walls, following the adjacency map.
   for (const gridObject of state.replay.grid_objects) {
     const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
@@ -109,7 +109,7 @@ function drawWalls() {
     ctx.drawSprite('objects/wall.' + suffix + '.png', x * Common.TILE_SIZE, y * Common.TILE_SIZE);
   }
 
-  // Draw the wall in-fill following the adjacency map.
+  // Draw the wall infill, following the adjacency map.
   for (const gridObject of state.replay.grid_objects) {
     const type = getAttr(gridObject, "type");
     const typeName = state.replay.object_types[type];
@@ -118,7 +118,7 @@ function drawWalls() {
     }
     const x = getAttr(gridObject, "c");
     const y = getAttr(gridObject, "r");
-    // If walls to E, S and SE is filled, draw a wall fill.
+    // If walls to the E, S, and SE are filled, draw a wall fill.
     var s = false, e = false, se = false;
     if (wallMap.get(x + 1, y)) {
       e = true;
@@ -139,7 +139,7 @@ function drawWalls() {
   }
 }
 
-/** Draw all objects on the map (that are not walls). */
+/** Draws all objects on the map (that are not walls). */
 function drawObjects() {
   for (const gridObject of state.replay.grid_objects) {
     const type: number = getAttr(gridObject, "type");
@@ -152,7 +152,7 @@ function drawObjects() {
     const y = getAttr(gridObject, "r")
 
     if (gridObject["agent_id"] !== undefined) {
-      // Respect orientation of an object usually an agent.
+      // Respect the orientation of an object, usually an agent.
       const orientation = getAttr(gridObject, "agent:orientation");
       var suffix = "";
       if (orientation == 0) {
@@ -206,7 +206,7 @@ function drawObjects() {
   }
 }
 
-/** Draw actions above the objects. */
+/** Draws actions above the objects. */
 function drawActions() {
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
@@ -214,7 +214,7 @@ function drawActions() {
 
     // Do agent actions.
     if (gridObject["action"] !== undefined) {
-      // Draw the action:
+      // Draw the action.
       const action = getAttr(gridObject, "action");
       const action_success = getAttr(gridObject, "action_success");
       if (action_success && action != null) {
@@ -287,12 +287,12 @@ function drawActions() {
         y * Common.TILE_SIZE - 100,
         [1, 1, 1, 1],
         1,
-        // Apply the gentle rotation.
+        // Apply a gentle rotation.
         -state.step * 0.1
       );
     }
 
-    // Do states
+    // Do states.
     if (getAttr(gridObject, "agent:frozen") > 0) {
       ctx.drawSprite(
         "agents/frozen.png",
@@ -303,7 +303,7 @@ function drawActions() {
   }
 }
 
-/** Draw the object's inventory. */
+/** Draws the object's inventory. */
 function drawInventory() {
 
   if (!state.showResources) {
@@ -314,7 +314,7 @@ function drawInventory() {
     const x = getAttr(gridObject, "c")
     const y = getAttr(gridObject, "r")
 
-    // Sum up the objects inventory, in case we need to condense it.
+    // Sum up the object's inventory in case we need to condense it.
     let inventoryX = Common.INVENTORY_PADDING;
     let numItems = 0;
     for (const [key, [icon, color]] of state.replay.resource_inventory) {
@@ -340,7 +340,7 @@ function drawInventory() {
   }
 }
 
-/** Draw the rewards on the bottom of the object. */
+/** Draws the rewards on the bottom of the object. */
 function drawRewards() {
   for (const gridObject of state.replay.grid_objects) {
     const x = getAttr(gridObject, "c")
@@ -364,7 +364,7 @@ function drawRewards() {
   }
 }
 
-/** Draw the selection of the selected object. */
+/** Draws the selection of the selected object. */
 function drawSelection() {
   if (state.selectedGridObject === null) {
     return;
@@ -375,7 +375,7 @@ function drawSelection() {
   ctx.drawSprite("selection.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
 }
 
-/** Draw the trajectory of the selected object, footprints or future arrow. */
+/** Draws the trajectory of the selected object, with footprints or a future arrow. */
 function drawTrajectory() {
   if (state.selectedGridObject === null) {
     return;
@@ -394,7 +394,7 @@ function drawTrajectory() {
           let color = [0, 0, 0, a];
           let image = "";
           if (state.step >= i) {
-            // Past trajectory is black.
+            // The past trajectory is black.
             color = [0, 0, 0, a];
             if (state.selectedGridObject.agent_id !== undefined) {
               image = "agents/footprints.png";
@@ -402,7 +402,7 @@ function drawTrajectory() {
               image = "agents/past_arrow.png";
             }
           } else {
-            // Future trajectory is white.
+            // The future trajectory is white.
             color = [a, a, a, a];
             if (state.selectedGridObject.agent_id !== undefined) {
               image = "agents/path.png";
@@ -411,7 +411,7 @@ function drawTrajectory() {
             }
           }
 
-          if (cx1 > cx0) { // east
+          if (cx1 > cx0) { // East
             ctx.drawSprite(
               image,
               cx0 * Common.TILE_SIZE,
@@ -420,7 +420,7 @@ function drawTrajectory() {
               1,
               0
             );
-          } else if (cx1 < cx0) { // west
+          } else if (cx1 < cx0) { // West
             ctx.drawSprite(
               image,
               cx0 * Common.TILE_SIZE,
@@ -429,7 +429,7 @@ function drawTrajectory() {
               1,
               Math.PI
             );
-          } else if (cy1 > cy0) { // south
+          } else if (cy1 > cy0) { // South
             ctx.drawSprite(
               image,
               cx0 * Common.TILE_SIZE,
@@ -438,7 +438,7 @@ function drawTrajectory() {
               1,
               -Math.PI / 2
             );
-          } else if (cy1 < cy0) { // north
+          } else if (cy1 < cy0) { // North
             ctx.drawSprite(
               image,
               cx0 * Common.TILE_SIZE,
@@ -454,16 +454,16 @@ function drawTrajectory() {
   }
 }
 
-/** Draw the thought bubbles of the selected agent. */
+/** Draws the thought bubbles of the selected agent. */
 function drawThoughtBubbles() {
-  // The idea behind thought bubbles is to show what the agent is thinking.
-  // We don't have this directly from the policy yet,
-  // so the next best thing is to show future "key action".
+  // The idea behind thought bubbles is to show what an agent is thinking.
+  // We don't have this directly from the policy yet, so the next best thing
+  // is to show a future "key action."
   // It should be a good proxy for what the agent is thinking about.
   if (state.selectedGridObject != null && state.selectedGridObject.agent_id != null) {
     // We need to find a key action in the future.
-    // A key action is a successful action that is not a noop, rotate or move.
-    // Must not be more then 20 steps in the future.
+    // A key action is a successful action that is not a no-op, rotate, or move.
+    // It must not be more than 20 steps in the future.
     var keyAction = null;
     var keyActionStep = null;
     for (var actionStep = state.step; actionStep < state.replay.max_steps && actionStep < state.step + 20; actionStep++) {
@@ -484,7 +484,7 @@ function drawThoughtBubbles() {
     }
 
     if (keyAction != null) {
-      // We have a key action, draw the thought bubble.
+      // We have a key action, so draw the thought bubble.
       // Draw the key action icon with gained or lost resources.
       const x = getAttr(state.selectedGridObject, "c");
       const y = getAttr(state.selectedGridObject, "r");
@@ -523,7 +523,7 @@ function drawThoughtBubbles() {
         );
       }
 
-      // Draw resources lost on the left and gained on the right.
+      // Draw the resources lost on the left and gained on the right.
       for (const [key, [image, color]] of state.replay.resource_inventory) {
         const prevResources = getAttr(state.selectedGridObject, key, actionStep - 1);
         const nextResources = getAttr(state.selectedGridObject, key, actionStep);
@@ -555,11 +555,11 @@ function drawThoughtBubbles() {
   }
 }
 
-/** Draw the visibility map either agent view ranges or fog of war. */
+/** Draws the visibility map, either agent view ranges or fog of war. */
 function drawVisibility() {
 
   if (state.showVisualRanges || state.showFogOfWar) {
-    // Compute the visibility map, each agent contributes to the visibility map.
+    // Compute the visibility map; each agent contributes to the visibility map.
     const visibilityMap = new Grid(state.replay.map_size[0], state.replay.map_size[1]);
 
     // Update the visibility map for a grid object.
@@ -584,10 +584,10 @@ function drawVisibility() {
     }
 
     if (state.selectedGridObject !== null && state.selectedGridObject.agent_id !== undefined) {
-      // When there is a selected grid object only update its visibility.
+      // When there is a selected grid object, only update its visibility.
       updateVisibilityMap(state.selectedGridObject);
     } else {
-      // When there is no selected grid object update the visibility map for all agents.
+      // When there is no selected grid object, update the visibility map for all agents.
       for (const gridObject of state.replay.grid_objects) {
         const type = getAttr(gridObject, "type");
         const typeName = state.replay.object_types[type];
@@ -617,7 +617,7 @@ function drawVisibility() {
   }
 }
 
-/** Draw the grid. */
+/** Draws the grid. */
 function drawGrid() {
   if (state.showGrid) {
     for (let x = 0; x < state.replay.map_size[0]; x++) {
@@ -628,7 +628,7 @@ function drawGrid() {
   }
 }
 
-/** Given an orientation and an index, return the grid position. */
+/** Given an orientation and an index, returns the grid position. */
 function attackGrid(orientation: number, idx: number) {
   //                           North\0
   //                       +---+---+---+
@@ -688,7 +688,7 @@ function attackGrid(orientation: number, idx: number) {
 function drawAttackMode() {
   // We might be clicking on the map to attack something.
   var gridMousePos: Vec2f | null = null;
-  if (ui.mouseUp && ui.mouseTarget == "worldmap-panel" && state.showAttackMode) {
+  if (ui.mouseUp && ui.mouseTargets.includes("#worldmap-panel") && state.showAttackMode) {
     state.showAttackMode = false;
     const localMousePos = ui.mapPanel.transformOuter(ui.mousePos);
     if (localMousePos != null) {
@@ -721,7 +721,7 @@ function drawAttackMode() {
 }
 
 /** Draw the info line from the object to the info panel. */
-function drawInfoLine(panel: InfoPanel) {
+function drawInfoLine(panel: HoverPanel) {
   const x = getAttr(panel.object, "c");
   const y = getAttr(panel.object, "r");
   ctx.drawSprite("info.png", x * Common.TILE_SIZE, y * Common.TILE_SIZE);
@@ -751,7 +751,7 @@ export function drawMap(panel: PanelInfo) {
   }
 
   // Handle mouse events for the map panel.
-  if (ui.mouseTarget == "worldmap-panel" && ui.dragging == "" && !state.showAttackMode) {
+  if (ui.mouseTargets.includes("#worldmap-panel") && ui.dragging == "" && !state.showAttackMode) {
     // Find object under the mouse:
     var objectUnderMouse = null;
     const localMousePos = panel.transformOuter(ui.mousePos);
@@ -798,7 +798,7 @@ export function drawMap(panel: PanelInfo) {
     ui.hoverObject = objectUnderMouse;
     clearTimeout(ui.hoverTimer);
     ui.hoverTimer = setTimeout(() => {
-      if (ui.mouseTarget == "worldmap-panel") {
+      if (ui.mouseTargets.includes("#worldmap-panel")) {
         ui.delayedHoverObject = ui.hoverObject;
         updateHoverPanel(ui.delayedHoverObject)
       }
@@ -838,7 +838,7 @@ export function drawMap(panel: PanelInfo) {
 
   updateHoverPanel(ui.delayedHoverObject)
   updateReadout()
-  for (const panel of ui.infoPanels) {
+  for (const panel of ui.hoverPanels) {
     panel.update();
     drawInfoLine(panel);
   }

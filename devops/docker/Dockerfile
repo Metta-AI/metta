@@ -1,4 +1,5 @@
-FROM pufferai/puffertank:3.0
+FROM pufferai/puffertank:2.0
+# FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel
 
 # Set the timezone and install packages in one layer, clean up apt cache
 RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
@@ -20,7 +21,7 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
         git-lfs \
         tmux \
         iproute2 \
-        netcat-openbsd \
+        netcat \
         iputils-ping \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
@@ -35,29 +36,24 @@ COPY devops/mettabox/tmux.conf /root/.tmux.conf
 # Install uv
 COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
 
-# Clone metta repository with full .git and submodules
-WORKDIR /workspace/
-ARG BRANCH=main
-RUN git clone --recursive https://github.com/Metta-AI/metta.git metta \
- && cd metta \
- && git checkout ${BRANCH}
-
-# Set working dir for rest of image
 WORKDIR /workspace/metta
 
 # Install dependencies
+ADD .python-version pyproject.toml uv.lock .
+ADD mettagrid/pyproject.toml mettagrid/
+ADD wandb_carbs/pyproject.toml wandb_carbs/
+
 ENV UV_LINK_MODE=copy
 ARG TARGETPLATFORM
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --no-install-workspace
+
+# Install sources
+ADD . .
 
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --locked
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
 
-RUN sed -i '\#cd /puffertank/pufferlib#d' /root/.bashrc \
- && echo 'cd /workspace/metta' >> /root/.bashrc
-
 ENTRYPOINT ["/bin/bash", "-c"]
-
