@@ -826,11 +826,11 @@ class MettaTrainer:
         """CUDA kernel for puffer advantage with automatic CPU fallback."""
 
         # Ensure tensors are on the correct device for this process
-        device = self.device
+        device = torch.device(self.device) if isinstance(self.device, str) else self.device
         if torch.distributed.is_initialized():
             # In distributed mode, each process should only see its own device
             local_rank = int(os.environ.get("LOCAL_RANK", 0))
-            if device.type == "cuda":
+            if str(device).startswith("cuda"):
                 device = torch.device(f"cuda:{local_rank}")
 
         # Move tensors to the correct device if needed
@@ -840,7 +840,7 @@ class MettaTrainer:
         importance_sampling_ratio = importance_sampling_ratio.to(device)
         advantages = advantages.to(device)
 
-        if device.type == "cuda":
+        if str(device).startswith("cuda"):
             with torch.cuda.device(device):
                 torch.ops.pufferlib.compute_puff_advantage(
                     values,
