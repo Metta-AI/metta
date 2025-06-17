@@ -2,4 +2,6 @@ defaults:
   - sim_single
   - _self_
 
-env: /env/mettagrid/memory/training/in_sight
+env: /env/mettagrid/navigation/training/varied_terrain_balanced
+
+#  /env/mettagrid/navigation/training/varied_terrain_maze
