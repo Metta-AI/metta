@@ -48,7 +48,8 @@ def token_to_box(token_observations, num_layers, height, width):
     # Filter out invalid tokens:
     # 1. coords_byte != 0xFF (standard invalid token marker)
     # 2. attr_indices < num_layers (ensure attribute index is within bounds)
-    valid_tokens = (coords_byte != 0xFF) & (attr_indices < num_layers)
+    # 3. x_coords < height and y_coords < width (ensure coordinates are within grid bounds)
+    valid_tokens = (coords_byte != 0xFF) & (attr_indices < num_layers) & (x_coords < height) & (y_coords < width)
 
     box_obs[batch_indices[valid_tokens], attr_indices[valid_tokens], x_coords[valid_tokens], y_coords[valid_tokens]] = (
         attr_values[valid_tokens]

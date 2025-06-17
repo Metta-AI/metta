@@ -89,7 +89,7 @@ class PytorchAgent(nn.Module):
             return
 
         # Check if actor is a ModuleList or similar container
-        if hasattr(actor, "__len__"):
+        if isinstance(actor, nn.ModuleList):
             num_action_heads = len(actor)
         elif isinstance(actor, nn.Module):
             # If it's a single module, assume 1 action head

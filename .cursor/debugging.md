@@ -63,7 +63,7 @@ top -l 1 | head -20
 ps aux | grep defunct
 ```
 
-### 2. Run Training with Minimal Configuration
+### 6. Run Training with Minimal Configuration
 ```bash
 # Create a test ID for easier tracking
 export TEST_ID=$(date +%Y%m%d_%H%M%S)

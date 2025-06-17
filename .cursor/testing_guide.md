@@ -80,6 +80,8 @@ By consistently turning our debugging work into permanent tests, we'll build a m
 
 #### Basic Policy Loading
 ```python
+from omegaconf import OmegaConf
+
 def test_load_external_policy():
     """Verify that a PytorchAgent can be loaded from a pytorch:// URI."""
     cfg = OmegaConf.create({

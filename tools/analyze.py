@@ -21,7 +21,10 @@ def main(cfg: DictConfig) -> None:
     config = AnalysisConfig(cfg.analysis)
 
     policy_store = PolicyStore(cfg, None)
-    agent = policy_store.policy(cfg.analysis.policy_uri if cfg.analysis.policy_uri else cfg.trainer.initial_policy)
+    policy_uri = cfg.analysis.policy_uri if cfg.analysis.policy_uri else cfg.trainer.initial_policy
+    agent = policy_store.policy(
+        policy_uri, selector_type=config.policy_selector.type, metric=config.policy_selector.metric
+    )
 
     analyze(agent, config)
 

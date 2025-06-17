@@ -19,8 +19,6 @@ def analyze(agent: MettaAgent, config: AnalysisConfig) -> None:
         stats_db = EvalStatsDB(local_path)
 
         # Check if we have any data for this policy
-        suite_filter = f"sim_name LIKE '%{config.suite}%'" if config.suite else None
-
         sample_count = stats_db.sample_count(agent, config.suite)
         if sample_count == 0:
             logger.warning(f"No samples found for policy: {agent.key}:v{agent.version}")

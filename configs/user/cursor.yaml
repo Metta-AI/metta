@@ -21,5 +21,5 @@ device: cpu
 hardware: macbook
 
 # Run naming for test tracking
-run: cursor.test_${run_id}
+run: cursor.test_${now:%Y%m%d_%H%M%S}
 run_dir: ${data_dir}/${run}
