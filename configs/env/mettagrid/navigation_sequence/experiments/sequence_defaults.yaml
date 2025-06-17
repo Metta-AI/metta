@@ -28,12 +28,10 @@ game:
     num_rooms: 4
     border_width: 6
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:50,100,60}
-      height: ${sampling:50,100,60}
-      border_width: 6
+      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: 3
       agents: ${div:${...num_agents},${..num_rooms}}
-      style: ???
+      dir: ???
       objects:
         mine.red: ${sampling:5,20,15}
         generator.red: ${sampling:5,20,15}

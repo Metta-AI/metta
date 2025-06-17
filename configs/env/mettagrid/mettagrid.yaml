@@ -1,4 +1,6 @@
 sampling: 0
+
+desync_episodes: false
 replay_level_prob: 0.3
 game:
   num_agents: ???
