@@ -12,6 +12,11 @@ resource "kubernetes_namespace" "observatory" {
   }
 }
 
+import {
+  to = kubernetes_namespace.observatory
+  id = "observatory"
+}
+
 resource "kubernetes_secret" "observatory_secrets" {
   metadata {
     name      = "observatory-secrets"
