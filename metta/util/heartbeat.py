@@ -10,8 +10,8 @@ import wandb
 
 logger = logging.getLogger(__name__)
 
-# Fixed filename for IPC in the user's home directory (must match wandb_context.py)
-METTA_WANDB_IPC_FILENAME = ".metta_wandb_ipc.json"
+# Shared IPC filename, co-located with the heartbeat signal file (must match wandb_context.py)
+WANDB_IPC_FILENAME = "wandb_ipc.json"
 
 
 def record_heartbeat() -> None:
@@ -32,25 +32,21 @@ def record_heartbeat() -> None:
 _ALERT_SEND_TIMEOUT_SECONDS = 30
 
 
-# Uses a fixed path in the user's home directory for the IPC file
-def _send_wandb_alert_with_timeout(title: str) -> None:
-    """Send a W&B alert, reading IPC data from a fixed path in the user's home directory."""
+# Accepts the explicit path to the IPC file
+def _send_wandb_alert_with_timeout(title: str, wandb_ipc_file_path: str | None) -> None:
+    """Send a W&B alert, reading IPC data from the provided file path."""
 
-    try:
-        ipc_file_to_read = os.path.expanduser(os.path.join("~", METTA_WANDB_IPC_FILENAME))
-    except Exception as e:  # Should be very unlikely for these operations
-        logger.error(
-            f"Error constructing fixed IPC file path ('~/{METTA_WANDB_IPC_FILENAME}'): {e}. Cannot send alert for: '{title}'.",
-            exc_info=True,
-        )
+    if not wandb_ipc_file_path:
+        logger.warning(f"W&B IPC file path not provided. Cannot determine W&B run for alert: '{title}'.")
         return
 
+    # ipc_file_to_read is now wandb_ipc_file_path argument
     run_id_ipc: str | None = None
     project_ipc: str | None = None
     entity_ipc: str | None = None
 
     try:
-        with open(ipc_file_to_read, "r") as f:
+        with open(wandb_ipc_file_path, "r") as f:
             ipc_data = json.load(f)
         run_id_ipc = ipc_data.get("run_id")
         project_ipc = ipc_data.get("project")
@@ -65,19 +61,19 @@ def _send_wandb_alert_with_timeout(title: str) -> None:
                 if not val
             ]
             logger.warning(
-                f"Missing required W&B identifiers ({', '.join(missing_keys)}) in IPC file {ipc_file_to_read}. "
+                f"Missing required W&B identifiers ({', '.join(missing_keys)}) in IPC file {wandb_ipc_file_path}. "
                 f"Cannot send alert for: '{title}'."
             )
             return
     except FileNotFoundError:
-        logger.warning(f"W&B IPC file not found at fixed path: {ipc_file_to_read}. Alert '{title}' not sent.")
+        logger.warning(f"W&B IPC file not found at: {wandb_ipc_file_path}. Alert '{title}' not sent.")
         return
     except json.JSONDecodeError as e:
-        logger.warning(f"Error decoding W&B IPC file {ipc_file_to_read}: {e}. Alert '{title}' not sent.")
+        logger.warning(f"Error decoding W&B IPC file {wandb_ipc_file_path}: {e}. Alert '{title}' not sent.")
         return
     except Exception as e:
         logger.error(
-            f"Unexpected error reading W&B IPC file {ipc_file_to_read}: {e}. Alert '{title}' not sent.",
+            f"Unexpected error reading W&B IPC file {wandb_ipc_file_path}: {e}. Alert '{title}' not sent.",
             exc_info=True,
         )
         return
@@ -120,7 +116,7 @@ def _send_wandb_alert_with_timeout(title: str) -> None:
                 logger.warning(f"Exception during W&B alert '{title}' execution: {type(e).__name__} - {e}")
 
 
-# monitor_heartbeat no longer needs wandb_ipc_file_path argument
+# monitor_heartbeat derives and passes the wandb_ipc_file_path
 def monitor_heartbeat(file_path: str, pid: int, timeout: float = 600.0, check_interval: float = 60.0) -> None:
     """Monitor the heartbeat file and terminate the process group if stale."""
 
@@ -133,7 +129,20 @@ def monitor_heartbeat(file_path: str, pid: int, timeout: float = 600.0, check_in
         if time.time() - last > timeout:
             logger.error("No heartbeat detected for %s seconds. Terminating job", timeout)
 
-            _send_wandb_alert_with_timeout(title="Heartbeat Timeout. Job terminated.")
+            # Derive IPC file path from the heartbeat signal file path
+            wandb_ipc_file_path_derived: str | None = None
+            try:
+                abs_heartbeat_path = os.path.abspath(file_path)
+                ipc_dir = os.path.dirname(abs_heartbeat_path)
+                wandb_ipc_file_path_derived = os.path.join(ipc_dir, WANDB_IPC_FILENAME)
+            except Exception as e:
+                logger.error(
+                    f"Error deriving W&B IPC file path from heartbeat signal path '{file_path}': {e}", exc_info=True
+                )
+
+            _send_wandb_alert_with_timeout(
+                title="Heartbeat Timeout. Job terminated.", wandb_ipc_file_path=wandb_ipc_file_path_derived
+            )
             time.sleep(_ALERT_SEND_TIMEOUT_SECONDS)  # Allow time for alert to potentially send before killing
 
             try:
@@ -156,7 +165,7 @@ def _main(argv: list[str] | None = None) -> None:
     mon.add_argument("file")
     mon.add_argument("--pid", type=int, default=os.getpid())
     mon.add_argument("--timeout", type=float, default=600.0)
-    mon.add_argument("--interval", type=float, default=5.0)
+    mon.add_argument("--interval", type=float, default=5.0)  # this should be longer in the final version
 
     args = parser.parse_args(argv)
 

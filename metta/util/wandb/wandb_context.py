@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Alias type for easier usage (other modules can import this type)
 WandbRun = wandb.sdk.wandb_run.Run
-# Fixed filename for IPC in the user's home directory
-METTA_WANDB_IPC_FILENAME = ".metta_wandb_ipc.json"  # Note the dot for a hidden file
+# Shared IPC filename, co-located with the heartbeat signal file
+WANDB_IPC_FILENAME = "wandb_ipc.json"
 
 
 class WandbConfigOn(Config):
@@ -73,8 +73,7 @@ class WandbContext:
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
-        # Define the fixed IPC file path in the user's home directory
-        self._fixed_ipc_file_path = os.path.expanduser(os.path.join("~", METTA_WANDB_IPC_FILENAME))
+        self._generated_ipc_file_path: str | None = None  # To store path if generated
 
     def __enter__(self) -> WandbRun | None:
         if not self.cfg.enabled:
@@ -121,20 +120,34 @@ class WandbContext:
             wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
-            # --- File-based IPC using a fixed path in user's home directory ---
-            ipc_data = {
-                "run_id": self.run.id,
-                "project": self.run.project,
-                "entity": self.run.entity,
-                "name": self.run.name,
-            }
-            try:
-                # Overwrite the file at the fixed path
-                with open(self._fixed_ipc_file_path, "w") as f:
-                    json.dump(ipc_data, f)
-                logger.info(f"W&B IPC data written to fixed path: {self._fixed_ipc_file_path}")
-            except IOError as e:
-                logger.error(f"Failed to write W&B IPC file to {self._fixed_ipc_file_path}: {e}")
+            # --- File-based IPC: Write to the same directory as HEARTBEAT_FILE ---
+            heartbeat_file_env_path = os.environ.get("HEARTBEAT_FILE")
+            if heartbeat_file_env_path:
+                try:
+                    # Ensure HEARTBEAT_FILE is an absolute path for reliable dirname
+                    abs_heartbeat_path = os.path.abspath(heartbeat_file_env_path)
+                    ipc_dir = os.path.dirname(abs_heartbeat_path)
+                    self._generated_ipc_file_path = os.path.join(ipc_dir, WANDB_IPC_FILENAME)
+
+                    os.makedirs(ipc_dir, exist_ok=True)  # Ensure directory exists
+
+                    ipc_data = {
+                        "run_id": self.run.id,
+                        "project": self.run.project,
+                        "entity": self.run.entity,
+                        "name": self.run.name,
+                    }
+                    with open(self._generated_ipc_file_path, "w") as f:
+                        json.dump(ipc_data, f)
+                    logger.info(f"W&B IPC data written to: {self._generated_ipc_file_path}")
+                except Exception as e:
+                    logger.error(
+                        f"Failed to write W&B IPC file alongside heartbeat file ({heartbeat_file_env_path}): {e}",
+                        exc_info=True,
+                    )
+                    self._generated_ipc_file_path = None  # Mark as not generated
+            else:
+                logger.warning("HEARTBEAT_FILE env var not set. Cannot write W&B IPC file for heartbeat monitor.")
             # --- End File-based IPC ---
 
         except (TimeoutError, wandb.errors.CommError) as e:
@@ -160,4 +173,4 @@ class WandbContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cleanup_run(self.run)
-        # No explicit cleanup of the IPC file from home dir, it will be overwritten.
+        # No explicit cleanup of the IPC file as per user preference (it's co-located with heartbeat or not written)
