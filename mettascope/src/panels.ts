@@ -1,7 +1,7 @@
 import { Vec2f, Mat3f } from './vector_math.js';
 import * as Common from './common.js';
 import { ui } from './common.js';
-import { find } from './htmlutils.js'
+import { find } from './htmlutils.js';
 
 /** A main UI panel. */
 export class PanelInfo {
@@ -9,7 +9,7 @@ export class PanelInfo {
   public y: number = 0;
   public width: number = 0;
   public height: number = 0;
-  public name: string = "";
+  public name: string = '';
   public isPanning: boolean = false;
   public panPos: Vec2f = new Vec2f(0, 0);
   public zoomLevel: number = Common.DEFAULT_ZOOM_LEVEL;
@@ -17,13 +17,14 @@ export class PanelInfo {
 
   constructor(name: string) {
     this.name = name;
-    this.div = find(name)
+    this.div = find(name);
   }
 
   /** Checks if a point is inside the panel. */
   inside(point: Vec2f): boolean {
-    return point.x() >= this.x && point.x() < this.x + this.width &&
-      point.y() >= this.y && point.y() < this.y + this.height;
+    return (
+      point.x() >= this.x && point.x() < this.x + this.width && point.y() >= this.y && point.y() < this.y + this.height
+    );
   }
 
   /** Gets the transformation matrix for the panel. */
@@ -45,17 +46,13 @@ export class PanelInfo {
 
   /** Makes the panel focus on a specific position in the panel. */
   focusPos(x: number, y: number, zoomLevel: number) {
-    this.panPos = new Vec2f(
-      -x,
-      -y
-    );
+    this.panPos = new Vec2f(-x, -y);
     this.zoomLevel = zoomLevel;
   }
 
   /** Updates the pan and zoom level based on the mouse position and scroll delta. */
   updatePanAndZoom(): boolean {
-
-    if (!ui.mouseTargets.includes(this.name) || ui.dragging != "") {
+    if (!ui.mouseTargets.includes(this.name) || ui.dragging != '') {
       return false;
     }
 

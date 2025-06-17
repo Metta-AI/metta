@@ -4,7 +4,7 @@ export function parseHtmlColor(color: string): [number, number, number, number] 
     parseInt(color.slice(1, 3), 16) / 255,
     parseInt(color.slice(3, 5), 16) / 255,
     parseInt(color.slice(5, 7), 16) / 255,
-    1.0
+    1.0,
   ];
 }
 
@@ -45,9 +45,8 @@ export function findAttr(element: HTMLElement, attribute: string): string {
     }
     e = e.parentElement as HTMLElement;
   }
-  return "";
+  return '';
 }
-
 
 /**
  * I don't like how the DOM handles events. I think they should be done
@@ -60,7 +59,7 @@ type Handler = {
   selector: string;
   event: string;
   callback: (target: HTMLElement, event: Event) => void;
-}
+};
 
 var globalHandlers: Map<string, Handler[]> = new Map();
 
@@ -68,33 +67,36 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
   let handler: Handler = {
     selector: selector,
     event: event,
-    callback: callback
+    callback: callback,
   };
   if (!globalHandlers.has(event)) {
     // This is the first time we've seen this event.
-    window.addEventListener(event, (e: Event) => {
-      if (event == "click") {
-        hideMenu();
-      }
-      let handlers = globalHandlers.get(event);
-      if (handlers) {
-        var target = e.target as HTMLElement;
-        while (target != null) {
-          for (let handler of handlers) {
-            if (target.matches(handler.selector)) {
-              handler.callback(target, e);
-              return;
-            }
-          }
-          target = target.parentElement as HTMLElement;
+    window.addEventListener(
+      event,
+      (e: Event) => {
+        if (event == 'click') {
+          hideMenu();
         }
-      }
-    }, { passive: false })
+        let handlers = globalHandlers.get(event);
+        if (handlers) {
+          var target = e.target as HTMLElement;
+          while (target != null) {
+            for (let handler of handlers) {
+              if (target.matches(handler.selector)) {
+                handler.callback(target, e);
+                return;
+              }
+            }
+            target = target.parentElement as HTMLElement;
+          }
+        }
+      },
+      { passive: false }
+    );
     globalHandlers.set(event, []);
   }
   globalHandlers.get(event)?.push(handler);
 }
-
 
 /**
  * Menus are hidden on any click outside the menu, and are clicked through.
@@ -107,18 +109,17 @@ var openMenu: HTMLElement | null = null;
 
 /** Shows a menu and sets the "scrim" target to the menu. */
 export function showMenu(target: HTMLElement, menu: HTMLElement) {
-
   // Hide any other open menu.
   hideMenu();
 
   // Get location of the target.
   openMenuTarget = target;
   openMenu = menu;
-  openMenuTarget.classList.add("selected");
+  openMenuTarget.classList.add('selected');
   let rect = openMenuTarget.getBoundingClientRect();
-  openMenu.style.left = rect.left + "px";
-  openMenu.style.top = (rect.bottom + 2) + "px";
-  openMenu.classList.remove("hidden");
+  openMenu.style.left = rect.left + 'px';
+  openMenu.style.top = rect.bottom + 2 + 'px';
+  openMenu.classList.remove('hidden');
   // Bring the menu to the front (move it to the end of the sibling list).
   openMenu.parentElement?.appendChild(openMenu);
 }
@@ -126,11 +127,11 @@ export function showMenu(target: HTMLElement, menu: HTMLElement) {
 /** Hides the menu and the "scrim". */
 export function hideMenu() {
   if (openMenuTarget != null) {
-    openMenuTarget.classList.remove("selected");
+    openMenuTarget.classList.remove('selected');
     openMenuTarget = null;
   }
   if (openMenu != null) {
-    openMenu.classList.add("hidden");
+    openMenu.classList.add('hidden');
     openMenu = null;
   }
 }
@@ -139,9 +140,9 @@ var openDropdownTarget: HTMLElement | null = null;
 var openDropdown: HTMLElement | null = null;
 var scrim = find('#scrim') as HTMLDivElement;
 var scrimTarget: HTMLElement | null = null;
-scrim.classList.add("hidden");
+scrim.classList.add('hidden');
 
-onEvent("click", "#scrim", (target: HTMLElement, event: Event) => {
+onEvent('click', '#scrim', (target: HTMLElement, event: Event) => {
   hideMenu();
   hideDropdown();
 });
@@ -152,25 +153,24 @@ export function showDropdown(target: HTMLElement, dropdown: HTMLElement) {
   openDropdown = dropdown;
   openDropdownTarget = target;
   let rect = openDropdownTarget.getBoundingClientRect();
-  openDropdown.style.left = rect.left + "px";
-  openDropdown.style.top = (rect.bottom + 2) + "px";
-  openDropdown.classList.remove("hidden");
-  scrim.classList.remove("hidden");
+  openDropdown.style.left = rect.left + 'px';
+  openDropdown.style.top = rect.bottom + 2 + 'px';
+  openDropdown.classList.remove('hidden');
+  scrim.classList.remove('hidden');
 }
 
 /** Hides the dropdown and the "scrim". */
 export function hideDropdown() {
   if (openDropdownTarget != null) {
-    openDropdownTarget.classList.remove("selected");
+    openDropdownTarget.classList.remove('selected');
     openDropdownTarget = null;
   }
   if (openDropdown != null) {
-    openDropdown.classList.add("hidden");
+    openDropdown.classList.add('hidden');
     openDropdown = null;
   }
-  scrim.classList.add("hidden");
+  scrim.classList.add('hidden');
 }
-
 
 /** Gets a number from local storage with a default value. */
 export function localStorageGetNumber(key: string, defaultValue: number): number {
