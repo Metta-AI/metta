@@ -7,8 +7,7 @@ import hydra
 
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SingleEnvSimulationConfig
-from metta.util.config import setup_metta_environment
+from metta.util.environment import setup_metta_environment
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext

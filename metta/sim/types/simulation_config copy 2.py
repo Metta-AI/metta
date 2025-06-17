@@ -3,6 +3,7 @@ from typing import Dict
 from pydantic import model_validator
 
 from metta.sim.types.simulation_config import SimulationConfig
+from metta.sim.types.single_env import SimulationConfig
 
 
 class SimulationSuiteConfig(SimulationConfig):

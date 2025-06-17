@@ -13,7 +13,7 @@ import pytest
 from omegaconf import OmegaConf
 from pydantic import ValidationError
 
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.types.simulation_config import SimulationSuiteConfig
 
 # ---------------------------------------------------------------------------
 # constants

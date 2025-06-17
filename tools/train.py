@@ -11,7 +11,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.types.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config, setup_metta_environment
 from metta.util.heartbeat import start_heartbeat
 from metta.util.logging import setup_mettagrid_logger

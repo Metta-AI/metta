@@ -6,7 +6,6 @@ import torch
 
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
-from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 

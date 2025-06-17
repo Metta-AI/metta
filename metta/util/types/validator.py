@@ -6,9 +6,9 @@ applications, ensuring configs match their expected Pydantic schemas.
 """
 
 import functools
-from typing import Any, Callable, Dict, Optional, Type, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, Optional, Type, TypeVar, Union
 
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import ValidationError
 
 from metta.util.types.base_config import BaseConfig, config_registry
@@ -91,12 +91,12 @@ def validate_subconfig(
 
             # Navigate to the field
             field_parts = field_name.split(".")
-            current = cfg
+            current: Any = cfg  # Type annotation to tell Pylance this can be any type
 
             # Check if field exists
             try:
                 for i, part in enumerate(field_parts):
-                    current = current[part]
+                    current = current[part]  # type: ignore
                     # Check if we hit a ListConfig along the way
                     if isinstance(current, ListConfig) and i < len(field_parts) - 1:
                         raise TypeError(
@@ -211,7 +211,7 @@ def auto_validate_config(func: Callable) -> Callable:
     return wrapper
 
 
-class ValidatedConfig:
+class ValidatedConfig(Generic[T]):
     """
     Context manager for validated configs.
 
@@ -237,14 +237,25 @@ class ValidatedConfig:
 
     def __enter__(self) -> T:
         try:
-            self.validated_cfg = self.config_class(self.cfg)
-            return self.validated_cfg
+            validated = self.config_class(self.cfg)
+            self.validated_cfg = validated
+            return validated
         except ValidationError as e:
             if self.strict:
                 raise
             print(f"Warning: Configuration validation failed: {e}")
             # Return a best-effort instance using model_construct (skips validation)
-            return self.config_class.model_construct(**self.cfg)
+            # Use OmegaConf.to_container to ensure we have a proper dict
+            if isinstance(self.cfg, DictConfig):
+                cfg_dict = OmegaConf.to_container(self.cfg, resolve=True)
+            else:
+                cfg_dict = self.cfg
+
+            # Type assertion to help Pylance
+            assert isinstance(cfg_dict, dict)
+            best_effort: T = self.config_class.model_construct(**cfg_dict)  # type: ignore
+            self.validated_cfg = best_effort
+            return best_effort
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
@@ -284,9 +295,9 @@ def extract_validated_configs(cfg: DictConfig, **field_mappings: Type[BaseConfig
         try:
             # Handle nested fields
             field_parts = field_name.split(".")
-            current = cfg
+            current: Any = cfg  # Type annotation to tell Pylance this can be any type
             for i, part in enumerate(field_parts):
-                current = current[part]
+                current = current[part]  # type: ignore
                 # Check if we hit a ListConfig along the way
                 if isinstance(current, ListConfig) and i < len(field_parts) - 1:
                     raise TypeError(
