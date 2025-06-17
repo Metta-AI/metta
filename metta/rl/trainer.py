@@ -30,9 +30,9 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.util.timing import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from mettagrid.util.stopwatch import Stopwatch
 
 torch.set_float32_matmul_precision("high")
 
@@ -269,11 +269,11 @@ class MettaTrainer:
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                with self.timer("_checkpoint_trainer", log=logging.INFO):
+                with self.timer("_checkpoint_trainer", log_level=logging.INFO):
                     self._checkpoint_trainer()
 
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                with self.timer("_evaluate_policy", log=logging.INFO):
+                with self.timer("_evaluate_policy", log_level=logging.INFO):
                     self._evaluate_policy()
 
             self.torch_profiler.on_epoch_end(self.epoch)
@@ -289,7 +289,7 @@ class MettaTrainer:
                 self._update_l2_init_weight_copy()
 
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
-                with self.timer("_generate_and_upload_replay", log=logging.INFO):
+                with self.timer("_generate_and_upload_replay", log_level=logging.INFO):
                     self._generate_and_upload_replay()
 
             self._on_train_step()
