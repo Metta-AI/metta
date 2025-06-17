@@ -824,18 +824,19 @@ class MettaTrainer:
         vtrace_c_clip,
     ):
         """CUDA kernel for puffer advantage with automatic CPU fallback."""
-        try:
-            torch.ops.pufferlib.compute_puff_advantage(
-                values,
-                rewards,
-                dones,
-                importance_sampling_ratio,
-                advantages,
-                gamma,
-                gae_lambda,
-                vtrace_rho_clip,
-                vtrace_c_clip,
-            )
+        # try:
+        torch.ops.pufferlib.compute_puff_advantage(
+            values,
+            rewards,
+            dones,
+            importance_sampling_ratio,
+            advantages,
+            gamma,
+            gae_lambda,
+            vtrace_rho_clip,
+            vtrace_c_clip,
+        )
+        """
         except (RuntimeError, AssertionError) as e:
             print(e)
             # Fallback to CPU if CUDA kernel fails or not available
@@ -859,6 +860,7 @@ class MettaTrainer:
             )
 
             advantages.copy_(advantages_cpu.to(device))
+        """
 
         return advantages
 
