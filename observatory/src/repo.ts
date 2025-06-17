@@ -4,30 +4,30 @@ export type HeatmapCell = {
   evalName: string;
   replayUrl: string | null;
   value: number;
-}
+};
 
 export type HeatmapData = {
   evalNames: Set<string>;
-  cells : Map<string, Map<string, HeatmapCell>>;
+  cells: Map<string, Map<string, HeatmapCell>>;
   policyAverageScores: Map<string, number>;
   evalAverageScores: Map<string, number>;
   evalMaxScores: Map<string, number>;
-}
+};
 
 export type GroupDiff = {
   group_1: string;
   group_2: string;
-}
+};
 
-export type GroupHeatmapMetric = GroupDiff | string
+export type GroupHeatmapMetric = GroupDiff | string;
 
 /**
  * Interface for data fetching.
- * 
+ *
  * Currently the data is loaded from a pre-computed JSON file.
  * In the future, we will fetch the data from an API.
  */
-export interface Repo {  
+export interface Repo {
   getSuites(): Promise<string[]>;
   getMetrics(suite: string): Promise<string[]>;
   getGroupIds(suite: string): Promise<string[]>;
@@ -36,31 +36,44 @@ export interface Repo {
 }
 
 export class DataRepo implements Repo {
-  constructor(private dashboardData: DashboardData) {
-  }
+  constructor(private dashboardData: DashboardData) {}
 
   async getMetrics(suite: string): Promise<string[]> {
-    return [...new Set(this.dashboardData.policy_evals.filter(row => row.suite === suite).flatMap(row => row.policy_eval_metrics.map(metric => metric.metric)))].sort();
+    return [
+      ...new Set(
+        this.dashboardData.policy_evals
+          .filter((row) => row.suite === suite)
+          .flatMap((row) => row.policy_eval_metrics.map((metric) => metric.metric))
+      ),
+    ].sort();
   }
 
   async getSuites(): Promise<string[]> {
-    return [...new Set(this.dashboardData.policy_evals.map(row => row.suite))].sort();
+    return [...new Set(this.dashboardData.policy_evals.map((row) => row.suite))].sort();
   }
 
   async getGroupIds(suite: string): Promise<string[]> {
-    return [...new Set(this.dashboardData.policy_evals.filter(row => row.suite === suite).flatMap(row => row.policy_eval_metrics.map(metric => metric.group_id)))].sort();
+    return [
+      ...new Set(
+        this.dashboardData.policy_evals
+          .filter((row) => row.suite === suite)
+          .flatMap((row) => row.policy_eval_metrics.map((metric) => metric.group_id))
+      ),
+    ].sort();
   }
 
   calculateValue(policyEval: PolicyEval, metric: string, groupMetric: GroupHeatmapMetric): number {
     let value = 0;
 
     const relevantMetrics = policyEval.policy_eval_metrics.filter((m: PolicyEvalMetric) => m.metric === metric);
-    if (typeof groupMetric === "string") {
-      const groupMetrics = relevantMetrics.filter((m: PolicyEvalMetric) => (groupMetric === "" || m.group_id === groupMetric));
+    if (typeof groupMetric === 'string') {
+      const groupMetrics = relevantMetrics.filter(
+        (m: PolicyEvalMetric) => groupMetric === '' || m.group_id === groupMetric
+      );
       if (groupMetrics.length > 0) {
         const totalValue = groupMetrics.reduce((sum, m) => sum + m.sum_value, 0);
-        let totalAgents = 0
-        if (groupMetric === "") {
+        let totalAgents = 0;
+        if (groupMetric === '') {
           totalAgents = Object.values(policyEval.group_num_agents).reduce((sum, num) => sum + num, 0);
         } else {
           totalAgents = policyEval.group_num_agents[groupMetric];
@@ -79,16 +92,16 @@ export class DataRepo implements Repo {
   }
 
   async getHeatmapData(metric: string, suite: string, groupMetric: GroupHeatmapMetric): Promise<HeatmapData> {
-    const suiteData = this.dashboardData.policy_evals.filter(row => row.suite === suite);
+    const suiteData = this.dashboardData.policy_evals.filter((row) => row.suite === suite);
 
     const getKey = (policyUri: string, evalName: string) => `${policyUri}-${evalName}`;
     const policyEvalsByKey = new Map<string, PolicyEval>();
-    suiteData.forEach(row => {
+    suiteData.forEach((row) => {
       policyEvalsByKey.set(getKey(row.policy_uri, row.eval_name), row);
     });
 
-    const evalNames = new Set<string>(suiteData.map(row => row.eval_name));
-    const policyUris = new Set<string>(this.dashboardData.policy_evals.map(row => row.policy_uri));
+    const evalNames = new Set<string>(suiteData.map((row) => row.eval_name));
+    const policyUris = new Set<string>(this.dashboardData.policy_evals.map((row) => row.policy_uri));
     const cells = new Map<string, Map<string, HeatmapCell>>();
 
     for (const policyUri of policyUris) {
@@ -120,10 +133,11 @@ export class DataRepo implements Repo {
         policyData.set(evalName, cell);
       }
     }
-    
+
     const policyAverageScores = new Map<string, number>();
     cells.forEach((policyCells, policyUri) => {
-      const policyAverageScore = Array.from(policyCells.values()).reduce((sum, cell) => sum + cell.value, 0) / evalNames.size;
+      const policyAverageScore =
+        Array.from(policyCells.values()).reduce((sum, cell) => sum + cell.value, 0) / evalNames.size;
       policyAverageScores.set(policyUri, policyAverageScore);
     });
 
