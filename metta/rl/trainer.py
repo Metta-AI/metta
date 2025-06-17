@@ -598,26 +598,8 @@ class MettaTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-<<<<<<< HEAD:metta/rl/pufferlib/trainer.py
             if trainer_cfg.target_kl is not None and approx_kl > trainer_cfg.target_kl:
                 break
-=======
-                with profile.train_misc:
-                    self.losses.policy_loss += pg_loss.item() / total_minibatches
-                    self.losses.value_loss += v_loss.item() / total_minibatches
-                    self.losses.entropy += entropy_loss.item() / total_minibatches
-                    self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                    self.losses.approx_kl += approx_kl.item() / total_minibatches
-                    self.losses.clipfrac += clipfrac.item() / total_minibatches
-                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
-
-            if self.trainer_cfg.target_kl is not None:
-                if approx_kl > self.trainer_cfg.target_kl:
-                    break
->>>>>>> origin/main:metta/rl/trainer.py
 
         with profile.train_misc:
             if self.lr_scheduler is not None:
@@ -995,6 +977,7 @@ class MettaTrainer:
             time.sleep(5)
 
         raise RuntimeError("Failed to load policy after 10 attempts")
+
 
 class AbortingTrainer(MettaTrainer):
     def __init__(self, *args: Any, **kwargs: Any):
