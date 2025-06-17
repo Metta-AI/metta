@@ -342,7 +342,9 @@ class ObsLatentAttnBisect(LayerBase):
         self._use_cls_token = use_cls_token  # simply output one latent token (the same one)
 
     def _make_net(self) -> None:
+        self.pre = torch.randn(1, 128) # delete this
         self._out_tensor_shape = [self._out_dim]
+        self.linear = nn.Linear(45, self._out_dim)
         # self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
         # if self._use_cls_token:
         #     self._out_tensor_shape = [self._out_dim]
@@ -410,7 +412,6 @@ class ObsLatentAttnBisect(LayerBase):
         #     self.output_proj = nn.Identity()
         # else:
         #     self.output_proj = nn.Linear(self._query_token_dim, self._out_dim)
-        self.pre = torch.randn(1, 128)
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
@@ -463,10 +464,13 @@ class ObsLatentAttnBisect(LayerBase):
         #     # Select first query token from [B_TT, num_query_tokens, self._out_dim] to [B_TT, self._out_dim]
         #     x = x[:, 0]
 
-        B_TT = x_features.shape[0]
+        # B_TT = x_features.shape[0]
+        first_token = x_features[:, 0]
+        first_token = self.linear(first_token)
 
 
-        td[self._name] = self.pre.expand(B_TT, -1).to(x_features.device)
+        # td[self._name] = self.pre.expand(B_TT, -1).to(x_features.device)
+        td[self._name] = first_token
         return td
 
 
