@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: "{{ .Release.name }}-oauth2-proxy"
+  name: {{ .Release.Name }}-oauth2-proxy
 spec:
   replicas: 1
   selector:
     matchLabels:
-      k8s-app: "{{ .Release.name }}-oauth2-proxy"
+      k8s-app: "{{ .Release.Name }}-oauth2-proxy"
   template:
     metadata:
       labels:
-        k8s-app: "{{ .Release.name }}-oauth2-proxy"
+        k8s-app: "{{ .Release.Name }}-oauth2-proxy"
     spec:
       containers:
       - name: oauth2-proxy
@@ -39,19 +39,19 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: "{{ .Release.name }}-oauth2-proxy"
+  name: {{ .Release.Name }}-oauth2-proxy
 spec:
   ports:
   - port: 4180
     targetPort: 4180
   selector:
-    k8s-app: "{{ .Release.name }}-oauth2-proxy"
+    k8s-app: "{{ .Release.Name }}-oauth2-proxy"
 ---
 
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: "{{ .Release.name }}-oauth2-proxy"
+  name: {{ .Release.Name }}-oauth2-proxy
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
@@ -64,19 +64,19 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: "{{ .Release.name }}-oauth2-proxy"
+            name: "{{ .Release.Name }}-oauth2-proxy"
             port:
               number: 4180
   tls:
   - hosts:
     - {{ .Values.host }}
-    secretName: {{ .Release.name }}-tls
+    secretName: {{ .Release.Name }}-tls
 ---
 
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: "{{ .Release.name }}"
+  name: {{ .Release.Name }}
   annotations:
     nginx.ingress.kubernetes.io/auth-url: "https://$host/oauth2/auth"
     nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
@@ -91,10 +91,10 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: {{ .Release.name }}-backend
+            name: {{ .Release.Name }}-backend
             port:
               number: 8000
   tls:
   - hosts:
     - {{ .Values.host }}
-    secretName: {{ .Release.name }}-tls
+    secretName: {{ .Release.Name }}-tls
