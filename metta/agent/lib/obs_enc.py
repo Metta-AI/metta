@@ -465,12 +465,12 @@ class ObsLatentAttnBisect(LayerBase):
         #     x = x[:, 0]
 
         # B_TT = x_features.shape[0]
-        first_token = x_features[:, 0]
-        first_token = self.linear(first_token)
+        # x_features = x_features[:, 0]
+        x_features = self.linear(x_features)
 
 
         # td[self._name] = self.pre.expand(B_TT, -1).to(x_features.device)
-        td[self._name] = first_token
+        td[self._name] = x_features
         return td
 
 
