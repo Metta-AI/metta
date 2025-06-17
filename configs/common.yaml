@@ -14,6 +14,3 @@ vectorization: multiprocessing
 seed: 0
 device: cuda
 
-doxascope:
-  enabled: false
-  output_dir: ./doxascope/data/raw_data/
