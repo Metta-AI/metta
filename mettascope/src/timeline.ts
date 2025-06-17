@@ -1,10 +1,10 @@
 /**
  * This file handles the timeline scrubber.
- * Main features is that clicking on the scrubber will update the step.
+ * Its main feature is that clicking on the scrubber updates the step.
  * It shows the current step as a counter.
  * It can show key actions on the timeline.
- * It has a box which is that the traces view is looking at, so it sort of
- * acts like a traces minimap.
+ * It has a box that shows what the traces view is looking at, so it acts as a
+ * minimap for the traces.
 */
 
 import { PanelInfo } from "./panels.js"
@@ -15,14 +15,14 @@ import { updateStep } from './main.js';
 import { clamp } from "./context3d.js";
 import { getAttr } from "./replay.js";
 
-/** Initialize the timeline. */
+/** Initializes the timeline. */
 export function initTimeline() {
   console.info("Initializing timeline");
-  // Move the step counter off screen for now.
+  // Move the step counter off-screen for now.
   html.stepCounter.parentElement!.style.left = "-1000px";
 }
 
-/** Update the scrubber. */
+/** Updates the scrubber. */
 export function onScrubberChange(event: MouseEvent) {
   let mouseX = event.clientX;
   let scrubberWidth = ui.timelinePanel.width - 32;
@@ -31,13 +31,13 @@ export function onScrubberChange(event: MouseEvent) {
   updateStep(step);
 }
 
-/** Handle mouse down on the timeline, which will update the step. */
+/** Handles a mouse down on the timeline, which updates the step. */
 onEvent("mousedown", "#timeline-panel", (target: HTMLElement, event: Event) => {
   ui.mainScrubberDown = true;
   onScrubberChange(event as MouseEvent);
 });
 
-/** Update the timeline. */
+/** Updates the timeline. */
 export function updateTimeline() {
   if (state.replay === null) {
     return;
@@ -49,7 +49,7 @@ export function updateTimeline() {
   html.stepCounter.parentElement!.style.left = (16 + state.step / fullSteps * scrubberWidth - 46 / 2).toString() + "px";
 }
 
-/** Draw the timeline. */
+/** Draws the timeline. */
 export function drawTimeline(panel: PanelInfo) {
   if (state.replay === null || ctx === null || ctx.ready === false) {
     return;
@@ -93,7 +93,7 @@ export function drawTimeline(panel: PanelInfo) {
     let prevFrozen = 0;
     for (let j = 0; j < state.replay.max_steps; j++) {
 
-      // Draw frozen state.
+      // Draw the frozen state.
       let frozen = getAttr(agent, "agent:frozen", j);
       if (frozen > 0 && prevFrozen == 0) {
         let x = j / fullSteps * scrubberWidth;
