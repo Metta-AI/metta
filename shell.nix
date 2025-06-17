@@ -7,12 +7,12 @@ let
   };
 
   flake-compat = import (fetchTarball {
-    url = "https://github.com/edolstra/flake-compat/archive/master.tar.gz";
+    url = "https://github.com/edolstra/flake-compat/archive/v1.1.0.tar.gz";
     sha256 = "09m84vsz1py50giyfpx0fpc7a4i0r1xsb54dh0dpdg308lp4p188";
   });
   nixpkgs-python = (flake-compat {
     src = fetchTarball {
-      url = "https://github.com/cachix/nixpkgs-python/archive/master.tar.gz";
+      url = "https://github.com/cachix/nixpkgs-python/archive/1.0.0.tar.gz";
       sha256 = "12pdyv8pf99jdp7aw7x1qgd6ralg1j6dd6k79cr1xbfmb2fz10lj";
     };
   }).defaultNix;
