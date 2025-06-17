@@ -77,4 +77,4 @@ cache-keys = [
 ]
 
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/relh/PufferLib.git", rev = "3cb25384aa046664e2682fe3585d08cf3c9b5527" }
+pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }

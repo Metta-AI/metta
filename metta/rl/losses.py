@@ -15,6 +15,7 @@ class Losses:
         self.l2_init_loss = 0.0
         self.ks_action_loss = 0.0
         self.ks_value_loss = 0.0
+        self.importance = 0.0
 
     def to_dict(self) -> dict[str, float]:
         """Convert losses to dictionary for stats/logging"""

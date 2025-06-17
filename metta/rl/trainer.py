@@ -456,14 +456,14 @@ class MettaTrainer:
             # Compute advantages using puff_advantage
             advantages = torch.zeros(experience.values.shape, device=self.device)
 
-            # Initial ratio is all ones
-            initial_ratio = torch.ones_like(experience.values)
+            # Initial importance sampling ratio is all ones
+            initial_importance_sampling_ratio = torch.ones_like(experience.values)
 
             advantages = self._compute_advantage(
                 experience.values,
                 experience.rewards,
                 experience.dones,
-                initial_ratio,
+                initial_importance_sampling_ratio,
                 advantages,
                 trainer_cfg.gamma,
                 trainer_cfg.gae_lambda,
@@ -495,20 +495,20 @@ class MettaTrainer:
             with profile.train_misc:
                 new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
                 logratio = new_logprobs - minibatch["logprobs"]
-                ratio = logratio.exp()
-                experience.update_ratio(minibatch["indices"], ratio)
+                importance_sampling_ratio = logratio.exp()
+                experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
 
                 with torch.no_grad():
                     old_approx_kl = (-logratio).mean()
-                    approx_kl = ((ratio - 1) - logratio).mean()
-                    clipfrac = ((ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
+                    approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
+                    clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
 
                 # Re-compute advantages with new ratios (V-trace)
                 adv = self._compute_advantage(
                     minibatch["values"],
                     minibatch["rewards"],
                     minibatch["dones"],
-                    ratio,
+                    importance_sampling_ratio,
                     minibatch["advantages"],
                     trainer_cfg.gamma,
                     trainer_cfg.gae_lambda,
@@ -521,8 +521,10 @@ class MettaTrainer:
                 adv = minibatch["prio_weights"] * adv
 
                 # Policy loss
-                pg_loss1 = -adv * ratio
-                pg_loss2 = -adv * torch.clamp(ratio, 1 - trainer_cfg.clip_coef, 1 + trainer_cfg.clip_coef)
+                pg_loss1 = -adv * importance_sampling_ratio
+                pg_loss2 = -adv * torch.clamp(
+                    importance_sampling_ratio, 1 - trainer_cfg.clip_coef, 1 + trainer_cfg.clip_coef
+                )
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
@@ -583,7 +585,7 @@ class MettaTrainer:
                 ) / self._total_minibatches
                 self.losses.ks_action_loss += ks_action_loss.item() / self._total_minibatches
                 self.losses.ks_value_loss += ks_value_loss.item() / self._total_minibatches
-                self.losses.importance += ratio.mean().item() / self._total_minibatches
+                self.losses.importance += importance_sampling_ratio.mean().item() / self._total_minibatches
 
             with profile.learn:
                 self.optimizer.zero_grad()
@@ -803,12 +805,29 @@ class MettaTrainer:
         self.stats.clear()
 
     def _compute_advantage(
-        self, values, rewards, dones, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
+        self,
+        values,
+        rewards,
+        dones,
+        importance_sampling_ratio,
+        advantages,
+        gamma,
+        gae_lambda,
+        vtrace_rho_clip,
+        vtrace_c_clip,
     ):
         """CUDA kernel for puffer advantage with automatic CPU fallback."""
         try:
             torch.ops.pufferlib.compute_puff_advantage(
-                values, rewards, dones, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
+                values,
+                rewards,
+                dones,
+                importance_sampling_ratio,
+                advantages,
+                gamma,
+                gae_lambda,
+                vtrace_rho_clip,
+                vtrace_c_clip,
             )
         except (RuntimeError, AssertionError):
             # Fallback to CPU if CUDA kernel fails or not available
@@ -816,14 +835,14 @@ class MettaTrainer:
             values_cpu = values.cpu()
             rewards_cpu = rewards.cpu()
             dones_cpu = dones.cpu()
-            ratio_cpu = ratio.cpu()
+            importance_sampling_ratio_cpu = importance_sampling_ratio.cpu()
             advantages_cpu = advantages.cpu()
 
             torch.ops.pufferlib.compute_puff_advantage(
                 values_cpu,
                 rewards_cpu,
                 dones_cpu,
-                ratio_cpu,
+                importance_sampling_ratio_cpu,
                 advantages_cpu,
                 gamma,
                 gae_lambda,
