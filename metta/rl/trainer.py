@@ -742,17 +742,6 @@ class MettaTrainer:
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
 
-        loss_stats = self.losses.to_dict()
-
-        # don't plot losses that are unused
-        if self.trainer_cfg.l2_reg_loss_coef == 0:
-            loss_stats.pop("l2_reg_loss")
-        if self.trainer_cfg.l2_init_loss_coef == 0:
-            loss_stats.pop("l2_init_loss")
-        if not self.kickstarter.enabled:
-            loss_stats.pop("ks_action_loss")
-            loss_stats.pop("ks_value_loss")
-
         performance = {k: v for k, v in self.profile}
 
         overview = {"SPS": sps}
@@ -764,6 +753,17 @@ class MettaTrainer:
             score = self._eval_suite_avgs.get(f"{category}_score", None)
             if score is not None:
                 overview[f"{category}_evals"] = score
+
+        losses = self.losses.to_dict()
+
+        # don't plot losses that are unused
+        if self.trainer_cfg.l2_reg_loss_coef == 0:
+            losses.pop("l2_reg_loss")
+        if self.trainer_cfg.l2_init_loss_coef == 0:
+            losses.pop("l2_init_loss")
+        if not self.kickstarter.enabled:
+            losses.pop("ks_action_loss")
+            losses.pop("ks_value_loss")
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
@@ -795,7 +795,7 @@ class MettaTrainer:
             self.wandb_run.log(
                 {
                     **{f"overview/{k}": v for k, v in overview.items()},
-                    **loss_stats,
+                    **{f"losses/{k}": v for k, v in losses.items()},
                     **{f"performance/{k}": v for k, v in performance.items()},
                     **environment,
                     **weight_metrics,
