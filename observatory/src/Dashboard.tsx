@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { GroupHeatmapMetric, HeatmapData, Repo } from './repo';
-import { MapViewer } from './MapViewer';
-import { Heatmap } from './Heatmap';
+import { useEffect, useState } from 'react'
+import { GroupHeatmapMetric, HeatmapData, Repo } from './repo'
+import { MapViewer } from './MapViewer'
+import { Heatmap } from './Heatmap'
 
 // CSS for dashboard
 const DASHBOARD_CSS = `
@@ -47,72 +47,72 @@ const DASHBOARD_CSS = `
 .suite-tab:last-child {
   margin-right: 0;
 }
-`;
+`
 
 interface DashboardProps {
-  repo: Repo;
+  repo: Repo
 }
 
 export function Dashboard({ repo }: DashboardProps) {
   // Data state
-  const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null);
-  const [metrics, setMetrics] = useState<string[]>([]);
-  const [suites, setSuites] = useState<string[]>([]);
+  const [heatmapData, setHeatmapData] = useState<HeatmapData | null>(null)
+  const [metrics, setMetrics] = useState<string[]>([])
+  const [suites, setSuites] = useState<string[]>([])
 
   // UI state
-  const [selectedMetric, setSelectedMetric] = useState<string>('reward');
-  const [selectedSuite, setSelectedSuite] = useState<string>('navigation');
-  const [isViewLocked, setIsViewLocked] = useState(false);
+  const [selectedMetric, setSelectedMetric] = useState<string>('reward')
+  const [selectedSuite, setSelectedSuite] = useState<string>('navigation')
+  const [isViewLocked, setIsViewLocked] = useState(false)
   const [selectedCell, setSelectedCell] = useState<{
-    policyUri: string;
-    evalName: string;
-  } | null>(null);
-  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>([]);
-  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>('');
-  const [numPoliciesToShow, setNumPoliciesToShow] = useState(20);
+    policyUri: string
+    evalName: string
+  } | null>(null)
+  const [availableGroupMetrics, setAvailableGroupMetrics] = useState<string[]>([])
+  const [selectedGroupMetric, setSelectedGroupMetric] = useState<string>('')
+  const [numPoliciesToShow, setNumPoliciesToShow] = useState(20)
 
   const parseGroupMetric = (label: string): GroupHeatmapMetric => {
     if (label.includes(' - ')) {
-      const [group1, group2] = label.split(' - ');
-      return { group_1: group1, group_2: group2 };
+      const [group1, group2] = label.split(' - ')
+      return { group_1: group1, group_2: group2 }
     } else {
-      return label;
+      return label
     }
-  };
+  }
 
   useEffect(() => {
     const loadData = async () => {
-      const suitesData = await repo.getSuites();
-      setSuites(suitesData);
-      setSelectedSuite(suitesData[0]);
-    };
+      const suitesData = await repo.getSuites()
+      setSuites(suitesData)
+      setSelectedSuite(suitesData[0])
+    }
 
-    loadData();
-  }, []);
+    loadData()
+  }, [])
 
   useEffect(() => {
     const loadData = async () => {
       const [metricsData, groupIdsData] = await Promise.all([
         repo.getMetrics(selectedSuite),
         repo.getGroupIds(selectedSuite),
-      ]);
-      setMetrics(metricsData);
+      ])
+      setMetrics(metricsData)
 
-      const groupDiffs: string[] = [];
+      const groupDiffs: string[] = []
       for (const groupId1 of groupIdsData) {
         for (const groupId2 of groupIdsData) {
           if (groupId1 !== groupId2) {
-            groupDiffs.push(`${groupId1} - ${groupId2}`);
+            groupDiffs.push(`${groupId1} - ${groupId2}`)
           }
         }
       }
 
-      const groupMetrics: string[] = ['', ...groupIdsData, ...groupDiffs];
-      setAvailableGroupMetrics(groupMetrics);
-    };
+      const groupMetrics: string[] = ['', ...groupIdsData, ...groupDiffs]
+      setAvailableGroupMetrics(groupMetrics)
+    }
 
-    loadData();
-  }, [selectedSuite]);
+    loadData()
+  }, [selectedSuite])
 
   useEffect(() => {
     const loadData = async () => {
@@ -120,51 +120,51 @@ export function Dashboard({ repo }: DashboardProps) {
         selectedMetric,
         selectedSuite,
         parseGroupMetric(selectedGroupMetric)
-      );
-      setHeatmapData(heatmapData);
-    };
+      )
+      setHeatmapData(heatmapData)
+    }
 
-    loadData();
-  }, [selectedSuite, selectedMetric, selectedGroupMetric]);
+    loadData()
+  }, [selectedSuite, selectedMetric, selectedGroupMetric])
 
   if (!heatmapData) {
-    return <div>Loading...</div>;
+    return <div>Loading...</div>
   }
 
   // Component functions
 
   const setSelectedCellIfNotLocked = (cell: {
-    policyUri: string;
-    evalName: string;
+    policyUri: string
+    evalName: string
   }) => {
     if (!isViewLocked) {
-      setSelectedCell(cell);
+      setSelectedCell(cell)
     }
-  };
+  }
 
   const openReplayUrl = (policyUri: string, evalName: string) => {
-    const evalData = heatmapData?.cells.get(policyUri)?.get(evalName);
-    if (!evalData?.replayUrl) return;
+    const evalData = heatmapData?.cells.get(policyUri)?.get(evalName)
+    if (!evalData?.replayUrl) return
 
-    const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl=';
-    window.open(replay_url_prefix + evalData.replayUrl, '_blank');
-  };
+    const replay_url_prefix = 'https://metta-ai.github.io/metta/?replayUrl='
+    window.open(replay_url_prefix + evalData.replayUrl, '_blank')
+  }
 
   const toggleLock = () => {
-    setIsViewLocked(!isViewLocked);
-  };
+    setIsViewLocked(!isViewLocked)
+  }
 
   const handleReplayClick = () => {
     if (selectedCell) {
-      openReplayUrl(selectedCell.policyUri, selectedCell.evalName);
+      openReplayUrl(selectedCell.policyUri, selectedCell.evalName)
     }
-  };
+  }
 
   const selectedCellData = selectedCell
     ? heatmapData.cells.get(selectedCell.policyUri)?.get(selectedCell.evalName)
-    : null;
-  const selectedEval = selectedCellData?.evalName ?? null;
-  const selectedReplayUrl = selectedCellData?.replayUrl ?? null;
+    : null
+  const selectedEval = selectedCellData?.evalName ?? null
+  const selectedReplayUrl = selectedCellData?.replayUrl ?? null
 
   return (
     <div
@@ -316,5 +316,5 @@ export function Dashboard({ repo }: DashboardProps) {
         />
       </div>
     </div>
-  );
+  )
 }

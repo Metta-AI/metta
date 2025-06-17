@@ -1,9 +1,9 @@
 interface MapViewerProps {
-  selectedEval: string | null;
-  isViewLocked: boolean;
-  selectedReplayUrl: string | null;
-  onToggleLock: () => void;
-  onReplayClick: () => void;
+  selectedEval: string | null
+  isViewLocked: boolean
+  selectedReplayUrl: string | null
+  onToggleLock: () => void
+  onReplayClick: () => void
 }
 
 // CSS for map viewer
@@ -71,17 +71,17 @@ const MAP_VIEWER_CSS = `
     opacity: 0.5;
     cursor: not-allowed;
 }
-`;
+`
 
 const getShortName = (evalName: string) => {
-  return evalName.split('/').pop() || evalName;
-};
+  return evalName.split('/').pop() || evalName
+}
 
 const getMapImageUrl = (evalName: string) => {
-  if (evalName.toLowerCase() === 'overall') return '';
-  const shortName = getShortName(evalName);
-  return `https://softmax-public.s3.amazonaws.com/policydash/evals/img/${shortName.toLowerCase()}.png`;
-};
+  if (evalName.toLowerCase() === 'overall') return ''
+  const shortName = getShortName(evalName)
+  return `https://softmax-public.s3.amazonaws.com/policydash/evals/img/${shortName.toLowerCase()}.png`
+}
 
 export function MapViewer({
   selectedEval,
@@ -103,12 +103,12 @@ export function MapViewer({
             src={getMapImageUrl(selectedEval)}
             alt={`Environment map for ${selectedEval}`}
             onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.style.display = 'none';
-              const placeholder = target.parentElement?.querySelector('.map-viewer-placeholder') as HTMLDivElement;
+              const target = e.target as HTMLImageElement
+              target.style.display = 'none'
+              const placeholder = target.parentElement?.querySelector('.map-viewer-placeholder') as HTMLDivElement
               if (placeholder) {
-                placeholder.textContent = `No map available for ${selectedEval}`;
-                placeholder.style.display = 'block';
+                placeholder.textContent = `No map available for ${selectedEval}`
+                placeholder.style.display = 'block'
               }
             }}
           />
@@ -152,5 +152,5 @@ export function MapViewer({
         </div>
       </div>
     </>
-  );
+  )
 }

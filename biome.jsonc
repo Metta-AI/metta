@@ -38,10 +38,10 @@
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "single", // Consistent with many TS projects
+      "quoteStyle": "single",
       "jsxQuoteStyle": "double",
-      "trailingCommas": "es5", // More git-friendly than "all"
-      "semicolons": "always",
+      "trailingCommas": "es5",
+      "semicolons": "asNeeded",
       "arrowParentheses": "always"
     }
   }

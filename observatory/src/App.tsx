@@ -1,65 +1,65 @@
-import { useEffect, useState } from 'react';
-import { loadDataFromUri, loadDataFromFile } from './data_loader';
-import { DataRepo, Repo } from './repo';
-import { Dashboard } from './Dashboard';
+import { useEffect, useState } from 'react'
+import { loadDataFromUri, loadDataFromFile } from './data_loader'
+import { DataRepo, Repo } from './repo'
+import { Dashboard } from './Dashboard'
 
 function App() {
   // Data loading state
   type DefaultState = {
-    type: 'default';
-    error: string | null;
-  };
+    type: 'default'
+    error: string | null
+  }
   type LoadingState = {
-    type: 'loading';
-    dataUri: string;
-  };
+    type: 'loading'
+    dataUri: string
+  }
   type RepoState = {
-    type: 'repo';
-    repo: Repo;
-  };
-  type State = DefaultState | LoadingState | RepoState;
+    type: 'repo'
+    repo: Repo
+  }
+  type State = DefaultState | LoadingState | RepoState
 
-  const [state, setState] = useState<State>({ type: 'default', error: null });
+  const [state, setState] = useState<State>({ type: 'default', error: null })
 
   const getDataUri: () => string | null = () => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('data');
-  };
+    const params = new URLSearchParams(window.location.search)
+    return params.get('data')
+  }
 
   useEffect(() => {
     const loadData = async () => {
-      const dataUri = getDataUri();
+      const dataUri = getDataUri()
       if (!dataUri) {
-        return;
+        return
       }
 
-      setState({ type: 'loading', dataUri });
+      setState({ type: 'loading', dataUri })
 
       try {
-        const data = await loadDataFromUri(dataUri);
-        setState({ type: 'repo', repo: new DataRepo(data) });
+        const data = await loadDataFromUri(dataUri)
+        setState({ type: 'repo', repo: new DataRepo(data) })
       } catch (err: any) {
-        setState({ type: 'default', error: err.message });
+        setState({ type: 'default', error: err.message })
       }
-    };
+    }
 
-    loadData();
-  }, []);
+    loadData()
+  }, [])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const file = event.target.files?.[0]
+    if (!file) return
 
     try {
-      const data = await loadDataFromFile(file);
-      setState({ type: 'repo', repo: new DataRepo(data) });
+      const data = await loadDataFromFile(file)
+      setState({ type: 'repo', repo: new DataRepo(data) })
     } catch (err: any) {
       setState({
         type: 'default',
         error: 'Failed to load data from file: ' + err.message,
-      });
+      })
     }
-  };
+  }
 
   if (state.type === 'default') {
     return (
@@ -117,18 +117,18 @@ function App() {
           </p>
         </div>
       </div>
-    );
+    )
   }
 
   if (state.type === 'loading') {
-    return <div>Loading data...</div>;
+    return <div>Loading data...</div>
   }
 
   if (state.type === 'repo') {
-    return <Dashboard repo={state.repo} />;
+    return <Dashboard repo={state.repo} />
   }
 
-  return null;
+  return null
 }
 
-export default App;
+export default App
