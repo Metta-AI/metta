@@ -200,12 +200,6 @@ class MettaTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        self.replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-
         self.timer = Stopwatch(logger)
         self.timer.start()
 
@@ -571,21 +565,18 @@ class MettaTrainer:
                     raise ValueError("self.losses is None")
 
                 # Update loss tracking for logging
-                self.losses.policy_loss += pg_loss.item() / self._total_minibatches
-                self.losses.value_loss += v_loss.item() / self._total_minibatches
-                self.losses.entropy += entropy_loss.item() / self._total_minibatches
-                self.losses.old_approx_kl += old_approx_kl.item() / self._total_minibatches
-                self.losses.approx_kl += approx_kl.item() / self._total_minibatches
-                self.losses.clipfrac += clipfrac.item() / self._total_minibatches
-                self.losses.l2_reg_loss += (
-                    l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
-                ) / self._total_minibatches
-                self.losses.l2_init_loss += (
-                    l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
-                ) / self._total_minibatches
-                self.losses.ks_action_loss += ks_action_loss.item() / self._total_minibatches
-                self.losses.ks_value_loss += ks_value_loss.item() / self._total_minibatches
-                self.losses.importance += importance_sampling_ratio.mean().item() / self._total_minibatches
+                self.losses.policy_loss += pg_loss.item()
+                self.losses.value_loss += v_loss.item()
+                self.losses.entropy += entropy_loss.item()
+                self.losses.old_approx_kl += old_approx_kl.item()
+                self.losses.approx_kl += approx_kl.item()
+                self.losses.clipfrac += clipfrac.item()
+                self.losses.l2_reg_loss += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
+                self.losses.l2_init_loss += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
+                self.losses.ks_action_loss += ks_action_loss.item()
+                self.losses.ks_value_loss += ks_value_loss.item()
+                self.losses.importance += importance_sampling_ratio.mean().item()
+                self.losses.minibatches_processed += 1
 
             with profile.learn:
                 self.optimizer.zero_grad()
@@ -688,11 +679,16 @@ class MettaTrainer:
 
     def _generate_and_upload_replay(self):
         if self._master:
+            replay_sim_config = SingleEnvSimulationConfig(
+                env="/env/mettagrid/mettagrid",
+                num_episodes=1,
+                env_overrides=self._curriculum.get_task().env_cfg(),
+            )
             logger.info("Generating and saving a replay to wandb and S3.")
 
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
-                config=self.replay_sim_config,
+                config=replay_sim_config,
                 policy_pr=self.last_pr,
                 policy_store=self.policy_store,
                 device=self.device,
@@ -745,7 +741,7 @@ class MettaTrainer:
             self._last_agent_step = agent_steps
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
-        losses = self.losses.to_dict()
+
         performance = {k: v for k, v in self.profile}
 
         overview = {"SPS": sps}
@@ -757,6 +753,17 @@ class MettaTrainer:
             score = self._eval_suite_avgs.get(f"{category}_score", None)
             if score is not None:
                 overview[f"{category}_evals"] = score
+
+        losses = self.losses.to_dict()
+
+        # don't plot losses that are unused
+        if self.trainer_cfg.l2_reg_loss_coef == 0:
+            losses.pop("l2_reg_loss")
+        if self.trainer_cfg.l2_init_loss_coef == 0:
+            losses.pop("l2_init_loss")
+        if not self.kickstarter.enabled:
+            losses.pop("ks_action_loss")
+            losses.pop("ks_value_loss")
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 

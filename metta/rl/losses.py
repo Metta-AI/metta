@@ -16,7 +16,23 @@ class Losses:
         self.ks_action_loss = 0.0
         self.ks_value_loss = 0.0
         self.importance = 0.0
+        self.minibatches_processed = 0
 
     def to_dict(self) -> dict[str, float]:
-        """Convert losses to dictionary for stats/logging"""
-        return {k: v for k, v in vars(self).items() if not k.startswith("_")}
+        """Convert losses to dictionary with proper averages"""
+        n = max(1, self.minibatches_processed)
+
+        return {
+            "policy_loss": self.policy_loss / n,
+            "value_loss": self.value_loss / n,
+            "entropy": self.entropy / n,
+            "old_approx_kl": self.old_approx_kl / n,
+            "approx_kl": self.approx_kl / n,
+            "clipfrac": self.clipfrac / n,
+            "l2_reg_loss": self.l2_reg_loss / n,
+            "l2_init_loss": self.l2_init_loss / n,
+            "ks_action_loss": self.ks_action_loss / n,
+            "ks_value_loss": self.ks_value_loss / n,
+            "importance": self.importance / n,
+            "explained_variance": self.explained_variance,
+        }

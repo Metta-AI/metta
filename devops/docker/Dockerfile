@@ -1,4 +1,4 @@
-FROM pufferai/puffertank:2.0
+FROM pufferai/puffertank:3.0
 # FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel
 
 # Set the timezone and install packages in one layer, clean up apt cache
@@ -21,7 +21,7 @@ RUN ln -snf /usr/share/zoneinfo/America/Los_Angeles /etc/localtime \
         git-lfs \
         tmux \
         iproute2 \
-        netcat \
+        netcat-openbsd \
         iputils-ping \
     && git lfs install \
     && rm -rf /var/lib/apt/lists/*
@@ -55,5 +55,8 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --locked
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
+
+RUN sed -i '\#cd /puffertank/pufferlib#d' /root/.bashrc \
+ && echo 'cd /workspace/metta' >> /root/.bashrc
 
 ENTRYPOINT ["/bin/bash", "-c"]
