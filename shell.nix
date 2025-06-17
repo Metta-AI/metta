@@ -1,6 +1,6 @@
 let
   pkgs = import (fetchTarball {
-    url = "https://nixos.org/channels/nixos-25.05/nixexprs.tar.xz";
+    url = "https://nixos.org/channels/nixos-24.11/nixexprs.tar.xz";
   }) {
     config.allowUnfree = true;
   };
@@ -22,8 +22,10 @@ pkgs.mkShell {
     cmake
     stdenv.cc.cc.lib
 
+    # nix 24.11 comes with gcc13, which works with nvcc 12
+
     # for mettascope
-    nodejs_24
+    nodejs_22
     typescript
   ];
 
