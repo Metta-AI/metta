@@ -15,13 +15,14 @@ from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
 
-from mettagrid.curriculum import Curriculum, Task
+from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.dict_utils import unroll_nested_dict
 from mettagrid.util.diversity import calculate_diversity_bonus
+from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
@@ -68,20 +69,23 @@ class MettaGridEnv(PufferEnv, GymEnv):
         replay_writer: Optional[ReplayWriter] = None,
         **kwargs,
     ):
+        self.timer = Stopwatch(logger)
+        self.timer.start()
+
         self._render_mode = render_mode
         self._curriculum = curriculum
-        self._task: Task = self._curriculum.get_task()
+        self._task = self._curriculum.get_task()
         self._level = level
         self._last_level_per_task = {}
         self._renderer = None
-        self._map_labels = []
+        self._map_labels: list[str] = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
 
-        self.labels = self._task.env_cfg().get("labels", None)
+        self.labels: list[str] = self._task.env_cfg().get("labels", [])
         self._should_reset = False
 
         self._initialize_c_env()
@@ -100,6 +104,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
+    @with_instance_timer("_initialize_c_env")
     def _initialize_c_env(self) -> None:
         """Initialize the C++ environment."""
         task = self._task
@@ -113,8 +118,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         if level is None:
             map_builder_config = task.env_cfg().game.map_builder
-            map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
-            level = map_builder.build()
+            with self.timer("_initialize_c_env.build_map"):
+                map_builder = instantiate(map_builder_config, _recursive_=True, _convert_="all")
+                level = map_builder.build()
 
         self._last_level_per_task[task.id()] = level
 
@@ -131,12 +137,16 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        self._c_env = MettaGrid(config_dict, level.grid.tolist())
+        with self.timer("_initialize_c_env.make_c_env"):
+            self._c_env = MettaGrid(config_dict, level.grid.tolist())
 
         self._grid_env = self._c_env
 
     @override  # pufferlib.PufferEnv.reset
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+        self.timer.reset_all()
+        self.timer.start("reset")
+
         self._task = self._curriculum.get_task()
 
         self._initialize_c_env()
@@ -156,6 +166,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         obs, infos = self._c_env.reset()
         self._should_reset = False
+        self.timer.stop("reset")
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
@@ -181,7 +192,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_pre_step(self._episode_id, actions)
 
-        self._c_env.step(actions)
+        with self.timer("_c_env.step"):
+            self._c_env.step(actions)
 
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_post_step(self._episode_id, self.rewards)
@@ -207,104 +219,89 @@ class MettaGridEnv(PufferEnv, GymEnv):
         pass
 
     def process_episode_stats(self, infos: Dict[str, Any]):
+        self.timer.start("process_episode_stats")
+
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 
+        init_time = self.timer.get_elapsed("_initialize_c_env")
         infos.update(
             {
-                "rewards/sum": episode_rewards_sum,
-                "rewards/mean": episode_rewards_mean,
-                "rewards/min": episode_rewards.min(),
-                "rewards/max": episode_rewards.max(),
-                f"rewards/{self._task.name()}/sum": episode_rewards_sum,
-                f"rewards/{self._task.name()}/mean": episode_rewards_mean,
-                f"rewards/{self._task.name()}/min": episode_rewards.min(),
-                f"rewards/{self._task.name()}/max": episode_rewards.max(),
+                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
+                f"task_reward/{self._task.short_name()}/rewards.min": episode_rewards.min(),
+                f"task_reward/{self._task.short_name()}/rewards.max": episode_rewards.max(),
+                f"task_timing/{self._task.short_name()}/init_time": init_time,
             }
         )
-        infos["rewards/raw"] = episode_rewards
 
-        for label in self._map_labels:
-            infos[f"rewards/map:{label}"] = episode_rewards_mean
+        for label in self._map_labels + self.labels:
+            infos[f"map_reward/{label}"] = episode_rewards_mean
 
-        if self.labels is not None:
-            for label in self.labels:
-                infos[f"rewards/env:{label}"] = episode_rewards_mean
+        with self.timer("_c_env.get_episode_stats"):
+            stats = self._c_env.get_episode_stats()
 
-        episode_stats = self._c_env.get_episode_stats()
+        infos["game"] = stats["game"]
+        infos["agent"] = {}
+        for agent_stats in stats["agent"]:
+            for n, v in agent_stats.items():
+                infos["agent"][n] = infos["agent"].get(n, 0) + v
+        for n, v in infos["agent"].items():
+            infos["agent"][n] = v / self._c_env.num_agents
 
-        # Process agent stats only
-        agent_stats_list = []
-        if "agent" in episode_stats:
-            for idx, item_stats in enumerate(episode_stats["agent"]):
-                for stat_name, stat_value in item_stats.items():
-                    # Write raw stats
-                    infos[f"agent_raw/{idx}/{stat_name}"] = stat_value
-                    # Collect for aggregation
-                    agent_stats_list.append((stat_name, stat_value))
-
-        # Aggregate agent stats
-        agent_aggregates = {}
-        for stat_name, stat_value in agent_stats_list:
-            if stat_name not in agent_aggregates:
-                agent_aggregates[stat_name] = []
-            agent_aggregates[stat_name].append(stat_value)
-
-        for name, values in agent_aggregates.items():
-            if values:
-                infos[f"agent/{name}"] = sum(values) / len(values)
-
-        # Flatten game stats
-        if "game" in episode_stats:
-            for k, v in unroll_nested_dict(episode_stats["game"]):
-                infos[f"game/{k}"] = v
-
-        # Handle replay writer
         replay_url = None
+
         if self._replay_writer:
-            assert self._episode_id is not None, "Episode ID must be set before writing a replay"
-            replay_url = self._replay_writer.write_replay(self._episode_id)
-            infos["replay_url"] = replay_url
+            with self.timer("_replay_writer"):
+                assert self._episode_id is not None, "Episode ID must be set before writing a replay"
+                replay_url = self._replay_writer.write_replay(self._episode_id)
+                infos["replay_url"] = replay_url
 
-        # Handle stats writer
         if self._stats_writer:
-            assert self._episode_id is not None, "Episode ID must be set before writing stats"
+            with self.timer("_stats_writer"):
+                assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-            attributes: dict[str, str] = {
-                "seed": str(self._current_seed),
-                "map_w": str(self.map_width),
-                "map_h": str(self.map_height),
-            }
+                attributes: dict[str, str] = {
+                    "seed": str(self._current_seed),
+                    "map_w": str(self.map_width),
+                    "map_h": str(self.map_height),
+                }
 
-            # Add configuration attributes
-            config_container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
-            for k, v in unroll_nested_dict(config_container):
-                attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
+                container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
+                for k, v in unroll_nested_dict(cast(dict[str, Any], container)):
+                    attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
 
-            # Build agent metrics
-            agent_metrics = {}
-            if "agent" in episode_stats:
-                for agent_idx, agent_stats in enumerate(episode_stats["agent"]):
-                    agent_metrics[agent_idx] = {"reward": float(episode_rewards[agent_idx])}
+                agent_metrics = {}
+                for agent_idx, agent_stats in enumerate(stats["agent"]):
+                    agent_metrics[agent_idx] = {}
+                    agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
                     for k, v in agent_stats.items():
                         agent_metrics[agent_idx][k] = float(v)
 
-            # Get agent groups from grid objects
-            grid_objects = self._c_env.grid_objects()
-            agent_groups = {v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0}
+                grid_objects: Dict[int, Any] = self._c_env.grid_objects()
+                # iterate over grid_object values
+                agent_groups: Dict[int, int] = {
+                    v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+                }
 
-            # Record the episode
-            self._stats_writer.record_episode(
-                self._episode_id,
-                attributes,
-                agent_metrics,
-                agent_groups,
-                self.max_steps,
-                replay_url,
-                self._reset_at,
-            )
+                self._stats_writer.record_episode(
+                    self._episode_id,
+                    attributes,
+                    agent_metrics,
+                    agent_groups,
+                    self.max_steps,
+                    replay_url,
+                    self._reset_at,
+                )
 
+        self.timer.stop("process_episode_stats")
+
+        elapsed_times = self.timer.get_all_elapsed()
+        wall_time = self.timer.get_elapsed()
+
+        infos["timing"] = {
+            **{f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0 for op, elapsed in elapsed_times.items()},
+        }
         self._episode_id = None
 
     @property
