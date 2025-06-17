@@ -3,7 +3,7 @@ data "aws_secretsmanager_secret" "google_service_account_secret" {
 }
 
 data "aws_secretsmanager_secret_version" "google_service_account_secret_version" {
-  secret_id = data.aws_secretsmanager_secret.google_service_account_secret
+  secret_id = data.aws_secretsmanager_secret.google_service_account_secret.id
 }
 
 resource "kubernetes_namespace" "observatory" {
