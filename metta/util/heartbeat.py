@@ -168,7 +168,7 @@ def _main(argv: list[str] | None = None) -> None:
     mon.add_argument("file")
     mon.add_argument("--pid", type=int, default=os.getpid())
     mon.add_argument("--timeout", type=float, default=600.0)
-    mon.add_argument("--interval", type=float, default=5.0)  # this should be longer in the final version
+    mon.add_argument("--interval", type=float, default=60.0)
 
     args = parser.parse_args(argv)
 
