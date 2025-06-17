@@ -25,13 +25,12 @@ game:
     num_rooms: 4
     border_width: 6
     room:
-      _target_: mettagrid.room.navigation.cylinder_world_sequence.CylinderWorldSequence
-      width: ${sampling:40,80,50}
-      height: ${sampling:40,80,50}
+      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: ${sampling:1,6,3}
       agents: 1
+      dir: ${choose:varied_terrain/cylinder-world_small,varied_terrain/cylinder-world_medium,varied_terrain/cylinder-world_large}
       objects:
-        altar: ${sampling:1,5,3}
+        altar: 5
         mine.red: ${sampling:1,12,6}
         generator.red: ${sampling:1,12,6}
   objects:

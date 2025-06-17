@@ -108,41 +108,57 @@ constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = 
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
 
+constexpr std::array<const char*, ObservationFeature::ObservationFeatureCount> ObservationFeatureNamesArray = {
+    {"type_id",
+     "agent:group",
+     "hp",
+     "agent:frozen",
+     "agent:orientation",
+     "agent:color",
+     "converting",
+     "swappable",
+     "episode_completion_pct",
+     "last_action",
+     "last_action_arg",
+     "last_reward"}};
+
+const std::vector<std::string> ObservationFeatureNames = []() {
+  std::vector<std::string> names;
+  names.reserve(ObservationFeatureNamesArray.size() + InventoryItemNamesArray.size());
+  names.insert(names.end(), ObservationFeatureNamesArray.begin(), ObservationFeatureNamesArray.end());
+  for (const auto& name : InventoryItemNames) {
+    names.push_back("inv:" + name);
+  }
+  return names;
+}();
+
 // ##ObservationNormalization
 // These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
 // but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
 // These should move to configuration "soon". E.g., by 2025-06-10.
-const std::map<std::string, float> FeatureNormalizations = {
-    {"last_action", 10.0},
-    {"last_action_argument", 10.0},
-    {"episode_completion_pct", 255.0},
-    {"last_reward", 100.0},
-
-    {"agent", 1.0},
-    {"agent:group", 10.0},
-    {"agent:hp", 30.0},
-    {"agent:frozen", 1.0},
-    {"agent:energy", 255.0},
-    {"agent:orientation", 1.0},
-    {"agent:shield", 1.0},
-    {"agent:color", 255.0},
-    {"converter", 1.0},
-    {"inv:ore.red", 100.0},
-    {"inv:ore.blue", 100.0},
-    {"inv:ore.green", 100.0},
-    {"inv:battery.red", 100.0},
-    {"inv:battery.blue", 100.0},
-    {"inv:battery.green", 100.0},
-    {"inv:heart", 100.0},
-    {"inv:laser", 100.0},
-    {"inv:armor", 100.0},
-    {"inv:blueprint", 100.0},
-    {"agent:kinship", 10.0},
-    {"hp", 30.0},
-    {"converting", 1.0},
-    {"color", 10.0},
-    {"swappable", 1.0},
-    {"type_id", 10.0},
+const std::map<uint8_t, float> FeatureNormalizations = {
+    {ObservationFeature::LastAction, 10.0},
+    {ObservationFeature::LastActionArg, 10.0},
+    {ObservationFeature::EpisodeCompletionPct, 255.0},
+    {ObservationFeature::LastReward, 100.0},
+    {ObservationFeature::TypeId, 1.0},
+    {ObservationFeature::Group, 10.0},
+    {ObservationFeature::Hp, 30.0},
+    {ObservationFeature::Frozen, 1.0},
+    {ObservationFeature::Orientation, 1.0},
+    {ObservationFeature::Color, 255.0},
+    {ObservationFeature::ConvertingOrCoolingDown, 1.0},
+    {ObservationFeature::Swappable, 1.0},
+    {InventoryFeatureOffset + InventoryItem::ore_red, 100.0},
+    {InventoryFeatureOffset + InventoryItem::ore_blue, 100.0},
+    {InventoryFeatureOffset + InventoryItem::ore_green, 100.0},
+    {InventoryFeatureOffset + InventoryItem::battery_red, 100.0},
+    {InventoryFeatureOffset + InventoryItem::battery_blue, 100.0},
+    {InventoryFeatureOffset + InventoryItem::battery_green, 100.0},
+    {InventoryFeatureOffset + InventoryItem::heart, 100.0},
+    {InventoryFeatureOffset + InventoryItem::laser, 100.0},
+    {InventoryFeatureOffset + InventoryItem::armor, 100.0},
+    {InventoryFeatureOffset + InventoryItem::blueprint, 100.0},
 };
 
 const float DEFAULT_NORMALIZATION = 1.0;

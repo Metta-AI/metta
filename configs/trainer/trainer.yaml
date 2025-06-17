@@ -1,7 +1,8 @@
 num_workers: ???
 
 curriculum: /env/mettagrid/curriculum/simple
-env_overrides: {}
+env_overrides:
+  desync_episodes: true
 
 initial_policy:
   uri: null

@@ -23,7 +23,7 @@ class ObsTokenToBoxShaper(LayerBase):
         # observation.
         self.out_width = obs_width
         self.out_height = obs_height
-        self.num_layers = len(feature_normalizations)
+        self.num_layers = max(feature_normalizations.keys()) + 1
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
 
     def _forward(self, td: TensorDict):
