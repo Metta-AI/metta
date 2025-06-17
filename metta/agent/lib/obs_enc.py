@@ -344,7 +344,7 @@ class ObsLatentAttnBisect(LayerBase):
     def _make_net(self) -> None:
         self.pre = torch.randn(1, 128) # delete this
         self._out_tensor_shape = [self._out_dim]
-        self.linear = nn.Linear(45, self._out_dim)
+        self.linear = nn.Linear(17, self._out_dim)
         # self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
         # if self._use_cls_token:
         #     self._out_tensor_shape = [self._out_dim]

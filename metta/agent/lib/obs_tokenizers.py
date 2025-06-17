@@ -218,7 +218,6 @@ class ObsAttrCoordEmbed(LayerBase):
         self,
         obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
-        feature_normalizations: list[float],
         **cfg,
     ) -> None:
         super().__init__(**cfg)
@@ -226,7 +225,6 @@ class ObsAttrCoordEmbed(LayerBase):
         self._atr_embed_dim = atr_embed_dim  # Dimension of attribute embeddings
         self._value_dim = 1
         self._feat_dim = self._atr_embed_dim + self._value_dim
-        self._feature_normalizations = list(feature_normalizations)
         self._max_embeds = 256
 
     def _make_net(self) -> None:
@@ -256,6 +254,7 @@ class ObsAttrCoordEmbed(LayerBase):
         combined_embeds = atr_embeds + coord_pair_embedding
 
         atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+        atr_values = einops.rearrange(atr_values, "... -> ... 1")
 
         # Assemble feature vectors
         # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
