@@ -1,8 +1,8 @@
 from logging import Logger
 
+from httpx import Client
 from omegaconf import DictConfig, ListConfig
 
-from httpx import Client
 from metta.app.stats_client import StatsClient
 
 
