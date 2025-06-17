@@ -18,7 +18,6 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
         max_steps: Maximum steps before truncation
         width: Map width
         height: Map height
-        use_observation_tokens: Whether to use observation tokens
         config_override: Dictionary to override/merge with default config
     """
     # Define a simple map: empty with walls around perimeter
@@ -40,7 +39,6 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
             "num_agents": NUM_AGENTS,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": True,
             "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
                 # don't really care about the actions for this test
