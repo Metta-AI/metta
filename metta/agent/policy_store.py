@@ -457,16 +457,26 @@ class PolicyStore:
         """
         torch.load expects the codebase to be in the same structure as when the model was saved.
 
-        We can use this function to alias old layout structures. For now we are just supporting moving
-        agent --> metta.agent
+        We can use this function to alias old layout structures. For now we are supporting:
+        - agent --> metta.agent
+        - metta.rl.policy --> metta.rl.pufferlib.policy
         """
         # Memoize
         if getattr(self, "_made_codebase_backwards_compatible", False):
             return
         self._made_codebase_backwards_compatible = True
 
-        # Start with the base module
+        # Handle agent --> metta.agent
         sys.modules["agent"] = sys.modules["metta.agent"]
+
+        # Handle metta.rl.policy --> metta.rl.pufferlib.policy
+        # First ensure the module is imported
+        try:
+            import metta.rl.pufferlib.policy
+
+            sys.modules["metta.rl.policy"] = sys.modules["metta.rl.pufferlib.policy"]
+        except ImportError:
+            pass  # Module might not exist in this context
 
         modules_queue = collections.deque(["metta.agent"])
 

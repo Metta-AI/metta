@@ -38,9 +38,9 @@ class Experience:
         obs_space,
         atn_space,
         device: torch.device | str,
-        cpu_offload: bool = False,
         use_rnn: bool,
         hidden_size: int,
+        cpu_offload: bool = False,
         num_lstm_layers: int = 2,
         agents_per_batch: Optional[int] = None,
     ):

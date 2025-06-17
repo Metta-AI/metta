@@ -58,28 +58,28 @@ class PufferTrainer:
         **kwargs,
     ):
         self.cfg = cfg
-        self.trainer_cfg = cfg.trainer
+        self.trainer_cfg = trainer_cfg = cfg.trainer
 
         self.sim_suite_config = sim_suite_config
 
         self._master = True
         self._world_size = 1
         self.device: torch.device = cfg.device
-        self._batch_size = self.trainer_cfg.batch_size
-        self._minibatch_size = self.trainer_cfg.minibatch_size
+        self._batch_size = trainer_cfg.batch_size
+        self._minibatch_size = trainer_cfg.minibatch_size
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
 
-            self._batch_size = self.trainer_cfg.batch_size // self._world_size
-            self._minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
+            self._batch_size = trainer_cfg.batch_size // self._world_size
+            self._minibatch_size = trainer_cfg.minibatch_size // self._world_size
 
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
 
         self.profile = Profile()
-        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
+        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
         self.losses = self._make_losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -89,8 +89,8 @@ class PufferTrainer:
         self._eval_suite_avgs = {}
         self._eval_categories = set()
 
-        curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
-        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
+        curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
+        env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
         self._make_vecenv()
 
@@ -100,7 +100,7 @@ class PufferTrainer:
         )
 
         logger.info("Loading checkpoint")
-        os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
+        os.makedirs(trainer_cfg.checkpoint_dir, exist_ok=True)
 
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
         policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
@@ -123,9 +123,9 @@ class PufferTrainer:
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
-        if self.trainer_cfg.compile:
+        if trainer_cfg.compile:
             logger.info("Compiling policy")
-            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+            self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
         self.kickstarter = Kickstarter(cfg, policy_store, actions_names, actions_max_params)
 
@@ -143,16 +143,16 @@ class PufferTrainer:
         self._total_minibatches = 0
 
         # Optimizer
-        assert self.trainer_cfg.optimizer.type in ("adam", "muon"), (
-            f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
+        assert trainer_cfg.optimizer.type in ("adam", "muon"), (
+            f"Optimizer type must be 'adam' or 'muon', got {trainer_cfg.optimizer.type}"
         )
-        opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
+        opt_cls = torch.optim.Adam if trainer_cfg.optimizer.type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
-            lr=self.trainer_cfg.optimizer.learning_rate,
-            betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
-            eps=self.trainer_cfg.optimizer.eps,
-            weight_decay=self.trainer_cfg.optimizer.weight_decay,
+            lr=trainer_cfg.optimizer.learning_rate,
+            betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+            eps=trainer_cfg.optimizer.eps,
+            weight_decay=trainer_cfg.optimizer.weight_decay,
         )
 
         # validate that policy matches environment
@@ -184,9 +184,9 @@ class PufferTrainer:
                 )
 
         self.lr_scheduler = None
-        if self.trainer_cfg.lr_scheduler.enabled:
+        if trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+                self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
             )
 
         if checkpoint.agent_step > 0:
@@ -211,16 +211,14 @@ class PufferTrainer:
 
     def train(self):
         logger.info("Starting training")
+        trainer_cfg = self.trainer_cfg
 
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
-        if (
-            self.trainer_cfg.evaluate_interval != 0
-            and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
-        ):
+        if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
         logger.info(f"Training on {self.device}")
-        while self.agent_step < self.trainer_cfg.total_timesteps:
+        while self.agent_step < trainer_cfg.total_timesteps:
             steps_before = self.agent_step
 
             with self.torch_profiler:
@@ -249,17 +247,17 @@ class PufferTrainer:
             )
 
             # Checkpointing trainer
-            if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
+            if self.epoch % trainer_cfg.checkpoint_interval == 0:
                 with self.timer("_checkpoint_trainer", log=logging.INFO):
                     self._checkpoint_trainer()
 
-            if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
+            if trainer_cfg.evaluate_interval != 0 and self.epoch % trainer_cfg.evaluate_interval == 0:
                 with self.timer("_evaluate_policy", log=logging.INFO):
                     self._evaluate_policy()
 
             self.torch_profiler.on_epoch_end(self.epoch)
 
-            if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
+            if self.epoch % trainer_cfg.wandb_checkpoint_interval == 0:
                 with self.timer("_save_policy_to_wandb"):
                     self._save_policy_to_wandb()
 
@@ -269,7 +267,7 @@ class PufferTrainer:
             ):
                 self.policy.update_l2_init_weight_copy()
 
-            if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
+            if trainer_cfg.replay_interval != 0 and self.epoch % trainer_cfg.replay_interval == 0:
                 with self.timer("_generate_and_upload_replay", log=logging.INFO):
                     self._generate_and_upload_replay()
 
@@ -335,6 +333,7 @@ class PufferTrainer:
     @profile_section("eval")
     def _rollout(self):
         experience, profile = self.experience, self.profile
+        trainer_cfg = self.trainer_cfg
 
         with profile.eval_misc:
             policy = self.policy
@@ -345,10 +344,10 @@ class PufferTrainer:
         while not experience.ready_for_training:
             with profile.env:
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                if self.trainer_cfg.require_contiguous_env_ids:
+                if trainer_cfg.require_contiguous_env_ids:
                     raise ValueError(
                         "We are assuming contiguous eng id is always False. async_factor == num_workers = "
-                        f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
+                        f"{trainer_cfg.async_factor} != {trainer_cfg.num_workers}"
                     )
 
                 training_env_id = slice(env_id[0], env_id[-1] + 1)
@@ -378,7 +377,7 @@ class PufferTrainer:
                     assert_shape(actions, ("BT", 2), "actions")
 
                 lstm_state_to_store = None
-                if self.trainer_cfg.get("use_rnn", True) and state.lstm_h is not None:
+                if trainer_cfg.get("use_rnn", True) and state.lstm_h is not None:
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
                 if self.device == "cuda":
@@ -389,7 +388,7 @@ class PufferTrainer:
                 mask = torch.as_tensor(mask)  # * policy.mask)
 
                 experience.store(
-                    obs=o if self.trainer_cfg.cpu_offload else o_device,
+                    obs=o if trainer_cfg.cpu_offload else o_device,
                     actions=actions,
                     logprobs=selected_action_log_probs,
                     rewards=r.to(self.device, non_blocking=True),
@@ -434,21 +433,22 @@ class PufferTrainer:
     def _train(self):
         experience, profile = self.experience, self.profile
         self.losses = self._make_losses()
-        self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
+        trainer_cfg = self.trainer_cfg
+        self._total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
         steps_since_last = self.agent_step - self._last_agent_step
         self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
         with profile.train_misc:
-            cfg = self.trainer_cfg
+            prio_cfg = trainer_cfg.get("prioritized_experience_replay", {})
+            vtrace_cfg = trainer_cfg.get("vtrace", {})
 
             # Reset importance sampling ratios
             experience.reset_importance_sampling_ratios()
 
             # Prioritized sampling parameters
-            prio_config = cfg.get("prioritized_experience_replay", {})
-            b0 = prio_config.get("prio_beta0", 0.6)
-            a = prio_config.get("prio_alpha", 0.0)
-            total_epochs = max(1, cfg.total_timesteps // cfg.batch_size)
+            b0 = prio_cfg.get("prio_beta0", 0.6)
+            a = prio_cfg.get("prio_alpha", 0.0)
+            total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
             anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
 
             # Compute advantages using puff_advantage
@@ -457,17 +457,16 @@ class PufferTrainer:
             # Initial ratio is all ones
             initial_ratio = torch.ones_like(experience.values)
 
-            vtrace_config = cfg.get("vtrace", {})
             advantages = self._compute_advantage(
                 experience.values,
                 experience.rewards,
                 experience.dones,
                 initial_ratio,
                 advantages,
-                cfg.gamma,
-                cfg.gae_lambda,
-                vtrace_config.get("vtrace_rho_clip", 1.0),
-                vtrace_config.get("vtrace_c_clip", 1.0),
+                trainer_cfg.gamma,
+                trainer_cfg.gae_lambda,
+                vtrace_cfg.get("vtrace_rho_clip", 1.0),
+                vtrace_cfg.get("vtrace_c_clip", 1.0),
             )
 
         # Optimizing the policy and value network
@@ -483,7 +482,7 @@ class PufferTrainer:
 
             with profile.train_forward:
                 obs = minibatch["obs"]
-                if not cfg.get("use_rnn", True):
+                if not trainer_cfg.get("use_rnn", True):
                     obs = einops.rearrange(obs, "b t ... -> (b t) ...")
 
                 lstm_state = PolicyState()
@@ -500,20 +499,19 @@ class PufferTrainer:
                 with torch.no_grad():
                     old_approx_kl = (-logratio).mean()
                     approx_kl = ((ratio - 1) - logratio).mean()
-                    clipfrac = ((ratio - 1.0).abs() > cfg.clip_coef).float().mean()
+                    clipfrac = ((ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
 
                 # Re-compute advantages with new ratios (V-trace)
-                vtrace_config = cfg.get("vtrace", {})
                 adv = self._compute_advantage(
                     minibatch["values"],
                     minibatch["rewards"],
                     minibatch["dones"],
                     ratio,
                     minibatch["advantages"],
-                    cfg.gamma,
-                    cfg.gae_lambda,
-                    vtrace_config.get("vtrace_rho_clip", 1.0),
-                    vtrace_config.get("vtrace_c_clip", 1.0),
+                    trainer_cfg.gamma,
+                    trainer_cfg.gae_lambda,
+                    vtrace_cfg.get("vtrace_rho_clip", 1.0),
+                    vtrace_cfg.get("vtrace_c_clip", 1.0),
                 )
 
                 # Normalize advantages with distributed support, then apply prioritized weights
@@ -522,17 +520,17 @@ class PufferTrainer:
 
                 # Policy loss
                 pg_loss1 = -adv * ratio
-                pg_loss2 = -adv * torch.clamp(ratio, 1 - cfg.clip_coef, 1 + cfg.clip_coef)
+                pg_loss2 = -adv * torch.clamp(ratio, 1 - trainer_cfg.clip_coef, 1 + trainer_cfg.clip_coef)
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
                 newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
-                if cfg.clip_vloss:
+                if trainer_cfg.clip_vloss:
                     v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
                     v_clipped = minibatch["values"] + torch.clamp(
                         newvalue_reshaped - minibatch["values"],
-                        -cfg.get("vf_clip_coef", 0.1),
-                        cfg.get("vf_clip_coef", 0.1),
+                        -trainer_cfg.get("vf_clip_coef", 0.1),
+                        trainer_cfg.get("vf_clip_coef", 0.1),
                     )
                     v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
                     v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
@@ -546,17 +544,17 @@ class PufferTrainer:
                 )
 
                 l2_reg_loss = torch.tensor(0.0, device=self.device)
-                if self.trainer_cfg.l2_reg_loss_coef > 0:
-                    l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
+                if trainer_cfg.l2_reg_loss_coef > 0:
+                    l2_reg_loss = trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
 
                 l2_init_loss = torch.tensor(0.0, device=self.device)
-                if self.trainer_cfg.l2_init_loss_coef > 0:
-                    l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
+                if trainer_cfg.l2_init_loss_coef > 0:
+                    l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
                 loss = (
                     pg_loss
-                    - cfg.ent_coef * entropy_loss
-                    + v_loss * cfg.vf_coef
+                    - trainer_cfg.ent_coef * entropy_loss
+                    + v_loss * trainer_cfg.vf_coef
                     + l2_reg_loss
                     + l2_init_loss
                     + ks_action_loss
@@ -589,7 +587,7 @@ class PufferTrainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 if (mb + 1) % self.experience.accumulate_minibatches == 0:
-                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), cfg.max_grad_norm)
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
                     self.optimizer.step()
 
                     if self.cfg.agent.clip_range > 0:
@@ -598,7 +596,7 @@ class PufferTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-            if cfg.target_kl is not None and approx_kl > cfg.target_kl:
+            if trainer_cfg.target_kl is not None and approx_kl > trainer_cfg.target_kl:
                 break
 
         with profile.train_misc:
@@ -615,7 +613,7 @@ class PufferTrainer:
             self.epoch += 1
             profile.update_stats(
                 self.agent_step,
-                self.trainer_cfg.total_timesteps,
+                trainer_cfg.total_timesteps,
             )
 
     def _checkpoint_trainer(self):
@@ -656,7 +654,7 @@ class PufferTrainer:
 
         self.last_pr = self.policy_store.save(
             name,
-            os.path.join(self.cfg.trainer.checkpoint_dir, name),
+            os.path.join(self.trainer_cfg.checkpoint_dir, name),
             self.uncompiled_policy,
             metadata={
                 "agent_step": self.agent_step,
@@ -695,7 +693,7 @@ class PufferTrainer:
                 policy_store=self.policy_store,
                 device=self.device,
                 vectorization=self.cfg.vectorization,
-                replay_dir=self.cfg.trainer.replay_dir,
+                replay_dir=self.trainer_cfg.replay_dir,
             )
             results = replay_simulator.simulate()
 
@@ -877,6 +875,7 @@ class PufferTrainer:
     def _make_experience_buffer(self):
         """Create experience buffer with tensor-based storage for prioritized sampling."""
         vecenv = self.vecenv
+        trainer_cfg = self.trainer_cfg
 
         # Get environment info
         obs_space = vecenv.single_observation_space
@@ -884,11 +883,11 @@ class PufferTrainer:
         total_agents = vecenv.num_agents
 
         # Calculate minibatch parameters
-        minibatch_size = self.trainer_cfg.minibatch_size
-        max_minibatch_size = self.trainer_cfg.get("max_minibatch_size", minibatch_size)
+        minibatch_size = trainer_cfg.minibatch_size
+        max_minibatch_size = trainer_cfg.get("max_minibatch_size", minibatch_size)
 
         # Get LSTM parameters if using RNN
-        use_rnn = self.trainer_cfg.get("use_rnn", True)
+        use_rnn = trainer_cfg.get("use_rnn", True)
         hidden_size = getattr(self.policy, "hidden_size", 256)
         num_lstm_layers = 2  # Default value
 
@@ -902,15 +901,15 @@ class PufferTrainer:
         self.experience = Experience(
             total_agents=total_agents,
             batch_size=self._batch_size,
-            bptt_horizon=self.trainer_cfg.bptt_horizon,
+            bptt_horizon=trainer_cfg.bptt_horizon,
             minibatch_size=self._minibatch_size,
             max_minibatch_size=max_minibatch_size,
             obs_space=obs_space,
             atn_space=atn_space,
             device=self.device,
-            cpu_offload=self.trainer_cfg.cpu_offload,
             use_rnn=use_rnn,
             hidden_size=hidden_size,
+            cpu_offload=trainer_cfg.cpu_offload,
             num_lstm_layers=num_lstm_layers,
             agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
@@ -933,21 +932,23 @@ class PufferTrainer:
 
     def _make_vecenv(self):
         """Create a vectorized environment."""
+        trainer_cfg = self.trainer_cfg
+
         num_agents = self._curriculum.get_task().env_cfg().game.num_agents
 
-        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // num_agents
+        self.target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
-        self.batch_size = (self.target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
+        self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
         logger.info(f"forward_pass_batch_size: {self.batch_size}")
 
-        num_envs = self.batch_size * self.trainer_cfg.async_factor
+        num_envs = self.batch_size * trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
             logger.error(
-                f"num_envs = batch_size ({self.batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
+                f"num_envs = batch_size ({self.batch_size}) * async_factor ({trainer_cfg.async_factor}) "
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
@@ -956,8 +957,8 @@ class PufferTrainer:
             self.cfg.vectorization,
             num_envs=num_envs,
             batch_size=self.batch_size,
-            num_workers=self.trainer_cfg.num_workers,
-            zero_copy=self.trainer_cfg.zero_copy,
+            num_workers=trainer_cfg.num_workers,
+            zero_copy=trainer_cfg.zero_copy,
         )
 
         if self.cfg.seed is None:
@@ -970,15 +971,17 @@ class PufferTrainer:
 
     def _load_policy(self, checkpoint, policy_store, metta_grid_env):
         """Load policy from checkpoint, initial_policy.uri, or create new."""
+        trainer_cfg = self.trainer_cfg
+
         for _attempt in range(10):
             if checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
                 return policy_store.policy(checkpoint.policy_path)
-            elif self.cfg.trainer.initial_policy.uri is not None:
-                logger.info(f"Loading initial policy URI: {self.cfg.trainer.initial_policy.uri}")
-                return policy_store.policy(self.cfg.trainer.initial_policy)
+            elif trainer_cfg.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
+                return policy_store.policy(trainer_cfg.initial_policy)
             else:
-                policy_path = os.path.join(self.cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
+                policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
                 if os.path.exists(policy_path):
                     logger.info(f"Loading policy from checkpoint: {policy_path}")
                     return policy_store.policy(policy_path)
@@ -1002,7 +1005,7 @@ class AbortingTrainer(PufferTrainer):
             return
 
         logger.info("Abort tag detected. Stopping the run.")
-        self.cfg.trainer.total_timesteps = int(self.agent_step)
+        self.trainer_cfg.total_timesteps = int(self.agent_step)
         self.wandb_run.config.update(
-            {"trainer.total_timesteps": self.cfg.trainer.total_timesteps}, allow_val_change=True
+            {"trainer.total_timesteps": self.trainer_cfg.total_timesteps}, allow_val_change=True
         )
