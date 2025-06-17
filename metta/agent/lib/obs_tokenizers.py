@@ -49,29 +49,29 @@ class ObsTokenPadStrip(LayerBase):
             observations = einops.rearrange(observations, "b t h c -> (b t) h c")
         td["_BxTT_"] = B * TT
 
-        coords = observations[..., 0]
-        obs_mask = coords == 255  # important! true means mask me
+        # coords = observations[..., 0]
+        # obs_mask = coords == 255  # important! true means mask me
 
-        # 1) find each row's flip‐point
-        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
+        # # 1) find each row's flip‐point
+        # flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
 
-        # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
-        max_flip = flip_pts.max()  # e.g. tensor(3, device='cuda')
-        if max_flip == 0:
-            max_flip = max_flip + self._M  # hack to avoid 0. should instead grab
+        # # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
+        # max_flip = flip_pts.max()  # e.g. tensor(3, device='cuda')
+        # if max_flip == 0:
+        #     max_flip = max_flip + self._M  # hack to avoid 0. should instead grab
 
-        # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
-        positions = torch.arange(self._M, device=obs_mask.device)
+        # # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
+        # positions = torch.arange(self._M, device=obs_mask.device)
 
-        # 4) make a boolean column mask: keep all columns strictly before max_flip
-        keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
+        # # 4) make a boolean column mask: keep all columns strictly before max_flip
+        # keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
 
-        # 5) now "slice" your batch in one go, on the GPU:
-        observations = observations[:, keep_cols]  # shape [B, max_flip]
-        obs_mask = obs_mask[:, keep_cols]
+        # # 5) now "slice" your batch in one go, on the GPU:
+        # observations = observations[:, keep_cols]  # shape [B, max_flip]
+        # obs_mask = obs_mask[:, keep_cols]
 
         td[self._name] = observations
-        td["obs_mask"] = obs_mask
+        # td["obs_mask"] = obs_mask
         return td
 
 
