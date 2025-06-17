@@ -75,80 +75,6 @@ class ObsTokenPadStrip(LayerBase):
         return td
 
 
-class ObsTokenPadStripNested(LayerBase):
-    """
-    A nested tensor version of ObsTokenPadStrip that returns jagged tensors instead of padded tensors.
-
-    This layer takes padded observations of shape [B, M, 3] and converts them to nested tensors
-    using the torch.jagged layout, which allows for efficient computation on ragged sequences
-    without wasting computation on padding.
-
-    The output is a nested tensor where each batch item has its actual sequence length
-    (without padding), avoiding unnecessary computation in downstream layers.
-    """
-
-    def __init__(
-        self,
-        obs_shape: Tuple[int, ...],
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._obs_shape = obs_shape
-        self._M = obs_shape[0]
-
-    def _make_net(self) -> None:
-        # Output shape is variable due to nested tensors
-        self._out_tensor_shape = [0, 3]
-
-    def _forward(self, td: TensorDict) -> TensorDict:
-        # [B, M, 3] the 3 vector is: coord (uint8), atr_idx, atr_val
-        observations = td.get("x")
-
-        B = observations.shape[0]
-        TT = 1
-        td["_B_"] = B
-        td["_TT_"] = TT
-        if observations.dim() != 3:  # handle [B, T, M, 3] shape
-            TT = observations.shape[1]
-            td["_TT_"] = TT
-            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
-        td["_BxTT_"] = B * TT
-
-        coords = observations[..., 0]
-
-        # Find actual sequence lengths (before padding starts)
-        # Padding is indicated by coord value of 255
-        padding_mask = coords == 255
-
-        # Find the first padding position in each sequence
-        # If no padding, the sequence length is M
-        seq_lengths = []
-        observation_list = []
-
-        for i in range(observations.shape[0]):
-            # Find first True in padding_mask[i], or M if all False
-            pad_positions = torch.where(padding_mask[i])[0]
-            if len(pad_positions) > 0:
-                seq_len = pad_positions[0].item()
-            else:
-                seq_len = self._M
-
-            seq_lengths.append(seq_len)
-            # Extract only the non-padded portion
-            observation_list.append(observations[i, :seq_len])
-
-        # Create nested tensor using torch.jagged layout
-        nested_observations = torch.nested.nested_tensor(
-            observation_list, layout=torch.jagged, device=observations.device, dtype=observations.dtype
-        )
-
-        td[self._name] = nested_observations
-        td["seq_lengths"] = torch.tensor(seq_lengths, device=observations.device)
-        td["is_nested"] = True  # Flag for downstream layers
-
-        return td
-
-
 class ObsAttrValNorm(LayerBase):
     """Normalizes attr values based on the attr index."""
 
@@ -233,42 +159,51 @@ class ObsAttrCoordEmbed(LayerBase):
         self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
         nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
 
-        # Coord byte supports up to 16x16, so 256 possible coord values
-        self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
-        nn.init.trunc_normal_(self._coord_embeds.weight, std=0.02)
+        # # Coord byte supports up to 16x16, so 256 possible coord values
+        # self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
+        # nn.init.trunc_normal_(self._coord_embeds.weight, std=0.02)
 
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
+
         observations = td[self._sources[0]["name"]]
-
-        # The first element of an observation is the coordinate, which can be used as a direct index for embedding.
-        coord_indices = observations[..., 0].long()
-        coord_pair_embedding = self._coord_embeds(coord_indices)
-
         atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
 
         atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
 
-        combined_embeds = atr_embeds + coord_pair_embedding
-
-        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
-        atr_values = einops.rearrange(atr_values, "... -> ... 1")
-
-        # Assemble feature vectors
-        # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
-        feat_vectors = torch.empty(
-            (*atr_embeds.shape[:-1], self._feat_dim),
-            dtype=atr_embeds.dtype,
-            device=atr_embeds.device,
-        )
-        # Combined embedding portion
-        feat_vectors[..., : self._atr_embed_dim] = combined_embeds
-        feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = atr_values
-
-        td[self._name] = feat_vectors
+        td[self._name] = atr_embeds
         return td
+
+        # observations = td[self._sources[0]["name"]]
+
+        # # The first element of an observation is the coordinate, which can be used as a direct index for embedding.
+        # coord_indices = observations[..., 0].long()
+        # coord_pair_embedding = self._coord_embeds(coord_indices)
+
+        # atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+
+        # atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
+
+        # combined_embeds = atr_embeds + coord_pair_embedding
+
+        # atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+        # atr_values = einops.rearrange(atr_values, "... -> ... 1")
+
+        # # Assemble feature vectors
+        # # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
+        # feat_vectors = torch.empty(
+        #     (*atr_embeds.shape[:-1], self._feat_dim),
+        #     dtype=atr_embeds.dtype,
+        #     device=atr_embeds.device,
+        # )
+        # # Combined embedding portion
+        # feat_vectors[..., : self._atr_embed_dim] = combined_embeds
+        # feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = atr_values
+
+        # td[self._name] = feat_vectors
+        # return td
 
 
 class ObsAttrEmbedFourier(LayerBase):
