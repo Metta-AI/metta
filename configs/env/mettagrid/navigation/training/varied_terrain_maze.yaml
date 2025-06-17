@@ -18,7 +18,7 @@ game:
       agents: 1
       dir: ${choose:varied_terrain/maze_large,varied_terrain/maze_medium,varied_terrain/maze_small}
       objects:
-        altar: ${sampling:30,75,50}
+        altar: 10
   objects:
     altar:
       cooldown: 1000
