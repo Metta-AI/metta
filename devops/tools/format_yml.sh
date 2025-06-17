@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Initialize variables with default exclusion pattern
-EXCLUDE_PATTERN="/configs/\|/scenes/\|/devops/tf/eks/skypilot/skypilot-chart/"
+EXCLUDE_PATTERN="/configs/\|/scenes/"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
