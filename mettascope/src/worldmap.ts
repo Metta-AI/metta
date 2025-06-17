@@ -319,7 +319,7 @@ function drawInventory() {
     let numItems = 0
     for (const [key, [icon, color]] of state.replay.resource_inventory) {
       const num = getAttr(gridObject, key)
-      if (num > 0) {
+      if (num !== null && num !== undefined && num > 0) {
         numItems += num
       }
     }
@@ -327,7 +327,7 @@ function drawInventory() {
     let advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING * 2) / numItems)
     for (const [key, [icon, color]] of state.replay.resource_inventory) {
       const num = getAttr(gridObject, key)
-      if (num > 0) {
+      if (num !== null && num !== undefined && num > 0) {
         for (let i = 0; i < num; i++) {
           ctx.drawSprite(
             icon,
