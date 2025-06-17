@@ -803,16 +803,16 @@ class MettaTrainer:
             "parameter/num_minibatches": self.experience.num_minibatches,
         }
 
-        loss_stats = self.losses.to_dict()
+        losses = self.losses.to_dict()
 
         # don't plot losses that are unused
         if self.trainer_cfg.l2_reg_loss_coef == 0:
-            loss_stats.pop("l2_reg_loss")
+            losses.pop("l2_reg_loss")
         if self.trainer_cfg.l2_init_loss_coef == 0:
-            loss_stats.pop("l2_init_loss")
+            losses.pop("l2_init_loss")
         if not self.kickstarter.enabled:
-            loss_stats.pop("ks_action_loss")
-            loss_stats.pop("ks_value_loss")
+            losses.pop("ks_action_loss")
+            losses.pop("ks_value_loss")
 
         environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
@@ -820,7 +820,7 @@ class MettaTrainer:
         self.wandb_run.log(
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
-                **loss_stats,
+                **{f"losses/{k}": v for k, v in losses.items()},
                 **environment_stats,
                 **weight_metrics,
                 **self._eval_grouped_scores,
