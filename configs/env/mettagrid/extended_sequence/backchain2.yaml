@@ -38,10 +38,6 @@ game:
         altar: 2
         mine.red: 0
         generator.red: ${sampling:1,2,3}
-        mine.blue: 0
-        generator.blue: 0
-        mine.green: 0
-        generator.green: 0
   objects:
     altar:
       cooldown: ${sampling:15,100,45}
