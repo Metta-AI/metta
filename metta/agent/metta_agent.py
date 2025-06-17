@@ -65,7 +65,7 @@ class MettaAgent(nn.Module):
         obs_width: int,
         obs_height: int,
         action_space: gym.spaces.Space,
-        feature_normalizations: list[float],
+        feature_normalizations: dict[int, float],
         device: str,
         **cfg,
     ):

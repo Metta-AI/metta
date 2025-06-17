@@ -29,18 +29,20 @@ public:
     return features;
   }
 
-  virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = _type_id;
-    obs[offsets[1]] = this->hp;
-    obs[offsets[2]] = this->_swappable;
+  virtual void obs(ObsType* obs) const override {
+    const auto offsets = Wall::offsets();
+    size_t offset_idx = 0;
+    obs[offsets[offset_idx++]] = _type_id;
+    obs[offsets[offset_idx++]] = this->hp;
+    obs[offsets[offset_idx++]] = this->_swappable;
   }
 
-  static std::vector<std::string> feature_names() {
-    std::vector<std::string> names;
-    names.push_back("type_id");
-    names.push_back("hp");
-    names.push_back("swappable");
-    return names;
+  static std::vector<uint8_t> offsets() {
+    std::vector<uint8_t> ids;
+    ids.push_back(ObservationFeature::TypeId);
+    ids.push_back(ObservationFeature::Hp);
+    ids.push_back(ObservationFeature::Swappable);
+    return ids;
   }
 
   virtual bool swappable() const override {
