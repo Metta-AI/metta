@@ -65,6 +65,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         buf=None,
         stats_writer: Optional[StatsWriter] = None,
         replay_writer: Optional[ReplayWriter] = None,
+        training: bool = False,
         **kwargs,
     ):
         self._render_mode = render_mode
@@ -82,7 +83,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
-        self._num_episodes = 0
+        self._training = training
 
         self._initialize_c_env()
         super().__init__(buf)
@@ -126,12 +127,11 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
-        if self._num_episodes == 0 and task.env_cfg().desync_episodes:
+        if self._training and getattr(self, "num_episodes", 0) == 0 and task.env_cfg().get("desync_episodes", False):
             max_steps = int(task.env_cfg().game.max_steps)
             config_game = cast(Dict[str, Any], config_dict.get("game", {}))
             config_game["max_steps"] = int(np.random.randint(1, max_steps + 1))
             config_dict["game"] = config_game
-            logger.info(f"Desync episode with max_steps {config_game['max_steps']}")
 
         self._map_labels = level.labels
 
@@ -140,7 +140,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._c_env = MettaGrid(config_dict, level.grid.tolist())
 
         self._grid_env = self._c_env
-        self._num_episodes += 1
 
     @override  # pufferlib.PufferEnv.reset
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
@@ -182,10 +181,8 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         """
 
-        if __debug__:
-            from mettagrid.util.actions import validate_actions
-
-            validate_actions(self, actions, logger)
+        # Note: We explicitly allow invalid actions to be used. The environment will
+        # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
 
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_pre_step(self._episode_id, actions)
@@ -349,7 +346,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._should_reset
 
     @property
-    def feature_normalizations(self) -> list[float]:
+    def feature_normalizations(self) -> dict[int, float]:
         return self._c_env.feature_normalizations()
 
     @property
@@ -405,3 +402,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     def inventory_item_names(self) -> list[str]:
         return self._c_env.inventory_item_names()
+
+    @property
+    def config(self) -> dict[str, Any]:
+        return cast(dict[str, Any], OmegaConf.to_container(self._task.env_cfg(), resolve=False))

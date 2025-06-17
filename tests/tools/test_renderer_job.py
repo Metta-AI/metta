@@ -156,7 +156,7 @@ class TestRendererJob:
                     phrase in output
                     for phrase in [
                         "Training complete",
-                        "PufferTrainer loaded",
+                        "MettaTrainer loaded",
                         "Starting training",
                         "obs_space:",
                     ]

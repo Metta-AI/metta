@@ -1,8 +1,8 @@
-"""Tests for metta.rl.pufferlib.profile module."""
+"""Tests for metta.rl.profile module."""
 
 import json
 
-from metta.rl.pufferlib.profile import Profile
+from metta.rl.profile import Profile
 
 
 class TestProfile:

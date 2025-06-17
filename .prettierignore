@@ -1,3 +1,21 @@
 # Ignore Helm templates
 **/templates/**/*.yaml
 **/templates/**/*.yml
+
+# Forked from upstream so should not be formatted
+devops/tf/eks/skypilot/skypilot-chart/
+
+.DS_Store
+node_modules/
+dist/
+build/
+build-debug/
+coverage/
+.mypy_cache/
+.venv/
+wandb/
+htmlcov/
+
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

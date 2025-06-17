@@ -1,6 +1,6 @@
 diff -ur sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
---- sky/provision/docker_utils.py	2025-05-19 14:08:18
-+++ sky-patched/provision/docker_utils.py	2025-05-19 14:08:16
+--- sky/provision/docker_utils.py	2025-06-02 23:54:17
++++ sky-patched/provision/docker_utils.py	2025-06-16 15:57:46
 @@ -234,6 +234,23 @@
                      f'--password {shlex.quote(docker_login_config.password)} '
                      f'{shlex.quote(docker_login_config.server)}',
@@ -26,12 +26,12 @@ diff -ur sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
                  # Docker image server is on GCR, we need to do additional setup
                  # to pull the image.
 diff -ur sky/resources.py sky-patched/resources.py
---- sky/resources.py	2025-05-19 14:08:18
-+++ sky-patched/resources.py	2025-05-19 14:08:16
-@@ -1574,9 +1574,6 @@
-             config['disk_tier'] = self.disk_tier.value
-         add_if_not_none('ports', self.ports)
+--- sky/resources.py	2025-06-16 15:54:40
++++ sky-patched/resources.py	2025-06-16 15:57:08
+@@ -1699,9 +1699,6 @@
          add_if_not_none('labels', self.labels)
+         if self._autostop_config is not None:
+             config['autostop'] = self._autostop_config.to_yaml_config()
 -        if self._docker_login_config is not None:
 -            config['_docker_login_config'] = dataclasses.asdict(
 -                self._docker_login_config)
