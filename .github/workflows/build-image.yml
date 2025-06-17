@@ -5,10 +5,8 @@ concurrency:
 
 on:
   workflow_dispatch: {}
-  push:
-    branches:
-      - main
-      - ci-docker # for testing
+  schedule:
+    - cron: '0 7 * * *' # 7 AM UTC (12 AM PST)
 
 env:
   IMAGE_NAME: metta
