@@ -4,6 +4,7 @@ import time
 from collections import defaultdict
 from typing import Any
 
+import einops
 import numpy as np
 import torch
 import torch.distributed
