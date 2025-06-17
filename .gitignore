@@ -7,7 +7,6 @@
 .coverage
 .env
 .task
-.git
 .vscode/PythonImportHelper-v2-Completion.json
 /checkpoints/
 /mettagrid/dist
