@@ -38,9 +38,9 @@ game:
       style: all-sparse
 
       objects:
-        altar: ${sampling:1,2,3}
+        altar: 1
         mine.red: 0
-        generator.red: ${sampling:1,2,3}
+        generator.red: 1
         mine.blue: 0
         generator.blue: 0
         mine.green: 0

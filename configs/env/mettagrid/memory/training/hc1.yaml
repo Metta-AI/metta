@@ -4,13 +4,13 @@ defaults:
 sampling: 1
 game:
   num_agents: 16
-  max_steps: 500
+  max_steps: 800
   agent:
     rewards:
       heart: 1
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 2
+    num_rooms: 16
     room:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1

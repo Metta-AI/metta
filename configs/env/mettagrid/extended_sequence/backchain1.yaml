@@ -38,7 +38,7 @@ game:
       style: all-sparse
 
       objects:
-        altar: ${sampling:1,2,3}
+        altar: 1
         mine.red: 0
         generator.red: 0
         mine.blue: 0
@@ -47,7 +47,7 @@ game:
         generator.green: 0
   objects:
     altar:
-      cooldown: 10
+      cooldown: 80
       input_battery.red: 0
       output_heart: 1
       max_output: 1
