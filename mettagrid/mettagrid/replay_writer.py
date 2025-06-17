@@ -86,7 +86,8 @@ class EpisodeReplay:
         # If key has vanished, add a zero entry.
         for key in grid_object.keys():
             if key not in update_object:
-                grid_object[key].append([step, 0])
+                if grid_object[key][-1][1] != 0:
+                    grid_object[key].append([step, 0])
 
     def get_replay_data(self):
         """Gets full replay as a tree of plain python dictionaries."""

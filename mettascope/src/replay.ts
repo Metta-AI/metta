@@ -316,7 +316,7 @@ export function loadReplayStep(replayStep: any) {
     // Make sure that the keys that don't exist in the update are set to null too.
     for (const key in state.replay.grid_objects[index]) {
       if (gridObject[key] === undefined) {
-        state.replay.grid_objects[index][key] = null
+        state.replay.grid_objects[index][key][step] = null
       }
     }
   }
