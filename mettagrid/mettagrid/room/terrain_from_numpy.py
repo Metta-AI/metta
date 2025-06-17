@@ -84,15 +84,15 @@ class TerrainFromNumpy(Room):
         zipped_dir = root + ".zip"
         lock_path = zipped_dir + ".lock"
         # Only one process can hold this lock at a time:
-        if not os.path.exists(dir) and not os.path.exists(zipped_dir):
-            with FileLock(lock_path):
+        with FileLock(lock_path):
+            if not os.path.exists(dir) and not os.path.exists(zipped_dir):
                 s3_path = f"s3://softmax-public/maps/{zipped_dir}"
                 download_from_s3(s3_path, zipped_dir)
-        if not os.path.exists(root) and os.path.exists(zipped_dir):
-            with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
-                zip_ref.extractall(os.path.dirname(root))
-            os.remove(zipped_dir)
-            logger.info(f"Extracted {zipped_dir} to {root}")
+            if not os.path.exists(root) and os.path.exists(zipped_dir):
+                with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
+                    zip_ref.extractall(os.path.dirname(root))
+                os.remove(zipped_dir)
+                logger.info(f"Extracted {zipped_dir} to {root}")
         if file is None:
             self.uri = pick_random_file(dir)
         else:
@@ -104,55 +104,72 @@ class TerrainFromNumpy(Room):
         super().__init__(border_width=border_width, border_object=border_object, labels=[root])
 
     def get_valid_positions(self, level):
-        valid_positions = []
-        for i in range(1, level.shape[0] - 1):
-            for j in range(1, level.shape[1] - 1):
-                if level[i, j] == "empty":
-                    # Check if position is accessible from at least one direction
-                    if (
-                        level[i - 1, j] == "empty"
-                        or level[i + 1, j] == "empty"
-                        or level[i, j - 1] == "empty"
-                        or level[i, j + 1] == "empty"
-                    ):
-                        valid_positions.append((i, j))
+        # Create a boolean mask for empty cells
+        empty_mask = level == "empty"
+
+        # Use numpy's roll to check adjacent cells efficiently
+        has_empty_neighbor = (
+            np.roll(empty_mask, 1, axis=0)  # Check up
+            | np.roll(empty_mask, -1, axis=0)  # Check down
+            | np.roll(empty_mask, 1, axis=1)  # Check left
+            | np.roll(empty_mask, -1, axis=1)  # Check right
+        )
+
+        # Valid positions are empty cells with at least one empty neighbor
+        # Exclude border cells (indices 0 and -1)
+        valid_mask = empty_mask & has_empty_neighbor
+        valid_mask[0, :] = False
+        valid_mask[-1, :] = False
+        valid_mask[:, 0] = False
+        valid_mask[:, -1] = False
+
+        # Get coordinates of valid positions
+        valid_positions = list(zip(*np.where(valid_mask), strict=False))
         return valid_positions
 
     def _build(self):
         level = safe_load(f"{self.dir}/{self.uri}")
-        self.set_size_labels(level.shape[1], level.shape[0])
+        height, width = level.shape
+        self.set_size_labels(width, height)
 
         # remove agents to then repopulate
-        agents = level == "agent.agent"
-        level[agents] = "empty"
+        level[level == "agent.agent"] = "empty"
 
+        # 3. Prepare agent labels
         if isinstance(self._agents, int):
-            agents = ["agent.agent"] * self._agents
-            num_agents = self._agents
+            agent_labels = ["agent.agent"] * self._agents
         elif isinstance(self._agents, DictConfig):
-            agents = ["agent." + agent for agent, na in self._agents.items() for _ in range(na)]
-            num_agents = len(agents)
+            agent_labels = [f"agent.{name}" for name, count in self._agents.items() for _ in range(count)]
+        else:
+            raise TypeError("Unsupported _agents type")
+        num_agents = len(agent_labels)
 
         valid_positions = self.get_valid_positions(level)
-        positions = random.sample(valid_positions, num_agents)
+        random.shuffle(valid_positions)
 
-        for pos, agent in zip(positions, agents, strict=False):
-            level[pos] = agent
-            valid_positions.remove(pos)
+        # 5. Place agents in first slice
+        agent_positions = valid_positions[:num_agents]
+        for pos, label in zip(agent_positions, agent_labels, strict=False):
+            level[pos] = label
 
-        area = level.shape[0] * level.shape[1]
+        # Convert to set for O(1) removal operations
+        valid_positions_set = set(valid_positions[num_agents:])
+
+        area = height * width
 
         # Check if total objects exceed room size and halve counts if needed
-        total_objects = sum(count for count in self._objects.values()) + len(agents)
+        total_objects = sum(count for count in self._objects.values()) + num_agents
         while total_objects > 2 * area / 3:
             for obj_name in self._objects:
                 self._objects[obj_name] = max(1, self._objects[obj_name] // 2)
-                total_objects = sum(count for count in self._objects.values()) + len(agents)
+            total_objects = sum(count for count in self._objects.values()) + num_agents
 
         for obj_name, count in self._objects.items():
-            positions = random.sample(valid_positions, count)
+            # Sample from remaining valid positions
+            positions = random.sample(list(valid_positions_set), min(count, len(valid_positions_set)))
             for pos in positions:
                 level[pos] = obj_name
-                valid_positions.remove(pos)
+                valid_positions_set.remove(pos)
+
         self._level = level
         return self._level
