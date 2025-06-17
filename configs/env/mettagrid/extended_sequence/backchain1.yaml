@@ -30,15 +30,12 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:12,25,15}
-      height: ${sampling:12,25,15}
+      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: ${sampling:1,6,3}
       agents: ${div:${...num_agents},${..num_rooms}}
-      style: all-sparse
-
+      dir: ${choose:varied_terrain/sparse_small,varied_terrain/balanced_small,varied_terrain/dense_small,varied_terrain/maze_small}
       objects:
-        altar: ${sampling:1,2,3}
+        altar: 2
         mine.red: 0
         generator.red: 0
         mine.blue: 0
