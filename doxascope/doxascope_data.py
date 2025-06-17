@@ -26,25 +26,21 @@ logger = logging.getLogger(__name__)
 class DoxascopeLogger:
     """Logs memory vectors and position data for training doxascope networks."""
 
-    def __init__(self, doxascope_config, simulation_id: str):
+    def __init__(self, doxascope_config, simulation_id: str, policy_name: str = "default_policy"):
         self.enabled = doxascope_config.get("enabled", False)
         if not self.enabled:
             return
 
-        # Use the new directory structure
-        self.output_dir = Path(doxascope_config.get("output_dir", "./doxascope/data/raw_data/"))
+        # Use the new directory structure with policy_name
+        base_dir = Path(doxascope_config.get("output_dir", "./doxascope/data/raw_data/"))
+        self.output_dir = base_dir / policy_name
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Set up paths for both raw and preprocessed data
-        self.raw_data_dir = self.output_dir
-        self.preprocessed_dir = self.output_dir.parent / "preprocessed_data"
-        self.preprocessed_dir.mkdir(parents=True, exist_ok=True)
-
-        self.output_file = self.raw_data_dir / f"doxascope_data_{simulation_id}.json"
+        self.output_file = self.output_dir / f"doxascope_data_{simulation_id}.json"
         self.data = []
         self.timestep = 0
 
-        logger.info(f"Doxascope logging enabled, will save to {self.output_file}")
+        logger.info(f"Doxascope logging enabled for policy '{policy_name}', will save raw data to {self.output_file}")
 
     def log_timestep(
         self,

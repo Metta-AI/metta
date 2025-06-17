@@ -16,7 +16,7 @@ import seaborn as sns
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import confusion_matrix
 from torch.utils.data import DataLoader, Dataset, random_split
 
 
@@ -38,11 +38,6 @@ class DoxascopeNet(nn.Module):
     """
     Doxascope Neural Network Architecture
 
-    Design rationale:
-    1. Separate processing of LSTM hidden vs cell states
-    2. Attention mechanism to identify important memory dimensions
-    3. Dropout for regularization
-    4. Skip connections for gradient flow
     """
 
     def __init__(self, input_dim=512, hidden_dim=384, num_classes=5, dropout_rate=0.2):
@@ -55,7 +50,7 @@ class DoxascopeNet(nn.Module):
         # Assume input is [hidden_state, cell_state] concatenated
         lstm_state_dim = input_dim // 2
 
-        # Separate processing for hidden and cell states (CRUCIAL: +1.69% benefit)
+        # Separate processing for hidden and cell states
         self.hidden_processor = nn.Sequential(
             nn.Linear(lstm_state_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(dropout_rate)
         )
@@ -63,8 +58,6 @@ class DoxascopeNet(nn.Module):
         self.cell_processor = nn.Sequential(
             nn.Linear(lstm_state_dim, hidden_dim // 2), nn.GELU(), nn.Dropout(dropout_rate)
         )
-
-        # REMOVED: Attention mechanism (provided -0.19% benefit, simpler is better)
 
         # Main processing network
         self.main_net = nn.Sequential(
@@ -175,18 +168,20 @@ class DoxascopeTrainer:
 
         return total_loss / len(dataloader), 100.0 * correct / total, all_preds, all_targets
 
-    def train(self, train_loader, val_loader, num_epochs=100, lr=0.001):
+    def train(self, train_loader, val_loader, num_epochs=100, lr=0.001, optimizer=None, criterion=None):
         """Full training loop."""
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-5)
+        if criterion is None:
+            criterion = nn.CrossEntropyLoss()
+        if optimizer is None:
+            optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=1e-5)
+
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=10, factor=0.5)
 
         best_val_acc = 0
         patience_counter = 0
         patience = 20
 
-        print("🚀 Starting doxascope training...")
-        print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
+        print("Starting doxascope training...")
 
         for epoch in range(num_epochs):
             start_time = time.time()
@@ -237,21 +232,13 @@ class DoxascopeTrainer:
         """Analyze and visualize results."""
         # Get predictions
         _, test_acc, preds, targets = self.evaluate(test_loader, nn.CrossEntropyLoss())
-
         movement_names = ["Stay", "Up", "Down", "Left", "Right"]
-
-        print(f"\n📊 Final Test Accuracy: {test_acc:.2f}%")
-        print(f"📊 Random Baseline: {100 / len(movement_names):.2f}%")
-        print(f"📊 Improvement over random: {test_acc - 100 / len(movement_names):.2f}%")
-
-        # Classification report
-        print("\n📋 Classification Report:")
-        print(classification_report(targets, preds, target_names=movement_names))
 
         # Generate plots
         self.plot_training_curves()
         self.plot_confusion_matrix(targets, preds, movement_names)
-        self.analyze_attention_patterns(test_loader)
+
+        print(f"Final Test Accuracy: {test_acc:.2f}%")
 
         return test_acc
 
@@ -299,29 +286,6 @@ class DoxascopeTrainer:
         plt.savefig(self.output_dir / "confusion_matrix.png")
         plt.close()
 
-    def analyze_attention_patterns(self, test_loader):
-        """Analyze and visualize attention weights (dummy function for compatibility)."""
-        attention_path = self.output_dir / "attention_analysis.png"
-        if attention_path.exists():
-            return  # Avoid re-generating if it exists
-
-        # Since attention is removed, create a placeholder plot
-        plt.figure(figsize=(10, 6))
-        plt.text(
-            0.5,
-            0.5,
-            "Attention mechanism removed for optimization.\nNo analysis to display.",
-            ha="center",
-            va="center",
-            fontsize=12,
-            color="gray",
-        )
-        plt.title("Attention Analysis")
-        plt.xticks([])
-        plt.yticks([])
-        plt.savefig(attention_path)
-        plt.close()
-
 
 def train_doxascope(
     data_path: Path,
@@ -367,12 +331,3 @@ def train_doxascope(
     test_accuracy = trainer.analyze_results(test_loader)
 
     return trainer, test_accuracy
-
-
-if __name__ == "__main__":
-    # Example usage for direct execution
-    repo_root = Path(__file__).resolve().parent.parent.parent
-    train_doxascope(
-        data_path=repo_root / "doxascope/data/preprocessed_data/training_data.npz",
-        output_dir=repo_root / "doxascope/data/preprocessed_data/",
-    )
