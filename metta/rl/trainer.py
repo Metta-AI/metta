@@ -597,7 +597,6 @@ class MettaTrainer:
                 self.losses.policy_loss_sum += pg_loss.item()
                 self.losses.value_loss_sum += v_loss.item()
                 self.losses.entropy_sum += entropy_loss.item()
-                self.losses.old_approx_kl_sum += old_approx_kl.item()
                 self.losses.approx_kl_sum += approx_kl.item()
                 self.losses.clipfrac_sum += clipfrac.item()
                 self.losses.l2_reg_loss_sum += l2_reg_loss.item()
