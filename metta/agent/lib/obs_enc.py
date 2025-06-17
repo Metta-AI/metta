@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional
 
 import einops
 import torch
@@ -6,323 +6,6 @@ import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.lib.nn_layer_library import LayerBase
-
-
-class ObsTokenPadStripper(LayerBase):
-    """
-    This layer does not strip all padding. It finds the sequence (out of all sequences in the batch) that has the most
-    dense tokens, gets that index, and then slices the obs tensor at that point. That means that perfectly eliminates
-    the padding tokens from the the sequence with the fewest padding tokens and also removes that number of padding
-    tokens from all other sequences. In practice, the sequence with the most dense tokens can have many more dense
-    tokens than the average sequence so there is room for improvement by computing attention over ragged tensors.
-    """
-    def __init__(
-        self,
-        obs_shape: Tuple[int, ...],
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._obs_shape = obs_shape
-        self._M = obs_shape[0]
-
-    def _make_net(self) -> None:
-        # unfortunately, we can't know the output shape's 0th dim (seq length) until we see the data. however,
-        # downstream layers should not need to know this in initializing any of their learnable parameters.
-        # so we just set it to 0 for now.
-        self._out_tensor_shape = [0, 3]
-
-    def _forward(self, td: TensorDict) -> TensorDict:
-        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
-        observations = td.get("x")
-
-        B = observations.shape[0]
-        TT = 1
-        td["_B_"] = B
-        td["_TT_"] = TT
-        if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
-            TT = observations.shape[1]
-            td["_TT_"] = TT
-            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
-        td["_BxTT_"] = B * TT
-
-        coords = observations[..., 0]
-        obs_mask = coords == 255  # important! true means mask me
-
-        # 1) find each row's flip‐point
-        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
-
-        # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
-        max_flip = flip_pts.max()  # e.g. tensor(3, device='cuda')
-        if max_flip == 0:
-            max_flip = max_flip + self._M  # hack to avoid 0. should instead grab
-
-        # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
-        positions = torch.arange(self._M, device=obs_mask.device)
-
-        # 4) make a boolean column mask: keep all columns strictly before max_flip
-        keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
-
-        # 5) now "slice" your batch in one go, on the GPU:
-        observations = observations[:, keep_cols]  # shape [B, max_flip]
-        obs_mask = obs_mask[:, keep_cols]
-
-        td[self._name] = observations
-        td["obs_mask"] = obs_mask
-        return td
-
-
-class ObsTokenShaper(LayerBase):
-    def __init__(
-        self,
-        obs_shape: Tuple[int, ...],
-        atr_embed_dim: int,
-        feature_normalizations: list[float],
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._obs_shape = obs_shape
-        self._atr_embed_dim = atr_embed_dim  # Dimension of attribute embeddings
-        self._value_dim = 1
-        self._feat_dim = self._atr_embed_dim + self._value_dim
-        self.M = obs_shape[0]
-        self._feature_normalizations = list(feature_normalizations)
-        self._max_embeds = 256
-
-    def _make_net(self) -> None:
-        self._out_tensor_shape = [self.M, self._feat_dim]
-
-        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
-
-        # Coord byte supports up to 16x16, so 256 possible coord values
-        self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
-        nn.init.trunc_normal_(self._coord_embeds.weight, std=0.02)
-
-        # Create a tensor for feature normalizations
-        # We need to handle the case where atr_idx might be 0 (padding) or larger than defined normalizations.
-        # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
-        # Initialize with 1.0 to avoid division by zero for unmapped indices.
-        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
-        for i, val in enumerate(self._feature_normalizations):
-            if i < len(norm_tensor):  # Ensure we don't go out of bounds
-                norm_tensor[i] = val
-            else:
-                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
-        self.register_buffer("_norm_factors", norm_tensor)
-
-        return None
-
-    def _forward(self, td: TensorDict) -> TensorDict:
-        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
-        observations = td.get("x")
-
-        B = observations.shape[0]
-        TT = 1
-        td["_B_"] = B
-        td["_TT_"] = TT
-        if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
-            TT = observations.shape[1]
-            td["_TT_"] = TT
-            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
-            # observations = observations.flatten(0, 1)
-        M = observations.shape[1]
-        td["_BxTT_"] = B * TT
-
-        # transition_idx = atr_values.argmax(dim=0)
-
-        coords = observations[..., 0]
-        obs_mask = coords == 255  # important! true means mask me
-
-        # 1) find each row's flip‐point
-        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
-
-        # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
-        max_flip = flip_pts.max()  # e.g. tensor(3, device='cuda')
-        if max_flip == 0:
-            max_flip = max_flip + M  # hack to avoid 0. should instead grab
-
-        # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
-        positions = torch.arange(M, device=obs_mask.device)
-
-        # 4) make a boolean column mask: keep all columns strictly before max_flip
-        keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
-
-        # 5) now "slice" your batch in one go, on the GPU:
-        observations = observations[:, keep_cols]  # shape [B, max_flip]
-        obs_mask = obs_mask[:, keep_cols]
-
-        # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
-        coords_byte = observations[..., 0].to(torch.uint8)
-
-        # Extract x and y coordinate indices (0-15 range)
-        x_coord_indices = (coords_byte >> 4) & 0x0F  # Shape: [B_TT, M]
-        y_coord_indices = coords_byte & 0x0F  # Shape: [B_TT, M]
-
-        # Combine x and y indices to a single index for embedding lookup (0-255 range)
-        # Assuming 16 possible values for x (0-15)
-        combined_coord_indices = y_coord_indices * 16 + x_coord_indices
-        coord_pair_embedding = self._coord_embeds(combined_coord_indices.long())  # [B_TT, M, 4]
-
-        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-
-        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
-
-        combined_embeds = atr_embeds + coord_pair_embedding
-
-        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
-
-        # Gather normalization factors based on atr_indices
-        norm_factors = self._norm_factors[atr_indices]  # Shape: [B_TT, M]
-
-        # Normalize atr_values
-        # no epsilon to prevent division by zero - we want to fail if we have a bad normalization
-        normalized_atr_values = atr_values / (norm_factors)
-        normalized_atr_values = normalized_atr_values.unsqueeze(-1)  # Shape: [B_TT, M, 1]
-
-        # Assemble feature vectors
-        # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
-        feat_vectors = torch.empty(
-            (*atr_embeds.shape[:-1], self._feat_dim),
-            dtype=atr_embeds.dtype,
-            device=atr_embeds.device,
-        )
-        # Combined embedding portion
-        feat_vectors[..., : self._atr_embed_dim] = combined_embeds
-        feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = normalized_atr_values
-
-        td[self._name] = feat_vectors
-        td["obs_mask"] = obs_mask
-        return td
-
-
-class ObsTokenShaperValueEmbed(LayerBase):
-    def __init__(
-        self,
-        obs_shape: Tuple[int, ...],
-        atr_embed_dim: int,
-        feature_normalizations: list[float],
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._obs_shape = obs_shape
-        self._atr_embed_dim = atr_embed_dim  # Dimension of attribute embeddings
-        self._value_dim = 1
-        self._feat_dim = self._atr_embed_dim + self._value_dim
-        self.M = obs_shape[0]
-        self._feature_normalizations = list(feature_normalizations)
-        self._max_embeds = 256
-
-    def _make_net(self) -> None:
-        self._out_tensor_shape = [self.M, self._feat_dim]
-
-        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
-
-        # Coord byte supports up to 16x16, so 256 possible coord values
-        self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
-        nn.init.trunc_normal_(self._coord_embeds.weight, std=0.02)
-
-        self._val_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
-        nn.init.trunc_normal_(self._val_embeds.weight, std=0.02)
-
-        # Create a tensor for feature normalizations
-        # We need to handle the case where atr_idx might be 0 (padding) or larger than defined normalizations.
-        # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
-        # Initialize with 1.0 to avoid division by zero for unmapped indices.
-        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
-        for i, val in enumerate(self._feature_normalizations):
-            if i < len(norm_tensor):  # Ensure we don't go out of bounds
-                norm_tensor[i] = val
-            else:
-                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
-        self.register_buffer("_norm_factors", norm_tensor)
-
-        return None
-
-    def _forward(self, td: TensorDict) -> TensorDict:
-        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
-        observations = td.get("x")
-
-        B = observations.shape[0]
-        TT = 1
-        td["_B_"] = B
-        td["_TT_"] = TT
-        if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
-            TT = observations.shape[1]
-            td["_TT_"] = TT
-            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
-            # observations = observations.flatten(0, 1)
-        td["_BxTT_"] = B * TT
-        M = observations.shape[1]
-
-        coords = observations[..., 0]
-        obs_mask = coords == 255  # important! true means mask me
-
-        # 1) find each row's flip‐point
-        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
-
-        # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
-        max_flip = flip_pts.max()  # e.g. tensor(3, device='cuda')
-        if max_flip == 0:
-            max_flip = max_flip + M  # hack to avoid 0. should instead grab
-
-        # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
-        positions = torch.arange(M, device=obs_mask.device)
-
-        # 4) make a boolean column mask: keep all columns strictly before max_flip
-        keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
-
-        # 5) now "slice" your batch in one go, on the GPU:
-        observations = observations[:, keep_cols]  # shape [B, max_flip]
-        obs_mask = obs_mask[:, keep_cols]
-
-        # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
-        coords_byte = observations[..., 0].to(torch.uint8)
-
-        # Extract x and y coordinate indices (0-15 range)
-        x_coord_indices = (coords_byte >> 4) & 0x0F  # Shape: [B_TT, M]
-        y_coord_indices = coords_byte & 0x0F  # Shape: [B_TT, M]
-
-        # Combine x and y indices to a single index for embedding lookup (0-255 range)
-        # Assuming 16 possible values for x (0-15)
-        combined_coord_indices = y_coord_indices * 16 + x_coord_indices
-        coord_pair_embedding = self._coord_embeds(combined_coord_indices.long())  # [B_TT, M, 4]
-
-        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
-
-        # The attribute value is treated as a categorical variable for embedding.
-        val_indices = observations[..., 2].long()
-        # Clip values to be within the embedding range to avoid errors, e.g. if a value is 256 for _max_embeds=256
-        val_indices = torch.clamp(val_indices, 0, self._max_embeds - 1)
-        val_embeds = self._val_embeds(val_indices)
-
-        combined_embeds = atr_embeds + coord_pair_embedding + val_embeds
-
-        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
-
-        # Gather normalization factors based on atr_indices
-        norm_factors = self._norm_factors[atr_indices]  # Shape: [B_TT, M]
-
-        # Normalize atr_values
-        # no epsilon to prevent division by zero - we want to fail if we have a bad normalization
-        normalized_atr_values = atr_values / (norm_factors)
-        normalized_atr_values = normalized_atr_values.unsqueeze(-1)  # Shape: [B_TT, M, 1]
-
-        # Assemble feature vectors
-        # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
-        feat_vectors = torch.empty(
-            (*atr_embeds.shape[:-1], self._feat_dim),
-            dtype=atr_embeds.dtype,
-            device=atr_embeds.device,
-        )
-        # Combined embedding portion
-        feat_vectors[..., : self._atr_embed_dim] = combined_embeds
-        feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = normalized_atr_values
-
-        td[self._name] = feat_vectors
-        td["obs_mask"] = obs_mask
-        return td
 
 
 class ObsVanillaAttn(LayerBase):
@@ -335,6 +18,7 @@ class ObsVanillaAttn(LayerBase):
         use_mask: bool = False,
         num_layers: int = 1,
         num_heads: int = 1,
+        use_cls_token: bool = False,
         **cfg,
     ) -> None:
         super().__init__(**cfg)
@@ -342,10 +26,10 @@ class ObsVanillaAttn(LayerBase):
         self._use_mask = use_mask
         self._num_layers = num_layers
         self._num_heads = num_heads
+        self._use_cls_token = use_cls_token
 
     def _make_net(self) -> None:
         # we expect input shape to be [B, M, feat_dim]
-        self._M = self._in_tensor_shapes[0][0]
         self._feat_dim = self._in_tensor_shapes[0][1]
 
         if self._feat_dim % self._num_heads != 0:
@@ -353,7 +37,10 @@ class ObsVanillaAttn(LayerBase):
 
         self._scale = (self._feat_dim // self._num_heads) ** -0.5
 
-        self._out_tensor_shape = [self._M, self._out_dim]
+        self._out_tensor_shape = [0, self._out_dim]
+        if self._use_cls_token:
+            self._out_tensor_shape = [self._out_dim]
+            self._cls_token = nn.Parameter(torch.randn(1, 1, self._feat_dim))
 
         self.layer_norms_1 = nn.ModuleList([nn.LayerNorm(self._feat_dim) for _ in range(self._num_layers)])
         self.q_projs = nn.ModuleList()
@@ -378,9 +65,14 @@ class ObsVanillaAttn(LayerBase):
 
     def _forward(self, td: TensorDict) -> TensorDict:
         x_features = td[self._sources[0]["name"]]
+        if self._use_cls_token:
+            x_features = torch.cat([self._cls_token.expand(x_features.shape[0], -1, -1), x_features], dim=1)
+
         key_mask = None
         if self._use_mask:
             key_mask = td["obs_mask"]  # True for elements to be masked
+            if self._use_cls_token:
+                key_mask = torch.cat([torch.zeros(key_mask.shape[0], 1, device=key_mask.device), key_mask], dim=1)
 
         x = x_features
         for i in range(self._num_layers):
@@ -416,15 +108,18 @@ class ObsVanillaAttn(LayerBase):
 
             x = x_res + attn_output
 
-        x_norm2 = self._layer_norm_2(x)
+        x = self._layer_norm_2(x)
 
-        output = self._final_proj(x_norm2)
+        x = self._final_proj(x)
 
-        td[self._name] = output
+        if self._use_cls_token:
+            x = x[:, 0]
+
+        td[self._name] = x
         return td
 
 
-class ObsCrossAttn(LayerBase):
+class ObsLatentAttn(LayerBase):
     """
     Performs multi-layer cross-attention between learnable query tokens and input features.
 
@@ -433,10 +128,12 @@ class ObsCrossAttn(LayerBase):
     queries to iteratively attend to the input features `x_features`.
 
     !!! Note About Output Shape: !!!
-    The output shape depends on the `num_query_tokens` parameter:
-    - If `num_query_tokens == 1`, the output tensor shape will be `[B, out_dim]`,
-      where B is the batch-time dimension (B_TT).
-    - If `num_query_tokens > 1`, the output tensor shape will be `[B, num_query_tokens, out_dim]`.
+    The output shape depends on the `_use_cls_token` parameter:
+    - If `_use_cls_token == True`, the output tensor shape will be `[B_TT, out_dim]`.
+    - If `_use_cls_token == False`, the output tensor shape will be `[B_TT, num_query_tokens, out_dim]`.
+    So, if true, it's setup to pass directly to the LSTM. But that also means that it will be in an invalid shape to
+    pass to another attention layer. In other words, if _use_cls_token == True, then this should be the last layer of
+    the encoder (because why else use the cls token?).
 
     Key Functionality (per layer):
     1. Multi-Head Cross-Attention: The current query tokens attend to the full sequence of
@@ -489,6 +186,7 @@ class ObsCrossAttn(LayerBase):
         qk_dim: Optional[int] = None,
         v_dim: Optional[int] = None,
         mlp_ratio: float = 4.0,
+        use_cls_token: bool = False,
         **cfg,
     ) -> None:
         super().__init__(**cfg)
@@ -498,12 +196,21 @@ class ObsCrossAttn(LayerBase):
         self._num_heads = num_heads
         self._num_layers = num_layers
         self._query_token_dim = query_token_dim
+        assert self._num_query_tokens > 0, "num_query_tokens must be greater than 0"
         self._qk_dim = qk_dim
         self._v_dim = v_dim
         self._mlp_ratio = mlp_ratio
+        self._use_cls_token = use_cls_token  # simply output one latent token (the same one)
+        self._scale = (self._qk_dim // self._num_heads) ** -0.5
+
+        if self._num_layers > 1 and self._query_token_dim != self._v_dim:
+            raise ValueError(
+                f"For multi-layer cross attention (num_layers > 1), query_token_dim ({self._query_token_dim}) must"
+                f"equal v_dim ({self._v_dim}) for residual connections."
+            )
 
     def _make_net(self) -> None:
-        # we expect input shape to be [B, M, feat_dim]
+        # we expect input shape to be [B, M, feat_dim] where we don't know M
         self._feat_dim = self._in_tensor_shapes[0][1]
 
         if self._query_token_dim is None:
@@ -513,22 +220,14 @@ class ObsCrossAttn(LayerBase):
         if self._v_dim is None:
             self._v_dim = self._query_token_dim
 
-        if self._num_layers > 1 and self._query_token_dim != self._v_dim:
-            raise ValueError(
-                f"For multi-layer cross attention (num_layers > 1), query_token_dim ({self._query_token_dim}) must equal v_dim ({self._v_dim}) for residual connections."
-            )
-
         if self._qk_dim % self._num_heads != 0:
             raise ValueError(f"qk_dim ({self._qk_dim}) must be divisible by num_heads ({self._num_heads})")
         if self._v_dim % self._num_heads != 0:
             raise ValueError(f"v_dim ({self._v_dim}) must be divisible by num_heads ({self._num_heads})")
 
-        self._scale = (self._qk_dim // self._num_heads) ** -0.5
-
-        if self._num_query_tokens == 1:
+        self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
+        if self._use_cls_token:
             self._out_tensor_shape = [self._out_dim]
-        else:
-            self._out_tensor_shape = [self._num_query_tokens, self._out_dim]
 
         self._q_token = nn.Parameter(torch.randn(1, self._num_query_tokens, self._query_token_dim))
         nn.init.trunc_normal_(self._q_token, std=0.02)
@@ -571,6 +270,14 @@ class ObsCrossAttn(LayerBase):
             key_mask = td["obs_mask"]
         B_TT = td["_BxTT_"]
 
+        # Check if we're working with nested tensors
+        is_nested = td.get("is_nested", False)
+
+        if is_nested:
+            # Handle nested tensors with torch.compile-friendly operations
+            # For nested tensors, we need to process them differently
+            return self._forward_nested(td, x_features, B_TT)
+
         queries = self._q_token.expand(B_TT, -1, -1)
 
         kv_norm = self.norm_kv(x_features)
@@ -610,20 +317,80 @@ class ObsCrossAttn(LayerBase):
         x = self.final_norm(queries)
         x = self.output_proj(x)
 
-        if self._num_query_tokens == 1:
-            # Reshape [B_TT, 1, self._out_dim] to [B_TT, self._out_dim]
-            # This explicitly removes the middle dimension of size 1.
-            x = einops.rearrange(x, "btt 1 d -> btt d")
-        # Else (num_query_tokens > 1), x is already [B_TT, self._num_query_tokens, self._out_dim]
-        # and this shape is consistent with self._out_tensor_shape (plus batch dim).
+        if self._use_cls_token:
+            # Select first query token from [B_TT, num_query_tokens, self._out_dim] to [B_TT, self._out_dim]
+            x = x[:, 0]
 
         td[self._name] = x
         return td
 
+    def _forward_nested(self, td: TensorDict, x_features, B_TT):
+        """Handle forward pass for nested tensors."""
+        # For nested tensors, we'll use scaled_dot_product_attention which supports nested tensors
+
+        # Convert nested tensor list for processing
+        features_list = list(x_features.unbind())
+        output_list = []
+
+        # Process each sequence in the batch
+        for feat in features_list:
+            # feat shape: [seq_len, feat_dim]
+            feat = feat.unsqueeze(0)  # Add batch dimension: [1, seq_len, feat_dim]
+
+            # Initialize query for this sequence
+            queries = self._q_token  # [1, num_query_tokens, query_token_dim]
+
+            # Normalize and project keys/values
+            kv_norm = self.norm_kv(feat)
+            k_p = self.k_proj(kv_norm)  # [1, seq_len, qk_dim]
+            v_p = self.v_proj(kv_norm)  # [1, seq_len, v_dim]
+
+            # Reshape for multi-head attention
+            k_p = einops.rearrange(k_p, "b m (h d) -> b h m d", h=self._num_heads)
+            v_p = einops.rearrange(v_p, "b m (h d) -> b h m d", h=self._num_heads)
+
+            # Process through layers
+            for layer in self.layers:
+                # Attention block
+                queries_res = queries
+                queries_norm = layer["norm1"](queries)
+                q_p = layer["q_proj"](queries_norm)
+                q_p = einops.rearrange(q_p, "b q (h d) -> b h q d", h=self._num_heads)
+
+                # Use scaled_dot_product_attention for efficiency
+                attn_output = torch.nn.functional.scaled_dot_product_attention(
+                    q_p, k_p, v_p, dropout_p=0.0, scale=self._scale
+                )
+                attn_output = einops.rearrange(attn_output, "b h q d -> b q (h d)")
+                attn_output = layer["attn_out_proj"](attn_output)
+
+                queries = queries_res + attn_output
+
+                # MLP block
+                queries_res = queries
+                queries_norm = layer["norm2"](queries)
+                mlp_output = layer["mlp"](queries_norm)
+                queries = queries_res + mlp_output
+
+            # Final processing
+            x = self.final_norm(queries)
+            x = self.output_proj(x)
+
+            if self._use_cls_token:
+                x = x[:, 0]  # [1, out_dim]
+                output_list.append(x.squeeze(0))  # Remove batch dimension
+            else:
+                output_list.append(x.squeeze(0))  # [num_query_tokens, out_dim]
+
+        # Stack outputs back into a regular tensor since we're outputting fixed-size features
+        output = torch.stack(output_list, dim=0)  # [B_TT, out_dim] or [B_TT, num_query_tokens, out_dim]
+
+        td[self._name] = output
+        td["is_nested"] = False  # Output is no longer nested
+        return td
+
 
 class ObsSlotAttn(LayerBase):
-    """Future work: replace slot nn.Parameter with nn.Embedding"""
-
     def __init__(
         self,
         num_slots: int,
@@ -836,149 +603,4 @@ class ObsTransformerEncoder(LayerBase):
         output = self.output_proj(cls_output)  # [B_TT, out_dim]
 
         td[self._name] = output
-        return td
-
-
-class ObsTokenCatFourier(LayerBase):
-    """Concatenate attr embeds w coord embeds. Coord embeds are Fourier features."""
-
-    def __init__(
-        self,
-        obs_shape: Tuple[int, ...],
-        atr_embed_dim: int,
-        feature_normalizations: list[float],
-        num_freqs: int = 3,
-        **cfg,
-    ) -> None:
-        super().__init__(**cfg)
-        self._obs_shape = obs_shape
-        self._atr_embed_dim = atr_embed_dim  # Dimension of attribute embeddings
-        self._num_freqs = num_freqs  # fourier feature frequencies
-        self._coord_embed_dim = 4 * self._num_freqs  # x, y, sin, cos for each freq
-        self._value_dim = 1
-        self._feat_dim = self._atr_embed_dim + self._coord_embed_dim + self._value_dim
-        self.M = obs_shape[0]
-        self._feature_normalizations = list(feature_normalizations)
-        self._max_embeds = 256
-        self._mu = 11.0  # hardcoding 11 as the max coord value for now (range 0-10). can grab from mettagrid_env.py
-
-    def _make_net(self) -> None:
-        self._out_tensor_shape = [self.M, self._feat_dim]
-
-        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
-
-        # Create a tensor for feature normalizations
-        # We need to handle the case where atr_idx might be 0 (padding) or larger than defined normalizations.
-        # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
-        # Initialize with 1.0 to avoid division by zero for unmapped indices.
-        norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
-        for i, val in enumerate(self._feature_normalizations):
-            if i < len(norm_tensor):  # Ensure we don't go out of bounds
-                norm_tensor[i] = val
-            else:
-                raise ValueError(f"Feature normalization {val} is out of bounds for Embedding layer size {i}")
-        self.register_buffer("_norm_factors", norm_tensor)
-        self.register_buffer("frequencies", 2.0 ** torch.arange(self._num_freqs))
-
-        return None
-
-    def _forward(self, td: TensorDict) -> TensorDict:
-        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
-        observations = td.get("x")
-
-        B = observations.shape[0]
-        TT = 1
-        td["_B_"] = B
-        td["_TT_"] = TT
-        if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
-            TT = observations.shape[1]
-            td["_TT_"] = TT
-            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
-            # observations = observations.flatten(0, 1)
-        td["_BxTT_"] = B * TT
-        M = observations.shape[1]
-
-        coords = observations[..., 0]
-        obs_mask = coords == 255  # important! true means mask me
-
-        # 1) find each row's flip‐point
-        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
-
-        # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
-        max_flip = flip_pts.max()  # e.g. tensor(3, device='cuda')
-        if max_flip == 0:
-            max_flip = max_flip + M  # hack to avoid 0. should instead grab
-
-        # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
-        positions = torch.arange(M, device=obs_mask.device)
-
-        # 4) make a boolean column mask: keep all columns strictly before max_flip
-        keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
-
-        # 5) now "slice" your batch in one go, on the GPU:
-        observations = observations[:, keep_cols]  # shape [B, max_flip]
-        obs_mask = obs_mask[:, keep_cols]
-
-        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
-
-        # Assemble feature vectors
-        # Pre-allocating the tensor and filling it avoids multiple `torch.cat` calls,
-        # which can be more efficient on GPU.
-        feat_vectors = torch.empty(
-            (*atr_embeds.shape[:-1], self._feat_dim),
-            dtype=atr_embeds.dtype,
-            device=atr_embeds.device,
-        )
-        feat_vectors[..., : self._atr_embed_dim] = atr_embeds
-
-        # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
-        coords_byte = observations[..., 0].to(torch.uint8)
-
-        # Extract x and y coordinate indices (0-15 range)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).float()  # Shape: [B_TT, M]
-        y_coord_indices = (coords_byte & 0x0F).float()  # Shape: [B_TT, M]
-
-        # Normalize coordinates to [-1, 1] based on the data range [0, 10]
-        x_coords_norm = x_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
-        y_coords_norm = y_coord_indices / (self._mu - 1.0) * 2.0 - 1.0
-
-        # Expand dims for broadcasting with frequencies
-        x_coords_norm = x_coords_norm.unsqueeze(-1)  # [B_TT, M, 1]
-        y_coords_norm = y_coords_norm.unsqueeze(-1)  # [B_TT, M, 1]
-
-        # Get frequencies and reshape for broadcasting
-        # self.frequencies is [f], reshape to [1, 1, f]
-        frequencies = self.get_buffer("frequencies").view(1, 1, -1)
-
-        # Compute scaled coordinates for Fourier features
-        x_scaled = x_coords_norm * frequencies
-        y_scaled = y_coords_norm * frequencies
-
-        # Compute and place Fourier features directly into the feature vector
-        offset = self._atr_embed_dim
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(x_scaled)
-        offset += self._num_freqs
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(x_scaled)
-        offset += self._num_freqs
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(y_scaled)
-        offset += self._num_freqs
-        feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(y_scaled)
-
-        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
-
-        # Gather normalization factors based on atr_indices
-        norm_factors = self._norm_factors[atr_indices]  # Shape: [B_TT, M]
-
-        # Normalize atr_values
-        # no epsilon to prevent division by zero - we want to fail if we have a bad normalization
-        normalized_atr_values = atr_values / (norm_factors)
-        normalized_atr_values = normalized_atr_values.unsqueeze(-1)  # Shape: [B_TT, M, 1]
-
-        # Place normalized attribute values in the feature vector
-        feat_vectors[..., self._atr_embed_dim + self._coord_embed_dim :] = normalized_atr_values
-
-        td[self._name] = feat_vectors
-        td["obs_mask"] = obs_mask
         return td
