@@ -260,13 +260,13 @@ class MettaTrainer:
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                with self.timer("_checkpoint_trainer", log=logging.INFO):
+                with self.timer("_checkpoint_trainer", log_level=logging.INFO):
                     self._checkpoint_trainer()
 
             eval_metrics = {}
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                with self.timer("_evaluate_policy", log=logging.INFO):
-                    eval_metrics = self._evaluate_policy()
+                with self.timer("_evaluate_policy", log_level=logging.INFO):
+                    self._evaluate_policy()
 
             # Processing stats
             with self.timer("_process_stats"):
@@ -283,7 +283,7 @@ class MettaTrainer:
                 self._update_l2_init_weight_copy()
 
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
-                with self.timer("_generate_and_upload_replay", log=logging.INFO):
+                with self.timer("_generate_and_upload_replay", log_level=logging.INFO):
                     self._generate_and_upload_replay()
 
             self._on_train_step()
