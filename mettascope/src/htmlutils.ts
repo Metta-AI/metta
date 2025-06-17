@@ -1,4 +1,4 @@
-/** Parse a hex color string into a float array. */
+/** Parses a hex color string into a float array. */
 export function parseHtmlColor(color: string): [number, number, number, number] {
   return [
     parseInt(color.slice(1, 3), 16) / 255,
@@ -8,7 +8,7 @@ export function parseHtmlColor(color: string): [number, number, number, number] 
   ];
 }
 
-/** Find an element by css selector in a parent element. */
+/** Finds an element by CSS selector in a parent element. */
 export function findIn(parent: HTMLElement, selector: string): HTMLElement {
   const elements = parent.querySelectorAll(selector);
   if (elements.length === 0) {
@@ -19,17 +19,17 @@ export function findIn(parent: HTMLElement, selector: string): HTMLElement {
   return elements[0] as HTMLElement;
 }
 
-/** Find an element by css selector. */
+/** Finds an element by CSS selector. */
 export function find(selector: string): HTMLElement {
   return findIn(window.document.body, selector);
 }
 
-/** Find multiple elements by css selector. */
+/** Finds multiple elements by CSS selector. */
 export function finds(selector: string): HTMLElement[] {
   return Array.from(document.querySelectorAll(selector));
 }
 
-/** Remove all children of an element. */
+/** Removes all children of an element. */
 export function removeChildren(element: HTMLElement) {
   while (element.firstChild) {
     element.removeChild(element.firstChild);
@@ -50,9 +50,9 @@ export function findAttr(element: HTMLElement, attribute: string): string {
 
 
 /**
- * I don't like the way that DOM handles events. I think they should be done
- * via CSS selectors rather then handlers one attaches and detaches all the time.
- * Here we have an onEvent function that attaches to a CSS selector and
+ * I don't like how the DOM handles events. I think they should be done
+ * via CSS selectors rather than handlers that one attaches and detaches all the time.
+ * Here, we have an onEvent function that attaches to a CSS selector and
  * is called when that event happens.
  */
 
@@ -71,7 +71,7 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
     callback: callback
   };
   if (!globalHandlers.has(event)) {
-    // First time we've seen this event.
+    // This is the first time we've seen this event.
     window.addEventListener(event, (e: Event) => {
       if (event == "click") {
         hideMenu();
@@ -105,7 +105,7 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
 var openMenuTarget: HTMLElement | null = null;
 var openMenu: HTMLElement | null = null;
 
-/** Shows a menu and sets the scrim target to the menu. */
+/** Shows a menu and sets the "scrim" target to the menu. */
 export function showMenu(target: HTMLElement, menu: HTMLElement) {
 
   // Hide any other open menu.
@@ -119,11 +119,11 @@ export function showMenu(target: HTMLElement, menu: HTMLElement) {
   openMenu.style.left = rect.left + "px";
   openMenu.style.top = (rect.bottom + 2) + "px";
   openMenu.classList.remove("hidden");
-  // Bring menu to front (move to the end of the sibling list)
+  // Bring the menu to the front (move it to the end of the sibling list).
   openMenu.parentElement?.appendChild(openMenu);
 }
 
-/** Hides the menu and the scrim. */
+/** Hides the menu and the "scrim". */
 export function hideMenu() {
   if (openMenuTarget != null) {
     openMenuTarget.classList.remove("selected");
@@ -146,7 +146,7 @@ onEvent("click", "#scrim", (target: HTMLElement, event: Event) => {
   hideDropdown();
 });
 
-/** Shows a dropdown and sets the scrim target to the dropdown. */
+/** Shows a dropdown and sets the "scrim" target to the dropdown. */
 export function showDropdown(target: HTMLElement, dropdown: HTMLElement) {
   hideDropdown();
   openDropdown = dropdown;
@@ -158,7 +158,7 @@ export function showDropdown(target: HTMLElement, dropdown: HTMLElement) {
   scrim.classList.remove("hidden");
 }
 
-/** Hides the dropdown and the scrim. */
+/** Hides the dropdown and the "scrim". */
 export function hideDropdown() {
   if (openDropdownTarget != null) {
     openDropdownTarget.classList.remove("selected");
@@ -172,7 +172,7 @@ export function hideDropdown() {
 }
 
 
-/** Get number out of local storage with a default value. */
+/** Gets a number from local storage with a default value. */
 export function localStorageGetNumber(key: string, defaultValue: number): number {
   let value = localStorage.getItem(key);
   if (value == null) {
@@ -181,12 +181,12 @@ export function localStorageGetNumber(key: string, defaultValue: number): number
   return parseFloat(value);
 }
 
-/** Set number in local storage. */
+/** Sets a number in local storage. */
 export function localStorageSetNumber(key: string, value: number) {
   localStorage.setItem(key, value.toString());
 }
 
-/** Get a whole data structure from local storage. */
+/** Gets a whole data structure from local storage. */
 export function localStorageGetObject<T>(key: string, defaultValue: T): T {
   let value = localStorage.getItem(key);
   if (value == null) {
@@ -195,7 +195,7 @@ export function localStorageGetObject<T>(key: string, defaultValue: T): T {
   return JSON.parse(value);
 }
 
-/** Set a whole data structure in local storage. */
+/** Sets a whole data structure in local storage. */
 export function localStorageSetObject<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }

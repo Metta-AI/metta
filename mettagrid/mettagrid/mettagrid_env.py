@@ -82,6 +82,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
         self.labels = self._task.env_cfg().get("labels", None)
         self._should_reset = False
+        self._num_episodes = 0
 
         self._initialize_c_env()
         super().__init__(buf)
@@ -126,6 +127,16 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
 
+        # During training, we run a lot of envs in parallel, and it's better if they are not
+        # all synced together. The desync_episodes flag is used to desync the episodes.
+        # Ideally vecenv would have a way to desync the episodes, but it doesn't.
+        if self._num_episodes == 0 and task.env_cfg().desync_episodes:
+            max_steps = int(task.env_cfg().game.max_steps)
+            config_game = cast(Dict[str, Any], config_dict.get("game", {}))
+            config_game["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            config_dict["game"] = config_game
+            logger.info(f"Desync episode with max_steps {config_game['max_steps']}")
+
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
@@ -139,6 +150,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         self._task = self._curriculum.get_task()
 
         self._initialize_c_env()
+        self._num_episodes += 1
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals

@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from collections import defaultdict
-from types import SimpleNamespace
+from typing import Any
 
 import einops
 import numpy as np
@@ -11,26 +11,28 @@ import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib import unroll_nested_dict
+from wandb.sdk import wandb_run
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.experience import Experience
 from metta.rl.fast_gae import compute_gae
-from metta.rl.pufferlib.experience import Experience
-from metta.rl.pufferlib.kickstarter import Kickstarter
-from metta.rl.pufferlib.policy import PufferAgent
-from metta.rl.pufferlib.profile import Profile, profile_section
-from metta.rl.pufferlib.torch_profiler import TorchProfiler
-from metta.rl.pufferlib.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.kickstarter import Kickstarter
+from metta.rl.losses import Losses
+from metta.rl.policy import PytorchAgent
+from metta.rl.profile import Profile, profile_section
+from metta.rl.torch_profiler import TorchProfiler
+from metta.rl.trainer_checkpoint import TrainerCheckpoint
+from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.sim.vecenv import make_vecenv
-from metta.util.timing import Stopwatch
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from mettagrid.util.stopwatch import Stopwatch
 
 torch.set_float32_matmul_precision("high")
 
@@ -40,14 +42,14 @@ local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
-class PufferTrainer:
+class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig | ListConfig,
-        wandb_run,
+        wandb_run: wandb_run.Run | None,
         policy_store: PolicyStore,
         sim_suite_config: SimulationSuiteConfig,
-        **kwargs,
+        **kwargs: Any,
     ):
         self.cfg = cfg
         self.trainer_cfg = cfg.trainer
@@ -72,7 +74,7 @@ class PufferTrainer:
 
         self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
-        self.losses = self._make_losses()
+        self.losses = Losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
@@ -83,8 +85,7 @@ class PufferTrainer:
         self._eval_categories = set()
 
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
-        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
-        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+        self._curriculum = curriculum_from_config_path(curriculum_config, self.trainer_cfg.env_overrides)
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -124,7 +125,7 @@ class PufferTrainer:
         assert policy_record is not None, "No policy found"
 
         if self._master:
-            logger.info(f"PufferTrainer loaded: {policy_record.policy()}")
+            logger.info(f"MettaTrainer loaded: {policy_record.policy()}")
 
         self._initial_pr = policy_record
         self.last_pr = policy_record
@@ -174,7 +175,7 @@ class PufferTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), self.metta_agent
+        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
@@ -215,18 +216,12 @@ class PufferTrainer:
             for k in ["0verview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
-        self.replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        logger.info(f"PufferTrainer initialization complete on device: {self.device}")
+        logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
-    def train(self):
+    def train(self) -> None:
         logger.info("Starting training")
 
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
@@ -267,11 +262,11 @@ class PufferTrainer:
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                with self.timer("_checkpoint_trainer", log=logging.INFO):
+                with self.timer("_checkpoint_trainer", log_level=logging.INFO):
                     self._checkpoint_trainer()
 
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                with self.timer("_evaluate_policy", log=logging.INFO):
+                with self.timer("_evaluate_policy", log_level=logging.INFO):
                     self._evaluate_policy()
 
             self.torch_profiler.on_epoch_end(self.epoch)
@@ -287,7 +282,7 @@ class PufferTrainer:
                 self._update_l2_init_weight_copy()
 
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
-                with self.timer("_generate_and_upload_replay", log=logging.INFO):
+                with self.timer("_generate_and_upload_replay", log_level=logging.INFO):
                     self._generate_and_upload_replay()
 
             self._on_train_step()
@@ -456,7 +451,7 @@ class PufferTrainer:
     @profile_section("train")
     def _train(self):
         experience, profile = self.experience, self.profile
-        self.losses = self._make_losses()
+        self.losses.zero()
         self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         steps_since_last = self.agent_step - self._last_agent_step
         self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
@@ -494,7 +489,6 @@ class PufferTrainer:
             experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
-        total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         for _epoch in range(self.trainer_cfg.update_epochs):
             lstm_state = PolicyState()
             teacher_lstm_state = []
@@ -589,22 +583,21 @@ class PufferTrainer:
                         torch.cuda.synchronize()
 
                 with profile.train_misc:
-                    if self.losses is None:
-                        raise ValueError("self.losses is None")
-
-                    self.losses.policy_loss += pg_loss.item() / total_minibatches
-                    self.losses.value_loss += v_loss.item() / total_minibatches
-                    self.losses.entropy += entropy_loss.item() / total_minibatches
-                    self.losses.old_approx_kl += old_approx_kl.item() / total_minibatches
-                    self.losses.approx_kl += approx_kl.item() / total_minibatches
-                    self.losses.clipfrac += clipfrac.item() / total_minibatches
-                    self.losses.l2_reg_loss += l2_reg_loss.item() / total_minibatches
-                    self.losses.l2_init_loss += l2_init_loss.item() / total_minibatches
-                    self.losses.ks_action_loss += ks_action_loss.item() / total_minibatches
-                    self.losses.ks_value_loss += ks_value_loss.item() / total_minibatches
+                    self.losses.policy_loss_sum += pg_loss.item()
+                    self.losses.value_loss_sum += v_loss.item()
+                    self.losses.entropy_sum += entropy_loss.item()
+                    self.losses.old_approx_kl_sum += old_approx_kl.item()
+                    self.losses.approx_kl_sum += approx_kl.item()
+                    self.losses.clipfrac_sum += clipfrac.item()
+                    self.losses.l2_reg_loss_sum += l2_reg_loss.item()
+                    self.losses.l2_init_loss_sum += l2_init_loss.item()
+                    self.losses.ks_action_loss_sum += ks_action_loss.item()
+                    self.losses.ks_value_loss_sum += ks_value_loss.item()
+                    self.losses.minibatches_processed += 1
 
             if self.trainer_cfg.target_kl is not None:
-                if approx_kl > self.trainer_cfg.target_kl:
+                average_approx_kl = self.losses.approx_kl_sum / self.losses.minibatches_processed
+                if average_approx_kl > self.trainer_cfg.target_kl:
                     break
 
         with profile.train_misc:
@@ -615,7 +608,7 @@ class PufferTrainer:
             y_true = experience.returns_np
             var_y = np.var(y_true)
             explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-            self.losses.explained_variance = explained_var
+            self.losses.explained_variance = float(explained_var)
             self.epoch += 1
 
             profile.update_stats(
@@ -638,7 +631,7 @@ class PufferTrainer:
             self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
         ).save(self.cfg.run_dir)
 
-    def _checkpoint_policy(self):
+    def _checkpoint_policy(self) -> PolicyRecord | None:
         if not self._master:
             return
 
@@ -685,11 +678,16 @@ class PufferTrainer:
 
     def _generate_and_upload_replay(self):
         if self._master:
+            replay_sim_config = SingleEnvSimulationConfig(
+                env="/env/mettagrid/mettagrid",
+                num_episodes=1,
+                env_overrides=self._curriculum.get_task().env_cfg(),
+            )
             logger.info("Generating and saving a replay to wandb and S3.")
 
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
-                config=self.replay_sim_config,
+                config=replay_sim_config,
                 policy_pr=self.last_pr,
                 policy_store=self.policy_store,
                 device=self.device,
@@ -742,7 +740,7 @@ class PufferTrainer:
             self._last_agent_step = agent_steps
         epoch = self.epoch
         learning_rate = self.optimizer.param_groups[0]["lr"]
-        losses = {k: v for k, v in vars(self.losses).items() if not k.startswith("_")}
+
         performance = {k: v for k, v in self.profile}
 
         overview = {"SPS": sps}
@@ -754,6 +752,17 @@ class PufferTrainer:
             score = self._eval_suite_avgs.get(f"{category}_score", None)
             if score is not None:
                 overview[f"{category}_evals"] = score
+
+        losses = self.losses.to_dict()
+
+        # don't plot losses that are unused
+        if self.trainer_cfg.l2_reg_loss_coef == 0:
+            losses.pop("l2_reg_loss")
+        if self.trainer_cfg.l2_init_loss_coef == 0:
+            losses.pop("l2_init_loss")
+        if not self.kickstarter.enabled:
+            losses.pop("ks_action_loss")
+            losses.pop("ks_value_loss")
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
@@ -827,10 +836,10 @@ class PufferTrainer:
     def close(self):
         self.vecenv.close()
 
-    def initial_pr_uri(self):
+    def initial_pr_uri(self) -> str:
         return self._initial_pr.uri
 
-    def last_pr_uri(self):
+    def last_pr_uri(self) -> str:
         return self.last_pr.uri
 
     def _make_experience_buffer(self):
@@ -877,21 +886,6 @@ class PufferTrainer:
             lstm_total_agents=lstm_total_agents,  # Total number of LSTM states to maintain
         )
 
-    def _make_losses(self):
-        return SimpleNamespace(
-            policy_loss=0,
-            value_loss=0,
-            entropy=0,
-            old_approx_kl=0,
-            approx_kl=0,
-            clipfrac=0,
-            explained_variance=0,
-            l2_reg_loss=0,
-            l2_init_loss=0,
-            ks_action_loss=0,
-            ks_value_loss=0,
-        )
-
     def _make_vecenv(self):
         """Create a vectorized environment."""
 
@@ -933,8 +927,8 @@ class PufferTrainer:
         self.vecenv.async_reset(self.cfg.seed + rank)
 
 
-class AbortingTrainer(PufferTrainer):
-    def __init__(self, *args, **kwargs):
+class AbortingTrainer(MettaTrainer):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
     def _on_train_step(self):

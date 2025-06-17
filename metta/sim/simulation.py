@@ -26,10 +26,10 @@ from omegaconf import OmegaConf
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.rl.pufferlib.policy import PufferAgent
+from metta.rl.policy import PytorchAgent
+from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-from metta.sim.vecenv import make_vecenv
 from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.replay_writer import ReplayWriter
@@ -114,8 +114,8 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent | PufferAgent = self._policy_pr.policy_as_metta_agent()
-        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PufferAgent)), metta_agent
+        metta_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._policy_pr.policy_as_metta_agent()
+        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), metta_agent
         metta_agent.activate_actions(action_names, max_args, self._device)
 
         if self._npc_pr is not None:
