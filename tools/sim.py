@@ -77,7 +77,6 @@ def simulate_policy(
             stats_dir=sim_job.stats_dir,
             device=cfg.device,
             vectorization=cfg.vectorization,
-            doxascope_config=cfg.get("doxascope", None),
         )
         sim_results = sim.simulate()
 

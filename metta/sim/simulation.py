@@ -61,7 +61,6 @@ class Simulation:
         suite=None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
-        doxascope_config: dict | None = None,
     ):
         self._name = name
         self._suite = suite
@@ -147,10 +146,7 @@ class Simulation:
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
         # ---------------- doxascope setup ---------------------------- #
-        self._doxascope_config = doxascope_config
-        if doxascope_config is None:
-            doxascope_config = {"enabled": False, "output_dir": "./doxascope_data/"}
-        self._doxascope_logger = DoxascopeLogger(doxascope_config, self._id)
+        self._doxascope_logger = DoxascopeLogger(config.doxascope or {}, self._id)
 
     def start_simulation(self) -> None:
         """
@@ -286,20 +282,8 @@ class Simulation:
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
 
-        # Save doxascope data
         if self._doxascope_logger.enabled:
             self._doxascope_logger.save()
-
-            # Automatically preprocess the raw data
-            try:
-                logger.info("Starting automatic doxascope data preprocessing...")
-                X, y = self._doxascope_logger.preprocess_data()
-                if X is not None and y is not None:
-                    logger.info(f"Doxascope preprocessing completed: {len(X)} training samples created")
-                else:
-                    logger.warning("Doxascope preprocessing failed - no training data created")
-            except Exception as e:
-                logger.error(f"Doxascope preprocessing failed: {e}")
 
         db = self._from_shards_and_context()
 

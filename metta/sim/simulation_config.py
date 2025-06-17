@@ -20,6 +20,9 @@ class SimulationConfig(Config):
     npc_policy_uri: Optional[str] = None
     policy_agents_pct: float = 1.0
 
+    # Doxascope config
+    doxascope: Optional[dict] = None
+
 
 class SingleEnvSimulationConfig(SimulationConfig):
     """Configuration for a single simulation run."""

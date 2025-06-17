@@ -5,11 +5,12 @@
 # trainer:
 #   env: /env/mettagrid/diversity/multi_left_or_right
 
-run: lars_sim_test_2
+run: lars_sim_test_3
 
 policy_uri: wandb://run/sasmith.20250610.bisect.devbox
 
-# Mind reader configuration for collecting LSTM memory and position data
-doxascope:
-  enabled: true
-  output_dir: ./doxascope/data/raw_data/
+# Doxascope configuration for collecting LSTM memory and position data
+sim_job:
+  simulation_suite:
+    doxascope:
+      enabled: true

@@ -16,4 +16,4 @@ device: cuda
 
 doxascope:
   enabled: false
-  output_dir: ./doxascope_data/
+  output_dir: ./doxascope/data/raw_data/
