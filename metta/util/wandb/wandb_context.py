@@ -1,4 +1,5 @@
 import copy
+import json
 import logging
 import os
 import socket
@@ -17,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 # Alias type for easier usage (other modules can import this type)
 WandbRun = wandb.sdk.wandb_run.Run
+# Fixed filename for IPC in the user's home directory
+METTA_WANDB_IPC_FILENAME = ".metta_wandb_ipc.json"  # Note the dot for a hidden file
 
 
 class WandbConfigOn(Config):
@@ -70,6 +73,8 @@ class WandbContext:
         self.timeout = timeout  # Add configurable timeout (wandb default is 90 seconds)
         self.wandb_host = "api.wandb.ai"
         self.wandb_port = 443
+        # Define the fixed IPC file path in the user's home directory
+        self._fixed_ipc_file_path = os.path.expanduser(os.path.join("~", METTA_WANDB_IPC_FILENAME))
 
     def __enter__(self) -> WandbRun | None:
         if not self.cfg.enabled:
@@ -116,6 +121,22 @@ class WandbContext:
             wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
+            # --- File-based IPC using a fixed path in user's home directory ---
+            ipc_data = {
+                "run_id": self.run.id,
+                "project": self.run.project,
+                "entity": self.run.entity,
+                "name": self.run.name,
+            }
+            try:
+                # Overwrite the file at the fixed path
+                with open(self._fixed_ipc_file_path, "w") as f:
+                    json.dump(ipc_data, f)
+                logger.info(f"W&B IPC data written to fixed path: {self._fixed_ipc_file_path}")
+            except IOError as e:
+                logger.error(f"Failed to write W&B IPC file to {self._fixed_ipc_file_path}: {e}")
+            # --- End File-based IPC ---
+
         except (TimeoutError, wandb.errors.CommError) as e:
             error_type = "timeout" if isinstance(e, TimeoutError) else "communication"
             logger.warning(f"W&B initialization failed due to {error_type} error: {str(e)}")
@@ -139,3 +160,4 @@ class WandbContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.cleanup_run(self.run)
+        # No explicit cleanup of the IPC file from home dir, it will be overwritten.

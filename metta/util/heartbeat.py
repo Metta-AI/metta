@@ -1,5 +1,6 @@
 import argparse
 import concurrent.futures
+import json
 import logging
 import os
 import signal
@@ -9,6 +10,9 @@ import wandb
 
 logger = logging.getLogger(__name__)
 
+# Fixed filename for IPC in the user's home directory (must match wandb_context.py)
+METTA_WANDB_IPC_FILENAME = ".metta_wandb_ipc.json"
+
 
 def record_heartbeat() -> None:
     """Record a heartbeat timestamp to the globally configured file path."""
@@ -16,6 +20,8 @@ def record_heartbeat() -> None:
 
     if heartbeat_file_path:
         try:
+            # Ensure the directory for the heartbeat file exists
+            os.makedirs(os.path.dirname(heartbeat_file_path), exist_ok=True)
             with open(heartbeat_file_path, "w") as f:
                 f.write(str(time.time()))
         except Exception as exc:
@@ -26,33 +32,97 @@ def record_heartbeat() -> None:
 _ALERT_SEND_TIMEOUT_SECONDS = 30
 
 
-def _send_wandb_alert_with_timeout(
-    wandb_run: wandb.Run,
-    title: str,
-) -> None:
-    """Send a W&B alert with a fixed internal timeout, providing only the title."""
+# Uses a fixed path in the user's home directory for the IPC file
+def _send_wandb_alert_with_timeout(title: str) -> None:
+    """Send a W&B alert, reading IPC data from a fixed path in the user's home directory."""
 
-    def send_alert() -> None:
+    try:
+        ipc_file_to_read = os.path.expanduser(os.path.join("~", METTA_WANDB_IPC_FILENAME))
+    except Exception as e:  # Should be very unlikely for these operations
+        logger.error(
+            f"Error constructing fixed IPC file path ('~/{METTA_WANDB_IPC_FILENAME}'): {e}. Cannot send alert for: '{title}'.",
+            exc_info=True,
+        )
+        return
+
+    run_id_ipc: str | None = None
+    project_ipc: str | None = None
+    entity_ipc: str | None = None
+
+    try:
+        with open(ipc_file_to_read, "r") as f:
+            ipc_data = json.load(f)
+        run_id_ipc = ipc_data.get("run_id")
+        project_ipc = ipc_data.get("project")
+        entity_ipc = ipc_data.get("entity")
+
+        if not all([run_id_ipc, project_ipc, entity_ipc]):
+            missing_keys = [
+                key
+                for key, val in zip(
+                    ["run_id", "project", "entity"], [run_id_ipc, project_ipc, entity_ipc], strict=False
+                )
+                if not val
+            ]
+            logger.warning(
+                f"Missing required W&B identifiers ({', '.join(missing_keys)}) in IPC file {ipc_file_to_read}. "
+                f"Cannot send alert for: '{title}'."
+            )
+            return
+    except FileNotFoundError:
+        logger.warning(f"W&B IPC file not found at fixed path: {ipc_file_to_read}. Alert '{title}' not sent.")
+        return
+    except json.JSONDecodeError as e:
+        logger.warning(f"Error decoding W&B IPC file {ipc_file_to_read}: {e}. Alert '{title}' not sent.")
+        return
+    except Exception as e:
+        logger.error(
+            f"Unexpected error reading W&B IPC file {ipc_file_to_read}: {e}. Alert '{title}' not sent.",
+            exc_info=True,
+        )
+        return
+
+    def send_alert(alert_title_arg: str, rid: str, proj: str, ent: str) -> None:
+        log_ctx, initialized = f"run {ent}/{proj}/{rid}", False
         try:
-            wandb_run.alert(title=title)
-            logger.info("W&B alert sent with title: %s", title)
+            wandb.init(
+                id=rid,
+                project=proj,
+                entity=ent,
+                resume="must",
+                settings=wandb.Settings(init_timeout=15, silent=True, _disable_stats=True, _disable_meta=True),
+            )
+            initialized = True
+            alert_text = "Job terminated due to heartbeat timeout."
+            wandb.alert(title=alert_title_arg, text=alert_text)
+            logger.info(f"W&B alert '{alert_title_arg}' sent for {log_ctx}. Text: '{alert_text}'")
         except Exception as e:
-            logger.warning("Failed to send W&B alert with title '%s': %s", title, e)
+            is_wandb_specific_error = isinstance(e, wandb.errors.Error)
+            (logger.warning if is_wandb_specific_error else logger.error)(
+                f"{'W&B ' if is_wandb_specific_error else 'Unexpected '}error in alert for {log_ctx} (trigger: '{alert_title_arg}'): {type(e).__name__} - {e}",
+                exc_info=not is_wandb_specific_error,
+            )
+        finally:
+            if initialized:
+                try:
+                    wandb.finish()
+                except Exception as finish_exception:
+                    logger.warning(f"Error during wandb.finish() for {log_ctx}: {finish_exception}")
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(send_alert)
-        try:
-            future.result(timeout=_ALERT_SEND_TIMEOUT_SECONDS)
-        except concurrent.futures.TimeoutError:
-            logger.warning("W&B alert '%s' timed out after %s seconds.", title, _ALERT_SEND_TIMEOUT_SECONDS)
-        except Exception as e:
-            logger.warning("Exception during W&B alert '%s': %s", title, e)
+    if run_id_ipc and project_ipc and entity_ipc:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(send_alert, title, run_id_ipc, project_ipc, entity_ipc)
+            try:
+                future.result(timeout=_ALERT_SEND_TIMEOUT_SECONDS)
+            except concurrent.futures.TimeoutError:
+                logger.warning(f"W&B alert '{title}' sending timed out after {_ALERT_SEND_TIMEOUT_SECONDS}s.")
+            except Exception as e:
+                logger.warning(f"Exception during W&B alert '{title}' execution: {type(e).__name__} - {e}")
 
 
+# monitor_heartbeat no longer needs wandb_ipc_file_path argument
 def monitor_heartbeat(file_path: str, pid: int, timeout: float = 600.0, check_interval: float = 60.0) -> None:
     """Monitor the heartbeat file and terminate the process group if stale."""
-
-    wandb_run: wandb.Run | None = wandb.run
 
     while True:
         time.sleep(check_interval)
@@ -63,13 +133,8 @@ def monitor_heartbeat(file_path: str, pid: int, timeout: float = 600.0, check_in
         if time.time() - last > timeout:
             logger.error("No heartbeat detected for %s seconds. Terminating job", timeout)
 
-            if wandb_run:
-                _send_wandb_alert_with_timeout(
-                    wandb_run=wandb_run,
-                    title="Heartbeat Timeout. Job terminated.",
-                )
-            else:
-                logger.warning("W&B run not available, skipping alert for heartbeat timeout (PID: %s).", pid)
+            _send_wandb_alert_with_timeout(title="Heartbeat Timeout. Job terminated.")
+            time.sleep(_ALERT_SEND_TIMEOUT_SECONDS)  # Allow time for alert to potentially send before killing
 
             try:
                 os.killpg(pid, signal.SIGTERM)
@@ -91,14 +156,22 @@ def _main(argv: list[str] | None = None) -> None:
     mon.add_argument("file")
     mon.add_argument("--pid", type=int, default=os.getpid())
     mon.add_argument("--timeout", type=float, default=600.0)
-    mon.add_argument("--interval", type=float, default=60.0)
+    mon.add_argument("--interval", type=float, default=5.0)
 
     args = parser.parse_args(argv)
 
     if args.cmd == "heartbeat":
+        # Ensure directory for heartbeat file exists when recording
+        if args.file:
+            os.makedirs(os.path.dirname(args.file), exist_ok=True)
         record_heartbeat()
     elif args.cmd == "monitor":
-        monitor_heartbeat(args.file, pid=args.pid, timeout=args.timeout, check_interval=args.interval)
+        monitor_heartbeat(
+            args.file,
+            pid=args.pid,
+            timeout=args.timeout,
+            check_interval=args.interval,
+        )
     else:  # pragma: no cover - defensive
         parser.print_help()
 

@@ -6,5 +6,5 @@ defaults:
 wandb:
   enabled: true
 
-run_id: 481
+run_id: 489
 run: ${oc.env:USER}.local.${run_id}
