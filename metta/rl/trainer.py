@@ -4,7 +4,6 @@ import time
 from collections import defaultdict
 from typing import Any
 
-import einops
 import numpy as np
 import torch
 import torch.distributed
@@ -479,7 +478,7 @@ class MettaTrainer:
             with profile.train_forward:
                 obs = minibatch["obs"]
                 if not trainer_cfg.get("use_rnn", True):
-                    obs = einops.rearrange(obs, "b t ... -> (b t) ...")
+                    obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
 
                 lstm_state = PolicyState()
                 _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
@@ -869,18 +868,16 @@ class MettaTrainer:
         if torch.distributed.is_initialized():
             # Compute local statistics
             adv_flat = adv.view(-1)
-            local_sum = adv_flat.sum().unsqueeze(0)  # Make it 1D tensor with shape [1]
-            local_sq_sum = (adv_flat * adv_flat).sum().unsqueeze(0)  # Make it 1D tensor with shape [1]
+            local_sum = adv_flat.sum()
+            local_sq_sum = (adv_flat * adv_flat).sum()
             local_count = torch.tensor([adv_flat.numel()], dtype=adv.dtype, device=adv.device)
 
             # Combine statistics for single all_reduce
             stats = torch.stack([local_sum, local_sq_sum, local_count])
             torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
 
-            # Extract global statistics (squeeze to get scalars)
-            global_sum = stats[0].squeeze()
-            global_sq_sum = stats[1].squeeze()
-            global_count = stats[2].squeeze()
+            # Extract global statistics
+            global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
             global_mean = global_sum / global_count
             global_var = (global_sq_sum / global_count) - (global_mean * global_mean)
             global_std = torch.sqrt(global_var.clamp(min=1e-8))
