@@ -88,8 +88,7 @@ class MettaTrainer:
         self.timer.start()
 
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
-        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
-        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+        self._curriculum = curriculum_from_config_path(curriculum_config, self.trainer_cfg.env_overrides)
 
         self._make_vecenv()
 
