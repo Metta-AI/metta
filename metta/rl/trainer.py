@@ -23,7 +23,6 @@ from metta.rl.fast_gae import compute_gae
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.policy import PytorchAgent
-from metta.rl.profile import Profile, profile_section
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.vecenv import make_vecenv
@@ -32,7 +31,7 @@ from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulati
 from metta.sim.simulation_suite import SimulationSuite
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from mettagrid.util.stopwatch import Stopwatch
+from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 torch.set_float32_matmul_precision("high")
 
@@ -72,7 +71,6 @@ class MettaTrainer:
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
 
-        self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
         self.losses = Losses()
         self.stats = defaultdict(list)
@@ -84,9 +82,13 @@ class MettaTrainer:
         self._eval_suite_avgs = {}
         self._eval_categories = set()
 
+        self.timer = Stopwatch(logger)
+        self.timer.start()
+
         curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -157,9 +159,6 @@ class MettaTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
-        self.profile.start_agent_steps = self.agent_step
-        self._last_agent_step = self.agent_step
-        self._total_minibatches = 0
 
         assert self.trainer_cfg.optimizer.type in (
             "adam",
@@ -212,19 +211,30 @@ class MettaTrainer:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
         if wandb_run and self._master:
-            wandb_run.define_metric("train/agent_step")
-            wandb_run.define_metric("train/avg_agent_steps_per_update", step_metric="train/agent_step")
-            for k in ["0verview", "env", "losses", "performance", "train"]:
-                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
+            # Define metrics (wandb x-axis values)
+            metrics = ["step", "epoch", "total_time", "train_time"]
+            for metric in metrics:
+                wandb_run.define_metric(f"metric/{metric}")
+
+            # set the default x-axis to be step count
+            for k in ["overview", "env", "losses", "performance"]:
+                wandb_run.define_metric(f"{k}/*", step_metric="metric/step")
+
+            # set up plots that do not use steps as the x-axis
+            metric_overrides = [
+                ("overview/reward_vs_total_time", "metric/total_time"),
+                ("overview/reward_vs_train_time", "metric/train_time"),
+                ("overview/reward_vs_epoch", "metric/epoch"),
+            ]
+
+            for metric_name, step_metric in metric_overrides:
+                wandb_run.define_metric(metric_name, step_metric=step_metric)
 
         self.replay_sim_config = SingleEnvSimulationConfig(
             env="/env/mettagrid/mettagrid",
             num_episodes=1,
             env_overrides=self._curriculum.get_task().env_cfg(),
         )
-
-        self.timer = Stopwatch(logger)
-        self.timer.start()
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -243,44 +253,41 @@ class MettaTrainer:
             steps_before = self.agent_step
 
             with self.torch_profiler:
-                with self.timer("_rollout"):
-                    self._rollout()
-
-                with self.timer("_train"):
-                    self._train()
+                self._rollout()
+                self._train()
 
             # Processing stats
-            with self.timer("_process_stats"):
-                self._process_stats()
+            self._process_stats()
 
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
             stats_time = self.timer.get_last_elapsed("_process_stats")
             steps_calculated = self.agent_step - steps_before
-            steps_per_sec = steps_calculated / (train_time + rollout_time)
+
+            total_time = train_time + rollout_time + stats_time
+            steps_per_sec = steps_calculated / total_time
+
+            train_pct = (train_time / total_time) * 100
+            rollout_pct = (rollout_time / total_time) * 100
+            stats_pct = (stats_time / total_time) * 100
 
             logger.info(
                 f"Epoch {self.epoch} - "
-                f"rollout: {rollout_time:.3f}s, "
-                f"train: {train_time:.3f}s, "
-                f"stats: {stats_time:.3f}s, "
-                f"[{steps_per_sec:.0f} steps/sec]"
+                f"{steps_per_sec:.0f} steps/sec "
+                f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
 
             # Checkpointing trainer
             if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
-                with self.timer("_checkpoint_trainer", log_level=logging.INFO):
-                    self._checkpoint_trainer()
+                self._checkpoint_trainer()
 
             if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
-                with self.timer("_evaluate_policy", log_level=logging.INFO):
-                    self._evaluate_policy()
+                self._evaluate_policy()
 
             self.torch_profiler.on_epoch_end(self.epoch)
 
             if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
-                with self.timer("_save_policy_to_wandb"):
-                    self._save_policy_to_wandb()
+                self._save_policy_to_wandb()
 
             if (
                 self.cfg.agent.l2_init_weight_update_interval != 0
@@ -289,8 +296,7 @@ class MettaTrainer:
                 self._update_l2_init_weight_copy()
 
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
-                with self.timer("_generate_and_upload_replay", log_level=logging.INFO):
-                    self._generate_and_upload_replay()
+                self._generate_and_upload_replay()
 
             self._on_train_step()
 
@@ -302,6 +308,7 @@ class MettaTrainer:
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
 
+    @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
         if not self._master:
             return
@@ -348,23 +355,23 @@ class MettaTrainer:
                 if category in sim_name.lower():
                     self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
 
+    @with_instance_timer("_update_l2_init_weight_copy")
     def _update_l2_init_weight_copy(self):
         self.policy.update_l2_init_weight_copy()
 
     def _on_train_step(self):
         pass
 
-    @profile_section("eval")
+    @with_instance_timer("_rollout")
     def _rollout(self):
-        experience, profile = self.experience, self.profile
+        experience = self.experience
 
-        with profile.eval_misc:
-            policy = self.policy
-            infos = defaultdict(list)
-            lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
+        policy = self.policy
+        infos = defaultdict(list)
+        lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
 
         while not experience.full:
-            with profile.env:
+            with self.timer("_rollout.env"):
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
                 if self.trainer_cfg.require_contiguous_env_ids:
                     raise ValueError(
@@ -374,15 +381,14 @@ class MettaTrainer:
 
                 training_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
 
-            with profile.eval_misc:
-                num_steps = sum(mask)
-                self.agent_step += num_steps * self._world_size
+            num_steps = sum(mask)
+            self.agent_step += num_steps * self._world_size
 
-                o = torch.as_tensor(o)
-                r = torch.as_tensor(r)
-                d = torch.as_tensor(d)
+            o = torch.as_tensor(o)
+            r = torch.as_tensor(r)
+            d = torch.as_tensor(d)
 
-            with profile.eval_forward, torch.no_grad():
+            with torch.no_grad():
                 assert training_env_id is not None and training_env_id.numel() > 0, (
                     "training_env_id must exist and have elements"
                 )
@@ -410,37 +416,46 @@ class MettaTrainer:
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
-            with profile.eval_misc:
-                value = value.flatten()
-                mask = torch.as_tensor(mask)  # * policy.mask)
-                o = o if self.trainer_cfg.cpu_offload else o_device
-                self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
+            value = value.flatten()
+            mask = torch.as_tensor(mask)  # * policy.mask)
+            o = o if self.trainer_cfg.cpu_offload else o_device
+            self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
 
-                for i in info:
-                    for k, v in unroll_nested_dict(i):
-                        infos[k].append(v)
+            # At this point, infos contains lists of values collected across:
+            # 1. Multiple vectorized environments managed by this GPU's vecenv
+            # 2. Multiple rollout steps (until experience buffer is full)
+            #
+            # - Some stats (like "episode/reward") appear only when episodes complete
+            # - Other stats might appear every step
+            #
+            # These will later be averaged in _process_stats() to get mean values
+            # across all environments on this GPU. Stats from other GPUs (if using
+            # distributed training) are handled separately and not aggregated here.
 
-            with profile.env:
+            for i in info:
+                for k, v in unroll_nested_dict(i):
+                    infos[k].append(v)
+
+            with self.timer("_rollout.env"):
                 actions_np = actions.cpu().numpy().astype(dtype_actions)
                 self.vecenv.send(actions_np)
 
-        with profile.eval_misc:
-            for k, v in infos.items():
-                if isinstance(v, np.ndarray):
-                    v = v.tolist()
+        for k, v in infos.items():
+            if isinstance(v, np.ndarray):
+                v = v.tolist()
 
-                if isinstance(v, list):
-                    if k not in self.stats:
-                        self.stats[k] = []
-                    self.stats[k].extend(v)
+            if isinstance(v, list):
+                if k not in self.stats:
+                    self.stats[k] = []
+                self.stats[k].extend(v)
+            else:
+                if k not in self.stats:
+                    self.stats[k] = v
                 else:
-                    if k not in self.stats:
-                        self.stats[k] = v
-                    else:
-                        try:
-                            self.stats[k] += v
-                        except TypeError:
-                            self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
+                    try:
+                        self.stats[k] += v
+                    except TypeError:
+                        self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         # TODO: Better way to enable multiple collects
         experience.ptr = 0
@@ -454,45 +469,42 @@ class MettaTrainer:
 
         return 0.0
 
-    @profile_section("train")
+    @with_instance_timer("_train")
     def _train(self):
-        experience, profile = self.experience, self.profile
+        experience = self.experience
         self.losses.zero()
         self._total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
         steps_since_last = self.agent_step - self._last_agent_step
         self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
-        with profile.train_misc:
-            idxs = experience.sort_training_data()
-            dones_np = experience.dones_np[idxs]
-            values_np = experience.values_np[idxs]
-            rewards_np = experience.rewards_np[idxs]
+        idxs = experience.sort_training_data()
+        dones_np = experience.dones_np[idxs]
+        values_np = experience.values_np[idxs]
+        rewards_np = experience.rewards_np[idxs]
 
-            if self.trainer_cfg.average_reward:
-                # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
-                # where ρ is the average reward estimate
+        if self.trainer_cfg.average_reward:
+            # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
+            # where ρ is the average reward estimate
 
-                current_batch_mean = self._get_experience_buffer_mean_reward()
+            current_batch_mean = self._get_experience_buffer_mean_reward()
 
-                # Apply IIR filter (exponential moving average)
-                alpha = self.trainer_cfg.average_reward_alpha
-                self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
+            # Apply IIR filter (exponential moving average)
+            alpha = self.trainer_cfg.average_reward_alpha
+            self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
 
-                # Use filtered estimate for advantage computation
-                rewards_np_adjusted = (rewards_np - self.average_reward).astype(np.float32)
-                effective_gamma = 1.0
-                advantages_np = compute_gae(
-                    dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
-                )
-            else:
-                # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
-                effective_gamma = self.trainer_cfg.gamma
-                advantages_np = compute_gae(
-                    dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda
-                )
+            # Use filtered estimate for advantage computation
+            rewards_np_adjusted = (rewards_np - self.average_reward).astype(np.float32)
+            effective_gamma = 1.0
+            advantages_np = compute_gae(
+                dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
+            )
+        else:
+            # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
+            effective_gamma = self.trainer_cfg.gamma
+            advantages_np = compute_gae(dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda)
 
-            experience.returns_np = advantages_np + values_np
-            experience.flatten_batch(advantages_np)
+        experience.returns_np = advantages_np + values_np
+        experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
         total_minibatches = experience.num_minibatches * self.trainer_cfg.update_epochs
