@@ -13,7 +13,7 @@ def main():
     cd_repo_root()
 
     parser = argparse.ArgumentParser(description="Build the metta image")
-    parser.add_argument("--image-name", default="mettaai/metta:latest")
+    parser.add_argument("--image-name", default="mettaai/metta:3.0")
     args = parser.parse_args()
 
     if not get_user_confirmation("Images should normally be built by CI. Do you want to proceed?"):
