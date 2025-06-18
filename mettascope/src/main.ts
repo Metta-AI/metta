@@ -7,7 +7,7 @@ import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
 import { processActions, initActionButtons } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
-import { localStorageSetNumber, onEvent, find } from './htmlutils.js'
+import { localStorageSetNumber, onEvent, initHighDpiMode } from './htmlutils.js'
 import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange } from './timeline.js'
@@ -667,12 +667,14 @@ if (localStorage.hasOwnProperty('showAgentPanel')) {
 }
 toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
 
+initHighDpiMode()
 initActionButtons()
 initAgentTable()
 initObjectMenu()
 initTimeline()
 
 window.addEventListener('load', async () => {
+
   // Use a local atlas texture.
   const atlasImageUrl = 'dist/atlas.png'
   const atlasJsonUrl = 'dist/atlas.json'
