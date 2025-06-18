@@ -55,7 +55,7 @@ jobs:
           title: ${{ steps.pr-details.outputs.title }}
           description: ${{ steps.pr-details.outputs.body }}
           project_id: ${{ env.ASANA_PROJECT_GID }}
-          asana_token: ${{ secrets.ASANA_API_KEY }}
+          asana_token: ${{ secrets.ASANA_GITHUB_INTEGRATION_SECRET }}
           github_url: ${{ steps.pr-details.outputs.url }}
           github_url_field_id: ${{ env.ASANA_GITHUB_URL_FIELD_GID }}
 
