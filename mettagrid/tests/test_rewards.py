@@ -39,7 +39,6 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             "num_agents": num_agents,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": True,
             "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
                 "noop": {"enabled": True},
@@ -92,7 +91,6 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
             "num_agents": num_agents,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": True,
             "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
                 "noop": {"enabled": True},

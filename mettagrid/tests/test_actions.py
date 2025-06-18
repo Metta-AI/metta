@@ -28,7 +28,6 @@ def base_config():
         "num_agents": 1,
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
-        "use_observation_tokens": True,
         "num_observation_tokens": NUM_OBS_TOKENS,
         "actions": {
             "noop": {"enabled": True},

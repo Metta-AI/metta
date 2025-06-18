@@ -9,8 +9,7 @@ class ObsTokenToBoxShaper(LayerBase):
     """
     This class consumes token observations and outputs a box observation.
 
-    It's input should be the same as what ObsEncoder expects, and its output should be the same as what
-    ObsShaper outputs.
+    I.e., its output will be a tensor of shape [B*TT, num_layers, obs_width, obs_height].
 
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent is instantiated
     and never again. I.e., not when it is reloaded from a saved policy.
