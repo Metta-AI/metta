@@ -189,12 +189,21 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Note: We explicitly allow invalid actions to be used. The environment will
         # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
 
-        self._c_env.step(actions)
+        # Call the C++ step method and capture all its return values.
+        # _c_env.step also updates the shared buffers (self.observations, self.rewards, etc.) in place.
+        # The first four values (obs, rewards, terms, truncs) from _c_env.step
+        # reflect the state *after* the step but are often ignored here because PufferLib
+        # relies on reading directly from the shared buffers. We are primarily interested in c_infos.
+        # The fifth element, c_infos, is the dictionary returned by the C++ step function.
+        _, _, _, _, c_infos = self._c_env.step(actions)
+
+        # Use the info dictionary directly from C++ as the base.
+        # This c_infos should contain {"agent_locations": [(r1,c1), (r2,c2), ...]} or be None if C++ returned None.
+        infos = c_infos if c_infos is not None else {}
 
         if self._replay_writer and self._episode_id:
             self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
-        infos = {}
         if self.terminals.all() or self.truncations.all():
             if self._task.env_cfg().game.diversity_bonus.enabled:
                 self.rewards *= calculate_diversity_bonus(
@@ -207,6 +216,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self.process_episode_stats(infos)
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
+
+        # Temporary debug print to check the content of 'infos' before returning
+        # You can add an identifier if multiple envs are running, e.g., using self._episode_id or another unique ID
+        print(f"DEBUG MettaGridEnv.step (episode {self._episode_id}): Returning infos = {infos}")
 
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 

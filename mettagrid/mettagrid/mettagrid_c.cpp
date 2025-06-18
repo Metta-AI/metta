@@ -490,7 +490,23 @@ py::tuple MettaGrid::step(py::array_t<ActionType, py::array::c_style> actions) {
     }
   }
 
-  return py::make_tuple(_observations, _rewards, _terminals, _truncations, py::dict());
+  // Create a Python dictionary for info
+  py::dict step_infos;
+  py::list agent_locations_py;
+  for (const auto& agent : _agents) {
+    if (agent) {  // Ensure agent pointer is valid
+      // Include agent->id, agent->location.r, agent->location.c
+      py::tuple loc_py = py::make_tuple(agent->id, agent->location.r, agent->location.c);
+      agent_locations_py.append(loc_py);
+    } else {
+      // Append a placeholder if an agent pointer is unexpectedly null.
+      // The tuple structure should still ideally match, e.g., (None, None, None).
+      agent_locations_py.append(py::make_tuple(py::none(), py::none(), py::none()));
+    }
+  }
+  step_infos["agent_locations"] = agent_locations_py;
+
+  return py::make_tuple(_observations, _rewards, _terminals, _truncations, step_infos);
 }
 
 py::dict MettaGrid::grid_objects() {

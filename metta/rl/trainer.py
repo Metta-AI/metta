@@ -396,6 +396,19 @@ class MettaTrainer:
                 o_device = o.to(self.device, non_blocking=True)
                 actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
 
+                # At this point the LSTM memory is now updated with the new observations
+                # so it would be a good point to attach a probe to the LSTM memory
+                # and try to reconstruct the location of the agent
+                # signature: (lstm_h, lstm_c) -> location estimate
+                # beware of the batch dimension (we should get one prediction per agent)
+                print(f"Shape of lstm_h: {state.lstm_h.shape}")
+                print(f"Shape of lstm_c: {state.lstm_c.shape}")
+                print(f"Number of agents: {self.vecenv.num_agents}")
+                print(f"Number of envs: {self.vecenv.num_envs}")
+                print(f"Observation shape: {o.shape}")
+
+                print(f"Info: {info}")
+
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
                     assert_shape(actions, ("BT", 2), "actions")
