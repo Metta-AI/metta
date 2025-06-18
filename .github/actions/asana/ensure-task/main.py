@@ -58,7 +58,7 @@ def create_asana_task(title, description, project_id, workspace_id, github_url, 
 
     # Add the GitHub URL custom field
     if github_url_field_id:
-        payload["custom_fields"] = {github_url_field_id: github_url}
+        payload["data"]["custom_fields"] = {github_url_field_id: github_url}
 
     print(f"Creating task with payload: {payload}")
 
