@@ -147,7 +147,7 @@ class WandbContext:
                     )
                     self._generated_ipc_file_path = None  # Mark as not generated
             else:
-                logger.warning("HEARTBEAT_FILE env var not set. Cannot write W&B IPC file for heartbeat monitor.")
+                logger.info("HEARTBEAT_FILE env var not set. Cannot write W&B IPC file for heartbeat monitor.")
             # --- End File-based IPC ---
 
         except (TimeoutError, wandb.errors.CommError) as e:
