@@ -41,7 +41,7 @@ def search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id
     return None
 
 
-def create_asana_task(title, description, project_id, github_url, github_url_field_id, asana_token):
+def create_asana_task(title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token):
     """Create a new Asana task with the GitHub URL field populated."""
     url = "https://app.asana.com/api/1.0/tasks"
     headers = {
@@ -52,6 +52,7 @@ def create_asana_task(title, description, project_id, github_url, github_url_fie
     payload = {
         "name": title,
         "notes": description,
+        "workspace": workspace_id,
         "projects": [project_id],
     }
 
@@ -77,7 +78,7 @@ def ensure_asana_task_exists(title, description, project_id, workspace_id, githu
 
     # If no existing task found, create a new one
     print(f"No existing task found with GitHub URL: {github_url}")
-    new_task_url = create_asana_task(title, description, project_id, github_url, github_url_field_id, asana_token)
+    new_task_url = create_asana_task(title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token)
     print(f"Created new Asana task: {new_task_url}")
     return new_task_url
 
