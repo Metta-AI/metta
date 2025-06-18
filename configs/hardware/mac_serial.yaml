@@ -6,7 +6,7 @@
 # which is simpler but typically has lower throughput (SPS)
 # compared to multiprocessing configurations.
 
-device: mps
+device: cpu
 
 vectorization: serial
 
