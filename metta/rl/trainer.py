@@ -414,7 +414,6 @@ class MettaTrainer:
                 # Store LSTM state for performance
                 lstm_state_to_store = None
                 if use_rnn and state.lstm_h is not None:
-                    experience.set_lstm_state(training_env_id.start, state.lstm_h, state.lstm_c)
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
                 if str(self.device).startswith("cuda"):
