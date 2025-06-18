@@ -2,24 +2,26 @@ import logging
 import os
 import time
 from collections import defaultdict
-from typing import Any
+from contextlib import nullcontext
+from typing import Any, Dict, Set
+from uuid import UUID
 
 import einops
 import numpy as np
 import torch
+import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib import unroll_nested_dict
-from wandb.sdk import wandb_run
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
+from metta.app.stats_client import StatsClient
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.experience import Experience
-from metta.rl.fast_gae import compute_gae
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.policy import PytorchAgent
@@ -29,9 +31,18 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
+from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
+
+try:
+    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
+except ImportError:
+    raise ImportError(
+        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
+        "try installing with --no-build-isolation"
+    ) from None
 
 torch.set_float32_matmul_precision("high")
 
@@ -45,33 +56,35 @@ class MettaTrainer:
     def __init__(
         self,
         cfg: DictConfig | ListConfig,
-        wandb_run: wandb_run.Run | None,
+        wandb_run: WandbRun | None,
         policy_store: PolicyStore,
         sim_suite_config: SimulationSuiteConfig,
+        stats_client: StatsClient | None,
         **kwargs: Any,
     ):
         self.cfg = cfg
-        self.trainer_cfg = cfg.trainer
+        self.trainer_cfg = trainer_cfg = cfg.trainer
 
         self.sim_suite_config = sim_suite_config
+        self._stats_client = stats_client
 
         self._master = True
         self._world_size = 1
         self.device: torch.device = cfg.device
-        self._batch_size = self.trainer_cfg.batch_size
-        self._minibatch_size = self.trainer_cfg.minibatch_size
+        self._batch_size = trainer_cfg.batch_size
+        self._minibatch_size = trainer_cfg.minibatch_size
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
 
-            self._batch_size = self.trainer_cfg.batch_size // self._world_size
-            self._minibatch_size = self.trainer_cfg.minibatch_size // self._world_size
+            self._batch_size = trainer_cfg.batch_size // self._world_size
+            self._minibatch_size = trainer_cfg.minibatch_size // self._world_size
 
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
 
-        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, cfg.trainer.profiler_interval_epochs, wandb_run)
+        self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
         self.losses = Losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
@@ -79,16 +92,16 @@ class MettaTrainer:
         self.mean_reward = 0.0
         self.filtered_mean_reward = 0.0  # IIR filtered value used by self.trainer_cfg.average_reward
 
-        self._current_eval_score = None
-        self._eval_grouped_scores = {}
-        self._eval_suite_avgs = {}
-        self._eval_categories = set()
+        self._current_eval_score: float | None = None
+        self._eval_grouped_scores: Dict[str, float] = {}
+        self._eval_suite_avgs: Dict[str, float] = {}
+        self._eval_categories: Set[str] = set()
 
         self.timer = Stopwatch(logger)
         self.timer.start()
 
-        curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
-        self._curriculum = curriculum_from_config_path(curriculum_config, self.trainer_cfg.env_overrides)
+        curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
+        self._curriculum = curriculum_from_config_path(curriculum_config, trainer_cfg.env_overrides)
 
         self._make_vecenv()
 
@@ -98,33 +111,10 @@ class MettaTrainer:
         )
 
         logger.info("Loading checkpoint")
-        os.makedirs(cfg.trainer.checkpoint_dir, exist_ok=True)
+        os.makedirs(trainer_cfg.checkpoint_dir, exist_ok=True)
+
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
-
-        policy_record = None
-        load_policy_attempts = 10
-        while policy_record is None and load_policy_attempts > 0:
-            if checkpoint.policy_path:
-                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                policy_record = policy_store.policy(checkpoint.policy_path)
-                if "filtered_mean_reward" in checkpoint.extra_args:
-                    self.filtered_mean_reward = checkpoint.extra_args["filtered_mean_reward"]
-            elif cfg.trainer.initial_policy.uri is not None:
-                logger.info(f"Loading initial policy URI: {cfg.trainer.initial_policy.uri}")
-                policy_record = policy_store.policy(cfg.trainer.initial_policy)
-            else:
-                policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
-
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    policy_record = policy_store.policy(policy_path)
-                elif self._master:
-                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                    policy_record = policy_store.create(metta_grid_env)
-            if policy_record is not None:
-                break
-            load_policy_attempts -= 1
-            time.sleep(5)
+        policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
         assert policy_record is not None, "No policy found"
 
@@ -144,15 +134,14 @@ class MettaTrainer:
 
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
-        if self.trainer_cfg.compile:
+        if trainer_cfg.compile:
             logger.info("Compiling policy")
-            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+            self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(self.cfg, self.policy_store, actions_names, actions_max_params)
+        self.kickstarter = Kickstarter(cfg, policy_store, actions_names, actions_max_params)
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
-            # Store the original policy for cleanup purposes
             self._original_policy = self.policy
             self.policy = DistributedMettaAgent(self.policy, self.device)
 
@@ -161,17 +150,21 @@ class MettaTrainer:
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
 
-        assert self.trainer_cfg.optimizer.type in (
-            "adam",
-            "muon",
-        ), f"Optimizer type must be 'adam' or 'muon', got {self.trainer_cfg.optimizer.type}"
-        opt_cls = torch.optim.Adam if self.trainer_cfg.optimizer.type == "adam" else ForeachMuon
+        self._stats_epoch_start = self.epoch
+        self._stats_epoch_id: UUID | None = None
+        self._stats_run_id: UUID | None = None
+
+        # Optimizer
+        assert trainer_cfg.optimizer.type in ("adam", "muon"), (
+            f"Optimizer type must be 'adam' or 'muon', got {trainer_cfg.optimizer.type}"
+        )
+        opt_cls = torch.optim.Adam if trainer_cfg.optimizer.type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
-            lr=self.trainer_cfg.optimizer.learning_rate,
-            betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
-            eps=self.trainer_cfg.optimizer.eps,
-            weight_decay=self.trainer_cfg.optimizer.weight_decay,
+            lr=trainer_cfg.optimizer.learning_rate,
+            betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+            eps=trainer_cfg.optimizer.eps,
+            weight_decay=trainer_cfg.optimizer.weight_decay,
         )
 
         # validate that policy matches environment
@@ -203,9 +196,9 @@ class MettaTrainer:
                 )
 
         self.lr_scheduler = None
-        if self.trainer_cfg.lr_scheduler.enabled:
+        if trainer_cfg.lr_scheduler.enabled:
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+                self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
             )
 
         if checkpoint.agent_step > 0:
@@ -235,16 +228,19 @@ class MettaTrainer:
 
     def train(self) -> None:
         logger.info("Starting training")
+        trainer_cfg = self.trainer_cfg
 
         # it doesn't make sense to evaluate more often than checkpointing since we need a saved policy to evaluate
-        if (
-            self.trainer_cfg.evaluate_interval != 0
-            and self.trainer_cfg.evaluate_interval < self.trainer_cfg.checkpoint_interval
-        ):
+        if trainer_cfg.evaluate_interval != 0 and trainer_cfg.evaluate_interval < trainer_cfg.checkpoint_interval:
             raise ValueError("evaluate_interval must be at least as large as checkpoint_interval")
 
+        if self._stats_client is not None:
+            name = self.wandb_run.name if self.wandb_run is not None and self.wandb_run.name is not None else "unknown"
+            url = self.wandb_run.url if self.wandb_run is not None else None
+            self._stats_run_id = self._stats_client.create_training_run(name=name, attributes={}, url=url).id
+
         logger.info(f"Training on {self.device}")
-        while self.agent_step < self.trainer_cfg.total_timesteps:
+        while self.agent_step < trainer_cfg.total_timesteps:
             steps_before = self.agent_step
 
             with self.torch_profiler:
@@ -288,7 +284,7 @@ class MettaTrainer:
                 self.cfg.agent.l2_init_weight_update_interval != 0
                 and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0
             ):
-                self._update_l2_init_weight_copy()
+                self.policy.update_l2_init_weight_copy()
 
             if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
                 self._generate_and_upload_replay()
@@ -308,6 +304,15 @@ class MettaTrainer:
         if not self._master:
             return
 
+        if self._stats_run_id is not None and self._stats_client is not None:
+            self._stats_epoch_id = self._stats_client.create_epoch(
+                run_id=self._stats_run_id,
+                start_training_epoch=self._stats_epoch_start,
+                end_training_epoch=self.epoch,
+                attributes={},
+            ).id
+            self._stats_epoch_start = self.epoch + 1
+
         logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
             config=self.sim_suite_config,
@@ -316,13 +321,15 @@ class MettaTrainer:
             device=self.device,
             vectorization=self.cfg.vectorization,
             stats_dir="/tmp/stats",
+            stats_client=self._stats_client,
+            stats_epoch_id=self._stats_epoch_id,
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
 
         logger.info("Simulation complete")
 
-        self._eval_categories = set()
+        self._eval_categories: Set[str] = set()
         for sim_name in self.sim_suite_config.simulations.keys():
             self._eval_categories.add(sim_name.split("/")[0])
         self._eval_suite_avgs = {}
@@ -368,13 +375,13 @@ class MettaTrainer:
         while not experience.full:
             with self.timer("_rollout.env"):
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
-                if self.trainer_cfg.require_contiguous_env_ids:
+                if trainer_cfg.require_contiguous_env_ids:
                     raise ValueError(
                         "We are assuming contiguous eng id is always False. async_factor == num_workers = "
-                        f"{self.trainer_cfg.async_factor} != {self.trainer_cfg.num_workers}"
+                        f"{trainer_cfg.async_factor} != {trainer_cfg.num_workers}"
                     )
 
-                training_env_id = torch.as_tensor(env_id).to(self.device, non_blocking=True)
+                training_env_id = slice(env_id[0], env_id[-1] + 1)
 
             num_steps = sum(mask)
             self.agent_step += num_steps * self._world_size
@@ -392,7 +399,10 @@ class MettaTrainer:
                 assert training_env_id.max() < lstm_h.shape[1], "Index out of bounds for lstm_h"
                 assert training_env_id.min() >= 0, "Negative index in training_env_id"
 
-                state = PolicyState(lstm_h=lstm_h[:, training_env_id], lstm_c=lstm_c[:, training_env_id])
+                lstm_state = experience.get_lstm_state(training_env_id.start)
+                if lstm_state is not None:
+                    state.lstm_h = lstm_state["lstm_h"]
+                    state.lstm_c = lstm_state["lstm_c"]
 
                 o_device = o.to(self.device, non_blocking=True)
                 actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
@@ -401,12 +411,9 @@ class MettaTrainer:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
                     assert_shape(actions, ("BT", 2), "actions")
 
-                lstm_h[:, training_env_id] = (
-                    state.lstm_h if state.lstm_h is not None else torch.zeros_like(lstm_h[:, training_env_id])
-                )
-                lstm_c[:, training_env_id] = (
-                    state.lstm_c if state.lstm_c is not None else torch.zeros_like(lstm_c[:, training_env_id])
-                )
+                lstm_state_to_store = None
+                if trainer_cfg.get("use_rnn", True) and state.lstm_h is not None:
+                    lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
                 if self.device == "cuda":
                     torch.cuda.synchronize()
@@ -453,8 +460,6 @@ class MettaTrainer:
                         self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         # TODO: Better way to enable multiple collects
-        experience.ptr = 0
-        experience.step = 0
         return self.stats, infos
 
     def _get_experience_buffer_mean_reward(self) -> float:
@@ -623,16 +628,22 @@ class MettaTrainer:
         if not self._master:
             return
 
-        pr = self._checkpoint_policy()
+        self._checkpoint_policy()
 
-        # Save filtered average reward estimate for restart continuity
         extra_args = {}
         if self.trainer_cfg.average_reward:
             extra_args["filtered_mean_reward"] = self.filtered_mean_reward
 
-        self.checkpoint = TrainerCheckpoint(
-            self.agent_step, self.epoch, self.optimizer.state_dict(), pr.local_path(), **extra_args
-        ).save(self.cfg.run_dir)
+        checkpoint = TrainerCheckpoint(
+            agent_step=self.agent_step,
+            epoch=self.epoch,
+            total_agent_step=self.agent_step * torch.distributed.get_world_size()
+            if torch.distributed.is_initialized()
+            else self.agent_step,
+            optimizer_state_dict=self.optimizer.state_dict(),
+            extra_args=extra_args,
+        )
+        checkpoint.save(self.cfg.run_dir)
 
     def _checkpoint_policy(self) -> PolicyRecord | None:
         if not self._master:
@@ -651,7 +662,7 @@ class MettaTrainer:
 
         self.last_pr = self.policy_store.save(
             name,
-            os.path.join(self.cfg.trainer.checkpoint_dir, name),
+            os.path.join(self.trainer_cfg.checkpoint_dir, name),
             self.uncompiled_policy,
             metadata={
                 "agent_step": self.agent_step,
@@ -840,17 +851,61 @@ class MettaTrainer:
                 local_sq_sum = einops.rearrange((adv * adv).sum(), "-> 1")
                 local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
 
-                stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
-                torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
+        # Get correct device for this process
+        device = torch.device(self.device) if isinstance(self.device, str) else self.device
+        if torch.distributed.is_initialized() and str(device).startswith("cuda"):
+            device = torch.device(f"cuda:{int(os.environ.get('LOCAL_RANK', 0))}")
 
-                global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
-                mu = global_sum / global_count
-                var = (global_sq_sum / global_count) - (mu * mu)
-                std = torch.sqrt(var.clamp(min=1e-8))
+        # Move tensors to device and compute advantage
+        tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
+        tensors = [t.to(device) for t in tensors]
+        values, rewards, dones, importance_sampling_ratio, advantages = tensors
 
-                adv = (adv - mu) / (std + 1e-8)
-            else:
-                adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+        # Create context manager that only applies CUDA device context if needed
+        device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
+        with device_context:
+            torch.ops.pufferlib.compute_puff_advantage(
+                values,
+                rewards,
+                dones,
+                importance_sampling_ratio,
+                advantages,
+                gamma,
+                gae_lambda,
+                vtrace_rho_clip,
+                vtrace_c_clip,
+            )
+
+        return advantages
+
+    def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
+        """Normalize advantages with distributed training support while preserving shape."""
+        if not self.trainer_cfg.get("norm_adv", True):
+            return adv
+
+        if torch.distributed.is_initialized():
+            # Compute local statistics
+            adv_flat = adv.view(-1)
+            local_sum = einops.rearrange(adv_flat.sum(), "-> 1")
+            local_sq_sum = einops.rearrange((adv_flat * adv_flat).sum(), "-> 1")
+            local_count = torch.tensor([adv_flat.numel()], dtype=adv.dtype, device=adv.device)
+
+            # Combine statistics for single all_reduce
+            stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
+            torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
+
+            # Extract global statistics
+            global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
+            global_mean = global_sum / global_count
+            global_var = (global_sq_sum / global_count) - (global_mean * global_mean)
+            global_std = torch.sqrt(global_var.clamp(min=1e-8))
+
+            # Normalize and reshape back
+            adv = (adv - global_mean) / (global_std + 1e-8)
+        else:
+            # Local normalization
+            adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+
         return adv
 
     def close(self):
@@ -863,70 +918,67 @@ class MettaTrainer:
         return self.last_pr.uri
 
     def _make_experience_buffer(self):
-        metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv), (
-            "vecenv.driver_env must be a MettaGridEnv for experience buffer"
-        )
+        """Create experience buffer with tensor-based storage for prioritized sampling."""
+        vecenv = self.vecenv
+        trainer_cfg = self.trainer_cfg
 
-        # Extract environment specifications
-        obs_shape = metta_grid_env.single_observation_space.shape
-        obs_dtype = metta_grid_env.single_observation_space.dtype
-        atn_shape = metta_grid_env.single_action_space.shape
-        atn_dtype = metta_grid_env.single_action_space.dtype
+        # Get environment info
+        obs_space = vecenv.single_observation_space
+        atn_space = vecenv.single_action_space
+        total_agents = vecenv.num_agents
 
-        # Use num_agents for the total number of environments/states to track
-        lstm_total_agents = getattr(self.vecenv, "num_agents", 0)
-        assert lstm_total_agents > 0, "self.vecenv.num_agents not found!"
-        logging.info(f"Creating experience buffer with lstm_total_agents={lstm_total_agents} (from vecenv.num_agents)")
+        # Calculate minibatch parameters
+        minibatch_size = trainer_cfg.minibatch_size
+        max_minibatch_size = trainer_cfg.get("max_minibatch_size", minibatch_size)
 
-        # Handle policy fields with assertions
-        assert hasattr(self.policy, "hidden_size"), "Policy must have hidden_size attribute"
-        hidden_size = int(getattr(self.policy, "hidden_size", -1))
-        assert hidden_size > 0, f"Policy hidden_size cannot be converted to int: {type(hidden_size)}"
+        # Get LSTM parameters if using RNN
+        use_rnn = trainer_cfg.get("use_rnn", True)
+        hidden_size = getattr(self.policy, "hidden_size", 256)
+        num_lstm_layers = 2  # Default value
 
-        assert hasattr(self.policy, "lstm"), "Policy must have lstm attribute"
-        lstm = getattr(self.policy, "lstm", {})
-        assert isinstance(lstm, torch.nn.modules.rnn.LSTM), (
-            f"Policy lstm must be a valid LSTM instance, got: {type(lstm)}"
-        )
+        # Try to get actual number of LSTM layers from policy
+        if hasattr(self.policy, "components") and "_core_" in self.policy.components:
+            lstm_module = self.policy.components["_core_"]
+            if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
+                num_lstm_layers = lstm_module._net.num_layers
 
-        # Create the Experience buffer with appropriate parameters
+        # Create experience buffer
         self.experience = Experience(
-            batch_size=self._batch_size,  # Total number of environment steps to collect before updating
-            bptt_horizon=self.trainer_cfg.bptt_horizon,  # Sequence length for BPTT (backpropagation through time)
-            minibatch_size=self._minibatch_size,  # Size of minibatches for training
-            hidden_size=hidden_size,  # Dimension of the policy's hidden state
-            obs_shape=obs_shape,  # Shape of a single observation
-            obs_dtype=obs_dtype,  # Data type of observations
-            atn_shape=atn_shape,  # Shape of a single action
-            atn_dtype=atn_dtype,  # Data type of actions
-            cpu_offload=self.trainer_cfg.cpu_offload,  # Whether to store data on CPU and transfer to GPU as needed
-            device=self.device,  # Device to store tensors on ("cuda" or "cpu")
-            lstm=lstm,  # LSTM module from the policy (needed for dimensions) # type: ignore - Pylance is wrong
-            lstm_total_agents=lstm_total_agents,  # Total number of LSTM states to maintain
+            total_agents=total_agents,
+            batch_size=self._batch_size,
+            bptt_horizon=trainer_cfg.bptt_horizon,
+            minibatch_size=self._minibatch_size,
+            max_minibatch_size=max_minibatch_size,
+            obs_space=obs_space,
+            atn_space=atn_space,
+            device=self.device,
+            use_rnn=use_rnn,
+            hidden_size=hidden_size,
+            cpu_offload=trainer_cfg.cpu_offload,
+            num_lstm_layers=num_lstm_layers,
+            agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
 
     @with_instance_timer("_make_vecenv")
     def _make_vecenv(self):
         """Create a vectorized environment."""
+        trainer_cfg = self.trainer_cfg
 
         num_agents = self._curriculum.get_task().env_cfg().game.num_agents
 
-        self.target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // num_agents
+        self.target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
         if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
             self.target_batch_size = 2
 
-        forward_pass_batch_size = (
-            self.target_batch_size // self.trainer_cfg.num_workers
-        ) * self.trainer_cfg.num_workers
-        logger.info(f"vecenv_batch_size: {forward_pass_batch_size}")
+        self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
+        logger.info(f"forward_pass_batch_size: {self.batch_size}")
 
-        num_envs = forward_pass_batch_size * self.trainer_cfg.async_factor
+        num_envs = self.batch_size * trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
             logger.error(
-                f"num_envs = batch_size ({forward_pass_batch_size}) * async_factor ({self.trainer_cfg.async_factor}) "
+                f"num_envs = batch_size ({self.batch_size}) * async_factor ({trainer_cfg.async_factor}) "
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
@@ -934,9 +986,9 @@ class MettaTrainer:
             self._curriculum,
             self.cfg.vectorization,
             num_envs=num_envs,
-            batch_size=forward_pass_batch_size,
-            num_workers=self.trainer_cfg.num_workers,
-            zero_copy=self.trainer_cfg.zero_copy,
+            batch_size=self.batch_size,
+            num_workers=trainer_cfg.num_workers,
+            zero_copy=trainer_cfg.zero_copy,
         )
 
         if self.cfg.seed is None:
@@ -946,6 +998,29 @@ class MettaTrainer:
         # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
         self.vecenv.async_reset(self.cfg.seed + rank)
+
+    def _load_policy(self, checkpoint, policy_store, metta_grid_env):
+        """Load policy from checkpoint, initial_policy.uri, or create new."""
+        trainer_cfg = self.trainer_cfg
+
+        for _attempt in range(10):
+            if checkpoint.policy_path:
+                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
+                return policy_store.policy(checkpoint.policy_path)
+            elif trainer_cfg.initial_policy.uri is not None:
+                logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
+                return policy_store.policy(trainer_cfg.initial_policy)
+            else:
+                policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
+                if os.path.exists(policy_path):
+                    logger.info(f"Loading policy from checkpoint: {policy_path}")
+                    return policy_store.policy(policy_path)
+                elif self._master:
+                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
+                    return policy_store.create(metta_grid_env)
+            time.sleep(5)
+
+        raise RuntimeError("Failed to load policy after 10 attempts")
 
 
 class AbortingTrainer(MettaTrainer):
@@ -960,7 +1035,7 @@ class AbortingTrainer(MettaTrainer):
             return
 
         logger.info("Abort tag detected. Stopping the run.")
-        self.cfg.trainer.total_timesteps = int(self.agent_step)
+        self.trainer_cfg.total_timesteps = int(self.agent_step)
         self.wandb_run.config.update(
-            {"trainer.total_timesteps": self.cfg.trainer.total_timesteps}, allow_val_change=True
+            {"trainer.total_timesteps": self.trainer_cfg.total_timesteps}, allow_val_change=True
         )

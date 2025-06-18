@@ -3,7 +3,7 @@ resources:
   region: us-east-1
   accelerators: "L4:1"
   cpus: 8+
-  image_id: docker:metta:latest
+  image_id: docker:metta:3.0
 
 file_mounts:
   # Wandb Credentials
