@@ -856,7 +856,6 @@ class MettaTrainer:
         self._eval_grouped_scores = {}
         self.stats.clear()
 
-    @with_instance_timer("_compute_advantage")
     def _compute_advantage(
         self,
         values,
@@ -979,7 +978,6 @@ class MettaTrainer:
             agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
 
-    @with_instance_timer("_make_vecenv")
     def _make_vecenv(self):
         """Create a vectorized environment."""
         trainer_cfg = self.trainer_cfg
