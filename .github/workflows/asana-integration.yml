@@ -52,17 +52,6 @@ jobs:
           echo "$PR_URL" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Debug - Check Asana Token
-        run: |
-          echo "Checking if ASANA_API_KEY secret is available..."
-          if [ -n "${{ secrets.ASANA_API_KEY }}" ]; then
-            echo "✅ ASANA_API_KEY secret is set (length: ${#ASANA_API_KEY})"
-            echo "First 10 chars: ${ASANA_API_KEY:0:10}..."
-          else
-            echo "❌ ASANA_API_KEY secret is empty or not accessible"
-          fi
-          echo "Raw secret check: '${{ secrets.ASANA_API_KEY }}'"
-
       - name: Ensure Asana Task
         id: ensure-asana-task
         uses: ./.github/actions/asana/ensure-task
@@ -70,6 +59,7 @@ jobs:
           title: ${{ steps.pr-details.outputs.title }}
           description: ${{ steps.pr-details.outputs.body }}
           project_id: ${{ vars.ASANA_PROJECT_GID }}
+          workspace_id: ${{ vars.ASANA_WORKSPACE_GID }}
           asana_token: ${{ secrets.ASANA_API_KEY }}
           github_url: ${{ steps.pr-details.outputs.url }}
           github_url_field_id: ${{ vars.ASANA_GITHUB_URL_FIELD_GID }}

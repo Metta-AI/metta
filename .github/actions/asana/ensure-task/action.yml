@@ -11,6 +11,9 @@ inputs:
   project_id:
     description: "The Asana project ID where the task will be created."
     required: true
+  workspace_id:
+    description: "The Asana workspace ID for searching tasks."
+    required: true
   asana_token:
     description: "The Asana personal access token."
     required: true
@@ -40,6 +43,7 @@ runs:
         INPUT_TITLE: ${{ inputs.title }}
         INPUT_DESCRIPTION: ${{ inputs.description }}
         INPUT_PROJECT_ID: ${{ inputs.project_id }}
+        INPUT_WORKSPACE_ID: ${{ inputs.workspace_id }}
         INPUT_ASANA_TOKEN: ${{ inputs.asana_token }}
         INPUT_GITHUB_URL: ${{ inputs.github_url }}
         INPUT_GITHUB_URL_FIELD_ID: ${{ inputs.github_url_field_id }}

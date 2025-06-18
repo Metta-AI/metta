@@ -4,35 +4,40 @@ import sys
 import requests
 
 
-def search_asana_tasks(github_url, project_id, github_url_field_id, asana_token):
+def search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id, asana_token):
     """Search for existing Asana tasks with the given GitHub URL in the specified project."""
-    url = "https://app.asana.com/api/1.0/tasks"
+    # Use workspace search endpoint which supports custom field filtering
+    url = f"https://app.asana.com/api/1.0/workspaces/{workspace_id}/tasks/search"
     headers = {
         "Authorization": f"Bearer {asana_token}",
         "Content-Type": "application/json",
     }
 
-    # Use Asana's search API to filter by custom field value
+    # Use workspace search with custom field filtering
     params = {
-        "project": project_id,
-        "opt_fields": "permalink_url,custom_fields",
-        f"custom_field.{github_url_field_id}.text_value": github_url,
+        "opt_fields": "permalink_url,custom_fields,name,modified_at",
+        "limit": 100,  # Maximum allowed by Asana API
+        "sort_by": "created_at",
+        "projects.any": project_id,  # Filter to specific project
+        f"custom_fields.{github_url_field_id}.text_value": github_url,  # Filter by custom field
     }
-
-    print(f"bearer: {asana_token[:5]}...")
-    print(f"Searching for tasks with params: {params}")
 
     response = requests.get(url, headers=headers, params=params, timeout=30)
     if response.status_code != 200:
         print(f"Asana API Error: {response.status_code} - {response.text}")
         sys.exit(1)
 
-    tasks = response.json()["data"]
+    data = response.json()
+    tasks = data["data"]
+    print(f"Found {len(tasks)} tasks matching GitHub URL: {github_url}")
 
-    # Return the first matching task's permalink URL
+    # Return the first matching task (should be the most recently created due to sorting)
     if tasks:
-        return tasks[0]["permalink_url"]
+        task = tasks[0]
+        print(f"Found existing Asana task: {task['permalink_url']}")
+        return task["permalink_url"]
 
+    print("No tasks found with matching GitHub URL")
     return None
 
 
@@ -62,10 +67,10 @@ def create_asana_task(title, description, project_id, github_url, github_url_fie
         sys.exit(1)
 
 
-def ensure_asana_task_exists(title, description, project_id, github_url, github_url_field_id, asana_token):
+def ensure_asana_task_exists(title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token):
     """Ensure an Asana task exists with the given GitHub URL. Return existing or create new."""
     # First, search for existing task with this GitHub URL
-    existing_task_url = search_asana_tasks(github_url, project_id, github_url_field_id, asana_token)
+    existing_task_url = search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id, asana_token)
     if existing_task_url:
         print(f"Found existing Asana task: {existing_task_url}")
         return existing_task_url
@@ -82,6 +87,7 @@ if __name__ == "__main__":
     title = os.getenv("INPUT_TITLE")
     description = os.getenv("INPUT_DESCRIPTION")
     project_id = os.getenv("INPUT_PROJECT_ID")
+    workspace_id = os.getenv("INPUT_WORKSPACE_ID")
     asana_token = os.getenv("INPUT_ASANA_TOKEN")
     github_url = os.getenv("INPUT_GITHUB_URL")
     github_url_field_id = os.getenv("INPUT_GITHUB_URL_FIELD_ID")
@@ -90,11 +96,12 @@ if __name__ == "__main__":
     print(f"DEBUG - title: {title}")
     print(f"DEBUG - description: {description[:50] if description else None}...")
     print(f"DEBUG - project_id: {project_id}")
+    print(f"DEBUG - workspace_id: {workspace_id}")
     print(f"DEBUG - asana_token: {asana_token[:10] if asana_token else None}...")
     print(f"DEBUG - github_url: {github_url}")
     print(f"DEBUG - github_url_field_id: {github_url_field_id}")
 
     # Ensure task exists and output URL
-    task_url = ensure_asana_task_exists(title, description, project_id, github_url, github_url_field_id, asana_token)
+    task_url = ensure_asana_task_exists(title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token)
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         f.write(f"task_url={task_url}\n")
