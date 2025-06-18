@@ -181,7 +181,7 @@ class TestDistributedMettaAgent:
         with patch("torch.nn.SyncBatchNorm.convert_sync_batchnorm") as mock_convert:
             mock_convert.return_value = mock_agent
             with patch("torch.nn.parallel.DistributedDataParallel.__init__", return_value=None):
-                agent = DistributedMettaAgent(mock_agent, device="cpu")
+                DistributedMettaAgent(mock_agent, device="cpu")
 
                 mock_convert.assert_called_once_with(mock_agent)
 
@@ -192,7 +192,7 @@ class TestDistributedMettaAgent:
 
         with patch("torch.nn.SyncBatchNorm.convert_sync_batchnorm", return_value=mock_agent):
             with patch("torch.nn.parallel.DistributedDataParallel.__init__") as mock_init:
-                agent = DistributedMettaAgent(mock_agent, device)
+                DistributedMettaAgent(mock_agent, device)
 
                 # Check that DDP was initialized with correct arguments
                 mock_init.assert_called_once()

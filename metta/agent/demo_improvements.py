@@ -195,7 +195,7 @@ def demo_save_load_methods():
         # Standard load (would fail without proper model reconstruction)
         try:
             start = time.time()
-            loaded = MettaAgent.load(standard_path)
+            MettaAgent.load(standard_path)
             standard_time = time.time() - start
             print(f"   Standard load: {standard_time * 1000:.1f} ms")
         except Exception:
@@ -203,13 +203,13 @@ def demo_save_load_methods():
 
         # Training load
         start = time.time()
-        loaded = MettaAgent.load_for_training(training_path)
+        MettaAgent.load_for_training(training_path)
         training_time = time.time() - start
         print(f"   Training load: {training_time * 1000:.1f} ms")
 
         # Compressed load
         start = time.time()
-        loaded = MettaAgent.load(compressed_path + ".zst")
+        MettaAgent.load(compressed_path + ".zst")
         compressed_time = time.time() - start
         print(f"   Compressed load: {compressed_time * 1000:.1f} ms")
 

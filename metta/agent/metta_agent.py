@@ -326,8 +326,8 @@ class MettaAgent(nn.Module):
                 # Try to convert to int directly, handling Module case
                 try:
                     return int(hidden_size)
-                except (TypeError, ValueError):
-                    raise TypeError(f"Cannot convert hidden_size of type {type(hidden_size)} to int")
+                except (TypeError, ValueError) as err:
+                    raise TypeError(f"Cannot convert hidden_size of type {type(hidden_size)} to int") from err
         raise AttributeError(f"{self.model_type} model does not have hidden_size attribute")
 
     @property

@@ -118,7 +118,7 @@ class CheckpointMigrator:
         if "model_" in filename:
             try:
                 epoch = int(filename.split("_")[1].split(".")[0])
-            except:
+            except (ValueError, IndexError):
                 pass
 
         return {

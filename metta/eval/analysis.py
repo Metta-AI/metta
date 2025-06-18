@@ -9,9 +9,10 @@ from metta.eval.analysis_config import AnalysisConfig
 from metta.eval.eval_stats_db import EvalStatsDB
 from mettagrid.util.file import local_copy
 
+logger = logging.getLogger(__name__)
+
 
 def analyze(agent: MettaAgent, config: AnalysisConfig) -> None:
-    logger = logging.getLogger(__name__)
     logger.info(f"Analyzing policy: {agent.uri}")
     logger.info(f"Using eval DB: {config.eval_db_uri}")
 

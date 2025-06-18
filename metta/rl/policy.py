@@ -1,3 +1,4 @@
+import logging
 from types import SimpleNamespace
 from typing import Optional
 
@@ -6,6 +7,8 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 from pufferlib.pytorch import sample_logits
 from torch import nn
+
+logger = logging.getLogger(__name__)
 
 
 def load_policy(path: str, device: str = "cpu", puffer: Optional[DictConfig] = None):
@@ -16,7 +19,8 @@ def load_policy(path: str, device: str = "cpu", puffer: Optional[DictConfig] = N
         num_action_args, _ = weights["policy.actor.1.weight"].shape
         _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
         logger.info(
-            f"Successfully parsed model architecture from weights: actions={num_actions}, args={num_action_args}, channels={obs_channels}"
+            f"Successfully parsed model architecture from weights: "
+            f"actions={num_actions}, args={num_action_args}, channels={obs_channels}"
         )
     except Exception as e:
         logger.warning(f"Failed automatic parse from weights: {e}")
@@ -28,7 +32,8 @@ def load_policy(path: str, device: str = "cpu", puffer: Optional[DictConfig] = N
                 num_action_args, _ = weights["actor.1.weight"].shape
                 _, obs_channels, _, _ = weights["network.0.weight"].shape
                 logger.info(
-                    f"Parsed using alternative naming: actions={num_actions}, args={num_action_args}, channels={obs_channels}"
+                    f"Parsed using alternative naming: "
+                    f"actions={num_actions}, args={num_action_args}, channels={obs_channels}"
                 )
             else:
                 raise KeyError("No recognized weight naming pattern found")
