@@ -106,5 +106,9 @@ if __name__ == "__main__":
 
     # Ensure task exists and output URL
     task_url = ensure_asana_task_exists(title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token)
+    print(f"DEBUG - Final task_url: '{task_url}'")
+    print(f"DEBUG - task_url type: {type(task_url)}")
+    print(f"DEBUG - task_url length: {len(task_url) if task_url else 0}")
+
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         f.write(f"task_url={task_url}\n")
