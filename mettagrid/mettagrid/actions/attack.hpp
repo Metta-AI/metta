@@ -98,21 +98,6 @@ protected:
       }
     }
 
-    target_loc.layer = GridLayer::Object_Layer;
-    MettaObject* object_target = static_cast<MettaObject*>(_grid->object_at(target_loc));
-    if (object_target) {
-      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[object_target->_type_id]);
-      actor->stats.incr("action." + _action_name + "." + ObjectTypeNames[object_target->_type_id] + "." +
-                        actor->group_name);
-      object_target->hp -= 1;
-      actor->stats.incr("damage." + ObjectTypeNames[object_target->_type_id]);
-      if (object_target->hp <= 0) {
-        actor->stats.incr("destroyed." + ObjectTypeNames[object_target->_type_id]);
-        _grid->remove_object(object_target);  // This will invalidate the pointer
-      }
-      return true;
-    }
-
     return false;
   }
 };

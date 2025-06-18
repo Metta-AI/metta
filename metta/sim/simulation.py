@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict, List
 
 import numpy as np
 import torch
@@ -26,6 +26,7 @@ from omegaconf import OmegaConf
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.app.stats_client import StatsClient
 from metta.rl.policy import PytorchAgent
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -57,12 +58,14 @@ class Simulation:
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
-        suite=None,
+        sim_suite_name: str | None = None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
+        stats_client: StatsClient | None = None,
+        stats_epoch_id: uuid.UUID | None = None,
     ):
         self._name = name
-        self._suite = suite
+        self._sim_suite_name = sim_suite_name
         self._config = config
         self._id = uuid.uuid4().hex[:12]
 
@@ -106,6 +109,9 @@ class Simulation:
         self._policy_store = policy_store
         self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
+
+        self._stats_client: StatsClient | None = stats_client
+        self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
@@ -267,6 +273,7 @@ class Simulation:
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
         db = self._from_shards_and_context()
+        self._write_remote_stats(db)
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
@@ -302,11 +309,84 @@ class Simulation:
             for idx in self._npc_idxs:
                 agent_map[int(idx.item())] = self._npc_pr
 
-        suite_name = "" if self._suite is None else self._suite.name
+        suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
             self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_pr
         )
         return db
+
+    def get_policy_ids(self, stats_client: StatsClient, policies: List[PolicyRecord]) -> Dict[str, uuid.UUID]:
+        policy_names = [policy.name for policy in policies]
+        policy_ids_response = stats_client.get_policy_ids(policy_names)
+        policy_ids = policy_ids_response.policy_ids
+
+        for policy in policies:
+            if policy.name not in policy_ids:
+                policy_response = stats_client.create_policy(
+                    policy.name, None, policy.uri, epoch_id=self._stats_epoch_id
+                )
+                policy_ids[policy.name] = policy_response.id
+        return policy_ids
+
+    def _write_remote_stats(self, stats_db: SimulationStatsDB) -> None:
+        """Write stats to the remote stats database."""
+        if self._stats_client is not None:
+            policies = [self._policy_pr]
+            if self._npc_pr is not None:
+                policies.append(self._npc_pr)
+            policy_ids = self.get_policy_ids(self._stats_client, policies)
+
+            agent_map: Dict[int, uuid.UUID] = {}
+            for idx in self._policy_idxs:
+                agent_map[int(idx.item())] = policy_ids[self._policy_pr.name]
+
+            if self._npc_pr is not None:
+                for idx in self._npc_idxs:
+                    agent_map[int(idx.item())] = policy_ids[self._npc_pr.name]
+
+            # Get all episodes from the database
+            episodes_df = stats_db.query("SELECT * FROM episodes")
+
+            for _, episode_row in episodes_df.iterrows():
+                episode_id = episode_row["id"]
+
+                # Get agent metrics for this episode
+                agent_metrics_df = stats_db.query(f"SELECT * FROM agent_metrics WHERE episode_id = '{episode_id}'")
+                agent_metrics: Dict[int, Dict[str, float]] = {}
+
+                for _, metric_row in agent_metrics_df.iterrows():
+                    agent_id = int(metric_row["agent_id"])
+                    metric_name = metric_row["metric"]
+                    metric_value = float(metric_row["value"])
+
+                    if agent_id not in agent_metrics:
+                        agent_metrics[agent_id] = {}
+                    agent_metrics[agent_id][metric_name] = metric_value
+
+                # Get episode attributes
+                attributes_df = stats_db.query(f"SELECT * FROM episode_attributes WHERE episode_id = '{episode_id}'")
+                attributes: Dict[str, Any] = {}
+
+                for _, attr_row in attributes_df.iterrows():
+                    attr_name = attr_row["attribute"]
+                    attr_value = attr_row["value"]
+                    attributes[attr_name] = attr_value
+
+                # Record the episode remotely
+                try:
+                    self._stats_client.record_episode(
+                        agent_policies=agent_map,
+                        agent_metrics=agent_metrics,
+                        primary_policy_id=policy_ids[self._policy_pr.name],
+                        stats_epoch=self._stats_epoch_id,
+                        eval_name=self._name,
+                        simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,
+                        replay_url=episode_row.get("replay_url"),
+                        attributes=attributes,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to record episode {episode_id} remotely: {e}")
+                    # Continue with other episodes even if one fails
 
     def get_replays(self) -> dict:
         """Get all replays for this simulation."""
