@@ -358,22 +358,19 @@ class MettaTrainer:
                 if category in sim_name.lower():
                     self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
 
-    @with_instance_timer("_update_l2_init_weight_copy")
-    def _update_l2_init_weight_copy(self):
-        self.policy.update_l2_init_weight_copy()
-
     def _on_train_step(self):
         pass
 
     @with_instance_timer("_rollout")
     def _rollout(self):
         experience = self.experience
+        trainer_cfg = self.trainer_cfg
 
         policy = self.policy
         infos = defaultdict(list)
-        lstm_h, lstm_c = experience.lstm_h, experience.lstm_c
+        experience.reset_for_rollout()
 
-        while not experience.full:
+        while not experience.ready_for_training:
             with self.timer("_rollout.env"):
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
                 if trainer_cfg.require_contiguous_env_ids:
@@ -390,15 +387,10 @@ class MettaTrainer:
             o = torch.as_tensor(o)
             r = torch.as_tensor(r)
             d = torch.as_tensor(d)
+            t = torch.as_tensor(t)
 
             with torch.no_grad():
-                assert training_env_id is not None and training_env_id.numel() > 0, (
-                    "training_env_id must exist and have elements"
-                )
-                assert training_env_id.device == lstm_h.device, "training_env_id must be on the same device as lstm_h"
-                assert training_env_id.dim() == 1, "training_env_id should be 1D (list of env indices)"
-                assert training_env_id.max() < lstm_h.shape[1], "Index out of bounds for lstm_h"
-                assert training_env_id.min() >= 0, "Negative index in training_env_id"
+                state = PolicyState()
 
                 lstm_state = experience.get_lstm_state(training_env_id.start)
                 if lstm_state is not None:
@@ -421,8 +413,19 @@ class MettaTrainer:
 
             value = value.flatten()
             mask = torch.as_tensor(mask)  # * policy.mask)
-            o = o if self.trainer_cfg.cpu_offload else o_device
-            self.experience.store(o, value, actions, selected_action_log_probs, r, d, training_env_id, mask)
+
+            experience.store(
+                obs=o if trainer_cfg.cpu_offload else o_device,
+                actions=actions,
+                logprobs=selected_action_log_probs,
+                rewards=r.to(self.device, non_blocking=True),
+                dones=d.to(self.device, non_blocking=True),
+                truncations=t.to(self.device, non_blocking=True),
+                values=value,
+                env_id=training_env_id,
+                mask=mask,
+                lstm_state=lstm_state_to_store,
+            )
 
             # At this point, infos contains lists of values collected across:
             # 1. Multiple vectorized environments managed by this GPU's vecenv
@@ -476,6 +479,36 @@ class MettaTrainer:
         trainer_cfg = self.trainer_cfg
 
         self.losses.zero()
+
+        prio_cfg = trainer_cfg.get("prioritized_experience_replay", {})
+        vtrace_cfg = trainer_cfg.get("vtrace", {})
+
+        # Reset importance sampling ratios
+        experience.reset_importance_sampling_ratios()
+
+        # Prioritized sampling parameters
+        b0 = prio_cfg.get("prio_beta0", 0.6)
+        a = prio_cfg.get("prio_alpha", 0.0)
+        total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
+        anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
+
+        # Compute advantages using puff_advantage
+        advantages = torch.zeros(experience.values.shape, device=self.device)
+
+        # Initial importance sampling ratio is all ones
+        initial_importance_sampling_ratio = torch.ones_like(experience.values)
+
+        advantages = self._compute_advantage(
+            experience.values,
+            experience.rewards,
+            experience.dones,
+            initial_importance_sampling_ratio,
+            advantages,
+            trainer_cfg.gamma,
+            trainer_cfg.gae_lambda,
+            vtrace_cfg.get("vtrace_rho_clip", 1.0),
+            vtrace_cfg.get("vtrace_c_clip", 1.0),
+        )
 
         idxs = experience.sort_training_data()
         dones_np = experience.dones_np[idxs]
