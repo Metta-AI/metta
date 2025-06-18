@@ -35,5 +35,5 @@ variable "zone_domain" {
 
 variable "api_host" {
   type    = string
-  default = "api.observatory.${var.zone_domain}"
+  default = "api.observatory.softmax-research.net"
 }
