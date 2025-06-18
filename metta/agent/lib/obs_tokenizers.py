@@ -52,21 +52,20 @@ class ObsTokenPadStrip(LayerBase):
         coords = observations[..., 0]
         obs_mask = coords == 255  # important! true means mask me
 
-        # 1) find each row's flip‐point
-        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B], on GPU
+        # find each row's flip‐point ie when it goes from dense to padding
+        flip_pts = obs_mask.int().argmax(dim=1)  # shape [B]
 
-        # 2) find the global max flip‐point as a 0‐d tensor (still on GPU)
-        max_flip = flip_pts.max()  # e.g. tensor(3, device='cuda')
+        # find the global max flip‐point as a 0‐d tensor
+        max_flip = flip_pts.max()
         if max_flip == 0:
             max_flip = max_flip + self._M  # hack to avoid 0. should instead grab
 
-        # 3) build a 1‐D "positions" row [0,1,2,…,L−1]
+        # build a 1‐D "positions" row [0,1,2,…,L−1]
         positions = torch.arange(self._M, device=obs_mask.device)
 
-        # 4) make a boolean column mask: keep all columns strictly before max_flip
+        # make a boolean column mask: keep all columns strictly before max_flip
         keep_cols = positions < max_flip  # shape [L], dtype=torch.bool
 
-        # 5) now "slice" your batch in one go, on the GPU:
         observations = observations[:, keep_cols]  # shape [B, max_flip]
         obs_mask = obs_mask[:, keep_cols]
 
@@ -105,32 +104,10 @@ class ObsAttrValNorm(LayerBase):
     def _forward(self, td: TensorDict) -> TensorDict:
         observations = td[self._sources[0]["name"]]
 
-        # Check if we're working with nested tensors
-        is_nested = td.get("is_nested", False)
-
-        if is_nested:
-            # For nested tensors, we need to normalize each sequence separately
-            # Convert to list, process, and convert back
-            obs_list = list(observations.unbind())
-            normalized_list = []
-
-            for obs in obs_list:
-                atr_indices = obs[..., 1].long()
-                norm_factors = self._norm_factors[atr_indices]
-                obs = obs.clone()  # Clone to avoid in-place modification issues
-                obs[..., 2] = obs[..., 2] / norm_factors
-                normalized_list.append(obs)
-
-            # Convert back to nested tensor
-            observations = torch.nested.nested_tensor(
-                normalized_list, layout=torch.jagged, device=observations.device, dtype=observations.dtype
-            )
-        else:
-            # Original implementation for regular tensors
-            atr_indices = observations[..., 1].long()
-            norm_factors = self._norm_factors[atr_indices]
-            observations = observations.clone()
-            observations[..., 2] = observations[..., 2] / norm_factors
+        atr_indices = observations[..., 1].long()
+        norm_factors = self._norm_factors[atr_indices]
+        observations = observations.clone()
+        observations[..., 2] = observations[..., 2] / norm_factors
 
         td[self._name] = observations
         return td
@@ -142,7 +119,6 @@ class ObsAttrCoordEmbed(LayerBase):
 
     def __init__(
         self,
-        obs_shape: Tuple[int, ...],
         atr_embed_dim: int,
         **cfg,
     ) -> None:
@@ -153,49 +129,20 @@ class ObsAttrCoordEmbed(LayerBase):
         self._max_embeds = 256
 
     def _make_net(self) -> None:
+        self._out_tensor_shape = [0, self._feat_dim]
+
         # Coord byte supports up to 16x16, so 256 possible coord values
         self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
         nn.init.trunc_normal_(self._coord_embeds.weight, std=0.02)
 
-        self._out_tensor_shape = [0, self._feat_dim]
-
-        # ------------------------------------------------------------
         self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-
-        # self._atr_embeds = nn.Parameter(torch.Tensor(256, self._atr_embed_dim))
-        # nn.init.trunc_normal_(self._atr_embeds, std=0.02)
-        # with torch.no_grad():
-        #     self._atr_embeds[255] = 0.0
-        # ------------------------------------------------------------
+        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
 
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
-
-        # observations = td[self._sources[0]["name"]]
-
-        # atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-
-        # ------------------------------------------------------------
-        # embeddings = self._atr_embeds(atr_indices)
-        # embeddings = self._atr_embeds[atr_indices]
-
-        # ------------------------------------------------------------
-
-        # padding_mask = (atr_indices == 255).unsqueeze(-1)
-        # final_embeddings = torch.where(
-        #     padding_mask,
-        #     self._atr_embeds[255].detach(),  # Use the detached padding vector
-        #     embeddings,  # Use the normal, gradient-connected vector
-        # )
-
-        # td[self._name] = embeddings
-        # return td
-
         observations = td[self._sources[0]["name"]]
 
-        # The first element of an observation is the coordinate, which can be used as a direct index for embedding.
         coord_indices = observations[..., 0].long()
         coord_pair_embedding = self._coord_embeds(coord_indices)
 
@@ -311,7 +258,8 @@ class ObsAttrEmbedFourier(LayerBase):
 
 
 class ObsAttrCoordValueEmbed(LayerBase):
-    """An experiment that embeds attr value as a categorical variable. Using a normalization layer is not recommended."""
+    """An experiment that embeds attr value as a categorical variable. Using a normalization layer is not
+    recommended."""
 
     def __init__(
         self,
