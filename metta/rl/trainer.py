@@ -510,11 +510,6 @@ class MettaTrainer:
             vtrace_cfg.get("vtrace_c_clip", 1.0),
         )
 
-        idxs = experience.sort_training_data()
-        dones_np = experience.dones_np[idxs]
-        values_np = experience.values_np[idxs]
-        rewards_np = experience.rewards_np[idxs]
-
         self.mean_reward = self._get_experience_buffer_mean_reward()
 
         if self.trainer_cfg.average_reward:
@@ -575,18 +570,20 @@ class MettaTrainer:
                 adv = self._compute_advantage(adv)
 
                 # Policy loss
-                pg_loss1 = -adv * ratio
-                pg_loss2 = -adv * torch.clamp(ratio, 1 - trainer_cfg.clip_coef, 1 + trainer_cfg.clip_coef)
+                pg_loss1 = -adv * importance_sampling_ratio
+                pg_loss2 = -adv * torch.clamp(
+                    importance_sampling_ratio, 1 - trainer_cfg.clip_coef, 1 + trainer_cfg.clip_coef
+                )
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
-                newvalue = newvalue.view(-1)
+                newvalue_reshaped = newvalue.view(minibatch["returns"].shape)
                 if trainer_cfg.clip_vloss:
-                    v_loss_unclipped = (newvalue - ret) ** 2
-                    v_clipped = val + torch.clamp(
-                        newvalue - val,
-                        -trainer_cfg.vf_clip_coef,
-                        trainer_cfg.vf_clip_coef,
+                    v_loss_unclipped = (newvalue_reshaped - minibatch["returns"]) ** 2
+                    v_clipped = minibatch["values"] + torch.clamp(
+                        newvalue_reshaped - minibatch["values"],
+                        -trainer_cfg.get("vf_clip_coef", 0.1),
+                        trainer_cfg.get("vf_clip_coef", 0.1),
                     )
                     v_loss_clipped = (v_clipped - ret) ** 2
                     v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
@@ -618,29 +615,48 @@ class MettaTrainer:
                     + ks_value_loss
                 )
 
+                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
+
+                if self.losses is None:
+                    raise ValueError("self.losses is None")
+
+                # Update loss tracking for logging
+                self.losses.policy_loss += pg_loss.item()
+                self.losses.value_loss += v_loss.item()
+                self.losses.entropy += entropy_loss.item()
+                self.losses.old_approx_kl += old_approx_kl.item()
+                self.losses.approx_kl += approx_kl.item()
+                self.losses.clipfrac += clipfrac.item()
+                self.losses.l2_reg_loss += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
+                self.losses.l2_init_loss += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
+                self.losses.ks_action_loss += ks_action_loss.item()
+                self.losses.ks_value_loss += ks_value_loss.item()
+                self.losses.importance += importance_sampling_ratio.mean().item()
+                self.losses.minibatches_processed += 1
+
                 self.optimizer.zero_grad()
                 loss.backward()
+                if (mb + 1) % self.experience.accumulate_minibatches == 0:
+                    torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
+                    self.optimizer.step()
+
+                    if self.cfg.agent.clip_range > 0:
+                        self.policy.clip_weights()
+
                 torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
                 self.optimizer.step()
 
                 if self.cfg.agent.clip_range > 0:
                     self.policy.clip_weights()
 
-                if self.device == "cuda":
-                    torch.cuda.synchronize()
-
-                self.losses.policy_loss_sum += pg_loss.item()
-                self.losses.value_loss_sum += v_loss.item()
-                self.losses.entropy_sum += entropy_loss.item()
-                self.losses.old_approx_kl_sum += old_approx_kl.item()
-                self.losses.approx_kl_sum += approx_kl.item()
-                self.losses.clipfrac_sum += clipfrac.item()
-                self.losses.l2_reg_loss_sum += l2_reg_loss.item()
-                self.losses.l2_init_loss_sum += l2_init_loss.item()
-                self.losses.ks_action_loss_sum += ks_action_loss.item()
-                self.losses.ks_value_loss_sum += ks_value_loss.item()
-                self.losses.minibatches_processed += 1
                 # end loop over minibatches
+
+            # Calculate explained variance
+            y_pred = experience.values.flatten()
+            y_true = advantages.flatten() + experience.values.flatten()
+            var_y = y_true.var()
+            explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
+            self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
             # check early exit if we have reached target_kl
             if trainer_cfg.target_kl is not None:
@@ -650,15 +666,6 @@ class MettaTrainer:
 
             self.epoch += 1
             # end loop over epochs
-
-        if self.lr_scheduler is not None:
-            self.lr_scheduler.step()
-
-        y_pred = experience.values_np
-        y_true = experience.returns_np
-        var_y = np.var(y_true)
-        explained_var = np.nan if var_y == 0 else 1 - np.var(y_true - y_pred) / var_y
-        self.losses.explained_variance = float(explained_var)
 
     def _checkpoint_trainer(self):
         if not self._master:
