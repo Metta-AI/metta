@@ -779,56 +779,30 @@ class MettaTrainer:
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
-        # Distributed aggregation must happen on ALL processes
-        if torch.distributed.is_initialized():
-            # Calculate local values
-            elapsed_times = self.timer.get_all_elapsed()
-            wall_time = self.timer.get_elapsed()
+        # Calculate local values
+        elapsed_times = self.timer.get_all_elapsed()
+        wall_time = self.timer.get_elapsed()
 
-            delta_steps = self.timer.get_lap_steps()
-            if delta_steps is None:
-                delta_steps = self.agent_step
+        delta_steps = self.timer.get_lap_steps()
+        if delta_steps is None:
+            delta_steps = self.agent_step
 
-            lap_times = self.timer.lap_all(self.agent_step)
-            wall_time_for_lap = lap_times.pop("global", 0)
+        lap_times = self.timer.lap_all(self.agent_step)
+        wall_time_for_lap = lap_times.pop("global", 0)
 
-            # Calculate local SPS values
-            lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-            steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+        # Calculate local SPS values
+        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
-            # Perform distributed aggregation (ALL processes must participate)
-            total_agent_steps = dist_sum(self.agent_step, self.device)
-            total_sps = dist_sum(steps_per_second, self.device)
-            total_lap_sps = dist_sum(lap_steps_per_second, self.device)
+        # Aggregate across processes (dist_sum handles non-distributed case internally)
+        total_agent_steps = dist_sum(self.agent_step, self.device)
+        total_sps = dist_sum(steps_per_second, self.device)
+        total_lap_sps = dist_sum(lap_steps_per_second, self.device)
 
-            # Now non-master processes can return
-            if not self.wandb_run or not self._master:
-                self.stats.clear()
-                return
-
-            # Master continues with logging using the aggregated values
-        else:
-            # Non-distributed case
-            if not self.wandb_run or not self._master:
-                self.stats.clear()
-                return
-
-            elapsed_times = self.timer.get_all_elapsed()
-            wall_time = self.timer.get_elapsed()
-
-            delta_steps = self.timer.get_lap_steps()
-            if delta_steps is None:
-                delta_steps = self.agent_step
-
-            lap_times = self.timer.lap_all(self.agent_step)
-            wall_time_for_lap = lap_times.pop("global", 0)
-
-            lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-            steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
-
-            total_agent_steps = self.agent_step
-            total_sps = steps_per_second
-            total_lap_sps = lap_steps_per_second
+        # Return early if no wandb or if we're a non-master in distributed mode
+        if not self.wandb_run or (torch.distributed.is_initialized() and not self._master):
+            self.stats.clear()
+            return
 
         # convert lists of values (collected across all environments and rollout steps on this GPU)
         # into single mean values.
