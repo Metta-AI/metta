@@ -1025,25 +1025,10 @@ class MettaTrainer:
 
         self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
 
-        # Validation to catch configuration issues early
-        if self.batch_size < 1:
-            raise ValueError(
-                f"Calculated batch_size is {self.batch_size}, which is less than 1!\n"
-                f"This typically happens when forward_pass_minibatch_target_size ({trainer_cfg.forward_pass_minibatch_target_size}) "
-                f"is too small for the number of agents ({num_agents}) in the environment.\n"
-                f"Try increasing trainer.forward_pass_minibatch_target_size to at least {num_agents * 2}"
-            )
-
         logger.info(f"forward_pass_batch_size: {self.batch_size}")
 
         num_envs = self.batch_size * trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
-
-        if num_envs < 1:
-            logger.error(
-                f"num_envs = batch_size ({self.batch_size}) * async_factor ({trainer_cfg.async_factor}) "
-                f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
-            )
 
         self.vecenv = make_vecenv(
             self._curriculum,
