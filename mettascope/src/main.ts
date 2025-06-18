@@ -685,6 +685,9 @@ window.addEventListener('load', async () => {
     console.info('Context3d initialized successfully.')
   }
 
+  // Match the DPI scale between the HTML and the GPU.
+  ui.dpr = ctx.dpr
+
   await parseUrlParams()
   setPlaybackSpeed(0.1)
 

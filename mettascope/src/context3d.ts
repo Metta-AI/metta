@@ -253,6 +253,7 @@ export class Context3d {
   private canvasSizeUniformBuffer: GPUBuffer | null
   private canvasSize: Vec2f
   private atlasMargin: number
+  public dpr: number
 
   // Mesh management
   private meshes: Map<string, Mesh> = new Map()
@@ -280,6 +281,7 @@ export class Context3d {
     this.canvasSizeUniformBuffer = null
     this.canvasSize = new Vec2f(0, 0)
     this.atlasMargin = 4 // Default margin for texture sampling.
+    this.dpr = 1
 
     // Initialize transformation matrix
     this.currentTransform = Mat3f.identity()
@@ -382,6 +384,11 @@ export class Context3d {
 
   /** Initialize the context. */
   async init(atlasJsonUrl: string, atlasImageUrl: string): Promise<boolean> {
+    this.dpr = 1.0
+    if (window.devicePixelRatio > 1.0) {
+      this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
+    }
+
     // Initialize WebGPU device.
     const adapter = await navigator.gpu?.requestAdapter()
     this.device = (await adapter?.requestDevice()) || null
@@ -802,6 +809,17 @@ export class Context3d {
     // If no meshes have been created, nothing to do
     if (this.meshes.size === 0) {
       return
+    }
+
+    // Handle high-DPI displays by resizing the canvas if necessary.
+    const { clientWidth, clientHeight } = this.canvas
+    const newWidth = Math.round(clientWidth * this.dpr)
+    const newHeight = Math.round(clientHeight * this.dpr)
+    if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
+      this.canvas.width = newWidth
+      this.canvas.height = newHeight
+      this.canvas.style.width = `${clientWidth}px`
+      this.canvas.style.height = `${clientHeight}px`
     }
 
     // Setup for rendering
