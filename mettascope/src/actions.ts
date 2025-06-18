@@ -64,7 +64,6 @@ export function processActions(event: KeyboardEvent) {
   // direction, it moves forward.
 
   if (state.ws == null) {
-    console.error("Trying to send commands when not connected to server")
     return
   }
 

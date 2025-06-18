@@ -26,7 +26,6 @@ game:
     battery.blue_max: ${sampling:5, 20, 10}
     battery.green_max: ${sampling:5, 20, 10}
     freeze_duration: ${sampling:0, 200, 10}
-    hp: 10
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
@@ -88,7 +87,6 @@ game:
 
   objects:
     altar:
-      hp: 30
       input_battery.red: 3
       output_heart: 1
       max_output: 5
@@ -97,7 +95,6 @@ game:
       initial_items: ${choose:0,0,0,0,1}
 
     mine.red:
-      hp: 30
       output_ore.red: 1
       color: 0
       max_output: 1
@@ -106,7 +103,6 @@ game:
       initial_items: 0
 
     mine.blue:
-      hp: 30
       color: 1
       output_ore.blue: 1
       max_output: 1
@@ -115,7 +111,6 @@ game:
       initial_items: 0
 
     mine.green:
-      hp: 30
       output_ore.green: 1
       color: 2
       max_output: 1
@@ -124,7 +119,6 @@ game:
       initial_items: 0
 
     generator.red:
-      hp: 30
       input_ore.red: 1
       output_battery.red: 1
       color: 0
@@ -134,7 +128,6 @@ game:
       initial_items: 0
 
     generator.blue:
-      hp: 30
       input_ore.blue: 1
       output_battery.blue: 1
       color: 1
@@ -144,7 +137,6 @@ game:
       initial_items: ${choose:0,0,0,0,1}
 
     generator.green:
-      hp: 30
       input_ore.green: 1
       output_battery.green: 1
       color: 2
@@ -154,7 +146,6 @@ game:
       initial_items: ${choose:0,0,0,0,1}
 
     armory:
-      hp: 30
       input_ore.red: 3
       output_armor: 1
       max_output: 5
@@ -163,7 +154,6 @@ game:
       initial_items: 1
 
     lasery:
-      hp: 30
       input_ore.red: 1
       input_battery.red: 2
       output_laser: 1
@@ -173,7 +163,6 @@ game:
       initial_items: 1
 
     lab:
-      hp: 30
       input_ore.red: 3
       input_battery.red: 3
       output_blueprint: 1
@@ -183,7 +172,6 @@ game:
       initial_items: 1
 
     factory:
-      hp: 30
       input_blueprint: 1
       input_ore.red: 5
       input_battery.red: 5
@@ -195,7 +183,6 @@ game:
       initial_items: 1
 
     temple:
-      hp: 30
       input_heart: 1
       input_blueprint: 1
       output_heart: 5
@@ -205,11 +192,9 @@ game:
       initial_items: ${choose:0,0,0,0,1}
 
     wall:
-      hp: ${sampling:1, 20, 10}
       swappable: false
 
     block:
-      hp: ${sampling:1, 20, 10}
       swappable: true
 
   actions:
