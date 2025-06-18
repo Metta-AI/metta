@@ -57,6 +57,9 @@ RUN git config --remove-section http."https://github.com/" || true
 # Make sure the remote is configured for anonymous access
 RUN git remote remove origin && git remote add origin https://github.com/Metta-AI/metta.git
 
+# Doesn't do anything but guarantees that the remote is configured for anonymous access
+RUN git fetch
+
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --locked
 
