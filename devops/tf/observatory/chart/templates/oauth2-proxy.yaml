@@ -19,19 +19,19 @@ spec:
         args:
         - --upstream=file:///dev/null
         - --http-address=0.0.0.0:4180
-        {{- range .Values.oauth2_proxy.email_domains }}
+        {{- range .Values.oauth2_proxy.email_domains | required "oauth2_proxy.email_domains is required" }}
         - --email-domain={{ . }}
         {{- end }}
         envFrom:
         - secretRef:
-            name: {{ .Values.secret_name }}
+            name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
         ports:
         - containerPort: 4180
           protocol: TCP
       volumes:
       - name: secrets
         secret:
-          secretName: {{ .Values.oauth2_proxy.secret_name }}
+          secretName: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
 ---
 
 apiVersion: v1
@@ -67,7 +67,7 @@ spec:
               number: 4180
   tls:
   - hosts:
-    - {{ .Values.host }}
+    - {{ .Values.host | required "host is required" }}
     secretName: {{ .Release.Name }}-tls
 ---
 
@@ -78,7 +78,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/auth-url: "https://$host/oauth2/auth"
     nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
-    cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer }}
+    cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
 spec:
   ingressClassName: nginx
   rules:
@@ -94,5 +94,5 @@ spec:
               number: 8000
   tls:
   - hosts:
-    - {{ .Values.host }}
+    - {{ .Values.host | required "host is required" }}
     secretName: {{ .Release.Name }}-tls
