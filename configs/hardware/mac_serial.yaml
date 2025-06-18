@@ -3,7 +3,7 @@
 # Serial vectorization configuration for CPU training
 #
 # This setup uses a single CPU core with serial execution,
-# which is simpler but typically has lower throughput (SPS) 
+# which is simpler but typically has lower throughput (SPS)
 # compared to multiprocessing configurations.
 
 device: cpu
@@ -13,9 +13,9 @@ vectorization: serial
 trainer:
   num_workers: 1  # Single worker process ("serial" execution)
   update_epochs: 1
-  batch_size: 1024
+  batch_size: 2048  # Default batch size (will be adjusted automatically if needed)
   minibatch_size: 1024
-  forward_pass_minibatch_target_size: 2
+  forward_pass_minibatch_target_size: 512  # Increased from 2 to support multi-agent environments
   async_factor: 1
   checkpoint_interval: 10
   bptt_horizon: 8

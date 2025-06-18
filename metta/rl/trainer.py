@@ -386,7 +386,17 @@ class MettaTrainer:
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
+        # Debug logging
+        logger.info(
+            f"Starting rollout - experience buffer segments: {experience.segments}, bptt_horizon: {experience.bptt_horizon}"
+        )
+
+        rollout_iterations = 0
+        total_steps_collected = 0
+
         while not experience.ready_for_training:
+            rollout_iterations += 1
+
             with self.timer("_rollout.env"):
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
                 if trainer_cfg.require_contiguous_env_ids:
@@ -401,6 +411,24 @@ class MettaTrainer:
             mask = torch.as_tensor(mask)
             num_steps = mask.sum().item()
             self.agent_step += num_steps * self._world_size
+
+            # Debug logging for first few iterations
+            if self.epoch == 0 and hasattr(self, "_rollout_debug_count"):
+                if self._rollout_debug_count < 5:
+                    logger.info(
+                        f"Rollout debug {self._rollout_debug_count}: mask={mask}, num_steps={num_steps}, env_id={env_id}"
+                    )
+                    self._rollout_debug_count += 1
+            elif self.epoch == 0:
+                self._rollout_debug_count = 0
+
+            # Always log if we're getting zero steps
+            if num_steps == 0 and rollout_iterations <= 3:
+                logger.warning(
+                    f"Rollout iteration {rollout_iterations}: Got 0 steps! mask shape={mask.shape if hasattr(mask, 'shape') else len(mask)}, mask sum={mask.sum() if hasattr(mask, 'sum') else sum(mask)}"
+                )
+
+            total_steps_collected += num_steps
 
             # Convert to tensors once
             o = torch.as_tensor(o)
@@ -457,8 +485,18 @@ class MettaTrainer:
             if info:
                 raw_infos.extend(info)
 
+            # Debug experience buffer state
+            if hasattr(self, "_rollout_debug_count") and self._rollout_debug_count < 3:
+                logger.info(
+                    f"Experience buffer state: full_rows={experience.full_rows}, segments={experience.segments}, ready={experience.ready_for_training}"
+                )
+
             with self.timer("_rollout.env"):
                 self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
+
+        # Log rollout summary
+        if total_steps_collected == 0:
+            logger.error(f"Rollout completed with 0 total steps after {rollout_iterations} iterations!")
 
         # Batch process info dictionaries after rollout
         for i in raw_infos:
@@ -990,6 +1028,37 @@ class MettaTrainer:
             if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
                 num_lstm_layers = lstm_module._net.num_layers
 
+        # Validate and adjust batch size if needed
+        required_segments = total_agents
+        actual_segments = self._batch_size // trainer_cfg.bptt_horizon
+
+        if total_agents > actual_segments:
+            # Calculate minimum required batch size
+            min_required_batch_size = total_agents * trainer_cfg.bptt_horizon
+            logger.warning(
+                f"Total agents ({total_agents}) exceeds segments ({actual_segments}). "
+                f"Adjusting batch_size from {self._batch_size} to {min_required_batch_size}"
+            )
+            self._batch_size = min_required_batch_size
+
+            # Ensure minibatch_size is compatible
+            # minibatch_segments = minibatch_size // bptt_horizon
+            # We need: segments % minibatch_segments == 0
+            new_segments = self._batch_size // trainer_cfg.bptt_horizon
+            minibatch_segments = self._minibatch_size // trainer_cfg.bptt_horizon
+
+            if minibatch_segments > 0 and new_segments % minibatch_segments != 0:
+                # Find a compatible minibatch_segments value
+                for ms in range(minibatch_segments, 0, -1):
+                    if new_segments % ms == 0:
+                        self._minibatch_size = ms * trainer_cfg.bptt_horizon
+                        logger.warning(f"Adjusted minibatch_size to {self._minibatch_size} for compatibility")
+                        break
+                else:
+                    # Fallback: use single segment minibatches
+                    self._minibatch_size = trainer_cfg.bptt_horizon
+                    logger.warning(f"Using minimal minibatch_size of {self._minibatch_size}")
+
         # Create experience buffer
         self.experience = Experience(
             total_agents=total_agents,
@@ -1018,6 +1087,16 @@ class MettaTrainer:
             self.target_batch_size = 2
 
         self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
+
+        # Validation to catch configuration issues early
+        if self.batch_size < 1:
+            raise ValueError(
+                f"Calculated batch_size is {self.batch_size}, which is less than 1!\n"
+                f"This typically happens when forward_pass_minibatch_target_size ({trainer_cfg.forward_pass_minibatch_target_size}) "
+                f"is too small for the number of agents ({num_agents}) in the environment.\n"
+                f"Try increasing trainer.forward_pass_minibatch_target_size to at least {num_agents * 2}"
+            )
+
         logger.info(f"forward_pass_batch_size: {self.batch_size}")
 
         num_envs = self.batch_size * trainer_cfg.async_factor
@@ -1045,6 +1124,15 @@ class MettaTrainer:
         # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
         self.vecenv.async_reset(self.cfg.seed + rank)
+
+        # Debug logging
+        logger.info("VecEnv initialized:")
+        logger.info(f"  - num_agents: {self.vecenv.num_agents}")
+        logger.info(f"  - num_envs: {num_envs}")
+        logger.info(f"  - batch_size: {self.batch_size}")
+        logger.info(f"  - forward_pass_minibatch_target_size: {trainer_cfg.forward_pass_minibatch_target_size}")
+        logger.info(f"  - async_factor: {trainer_cfg.async_factor}")
+        logger.info(f"  - num_workers: {trainer_cfg.num_workers}")
 
     def _load_policy(self, checkpoint, policy_store, metta_grid_env):
         """Load policy from checkpoint, initial_policy.uri, or create new."""
