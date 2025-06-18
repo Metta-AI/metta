@@ -65,6 +65,12 @@ class PytorchAgent(nn.Module):
         logprob -> logprob_act
         hidden -> logits then, after sample_logits(), log_sftmx_logits
         """
+        # Initialize LSTM state if None
+        if state.lstm_h is None or state.lstm_c is None:
+            batch_size = obs.shape[0]
+            state.lstm_h = torch.zeros(batch_size, self.hidden_size, device=obs.device)
+            state.lstm_c = torch.zeros(batch_size, self.hidden_size, device=obs.device)
+
         hidden, critic = self.policy(obs, state)  # using variable names from LSTMWrapper
         action, logprob, logits_entropy = sample_logits(hidden, action)
         return action, logprob, logits_entropy, critic, hidden

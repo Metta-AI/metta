@@ -528,7 +528,19 @@ class PolicyStore:
 
     def _load_from_pytorch(self, path: str) -> MettaAgent:
         """Load a pytorch policy and wrap it in a MettaAgent."""
-        policy = load_policy(path, self._device, puffer=self._cfg.puffer)
+        # Check for pytorch config first, then fall back to puffer for backward compatibility
+        pytorch_config = None
+        if hasattr(self._cfg, "pytorch"):
+            pytorch_config = self._cfg.pytorch
+        elif hasattr(self._cfg, "puffer"):
+            pytorch_config = self._cfg.puffer
+        else:
+            raise ValueError(
+                "Neither 'pytorch' nor 'puffer' configuration found. "
+                "Please add a 'pytorch' section to your config with _target_ pointing to your policy class."
+            )
+
+        policy = load_policy(path, self._device, puffer=pytorch_config)
         name = os.path.basename(path)
 
         agent = MettaAgent(
