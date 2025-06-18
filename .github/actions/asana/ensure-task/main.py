@@ -1,6 +1,7 @@
 import os
-import requests
 import sys
+
+import requests
 
 
 def search_asana_tasks(github_url, project_id, github_url_field_id, asana_token):
