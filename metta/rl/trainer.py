@@ -89,9 +89,6 @@ class MettaTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.mean_reward = 0.0
-        self.filtered_mean_reward = 0.0  # IIR filtered value used by self.trainer_cfg.average_reward
-
         self._current_eval_score: float | None = None
         self._eval_grouped_scores: Dict[str, float] = {}
         self._eval_suite_avgs: Dict[str, float] = {}
@@ -103,7 +100,6 @@ class MettaTrainer:
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
         self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
-
         self._make_vecenv()
 
         metta_grid_env: MettaGridEnv = self.vecenv.driver_env  # type: ignore
@@ -466,13 +462,6 @@ class MettaTrainer:
         # TODO: Better way to enable multiple collects
         return self.stats, infos
 
-    def _get_experience_buffer_mean_reward(self) -> float:
-        # Use rewards from experience buffer
-        if hasattr(self, "experience") and self.experience.rewards_np is not None:
-            return float(np.mean(self.experience.rewards_np))
-
-        return 0.0
-
     @with_instance_timer("_train")
     def _train(self):
         experience = self.experience
@@ -510,19 +499,18 @@ class MettaTrainer:
             vtrace_cfg.get("vtrace_c_clip", 1.0),
         )
 
-        self.mean_reward = self._get_experience_buffer_mean_reward()
-
         # Optimizing the policy and value network
+        _total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
+        minibatch_idx = 0
+
         for _epoch in range(trainer_cfg.update_epochs):
-            lstm_state = PolicyState()
-            teacher_lstm_state = []
-            for mb in range(experience.num_minibatches):
+            for _ in range(experience.num_minibatches):
                 minibatch = experience.sample_minibatch(
                     advantages=advantages,
                     prio_alpha=a,
                     prio_beta=anneal_beta,
-                    minibatch_idx=mb,
-                    total_minibatches=self._total_minibatches,
+                    minibatch_idx=minibatch_idx,
+                    total_minibatches=_total_minibatches,
                 )
 
                 obs = minibatch["obs"]
@@ -576,16 +564,15 @@ class MettaTrainer:
                         -trainer_cfg.get("vf_clip_coef", 0.1),
                         trainer_cfg.get("vf_clip_coef", 0.1),
                     )
-                    v_loss_clipped = (v_clipped - ret) ** 2
-                    v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                    v_loss = 0.5 * v_loss_max.mean()
+                    v_loss_clipped = (v_clipped - minibatch["returns"]) ** 2
+                    v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
                 else:
-                    v_loss = 0.5 * ((newvalue - ret) ** 2).mean()
+                    v_loss = 0.5 * ((newvalue_reshaped - minibatch["returns"]) ** 2).mean()
 
                 entropy_loss = entropy.mean()
 
                 ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                    self.agent_step, full_log_probs_distribution, newvalue, obs, teacher_lstm_state
+                    self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state
                 )
 
                 l2_reg_loss = torch.tensor(0.0, device=self.device)
@@ -615,7 +602,6 @@ class MettaTrainer:
                 self.losses.policy_loss += pg_loss.item()
                 self.losses.value_loss += v_loss.item()
                 self.losses.entropy += entropy_loss.item()
-                self.losses.old_approx_kl += old_approx_kl.item()
                 self.losses.approx_kl += approx_kl.item()
                 self.losses.clipfrac += clipfrac.item()
                 self.losses.l2_reg_loss += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
@@ -634,12 +620,10 @@ class MettaTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
-                self.optimizer.step()
+                if self.device == "cuda":
+                    torch.cuda.synchronize()
 
-                if self.cfg.agent.clip_range > 0:
-                    self.policy.clip_weights()
-
+                minibatch_idx += 1
                 # end loop over minibatches
 
             # Calculate explained variance
@@ -655,8 +639,8 @@ class MettaTrainer:
                 if average_approx_kl > trainer_cfg.target_kl:
                     break
 
-            self.epoch += 1
             # end loop over epochs
+            self.epoch += 1
 
     def _checkpoint_trainer(self):
         if not self._master:
