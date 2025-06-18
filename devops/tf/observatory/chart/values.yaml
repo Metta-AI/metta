@@ -5,7 +5,7 @@ image:
 
 db_uri: ""
 
-host: "api.observatory.softmax-research.net"
+host: ""
 
 cert_manager_issuer: "letsencrypt"
 

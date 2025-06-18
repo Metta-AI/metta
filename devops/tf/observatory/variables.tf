@@ -27,3 +27,13 @@ variable "google_service_account_secret_arn" {
   type    = string
   default = "arn:aws:secretsmanager:us-east-1:751442549699:secret:GoogleOAuthObservatory-H7yGjS"
 }
+
+variable "zone_domain" {
+  type    = string
+  default = "softmax-research.net"
+}
+
+variable "api_host" {
+  type    = string
+  default = "api.observatory.${var.zone_domain}"
+}

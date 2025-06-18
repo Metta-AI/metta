@@ -17,4 +17,9 @@ resource "helm_release" "observatory" {
     name  = "db_uri"
     value = "postgresql://${aws_db_instance.postgres.username}:${aws_db_instance.postgres.password}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}"
   }
+
+  set {
+    name  = "host"
+    value = var.api_host
+  }
 }
