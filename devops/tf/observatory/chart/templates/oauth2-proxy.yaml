@@ -22,14 +22,12 @@ spec:
         {{- range .Values.oauth2_proxy.email_domains }}
         - --email-domain={{ . }}
         {{- end }}
-        - --google-service-account-json=/mnt/secrets/google-service-account.json
+        envFrom:
+        - secretRef:
+            name: {{ .Values.secret_name }}
         ports:
         - containerPort: 4180
           protocol: TCP
-        volumeMounts:
-        - name: secrets
-          mountPath: /mnt/secrets
-          readOnly: true
       volumes:
       - name: secrets
         secret:

@@ -1,32 +1,11 @@
-data "aws_secretsmanager_secret" "google_service_account_secret" {
-  arn = var.google_service_account_secret_arn
-}
-
-data "aws_secretsmanager_secret_version" "google_service_account_secret_version" {
-  secret_id = data.aws_secretsmanager_secret.google_service_account_secret.id
-}
-
 resource "kubernetes_namespace" "observatory" {
   metadata {
     name = "observatory"
   }
 }
 
-import {
-  to = kubernetes_namespace.observatory
-  id = "observatory"
-}
-
-resource "kubernetes_secret" "observatory_secrets" {
-  metadata {
-    name      = "observatory-secrets"
-    namespace = kubernetes_namespace.observatory.metadata[0].name
-  }
-
-  data = {
-    "google-service-account.json" = data.aws_secretsmanager_secret_version.google_service_account_secret_version.secret_string
-  }
-}
+# `observatory-secrets` secret was created manually
+# (it's not possible to automate it because it's not possible to terraform oauth clients in GCP)
 
 resource "helm_release" "observatory" {
   name  = "observatory"
