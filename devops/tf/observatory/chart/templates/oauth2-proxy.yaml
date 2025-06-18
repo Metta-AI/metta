@@ -28,10 +28,6 @@ spec:
         ports:
         - containerPort: 4180
           protocol: TCP
-      volumes:
-      - name: secrets
-        secret:
-          secretName: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
 ---
 
 apiVersion: v1
