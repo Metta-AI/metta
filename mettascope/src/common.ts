@@ -58,6 +58,8 @@ export const ui = {
   lastClickTime: 0, // For double-click detection.
   mainScrubberDown: false,
 
+  dpr: 1,
+
   // Split between trace and info panels.
   traceSplit: localStorageGetNumber('traceSplit', 0.8),
   agentPanelSplit: localStorageGetNumber('agentPanelSplit', 0.5),

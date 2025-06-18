@@ -253,6 +253,7 @@ export class Context3d {
   private canvasSizeUniformBuffer: GPUBuffer | null
   private canvasSize: Vec2f
   private atlasMargin: number
+  public dpr: number
 
   // Mesh management
   private meshes: Map<string, Mesh> = new Map()
@@ -280,6 +281,7 @@ export class Context3d {
     this.canvasSizeUniformBuffer = null
     this.canvasSize = new Vec2f(0, 0)
     this.atlasMargin = 4 // Default margin for texture sampling.
+    this.dpr = 1
 
     // Initialize transformation matrix
     this.currentTransform = Mat3f.identity()
@@ -382,6 +384,11 @@ export class Context3d {
 
   /** Initialize the context. */
   async init(atlasJsonUrl: string, atlasImageUrl: string): Promise<boolean> {
+    this.dpr = 1.0
+    if (window.devicePixelRatio > 1.0) {
+      this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
+    }
+
     // Initialize WebGPU device.
     const adapter = await navigator.gpu?.requestAdapter()
     this.device = (await adapter?.requestDevice()) || null
@@ -804,6 +811,17 @@ export class Context3d {
       return
     }
 
+    // Handle high-DPI displays by resizing the canvas if necessary.
+    const { clientWidth, clientHeight } = this.canvas
+    const newWidth = Math.round(clientWidth * this.dpr)
+    const newHeight = Math.round(clientHeight * this.dpr)
+    if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
+      this.canvas.width = newWidth
+      this.canvas.height = newHeight
+      this.canvas.style.width = `${clientWidth}px`
+      this.canvas.style.height = `${clientHeight}px`
+    }
+
     // Setup for rendering
     const device = this.device
     this.canvasSize = new Vec2f(this.canvas.width, this.canvas.height)
@@ -851,11 +869,11 @@ export class Context3d {
 
         // Apply scissor if enabled for this mesh
         if (mesh.scissorEnabled) {
-          const [x, y, width, height] = mesh.scissorRect
+          let [x, y, width, height] = mesh.scissorRect
           const w = Math.floor(this.canvas.width)
           const h = Math.floor(this.canvas.height)
           passEncoder.setScissorRect(
-            clamp(Math.floor(x), 0, w),
+            clamp(Math.floor(x * this.dpr), 0, w),
             clamp(Math.floor(y), 0, h),
             clamp(Math.floor(width), 0, w - x),
             clamp(Math.floor(height), 0, h - y)
