@@ -788,9 +788,13 @@ class MettaTrainer:
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
 
         # X-axis values for wandb
+        # Agent steps should be summed across GPUs (each GPU processes part of the batch)
+        # But epoch should be the same on all GPUs, so no aggregation needed
+        total_agent_steps = dist_sum(self.agent_step, self.device)
+
         metric_stats = {
-            "metric/step": self.agent_step,
-            "metric/epoch": self.epoch,
+            "metric/step": total_agent_steps,
+            "metric/epoch": self.epoch,  # Same on all GPUs, no need to sum
             "metric/total_time": wall_time,
             "metric/train_time": train_time,
         }
@@ -811,13 +815,19 @@ class MettaTrainer:
         delta_steps = self.timer.get_lap_steps()
         if delta_steps is None:
             delta_steps = self.agent_step
+
+        # Aggregate steps per second across all GPUs
         lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
+        # Sum SPS across all distributed processes
+        total_sps = dist_sum(steps_per_second, self.device)
+        total_lap_sps = dist_sum(lap_steps_per_second, self.device)
+
         mean_reward = self.experience.get_mean_reward()
         overview = {
-            "sps": steps_per_second,
-            "lap_sps": lap_steps_per_second,
+            "sps": total_sps,
+            "lap_sps": total_lap_sps,
             "reward": mean_reward,
             "reward_vs_total_time": mean_reward,
         }
@@ -885,8 +895,10 @@ class MettaTrainer:
 
         # Get correct device for this process
         device = torch.device(self.device) if isinstance(self.device, str) else self.device
-        if torch.distributed.is_initialized() and str(device).startswith("cuda"):
-            device = torch.device(f"cuda:{int(os.environ.get('LOCAL_RANK', 0))}")
+        # In distributed mode, ensure we use the correct GPU for this process
+        if torch.distributed.is_initialized() and str(device).startswith("cuda") and "LOCAL_RANK" in os.environ:
+            local_rank = int(os.environ["LOCAL_RANK"])
+            device = torch.device(f"cuda:{local_rank}")
 
         # Move tensors to device and compute advantage
         tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
@@ -1055,6 +1067,24 @@ class MettaTrainer:
             time.sleep(5)
 
         raise RuntimeError("Failed to load policy after 10 attempts")
+
+
+def dist_sum(value: float | int, device: torch.device | str) -> float:
+    """Sum a value across all distributed processes."""
+    if not torch.distributed.is_initialized():
+        return value
+
+    tensor = torch.tensor(value, device=device)
+    torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
+    return tensor.item()
+
+
+def dist_mean(value: float | int, device: torch.device | str) -> float:
+    """Average a value across all distributed processes."""
+    if not torch.distributed.is_initialized():
+        return value
+
+    return dist_sum(value, device) / torch.distributed.get_world_size()
 
 
 class AbortingTrainer(MettaTrainer):
