@@ -11,7 +11,13 @@ def search_asana_tasks(github_url, project_id, github_url_field_id, asana_token)
         "Authorization": f"Bearer {asana_token}",
         "Content-Type": "application/json",
     }
-    params = {"project": project_id, "opt_fields": "permalink_url,custom_fields"}
+
+    # Use Asana's search API to filter by custom field value
+    params = {
+        "project": project_id,
+        "opt_fields": "permalink_url,custom_fields",
+        f"custom_field.{github_url_field_id}.text_value": github_url,
+    }
 
     response = requests.get(url, headers=headers, params=params)
     if response.status_code != 200:
@@ -20,12 +26,9 @@ def search_asana_tasks(github_url, project_id, github_url_field_id, asana_token)
 
     tasks = response.json()["data"]
 
-    # Look for tasks with a GitHub URL custom field matching our URL
-    for task in tasks:
-        if "custom_fields" in task:
-            for field in task["custom_fields"]:
-                if field.get("gid") == github_url_field_id and field.get("text_value") == github_url:
-                    return task["permalink_url"]
+    # Return the first matching task's permalink URL
+    if tasks:
+        return tasks[0]["permalink_url"]
 
     return None
 
@@ -48,7 +51,7 @@ def create_asana_task(title, description, project_id, github_url, github_url_fie
     if github_url_field_id:
         payload["custom_fields"] = {github_url_field_id: github_url}
 
-    response = requests.post(url, json=payload, headers=headers)
+    response = requests.post(url, json=payload, headers=headers, timeout=30)
     if response.status_code == 201:
         return response.json()["data"]["permalink_url"]
     else:
@@ -82,4 +85,5 @@ if __name__ == "__main__":
 
     # Ensure task exists and output URL
     task_url = ensure_asana_task_exists(title, description, project_id, github_url, github_url_field_id, asana_token)
-    print(f"::set-output name=task_url::{task_url}")
+    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+        f.write(f"task_url={task_url}\n")
