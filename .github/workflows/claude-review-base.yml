@@ -176,6 +176,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           anthropic_model: ${{ env.CLAUDE_MODEL }}
           allowed_tools: "${{ inputs.tools }},Write"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           direct_prompt: |
             ${{ env.UNIVERSAL_PROMPT_PREFIX }}
 

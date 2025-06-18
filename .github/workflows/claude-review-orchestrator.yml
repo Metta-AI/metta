@@ -28,7 +28,7 @@ on:
         default: true
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
   id-token: write
 
