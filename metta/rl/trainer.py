@@ -386,11 +386,6 @@ class MettaTrainer:
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
-        # Debug logging
-        logger.info(
-            f"Starting rollout - experience buffer segments: {experience.segments}, bptt_horizon: {experience.bptt_horizon}"
-        )
-
         rollout_iterations = 0
         total_steps_collected = 0
 
