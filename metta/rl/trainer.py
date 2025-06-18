@@ -785,27 +785,28 @@ class MettaTrainer:
         lap_times = self.timer.lap_all(self.agent_step)
         wall_time_for_lap = lap_times.pop("global", 0)
 
+        delta_steps = self.timer.get_lap_steps()
+        if delta_steps is None:
+            delta_steps = self.agent_step
+        epoch_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+
         timing_stats = {
             **{
                 f"timing_per_epoch/fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
+            "timing_per_epoch/sps": epoch_steps_per_second,
             **{
                 f"timing_cumulative/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
                 for op, elapsed in elapsed_times.items()
             },
+            "timing_cumulative/sps": steps_per_second,
         }
 
-        delta_steps = self.timer.get_lap_steps()
-        if delta_steps is None:
-            delta_steps = self.agent_step
-        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
-
-        mean_reward = self.experience.get_mean_reward()
+        mean_reward = self.stats.get("episode/reward.mean", 0)
         overview = {
             "sps": steps_per_second,
-            "lap_sps": lap_steps_per_second,
             "reward": mean_reward,
             "reward_vs_total_time": mean_reward,
         }
@@ -832,12 +833,14 @@ class MettaTrainer:
             losses.pop("ks_action_loss")
             losses.pop("ks_value_loss")
 
+        trainer_experience = self.experience.to_dict()
+
         environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        parameter_stats = {
-            "parameter/learning_rate": self.optimizer.param_groups[0]["lr"],
-            "parameter/delta_steps": delta_steps,
-            "parameter/num_minibatches": self.experience.num_minibatches,
+        trainer_params = {
+            "learning_rate": self.optimizer.param_groups[0]["lr"],
+            "delta_steps": delta_steps,
+            "num_minibatches": self.experience.num_minibatches,
         }
 
         # Log everything to wandb
@@ -845,10 +848,11 @@ class MettaTrainer:
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
                 **{f"losses/{k}": v for k, v in losses.items()},
+                **{f"trainer_experience/{k}": v for k, v in trainer_experience.items()},
+                **{f"trainer_params/{k}": v for k, v in trainer_params.items()},
                 **environment_stats,
                 **weight_stats,
                 **self._eval_grouped_scores,
-                **parameter_stats,
                 **timing_stats,
                 **metric_stats,
             }
