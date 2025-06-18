@@ -58,7 +58,7 @@ export const ui = {
   lastClickTime: 0, // For double-click detection.
   mainScrubberDown: false,
 
-  dpr: 1, // DPI scale factor, use for Retina displays.
+  dpr: 1, // DPI scale factor used for Retina displays.
 
   // Split between trace and info panels.
   traceSplit: localStorageGetNumber('traceSplit', 0.8),
