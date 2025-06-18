@@ -94,7 +94,6 @@ class MettaTrainer:
             project="softmax/metta-project",
             experiment_name=cfg.run,
             run_id=cfg.run,
-            resume=True,
         )
         self.policy_store = policy_store
         self._current_eval_score: float | None = None
