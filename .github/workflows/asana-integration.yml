@@ -1,0 +1,38 @@
+name: Asana Integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "The branch to test the workflow on"
+        default: "main"
+        required: true
+      pr_number:
+        description: "The pull request number to test the workflow on"
+        required: true
+
+jobs:
+  asana_integration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Ensure Asana Task
+        uses: ./github/actions/asana/ensure-task
+        with:
+          title: ${{ github.event.pull_request.title }}
+          description: ${{ github.event.pull_request.body }}
+          project_id: ${{ secrets.ASANA_PROJECT_ID }}
+          asana_token: ${{ secrets.ASANA_TOKEN }}
+          github_url: ${{ github.event.pull_request.html_url }}
+          github_url_field_id: ${{ secrets.ASANA_GITHUB_URL_FIELD_ID }}
+
+      - name: Update PR Description
+        uses: ./github/actions/asana/update-pr-description
+        with:
+          pr_number: ${{ github.event.pull_request.number }}
+          repo: ${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          task_url: ${{ steps.create-asana-task.outputs.task_url }}

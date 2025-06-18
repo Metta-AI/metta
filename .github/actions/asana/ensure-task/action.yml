@@ -1,0 +1,30 @@
+name: "Ensure Asana Task Exists"
+description: "Ensures an Asana task exists with the given GitHub URL. Creates a new task if none is found."
+
+inputs:
+  title:
+    description: "The title of the pull request."
+    required: true
+  description:
+    description: "The body/description of the pull request."
+    required: true
+  project_id:
+    description: "The Asana project ID where the task will be created."
+    required: true
+  asana_token:
+    description: "The Asana personal access token."
+    required: true
+  github_url:
+    description: "The GitHub URL (PR or issue) to associate with the Asana task."
+    required: true
+  github_url_field_id:
+    description: "The Asana custom field ID for the 'GitHub URL' field."
+    required: true
+
+outputs:
+  task_url:
+    description: "The URL of the existing or created Asana task."
+
+runs:
+  using: "python-script"
+  main: "main.py"

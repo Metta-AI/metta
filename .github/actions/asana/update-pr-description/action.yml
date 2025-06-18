@@ -1,0 +1,20 @@
+name: "Update PR Description"
+description: "Updates a GitHub pull request description with a link to an Asana task."
+
+inputs:
+  pr_number:
+    description: "The number of the pull request."
+    required: true
+  repo:
+    description: "The repository (e.g., owner/repo)."
+    required: true
+  token:
+    description: "GitHub token for authentication."
+    required: true
+  task_url:
+    description: "The Asana task URL to add to the PR description."
+    required: true
+
+runs:
+  using: "python-script"
+  main: "main.py"
