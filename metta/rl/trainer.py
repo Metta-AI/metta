@@ -713,7 +713,7 @@ class MettaTrainer:
 
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
-        if not self._master:
+        if self._master:
             replay_sim_config = SingleEnvSimulationConfig(
                 env="/env/mettagrid/mettagrid",
                 num_episodes=1,
@@ -727,7 +727,7 @@ class MettaTrainer:
                 policy_store=self.policy_store,
                 device=self.device,
                 vectorization=self.cfg.vectorization,
-                replay_dir=self.cfg.trainer.replay_dir,
+                replay_dir=self.trainer_cfg.replay_dir,
             )
             results = replay_simulator.simulate()
 
@@ -802,13 +802,14 @@ class MettaTrainer:
         lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
+        mean_reward = self.experience.get_mean_reward()
         overview = {
             "sps": steps_per_second,
             "lap_sps": lap_steps_per_second,
-            "reward": self.mean_reward,
-            "reward_vs_total_time": self.mean_reward,
-            "reward_vs_train_time": self.mean_reward,
-            "reward_vs_epoch": self.mean_reward,
+            "reward": mean_reward,
+            "reward_vs_total_time": mean_reward,
+            "reward_vs_train_time": mean_reward,
+            "reward_vs_epoch": mean_reward,
         }
 
         for k, v in self.trainer_cfg.stats.overview.items():
@@ -819,10 +820,6 @@ class MettaTrainer:
             score = self._eval_suite_avgs.get(f"{category}_score", None)
             if score is not None:
                 overview[f"{category}_evals"] = score
-
-        # Add filtered average reward if applicable
-        if self.trainer_cfg.average_reward:
-            overview["filtered_mean_reward"] = self.filtered_mean_reward
 
         losses = self.losses.to_dict()
 
@@ -861,14 +858,19 @@ class MettaTrainer:
         self.stats.clear()
 
     @with_instance_timer("_compute_advantage")
-    def _compute_advantage(self, adv: torch.Tensor) -> torch.Tensor:
-        """Compute normalized advantages, handling distributed training synchronization."""
-        adv = adv.reshape(-1)
-        if self.trainer_cfg.norm_adv:
-            if torch.distributed.is_initialized():
-                local_sum = einops.rearrange(adv.sum(), "-> 1")
-                local_sq_sum = einops.rearrange((adv * adv).sum(), "-> 1")
-                local_count = torch.tensor([adv.numel()], dtype=adv.dtype, device=adv.device)
+    def _compute_advantage(
+        self,
+        values,
+        rewards,
+        dones,
+        importance_sampling_ratio,
+        advantages,
+        gamma,
+        gae_lambda,
+        vtrace_rho_clip,
+        vtrace_c_clip,
+    ):
+        """CUDA kernel for puffer advantage with automatic CPU fallback."""
 
         # Get correct device for this process
         device = torch.device(self.device) if isinstance(self.device, str) else self.device
