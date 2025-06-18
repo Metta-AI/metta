@@ -358,6 +358,8 @@ class MettaTrainer:
     def _rollout(self):
         experience, profile = self.experience, self.profile
         trainer_cfg = self.trainer_cfg
+        device = self.device
+        use_rnn = trainer_cfg.get("use_rnn", True)
 
         with profile.eval_misc:
             policy = self.policy
@@ -380,44 +382,53 @@ class MettaTrainer:
                 num_steps = sum(mask)
                 self.agent_step += num_steps * self._world_size
 
+                # Convert to tensors once
                 o = torch.as_tensor(o)
-                r = torch.as_tensor(r)
-                d = torch.as_tensor(d)
-                t = torch.as_tensor(t)
+                # Move to device non-blocking for all tensors that need it
+                o_device = o.to(device, non_blocking=True) if not trainer_cfg.cpu_offload else o
+                r = torch.as_tensor(r).to(device, non_blocking=True)
+                d = torch.as_tensor(d).to(device, non_blocking=True)
+                t = torch.as_tensor(t).to(device, non_blocking=True)
 
             with profile.eval_forward, torch.no_grad():
                 state = PolicyState()
 
-                lstm_state = experience.get_lstm_state(training_env_id.start)
-                if lstm_state is not None:
-                    state.lstm_h = lstm_state["lstm_h"]
-                    state.lstm_c = lstm_state["lstm_c"]
+                # Use direct LSTM state access for performance
+                if use_rnn:
+                    lstm_h, lstm_c = experience.get_lstm_state_direct(training_env_id.start)
+                    if lstm_h is not None:
+                        state.lstm_h = lstm_h
+                        state.lstm_c = lstm_c
 
-                o_device = o.to(self.device, non_blocking=True)
-                actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
+                # Use pre-moved tensor
+                obs_for_policy = o_device if not trainer_cfg.cpu_offload else o.to(device, non_blocking=True)
+                actions, selected_action_log_probs, _, value, _ = policy(obs_for_policy, state)
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
                     assert_shape(actions, ("BT", 2), "actions")
 
+                # Store LSTM state directly for performance
                 lstm_state_to_store = None
-                if trainer_cfg.get("use_rnn", True) and state.lstm_h is not None:
-                    lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
+                if use_rnn and state.lstm_h is not None:
+                    # Update LSTM state immediately to avoid dictionary creation
+                    experience.set_lstm_state_direct(training_env_id.start, state.lstm_h, state.lstm_c)
 
-                if self.device == "cuda":
+                if device == "cuda":
                     torch.cuda.synchronize()
 
             with profile.eval_misc:
                 value = value.flatten()
                 mask = torch.as_tensor(mask)  # * policy.mask)
 
+                # All tensors are already on device, avoid redundant transfers
                 experience.store(
                     obs=o if trainer_cfg.cpu_offload else o_device,
                     actions=actions,
                     logprobs=selected_action_log_probs,
-                    rewards=r.to(self.device, non_blocking=True),
-                    dones=d.to(self.device, non_blocking=True),
-                    truncations=t.to(self.device, non_blocking=True),
+                    rewards=r,
+                    dones=d,
+                    truncations=t,
                     values=value,
                     env_id=training_env_id,
                     mask=mask,

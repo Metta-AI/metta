@@ -127,6 +127,9 @@ class Experience:
                 f"segments {self.segments} must be divisible by minibatch_segments {self.minibatch_segments}"
             )
 
+        # Pre-allocate range tensor for efficient indexing during reset
+        self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
+
     @property
     def full(self) -> bool:
         """Alias for ready_for_training for compatibility."""
@@ -156,17 +159,22 @@ class Experience:
         )
 
         num_steps = sum(mask)
-        episode_length = self.ep_lengths[env_id.start].item()
+
+        # Cache frequently accessed values
+        env_start = env_id.start
+        episode_length = self.ep_lengths[env_start].item()
+
+        # Get indices once
         indices = self.ep_indices[env_id]
 
-        # Store data in segmented tensors
+        # Store data in segmented tensors - avoid redundant obs assignment
         batch_slice = (indices, episode_length)
-        self.obs[batch_slice] = obs if self.cpu_offload else obs
+        self.obs[batch_slice] = obs
         self.actions[batch_slice] = actions
         self.logprobs[batch_slice] = logprobs
         self.rewards[batch_slice] = rewards
-        self.dones[batch_slice] = dones.float()
-        self.truncateds[batch_slice] = truncations.float()
+        self.dones[batch_slice] = dones if dones.dtype == torch.float32 else dones.float()
+        self.truncateds[batch_slice] = truncations if truncations.dtype == torch.float32 else truncations.float()
         self.values[batch_slice] = values
 
         # Update episode tracking
@@ -176,17 +184,18 @@ class Experience:
         if episode_length + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
-        # Update LSTM states if provided
-        if lstm_state is not None and self.use_rnn and env_id.start in self.lstm_h:
-            self.lstm_h[env_id.start] = lstm_state["lstm_h"]
-            self.lstm_c[env_id.start] = lstm_state["lstm_c"]
+        # Update LSTM states if provided - check use_rnn first for early exit
+        if self.use_rnn and lstm_state is not None and env_start in self.lstm_h:
+            self.lstm_h[env_start] = lstm_state["lstm_h"]
+            self.lstm_c[env_start] = lstm_state["lstm_c"]
 
         return int(num_steps)
 
     def _reset_completed_episodes(self, env_id: slice) -> None:
         """Reset episode tracking for completed episodes."""
         num_full = env_id.stop - env_id.start
-        self.ep_indices[env_id] = (self.free_idx + torch.arange(num_full, device=self.device).int()) % self.segments
+        # Use pre-allocated range tensor and slice it
+        self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
         self.ep_lengths[env_id] = 0
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
@@ -197,11 +206,23 @@ class Experience:
             return None
         return {"lstm_h": self.lstm_h[env_id_start], "lstm_c": self.lstm_c[env_id_start]}
 
+    def get_lstm_state_direct(self, env_id_start: int) -> tuple[Optional[Tensor], Optional[Tensor]]:
+        """Get LSTM state directly as tensors for performance."""
+        if not self.use_rnn or env_id_start not in self.lstm_h:
+            return None, None
+        return self.lstm_h[env_id_start], self.lstm_c[env_id_start]
+
+    def set_lstm_state_direct(self, env_id_start: int, lstm_h: Tensor, lstm_c: Tensor) -> None:
+        """Set LSTM state directly for performance."""
+        if self.use_rnn and env_id_start in self.lstm_h:
+            self.lstm_h[env_id_start] = lstm_h
+            self.lstm_c[env_id_start] = lstm_c
+
     def reset_for_rollout(self) -> None:
         """Reset tracking variables for a new rollout."""
         self.full_rows = 0
         self.free_idx = self.total_agents % self.segments
-        self.ep_indices = torch.arange(self.total_agents, device=self.device, dtype=torch.int32) % self.segments
+        self.ep_indices = self._range_tensor % self.segments
         self.ep_lengths.zero_()
 
     def reset_importance_sampling_ratios(self) -> None:
