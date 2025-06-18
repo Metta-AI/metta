@@ -12,5 +12,4 @@ trainer:
     game:
       objects:
         altar:
-          hp: 10
           cooldown: ${ss:int, 1, 20, 10}

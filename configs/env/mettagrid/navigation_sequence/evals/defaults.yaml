@@ -28,7 +28,6 @@ game:
       initial_items: 0
 
     mine.red:
-      hp: 30
       output_ore.red: 1
       color: 0
       max_output: 1
@@ -37,7 +36,6 @@ game:
       initial_items: 1
 
     generator.red:
-      hp: 30
       input_ore.red: 1
       output_battery: 3
       color: 0
