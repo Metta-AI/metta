@@ -512,62 +512,53 @@ class MettaTrainer:
 
         self.mean_reward = self._get_experience_buffer_mean_reward()
 
-        if self.trainer_cfg.average_reward:
-            # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
-            # where ρ is the average reward estimate
-
-            # Apply IIR filter (exponential moving average)
-            alpha = trainer_cfg.average_reward_alpha
-            self.filtered_mean_reward = (1 - alpha) * self.filtered_mean_reward + alpha * self.mean_reward
-
-            # Use filtered estimate for advantage computation
-            rewards_np_adjusted = (rewards_np - self.filtered_mean_reward).astype(np.float32)
-            effective_gamma = 1.0
-            advantages_np = compute_gae(
-                dones_np, values_np, rewards_np_adjusted, effective_gamma, trainer_cfg.gae_lambda
-            )
-        else:
-            # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
-            effective_gamma = trainer_cfg.gamma
-            advantages_np = compute_gae(dones_np, values_np, rewards_np, effective_gamma, trainer_cfg.gae_lambda)
-
-        experience.returns_np = advantages_np + values_np
-        experience.flatten_batch(advantages_np)
-
         # Optimizing the policy and value network
         for _epoch in range(trainer_cfg.update_epochs):
             lstm_state = PolicyState()
             teacher_lstm_state = []
             for mb in range(experience.num_minibatches):
-                obs = experience.b_obs[mb]
-                obs = obs.to(self.device, non_blocking=True)
-                atn = experience.b_actions[mb]
-                old_action_log_probs = experience.b_logprobs[mb]
-                val = experience.b_values[mb]
-                adv = experience.b_advantages[mb]
-                ret = experience.b_returns[mb]
-
-                # Forward pass returns: (action, new_action_log_probs, entropy, value, full_log_probs_distribution)
-                _, new_action_log_probs, entropy, newvalue, full_log_probs_distribution = self.policy(
-                    obs, lstm_state, action=atn
+                minibatch = experience.sample_minibatch(
+                    advantages=advantages,
+                    prio_alpha=a,
+                    prio_beta=anneal_beta,
+                    minibatch_idx=mb,
+                    total_minibatches=self._total_minibatches,
                 )
-                if self.device == "cuda":
-                    torch.cuda.synchronize()
 
-                if __debug__:
-                    assert_shape(new_action_log_probs, ("BT",), "new_action_log_probs")
-                    assert_shape(old_action_log_probs, ("B", "T"), "old_action_log_probs")
+                obs = minibatch["obs"]
+                if not trainer_cfg.get("use_rnn", True):
+                    obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
 
-                logratio = new_action_log_probs - old_action_log_probs.reshape(-1)
-                ratio = logratio.exp()
+                lstm_state = PolicyState()
+                _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
+                    obs, lstm_state, action=minibatch["actions"]
+                )
+
+                new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
+                logratio = new_logprobs - minibatch["logprobs"]
+                importance_sampling_ratio = logratio.exp()
+                experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
 
                 with torch.no_grad():
-                    # calculate approx_kl http://joschu.net/blog/kl-approx.html
-                    old_approx_kl = (-logratio).mean()
-                    approx_kl = ((ratio - 1) - logratio).mean()
-                    clipfrac = ((ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
+                    approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
+                    clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
 
-                adv = self._compute_advantage(adv)
+                # Re-compute advantages with new ratios (V-trace)
+                adv = self._compute_advantage(
+                    minibatch["values"],
+                    minibatch["rewards"],
+                    minibatch["dones"],
+                    importance_sampling_ratio,
+                    minibatch["advantages"],
+                    trainer_cfg.gamma,
+                    trainer_cfg.gae_lambda,
+                    vtrace_cfg.get("vtrace_rho_clip", 1.0),
+                    vtrace_cfg.get("vtrace_c_clip", 1.0),
+                )
+
+                # Normalize advantages with distributed support, then apply prioritized weights
+                adv = self._normalize_advantage_distributed(adv)
+                adv = minibatch["prio_weights"] * adv
 
                 # Policy loss
                 pg_loss1 = -adv * importance_sampling_ratio
