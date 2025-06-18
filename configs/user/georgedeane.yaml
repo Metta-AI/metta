@@ -13,13 +13,15 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/navsequence/memory_mettascope
+  curriculum: /env/mettagrid/curriculum/memory_training_varied
   evaluate_interval: 10
 
 
 
-policy_uri: wandb://run/daphne.navigation.fromnumpy.skypilot
+policy_uri: wandb://run/george.mem_mettascope_pretrained.metta2
 
-run_id: 1
+# daphne.navigation.fromnumpy.skypilot
+
+run_id: 2
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

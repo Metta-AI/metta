@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/memory/evals/defaults@
+
+game:
+  max_steps: 350
+  map_builder:
+    uri: "configs/env/mettagrid/maps/memory_tests/lobster_legs.map"
+  objects:
+    altar:
+      initial_items: 1

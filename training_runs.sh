@@ -79,18 +79,18 @@
 
 # New training runs - June 17th
 
-# 1. Navigation curriculum from scratch
-./devops/skypilot/launch.py train run=georgedeane.nav_scratch trainer.curriculum=env/mettagrid/curriculum/navigation --skip-git-check \
+# # 1. Navigation curriculum from scratch
+# ./devops/skypilot/launch.py train run=georgedeane.nav_scratch trainer.curriculum=env/mettagrid/curriculum/navigation --skip-git-check \
 
 # 2. Memory mettascope curriculum with daphne.navigation.fromnumpy.skypilot initial policy
-./devops/skypilot/launch.py train run=georgedeane.mem_daphne_init trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=daphne.navigation.fromnumpy.skypilot --skip-git-check \
+./devops/skypilot/launch.py train run=georgedeane.2mem_daphne_init trainer.curriculum=env/mettagrid/curriculum/navsequencepython -m tools.train run=george.mem_mettascope_pretrained.metta2 +hardware=pufferbox trainer.curriculum=env/mettagrid/curriculum/memory_mettascope trainer.initial_policy.uri=wandb://run/daphne.navigation.bucketed.skypilot --skip-git-check --no-spot\
 
 # 3. Memory mettascope curriculum with relh.nav.new.42 initial policy
-./devops/skypilot/launch.py train run=georgedeane.mem_relh_init trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=relh.nav.new.42 --skip-git-check \
+# ./devops/skypilot/launch.py train run=georgedeane.mem_relh_init trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=wandb://run/relh.nav.new.42 --skip-git-check \
 
 # 4. Extended sequence curriculum from scratch
-./devops/skypilot/launch.py train run=georgedeane.extended_sequence trainer.curriculum=env/mettagrid/curriculum/extended_sequence --skip-git-check \
+./devops/skypilot/launch.py train run=georgedeane.2extended_sequence trainer.curriculum=env/mettagrid/curriculum/extended_sequence --skip-git-check --no-spot\
 
 # # 5. Memory training varied curriculum - comprehensive memory training and evaluation
-# ./devops/skypilot/launch.py train run=georgedeane.memory_training_varied trainer.curriculum=env/mettagrid/curriculum/memory_training_varied --skip-git-check \
+ ./devops/skypilot/launch.py train run=georgedeane.2memory_training_varied2 trainer.curriculum=env/mettagrid/curriculum/memory_training_varied --skip-git-check --no-spot\
 

@@ -7,7 +7,7 @@ num_agents: 1
 game:
   num_agents: 1
   agent:
-    heart_max: 1
+    heart_max: 3
     rewards:
       heart: 1
       ore.red: 0

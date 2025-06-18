@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/memory/evals/defaults@
+
+game:
+  max_steps: 300
+  map_builder:
+    uri: "configs/env/mettagrid/maps/memory_tests/passing_things.map"
+  objects:
+    altar:
+      initial_items: 1

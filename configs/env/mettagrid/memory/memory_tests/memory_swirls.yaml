@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/memory/evals/defaults@
+
+game:
+  max_steps: 500
+  map_builder:
+    uri: "configs/env/mettagrid/maps/memory_tests/memory_swirls.map"
+  objects:
+    altar:
+      initial_items: 1

@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/memory/evals/defaults@
+
+game:
+  max_steps: 250
+  map_builder:
+    uri: "configs/env/mettagrid/maps/memory_tests/hall_of_mirrors.map"
+  objects:
+    altar:
+      initial_items: 1
