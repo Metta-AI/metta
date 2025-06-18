@@ -47,7 +47,7 @@ kind: Ingress
 metadata:
   name: {{ .Release.Name }}-oauth2-proxy
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
 spec:
   ingressClassName: nginx
   rules:
@@ -78,7 +78,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: "{{ .Values.host }}"
+  - host: "{{ .Values.host | required "host is required" }}"
     http:
       paths:
       - path: /
