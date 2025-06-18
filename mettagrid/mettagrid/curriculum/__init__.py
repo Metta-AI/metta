@@ -6,6 +6,10 @@ from .random import RandomCurriculum
 from .sampling import SamplingCurriculum
 from .util import curriculum_from_config_path
 from .lpc import BidirectionalLearningProgess, MettaGridEnvLPSet
+from .lp_mixin import LearningProgressMixin
+from .lp_random import LPRandomCurriculum
+from .lp_low_reward import LPLowRewardCurriculum
+from .lp_progressive import LPProgressiveCurriculum
 
 __all__ = [
     "Curriculum",
@@ -19,4 +23,8 @@ __all__ = [
     "curriculum_from_config_path",
     "BidirectionalLearningProgess",
     "MettaGridEnvLPSet",
+    "LearningProgressMixin",
+    "LPRandomCurriculum",
+    "LPLowRewardCurriculum",
+    "LPProgressiveCurriculum",
 ]
