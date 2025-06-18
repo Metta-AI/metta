@@ -49,12 +49,14 @@ def create_asana_task(title, description, project_id, workspace_id, github_url, 
         "Content-Type": "application/json",
     }
 
-    payload = {"data": {
-        "name": title,
-        "notes": description,
-        "workspace": workspace_id,
-        "projects": [project_id],
-    }}
+    payload = {
+        "data": {
+            "name": title,
+            "notes": description,
+            "workspace": workspace_id,
+            "projects": [project_id],
+        }
+    }
 
     # Add the GitHub URL custom field
     if github_url_field_id:
@@ -70,7 +72,9 @@ def create_asana_task(title, description, project_id, workspace_id, github_url, 
         sys.exit(1)
 
 
-def ensure_asana_task_exists(title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token):
+def ensure_asana_task_exists(
+    title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token
+):
     """Ensure an Asana task exists with the given GitHub URL. Return existing or create new."""
     # First, search for existing task with this GitHub URL
     existing_task_url = search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id, asana_token)
@@ -80,7 +84,9 @@ def ensure_asana_task_exists(title, description, project_id, workspace_id, githu
 
     # If no existing task found, create a new one
     print(f"No existing task found with GitHub URL: {github_url}")
-    new_task_url = create_asana_task(title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token)
+    new_task_url = create_asana_task(
+        title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token
+    )
     print(f"Created new Asana task: {new_task_url}")
     return new_task_url
 
@@ -96,7 +102,9 @@ if __name__ == "__main__":
     github_url_field_id = os.getenv("INPUT_GITHUB_URL_FIELD_ID")
 
     # Ensure task exists and output URL
-    task_url = ensure_asana_task_exists(title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token)
+    task_url = ensure_asana_task_exists(
+        title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token
+    )
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         f.write(f"task_url={task_url}\n")
