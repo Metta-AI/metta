@@ -203,7 +203,7 @@ class ObsLatentAttn(LayerBase):
         return td
 
 
-class ObsVanillaAttn(LayerBase):
+class ObsSelfAttn(LayerBase):
     """Future work can go beyond just using the feat dim as the attn qv dim, a single layer and single head,
     adding a GRU before the out projection..."""
 

@@ -41,7 +41,7 @@ components:
       - name: obs_fourier
 
   obs_latent_self_attn:
-    _target_: metta.agent.lib.obs_enc.ObsVanillaAttn
+    _target_: metta.agent.lib.obs_enc.ObsSelfAttn
     out_dim: 128
     num_heads: 8
     num_layers: 3
