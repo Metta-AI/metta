@@ -46,7 +46,6 @@ components:
     use_cls_token: true
     query_token_dim: 32
     qk_dim: 32
-    v_dim: 64
     mlp_out_hidden_dim: 256
     sources:
       - name: obs_attr_embed
