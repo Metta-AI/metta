@@ -1,6 +1,7 @@
 sampling: 0
+
 desync_episodes: false
-replay_level_prob: 0.9
+replay_level_prob: 0.3
 game:
   num_agents: ???
   obs_width: 11

@@ -4,7 +4,7 @@ defaults:
 
 game:
   num_agents: 4
-  max_steps: 1000
+  max_steps: 1500
   map_builder:
     room:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
@@ -12,7 +12,7 @@ game:
       agents: 1
       dir: ${choose:varied_terrain/cylinder-world_large,varied_terrain/cylinder-world_medium,varied_terrain/cylinder-world_small}
       objects:
-        altar: 30
+        altar: 25
   objects:
     altar:
       cooldown: 1000

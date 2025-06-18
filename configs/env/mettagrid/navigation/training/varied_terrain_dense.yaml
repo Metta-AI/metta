@@ -6,7 +6,7 @@ sampling: 1
 
 game:
   num_agents: 4
-  max_steps: 1000
+  max_steps: 1500
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
@@ -18,7 +18,7 @@ game:
       agents: 1
       dir: ${choose:varied_terrain/dense_large,varied_terrain/dense_medium,varied_terrain/dense_small}
       objects:
-        altar: 30
+        altar: 25
   objects:
     altar:
       cooldown: 1000
