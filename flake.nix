@@ -11,7 +11,16 @@
       system = "x86_64-linux";
       pkgs = import nixpkgs {
         inherit system;
-        config.allowUnfree = true;
+        config = {
+          allowUnfree = true;
+          # Add the Python binary cache
+          substituters = [
+            "https://nixpkgs-python.cachix.org"
+          ];
+          trusted-public-keys = [
+            "nixpkgs-python.cachix.org-1:hxjI7pFxTyuTHn2NkvWCrAUcNZLNS3ZAvfYNuYifcEU="
+          ];
+        };
       };
       mettaPython = nixpkgs-python.packages.${system}."3.11.7";
     in
