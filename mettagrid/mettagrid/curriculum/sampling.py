@@ -54,3 +54,4 @@ def _sample(choice: Any) -> Any:
         if choice.get("want_int", False):
             value = int(value)
         return value
+    return choice
