@@ -57,9 +57,11 @@ jobs:
           echo "Checking if ASANA_API_KEY secret is available..."
           if [ -n "${{ secrets.ASANA_API_KEY }}" ]; then
             echo "✅ ASANA_API_KEY secret is set (length: ${#ASANA_API_KEY})"
+            echo "First 10 chars: ${ASANA_API_KEY:0:10}..."
           else
             echo "❌ ASANA_API_KEY secret is empty or not accessible"
           fi
+          echo "Raw secret check: '${{ secrets.ASANA_API_KEY }}'"
 
       - name: Ensure Asana Task
         id: ensure-asana-task
