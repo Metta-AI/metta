@@ -34,7 +34,6 @@ wandb:
   # checkpoint_interval: 1
 
 run_id: 763
-run: multi_env_2025_01_19_alex
-run_dir: ${data_dir}/${run}
+run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
