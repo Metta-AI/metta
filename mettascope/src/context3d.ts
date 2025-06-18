@@ -873,7 +873,7 @@ export class Context3d {
           const w = Math.floor(this.canvas.width)
           const h = Math.floor(this.canvas.height)
           passEncoder.setScissorRect(
-            clamp(Math.floor(x * this.dpr), 0, w),
+            clamp(Math.floor(x), 0, w),
             clamp(Math.floor(y), 0, h),
             clamp(Math.floor(width), 0, w - x),
             clamp(Math.floor(height), 0, h - y)
