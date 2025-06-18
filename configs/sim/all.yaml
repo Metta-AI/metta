@@ -58,7 +58,7 @@ simulations:
   npc/simple:
     env: env/mettagrid/simple
     policy_agents_pct: 0.5
-    npc_policy_uri: wandb://run/b.rwalters.0618.nav.pr989.2
+    npc_policy_uri: wandb://run/georgedeane.nav_scratch
   objectuse/altar_use_free:
     env: env/mettagrid/object_use/evals/altar_use_free
     policy_agents_pct: 1.0
