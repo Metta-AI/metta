@@ -34,7 +34,12 @@ class BucketedCurriculum(LowRewardCurriculum):
         logger.info("Generating bucketed tasks")
         # make task id interpretable
         for parameter_values in tqdm(product(*bucket_values)):
-            curriculum_id = "_".join([f"{k}={v}" for k, v in zip(bucket_parameters, parameter_values, strict=False)])
+            curriculum_id = "_".join(
+                [
+                    f"{k.split('/')[-1]}={v.get('range', 'values')}"
+                    for k, v in zip(bucket_parameters, parameter_values, strict=False)
+                ]
+            )
             curricula[curriculum_id] = SampledTaskCurriculum(
                 curriculum_id, env_cfg_template, bucket_parameters, parameter_values
             )
