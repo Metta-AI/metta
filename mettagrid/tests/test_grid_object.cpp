@@ -46,10 +46,6 @@ public:
     features.push_back({0, 1});
     return features;
   }
-  void obs(ObsType* obs) const override {
-    // Simple implementation for testing
-    obs[0] = 1;
-  }
 };
 
 // Test fixture for GridObject
@@ -91,13 +87,4 @@ TEST_F(GridObjectTest, InitWithCoordinatesAndLayer) {
   EXPECT_EQ(25, obj.location.r);
   EXPECT_EQ(30, obj.location.c);
   EXPECT_EQ(4, obj.location.layer);
-}
-
-// Test obs method
-TEST_F(GridObjectTest, ObsMethod) {
-  ObsType observations[1] = {0};
-
-  obj.obs(observations);
-
-  EXPECT_EQ(1, observations[0]);
 }

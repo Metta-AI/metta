@@ -11,8 +11,7 @@ game:
   objects:
     altar:
       cooldown: 255
-    wall:
-      hp: 1
+
     lasery:
       initial_items: 20
   map_builder:

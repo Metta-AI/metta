@@ -17,3 +17,5 @@ torch_deterministic: true
 vectorization: multiprocessing
 seed: 0
 device: cuda
+
+stats_user: ${oc.env:USER,unknown}
