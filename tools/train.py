@@ -86,7 +86,7 @@ def main(cfg: ListConfig | DictConfig) -> int:
     if "LOCAL_RANK" in os.environ and cfg.device.startswith("cuda"):
         logger.info(f"Initializing distributed training with {os.environ['LOCAL_RANK']} {cfg.device}")
         local_rank = int(os.environ["LOCAL_RANK"])
-        cfg.device = f"{cfg.device}:{local_rank}"
+        cfg.device = f"cuda:{local_rank}"
         dist.init_process_group(backend="nccl")
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
