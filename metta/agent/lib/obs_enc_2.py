@@ -119,7 +119,7 @@ class ObsVanillaAttn(LayerBase):
         return td
 
 
-class ObsLatentAttn(LayerBase):
+class ObsLatentAttn2(LayerBase):
     """
     Performs multi-layer cross-attention between learnable query tokens and input features.
 
