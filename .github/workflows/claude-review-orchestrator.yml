@@ -27,6 +27,8 @@ on:
         type: boolean
         default: true
 
+secrets: inherit
+
 permissions:
   contents: read
   pull-requests: write
