@@ -49,12 +49,12 @@ def create_asana_task(title, description, project_id, workspace_id, github_url, 
         "Content-Type": "application/json",
     }
 
-    payload = {
+    payload = {"data": {
         "name": title,
         "notes": description,
         "workspace": workspace_id,
-        "projects": project_id,
-    }
+        "projects": [project_id],
+    }}
 
     # Add the GitHub URL custom field
     if github_url_field_id:
