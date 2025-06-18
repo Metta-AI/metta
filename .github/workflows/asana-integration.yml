@@ -29,9 +29,24 @@ jobs:
           PR_TITLE=$(gh pr view ${{ github.event.inputs.pr_number }} --json title --jq '.title')
           PR_BODY=$(gh pr view ${{ github.event.inputs.pr_number }} --json body --jq '.body')
           PR_URL=$(gh pr view ${{ github.event.inputs.pr_number }} --json url --jq '.url')
-          echo "title=$PR_TITLE" >> $GITHUB_OUTPUT
-          echo "body=$PR_BODY" >> $GITHUB_OUTPUT
-          echo "url=$PR_URL" >> $GITHUB_OUTPUT
+
+          # Clean the data - remove problematic characters and normalize
+          PR_TITLE=$(echo "$PR_TITLE" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          PR_BODY=$(echo "$PR_BODY" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          PR_URL=$(echo "$PR_URL" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+          # Escape and write outputs safely using multiline syntax
+          echo "title<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_TITLE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "url<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_URL" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Install requests library
         run: pip install requests
