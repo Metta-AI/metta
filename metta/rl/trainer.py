@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 from typing import Any, Dict, Set
 from uuid import UUID
 
@@ -945,17 +946,21 @@ class MettaTrainer:
         tensors = [t.to(device) for t in tensors]
         values, rewards, dones, importance_sampling_ratio, advantages = tensors
 
-        torch.ops.pufferlib.compute_puff_advantage(
-            values,
-            rewards,
-            dones,
-            importance_sampling_ratio,
-            advantages,
-            gamma,
-            gae_lambda,
-            vtrace_rho_clip,
-            vtrace_c_clip,
-        )
+        # Create context manager that only applies CUDA device context if needed
+        device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
+
+        with device_context:
+            torch.ops.pufferlib.compute_puff_advantage(
+                values,
+                rewards,
+                dones,
+                importance_sampling_ratio,
+                advantages,
+                gamma,
+                gae_lambda,
+                vtrace_rho_clip,
+                vtrace_c_clip,
+            )
 
         return advantages
 
