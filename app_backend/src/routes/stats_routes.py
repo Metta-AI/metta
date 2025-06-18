@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from metta.app.metta_repo import MettaRepo
+from app_backend.src.metta_repo import MettaRepo
 
 
 # Request/Response Models
