@@ -5,7 +5,6 @@ game:
   num_agents: ???
   obs_width: 11
   obs_height: 11
-  use_observation_tokens: true
   num_observation_tokens: 200
   max_steps: 1000
 

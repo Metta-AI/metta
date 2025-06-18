@@ -15,7 +15,7 @@ resources:
       region: us-east-1
       accelerators: "A10G:1"
   cpus: 8+
-  image_id: docker:metta:3.0
+  image_id: docker:metta:latest
 
 setup: |
   cd /workspace/metta
@@ -38,7 +38,6 @@ run: |
   export NCCL_SHM_DISABLE=1
 
   ./devops/$METTA_CMD.sh \
-    +hardware=$METTA_HARDWARE \
     run=$METTA_RUN_ID \
     $METTA_CMD_ARGS
 
@@ -57,7 +56,6 @@ file_mounts:
 
 envs:
   METTA_RUN_ID: ""
-  METTA_HARDWARE: aws
   METTA_CMD: train
   METTA_CMD_ARGS: ""
   METTA_GIT_REF: main
