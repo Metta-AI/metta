@@ -1,4 +1,3 @@
-import logging
 from types import SimpleNamespace
 from typing import Optional
 
@@ -16,11 +15,31 @@ def load_policy(path: str, device: str = "cpu", puffer: Optional[DictConfig] = N
         num_actions, hidden_size = weights["policy.actor.0.weight"].shape
         num_action_args, _ = weights["policy.actor.1.weight"].shape
         _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
+        logger.info(
+            f"Successfully parsed model architecture from weights: actions={num_actions}, args={num_action_args}, channels={obs_channels}"
+        )
     except Exception as e:
-        print(f"Failed automatic parse from weights: {e}")
-        # TODO -- fix all magic numbers
-        num_actions, num_action_args = 9, 10
-        _, obs_channels = 128, 34
+        logger.warning(f"Failed automatic parse from weights: {e}")
+        # Try alternative weight keys
+        try:
+            # Check for alternative naming conventions
+            if "actor.0.weight" in weights:
+                num_actions, hidden_size = weights["actor.0.weight"].shape
+                num_action_args, _ = weights["actor.1.weight"].shape
+                _, obs_channels, _, _ = weights["network.0.weight"].shape
+                logger.info(
+                    f"Parsed using alternative naming: actions={num_actions}, args={num_action_args}, channels={obs_channels}"
+                )
+            else:
+                raise KeyError("No recognized weight naming pattern found")
+        except Exception as e2:
+            logger.warning(f"Alternative parsing also failed: {e2}")
+            # TODO -- fix all magic numbers
+            num_actions, num_action_args = 9, 10
+            _, obs_channels = 128, 34
+            logger.warning(
+                f"Using fallback values: actions={num_actions}, args={num_action_args}, channels={obs_channels}"
+            )
 
     # Create environment namespace
     env = SimpleNamespace(
@@ -75,57 +94,25 @@ class PytorchAgent(nn.Module):
         action, logprob, logits_entropy = sample_logits(hidden, action)
         return action, logprob, logits_entropy, critic, hidden
 
-    def activate_actions(self, actions_names, actions_max_params, device):
-        """
-        Activates the action space for the Pytorch policy.
-        This is a simple check to ensure the number of action heads matches.
-        A more thorough check could compare action names and parameter counts if
-        that metadata were available on the Pytorch model.
-        """
-        # Try to find the actor module in different locations
-        actor = None
-        if hasattr(self.policy, "actor"):
-            actor = self.policy.actor
-        elif hasattr(self.policy, "policy") and hasattr(self.policy.policy, "actor"):
-            # Handle nested structure like Recurrent -> Policy -> actor
-            actor = self.policy.policy.actor
-
-        if actor is None:
-            logging.warning("Could not find actor module in Pytorch model")
-            return
-
-        # Check if actor is a ModuleList or similar container
-        if isinstance(actor, nn.ModuleList):
-            num_action_heads = len(actor)
-        elif isinstance(actor, nn.Module):
-            # If it's a single module, assume 1 action head
-            num_action_heads = 1
-        else:
-            logging.warning("Could not determine number of action heads in Pytorch model")
-            return
-
-        if num_action_heads != len(actions_max_params):
-            logging.warning(
-                f"Action space mismatch: Pytorch model has {num_action_heads} action heads, "
-                f"but environment expects {len(actions_max_params)}. This may lead to errors."
-            )
-        else:
-            logging.info(
-                f"PytorchAgent action space activated with {num_action_heads} heads. "
-                "No-op, as Pytorch models are not reconfigured at runtime."
-            )
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
+        """PyTorch agents handle their own action spaces, so this is a no-op."""
+        logger.info(f"PytorchAgent received action activation request for {len(action_names)} actions")
 
     def l2_reg_loss(self) -> torch.Tensor:
         return torch.tensor(0.0, device=self.device)
 
     def l2_init_loss(self) -> torch.Tensor:
-        return torch.tensor(0.0, device=self.device)
+        """Return zero loss for PyTorch agents."""
+        return torch.zeros(1, device=self.device)
 
     def update_l2_init_weight_copy(self):
+        """No-op for PyTorch agents."""
         pass
 
     def clip_weights(self):
+        """No-op for PyTorch agents."""
         pass
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
+        """Return empty metrics for PyTorch agents."""
         return []

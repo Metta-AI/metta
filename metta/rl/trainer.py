@@ -756,10 +756,20 @@ class MettaTrainer:
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
+        # Get the actual MettaAgent (unwrap from DistributedMettaAgent if needed)
+        agent_to_save = self.uncompiled_policy
+        if isinstance(agent_to_save, DistributedMettaAgent):
+            agent_to_save = agent_to_save.module
+
+        # Ensure we have a MettaAgent
+        if not isinstance(agent_to_save, MettaAgent):
+            logger.error(f"Cannot save non-MettaAgent policy of type {type(agent_to_save)}")
+            return None
+
         self.last_agent = self.policy_store.save(
             name,
             os.path.join(self.trainer_cfg.checkpoint_dir, name),
-            self.uncompiled_policy,
+            agent_to_save,
             metadata={
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,

@@ -127,6 +127,18 @@ class Simulation:
         if self._npc_agent is not None:
             npc_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._npc_agent.policy_as_metta_agent()
             assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), npc_agent
+
+            # Validate action space compatibility
+            if hasattr(self._policy_agent, "metadata") and hasattr(self._npc_agent, "metadata"):
+                policy_actions = self._policy_agent.metadata.get("action_names", [])
+                npc_actions = self._npc_agent.metadata.get("action_names", [])
+
+                if policy_actions and npc_actions and policy_actions != npc_actions:
+                    logger.warning(
+                        f"Action space mismatch between policy ({policy_actions}) and NPC ({npc_actions}). "
+                        "This may cause compatibility issues."
+                    )
+
             try:
                 npc_agent.activate_actions(action_names, max_args, self._device)
             except Exception as e:

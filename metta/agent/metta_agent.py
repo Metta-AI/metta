@@ -130,6 +130,7 @@ class MettaAgent(nn.Module):
             "observation_space_version": self.observation_space_version,
             "action_space_version": self.action_space_version,
             "layer_version": self.layer_version,
+            "checkpoint_format_version": 2,  # Track format version for compatibility
         }
 
         # Save model-specific config for reconstruction
@@ -151,6 +152,14 @@ class MettaAgent(nn.Module):
         logger.info(f"Loading agent from {path}")
 
         checkpoint = torch.load(path, map_location=device, weights_only=False)
+
+        # Check checkpoint format version
+        format_version = checkpoint.get("checkpoint_format_version", 1)
+        if format_version > 2:
+            logger.warning(
+                f"Checkpoint has format version {format_version}, but this code supports up to version 2. "
+                "Some features may not work correctly."
+            )
 
         # Create MettaAgent instance
         agent = cls(
@@ -390,6 +399,7 @@ class MettaAgent(nn.Module):
             "observation_space_version": self.observation_space_version,
             "action_space_version": self.action_space_version,
             "layer_version": self.layer_version,
+            "checkpoint_format_version": 2,  # Track format version
         }
 
         torch.save(save_data, path)
@@ -446,3 +456,11 @@ class DistributedMettaAgent(DistributedDataParallel):
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
         return self.module.activate_actions(action_names, action_max_params, device)
+
+    def key_and_version(self) -> tuple[str, int]:
+        """Delegate to wrapped module."""
+        return self.module.key_and_version()
+
+    def policy_as_metta_agent(self) -> MettaAgent:
+        """Return wrapped module since it's the actual MettaAgent."""
+        return self.module

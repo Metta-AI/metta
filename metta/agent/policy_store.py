@@ -641,12 +641,20 @@ class PolicyStore:
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")
 
-        artifact = wandb.Api().artifact(qualified_name)
+        try:
+            artifact = wandb.Api().artifact(qualified_name)
+        except Exception as e:
+            logger.error(f"Failed to fetch wandb artifact {qualified_name}: {e}")
+            raise ValueError(f"Could not load wandb artifact {qualified_name}. Is wandb configured correctly?") from e
 
         artifact_path = os.path.join(self._cfg.data_dir, "artifacts", artifact.name)
 
         if not os.path.exists(artifact_path):
-            artifact.download(root=artifact_path)
+            try:
+                artifact.download(root=artifact_path)
+            except Exception as e:
+                logger.error(f"Failed to download wandb artifact {artifact.name}: {e}")
+                raise ValueError(f"Could not download wandb artifact {artifact.name}") from e
 
         logger.info(f"Downloaded artifact {artifact.name} to {artifact_path}")
 
