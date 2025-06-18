@@ -130,9 +130,11 @@ class Experience:
         self.num_minibatches: int = int(num_minibatches)
         if self.num_minibatches != num_minibatches:
             raise ValueError(
-                f"Configuration error: segments ({self.segments}) must be divisible by minibatch_segments ({self.minibatch_segments}).\n"
+                f"Configuration error: segments ({self.segments}) must be divisible by "
+                f"minibatch_segments ({self.minibatch_segments}).\n"
                 f"segments = batch_size // bptt_horizon = {batch_size} // {bptt_horizon} = {self.segments}\n"
-                f"minibatch_segments = minibatch_size // bptt_horizon = {self.minibatch_size} // {bptt_horizon} = {self.minibatch_segments}\n"
+                f"minibatch_segments = minibatch_size // bptt_horizon = "
+                f"{self.minibatch_size} // {bptt_horizon} = {self.minibatch_segments}\n"
                 f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
             )
 
