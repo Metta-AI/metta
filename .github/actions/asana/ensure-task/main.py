@@ -19,7 +19,7 @@ def search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id
         "limit": 100,  # Maximum allowed by Asana API
         "sort_by": "created_at",
         "projects.any": project_id,  # Filter to specific project
-        f"custom_fields.{github_url_field_id}.text_value": github_url,  # Filter by custom field
+        f"custom_fields.{github_url_field_id}.value": github_url,  # Filter by custom field
     }
 
     response = requests.get(url, headers=headers, params=params, timeout=30)
