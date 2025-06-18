@@ -40,6 +40,8 @@ components:
     _target_: metta.agent.lib.obs_enc.ObsLatentAttn2
     out_dim: 128
     use_mask: true
+    num_layers: 2
+    num_heads: 4
     num_query_tokens: 1
     use_cls_token: true
     query_token_dim: 32
