@@ -13,7 +13,6 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from pufferlib import unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -201,13 +200,6 @@ class MettaTrainer:
                 self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
             )
 
-        # AMP (Automatic Mixed Precision) for performance
-        self.use_amp = trainer_cfg.get("use_amp", False) and str(self.device).startswith("cuda")
-        self.amp_dtype = torch.bfloat16 if trainer_cfg.get("amp_dtype", "bfloat16") == "bfloat16" else torch.float16
-        self.amp_context = (
-            torch.amp.autocast(device_type="cuda", dtype=self.amp_dtype) if self.use_amp else nullcontext()
-        )
-
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
@@ -371,6 +363,7 @@ class MettaTrainer:
         with profile.eval_misc:
             policy = self.policy
             infos = defaultdict(list)
+            raw_infos = []  # Collect raw info for batch processing later
 
             experience.reset_for_rollout()
 
@@ -386,7 +379,9 @@ class MettaTrainer:
                 training_env_id = slice(env_id[0], env_id[-1] + 1)
 
             with profile.eval_misc:
-                num_steps = sum(mask)
+                # Convert mask to tensor once
+                mask = torch.as_tensor(mask)
+                num_steps = mask.sum().item()
                 self.agent_step += num_steps * self._world_size
 
                 # Convert to tensors once
@@ -397,7 +392,7 @@ class MettaTrainer:
                 d = torch.as_tensor(d).to(device, non_blocking=True)
                 t = torch.as_tensor(t).to(device, non_blocking=True)
 
-            with profile.eval_forward, torch.no_grad(), self.amp_context:
+            with profile.eval_forward, torch.no_grad():
                 state = PolicyState()
 
                 # Use direct LSTM state access for performance
@@ -416,17 +411,16 @@ class MettaTrainer:
                     assert_shape(actions, ("BT", 2), "actions")
 
                 # Store LSTM state directly for performance
-                lstm_state_to_store = None
                 if use_rnn and state.lstm_h is not None:
                     # Update LSTM state immediately to avoid dictionary creation
                     experience.set_lstm_state_direct(training_env_id.start, state.lstm_h, state.lstm_c)
 
-                if device == "cuda":
-                    torch.cuda.synchronize()
+                # Removed cuda.synchronize() from hot path - major performance killer
+                # It forces CPU to wait for GPU operations, breaking async execution
 
             with profile.eval_misc:
                 value = value.flatten()
-                mask = torch.as_tensor(mask)  # * policy.mask)
+                # mask already converted to tensor above
 
                 # Clamp rewards if configured
                 if trainer_cfg.get("clamp_rewards", False):
@@ -443,20 +437,27 @@ class MettaTrainer:
                     values=value,
                     env_id=training_env_id,
                     mask=mask,
-                    lstm_state=lstm_state_to_store,
+                    lstm_state=None,  # We already updated LSTM state directly above
                 )
 
-                # Batch process info dictionaries more efficiently
-                if info:  # Only process if there's info
-                    for i in info:
-                        for k, v in unroll_nested_dict(i):
-                            infos[k].append(v)
+                # Defer info processing - just collect raw data
+                if info:
+                    raw_infos.extend(info)
 
             with profile.env:
-                actions_np = actions.cpu().numpy().astype(dtype_actions)
+                # Optimize numpy conversion - avoid redundant copy if already on CPU
+                if actions.device.type == "cpu":
+                    actions_np = actions.numpy().astype(dtype_actions)
+                else:
+                    actions_np = actions.cpu().numpy().astype(dtype_actions)
                 self.vecenv.send(actions_np)
 
         with profile.eval_misc:
+            # Batch process info dictionaries after rollout
+            for i in raw_infos:
+                for k, v in unroll_nested_dict(i):
+                    infos[k].append(v)
+
             # Batch process stats more efficiently
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
@@ -528,7 +529,7 @@ class MettaTrainer:
                     total_minibatches=self._total_minibatches,
                 )
 
-            with profile.train_forward, self.amp_context:
+            with profile.train_forward:
                 obs = minibatch["obs"]
                 if not trainer_cfg.get("use_rnn", True):
                     obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
