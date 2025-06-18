@@ -38,7 +38,7 @@ class BucketedCurriculum(LowRewardCurriculum):
             curricula[curriculum_id] = SampledTaskCurriculum(
                 curriculum_id, env_cfg_template, bucket_parameters, parameter_values
             )
-        super().__init__(curricula=curricula, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
+        super().__init__(tasks=curricula, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
 
     def load_curricula(self, curricula_cfgs, env_overrides=None):
         self._task_weights = {t: 1.0 for t in curricula_cfgs}  # uniform task weights
