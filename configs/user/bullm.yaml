@@ -1,0 +1,10 @@
+# User-specific config for bullm to use BidirectionalLearningProgess/MettaGridEnvLPSet
+
+defaults:
+  - _self_
+
+trainer:
+  curriculum: env/mettagrid/curriculum/lpc_navigation
+
+# Optionally, you can add other overrides as needed
+

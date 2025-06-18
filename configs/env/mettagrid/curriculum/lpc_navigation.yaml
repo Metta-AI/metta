@@ -1,0 +1,23 @@
+_target_: mettagrid.curriculum.MettaGridEnvLPSet
+
+# Environment configuration for LPC
+env_cfg:
+  envs:
+    - /env/mettagrid/navigation/training/terrain_from_numpy
+    - /env/mettagrid/navigation/training/cylinder_world
+    - /env/mettagrid/navigation/training/varied_terrain_sparse
+    - /env/mettagrid/navigation/training/varied_terrain_balanced
+    - /env/mettagrid/navigation/training/varied_terrain_maze
+    - /env/mettagrid/navigation/training/varied_terrain_dense
+  num_agents: 24
+
+render_mode: "none"
+
+# LPC-specific parameters
+ema_alpha: 0.001
+p_theta: 0.05
+num_active_tasks: 16
+rand_task_rate: 0.25
+sample_threshold: 10
+memory: 25
+lp_metric: "episode/reward.mean"
