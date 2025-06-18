@@ -31,7 +31,7 @@ spec:
       volumes:
       - name: secrets
         secret:
-          secretName: {{ .Values.secret_name }}
+          secretName: {{ .Values.oauth2_proxy.secret_name }}
 ---
 
 apiVersion: v1
