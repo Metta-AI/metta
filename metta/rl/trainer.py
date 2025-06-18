@@ -31,7 +31,6 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
-from metta.util.distributed import dist_sum
 from metta.util.heartbeat import record_heartbeat
 from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.curriculum import curriculum_from_config_path
@@ -762,7 +761,12 @@ class MettaTrainer:
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
-        # Calculate local values
+        # Only process stats on master process
+        if not self._master or not self.wandb_run:
+            self.stats.clear()
+            return
+
+        # Calculate local values (master only)
         elapsed_times = self.timer.get_all_elapsed()
         wall_time = self.timer.get_elapsed()
 
@@ -773,19 +777,14 @@ class MettaTrainer:
         lap_times = self.timer.lap_all(self.agent_step)
         wall_time_for_lap = lap_times.pop("global", 0)
 
-        # Calculate local SPS values
+        # Calculate SPS values and multiply by world size for approximation
         lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
-        # Aggregate across processes (dist_sum handles non-distributed case internally)
-        total_agent_steps = dist_sum(self.agent_step, self.device)
-        total_sps = dist_sum(steps_per_second, self.device)
-        total_lap_sps = dist_sum(lap_steps_per_second, self.device)
-
-        # Return early if no wandb or if we're a non-master in distributed mode
-        if not self.wandb_run or (torch.distributed.is_initialized() and not self._master):
-            self.stats.clear()
-            return
+        # Approximate total values by multiplying master's values by world size
+        total_agent_steps = self.agent_step * self._world_size
+        total_sps = steps_per_second * self._world_size
+        total_lap_sps = lap_steps_per_second * self._world_size
 
         # convert lists of values (collected across all environments and rollout steps on this GPU)
         # into single mean values.
@@ -812,11 +811,10 @@ class MettaTrainer:
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
 
         # X-axis values for wandb
-        # Agent steps should be summed across GPUs (each GPU processes part of the batch)
-        # But epoch should be the same on all GPUs, so no aggregation needed
+        # Agent steps approximated by multiplying master's steps by world size
         metric_stats = {
             "metric/step": total_agent_steps,
-            "metric/epoch": self.epoch,  # Same on all GPUs, no need to sum
+            "metric/epoch": self.epoch,
             "metric/total_time": wall_time,
             "metric/train_time": train_time,
         }
