@@ -26,6 +26,27 @@ on:
         required: false
         type: boolean
         default: true
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+      run_readme:
+        required: false
+        type: boolean
+        default: true
+      run_comments:
+        required: false
+        type: boolean
+        default: true
+      run_types:
+        required: false
+        type: boolean
+        default: true
+      run_einops:
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
