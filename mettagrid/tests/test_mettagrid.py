@@ -33,7 +33,6 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
             "num_agents": NUM_AGENTS,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": True,
             "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
                 # don't really care about the actions for this test
