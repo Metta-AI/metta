@@ -60,6 +60,8 @@ def create_asana_task(title, description, project_id, workspace_id, github_url, 
     if github_url_field_id:
         payload["custom_fields"] = {github_url_field_id: github_url}
 
+    print(f"Creating task with payload: {payload}")
+
     response = requests.post(url, json=payload, headers=headers, timeout=30)
     if response.status_code == 201:
         return response.json()["data"]["permalink_url"]
