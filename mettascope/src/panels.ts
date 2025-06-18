@@ -3,6 +3,13 @@ import * as Common from './common.js'
 import { ui } from './common.js'
 import { find } from './htmlutils.js'
 
+export class Rect {
+  public x: number = 0
+  public y: number = 0
+  public width: number = 0
+  public height: number = 0
+}
+
 /** A main UI panel. */
 export class PanelInfo {
   public x: number = 0
@@ -29,19 +36,29 @@ export class PanelInfo {
 
   /** Gets the transformation matrix for the panel. */
   transform(): Mat3f {
-    return Mat3f.translate(this.x + this.width / 2, this.y + this.height / 2)
+    const rect = this.rectInner()
+    return Mat3f.translate(rect.x + rect.width / 2, rect.y + rect.height / 2)
       .mul(Mat3f.scale(this.zoomLevel, this.zoomLevel))
       .mul(Mat3f.translate(this.panPos.x(), this.panPos.y()))
   }
 
   /** Transforms a point from the outer coordinate system to the panel's inner coordinate system. */
   transformOuter(point: Vec2f): Vec2f {
-    return this.transform().inverse().transform(point)
+    return this.transform().inverse().transform(point.mul(ui.dpr))
   }
 
   /** Transforms a point from the panel's inner coordinate system to the outer coordinate system. */
   transformInner(point: Vec2f): Vec2f {
-    return this.transform().transform(point)
+    return this.transform().transform(point.mul(1 / ui.dpr))
+  }
+
+  rectInner(): Rect {
+    return {
+      x: this.x * ui.dpr,
+      y: this.y * ui.dpr,
+      width: this.width * ui.dpr,
+      height: this.height * ui.dpr,
+    }
   }
 
   /** Makes the panel focus on a specific position in the panel. */
