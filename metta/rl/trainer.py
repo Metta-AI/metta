@@ -902,7 +902,6 @@ class MettaTrainer:
 
         # Create context manager that only applies CUDA device context if needed
         device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
-
         with device_context:
             torch.ops.pufferlib.compute_puff_advantage(
                 values,
@@ -1010,7 +1009,6 @@ class MettaTrainer:
             self.target_batch_size = 2
 
         self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
-
         logger.info(f"forward_pass_batch_size: {self.batch_size}")
 
         num_envs = self.batch_size * trainer_cfg.async_factor
@@ -1018,7 +1016,7 @@ class MettaTrainer:
 
         if num_envs < 1:
             logger.error(
-                f"num_envs = batch_size ({batch_size}) * async_factor ({trainer_cfg.async_factor}) "
+                f"num_envs = batch_size ({self.batch_size}) * async_factor ({trainer_cfg.async_factor}) "
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 

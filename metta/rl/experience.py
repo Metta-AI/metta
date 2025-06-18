@@ -204,12 +204,6 @@ class Experience:
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 
-    def get_lstm_state_dict(self, env_id_start: int) -> Optional[Dict[str, Tensor]]:
-        """Get LSTM state as a dictionary for a batch starting at env_id_start."""
-        if not self.use_rnn or env_id_start not in self.lstm_h:
-            return None
-        return {"lstm_h": self.lstm_h[env_id_start], "lstm_c": self.lstm_c[env_id_start]}
-
     def get_lstm_state(self, env_id_start: int) -> tuple[Optional[Tensor], Optional[Tensor]]:
         """Get LSTM state as tensors."""
         if not self.use_rnn or env_id_start not in self.lstm_h:
