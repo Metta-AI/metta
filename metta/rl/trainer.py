@@ -101,7 +101,8 @@ class MettaTrainer:
         self.timer.start()
 
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
-        self._curriculum = curriculum_from_config_path(curriculum_config, trainer_cfg.env_overrides)
+        env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
+        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
 
         self._make_vecenv()
 
@@ -269,15 +270,15 @@ class MettaTrainer:
             )
 
             # Checkpointing trainer
-            if self.epoch % self.trainer_cfg.checkpoint_interval == 0:
+            if self.epoch % trainer_cfg.checkpoint_interval == 0:
                 self._checkpoint_trainer()
 
-            if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
+            if trainer_cfg.evaluate_interval != 0 and self.epoch % trainer_cfg.evaluate_interval == 0:
                 self._evaluate_policy()
 
             self.torch_profiler.on_epoch_end(self.epoch)
 
-            if self.epoch % self.trainer_cfg.wandb_checkpoint_interval == 0:
+            if self.epoch % trainer_cfg.wandb_checkpoint_interval == 0:
                 self._save_policy_to_wandb()
 
             if (
@@ -286,7 +287,7 @@ class MettaTrainer:
             ):
                 self.policy.update_l2_init_weight_copy()
 
-            if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
+            if trainer_cfg.replay_interval != 0 and self.epoch % trainer_cfg.replay_interval == 0:
                 self._generate_and_upload_replay()
 
             self._on_train_step()
@@ -472,6 +473,8 @@ class MettaTrainer:
     @with_instance_timer("_train")
     def _train(self):
         experience = self.experience
+        trainer_cfg = self.trainer_cfg
+
         self.losses.zero()
 
         idxs = experience.sort_training_data()
@@ -486,25 +489,25 @@ class MettaTrainer:
             # where ρ is the average reward estimate
 
             # Apply IIR filter (exponential moving average)
-            alpha = self.trainer_cfg.average_reward_alpha
+            alpha = trainer_cfg.average_reward_alpha
             self.filtered_mean_reward = (1 - alpha) * self.filtered_mean_reward + alpha * self.mean_reward
 
             # Use filtered estimate for advantage computation
             rewards_np_adjusted = (rewards_np - self.filtered_mean_reward).astype(np.float32)
             effective_gamma = 1.0
             advantages_np = compute_gae(
-                dones_np, values_np, rewards_np_adjusted, effective_gamma, self.trainer_cfg.gae_lambda
+                dones_np, values_np, rewards_np_adjusted, effective_gamma, trainer_cfg.gae_lambda
             )
         else:
             # Standard discounted formulation: A_t = GAE(r_t, γ<1.0)
-            effective_gamma = self.trainer_cfg.gamma
-            advantages_np = compute_gae(dones_np, values_np, rewards_np, effective_gamma, self.trainer_cfg.gae_lambda)
+            effective_gamma = trainer_cfg.gamma
+            advantages_np = compute_gae(dones_np, values_np, rewards_np, effective_gamma, trainer_cfg.gae_lambda)
 
         experience.returns_np = advantages_np + values_np
         experience.flatten_batch(advantages_np)
 
         # Optimizing the policy and value network
-        for _epoch in range(self.trainer_cfg.update_epochs):
+        for _epoch in range(trainer_cfg.update_epochs):
             lstm_state = PolicyState()
             teacher_lstm_state = []
             for mb in range(experience.num_minibatches):
@@ -534,23 +537,23 @@ class MettaTrainer:
                     # calculate approx_kl http://joschu.net/blog/kl-approx.html
                     old_approx_kl = (-logratio).mean()
                     approx_kl = ((ratio - 1) - logratio).mean()
-                    clipfrac = ((ratio - 1.0).abs() > self.trainer_cfg.clip_coef).float().mean()
+                    clipfrac = ((ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
 
                 adv = self._compute_advantage(adv)
 
                 # Policy loss
                 pg_loss1 = -adv * ratio
-                pg_loss2 = -adv * torch.clamp(ratio, 1 - self.trainer_cfg.clip_coef, 1 + self.trainer_cfg.clip_coef)
+                pg_loss2 = -adv * torch.clamp(ratio, 1 - trainer_cfg.clip_coef, 1 + trainer_cfg.clip_coef)
                 pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
                 # Value loss
                 newvalue = newvalue.view(-1)
-                if self.trainer_cfg.clip_vloss:
+                if trainer_cfg.clip_vloss:
                     v_loss_unclipped = (newvalue - ret) ** 2
                     v_clipped = val + torch.clamp(
                         newvalue - val,
-                        -self.trainer_cfg.vf_clip_coef,
-                        self.trainer_cfg.vf_clip_coef,
+                        -trainer_cfg.vf_clip_coef,
+                        trainer_cfg.vf_clip_coef,
                     )
                     v_loss_clipped = (v_clipped - ret) ** 2
                     v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
@@ -565,17 +568,17 @@ class MettaTrainer:
                 )
 
                 l2_reg_loss = torch.tensor(0.0, device=self.device)
-                if self.trainer_cfg.l2_reg_loss_coef > 0:
-                    l2_reg_loss = self.trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
+                if trainer_cfg.l2_reg_loss_coef > 0:
+                    l2_reg_loss = trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
 
                 l2_init_loss = torch.tensor(0.0, device=self.device)
-                if self.trainer_cfg.l2_init_loss_coef > 0:
-                    l2_init_loss = self.trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
+                if trainer_cfg.l2_init_loss_coef > 0:
+                    l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
                 loss = (
                     pg_loss
-                    - self.trainer_cfg.ent_coef * entropy_loss
-                    + v_loss * self.trainer_cfg.vf_coef
+                    - trainer_cfg.ent_coef * entropy_loss
+                    + v_loss * trainer_cfg.vf_coef
                     + l2_reg_loss
                     + l2_init_loss
                     + ks_action_loss
@@ -584,7 +587,7 @@ class MettaTrainer:
 
                 self.optimizer.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.trainer_cfg.max_grad_norm)
+                torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
                 self.optimizer.step()
 
                 if self.cfg.agent.clip_range > 0:
@@ -607,9 +610,9 @@ class MettaTrainer:
                 # end loop over minibatches
 
             # check early exit if we have reached target_kl
-            if self.trainer_cfg.target_kl is not None:
+            if trainer_cfg.target_kl is not None:
                 average_approx_kl = self.losses.approx_kl_sum / self.losses.minibatches_processed
-                if average_approx_kl > self.trainer_cfg.target_kl:
+                if average_approx_kl > trainer_cfg.target_kl:
                     break
 
             self.epoch += 1
