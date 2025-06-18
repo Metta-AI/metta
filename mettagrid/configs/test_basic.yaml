@@ -54,6 +54,7 @@ game:
       initial_resources: 30
       use_cost: 0
 
+    wall: {}
 
 
   actions:
