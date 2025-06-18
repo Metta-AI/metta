@@ -28,17 +28,21 @@ class BucketedCurriculum(LowRewardCurriculum):
         bucket_parameters, bucket_values = _expand_buckets(buckets, default_bins)
 
         # here, tasks map directly to curricula
-        tasks = {}
+        curricula = {}
         base = config_from_path(env_cfg_template, env_overrides)
         env_cfg_template = OmegaConf.create(OmegaConf.to_container(base, resolve=False))
         logger.info("Generating bucketed tasks")
-        for task_id, parameter_values in tqdm(enumerate(product(*bucket_values))):
-            tasks[task_id] = SampledTaskCurriculum(task_id, env_cfg_template, bucket_parameters, parameter_values)
-        super().__init__(tasks=tasks, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
+        # make task id interpretable
+        for parameter_values in tqdm(product(*bucket_values)):
+            curriculum_id = "_".join([f"{k}={v}" for k, v in zip(bucket_parameters, parameter_values, strict=False)])
+            curricula[curriculum_id] = SampledTaskCurriculum(
+                curriculum_id, env_cfg_template, bucket_parameters, parameter_values
+            )
+        super().__init__(curricula=curricula, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
 
-    def set_curricula(self, tasks, env_overrides=None):
-        self._curriculums = tasks
-        self._task_weights = {t: 1.0 for t in tasks}  # uniform task weights
+    def load_curricula(self, curricula_cfgs, env_overrides=None):
+        self._task_weights = {t: 1.0 for t in curricula_cfgs}  # uniform task weights
+        return curricula_cfgs
 
 
 def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Tuple[List[str], List[List[Any]]]:

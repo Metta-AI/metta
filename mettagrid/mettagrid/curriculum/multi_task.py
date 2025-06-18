@@ -4,7 +4,6 @@ from typing import Dict
 from omegaconf import DictConfig
 
 from mettagrid.curriculum.curriculum import Curriculum
-from mettagrid.curriculum.util import curriculum_from_config_path
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +11,8 @@ logger = logging.getLogger(__name__)
 class MultiTaskCurriculum(Curriculum):
     """Base class for curricula with multiple tasks."""
 
-    def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig):
-        self.set_curricula(tasks, env_overrides)
+    def __init__(self, curricula: Dict[str, float], env_overrides: DictConfig, moving_avg_window: int = 500):
+        self._curriculums = curricula
         num_agents = None
         for task_id, curriculum in self._curriculums.items():
             cfg_num_agents = curriculum.get_task().env_cfg().game.num_agents
@@ -23,7 +22,11 @@ class MultiTaskCurriculum(Curriculum):
                 assert cfg_num_agents == num_agents, (
                     f"Task {task_id} has num_agents {cfg_num_agents}, expected {num_agents}"
                 )
+        self.moving_avg_window = moving_avg_window
+        self.completed_tasks = []
 
-    def set_curricula(self, tasks, env_overrides):
-        self._curriculums = {t: curriculum_from_config_path(t, env_overrides) for t in tasks.keys()}
-        self._task_weights = tasks
+    def complete_task(self, id: str, score: float):
+        if len(self.completed_tasks) > self.moving_avg_window:
+            self.completed_tasks.pop(0)
+        self.completed_tasks.append(id)
+        super().complete_task(id, score)
