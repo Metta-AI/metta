@@ -12,11 +12,22 @@ components:
   #necessary layers: _core_, _action_embeds_, _action_, _value_
   #necessary input_source: _obs_
 
+  # _obs_:
+  #   _target_: metta.agent.lib.obs_enc.ObsTokenShaper
+  #   atr_embed_dim: 16
+  #   sources:
+  #     null
+
   _obs_:
-    _target_: metta.agent.lib.obs_enc.ObsTokenShaper
-    atr_embed_dim: 16
+    _target_: metta.agent.lib.obs_tokenizers.ObsTokenPadStrip
     sources:
       null
+
+  obs_attr_embed:
+    _target_: metta.agent.lib.obs_tokenizers.ObsAttrCoordEmbed
+    atr_embed_dim: 16
+    sources:
+      - name: _obs_
 
   obs_cross_attn:
     _target_: metta.agent.lib.obs_enc.ObsCrossAttn
@@ -28,7 +39,7 @@ components:
     v_dim: 64
     mlp_out_hidden_dim: 256
     sources:
-      - name: _obs_
+      - name: obs_attr_embed
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
