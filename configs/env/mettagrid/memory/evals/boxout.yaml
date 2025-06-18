@@ -4,4 +4,4 @@ defaults:
 game:
   max_steps: 350
   map_builder:
-    uri: "configs/env/mettagrid/maps/memory/boxout.map"
+    uri: "configs/env/mettagrid/maps/memory/evals/boxout.map"

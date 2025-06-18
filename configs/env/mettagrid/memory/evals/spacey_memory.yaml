@@ -4,4 +4,4 @@ defaults:
 game:
   max_steps: 250
   map_builder:
-    uri: "configs/env/mettagrid/maps/memory/spacey_memory.map"
+    uri: "configs/env/mettagrid/maps/memory/evals/spacey_memory.map"

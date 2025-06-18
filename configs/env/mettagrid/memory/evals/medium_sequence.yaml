@@ -5,4 +5,4 @@ game:
   num_agents: 2
   max_steps: 100
   map_builder:
-    uri: "configs/env/mettagrid/maps/memory/medium_sequence.map"
+    uri: "configs/env/mettagrid/maps/memory/evals/medium_sequence.map"

@@ -4,4 +4,4 @@ defaults:
 game:
   max_steps: 500
   map_builder:
-    uri: "configs/env/mettagrid/maps/memory/tease.map"
+    uri: "configs/env/mettagrid/maps/memory/evals/tease.map"

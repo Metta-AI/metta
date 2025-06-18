@@ -4,4 +4,4 @@ defaults:
 game:
   max_steps: 140
   map_builder:
-    uri: "configs/env/mettagrid/maps/memory/which_way.map"
+    uri: "configs/env/mettagrid/maps/memory/evals/which_way.map"

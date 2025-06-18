@@ -8,7 +8,7 @@ game:
     rewards:
       heart: 0.333
   map_builder:
-    uri: "configs/env/mettagrid/maps/memory/medium.map"
+    uri: "configs/env/mettagrid/maps/memory/evals/medium.map"
   objects:
     altar:
       initial_items: 1

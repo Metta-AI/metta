@@ -7,4 +7,4 @@ game:
     rewards:
       heart: 1
   map_builder:
-    uri: "configs/env/mettagrid/maps/memory/little_landmark_easy.map"
+    uri: "configs/env/mettagrid/maps/memory/evals/little_landmark_easy.map"

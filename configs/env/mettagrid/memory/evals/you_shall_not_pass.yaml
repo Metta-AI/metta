@@ -4,4 +4,4 @@ defaults:
 game:
   max_steps: 140
   map_builder:
-    uri: "configs/env/mettagrid/maps/memory/you_shall_not_pass.map"
+    uri: "configs/env/mettagrid/maps/memory/evals/you_shall_not_pass.map"

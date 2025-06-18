@@ -9,7 +9,7 @@ game:
       heart: 0.333
   map_builder:
     _target_: mettagrid.room.ascii.Ascii
-    uri: "configs/env/mettagrid/maps/memory/hard.map"
+    uri: "configs/env/mettagrid/maps/memory/evals/hard.map"
   objects:
     altar:
       initial_items: 1
