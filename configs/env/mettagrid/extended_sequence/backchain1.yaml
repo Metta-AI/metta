@@ -1,8 +1,6 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/mettagrid_deterministic@
   - _self_
-
-sampling: 1
 
 game:
   num_agents: 4
@@ -15,12 +13,12 @@ game:
     battery.green_max: 1
     rewards:
       action_failure_penalty: 0
-      ore.red: ${sampling:0.005,0.1,0.01}
-      battery.red: ${sampling:0.01,0.3,0.1}
-      ore.blue: ${sampling:0.005,0.1,0.01}
-      battery.blue: ${sampling:0.01,0.3,0.1}
-      ore.green: ${sampling:0.005,0.1,0.01}
-      battery.green: ${sampling:0.01,0.3,0.1}
+      ore.red: 0.005
+      battery.red: 0.01
+      ore.blue: 0.005
+      battery.blue: 0.01
+      ore.green: 0.005
+      battery.green: 0.01
       heart: 1
       heart_max: 1000
 
@@ -31,15 +29,15 @@ game:
 
     room:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
-      border_width: ${sampling:1,6,3}
+      border_width: 1
       agents: 1
-      dir: ${choose:varied_terrain/sparse_small,varied_terrain/balanced_small,varied_terrain/dense_small}
+      dir: varied_terrain/sparse_small
       objects:
         altar: 2
         mine.red: 0
   objects:
     altar:
-      cooldown: ${sampling:15,100,45}
+      cooldown: 50
       input_battery.red: 0
       output_heart: 1
       max_output: 1

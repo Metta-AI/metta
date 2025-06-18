@@ -1,8 +1,6 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/mettagrid_deterministic@
   - _self_
-
-sampling: 1
 
 game:
   num_agents: 4
