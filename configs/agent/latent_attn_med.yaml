@@ -17,17 +17,17 @@ components:
     sources:
       null
 
-  obs_normalize:
+  obs_normalizer:
     _target_: metta.agent.lib.obs_tokenizers.ObsAttrValNorm
     sources:
       - name: _obs_
 
   obs_fourier:
     _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
-    sources:
-      - name: obs_normalize
     num_freqs: 8
     atr_embed_dim: 12
+    sources:
+      - name: obs_normalizer
 
   obs_latent_query_attn:
     _target_: metta.agent.lib.obs_enc.ObsLatentAttn

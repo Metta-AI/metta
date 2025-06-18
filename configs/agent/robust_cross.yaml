@@ -23,18 +23,12 @@ components:
     sources:
       null
 
-  # obs_attr_embed:
-  #   _target_: metta.agent.lib.obs_tokenizers.ObsAttrCoordEmbed
-  #   atr_embed_dim: 16
-  #   sources:
-  #     - name: _obs_
-
   obs_normalizer:
     _target_: metta.agent.lib.obs_tokenizers.ObsAttrValNorm
     sources:
       - name: _obs_
 
-  obs_attr_embed:
+  obs_fourier:
     _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
     atr_embed_dim: 10
     num_freqs: 4
@@ -42,7 +36,7 @@ components:
       - name: obs_normalizer
 
   obs_cross_attn:
-    _target_: metta.agent.lib.obs_enc.ObsLatentAttn2
+    _target_: metta.agent.lib.obs_enc.ObsLatentAttn
     out_dim: 128
     use_mask: true
     num_layers: 2
@@ -53,7 +47,7 @@ components:
     qk_dim: 32
     mlp_out_hidden_dim: 256
     sources:
-      - name: obs_attr_embed
+      - name: obs_fourier
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM

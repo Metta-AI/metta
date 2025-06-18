@@ -111,7 +111,7 @@ class ObsTokenShaper(LayerBase):
         return td
 
 
-class ObsVanillaAttn(LayerBase):
+class ObsVanillaAttnOLD(LayerBase):
     """Future work can go beyond just using the feat dim as the attn qv dim, a single layer and single head,
     adding a GRU before the out projection..."""
 
@@ -805,7 +805,7 @@ class ObsTokenRoPE(LayerBase):
         return td
 
 
-class ObsLatentAttn2(LayerBase):
+class ObsLatentAttn(LayerBase):
     """
     Performs multi-layer cross-attention between learnable query tokens and input features.
 
@@ -993,6 +993,117 @@ class ObsLatentAttn2(LayerBase):
 
         if self._use_cls_token:
             # Select first query token from [B_TT, num_query_tokens, self._out_dim] to [B_TT, self._out_dim]
+            x = x[:, 0]
+
+        td[self._name] = x
+        return td
+
+
+class ObsVanillaAttn(LayerBase):
+    """Future work can go beyond just using the feat dim as the attn qv dim, a single layer and single head,
+    adding a GRU before the out projection..."""
+
+    def __init__(
+        self,
+        out_dim: int,
+        use_mask: bool = False,
+        num_layers: int = 1,
+        num_heads: int = 1,
+        use_cls_token: bool = False,
+        **cfg,
+    ) -> None:
+        super().__init__(**cfg)
+        self._out_dim = out_dim
+        self._use_mask = use_mask
+        self._num_layers = num_layers
+        self._num_heads = num_heads
+        self._use_cls_token = use_cls_token
+
+    def _make_net(self) -> None:
+        # we expect input shape to be [B, M, feat_dim]
+        self._feat_dim = self._in_tensor_shapes[0][1]
+
+        if self._feat_dim % self._num_heads != 0:
+            raise ValueError(f"feat_dim ({self._feat_dim}) must be divisible by num_heads ({self._num_heads})")
+
+        self._scale = (self._feat_dim // self._num_heads) ** -0.5
+
+        self._out_tensor_shape = [0, self._out_dim]
+        if self._use_cls_token:
+            self._out_tensor_shape = [self._out_dim]
+            self._cls_token = nn.Parameter(torch.randn(1, 1, self._feat_dim))
+
+        self.layer_norms_1 = nn.ModuleList([nn.LayerNorm(self._feat_dim) for _ in range(self._num_layers)])
+        self.q_projs = nn.ModuleList()
+        self.k_projs = nn.ModuleList()
+        self.v_projs = nn.ModuleList()
+        self.out_projs = nn.ModuleList()
+
+        for _ in range(self._num_layers):
+            self.q_projs.append(nn.Linear(self._feat_dim, self._feat_dim, bias=False))
+            self.k_projs.append(nn.Linear(self._feat_dim, self._feat_dim, bias=False))
+            self.v_projs.append(nn.Linear(self._feat_dim, self._feat_dim, bias=False))
+            self.out_projs.append(nn.Linear(self._feat_dim, self._feat_dim))
+
+        self._layer_norm_2 = nn.LayerNorm(self._feat_dim)
+
+        if self._feat_dim != self._out_dim:
+            self._final_proj = nn.Linear(self._feat_dim, self._out_dim)
+        else:
+            self._final_proj = nn.Identity()
+
+        return None
+
+    def _forward(self, td: TensorDict) -> TensorDict:
+        x_features = td[self._sources[0]["name"]]
+        if self._use_cls_token:
+            x_features = torch.cat([self._cls_token.expand(x_features.shape[0], -1, -1), x_features], dim=1)
+
+        key_mask = None
+        if self._use_mask:
+            key_mask = td["obs_mask"]  # True for elements to be masked
+            if self._use_cls_token:
+                key_mask = torch.cat([torch.zeros(key_mask.shape[0], 1, device=key_mask.device), key_mask], dim=1)
+
+        x = x_features
+        for i in range(self._num_layers):
+            x_res = x
+            x_norm = self.layer_norms_1[i](x)
+
+            q = self.q_projs[i](x_norm)
+            k = self.k_projs[i](x_norm)
+            v = self.v_projs[i](x_norm)
+
+            # Reshape for multi-head
+            q = einops.rearrange(q, "b m (h d) -> b h m d", h=self._num_heads)
+            k = einops.rearrange(k, "b m (h d) -> b h m d", h=self._num_heads)
+            v = einops.rearrange(v, "b m (h d) -> b h m d", h=self._num_heads)
+
+            # Attention scores: [B, num_heads, M, M]
+            attn_scores = torch.einsum("bhmd,bhnd->bhmn", q, k) * self._scale
+
+            if key_mask is not None:
+                # key_mask: [B, M] -> [B, 1, 1, M] for broadcasting
+                mask_value = -torch.finfo(attn_scores.dtype).max
+                attn_scores = attn_scores + key_mask.unsqueeze(1).unsqueeze(1).to(attn_scores.dtype) * mask_value
+
+            attn_weights = torch.softmax(attn_scores, dim=-1)  # [B, num_heads, M, M]
+
+            # Weighted sum of V: [B, num_heads, M, head_dim]
+            attn_output = torch.einsum("bhmn,bhnd->bhmd", attn_weights, v)
+
+            # Combine heads: [B, M, feat_dim]
+            attn_output = einops.rearrange(attn_output, "b h m d -> b m (h d)")
+
+            attn_output = self.out_projs[i](attn_output)
+
+            x = x_res + attn_output
+
+        x = self._layer_norm_2(x)
+
+        x = self._final_proj(x)
+
+        if self._use_cls_token:
             x = x[:, 0]
 
         td[self._name] = x
