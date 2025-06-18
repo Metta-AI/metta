@@ -10,9 +10,9 @@ from metta.agent.lib.nn_layer_library import LayerBase
 
 class ObsTokenPadStrip(LayerBase):
     """
-    This is a top-level layer that grabs not-token observations and strips them of padding, returning a tensor of shape
-    [B, M, 3] where M is the maximum number of tokens in _any_ sequence in the batch. It also adds batch size, TT, and
-    B * TT to the tensor dict for downstream layers to use, if necessary.
+    This is a top-level layer that grabs environment token observations and strips them of padding, returning a tensor
+    of shape [B, M, 3] where M is the maximum number of tokens in _any_ sequence in the batch. It also adds batch size,
+    TT, and B * TT to the tensor dict for downstream layers to use, if necessary.
     For clarification it does not strip all padding. It finds the sequence (out of all sequences in the batch) with the
     most dense tokens, gets that index, and then slices the obs tensor at that point. That means that it perfectly
     eliminates the padding tokens from the the sequence with the fewest padding tokens and also removes that number of
@@ -36,7 +36,7 @@ class ObsTokenPadStrip(LayerBase):
         self._out_tensor_shape = [0, 3]
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
+        # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         observations = td["x"]
 
         B = observations.shape[0]
@@ -89,8 +89,8 @@ class ObsAttrValNorm(LayerBase):
     def _make_net(self) -> None:
         self._out_tensor_shape = [0, 3]
         # Create a tensor for feature normalizations
-        # We need to handle the case where atr_idx might be 0 (padding) or larger than defined normalizations.
-        # Assuming max atr_idx is 256 (same as atr_embeds size - 1 for padding_idx).
+        # We need to handle the case where attr_idx might be 0 (padding) or larger than defined normalizations.
+        # Assuming max attr_idx is 256 (same as attr_embeds size - 1 for padding_idx).
         # Initialize with 1.0 to avoid division by zero for unmapped indices.
         norm_tensor = torch.ones(self._max_embeds, dtype=torch.float32)
         for i, val in enumerate(self._feature_normalizations):
@@ -104,8 +104,8 @@ class ObsAttrValNorm(LayerBase):
     def _forward(self, td: TensorDict) -> TensorDict:
         observations = td[self._sources[0]["name"]]
 
-        atr_indices = observations[..., 1].long()
-        norm_factors = self._norm_factors[atr_indices]
+        attr_indices = observations[..., 1].long()
+        norm_factors = self._norm_factors[attr_indices]
         observations = observations.clone()
         observations[..., 2] = observations[..., 2] / norm_factors
 
@@ -119,24 +119,24 @@ class ObsAttrCoordEmbed(LayerBase):
 
     def __init__(
         self,
-        atr_embed_dim: int,
+        attr_embed_dim: int,
         **cfg,
     ) -> None:
         super().__init__(**cfg)
-        self._atr_embed_dim = atr_embed_dim  # Dimension of attribute embeddings
+        self._attr_embed_dim = attr_embed_dim  # Dimension of attribute embeddings
         self._value_dim = 1
-        self._feat_dim = self._atr_embed_dim + self._value_dim
+        self._feat_dim = self._attr_embed_dim + self._value_dim
         self._max_embeds = 256
 
     def _make_net(self) -> None:
         self._out_tensor_shape = [0, self._feat_dim]
 
         # Coord byte supports up to 16x16, so 256 possible coord values
-        self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
+        self._coord_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim)
         nn.init.trunc_normal_(self._coord_embeds.weight, std=0.02)
 
-        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
+        self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
+        nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
 
         return None
 
@@ -146,25 +146,25 @@ class ObsAttrCoordEmbed(LayerBase):
         coord_indices = observations[..., 0].long()
         coord_pair_embedding = self._coord_embeds(coord_indices)
 
-        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+        attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
 
-        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
+        attr_embeds = self._attr_embeds(attr_indices)  # [B_TT, M, embed_dim]
 
-        combined_embeds = atr_embeds + coord_pair_embedding
+        combined_embeds = attr_embeds + coord_pair_embedding
 
-        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
-        atr_values = einops.rearrange(atr_values, "... -> ... 1")
+        attr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+        attr_values = einops.rearrange(attr_values, "... -> ... 1")
 
         # Assemble feature vectors
         # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
         feat_vectors = torch.empty(
-            (*atr_embeds.shape[:-1], self._feat_dim),
-            dtype=atr_embeds.dtype,
-            device=atr_embeds.device,
+            (*attr_embeds.shape[:-1], self._feat_dim),
+            dtype=attr_embeds.dtype,
+            device=attr_embeds.device,
         )
         # Combined embedding portion
-        feat_vectors[..., : self._atr_embed_dim] = combined_embeds
-        feat_vectors[..., self._atr_embed_dim : self._atr_embed_dim + self._value_dim] = atr_values
+        feat_vectors[..., : self._attr_embed_dim] = combined_embeds
+        feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
 
         td[self._name] = feat_vectors
         return td
@@ -175,24 +175,24 @@ class ObsAttrEmbedFourier(LayerBase):
 
     def __init__(
         self,
-        atr_embed_dim: int,
+        attr_embed_dim: int,
         num_freqs: int = 3,
         **cfg,
     ) -> None:
         super().__init__(**cfg)
-        self._atr_embed_dim = atr_embed_dim  # Dimension of attribute embeddings
+        self._attr_embed_dim = attr_embed_dim  # Dimension of attribute embeddings
         self._num_freqs = num_freqs  # fourier feature frequencies
         self._coord_rep_dim = 4 * self._num_freqs  # x, y, sin, cos for each freq
         self._value_dim = 1
-        self._feat_dim = self._atr_embed_dim + self._coord_rep_dim + self._value_dim
+        self._feat_dim = self._attr_embed_dim + self._coord_rep_dim + self._value_dim
         self._max_embeds = 256
         self._mu = 11.0  # hardcoding 11 as the max coord value for now (range 0-10). can grab from mettagrid_env.py
 
     def _make_net(self) -> None:
         self._out_tensor_shape = [0, self._feat_dim]
 
-        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
+        self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
+        nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
 
         self.register_buffer("frequencies", 2.0 ** torch.arange(self._num_freqs))
 
@@ -201,19 +201,19 @@ class ObsAttrEmbedFourier(LayerBase):
     def _forward(self, td: TensorDict) -> TensorDict:
         observations = td[self._sources[0]["name"]]
 
-        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
-        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
+        # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
+        attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+        attr_embeds = self._attr_embeds(attr_indices)  # [B_TT, M, embed_dim]
 
         # Assemble feature vectors
         # Pre-allocating the tensor and filling it avoids multiple `torch.cat` calls,
         # which can be more efficient on GPU.
         feat_vectors = torch.empty(
-            (*atr_embeds.shape[:-1], self._feat_dim),
-            dtype=atr_embeds.dtype,
-            device=atr_embeds.device,
+            (*attr_embeds.shape[:-1], self._feat_dim),
+            dtype=attr_embeds.dtype,
+            device=attr_embeds.device,
         )
-        feat_vectors[..., : self._atr_embed_dim] = atr_embeds
+        feat_vectors[..., : self._attr_embed_dim] = attr_embeds
 
         # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)
         coords_byte = observations[..., 0].to(torch.uint8)
@@ -239,7 +239,7 @@ class ObsAttrEmbedFourier(LayerBase):
         y_scaled = y_coords_norm * frequencies
 
         # Compute and place Fourier features directly into the feature vector
-        offset = self._atr_embed_dim
+        offset = self._attr_embed_dim
         feat_vectors[..., offset : offset + self._num_freqs] = torch.cos(x_scaled)
         offset += self._num_freqs
         feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(x_scaled)
@@ -248,10 +248,10 @@ class ObsAttrEmbedFourier(LayerBase):
         offset += self._num_freqs
         feat_vectors[..., offset : offset + self._num_freqs] = torch.sin(y_scaled)
 
-        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+        attr_values = observations[..., 2].float()  # Shape: [B_TT, M]
 
         # Place normalized attribute values in the feature vector
-        feat_vectors[..., self._atr_embed_dim + self._coord_rep_dim :] = einops.rearrange(atr_values, "... -> ... 1")
+        feat_vectors[..., self._attr_embed_dim + self._coord_rep_dim :] = einops.rearrange(attr_values, "... -> ... 1")
 
         td[self._name] = feat_vectors
         return td
@@ -263,39 +263,39 @@ class ObsAttrCoordValueEmbed(LayerBase):
 
     def __init__(
         self,
-        atr_embed_dim: int,
+        attr_embed_dim: int,
         **cfg,
     ) -> None:
         super().__init__(**cfg)
-        self._atr_embed_dim = atr_embed_dim  # Dimension of attribute embeddings
+        self._attr_embed_dim = attr_embed_dim  # Dimension of attribute embeddings
         self._value_dim = 1
         self._max_embeds = 256
 
     def _make_net(self) -> None:
-        self._out_tensor_shape = [0, self._atr_embed_dim]
+        self._out_tensor_shape = [0, self._attr_embed_dim]
 
-        self._atr_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim, padding_idx=255)
-        nn.init.trunc_normal_(self._atr_embeds.weight, std=0.02)
+        self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
+        nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
 
         # Coord byte supports up to 16x16, so 256 possible coord values
-        self._coord_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
+        self._coord_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim)
         nn.init.trunc_normal_(self._coord_embeds.weight, std=0.02)
 
-        self._val_embeds = nn.Embedding(self._max_embeds, self._atr_embed_dim)
+        self._val_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim)
         nn.init.trunc_normal_(self._val_embeds.weight, std=0.02)
 
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
-        # [B, M, 3] the 3 vector is: coord (unit8), atr_idx, atr_val
+        # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
         observations = td[self._sources[0]["name"]]
 
         # The first element of an observation is the coordinate, which can be used as a direct index for embedding.
         coord_indices = observations[..., 0].long()
         coord_pair_embedding = self._coord_embeds(coord_indices)
 
-        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-        atr_embeds = self._atr_embeds(atr_indices)  # [B_TT, M, embed_dim]
+        attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+        attr_embeds = self._attr_embeds(attr_indices)  # [B_TT, M, embed_dim]
 
         # The attribute value is treated as a categorical variable for embedding.
         val_indices = observations[..., 2].long()
@@ -303,7 +303,7 @@ class ObsAttrCoordValueEmbed(LayerBase):
         val_indices = torch.clamp(val_indices, 0, self._max_embeds - 1)
         val_embeds = self._val_embeds(val_indices)
 
-        combined_embeds = atr_embeds + coord_pair_embedding + val_embeds
+        combined_embeds = attr_embeds + coord_pair_embedding + val_embeds
 
         td[self._name] = combined_embeds
         return td

@@ -24,7 +24,7 @@ components:
 
   obs_fourier:
     _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
-    atr_embed_dim: 10
+    attr_embed_dim: 10
     num_freqs: 4
     sources:
       - name: obs_normalizer
