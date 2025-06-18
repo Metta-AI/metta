@@ -167,7 +167,7 @@ class Experience:
         # Get indices once
         indices = self.ep_indices[env_id]
 
-        # Store data in segmented tensors - avoid redundant obs assignment
+        # Store data in segmented tensors
         batch_slice = (indices, episode_length)
         self.obs[batch_slice] = obs
         self.actions[batch_slice] = actions
@@ -253,7 +253,7 @@ class Experience:
 
         return {
             "obs": mb_obs,
-            "actions": self.actions[idx],
+            "actions": self.actions[idx].contiguous(),  # Ensure contiguous memory for performance
             "logprobs": self.logprobs[idx],
             "values": self.values[idx],
             "rewards": self.rewards[idx],

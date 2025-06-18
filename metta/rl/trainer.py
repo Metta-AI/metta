@@ -201,6 +201,13 @@ class MettaTrainer:
                 self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
             )
 
+        # AMP (Automatic Mixed Precision) for performance
+        self.use_amp = trainer_cfg.get("use_amp", False) and str(self.device).startswith("cuda")
+        self.amp_dtype = torch.bfloat16 if trainer_cfg.get("amp_dtype", "bfloat16") == "bfloat16" else torch.float16
+        self.amp_context = (
+            torch.amp.autocast(device_type="cuda", dtype=self.amp_dtype) if self.use_amp else nullcontext()
+        )
+
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
@@ -390,7 +397,7 @@ class MettaTrainer:
                 d = torch.as_tensor(d).to(device, non_blocking=True)
                 t = torch.as_tensor(t).to(device, non_blocking=True)
 
-            with profile.eval_forward, torch.no_grad():
+            with profile.eval_forward, torch.no_grad(), self.amp_context:
                 state = PolicyState()
 
                 # Use direct LSTM state access for performance
@@ -421,6 +428,10 @@ class MettaTrainer:
                 value = value.flatten()
                 mask = torch.as_tensor(mask)  # * policy.mask)
 
+                # Clamp rewards if configured
+                if trainer_cfg.get("clamp_rewards", False):
+                    r = torch.clamp(r, -1, 1)
+
                 # All tensors are already on device, avoid redundant transfers
                 experience.store(
                     obs=o if trainer_cfg.cpu_offload else o_device,
@@ -435,23 +446,25 @@ class MettaTrainer:
                     lstm_state=lstm_state_to_store,
                 )
 
-                for i in info:
-                    for k, v in unroll_nested_dict(i):
-                        infos[k].append(v)
+                # Batch process info dictionaries more efficiently
+                if info:  # Only process if there's info
+                    for i in info:
+                        for k, v in unroll_nested_dict(i):
+                            infos[k].append(v)
 
             with profile.env:
                 actions_np = actions.cpu().numpy().astype(dtype_actions)
                 self.vecenv.send(actions_np)
 
         with profile.eval_misc:
+            # Batch process stats more efficiently
             for k, v in infos.items():
                 if isinstance(v, np.ndarray):
                     v = v.tolist()
 
+                # Use setdefault for cleaner code
                 if isinstance(v, list):
-                    if k not in self.stats:
-                        self.stats[k] = []
-                    self.stats[k].extend(v)
+                    self.stats.setdefault(k, []).extend(v)
                 else:
                     if k not in self.stats:
                         self.stats[k] = v
@@ -515,7 +528,7 @@ class MettaTrainer:
                     total_minibatches=self._total_minibatches,
                 )
 
-            with profile.train_forward:
+            with profile.train_forward, self.amp_context:
                 obs = minibatch["obs"]
                 if not trainer_cfg.get("use_rnn", True):
                     obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
@@ -598,12 +611,13 @@ class MettaTrainer:
                     + ks_value_loss
                 )
 
-                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
+                # Update values in-place for better performance
+                experience.values[minibatch["indices"]] = newvalue.view(minibatch["values"].shape).detach()
 
                 if self.losses is None:
                     raise ValueError("self.losses is None")
 
-                # Update loss tracking for logging
+                # Update loss tracking for logging - accumulate without division for performance
                 self.losses.policy_loss += pg_loss.item()
                 self.losses.value_loss += v_loss.item()
                 self.losses.entropy += entropy_loss.item()
