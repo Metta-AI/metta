@@ -103,9 +103,15 @@ jobs:
             BRANCH_NAME=$(echo "$PR_INFO" | jq -r '.headRefName')
             BASE_REF=$(echo "$PR_INFO" | jq -r '.baseRefName')
 
-            # Use explicit git commands instead of gh pr checkout
-            git fetch origin $BRANCH_NAME:$BRANCH_NAME
-            git checkout $BRANCH_NAME --
+            # Check if we're already on the PR branch
+            CURRENT_BRANCH=$(git branch --show-current)
+            if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
+              # Only fetch and checkout if we're not already on the branch
+              git fetch origin $BRANCH_NAME:$BRANCH_NAME
+              git checkout $BRANCH_NAME
+            else
+              echo "Already on branch $BRANCH_NAME, skipping checkout"
+            fi
           else
             # For regular PR events, get base ref from the event
             BASE_REF="${{ github.event.pull_request.base.ref }}"
