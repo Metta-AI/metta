@@ -834,14 +834,7 @@ class MettaTrainer:
             if "ks_value_loss" in losses:
                 losses.pop("ks_value_loss")
 
-        environment = {}
-        for k, v in self.stats.items():
-            if "/" in k:
-                parts = k.split("/")
-                env_key = f"env_{parts[0]}/{'/'.join(parts[1:])}"
-            else:
-                env_key = f"env/{k}"
-            environment[env_key] = v
+        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         # Add timing metrics to wandb
         if self.wandb_run and self._master:
