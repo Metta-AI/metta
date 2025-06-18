@@ -626,13 +626,13 @@ class MettaTrainer:
                 minibatch_idx += 1
                 # end loop over minibatches
 
+            self.epoch += 1
+
             # check early exit if we have reached target_kl
             if trainer_cfg.target_kl is not None:
                 average_approx_kl = self.losses.approx_kl_sum / self.losses.minibatches_processed
                 if average_approx_kl > trainer_cfg.target_kl:
                     break
-
-            self.epoch += 1
             # end loop over epochs
 
         if self.lr_scheduler is not None:
