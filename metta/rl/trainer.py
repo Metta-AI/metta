@@ -984,17 +984,6 @@ class MettaTrainer:
             if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
                 num_lstm_layers = lstm_module._net.num_layers
 
-        # Validate batch size
-        actual_segments = self._batch_size // trainer_cfg.bptt_horizon
-
-        if total_agents > actual_segments:
-            min_required_batch_size = total_agents * trainer_cfg.bptt_horizon
-            raise ValueError(
-                f"batch_size ({self._batch_size}) is too small for {total_agents} agents.\n"
-                f"With bptt_horizon={trainer_cfg.bptt_horizon}, you need at least batch_size={min_required_batch_size}.\n"
-                f"Please update your configuration file to set trainer.batch_size >= {min_required_batch_size}"
-            )
-
         # Create experience buffer
         self.experience = Experience(
             total_agents=total_agents,
@@ -1028,6 +1017,12 @@ class MettaTrainer:
 
         num_envs = self.batch_size * trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
+
+        if num_envs < 1:
+            logger.error(
+                f"num_envs = batch_size ({batch_size}) * async_factor ({trainer_cfg.async_factor}) "
+                f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
+            )
 
         self.vecenv = make_vecenv(
             self._curriculum,
