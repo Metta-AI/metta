@@ -13,6 +13,7 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
+from pufferlib import unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
