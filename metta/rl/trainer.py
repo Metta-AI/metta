@@ -824,15 +824,13 @@ class MettaTrainer:
         losses = self.losses.to_dict()
 
         # don't plot losses that are unused
-        if self.trainer_cfg.l2_reg_loss_coef == 0 and "l2_reg_loss" in losses:
+        if self.trainer_cfg.l2_reg_loss_coef == 0:
             losses.pop("l2_reg_loss")
-        if self.trainer_cfg.l2_init_loss_coef == 0 and "l2_init_loss" in losses:
+        if self.trainer_cfg.l2_init_loss_coef == 0:
             losses.pop("l2_init_loss")
         if not self.kickstarter.enabled:
-            if "ks_action_loss" in losses:
-                losses.pop("ks_action_loss")
-            if "ks_value_loss" in losses:
-                losses.pop("ks_value_loss")
+            losses.pop("ks_action_loss")
+            losses.pop("ks_value_loss")
 
         environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
@@ -847,38 +845,38 @@ class MettaTrainer:
             steps_per_sec = (self.agent_step - self._last_agent_step) / training_time if training_time > 0 else 0
 
             timing_logs = {
+                # Key performance indicators
                 "timing/steps_per_second": steps_per_sec,
                 "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
                 "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
+                # Breakdown by operation (as a single structured metric)
+                "timing/breakdown": {
+                    op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
+                    for op, elapsed in timer_data.items()
+                },
+                # Total time for reference
                 "timing/total_seconds": wall_time,
             }
 
-            # Add breakdown as separate metrics
-            for op, elapsed in timer_data.items():
-                timing_logs[f"timing/breakdown/{op}/seconds"] = elapsed
-                timing_logs[f"timing/breakdown/{op}/fraction"] = elapsed / wall_time if wall_time > 0 else 0
-
-            # Build log dict
-            log_dict = {
-                **{f"overview/{k}": v for k, v in overview.items()},
-                **{f"losses/{k}": v for k, v in losses.items()},
-                **{f"performance/{k}": v for k, v in performance.items()},
-                **environment,
-                **weight_metrics,
-                **self._eval_grouped_scores,
-                "train/agent_step": agent_steps,
-                "train/avg_agent_steps_per_update": avg_steps_per_update,
-                "train/epoch": epoch,
-                "train/learning_rate": learning_rate,
-                **timing_logs,
-            }
-
-            # Only add average_reward if it's being used
-            if self.trainer_cfg.get("average_reward", False):
-                log_dict["train/average_reward"] = self.average_reward
-
             # Log everything to wandb
-            self.wandb_run.log(log_dict)
+            self.wandb_run.log(
+                {
+                    **{f"overview/{k}": v for k, v in overview.items()},
+                    **{f"losses/{k}": v for k, v in losses.items()},
+                    **{f"performance/{k}": v for k, v in performance.items()},
+                    **environment,
+                    **weight_metrics,
+                    **self._eval_grouped_scores,
+                    "train/agent_step": agent_steps,
+                    "train/avg_agent_steps_per_update": avg_steps_per_update,
+                    "train/epoch": epoch,
+                    "train/learning_rate": learning_rate,
+                    "train/average_reward": self.average_reward
+                    if self.trainer_cfg.get("average_reward", False)
+                    else None,
+                    **timing_logs,
+                }
+            )
 
         self._eval_grouped_scores = {}
         self.stats.clear()
