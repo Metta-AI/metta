@@ -98,6 +98,10 @@ jobs:
           PR_NUMBER="${{ inputs.pr_number }}"
 
           if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "$PR_NUMBER" ]; then
+
+            # see https://github.com/anthropics/claude-code-action/pull/112
+            echo "CLAUDE ACTION DOES NOT SUPPORT workflow_dispatch"
+
             # Get PR info first
             PR_INFO=$(gh pr view $PR_NUMBER --json headRefName,baseRefName)
             BRANCH_NAME=$(echo "$PR_INFO" | jq -r '.headRefName')
@@ -176,7 +180,6 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           anthropic_model: ${{ env.CLAUDE_MODEL }}
           allowed_tools: "${{ inputs.tools }},Write"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
           direct_prompt: |
             ${{ env.UNIVERSAL_PROMPT_PREFIX }}
 
