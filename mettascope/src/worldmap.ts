@@ -759,9 +759,10 @@ export function drawMap(panel: PanelInfo) {
   }
 
   ctx.save()
-  ctx.setScissorRect(panel.x, panel.y, panel.width, panel.height)
+  const rect = panel.rectInner()
+  ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
 
-  ctx.translate(panel.x + panel.width / 2, panel.y + panel.height / 2)
+  ctx.translate(rect.x + rect.width / 2, rect.y + rect.height / 2)
   ctx.scale(panel.zoomLevel, panel.zoomLevel)
   ctx.translate(panel.panPos.x(), panel.panPos.y())
 
