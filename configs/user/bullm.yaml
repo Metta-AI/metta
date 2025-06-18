@@ -24,17 +24,15 @@ trainer:
 #name of the policy (daveey)
 policy_uri: ${trained_policy_uri}/model_0000.pt
 
- analyzer:
-   eval_stats_uri: ${run_dir}/eval_stats
-   policy_uri: ${..policy_uri}
-   analysis:
-     metrics:
-       - metric: episode_reward
+analyzer:
+  eval_stats_uri: ${run_dir}/eval_stats
+  policy_uri: ${..policy_uri}
+  analysis:
+    metrics:
+      - metric: episode_reward
 
 wandb:
   enabled: true
-  track: true
-  checkpoint_interval: 10
 
 run_id: 1
 run: ${oc.env:USER}.local.${run_id}
