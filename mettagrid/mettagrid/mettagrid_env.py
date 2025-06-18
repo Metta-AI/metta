@@ -154,10 +154,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._grid_env = self._c_env
 
     @override  # pufferlib.PufferEnv.reset
+    @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
-        self.timer.reset_all()
-        self.timer.start("reset")
-
         self._task = self._curriculum.get_task()
 
         self._initialize_c_env()
@@ -178,10 +176,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         obs, infos = self._c_env.reset()
         self._should_reset = False
-        self.timer.stop("reset")
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
+    @with_instance_timer("step")
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         """
         Execute one timestep of the environment dynamics with the given actions.
@@ -238,8 +236,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         infos.update(
             {
                 f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
-                f"task_reward/{self._task.short_name()}/rewards.min": episode_rewards.min(),
-                f"task_reward/{self._task.short_name()}/rewards.max": episode_rewards.max(),
                 f"task_timing/{self._task.short_name()}/init_time": init_time,
             }
         )
@@ -312,6 +308,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             **{f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0 for op, elapsed in elapsed_times.items()},
         }
         self._episode_id = None
+        self.timer.reset_all()
 
     @property
     def max_steps(self) -> int:

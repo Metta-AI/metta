@@ -186,19 +186,45 @@ class Stopwatch:
             del frame
 
     def reset(self, name: Optional[str] = None):
-        """Reset timing data for a specific timer or all timers."""
+        """Reset timing data for a specific timer.
+
+        Clears all timing data while preserving the timer's existence and reference history.
+
+        Args:
+            name: Timer name (None for global timer)
+        """
         if name is None:
-            # Reset just the global timer
-            self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
+            timer_name = self.GLOBAL_TIMER_NAME
         else:
             if name == self.GLOBAL_TIMER_NAME:
                 raise ValueError(f"Use None to reset the global timer, not '{self.GLOBAL_TIMER_NAME}'")
-            self._timers[name] = self._create_timer(name)
+            timer_name = name
+
+        if timer_name in self._timers:
+            timer = self._timers[timer_name]
+            # Reset state while preserving the timer's existence and references
+            timer.start_time = None
+            timer.total_elapsed = 0.0
+            timer.last_elapsed = 0.0
+            timer.checkpoints.clear()
+            timer.lap_counter = 0
+            # Keep timer.references intact to preserve decorator information
+        else:
+            # Timer doesn't exist yet, create it
+            self._timers[timer_name] = self._create_timer(timer_name)
 
     def reset_all(self):
-        """Reset all timers including global."""
-        self._timers.clear()
-        self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
+        """Reset all timers including global.
+
+        Clears all timing data while preserving timer existence and reference history.
+        """
+        # Get list of timer names to avoid modifying dict during iteration
+        timer_names = list(self._timers.keys())
+
+        for timer_name in timer_names:
+            # Use None for global timer to match the public API
+            name = None if timer_name == self.GLOBAL_TIMER_NAME else timer_name
+            self.reset(name)
 
     def start(self, name: Optional[str] = None, filename: Optional[str] = None, lineno: Optional[int] = None):
         """Start a timer.
