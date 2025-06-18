@@ -88,3 +88,9 @@
 # 3. Memory mettascope curriculum with relh.nav.new.42 initial policy
 ./devops/skypilot/launch.py train run=georgedeane.mem_relh_init trainer.curriculum=env/mettagrid/curriculum/navsequence/memory_mettascope trainer.initial_policy.uri=relh.nav.new.42 --skip-git-check \
 
+# 4. Extended sequence curriculum from scratch
+./devops/skypilot/launch.py train run=georgedeane.extended_sequence trainer.curriculum=env/mettagrid/curriculum/extended_sequence --skip-git-check \
+
+# # 5. Memory training varied curriculum - comprehensive memory training and evaluation
+# ./devops/skypilot/launch.py train run=georgedeane.memory_training_varied trainer.curriculum=env/mettagrid/curriculum/memory_training_varied --skip-git-check \
+

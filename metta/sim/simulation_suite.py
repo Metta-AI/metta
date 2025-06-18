@@ -63,12 +63,8 @@ class SimulationSuite:
                     sim_suite_name=self.name,
                     stats_dir=self._stats_dir,
                     replay_dir=self._replay_dir,
-<<<<<<< HEAD
-                    env_overrides=self.env_overrides,
-=======
                     stats_client=self._stats_client,
                     stats_epoch_id=self._stats_epoch_id,
->>>>>>> 9281473d5cc01073b877727b2db260da981add34
                 )
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()

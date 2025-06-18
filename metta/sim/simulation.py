@@ -61,12 +61,8 @@ class Simulation:
         sim_suite_name: str | None = None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
-<<<<<<< HEAD
-        env_overrides: Dict[str, Any] = {},
-=======
         stats_client: StatsClient | None = None,
         stats_epoch_id: uuid.UUID | None = None,
->>>>>>> 9281473d5cc01073b877727b2db260da981add34
     ):
         self._name = name
         self._sim_suite_name = sim_suite_name

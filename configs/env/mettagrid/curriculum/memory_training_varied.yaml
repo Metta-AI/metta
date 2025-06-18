@@ -1,0 +1,51 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  # Memory training environments - easy, medium, hard
+  /env/mettagrid/memory/training/easy: 1
+  /env/mettagrid/memory/training/medium: 1
+  /env/mettagrid/memory/training/hard: 1
+
+  # Specific HC environments
+  /env/mettagrid/memory/training/hc1: 1
+  /env/mettagrid/memory/training/hc1m: 1
+  /env/mettagrid/memory/training/hc1mh: 1
+  /env/mettagrid/memory/training/hc4: 1
+  /env/mettagrid/memory/training/hc4m: 1
+  /env/mettagrid/memory/training/hc4mh: 1
+
+  # Short training variants
+  /env/mettagrid/memory/training/easy_short: 1
+  /env/mettagrid/memory/training/medium_short: 1
+  /env/mettagrid/memory/training/hard_short: 1
+
+  # Special training environments
+  /env/mettagrid/memory/training/in_sight: 1
+
+  # Memory evaluation environments
+  /env/mettagrid/memory/evals/access_cross: 1
+  /env/mettagrid/memory/evals/boxout: 1
+  /env/mettagrid/memory/evals/choose_wisely: 1
+  /env/mettagrid/memory/evals/corners: 1
+  /env/mettagrid/memory/evals/easy: 1
+  /env/mettagrid/memory/evals/easy_sequence: 1
+  /env/mettagrid/memory/evals/hall_of_mirrors: 1
+  /env/mettagrid/memory/evals/hard: 1
+  /env/mettagrid/memory/evals/hard_sequence: 1
+  /env/mettagrid/memory/evals/journey_home: 1
+  /env/mettagrid/memory/evals/little_landmark_easy: 1
+  /env/mettagrid/memory/evals/little_landmark_hard: 1
+  /env/mettagrid/memory/evals/lobster_legs: 1
+  /env/mettagrid/memory/evals/lobster_legs_cues: 1
+  /env/mettagrid/memory/evals/medium: 1
+  /env/mettagrid/memory/evals/medium_sequence: 1
+  /env/mettagrid/memory/evals/memory_palace: 1
+  /env/mettagrid/memory/evals/memory_swirls: 1
+  /env/mettagrid/memory/evals/memory_swirls_hard: 1
+  /env/mettagrid/memory/evals/passing_things: 1
+  /env/mettagrid/memory/evals/spacey_memory: 1
+  /env/mettagrid/memory/evals/tease: 1
+  /env/mettagrid/memory/evals/tease_small: 1
+  /env/mettagrid/memory/evals/venture_out: 1
+  /env/mettagrid/memory/evals/which_way: 1
+  /env/mettagrid/memory/evals/you_shall_not_pass: 1

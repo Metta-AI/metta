@@ -97,38 +97,38 @@ simulations:
     policy_agents_pct: 1.0
   objectuse/full_sequence:
     env: env/mettagrid/object_use/evals/full_sequence
-  navsequence/cylinder:
-    env: env/mettagrid/navigation_sequence/evals/cylinder
-  navsequence/obstacles0:
-    env: env/mettagrid/navigation_sequence/evals/obstacles0
-  navsequence/obstacles1:
-    env: env/mettagrid/navigation_sequence/evals/obstacles1
-  navsequence/obstacles2:
-    env: env/mettagrid/navigation_sequence/evals/obstacles2
-  navsequence/obstacles3:
-    env: env/mettagrid/navigation_sequence/evals/obstacles3
-  navsequence/corridors:
-    env: env/mettagrid/navigation_sequence/evals/corridors
-  navsequence/cylinder_easy:
-    env: env/mettagrid/navigation_sequence/evals/cylinder_easy
-  navsequence/honeypot:
-    env: env/mettagrid/navigation_sequence/evals/honeypot
-  navsequence/knotty:
-    env: env/mettagrid/navigation_sequence/evals/knotty
-  navsequence/radial_large:
-    env: env/mettagrid/navigation_sequence/evals/radial_large
-  navsequence/radial_mini:
-    env: env/mettagrid/navigation_sequence/evals/radial_mini
-  navsequence/radial_small:
-    env: env/mettagrid/navigation_sequence/evals/radial_small
-  navsequence/swirls:
-    env: env/mettagrid/navigation_sequence/evals/swirls
-  navsequence/thecube:
-    env: env/mettagrid/navigation_sequence/evals/thecube
-  navsequence/walkaround:
-    env: env/mettagrid/navigation_sequence/evals/walkaround
-  navsequence/wanderout:
-    env: env/mettagrid/navigation_sequence/evals/wanderout
+  # navsequence/cylinder:
+  #   env: env/mettagrid/navigation_sequence/evals/cylinder
+  # navsequence/obstacles0:
+  #   env: env/mettagrid/navigation_sequence/evals/obstacles0
+  # navsequence/obstacles1:
+  #   env: env/mettagrid/navigation_sequence/evals/obstacles1
+  # navsequence/obstacles2:
+  #   env: env/mettagrid/navigation_sequence/evals/obstacles2
+  # navsequence/obstacles3:
+  #   env: env/mettagrid/navigation_sequence/evals/obstacles3
+  # navsequence/corridors:
+  #   env: env/mettagrid/navigation_sequence/evals/corridors
+  # navsequence/cylinder_easy:
+  #   env: env/mettagrid/navigation_sequence/evals/cylinder_easy
+  # navsequence/honeypot:
+  #   env: env/mettagrid/navigation_sequence/evals/honeypot
+  # navsequence/knotty:
+  #   env: env/mettagrid/navigation_sequence/evals/knotty
+  # navsequence/radial_large:
+  #   env: env/mettagrid/navigation_sequence/evals/radial_large
+  # navsequence/radial_mini:
+  #   env: env/mettagrid/navigation_sequence/evals/radial_mini
+  # navsequence/radial_small:
+  #   env: env/mettagrid/navigation_sequence/evals/radial_small
+  # navsequence/swirls:
+  #   env: env/mettagrid/navigation_sequence/evals/swirls
+  # navsequence/thecube:
+  #   env: env/mettagrid/navigation_sequence/evals/thecube
+  # navsequence/walkaround:
+  #   env: env/mettagrid/navigation_sequence/evals/walkaround
+  # navsequence/wanderout:
+  #   env: env/mettagrid/navigation_sequence/evals/wanderout
   memory/easy:
     env: env/mettagrid/memory/evals/easy
   memory/medium:
