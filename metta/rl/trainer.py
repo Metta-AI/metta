@@ -2,7 +2,6 @@ import logging
 import os
 import time
 from collections import defaultdict
-from contextlib import nullcontext
 from typing import Any, Dict, Set
 from uuid import UUID
 
@@ -53,6 +52,24 @@ local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
+def dist_sum(value: float | int, device: torch.device | str) -> float:
+    """Sum a value across all distributed processes."""
+    if not torch.distributed.is_initialized():
+        return value
+
+    tensor = torch.tensor(value, device=device)
+    torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
+    return tensor.item()
+
+
+def dist_mean(value: float | int, device: torch.device | str) -> float:
+    """Average a value across all distributed processes."""
+    if not torch.distributed.is_initialized():
+        return value
+
+    return dist_sum(value, device) / torch.distributed.get_world_size()
+
+
 class MettaTrainer:
     def __init__(
         self,
@@ -71,7 +88,7 @@ class MettaTrainer:
 
         self._master = True
         self._world_size = 1
-        self.device: torch.device = cfg.device
+        self.device: torch.device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
         self._batch_size = trainer_cfg.batch_size
         self._minibatch_size = trainer_cfg.minibatch_size
         if torch.distributed.is_initialized():
@@ -414,19 +431,14 @@ class MettaTrainer:
                 # Store LSTM state directly for performance
                 lstm_state_to_store = None
                 if use_rnn and state.lstm_h is not None:
-                    # Update LSTM state immediately to avoid dictionary creation
                     experience.set_lstm_state_direct(training_env_id.start, state.lstm_h, state.lstm_c)
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
-                if self.device == "cuda":
+                if str(self.device).startswith("cuda"):
                     torch.cuda.synchronize()
 
             value = value.flatten()
             # mask already converted to tensor above
-
-            # Clamp rewards if configured
-            if trainer_cfg.get("clamp_rewards", False):
-                r = torch.clamp(r, -1, 1)
 
             # All tensors are already on device, avoid redundant transfers
             experience.store(
@@ -446,8 +458,7 @@ class MettaTrainer:
                 raw_infos.extend(info)
 
             with self.timer("_rollout.env"):
-                actions_np = actions.cpu().numpy().astype(dtype_actions)
-                self.vecenv.send(actions_np)
+                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
         # Batch process info dictionaries after rollout
         for i in raw_infos:
@@ -604,8 +615,8 @@ class MettaTrainer:
                     + ks_value_loss
                 )
 
-                # Update values in-place for better performance
-                experience.values[minibatch["indices"]] = newvalue.view(minibatch["values"].shape).detach()
+                # Update values in experience buffer
+                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
 
                 if self.losses is None:
                     raise ValueError("self.losses is None")
@@ -632,7 +643,7 @@ class MettaTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device == "cuda":
+                    if str(self.device).startswith("cuda"):
                         torch.cuda.synchronize()
 
                 minibatch_idx += 1
@@ -895,30 +906,23 @@ class MettaTrainer:
 
         # Get correct device for this process
         device = torch.device(self.device) if isinstance(self.device, str) else self.device
-        # In distributed mode, ensure we use the correct GPU for this process
-        if torch.distributed.is_initialized() and str(device).startswith("cuda") and "LOCAL_RANK" in os.environ:
-            local_rank = int(os.environ["LOCAL_RANK"])
-            device = torch.device(f"cuda:{local_rank}")
 
         # Move tensors to device and compute advantage
         tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
         tensors = [t.to(device) for t in tensors]
         values, rewards, dones, importance_sampling_ratio, advantages = tensors
 
-        # Create context manager that only applies CUDA device context if needed
-        device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
-        with device_context:
-            torch.ops.pufferlib.compute_puff_advantage(
-                values,
-                rewards,
-                dones,
-                importance_sampling_ratio,
-                advantages,
-                gamma,
-                gae_lambda,
-                vtrace_rho_clip,
-                vtrace_c_clip,
-            )
+        torch.ops.pufferlib.compute_puff_advantage(
+            values,
+            rewards,
+            dones,
+            importance_sampling_ratio,
+            advantages,
+            gamma,
+            gae_lambda,
+            vtrace_rho_clip,
+            vtrace_c_clip,
+        )
 
         return advantages
 
@@ -1067,24 +1071,6 @@ class MettaTrainer:
             time.sleep(5)
 
         raise RuntimeError("Failed to load policy after 10 attempts")
-
-
-def dist_sum(value: float | int, device: torch.device | str) -> float:
-    """Sum a value across all distributed processes."""
-    if not torch.distributed.is_initialized():
-        return value
-
-    tensor = torch.tensor(value, device=device)
-    torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
-    return tensor.item()
-
-
-def dist_mean(value: float | int, device: torch.device | str) -> float:
-    """Average a value across all distributed processes."""
-    if not torch.distributed.is_initialized():
-        return value
-
-    return dist_sum(value, device) / torch.distributed.get_world_size()
 
 
 class AbortingTrainer(MettaTrainer):

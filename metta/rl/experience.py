@@ -116,12 +116,8 @@ class Experience:
         if self.minibatch_segments != minibatch_segments:
             raise ValueError(f"minibatch_size {self.minibatch_size} must be divisible by bptt_horizon {bptt_horizon}")
 
-        # Tracking for rollout completion
+            # Tracking for rollout completion
         self.full_rows = 0
-
-        # Cache for episode lengths to avoid .item() calls
-        self._cached_ep_length = 0
-        self._cached_env_id = -1
 
         # Calculate num_minibatches for compatibility
         num_minibatches = self.segments / self.minibatch_segments
@@ -162,20 +158,8 @@ class Experience:
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
 
-        num_steps = sum(mask)
-
-        # Cache frequently accessed values
-        env_start = env_id.start
-
-        # Use cached episode length if available
-        if env_start == self._cached_env_id:
-            episode_length = self._cached_ep_length
-        else:
-            episode_length = self.ep_lengths[env_start].item()
-            self._cached_env_id = env_start
-            self._cached_ep_length = episode_length
-
-        # Get indices once
+        num_steps = mask.sum().item() if torch.is_tensor(mask) else sum(mask)
+        episode_length = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
         # Store data in segmented tensors
@@ -191,21 +175,14 @@ class Experience:
         # Update episode tracking
         self.ep_lengths[env_id] += 1
 
-        # Update cache if it's the cached environment
-        if env_start == self._cached_env_id:
-            self._cached_ep_length += 1
-
         # Check if episodes are complete and reset if needed
         if episode_length + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
-            # Invalidate cache after reset
-            if env_start == self._cached_env_id:
-                self._cached_env_id = -1
 
         # Update LSTM states if provided - check use_rnn first for early exit
-        if self.use_rnn and lstm_state is not None and env_start in self.lstm_h:
-            self.lstm_h[env_start] = lstm_state["lstm_h"]
-            self.lstm_c[env_start] = lstm_state["lstm_c"]
+        if self.use_rnn and lstm_state is not None and env_id.start in self.lstm_h:
+            self.lstm_h[env_id.start] = lstm_state["lstm_h"]
+            self.lstm_c[env_id.start] = lstm_state["lstm_c"]
 
         return int(num_steps)
 
@@ -271,7 +248,7 @@ class Experience:
 
         return {
             "obs": mb_obs,
-            "actions": self.actions[idx].contiguous(),  # Ensure contiguous memory for performance
+            "actions": self.actions[idx],
             "logprobs": self.logprobs[idx],
             "values": self.values[idx],
             "rewards": self.rewards[idx],
