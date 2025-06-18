@@ -2,7 +2,6 @@ _target_: mettagrid.curriculum.BucketedCurriculum
 
 env_cfg_template: /env/mettagrid/navigation/training/cylinder_world
 
-# bucket definitions
 buckets:
   game.map_builder.room.width:
     range: [75, 120]

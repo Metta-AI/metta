@@ -23,7 +23,7 @@ class BucketedCurriculum(LowRewardCurriculum):
         env_overrides: DictConfig,
         *,
         default_bins: int = 1,
-        alpha: float = 0.01,
+        moving_avg_decay_rate: float = 0.01,
     ):
         bucket_parameters, bucket_values = _expand_buckets(buckets, default_bins)
 
@@ -33,9 +33,8 @@ class BucketedCurriculum(LowRewardCurriculum):
         env_cfg_template = OmegaConf.create(OmegaConf.to_container(base, resolve=False))
         logger.info("Generating bucketed tasks")
         for task_id, parameter_values in tqdm(enumerate(product(*bucket_values))):
-            curriculum = SampledTaskCurriculum(task_id, env_cfg_template, bucket_parameters, parameter_values)
-            tasks[task_id] = curriculum
-        super().__init__(tasks=tasks, env_overrides=env_overrides, alpha=alpha)
+            tasks[task_id] = SampledTaskCurriculum(task_id, env_cfg_template, bucket_parameters, parameter_values)
+        super().__init__(tasks=tasks, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
 
     def set_curricula(self, tasks, env_overrides=None):
         self._curriculums = tasks
@@ -43,6 +42,10 @@ class BucketedCurriculum(LowRewardCurriculum):
 
 
 def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Tuple[List[str], List[List[Any]]]:
+    """
+    buckets: specified in the config, values or ranges for each parameter
+    returns: unpacked configurations for each parameter given the number of bins
+    """
     buckets_unpacked = {}
     for parameter, bucket_spec in buckets.items():
         if "values" in bucket_spec:

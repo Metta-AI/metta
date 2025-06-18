@@ -1,6 +1,6 @@
-import { state } from './common.js';
-import { getAttr, sendAction } from './replay.js';
-import { find } from './htmlutils.js';
+import { state } from './common.js'
+import { getAttr, sendAction } from './replay.js'
+import { find } from './htmlutils.js'
 
 /** Initializes the action buttons. */
 export function initActionButtons() {
@@ -41,7 +41,7 @@ export function initActionButtons() {
   })
 
   find("#action-buttons .attack").addEventListener('click', () => {
-    state.showAttackMode = !state.showAttackMode;
+    state.showAttackMode = !state.showAttackMode
   })
 
   find("#action-buttons .attack-nearest").addEventListener('click', () => {
@@ -64,13 +64,13 @@ export function processActions(event: KeyboardEvent) {
   // direction, it moves forward.
 
   if (state.ws == null) {
-    console.error("Trying to send commands when not connected to server");
-    return;
+    console.error("Trying to send commands when not connected to server")
+    return
   }
 
   if (state.selectedGridObject != null) {
-    const agent = state.selectedGridObject;
-    const orientation = getAttr(agent, "agent:orientation");
+    const agent = state.selectedGridObject
+    const orientation = getAttr(agent, "agent:orientation")
     if (event.key == "w") {
       if (orientation != 0) {
         // Rotate up.
@@ -133,7 +133,7 @@ export function processActions(event: KeyboardEvent) {
     }
     if (event.key == "Z") {
       // Show attack mode menu (a bunch of little circles that you can click on).
-      state.showAttackMode = !state.showAttackMode;
+      state.showAttackMode = !state.showAttackMode
     }
     if (event.key == "z") {
       // Attack the nearest agent.

@@ -11,4 +11,12 @@ game:
       border_width: 3
       agents: 1
       objects:
-        altar: 15
+        altar: 30
+  objects:
+    altar:
+      cooldown: 1000
+      input_battery.red: 3
+      output_heart: 1
+      max_output: 5
+      conversion_ticks: 1
+      initial_items: 1
