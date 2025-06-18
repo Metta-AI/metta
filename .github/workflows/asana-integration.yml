@@ -19,6 +19,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Install requests library
+        run: pip install requests
+
       - name: Ensure Asana Task
         id: ensure-asana-task
         uses: ./.github/actions/asana/ensure-task
