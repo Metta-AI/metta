@@ -48,9 +48,6 @@ jobs:
           echo "$PR_URL" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Install requests library
-        run: pip install requests
-
       - name: Ensure Asana Task
         id: ensure-asana-task
         uses: ./.github/actions/asana/ensure-task
