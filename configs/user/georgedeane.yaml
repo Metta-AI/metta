@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/memory_training_varied
+  curriculum: /env/mettagrid/curriculum/cauldron
   evaluate_interval: 10
 
 

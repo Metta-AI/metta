@@ -1,0 +1,28 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  # Memory training environments - easy, medium, hard
+  /env/mettagrid/memory/training/easy: 1
+  /env/mettagrid/memory/training/medium: 1
+  /env/mettagrid/memory/training/hard: 1
+
+  # Specific HC environments
+  /env/mettagrid/memory/training/hc1: 1
+  /env/mettagrid/memory/training/hc1m: 1
+  /env/mettagrid/memory/training/hc1mh: 1
+  /env/mettagrid/memory/training/hc4: 1
+  /env/mettagrid/memory/training/hc4m: 1
+  /env/mettagrid/memory/training/hc4mh: 1
+
+  # Short training variants
+  /env/mettagrid/memory/training/easy_short: 1
+  /env/mettagrid/memory/training/medium_short: 1
+  /env/mettagrid/memory/training/hard_short: 1
+
+  # Navigation training environments
+  # /env/mettagrid/navigation/training/terrain_from_numpy: 1
+  /env/mettagrid/navigation/training/cylinder_world: 1
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
+  /env/mettagrid/navigation/training/varied_terrain_dense: 1
+  /env/mettagrid/navigation/training/varied_terrain_maze: 1
+  /env/mettagrid/navigation/training/varied_terrain_sparse: 1
