@@ -36,3 +36,10 @@ runs:
       shell: bash
     - run: python ${{ github.action_path }}/main.py
       shell: bash
+      env:
+        INPUT_TITLE: ${{ inputs.title }}
+        INPUT_DESCRIPTION: ${{ inputs.description }}
+        INPUT_PROJECT_ID: ${{ inputs.project_id }}
+        INPUT_ASANA_TOKEN: ${{ inputs.asana_token }}
+        INPUT_GITHUB_URL: ${{ inputs.github_url }}
+        INPUT_GITHUB_URL_FIELD_ID: ${{ inputs.github_url_field_id }}
