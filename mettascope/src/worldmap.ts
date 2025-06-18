@@ -697,56 +697,58 @@ export function drawMap(panel: PanelInfo) {
   }
 
   // Handle mouse events for the map panel.
-  if (ui.mouseTargets.includes('#worldmap-panel') && ui.dragging == '' && !state.showAttackMode) {
-    // Find the object under the mouse.
-    var objectUnderMouse = null
-    const localMousePos = panel.transformOuter(ui.mousePos)
-    if (localMousePos != null) {
-      const gridMousePos = new Vec2f(
-        Math.round(localMousePos.x() / Common.TILE_SIZE),
-        Math.round(localMousePos.y() / Common.TILE_SIZE)
-      )
-      objectUnderMouse = state.replay.grid_objects.find((obj: any) => {
-        const x: number = getAttr(obj, 'c')
-        const y: number = getAttr(obj, 'r')
-        return x === gridMousePos.x() && y === gridMousePos.y()
-      })
-    }
-  }
-
-  if (ui.mouseDoubleClick) {
-    // Toggle followSelection on double-click.
-    console.info('Map double click - following selection')
-    setFollowSelection(true)
-    panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
-    ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL
-  } else if (ui.mouseClick) {
-    // A map click is likely a drag/pan.
-    console.info('Map click - clearing follow selection')
-    setFollowSelection(false)
-  } else if (ui.mouseUp && ui.mouseDownPos.sub(ui.mousePos).length() < 10) {
-    // Check if we are clicking on an object.
-    if (objectUnderMouse !== undefined) {
-      updateSelection(objectUnderMouse)
-      console.info('Selected object on the map:', state.selectedGridObject)
-      if (state.selectedGridObject.agent_id !== undefined) {
-        // If selecting an agent, focus the trace panel on the agent.
-        ui.tracePanel.focusPos(
-          state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
-          getAttr(state.selectedGridObject, 'agent_id') * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
-          Common.DEFAULT_TRACE_ZOOM_LEVEL
+  if (ui.mouseTargets.includes('#worldmap-panel')) {
+    if (ui.dragging == '' && !state.showAttackMode) {
+      // Find the object under the mouse.
+      var objectUnderMouse = null
+      const localMousePos = panel.transformOuter(ui.mousePos)
+      if (localMousePos != null) {
+        const gridMousePos = new Vec2f(
+          Math.round(localMousePos.x() / Common.TILE_SIZE),
+          Math.round(localMousePos.y() / Common.TILE_SIZE)
         )
+        objectUnderMouse = state.replay.grid_objects.find((obj: any) => {
+          const x: number = getAttr(obj, 'c')
+          const y: number = getAttr(obj, 'r')
+          return x === gridMousePos.x() && y === gridMousePos.y()
+        })
       }
     }
-  } else {
-    ui.hoverObject = objectUnderMouse
-    clearTimeout(ui.hoverTimer)
-    ui.hoverTimer = setTimeout(() => {
-      if (ui.mouseTargets.includes('#worldmap-panel')) {
-        ui.delayedHoverObject = ui.hoverObject
-        updateHoverPanel(ui.delayedHoverObject)
+
+    if (ui.mouseDoubleClick) {
+      // Toggle followSelection on double-click.
+      console.info('Map double click - following selection', ui.mouseTargets)
+      setFollowSelection(true)
+      panel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
+      ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL
+    } else if (ui.mouseClick) {
+      // A map click is likely a drag/pan.
+      console.info('Map click - clearing follow selection')
+      setFollowSelection(false)
+    } else if (ui.mouseUp && ui.mouseDownPos.sub(ui.mousePos).length() < 10) {
+      // Check if we are clicking on an object.
+      if (objectUnderMouse !== undefined) {
+        updateSelection(objectUnderMouse)
+        console.info('Selected object on the map:', state.selectedGridObject)
+        if (state.selectedGridObject.agent_id !== undefined) {
+          // If selecting an agent, focus the trace panel on the agent.
+          ui.tracePanel.focusPos(
+            state.step * Common.TRACE_WIDTH + Common.TRACE_WIDTH / 2,
+            getAttr(state.selectedGridObject, 'agent_id') * Common.TRACE_HEIGHT + Common.TRACE_HEIGHT / 2,
+            Common.DEFAULT_TRACE_ZOOM_LEVEL
+          )
+        }
       }
-    }, Common.INFO_PANEL_POP_TIME)
+    } else {
+      ui.hoverObject = objectUnderMouse
+      clearTimeout(ui.hoverTimer)
+      ui.hoverTimer = setTimeout(() => {
+        if (ui.mouseTargets.includes('#worldmap-panel')) {
+          ui.delayedHoverObject = ui.hoverObject
+          updateHoverPanel(ui.delayedHoverObject)
+        }
+      }, Common.INFO_PANEL_POP_TIME)
+    }
   }
 
   // If we're following a selection, center the map on it.
