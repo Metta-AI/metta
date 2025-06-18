@@ -31,5 +31,5 @@ runs:
     - uses: actions/setup-python@v4
       with:
         python-version: '3.x'
-    - run: python main.py
+    - run: python ${{ github.action_path }}/main.py
       shell: bash
