@@ -12,53 +12,48 @@ components:
   #necessary layers: _core_, _action_embeds_, _action_, _value_
   #necessary input_source: _obs_
 
-  # _obs_:
-  #   _target_: metta.agent.lib.obs_enc.ObsTokenShaper
-  #   atr_embed_dim: 16
-  #   sources:
-  #     null
-
   _obs_:
     _target_: metta.agent.lib.obs_tokenizers.ObsTokenPadStrip
     sources:
       null
 
-  # obs_attr_embed:
-  #   _target_: metta.agent.lib.obs_tokenizers.ObsAttrCoordEmbed
-  #   atr_embed_dim: 16
-  #   sources:
-  #     - name: _obs_
-
-  obs_normalizer:
+  obs_normalize:
     _target_: metta.agent.lib.obs_tokenizers.ObsAttrValNorm
     sources:
       - name: _obs_
 
-  obs_attr_embed:
+  obs_fourier:
     _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
-    atr_embed_dim: 10
-    num_freqs: 4
     sources:
-      - name: obs_normalizer
+      - name: obs_normalize
+    num_freqs: 8
+    atr_embed_dim: 12
 
-  obs_cross_attn:
-    _target_: metta.agent.lib.obs_enc.ObsLatentAttn2
-    out_dim: 128
+  obs_latent_query_attn:
+    _target_: metta.agent.lib.obs_enc.ObsLatentAttn
+    out_dim: 32
     use_mask: true
-    num_layers: 2
-    num_heads: 4
-    num_query_tokens: 1
-    use_cls_token: true
+    num_query_tokens: 7
     query_token_dim: 32
-    qk_dim: 32
-    mlp_out_hidden_dim: 256
+    num_heads: 8
+    num_layers: 3
     sources:
-      - name: obs_attr_embed
+      - name: obs_fourier
+
+  obs_latent_self_attn:
+    _target_: metta.agent.lib.obs_enc.ObsVanillaAttn
+    out_dim: 128
+    num_heads: 8
+    num_layers: 3
+    use_mask: false
+    use_cls_token: true
+    sources:
+      - name: obs_latent_query_attn
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
-      - name: obs_cross_attn
+      - name: obs_latent_self_attn
     output_size: 128
     nn_params:
       num_layers: 2
