@@ -761,12 +761,10 @@ class MettaTrainer:
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
-        # Only process stats on master process
         if not self._master or not self.wandb_run:
             self.stats.clear()
             return
 
-        # Calculate local values (master only)
         elapsed_times = self.timer.get_all_elapsed()
         wall_time = self.timer.get_elapsed()
 
@@ -777,11 +775,11 @@ class MettaTrainer:
         lap_times = self.timer.lap_all(self.agent_step)
         wall_time_for_lap = lap_times.pop("global", 0)
 
-        # Calculate SPS values and multiply by world size for approximation
+        # Aggregate steps per second across all GPUs
         lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
-        # Approximate total values by multiplying master's values by world size
+        # Approximate total values by multiplying by world size
         total_agent_steps = self.agent_step * self._world_size
         total_sps = steps_per_second * self._world_size
         total_lap_sps = lap_steps_per_second * self._world_size
@@ -811,7 +809,6 @@ class MettaTrainer:
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
 
         # X-axis values for wandb
-        # Agent steps approximated by multiplying master's steps by world size
         metric_stats = {
             "metric/step": total_agent_steps,
             "metric/epoch": self.epoch,
@@ -1022,29 +1019,29 @@ class MettaTrainer:
 
         num_agents = self._curriculum.get_task().env_cfg().game.num_agents
 
-        target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
-        if target_batch_size < 2:  # pufferlib bug requires batch size >= 2
-            target_batch_size = 2
+        self.target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
+        if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
+            self.target_batch_size = 2
 
-        batch_size = (target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
+        self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
 
         # Validation to catch configuration issues early
-        if batch_size < 1:
+        if self.batch_size < 1:
             raise ValueError(
-                f"Calculated batch_size is {batch_size}, which is less than 1!\n"
+                f"Calculated batch_size is {self.batch_size}, which is less than 1!\n"
                 f"This typically happens when forward_pass_minibatch_target_size ({trainer_cfg.forward_pass_minibatch_target_size}) "
                 f"is too small for the number of agents ({num_agents}) in the environment.\n"
                 f"Try increasing trainer.forward_pass_minibatch_target_size to at least {num_agents * 2}"
             )
 
-        logger.info(f"forward_pass_batch_size: {batch_size}")
+        logger.info(f"forward_pass_batch_size: {self.batch_size}")
 
-        num_envs = batch_size * trainer_cfg.async_factor
+        num_envs = self.batch_size * trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
             logger.error(
-                f"num_envs = batch_size ({batch_size}) * async_factor ({trainer_cfg.async_factor}) "
+                f"num_envs = batch_size ({self.batch_size}) * async_factor ({trainer_cfg.async_factor}) "
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
@@ -1052,7 +1049,7 @@ class MettaTrainer:
             self._curriculum,
             self.cfg.vectorization,
             num_envs=num_envs,
-            batch_size=batch_size,
+            batch_size=self.batch_size,
             num_workers=trainer_cfg.num_workers,
             zero_copy=trainer_cfg.zero_copy,
         )
