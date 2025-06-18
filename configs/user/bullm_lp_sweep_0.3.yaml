@@ -5,8 +5,7 @@ defaults:
   - _self_
 
 # Basic run configuration
-run_id: 1
-run: ${oc.env:USER}.lp_sweep_0.3.${run_id}
+run: ${oc.env:USER}.lp_sweep_0.3
 run_dir: ${data_dir}/${run}
 
 # Training configuration
