@@ -214,8 +214,6 @@ class MettaTrainer:
             # set up plots that do not use steps as the x-axis
             metric_overrides = [
                 ("overview/reward_vs_total_time", "metric/total_time"),
-                ("overview/reward_vs_train_time", "metric/train_time"),
-                ("overview/reward_vs_epoch", "metric/epoch"),
             ]
 
             for metric_name, step_metric in metric_overrides:
@@ -808,8 +806,6 @@ class MettaTrainer:
             "lap_sps": lap_steps_per_second,
             "reward": mean_reward,
             "reward_vs_total_time": mean_reward,
-            "reward_vs_train_time": mean_reward,
-            "reward_vs_epoch": mean_reward,
         }
 
         for k, v in self.trainer_cfg.stats.overview.items():
