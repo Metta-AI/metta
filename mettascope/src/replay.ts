@@ -294,14 +294,16 @@ export function loadReplayStep(replayStep: any) {
         state.replay.grid_objects.push({})
       }
       // Ensure that the key exists.
-      if (state.replay.grid_objects[index][key] === undefined) {
+      if (state.replay.grid_objects[index][key] === undefined ||
+        state.replay.grid_objects[index][key] === null
+      ) {
         state.replay.grid_objects[index][key] = []
         while (state.replay.grid_objects[index][key].length <= step) {
           state.replay.grid_objects[index][key].push(null)
         }
       }
-      state.replay.grid_objects[index][key][step] = value
 
+      state.replay.grid_objects[index][key][step] = value
 
       if (key == "agent_id") {
         // Update the agent.
@@ -309,6 +311,12 @@ export function loadReplayStep(replayStep: any) {
           state.replay.agents.push({})
         }
         state.replay.agents[value] = state.replay.grid_objects[index]
+      }
+    }
+    // Make sure that the keys that don't exist in the update are set to null too.
+    for (const key in state.replay.grid_objects[index]) {
+      if (gridObject[key] === undefined) {
+        state.replay.grid_objects[index][key][step] = null
       }
     }
   }

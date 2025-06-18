@@ -34,32 +34,28 @@ game:
     heart_max: 255
     freeze_duration: 10
     energy_reward: 0
-    hp: 1
     use_cost: 0
     rewards:
       heart: 1
 
   objects:
     altar:
-      hp: 30
       cooldown: 2
       use_cost: 100
 
     converter:
-      hp: 30
       cooldown: 2
       energy_output.r1: 100
       energy_output.r2: 10
       energy_output.r3: 1
 
     generator.red:
-      hp: 30
       cooldown: 5
       initial_resources: 30
       use_cost: 0
 
-    wall:
-      hp: 10
+    wall: {}
+
 
   actions:
     noop:

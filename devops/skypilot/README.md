@@ -26,6 +26,7 @@ For a complete list of optional parameters and their descriptions, use:
 
 ```bash
 ./devops/skypilot/launch.py --help
+```
 
 ## Examples
 
