@@ -869,7 +869,7 @@ export class Context3d {
 
         // Apply scissor if enabled for this mesh
         if (mesh.scissorEnabled) {
-          let [x, y, width, height] = mesh.scissorRect
+          const [x, y, width, height] = mesh.scissorRect
           const w = Math.floor(this.canvas.width)
           const h = Math.floor(this.canvas.height)
           passEncoder.setScissorRect(
