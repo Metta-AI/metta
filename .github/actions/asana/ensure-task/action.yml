@@ -34,5 +34,5 @@ runs:
     - name: Install requests library
       run: pip install requests
       shell: bash
-    - run: python ${{ github.action_path }}/main.py
+    - run: python main.py
       shell: bash
