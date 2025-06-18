@@ -2,6 +2,7 @@ import os
 import sys
 import requests
 
+
 def update_pr_description(repo, pr_number, task_url, token):
     url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
     headers = {
@@ -23,6 +24,7 @@ def update_pr_description(repo, pr_number, task_url, token):
     if response.status_code != 200:
         print(f"GitHub API Error: {response.status_code} - {response.text}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     # Inputs from the Action

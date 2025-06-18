@@ -2,6 +2,7 @@ import os
 import sys
 import requests
 
+
 def search_asana_tasks(github_url, project_id, github_url_field_id, asana_token):
     """Search for existing Asana tasks with the given GitHub URL in the specified project."""
     url = "https://app.asana.com/api/1.0/tasks"
@@ -9,10 +10,7 @@ def search_asana_tasks(github_url, project_id, github_url_field_id, asana_token)
         "Authorization": f"Bearer {asana_token}",
         "Content-Type": "application/json",
     }
-    params = {
-        "project": project_id,
-        "opt_fields": "permalink_url,custom_fields"
-    }
+    params = {"project": project_id, "opt_fields": "permalink_url,custom_fields"}
 
     response = requests.get(url, headers=headers, params=params)
     if response.status_code != 200:
@@ -30,6 +28,7 @@ def search_asana_tasks(github_url, project_id, github_url_field_id, asana_token)
 
     return None
 
+
 def create_asana_task(title, description, project_id, github_url, github_url_field_id, asana_token):
     """Create a new Asana task with the GitHub URL field populated."""
     url = "https://app.asana.com/api/1.0/tasks"
@@ -46,9 +45,7 @@ def create_asana_task(title, description, project_id, github_url, github_url_fie
 
     # Add the GitHub URL custom field
     if github_url_field_id:
-        payload["custom_fields"] = {
-            github_url_field_id: github_url
-        }
+        payload["custom_fields"] = {github_url_field_id: github_url}
 
     response = requests.post(url, json=payload, headers=headers)
     if response.status_code == 201:
@@ -56,6 +53,7 @@ def create_asana_task(title, description, project_id, github_url, github_url_fie
     else:
         print(f"Asana API Error: {response.status_code} - {response.text}")
         sys.exit(1)
+
 
 def ensure_asana_task_exists(title, description, project_id, github_url, github_url_field_id, asana_token):
     """Ensure an Asana task exists with the given GitHub URL. Return existing or create new."""
@@ -70,6 +68,7 @@ def ensure_asana_task_exists(title, description, project_id, github_url, github_
     new_task_url = create_asana_task(title, description, project_id, github_url, github_url_field_id, asana_token)
     print(f"Created new Asana task: {new_task_url}")
     return new_task_url
+
 
 if __name__ == "__main__":
     # Inputs from the Action
