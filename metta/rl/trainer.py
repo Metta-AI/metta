@@ -31,6 +31,7 @@ from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
+from metta.util.distributed import dist_sum
 from metta.util.heartbeat import record_heartbeat
 from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.curriculum import curriculum_from_config_path
@@ -51,24 +52,6 @@ torch.set_float32_matmul_precision("high")
 rank = int(os.environ.get("RANK", 0))
 local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
-
-
-def dist_sum(value: float | int, device: torch.device | str) -> float:
-    """Sum a value across all distributed processes."""
-    if not torch.distributed.is_initialized():
-        return value
-
-    tensor = torch.tensor(value, device=device)
-    torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
-    return tensor.item()
-
-
-def dist_mean(value: float | int, device: torch.device | str) -> float:
-    """Average a value across all distributed processes."""
-    if not torch.distributed.is_initialized():
-        return value
-
-    return dist_sum(value, device) / torch.distributed.get_world_size()
 
 
 class MettaTrainer:
@@ -1041,29 +1024,29 @@ class MettaTrainer:
 
         num_agents = self._curriculum.get_task().env_cfg().game.num_agents
 
-        self.target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
-        if self.target_batch_size < 2:  # pufferlib bug requires batch size >= 2
-            self.target_batch_size = 2
+        target_batch_size = trainer_cfg.forward_pass_minibatch_target_size // num_agents
+        if target_batch_size < 2:  # pufferlib bug requires batch size >= 2
+            target_batch_size = 2
 
-        self.batch_size = (self.target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
+        batch_size = (target_batch_size // trainer_cfg.num_workers) * trainer_cfg.num_workers
 
         # Validation to catch configuration issues early
-        if self.batch_size < 1:
+        if batch_size < 1:
             raise ValueError(
-                f"Calculated batch_size is {self.batch_size}, which is less than 1!\n"
+                f"Calculated batch_size is {batch_size}, which is less than 1!\n"
                 f"This typically happens when forward_pass_minibatch_target_size ({trainer_cfg.forward_pass_minibatch_target_size}) "
                 f"is too small for the number of agents ({num_agents}) in the environment.\n"
                 f"Try increasing trainer.forward_pass_minibatch_target_size to at least {num_agents * 2}"
             )
 
-        logger.info(f"forward_pass_batch_size: {self.batch_size}")
+        logger.info(f"forward_pass_batch_size: {batch_size}")
 
-        num_envs = self.batch_size * trainer_cfg.async_factor
+        num_envs = batch_size * trainer_cfg.async_factor
         logger.info(f"num_envs: {num_envs}")
 
         if num_envs < 1:
             logger.error(
-                f"num_envs = batch_size ({self.batch_size}) * async_factor ({trainer_cfg.async_factor}) "
+                f"num_envs = batch_size ({batch_size}) * async_factor ({trainer_cfg.async_factor}) "
                 f"is {num_envs}, which is less than 1! (Increase trainer.forward_pass_minibatch_target_size)"
             )
 
@@ -1071,7 +1054,7 @@ class MettaTrainer:
             self._curriculum,
             self.cfg.vectorization,
             num_envs=num_envs,
-            batch_size=self.batch_size,
+            batch_size=batch_size,
             num_workers=trainer_cfg.num_workers,
             zero_copy=trainer_cfg.zero_copy,
         )
@@ -1083,15 +1066,6 @@ class MettaTrainer:
         # processes generate uncorrelated environments in distributed training
         rank = int(os.environ.get("RANK", 0))
         self.vecenv.async_reset(self.cfg.seed + rank)
-
-        # Debug logging
-        logger.info("VecEnv initialized:")
-        logger.info(f"  - num_agents: {self.vecenv.num_agents}")
-        logger.info(f"  - num_envs: {num_envs}")
-        logger.info(f"  - batch_size: {self.batch_size}")
-        logger.info(f"  - forward_pass_minibatch_target_size: {trainer_cfg.forward_pass_minibatch_target_size}")
-        logger.info(f"  - async_factor: {trainer_cfg.async_factor}")
-        logger.info(f"  - num_workers: {trainer_cfg.num_workers}")
 
     def _load_policy(self, checkpoint, policy_store, metta_grid_env):
         """Load policy from checkpoint, initial_policy.uri, or create new."""
