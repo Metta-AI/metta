@@ -25,7 +25,6 @@ from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.policy import PytorchAgent
-from metta.rl.profile import Profile, profile_section
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.vecenv import make_vecenv
@@ -36,7 +35,7 @@ from metta.util.heartbeat import record_heartbeat
 from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from mettagrid.util.stopwatch import Stopwatch
+from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -86,7 +85,6 @@ class MettaTrainer:
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
 
-        self.profile = Profile()
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
         self.losses = Losses()
         self.stats = defaultdict(list)
@@ -96,6 +94,9 @@ class MettaTrainer:
         self._eval_grouped_scores: Dict[str, float] = {}
         self._eval_suite_avgs: Dict[str, float] = {}
         self._eval_categories: Set[str] = set()
+
+        self.timer = Stopwatch(logger)
+        self.timer.start()
 
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
@@ -146,19 +147,15 @@ class MettaTrainer:
 
         self.agent_step = checkpoint.agent_step
         self.epoch = checkpoint.epoch
-        self.profile.start_agent_steps = self.agent_step
-        self._last_agent_step = self.agent_step
-        self._total_minibatches = 0
 
         self._stats_epoch_start = self.epoch
         self._stats_epoch_id: UUID | None = None
         self._stats_run_id: UUID | None = None
 
         # Optimizer
-        assert trainer_cfg.optimizer.type in ("adam", "muon"), (
-            f"Optimizer type must be 'adam' or 'muon', got {trainer_cfg.optimizer.type}"
-        )
-        opt_cls = torch.optim.Adam if trainer_cfg.optimizer.type == "adam" else ForeachMuon
+        optimizer_type = getattr(trainer_cfg.optimizer, "type", "adam")
+        assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
+        opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
             lr=trainer_cfg.optimizer.learning_rate,
@@ -196,7 +193,7 @@ class MettaTrainer:
                 )
 
         self.lr_scheduler = None
-        if trainer_cfg.lr_scheduler.enabled:
+        if hasattr(trainer_cfg, "lr_scheduler") and getattr(trainer_cfg.lr_scheduler, "enabled", False):
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
             )
@@ -205,13 +202,22 @@ class MettaTrainer:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
         if wandb_run and self._master:
-            wandb_run.define_metric("train/agent_step")
-            wandb_run.define_metric("train/avg_agent_steps_per_update", step_metric="train/agent_step")
-            for k in ["0verview", "env", "losses", "performance", "train"]:
-                wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
+            # Define metrics (wandb x-axis values)
+            metrics = ["step", "epoch", "total_time", "train_time"]
+            for metric in metrics:
+                wandb_run.define_metric(f"metric/{metric}")
 
-        self.timer = Stopwatch(logger)
-        self.timer.start()
+            # set the default x-axis to be step count
+            for k in ["overview", "env", "losses", "performance"]:
+                wandb_run.define_metric(f"{k}/*", step_metric="metric/step")
+
+            # set up plots that do not use steps as the x-axis
+            metric_overrides = [
+                ("overview/reward_vs_total_time", "metric/total_time"),
+            ]
+
+            for metric_name, step_metric in metric_overrides:
+                wandb_run.define_metric(metric_name, step_metric=step_metric)
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -233,45 +239,42 @@ class MettaTrainer:
             steps_before = self.agent_step
 
             with self.torch_profiler:
-                with self.timer("_rollout"):
-                    self._rollout()
-
-                with self.timer("_train"):
-                    self._train()
+                self._rollout()
+                self._train()
 
             # Processing stats
-            with self.timer("_process_stats"):
-                self._process_stats()
+            self._process_stats()
 
             rollout_time = self.timer.get_last_elapsed("_rollout")
             train_time = self.timer.get_last_elapsed("_train")
             stats_time = self.timer.get_last_elapsed("_process_stats")
             steps_calculated = self.agent_step - steps_before
-            steps_per_sec = steps_calculated / (train_time + rollout_time)
+
+            total_time = train_time + rollout_time + stats_time
+            steps_per_sec = steps_calculated / total_time
+
+            train_pct = (train_time / total_time) * 100
+            rollout_pct = (rollout_time / total_time) * 100
+            stats_pct = (stats_time / total_time) * 100
 
             logger.info(
                 f"Epoch {self.epoch} - "
-                f"rollout: {rollout_time:.3f}s, "
-                f"train: {train_time:.3f}s, "
-                f"stats: {stats_time:.3f}s, "
-                f"[{steps_per_sec:.0f} steps/sec]"
+                f"{steps_per_sec:.0f} steps/sec "
+                f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
             record_heartbeat()
 
             # Checkpointing trainer
             if self.epoch % trainer_cfg.checkpoint_interval == 0:
-                with self.timer("_checkpoint_trainer", log_level=logging.INFO):
-                    self._checkpoint_trainer()
+                self._checkpoint_trainer()
 
             if trainer_cfg.evaluate_interval != 0 and self.epoch % trainer_cfg.evaluate_interval == 0:
-                with self.timer("_evaluate_policy", log_level=logging.INFO):
-                    self._evaluate_policy()
+                self._evaluate_policy()
 
             self.torch_profiler.on_epoch_end(self.epoch)
 
             if self.epoch % trainer_cfg.wandb_checkpoint_interval == 0:
-                with self.timer("_save_policy_to_wandb"):
-                    self._save_policy_to_wandb()
+                self._save_policy_to_wandb()
 
             if (
                 self.cfg.agent.l2_init_weight_update_interval != 0
@@ -280,8 +283,7 @@ class MettaTrainer:
                 self.policy.update_l2_init_weight_copy()
 
             if trainer_cfg.replay_interval != 0 and self.epoch % trainer_cfg.replay_interval == 0:
-                with self.timer("_generate_and_upload_replay", log_level=logging.INFO):
-                    self._generate_and_upload_replay()
+                self._generate_and_upload_replay()
 
             self._on_train_step()
 
@@ -293,6 +295,7 @@ class MettaTrainer:
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
 
+    @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
         if not self._master:
             return
@@ -354,19 +357,17 @@ class MettaTrainer:
     def _on_train_step(self):
         pass
 
-    @profile_section("eval")
+    @with_instance_timer("_rollout")
     def _rollout(self):
-        experience, profile = self.experience, self.profile
+        experience = self.experience
         trainer_cfg = self.trainer_cfg
 
-        with profile.eval_misc:
-            policy = self.policy
-            infos = defaultdict(list)
-
-            experience.reset_for_rollout()
+        policy = self.policy
+        infos = defaultdict(list)
+        experience.reset_for_rollout()
 
         while not experience.ready_for_training:
-            with profile.env:
+            with self.timer("_rollout.env"):
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
                 if trainer_cfg.require_contiguous_env_ids:
                     raise ValueError(
@@ -376,16 +377,15 @@ class MettaTrainer:
 
                 training_env_id = slice(env_id[0], env_id[-1] + 1)
 
-            with profile.eval_misc:
-                num_steps = sum(mask)
-                self.agent_step += num_steps * self._world_size
+            num_steps = sum(mask)
+            self.agent_step += num_steps * self._world_size
 
-                o = torch.as_tensor(o)
-                r = torch.as_tensor(r)
-                d = torch.as_tensor(d)
-                t = torch.as_tensor(t)
+            o = torch.as_tensor(o)
+            r = torch.as_tensor(r)
+            d = torch.as_tensor(d)
+            t = torch.as_tensor(t)
 
-            with profile.eval_forward, torch.no_grad():
+            with torch.no_grad():
                 state = PolicyState()
 
                 lstm_state = experience.get_lstm_state(training_env_id.start)
@@ -407,104 +407,112 @@ class MettaTrainer:
                 if self.device == "cuda":
                     torch.cuda.synchronize()
 
-            with profile.eval_misc:
-                value = value.flatten()
-                mask = torch.as_tensor(mask)  # * policy.mask)
+            value = value.flatten()
+            mask = torch.as_tensor(mask)  # * policy.mask)
 
-                experience.store(
-                    obs=o if trainer_cfg.cpu_offload else o_device,
-                    actions=actions,
-                    logprobs=selected_action_log_probs,
-                    rewards=r.to(self.device, non_blocking=True),
-                    dones=d.to(self.device, non_blocking=True),
-                    truncations=t.to(self.device, non_blocking=True),
-                    values=value,
-                    env_id=training_env_id,
-                    mask=mask,
-                    lstm_state=lstm_state_to_store,
-                )
+            experience.store(
+                obs=o if trainer_cfg.cpu_offload else o_device,
+                actions=actions,
+                logprobs=selected_action_log_probs,
+                rewards=r.to(self.device, non_blocking=True),
+                dones=d.to(self.device, non_blocking=True),
+                truncations=t.to(self.device, non_blocking=True),
+                values=value,
+                env_id=training_env_id,
+                mask=mask,
+                lstm_state=lstm_state_to_store,
+            )
 
-                for i in info:
-                    for k, v in unroll_nested_dict(i):
-                        infos[k].append(v)
+            # At this point, infos contains lists of values collected across:
+            # 1. Multiple vectorized environments managed by this GPU's vecenv
+            # 2. Multiple rollout steps (until experience buffer is full)
+            #
+            # - Some stats (like "episode/reward") appear only when episodes complete
+            # - Other stats might appear every step
+            #
+            # These will later be averaged in _process_stats() to get mean values
+            # across all environments on this GPU. Stats from other GPUs (if using
+            # distributed training) are handled separately and not aggregated here.
 
-            with profile.env:
+            for i in info:
+                for k, v in unroll_nested_dict(i):
+                    infos[k].append(v)
+
+            with self.timer("_rollout.env"):
                 actions_np = actions.cpu().numpy().astype(dtype_actions)
                 self.vecenv.send(actions_np)
 
-        with profile.eval_misc:
-            for k, v in infos.items():
-                if isinstance(v, np.ndarray):
-                    v = v.tolist()
+        for k, v in infos.items():
+            if isinstance(v, np.ndarray):
+                v = v.tolist()
 
-                if isinstance(v, list):
-                    if k not in self.stats:
-                        self.stats[k] = []
-                    self.stats[k].extend(v)
+            if isinstance(v, list):
+                if k not in self.stats:
+                    self.stats[k] = []
+                self.stats[k].extend(v)
+            else:
+                if k not in self.stats:
+                    self.stats[k] = v
                 else:
-                    if k not in self.stats:
-                        self.stats[k] = v
-                    else:
-                        try:
-                            self.stats[k] += v
-                        except TypeError:
-                            self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
+                    try:
+                        self.stats[k] += v
+                    except TypeError:
+                        self.stats[k] = [self.stats[k], v]  # fallback: bundle as list
 
         # TODO: Better way to enable multiple collects
         return self.stats, infos
 
-    @profile_section("train")
+    @with_instance_timer("_train")
     def _train(self):
-        experience, profile = self.experience, self.profile
+        experience = self.experience
         trainer_cfg = self.trainer_cfg
+
         self.losses.zero()
-        self._total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
-        steps_since_last = self.agent_step - self._last_agent_step
-        self._agent_steps_per_update = steps_since_last / max(self._total_minibatches, 1)
 
-        with profile.train_misc:
-            prio_cfg = trainer_cfg.get("prioritized_experience_replay", {})
-            vtrace_cfg = trainer_cfg.get("vtrace", {})
+        prio_cfg = trainer_cfg.get("prioritized_experience_replay", {})
+        vtrace_cfg = trainer_cfg.get("vtrace", {})
 
-            # Reset importance sampling ratios
-            experience.reset_importance_sampling_ratios()
+        # Reset importance sampling ratios
+        experience.reset_importance_sampling_ratios()
 
-            # Prioritized sampling parameters
-            b0 = prio_cfg.get("prio_beta0", 0.6)
-            a = prio_cfg.get("prio_alpha", 0.0)
-            total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
-            anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
+        # Prioritized sampling parameters
+        b0 = prio_cfg.get("prio_beta0", 0.6)
+        a = prio_cfg.get("prio_alpha", 0.0)
+        total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
+        anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
 
-            # Compute advantages using puff_advantage
-            advantages = torch.zeros(experience.values.shape, device=self.device)
+        # Compute advantages using puff_advantage
+        advantages = torch.zeros(experience.values.shape, device=self.device)
 
-            # Initial importance sampling ratio is all ones
-            initial_importance_sampling_ratio = torch.ones_like(experience.values)
+        # Initial importance sampling ratio is all ones
+        initial_importance_sampling_ratio = torch.ones_like(experience.values)
 
-            advantages = self._compute_advantage(
-                experience.values,
-                experience.rewards,
-                experience.dones,
-                initial_importance_sampling_ratio,
-                advantages,
-                trainer_cfg.gamma,
-                trainer_cfg.gae_lambda,
-                vtrace_cfg.get("vtrace_rho_clip", 1.0),
-                vtrace_cfg.get("vtrace_c_clip", 1.0),
-            )
+        advantages = self._compute_advantage(
+            experience.values,
+            experience.rewards,
+            experience.dones,
+            initial_importance_sampling_ratio,
+            advantages,
+            trainer_cfg.gamma,
+            trainer_cfg.gae_lambda,
+            vtrace_cfg.get("vtrace_rho_clip", 1.0),
+            vtrace_cfg.get("vtrace_c_clip", 1.0),
+        )
 
         # Optimizing the policy and value network
-        for mb in range(self._total_minibatches):
-            with profile.train_misc:
+        _total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
+        minibatch_idx = 0
+
+        for _epoch in range(trainer_cfg.update_epochs):
+            for _ in range(experience.num_minibatches):
                 minibatch = experience.sample_minibatch(
                     advantages=advantages,
                     prio_alpha=a,
                     prio_beta=anneal_beta,
-                    minibatch_idx=mb,
-                    total_minibatches=self._total_minibatches,
+                    minibatch_idx=minibatch_idx,
+                    total_minibatches=_total_minibatches,
                 )
 
-            with profile.train_forward:
                 obs = minibatch["obs"]
                 if not trainer_cfg.get("use_rnn", True):
                     obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
@@ -514,14 +522,12 @@ class MettaTrainer:
                     obs, lstm_state, action=minibatch["actions"]
                 )
 
-            with profile.train_misc:
                 new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
                 logratio = new_logprobs - minibatch["logprobs"]
                 importance_sampling_ratio = logratio.exp()
                 experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
 
                 with torch.no_grad():
-                    old_approx_kl = (-logratio).mean()
                     approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
                     clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
 
@@ -593,23 +599,21 @@ class MettaTrainer:
                     raise ValueError("self.losses is None")
 
                 # Update loss tracking for logging
-                self.losses.policy_loss += pg_loss.item()
-                self.losses.value_loss += v_loss.item()
-                self.losses.entropy += entropy_loss.item()
-                self.losses.old_approx_kl += old_approx_kl.item()
-                self.losses.approx_kl += approx_kl.item()
-                self.losses.clipfrac += clipfrac.item()
-                self.losses.l2_reg_loss += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
-                self.losses.l2_init_loss += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
-                self.losses.ks_action_loss += ks_action_loss.item()
-                self.losses.ks_value_loss += ks_value_loss.item()
-                self.losses.importance += importance_sampling_ratio.mean().item()
+                self.losses.policy_loss_sum += pg_loss.item()
+                self.losses.value_loss_sum += v_loss.item()
+                self.losses.entropy_sum += entropy_loss.item()
+                self.losses.approx_kl_sum += approx_kl.item()
+                self.losses.clipfrac_sum += clipfrac.item()
+                self.losses.l2_reg_loss_sum += l2_reg_loss.item() if torch.is_tensor(l2_reg_loss) else l2_reg_loss
+                self.losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
+                self.losses.ks_action_loss_sum += ks_action_loss.item()
+                self.losses.ks_value_loss_sum += ks_value_loss.item()
+                self.losses.importance_sum += importance_sampling_ratio.mean().item()
                 self.losses.minibatches_processed += 1
 
-            with profile.learn:
                 self.optimizer.zero_grad()
                 loss.backward()
-                if (mb + 1) % self.experience.accumulate_minibatches == 0:
+                if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
                     self.optimizer.step()
 
@@ -619,25 +623,27 @@ class MettaTrainer:
                     if self.device == "cuda":
                         torch.cuda.synchronize()
 
-            if trainer_cfg.target_kl is not None and approx_kl > trainer_cfg.target_kl:
-                break
-
-        with profile.train_misc:
-            if self.lr_scheduler is not None:
-                self.lr_scheduler.step()
-
-            # Calculate explained variance
-            y_pred = experience.values.flatten()
-            y_true = advantages.flatten() + experience.values.flatten()
-            var_y = y_true.var()
-            explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
-            self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
+                minibatch_idx += 1
+                # end loop over minibatches
 
             self.epoch += 1
-            profile.update_stats(
-                self.agent_step,
-                trainer_cfg.total_timesteps,
-            )
+
+            # check early exit if we have reached target_kl
+            if trainer_cfg.target_kl is not None:
+                average_approx_kl = self.losses.approx_kl_sum / self.losses.minibatches_processed
+                if average_approx_kl > trainer_cfg.target_kl:
+                    break
+            # end loop over epochs
+
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
+
+        # Calculate explained variance
+        y_pred = experience.values.flatten()
+        y_true = advantages.flatten() + experience.values.flatten()
+        var_y = y_true.var()
+        explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
+        self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
     def _checkpoint_trainer(self):
         if not self._master:
@@ -705,6 +711,7 @@ class MettaTrainer:
         pr = self._checkpoint_policy()
         self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
 
+    @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
         if self._master:
             replay_sim_config = SingleEnvSimulationConfig(
@@ -712,7 +719,6 @@ class MettaTrainer:
                 num_episodes=1,
                 env_overrides=self._curriculum.get_task().env_cfg(),
             )
-            logger.info("Generating and saving a replay to wandb and S3.")
 
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
@@ -737,7 +743,12 @@ class MettaTrainer:
                     }
                     self.wandb_run.log(link_summary)
 
+    @with_instance_timer("_process_stats")
     def _process_stats(self):
+        if not self.wandb_run or not self._master:
+            self.stats.clear()
+            return
+
         # convert lists of values (collected across all environments and rollout steps on this GPU)
         # into single mean values.
         mean_stats = {}
@@ -752,30 +763,58 @@ class MettaTrainer:
                 ) from e
         self.stats = mean_stats
 
-        weight_metrics = {}
+        weight_stats = {}
         if self.cfg.agent.analyze_weights_interval != 0 and self.epoch % self.cfg.agent.analyze_weights_interval == 0:
             for metrics in self.policy.compute_weight_metrics():
                 name = metrics.get("name", "unknown")
                 for key, value in metrics.items():
                     if key != "name":
-                        weight_metrics[f"weights/{key}/{name}"] = value
+                        weight_stats[f"weights/{key}/{name}"] = value
 
-        # Calculate derived stats from local roll-outs (master process will handle logging)
-        sps = self.profile.SPS
-        agent_steps = self.agent_step
-        avg_steps_per_update = 0.0
-        if self._total_minibatches:
-            avg_steps_per_update = (agent_steps - self._last_agent_step) / self._total_minibatches
-            self._last_agent_step = agent_steps
-        epoch = self.epoch
-        learning_rate = self.optimizer.param_groups[0]["lr"]
+        elapsed_times = self.timer.get_all_elapsed()
+        wall_time = self.timer.get_elapsed()
+        train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
 
-        performance = {k: v for k, v in self.profile}
+        # X-axis values for wandb
+        metric_stats = {
+            "metric/step": self.agent_step,
+            "metric/epoch": self.epoch,
+            "metric/total_time": wall_time,
+            "metric/train_time": train_time,
+        }
+        lap_times = self.timer.lap_all(self.agent_step)
+        wall_time_for_lap = lap_times.pop("global", 0)
 
-        overview = {"SPS": sps}
-        for k, v in self.trainer_cfg.stats.overview.items():
-            if k in self.stats:
-                overview[v] = self.stats[k]
+        timing_stats = {
+            **{
+                f"timing_per_epoch/fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                for op, lap_elapsed in lap_times.items()
+            },
+            **{
+                f"timing_cumulative/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
+                for op, elapsed in elapsed_times.items()
+            },
+        }
+
+        delta_steps = self.timer.get_lap_steps()
+        if delta_steps is None:
+            delta_steps = self.agent_step
+        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+
+        mean_reward = self.experience.get_mean_reward()
+        overview = {
+            "sps": steps_per_second,
+            "lap_sps": lap_steps_per_second,
+            "reward": mean_reward,
+            "reward_vs_total_time": mean_reward,
+        }
+
+        # include custom stats from trainer config
+        if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
+            for k, v in self.trainer_cfg.stats.overview.items():
+                if k in self.stats:
+                    overview[v] = self.stats[k]
 
         for category in self._eval_categories:
             score = self._eval_suite_avgs.get(f"{category}_score", None)
@@ -793,48 +832,27 @@ class MettaTrainer:
             losses.pop("ks_action_loss")
             losses.pop("ks_value_loss")
 
-        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
+        environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        # Add timing metrics to wandb
-        if self.wandb_run and self._master:
-            timer_data = {}
-            wall_time = self.timer.get_elapsed()  # global timer
-            timer_data = self.timer.get_all_elapsed()
+        parameter_stats = {
+            "parameter/learning_rate": self.optimizer.param_groups[0]["lr"],
+            "parameter/delta_steps": delta_steps,
+            "parameter/num_minibatches": self.experience.num_minibatches,
+        }
 
-            training_time = timer_data.get("_rollout", 0) + timer_data.get("_train", 0)
-            overhead_time = wall_time - training_time
-            steps_per_sec = (self.agent_step - self._last_agent_step) / training_time if training_time > 0 else 0
-
-            timing_logs = {
-                # Key performance indicators
-                "timing/steps_per_second": steps_per_sec,
-                "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
-                "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
-                # Breakdown by operation (as a single structured metric)
-                "timing/breakdown": {
-                    op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
-                    for op, elapsed in timer_data.items()
-                },
-                # Total time for reference
-                "timing/total_seconds": wall_time,
+        # Log everything to wandb
+        self.wandb_run.log(
+            {
+                **{f"overview/{k}": v for k, v in overview.items()},
+                **{f"losses/{k}": v for k, v in losses.items()},
+                **environment_stats,
+                **weight_stats,
+                **self._eval_grouped_scores,
+                **parameter_stats,
+                **timing_stats,
+                **metric_stats,
             }
-
-            # Log everything to wandb
-            self.wandb_run.log(
-                {
-                    **{f"overview/{k}": v for k, v in overview.items()},
-                    **{f"losses/{k}": v for k, v in losses.items()},
-                    **{f"performance/{k}": v for k, v in performance.items()},
-                    **environment,
-                    **weight_metrics,
-                    **self._eval_grouped_scores,
-                    "train/agent_step": agent_steps,
-                    "train/avg_agent_steps_per_update": avg_steps_per_update,
-                    "train/epoch": epoch,
-                    "train/learning_rate": learning_rate,
-                    **timing_logs,
-                }
-            )
+        )
 
         self._eval_grouped_scores = {}
         self.stats.clear()
@@ -1008,9 +1026,12 @@ class MettaTrainer:
             if checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
                 return policy_store.policy(checkpoint.policy_path)
-            elif trainer_cfg.initial_policy.uri is not None:
-                logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
-                return policy_store.policy(trainer_cfg.initial_policy)
+            elif (
+                hasattr(trainer_cfg, "initial_policy") and getattr(trainer_cfg.initial_policy, "uri", None) is not None
+            ):
+                initial_uri = trainer_cfg.initial_policy.uri
+                logger.info(f"Loading initial policy URI: {initial_uri}")
+                return policy_store.policy(initial_uri)
             else:
                 policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
                 if os.path.exists(policy_path):
