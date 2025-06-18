@@ -764,25 +764,6 @@ class MettaTrainer:
             self.stats.clear()
             return
 
-        elapsed_times = self.timer.get_all_elapsed()
-        wall_time = self.timer.get_elapsed()
-
-        delta_steps = self.timer.get_lap_steps()
-        if delta_steps is None:
-            delta_steps = self.agent_step
-
-        lap_times = self.timer.lap_all(self.agent_step)
-        wall_time_for_lap = lap_times.pop("global", 0)
-
-        # Aggregate steps per second across all GPUs
-        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
-
-        # Approximate total values by multiplying by world size
-        total_agent_steps = self.agent_step * self._world_size
-        total_sps = steps_per_second * self._world_size
-        total_lap_sps = lap_steps_per_second * self._world_size
-
         # convert lists of values (collected across all environments and rollout steps on this GPU)
         # into single mean values.
         mean_stats = {}
@@ -805,7 +786,21 @@ class MettaTrainer:
                     if key != "name":
                         weight_stats[f"weights/{key}/{name}"] = value
 
+        elapsed_times = self.timer.get_all_elapsed()
+        wall_time = self.timer.get_elapsed()
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
+
+        lap_times = self.timer.lap_all(self.agent_step)
+        wall_time_for_lap = lap_times.pop("global", 0)
+
+        delta_steps = self.timer.get_lap_steps()
+        if delta_steps is None:
+            delta_steps = self.agent_step
+        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+
+        # Approximate total values by multiplying by world size
+        total_agent_steps = self.agent_step * self._world_size
 
         # X-axis values for wandb
         metric_stats = {
@@ -814,6 +809,7 @@ class MettaTrainer:
             "metric/total_time": wall_time,
             "metric/train_time": train_time,
         }
+
         timing_stats = {
             **{
                 f"timing_per_epoch/fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
@@ -824,6 +820,8 @@ class MettaTrainer:
                 for op, elapsed in elapsed_times.items()
             },
         }
+        total_sps = steps_per_second * self._world_size
+        total_lap_sps = lap_steps_per_second * self._world_size
 
         mean_reward = self.experience.get_mean_reward()
         overview = {
