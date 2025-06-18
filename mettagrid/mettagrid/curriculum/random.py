@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Dict, DictConfig
+from typing import Dict
+
+from omegaconf import DictConfig
 
 from mettagrid.curriculum.curriculum import Curriculum, Task
 from mettagrid.curriculum.multi_task import MultiTaskCurriculum

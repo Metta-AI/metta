@@ -241,8 +241,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
                 infos[f"rewards/env:{label}"] = episode_rewards_mean
 
         if self._curriculum.task_completions is not None:
-            for task_id, task_completion in self._curriculum.task_completions.items():
-                infos[f"task_completions/{task_id}"] = task_completion
+            completed_tasks = self._curriculum.completed_tasks
+            for task_id in self._curriculum._curriculums:
+                task_completion_rate = completed_tasks.count(task_id) / len(completed_tasks)
+                infos[f"task_completions/{task_id}"] = task_completion_rate
 
         stats = self._c_env.get_episode_stats()
 
