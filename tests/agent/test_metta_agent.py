@@ -31,7 +31,7 @@ def create_metta_agent():
         "observations": {"obs_key": "grid_obs"},
         "components": {
             "_obs_": {
-                "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
+                "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
                 "sources": None,
             },
             "obs_normalizer": {
