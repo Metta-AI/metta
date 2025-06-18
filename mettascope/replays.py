@@ -60,7 +60,7 @@ def create_simulation(cfg):
         if cfg.replay_job.policy_uri is not None:
             policy_record = policy_store.policy(cfg.replay_job.policy_uri)
         else:
-            # You can set the policy_uri to None to run play without requiring a policy to be trained.
+            # Set the policy_uri to None to run play without a policy.
             policy_record = FakePolicyRecord()
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
