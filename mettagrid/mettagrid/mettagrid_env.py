@@ -416,9 +416,9 @@ def get_completion_rates(curriculum):
     completion_rates = {}
     completed_tasks = curriculum.completed_tasks
     if completed_tasks is not None and len(completed_tasks) > 0:
-        for task_id, child_curr in curriculum._curriculums.items():
+        for task_id in curriculum._curriculums:
             task_completion_rate = completed_tasks.count(task_id) / len(completed_tasks)
             completion_rates[f"task_completions/{task_id}"] = task_completion_rate
-            child_completion_rates = get_completion_rates(child_curr)
-            completion_rates.update(child_completion_rates)
+            # child_completion_rates = get_completion_rates(child_curr)
+            # completion_rates.update(child_completion_rates)
     return completion_rates
