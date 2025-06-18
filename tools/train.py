@@ -11,12 +11,14 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
+from metta.app.stats_client import StatsClient
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config, setup_metta_environment
 from metta.util.heartbeat import record_heartbeat
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
-from metta.util.wandb.wandb_context import WandbContext
+from metta.util.stats_client_cfg import get_stats_client
+from metta.util.wandb.wandb_context import WandbContext, WandbRun
 
 
 # TODO: populate this more
@@ -26,7 +28,7 @@ class TrainJob(Config):
     map_preview_uri: Optional[str] = None
 
 
-def train(cfg, wandb_run, logger: Logger):
+def train(cfg: ListConfig | DictConfig, wandb_run: WandbRun | None, logger: Logger):
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
     if os.path.exists(overrides_path):
         logger.info(f"Loading train config overrides from {overrides_path}")
@@ -50,8 +52,15 @@ def train(cfg, wandb_run, logger: Logger):
         world_size = torch.distributed.get_world_size()
         cfg.trainer.forward_pass_minibatch_target_size = cfg.trainer.forward_pass_minibatch_target_size // world_size
 
+    stats_client: StatsClient | None = get_stats_client(cfg, logger)
+
     trainer = hydra.utils.instantiate(
-        cfg.trainer, cfg, wandb_run, policy_store=policy_store, sim_suite_config=train_job.evals
+        cfg.trainer,
+        cfg,
+        wandb_run,
+        policy_store=policy_store,
+        sim_suite_config=train_job.evals,
+        stats_client=stats_client,
     )
     trainer.train()
     trainer.close()
