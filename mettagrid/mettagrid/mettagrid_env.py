@@ -304,11 +304,21 @@ class MettaGridEnv(PufferEnv, GymEnv):
         elapsed_times = self.timer.get_all_elapsed()
         wall_time = self.timer.get_elapsed()
 
-        infos["timing"] = {
+        lap_times = self.timer.lap_all()
+        wall_time_for_lap = lap_times.pop("global", 0)
+
+        infos["timing_per_epoch"] = {
+            **{
+                f"fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                for op, lap_elapsed in lap_times.items()
+            }
+        }
+        infos["timing_cumulative"] = {
             **{f"fraction/{op}": elapsed / wall_time if wall_time > 0 else 0 for op, elapsed in elapsed_times.items()},
         }
+
         self._episode_id = None
-        self.timer.reset_all()
+        # self.timer.reset_all()
 
     @property
     def max_steps(self) -> int:
