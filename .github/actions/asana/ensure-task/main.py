@@ -53,7 +53,7 @@ def create_asana_task(title, description, project_id, workspace_id, github_url, 
         "name": title,
         "notes": description,
         "workspace": workspace_id,
-        "projects": [project_id],
+        "projects": project_id,
     }
 
     # Add the GitHub URL custom field
