@@ -23,6 +23,8 @@ jobs:
 
       - name: Get PR details
         id: pr-details
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_TITLE=$(gh pr view ${{ github.event.inputs.pr_number }} --json title --jq '.title')
           PR_BODY=$(gh pr view ${{ github.event.inputs.pr_number }} --json body --jq '.body')
