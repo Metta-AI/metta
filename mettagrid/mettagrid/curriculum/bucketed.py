@@ -34,17 +34,24 @@ class BucketedCurriculum(LowRewardCurriculum):
         logger.info("Generating bucketed tasks")
         # make task id interpretable
         for parameter_values in tqdm(product(*bucket_values)):
-            curriculum_id = "_".join(
-                [f"{k}={v.get('range', 'values')}" for k, v in zip(bucket_parameters, parameter_values, strict=False)]
-            )
+            curriculum_id = get_id(bucket_parameters, parameter_values)
             curricula[curriculum_id] = SampledTaskCurriculum(
                 curriculum_id, env_cfg_template, bucket_parameters, parameter_values
             )
-        super().__init__(curricula=curricula, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
+        super().__init__(tasks=curricula, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
 
     def load_curricula(self, curricula_cfgs, env_overrides=None):
         self._task_weights = {t: 1.0 for t in curricula_cfgs}  # uniform task weights
         return curricula_cfgs
+
+
+def get_id(parameters, values):
+    curriculum_id = ""
+    for k, v in zip(parameters, values, strict=False):
+        if isinstance(v, dict):
+            v = v.get("range", "values")
+        curriculum_id += f"{'.'.join(k.split('.')[-3:])}={v};"
+    return curriculum_id
 
 
 def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -> Tuple[List[str], List[List[Any]]]:

@@ -38,6 +38,7 @@ class SampledTaskCurriculum(Curriculum):
         self._task_cfg_template = task_cfg_template
         self._bucket_values = bucket_values
         self._bucket_parameters = bucket_parameters
+        self.completed_tasks = None
 
     def get_task(self) -> Task:
         cfg = self._task_cfg_template.copy()
