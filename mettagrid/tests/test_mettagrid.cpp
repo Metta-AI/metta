@@ -279,7 +279,6 @@ TEST_F(MettaGridCppTest, GetOutput) {
 
   // Create a generator with initial output
   ObjectConfig generator_cfg;
-  generator_cfg["hp"] = 30;
   generator_cfg["input_ore.red"] = 1;
   generator_cfg["output_battery.red"] = 1;
   // Set the max_output to 0 so it won't consume things we put in it.
@@ -360,7 +359,6 @@ TEST_F(MettaGridCppTest, WallCreation) {
   ASSERT_NE(wall, nullptr);
   EXPECT_EQ(wall->location.r, 2);
   EXPECT_EQ(wall->location.c, 3);
-  EXPECT_EQ(wall->hp, 100);
 }
 
 // ==================== Converter Tests ====================
@@ -378,5 +376,4 @@ TEST_F(MettaGridCppTest, ConverterCreation) {
   ASSERT_NE(converter, nullptr);
   EXPECT_EQ(converter->location.r, 1);
   EXPECT_EQ(converter->location.c, 2);
-  EXPECT_EQ(converter->hp, 50);
 }

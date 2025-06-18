@@ -14,7 +14,6 @@ public:
 
   Wall(GridCoord r, GridCoord c, ObjectConfig cfg) {
     GridObject::init(ObjectType::WallT, GridLocation(r, c, GridLayer::Object_Layer));
-    MettaObject::init_mo(cfg);
     this->_swappable = cfg["swappable"];
   }
 
@@ -33,14 +32,12 @@ public:
     const auto offsets = Wall::offsets();
     size_t offset_idx = 0;
     obs[offsets[offset_idx++]] = _type_id;
-    obs[offsets[offset_idx++]] = this->hp;
     obs[offsets[offset_idx++]] = this->_swappable;
   }
 
   static std::vector<uint8_t> offsets() {
     std::vector<uint8_t> ids;
     ids.push_back(ObservationFeature::TypeId);
-    ids.push_back(ObservationFeature::Hp);
     ids.push_back(ObservationFeature::Swappable);
     return ids;
   }
