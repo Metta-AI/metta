@@ -119,8 +119,14 @@ class MettaAgent(nn.Module):
             return 0
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
-    def save(self, path: str) -> None:
-        """Save the agent to disk."""
+    def save(self, path: str, compress: Optional[str] = None) -> None:
+        """
+        Save the agent to disk.
+
+        Args:
+            path: Path to save the checkpoint
+            compress: Optional compression method ("gzip", "lz4", "zstd", or None)
+        """
         save_data = {
             "model_state_dict": self.model.state_dict() if self.model else None,
             "model_type": self.model_type,
@@ -143,15 +149,33 @@ class MettaAgent(nn.Module):
             if hasattr(self.model, "_component_config"):
                 save_data["component_config"] = self.model._component_config
 
-        torch.save(save_data, path)
-        logger.info(f"Saved {self.model_type} agent to {path}")
+        if compress:
+            try:
+                from metta.agent.checkpoint_compression import save_compressed
+
+                path = save_compressed(save_data, path, method=compress)
+                logger.info(f"Saved compressed {self.model_type} agent to {path}")
+            except ImportError:
+                logger.warning("Compression requested but compression module not available, saving uncompressed")
+                torch.save(save_data, path)
+                logger.info(f"Saved {self.model_type} agent to {path}")
+        else:
+            torch.save(save_data, path)
+            logger.info(f"Saved {self.model_type} agent to {path}")
 
     @classmethod
     def load(cls, path: str, device: str = "cpu") -> "MettaAgent":
         """Load an agent from disk."""
         logger.info(f"Loading agent from {path}")
 
-        checkpoint = torch.load(path, map_location=device, weights_only=False)
+        # Try to load with compression support first
+        try:
+            from metta.agent.checkpoint_compression import load_compressed
+
+            checkpoint = load_compressed(path, map_location=device, weights_only=False)
+        except ImportError:
+            # Fall back to standard torch.load
+            checkpoint = torch.load(path, map_location=device, weights_only=False)
 
         # Check checkpoint format version
         format_version = checkpoint.get("checkpoint_format_version", 1)
@@ -160,6 +184,29 @@ class MettaAgent(nn.Module):
                 f"Checkpoint has format version {format_version}, but this code supports up to version 2. "
                 "Some features may not work correctly."
             )
+
+        # Check version compatibility
+        try:
+            from metta.agent.version_compatibility import VersionInfo, compatibility_checker
+
+            checkpoint_version = VersionInfo.from_checkpoint(checkpoint)
+            runtime_version = VersionInfo(
+                checkpoint_format=2,
+                observation_space="v1",  # TODO: Get from environment
+                action_space="v1",  # TODO: Get from environment
+                layer_architecture="v1",  # TODO: Get from model config
+            )
+
+            report = compatibility_checker.check_compatibility(checkpoint_version, runtime_version)
+
+            if not report.is_compatible():
+                logger.error(f"Checkpoint compatibility check failed:\n{report}")
+                raise ValueError(f"Incompatible checkpoint: {report.errors}")
+            elif report.warnings:
+                logger.warning(f"Checkpoint compatibility warnings:\n{report}")
+
+        except ImportError:
+            logger.debug("Version compatibility module not available, skipping checks")
 
         # Create MettaAgent instance
         agent = cls(
@@ -385,10 +432,14 @@ class MettaAgent(nn.Module):
             return self.model.components
         return {}
 
-    def save_for_training(self, path: str) -> None:
+    def save_for_training(self, path: str, compress: Optional[str] = None) -> None:
         """
         Save the agent for training resumption.
         This saves the complete model object, allowing training to resume without reconstruction.
+
+        Args:
+            path: Path to save the checkpoint
+            compress: Optional compression method ("gzip", "lz4", "zstd", or None)
         """
         save_data = {
             "model": self.model,  # Save the full model object
@@ -402,8 +453,19 @@ class MettaAgent(nn.Module):
             "checkpoint_format_version": 2,  # Track format version
         }
 
-        torch.save(save_data, path)
-        logger.info(f"Saved complete {self.model_type} agent for training to {path}")
+        if compress:
+            try:
+                from metta.agent.checkpoint_compression import save_compressed
+
+                path = save_compressed(save_data, path, method=compress)
+                logger.info(f"Saved compressed complete {self.model_type} agent for training to {path}")
+            except ImportError:
+                logger.warning("Compression requested but compression module not available, saving uncompressed")
+                torch.save(save_data, path)
+                logger.info(f"Saved complete {self.model_type} agent for training to {path}")
+        else:
+            torch.save(save_data, path)
+            logger.info(f"Saved complete {self.model_type} agent for training to {path}")
 
     @classmethod
     def load_for_training(cls, path: str, device: str = "cpu") -> "MettaAgent":
@@ -413,7 +475,14 @@ class MettaAgent(nn.Module):
         """
         logger.info(f"Loading agent for training from {path}")
 
-        checkpoint = torch.load(path, map_location=device, weights_only=False)
+        # Try to load with compression support first
+        try:
+            from metta.agent.checkpoint_compression import load_compressed
+
+            checkpoint = load_compressed(path, map_location=device, weights_only=False)
+        except ImportError:
+            # Fall back to standard torch.load
+            checkpoint = torch.load(path, map_location=device, weights_only=False)
 
         # Create MettaAgent instance with the loaded model
         model = checkpoint.get("model")
