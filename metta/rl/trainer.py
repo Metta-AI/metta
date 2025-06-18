@@ -153,10 +153,9 @@ class MettaTrainer:
         self._stats_run_id: UUID | None = None
 
         # Optimizer
-        assert trainer_cfg.optimizer.type in ("adam", "muon"), (
-            f"Optimizer type must be 'adam' or 'muon', got {trainer_cfg.optimizer.type}"
-        )
-        opt_cls = torch.optim.Adam if trainer_cfg.optimizer.type == "adam" else ForeachMuon
+        optimizer_type = getattr(trainer_cfg.optimizer, "type", "adam")
+        assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
+        opt_cls = torch.optim.Adam if optimizer_type == "adam" else ForeachMuon
         self.optimizer = opt_cls(
             self.policy.parameters(),
             lr=trainer_cfg.optimizer.learning_rate,
@@ -194,7 +193,7 @@ class MettaTrainer:
                 )
 
         self.lr_scheduler = None
-        if trainer_cfg.lr_scheduler.enabled:
+        if hasattr(trainer_cfg, "lr_scheduler") and getattr(trainer_cfg.lr_scheduler, "enabled", False):
             self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer, T_max=trainer_cfg.total_timesteps // trainer_cfg.batch_size
             )
@@ -1027,9 +1026,12 @@ class MettaTrainer:
             if checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
                 return policy_store.policy(checkpoint.policy_path)
-            elif trainer_cfg.initial_policy.uri is not None:
-                logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
-                return policy_store.policy(trainer_cfg.initial_policy)
+            elif (
+                hasattr(trainer_cfg, "initial_policy") and getattr(trainer_cfg.initial_policy, "uri", None) is not None
+            ):
+                initial_uri = trainer_cfg.initial_policy.uri
+                logger.info(f"Loading initial policy URI: {initial_uri}")
+                return policy_store.policy(initial_uri)
             else:
                 policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
                 if os.path.exists(policy_path):
