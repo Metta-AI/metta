@@ -418,8 +418,8 @@ class MettaTrainer:
                     experience.set_lstm_state_direct(training_env_id.start, state.lstm_h, state.lstm_c)
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
-                # Removed cuda.synchronize() from hot path - major performance killer
-                # It forces CPU to wait for GPU operations, breaking async execution
+                if self.device == "cuda":
+                    torch.cuda.synchronize()
 
             value = value.flatten()
             # mask already converted to tensor above
@@ -442,16 +442,11 @@ class MettaTrainer:
                 lstm_state=lstm_state_to_store,
             )
 
-            # Defer info processing - just collect raw data
             if info:
                 raw_infos.extend(info)
 
             with self.timer("_rollout.env"):
-                # Optimize numpy conversion - avoid redundant copy if already on CPU
-                if actions.device.type == "cpu":
-                    actions_np = actions.numpy().astype(dtype_actions)
-                else:
-                    actions_np = actions.cpu().numpy().astype(dtype_actions)
+                actions_np = actions.cpu().numpy().astype(dtype_actions)
                 self.vecenv.send(actions_np)
 
         # Batch process info dictionaries after rollout
@@ -464,7 +459,6 @@ class MettaTrainer:
             if isinstance(v, np.ndarray):
                 v = v.tolist()
 
-            # Use setdefault for cleaner code
             if isinstance(v, list):
                 self.stats.setdefault(k, []).extend(v)
             else:
