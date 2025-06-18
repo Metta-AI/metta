@@ -38,7 +38,6 @@ class Experience:
         obs_space,
         atn_space,
         device: torch.device | str,
-        use_rnn: bool,
         hidden_size: int,
         cpu_offload: bool = False,
         num_lstm_layers: int = 2,
@@ -51,17 +50,16 @@ class Experience:
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
         self.cpu_offload = cpu_offload
-        self.use_rnn = use_rnn
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
         if total_agents > self.segments:
-            min_batch_size = total_agents * bptt_horizon
+            mini_batch_size = total_agents * bptt_horizon
             raise ValueError(
                 f"batch_size ({batch_size}) is too small for {total_agents} agents.\n"
                 f"Segments = batch_size // bptt_horizon = {batch_size} // {bptt_horizon} = {self.segments}\n"
                 f"But we need segments >= total_agents ({total_agents}).\n"
-                f"Please set trainer.batch_size >= {min_batch_size} in your configuration."
+                f"Please set trainer.batch_size >= {mini_batch_size} in your configuration."
             )
 
         # Determine tensor device and dtype
@@ -99,19 +97,18 @@ class Experience:
         # LSTM state management
         self.lstm_h: Dict[int, Tensor] = {}
         self.lstm_c: Dict[int, Tensor] = {}
-        if use_rnn:
-            assert num_lstm_layers > 0, f"num_lstm_layers must be positive, got {num_lstm_layers}"
-            assert hidden_size > 0, f"hidden_size must be positive, got {hidden_size}"
+        assert num_lstm_layers > 0, f"num_lstm_layers must be positive, got {num_lstm_layers}"
+        assert hidden_size > 0, f"hidden_size must be positive, got {hidden_size}"
 
-            # Use provided agents_per_batch or default to total_agents
-            if agents_per_batch is None:
-                agents_per_batch = total_agents
+        # Use provided agents_per_batch or default to total_agents
+        if agents_per_batch is None:
+            agents_per_batch = total_agents
 
-            # Create LSTM states for each batch
-            for i in range(0, total_agents, agents_per_batch):
-                batch_size = min(agents_per_batch, total_agents - i)
-                self.lstm_h[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
-                self.lstm_c[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
+        # Create LSTM states for each batch
+        for i in range(0, total_agents, agents_per_batch):
+            batch_size = min(agents_per_batch, total_agents - i)
+            self.lstm_h[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
+            self.lstm_c[i] = torch.zeros(num_lstm_layers, batch_size, hidden_size, device=self.device)
 
         # Minibatch configuration
         self.minibatch_size: int = min(minibatch_size, max_minibatch_size)
@@ -138,7 +135,7 @@ class Experience:
                 f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
             )
 
-        # Pre-allocate range tensor for efficient indexing during reset
+        # This tensor stores how many agents we have for use during environment reset
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
     @property
@@ -169,7 +166,7 @@ class Experience:
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
 
-        num_steps = mask.sum().item() if torch.is_tensor(mask) else sum(mask)
+        num_steps = mask.sum().item()
         episode_length = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
@@ -179,8 +176,8 @@ class Experience:
         self.actions[batch_slice] = actions
         self.logprobs[batch_slice] = logprobs
         self.rewards[batch_slice] = rewards
-        self.dones[batch_slice] = dones if dones.dtype == torch.float32 else dones.float()
-        self.truncateds[batch_slice] = truncations if truncations.dtype == torch.float32 else truncations.float()
+        self.dones[batch_slice] = dones
+        self.truncateds[batch_slice] = truncations
         self.values[batch_slice] = values
 
         # Update episode tracking
@@ -190,8 +187,8 @@ class Experience:
         if episode_length + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
-        # Update LSTM states if provided - check use_rnn first for early exit
-        if self.use_rnn and lstm_state is not None and env_id.start in self.lstm_h:
+        # Update LSTM states if provided
+        if lstm_state is not None and env_id.start in self.lstm_h:
             self.lstm_h[env_id.start] = lstm_state["lstm_h"]
             self.lstm_c[env_id.start] = lstm_state["lstm_c"]
 
@@ -208,13 +205,13 @@ class Experience:
 
     def get_lstm_state(self, env_id_start: int) -> tuple[Optional[Tensor], Optional[Tensor]]:
         """Get LSTM state as tensors."""
-        if not self.use_rnn or env_id_start not in self.lstm_h:
+        if env_id_start not in self.lstm_h:
             return None, None
         return self.lstm_h[env_id_start], self.lstm_c[env_id_start]
 
     def set_lstm_state(self, env_id_start: int, lstm_h: Tensor, lstm_c: Tensor) -> None:
         """Set LSTM state."""
-        if self.use_rnn and env_id_start in self.lstm_h:
+        if env_id_start in self.lstm_h:
             self.lstm_h[env_id_start] = lstm_h
             self.lstm_c[env_id_start] = lstm_c
 

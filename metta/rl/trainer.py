@@ -362,7 +362,6 @@ class MettaTrainer:
         experience = self.experience
         trainer_cfg = self.trainer_cfg
         device = self.device
-        use_rnn = trainer_cfg.get("use_rnn", True)
 
         policy = self.policy
         infos = defaultdict(list)
@@ -386,9 +385,7 @@ class MettaTrainer:
             self.agent_step += num_steps * self._world_size
 
             # Convert to tensors once
-            o = torch.as_tensor(o)
-            # Move to device non-blocking for all tensors that need it
-            o_device = o.to(device, non_blocking=True) if not trainer_cfg.cpu_offload else o
+            o = torch.as_tensor(o).to(device, non_blocking=True)
             r = torch.as_tensor(r).to(device, non_blocking=True)
             d = torch.as_tensor(d).to(device, non_blocking=True)
             t = torch.as_tensor(t).to(device, non_blocking=True)
@@ -397,15 +394,13 @@ class MettaTrainer:
                 state = PolicyState()
 
                 # Use LSTM state access for performance
-                if use_rnn:
-                    lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
-                    if lstm_h is not None:
-                        state.lstm_h = lstm_h
-                        state.lstm_c = lstm_c
+                lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
+                if lstm_h is not None:
+                    state.lstm_h = lstm_h
+                    state.lstm_c = lstm_c
 
                 # Use pre-moved tensor
-                obs_for_policy = o_device if not trainer_cfg.cpu_offload else o.to(device, non_blocking=True)
-                actions, selected_action_log_probs, _, value, _ = policy(obs_for_policy, state)
+                actions, selected_action_log_probs, _, value, _ = policy(o, state)
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
@@ -413,7 +408,7 @@ class MettaTrainer:
 
                 # Store LSTM state for performance
                 lstm_state_to_store = None
-                if use_rnn and state.lstm_h is not None:
+                if state.lstm_h is not None:
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
                 if str(self.device).startswith("cuda"):
@@ -424,7 +419,7 @@ class MettaTrainer:
 
             # All tensors are already on device, avoid redundant transfers
             experience.store(
-                obs=o if trainer_cfg.cpu_offload else o_device,
+                obs=o,
                 actions=actions,
                 logprobs=selected_action_log_probs,
                 rewards=r,
@@ -528,8 +523,6 @@ class MettaTrainer:
                 )
 
                 obs = minibatch["obs"]
-                if not trainer_cfg.get("use_rnn", True):
-                    obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
 
                 lstm_state = PolicyState()
                 _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
@@ -970,8 +963,7 @@ class MettaTrainer:
         minibatch_size = trainer_cfg.minibatch_size
         max_minibatch_size = trainer_cfg.get("max_minibatch_size", minibatch_size)
 
-        # Get LSTM parameters if using RNN
-        use_rnn = trainer_cfg.get("use_rnn", True)
+        # Get LSTM parameters
         hidden_size = getattr(self.policy, "hidden_size", 256)
         num_lstm_layers = 2  # Default value
 
@@ -991,7 +983,6 @@ class MettaTrainer:
             obs_space=obs_space,
             atn_space=atn_space,
             device=self.device,
-            use_rnn=use_rnn,
             hidden_size=hidden_size,
             cpu_offload=trainer_cfg.cpu_offload,
             num_lstm_layers=num_lstm_layers,
