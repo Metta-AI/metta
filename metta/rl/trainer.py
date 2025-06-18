@@ -811,9 +811,11 @@ class MettaTrainer:
             "reward_vs_total_time": mean_reward,
         }
 
-        for k, v in self.trainer_cfg.stats.overview.items():
-            if k in self.stats:
-                overview[v] = self.stats[k]
+        # include custom stats from trainer config
+        if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
+            for k, v in self.trainer_cfg.stats.overview.items():
+                if k in self.stats:
+                    overview[v] = self.stats[k]
 
         for category in self._eval_categories:
             score = self._eval_suite_avgs.get(f"{category}_score", None)
