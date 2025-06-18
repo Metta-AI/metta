@@ -7,7 +7,6 @@ class Losses:
         self.policy_loss_sum = 0.0
         self.value_loss_sum = 0.0
         self.entropy_sum = 0.0
-        self.old_approx_kl_sum = 0.0
         self.approx_kl_sum = 0.0
         self.clipfrac_sum = 0.0
         self.l2_reg_loss_sum = 0.0
