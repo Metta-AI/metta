@@ -36,7 +36,6 @@ public:
         // actions or inventory changes.
         std::map<std::string, float> rewards) {
     GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
-    MettaObject::init_mo(cfg);
 
     this->group_name = group_name;
     this->group = group_id;
@@ -132,7 +131,6 @@ public:
     size_t offset_idx = 0;
     obs[offsets[offset_idx++]] = _type_id;
     obs[offsets[offset_idx++]] = group;
-    obs[offsets[offset_idx++]] = hp;
     obs[offsets[offset_idx++]] = frozen;
     obs[offsets[offset_idx++]] = orientation;
     obs[offsets[offset_idx++]] = color;
@@ -146,7 +144,6 @@ public:
     std::vector<uint8_t> names;
     names.push_back(ObservationFeature::TypeId);
     names.push_back(ObservationFeature::Group);
-    names.push_back(ObservationFeature::Hp);
     names.push_back(ObservationFeature::Frozen);
     names.push_back(ObservationFeature::Orientation);
     names.push_back(ObservationFeature::Color);

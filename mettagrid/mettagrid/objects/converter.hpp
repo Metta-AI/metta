@@ -76,7 +76,6 @@ public:
 
   Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
     GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
-    MettaObject::init_mo(cfg);
     HasInventory::init_has_inventory(cfg);
     this->recipe_input.resize(InventoryItem::InventoryItemCount);
     this->recipe_output.resize(InventoryItem::InventoryItemCount);
@@ -172,7 +171,6 @@ public:
     const auto offsets = Converter::offsets();
     size_t offset_idx = 0;
     obs[offsets[offset_idx++]] = _type_id;
-    obs[offsets[offset_idx++]] = this->hp;
     obs[offsets[offset_idx++]] = this->color;
     obs[offsets[offset_idx++]] = this->converting || this->cooling_down;
     for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
@@ -186,7 +184,6 @@ public:
     // the observation space. At the moment we don't expose the recipe, since
     // we expect converters to be hard coded.
     ids.push_back(ObservationFeature::TypeId);
-    ids.push_back(ObservationFeature::Hp);
     ids.push_back(ObservationFeature::Color);
     ids.push_back(ObservationFeature::ConvertingOrCoolingDown);
     for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
