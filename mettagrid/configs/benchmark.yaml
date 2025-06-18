@@ -2,6 +2,7 @@
 report_stats_interval: 100
 
 sampling: 0
+desync_episodes: false
 
 game:
   num_agents: 24

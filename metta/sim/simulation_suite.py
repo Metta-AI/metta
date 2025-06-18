@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
+import uuid
 
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
+from metta.app.stats_client import StatsClient
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -24,6 +26,8 @@ class SimulationSuite:
         vectorization,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
+        stats_client: StatsClient | None = None,
+        stats_epoch_id: uuid.UUID | None = None,
     ):
         self._config = config
         self._policy_agent = policy_agent
@@ -33,6 +37,8 @@ class SimulationSuite:
         self._stats_dir = stats_dir
         self._vectorization = vectorization
         self.name = config.name
+        self._stats_client = stats_client
+        self._stats_epoch_id = stats_epoch_id
 
     def simulate(self) -> SimulationResults:
         """
@@ -53,9 +59,11 @@ class SimulationSuite:
                     self._policy_store,
                     device=self._device,
                     vectorization=self._vectorization,
-                    suite=self,
+                    sim_suite_name=self.name,
                     stats_dir=self._stats_dir,
                     replay_dir=self._replay_dir,
+                    stats_client=self._stats_client,
+                    stats_epoch_id=self._stats_epoch_id,
                 )
                 sim_result = sim.simulate()
                 sim_dbs.append(sim_result.stats_db)

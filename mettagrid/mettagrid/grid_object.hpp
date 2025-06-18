@@ -76,16 +76,6 @@ public:
 
   virtual std::vector<PartialObservationToken> obs_features() const = 0;
 
-  size_t obs_tokens(ObservationTokens tokens) const {
-    std::vector<PartialObservationToken> features = this->obs_features();
-    size_t tokens_to_write = std::min(tokens.size(), features.size());
-    for (size_t i = 0; i < tokens_to_write; i++) {
-      tokens[i].feature_id = features[i].feature_id;
-      tokens[i].value = features[i].value;
-    }
-    return features.size();
-  }
-
   /**
    * Grid-based observations. This is an older style than tokens, and
    * should be deprecated soon.

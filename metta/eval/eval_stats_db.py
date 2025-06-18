@@ -247,18 +247,22 @@ class EvalStatsDB(SimulationStatsDB):
     # ------------------------------------------------------------------ #
     #   Per‑simulation breakdown                                         #
     # ------------------------------------------------------------------ #
-    def simulation_scores(self, agent: MettaAgent, metric: str) -> Dict[tuple, float]:
-        """Get simulation scores for each (policy_key, sim_name, policy_version) combination."""
+    def simulation_scores(self, agent: MettaAgent, metric: str) -> Dict[tuple[str, str, str], float]:
+        """Return { (suite,name,env) : normalised mean(metric) }."""
         pk, pv = agent.key_and_version()
-        query = """
-            SELECT policy_key, sim_name, policy_version, AVG(value) as avg_score
-            FROM episode_data
-            WHERE policy_key = ? AND policy_version = ? AND metric = ?
-            GROUP BY policy_key, sim_name, policy_version
-            ORDER BY avg_score DESC
-        """
-        result = self.con.execute(query, (pk, pv, metric)).fetchall()
-        return {(row[0], row[1], row[2]): row[3] for row in result}
+        sim_rows = self.query(f"""
+            SELECT DISTINCT sim_suite, sim_name, sim_env
+              FROM policy_simulation_agent_samples
+             WHERE policy_key     = '{pk}'
+               AND policy_version =  {pv}
+        """)
+        scores: Dict[tuple[str, str, str], float] = {}
+        for _, row in sim_rows.iterrows():
+            cond = f"sim_suite = '{row.sim_suite}' AND sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
+            val = self._normalised_value(pk, pv, metric, "AVG", cond)
+            if val is not None:
+                scores[(row.sim_suite, row.sim_name, row.sim_env)] = val
+        return scores
 
     def metric_by_policy_eval(
         self,
