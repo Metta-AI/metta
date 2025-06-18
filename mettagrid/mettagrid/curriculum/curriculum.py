@@ -54,6 +54,7 @@ class SingleTaskCurriculum(Curriculum):
     def __init__(self, task_id: str, task_cfg: DictConfig):
         self._task_id = task_id
         self._task_cfg = task_cfg
+        self.task_completions = None
 
     def get_task(self) -> Task:
         return Task(self._task_id, self, self._task_cfg)

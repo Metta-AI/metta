@@ -240,6 +240,10 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             for label in self.labels:
                 infos[f"rewards/env:{label}"] = episode_rewards_mean
 
+        if self._curriculum.task_completions is not None:
+            for task_id, task_completion in self._curriculum.task_completions.items():
+                infos[f"task_completions/{task_id}"] = task_completion
+
         stats = self._c_env.get_episode_stats()
 
         infos["episode_rewards"] = episode_rewards
