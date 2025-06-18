@@ -40,10 +40,10 @@ jobs:
         with:
           title: ${{ steps.pr-details.outputs.title }}
           description: ${{ steps.pr-details.outputs.body }}
-          project_id: ${{ secrets.ASANA_PROJECT_ID }}
-          asana_token: ${{ secrets.ASANA_TOKEN }}
+          project_id: ${{ env.ASANA_PROJECT_GID }}
+          asana_token: ${{ secrets.ASANA_API_KEY }}
           github_url: ${{ steps.pr-details.outputs.url }}
-          github_url_field_id: ${{ secrets.ASANA_GITHUB_URL_FIELD_ID }}
+          github_url_field_id: ${{ env.ASANA_GITHUB_URL_FIELD_GID }}
 
       - name: Update PR Description
         uses: ./.github/actions/asana/update-pr-description
