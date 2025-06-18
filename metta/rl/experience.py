@@ -56,7 +56,13 @@ class Experience:
         # Calculate segments
         self.segments = batch_size // bptt_horizon
         if total_agents > self.segments:
-            raise ValueError(f"Total agents {total_agents} > segments {self.segments}")
+            min_batch_size = total_agents * bptt_horizon
+            raise ValueError(
+                f"batch_size ({batch_size}) is too small for {total_agents} agents.\n"
+                f"Segments = batch_size // bptt_horizon = {batch_size} // {bptt_horizon} = {self.segments}\n"
+                f"But we need segments >= total_agents ({total_agents}).\n"
+                f"Please set trainer.batch_size >= {min_batch_size} in your configuration."
+            )
 
         # Determine tensor device and dtype
         obs_device = "cpu" if cpu_offload else self.device
@@ -124,7 +130,10 @@ class Experience:
         self.num_minibatches: int = int(num_minibatches)
         if self.num_minibatches != num_minibatches:
             raise ValueError(
-                f"segments {self.segments} must be divisible by minibatch_segments {self.minibatch_segments}"
+                f"Configuration error: segments ({self.segments}) must be divisible by minibatch_segments ({self.minibatch_segments}).\n"
+                f"segments = batch_size // bptt_horizon = {batch_size} // {bptt_horizon} = {self.segments}\n"
+                f"minibatch_segments = minibatch_size // bptt_horizon = {self.minibatch_size} // {bptt_horizon} = {self.minibatch_segments}\n"
+                f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
             )
 
         # Pre-allocate range tensor for efficient indexing during reset

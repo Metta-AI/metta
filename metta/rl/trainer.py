@@ -1023,36 +1023,17 @@ class MettaTrainer:
             if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
                 num_lstm_layers = lstm_module._net.num_layers
 
-        # Validate and adjust batch size if needed
+        # Validate batch size
         required_segments = total_agents
         actual_segments = self._batch_size // trainer_cfg.bptt_horizon
 
         if total_agents > actual_segments:
-            # Calculate minimum required batch size
             min_required_batch_size = total_agents * trainer_cfg.bptt_horizon
-            logger.warning(
-                f"Total agents ({total_agents}) exceeds segments ({actual_segments}). "
-                f"Adjusting batch_size from {self._batch_size} to {min_required_batch_size}"
+            raise ValueError(
+                f"batch_size ({self._batch_size}) is too small for {total_agents} agents.\n"
+                f"With bptt_horizon={trainer_cfg.bptt_horizon}, you need at least batch_size={min_required_batch_size}.\n"
+                f"Please update your configuration file to set trainer.batch_size >= {min_required_batch_size}"
             )
-            self._batch_size = min_required_batch_size
-
-            # Ensure minibatch_size is compatible
-            # minibatch_segments = minibatch_size // bptt_horizon
-            # We need: segments % minibatch_segments == 0
-            new_segments = self._batch_size // trainer_cfg.bptt_horizon
-            minibatch_segments = self._minibatch_size // trainer_cfg.bptt_horizon
-
-            if minibatch_segments > 0 and new_segments % minibatch_segments != 0:
-                # Find a compatible minibatch_segments value
-                for ms in range(minibatch_segments, 0, -1):
-                    if new_segments % ms == 0:
-                        self._minibatch_size = ms * trainer_cfg.bptt_horizon
-                        logger.warning(f"Adjusted minibatch_size to {self._minibatch_size} for compatibility")
-                        break
-                else:
-                    # Fallback: use single segment minibatches
-                    self._minibatch_size = trainer_cfg.bptt_horizon
-                    logger.warning(f"Using minimal minibatch_size of {self._minibatch_size}")
 
         # Create experience buffer
         self.experience = Experience(
