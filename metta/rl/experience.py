@@ -135,7 +135,7 @@ class Experience:
                 f"Please adjust trainer.minibatch_size in your configuration to ensure divisibility."
             )
 
-        # This tensor stores how many agents we have for use during environment reset
+        # Pre-allocate tensor to stores how many agents we have for use during environment reset
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
     @property
@@ -176,8 +176,8 @@ class Experience:
         self.actions[batch_slice] = actions
         self.logprobs[batch_slice] = logprobs
         self.rewards[batch_slice] = rewards
-        self.dones[batch_slice] = dones
-        self.truncateds[batch_slice] = truncations
+        self.dones[batch_slice] = dones.float()
+        self.truncateds[batch_slice] = truncations.float()
         self.values[batch_slice] = values
 
         # Update episode tracking
