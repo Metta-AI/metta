@@ -130,21 +130,49 @@ class MettaTrainer:
                 agent = policy_store.policy(initial_policy_uri)
             elif checkpoint.policy_path:
                 logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                agent = policy_store.policy(checkpoint.policy_path)
-                if "average_reward" in checkpoint.extra_args:
-                    self.average_reward = checkpoint.extra_args["average_reward"]
+                try:
+                    agent = policy_store.policy(checkpoint.policy_path)
+                    if "average_reward" in checkpoint.extra_args:
+                        self.average_reward = checkpoint.extra_args["average_reward"]
+                except ValueError as e:
+                    if "No policies found at" in str(e):
+                        logger.info(f"No policies found at {checkpoint.policy_path}")
+                        agent = None
+                    else:
+                        raise
             elif initial_policy_uri is not None:
                 logger.info(f"Loading initial policy URI: {initial_policy_uri}")
-                agent = policy_store.policy(initial_policy_uri)
+                try:
+                    agent = policy_store.policy(initial_policy_uri)
+                except ValueError as e:
+                    if "No policies found at" in str(e):
+                        logger.info(f"No policies found at {initial_policy_uri}")
+                        # Continue to try other methods
+                        agent = None
+                    else:
+                        raise
             else:
                 policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
 
                 if os.path.exists(policy_path):
                     logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    agent = policy_store.policy(policy_path)
+                    try:
+                        agent = policy_store.policy(policy_path)
+                    except ValueError as e:
+                        if "No policies found at" in str(e):
+                            logger.info(f"No policies found at {policy_path}")
+                            agent = None
+                        else:
+                            raise
                 elif self._master:
                     logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
                     agent = policy_store.create(metta_grid_env)
+
+            # If all loading attempts failed and we're the master, create a new policy
+            if agent is None and self._master:
+                logger.info("All policy loading attempts failed. Creating a new policy!")
+                agent = policy_store.create(metta_grid_env)
+
             if agent is not None:
                 break
             load_policy_attempts -= 1
