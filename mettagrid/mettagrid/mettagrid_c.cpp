@@ -40,7 +40,6 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   obs_width = cfg["obs_width"].cast<unsigned short>();
   obs_height = cfg["obs_height"].cast<unsigned short>();
 
-  _use_observation_tokens = cfg.contains("use_observation_tokens") ? cfg["use_observation_tokens"].cast<bool>() : true;
   _num_observation_tokens =
       cfg.contains("num_observation_tokens") ? cfg["num_observation_tokens"].cast<unsigned int>() : 0;
 
@@ -169,14 +168,7 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
   std::vector<ssize_t> shape;
-  if (_use_observation_tokens) {
-    shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
-  } else {
-    shape = {static_cast<ssize_t>(num_agents),
-             static_cast<ssize_t>(obs_height),
-             static_cast<ssize_t>(obs_width),
-             static_cast<ssize_t>(_feature_normalizations.size())};
-  }
+  shape = {static_cast<ssize_t>(num_agents), static_cast<ssize_t>(_num_observation_tokens), static_cast<ssize_t>(3)};
   auto observations = py::array_t<uint8_t, py::array::c_style>(shape);
   auto terminals = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
   auto truncations = py::array_t<bool, py::array::c_style>({static_cast<ssize_t>(num_agents)}, {sizeof(bool)});
@@ -236,106 +228,79 @@ void MettaGrid::_compute_observation(unsigned int observer_row,
 
   // Fill in visible objects. Observations should have been cleared in _step, so
   // we don't need to do that here.
-  if (_use_observation_tokens) {
-    size_t attempted_tokens_written = 0;
-    size_t tokens_written = 0;
-    auto observation_view = _observations.mutable_unchecked<3>();
-    auto rewards_view = _rewards.unchecked<1>();
+  size_t attempted_tokens_written = 0;
+  size_t tokens_written = 0;
+  auto observation_view = _observations.mutable_unchecked<3>();
+  auto rewards_view = _rewards.unchecked<1>();
 
-    // Global tokens
-    ObservationToken* agent_obs_ptr =
-        reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
-    ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
-    unsigned int episode_completion_pct = 0;
-    if (max_steps > 0) {
-      episode_completion_pct =
-          static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
-    }
-    int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
-    reward_int = std::clamp(reward_int, 0, 255);
-    std::vector<PartialObservationToken> global_tokens = {
-        {ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)},
-        {ObservationFeature::LastAction, static_cast<uint8_t>(action)},
-        {ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)},
-        {ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)}};
-    // Global tokens are always at the center of the observation.
-    uint8_t global_location = obs_height_radius << 4 | obs_width_radius;
-    attempted_tokens_written +=
-        _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
-    tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
+  // Global tokens
+  ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(observation_view.mutable_data(agent_idx, 0, 0));
+  ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+  unsigned int episode_completion_pct = 0;
+  if (max_steps > 0) {
+    episode_completion_pct =
+        static_cast<unsigned int>(std::round((static_cast<double>(current_step) / max_steps) * 255.0));
+  }
+  int reward_int = static_cast<int>(std::round(rewards_view(agent_idx) * 100.0f));
+  reward_int = std::clamp(reward_int, 0, 255);
+  std::vector<PartialObservationToken> global_tokens = {
+      {ObservationFeature::EpisodeCompletionPct, static_cast<uint8_t>(episode_completion_pct)},
+      {ObservationFeature::LastAction, static_cast<uint8_t>(action)},
+      {ObservationFeature::LastActionArg, static_cast<uint8_t>(action_arg)},
+      {ObservationFeature::LastReward, static_cast<uint8_t>(reward_int)}};
+  // Global tokens are always at the center of the observation.
+  uint8_t global_location = obs_height_radius << 4 | obs_width_radius;
+  attempted_tokens_written +=
+      _obs_encoder->append_tokens_if_room_available(agent_obs_tokens, global_tokens, global_location);
+  tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
 
-    // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
-    for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
-      for (unsigned int r = r_start; r < r_end; r++) {
-        // In this row, there should be one or two columns that have the correct [L1] distance.
-        unsigned int r_dist = std::abs(static_cast<int>(r) - static_cast<int>(observer_row));
-        if (r_dist > distance) continue;
-        int c_dist = distance - r_dist;
-        // This is a bit ugly. We want to run over {c_dist, -c_dist}, but only do it once if c_dist == 0.
-        // Here's how we're trying to do that, and to be performant (e.g., not re-allocating a set).
-        for (int i = 0; i < 2; i++) {
-          if (c_dist == 0 && i == 1) continue;
-          int c_offset = i == 0 ? c_dist : -c_dist;
-          int c = observer_col + c_offset;
-          // c could still be outside of our bounds.
-          if (c < c_start || c >= c_end) continue;
-
-          for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
-            GridLocation object_loc(r, c, layer);
-            auto obj = _grid->object_at(object_loc);
-            if (!obj) continue;
-
-            uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
-            ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
-            ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
-
-            int obs_r = object_loc.r + obs_height_radius - observer_row;
-            int obs_c = object_loc.c + obs_width_radius - observer_col;
-            uint8_t location = obs_r << 4 | obs_c;
-
-            attempted_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens, location);
-            tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
-          }
-        }
-      }
-    }
-    _stats->add("tokens_written", static_cast<float>(tokens_written));
-    _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
-    _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
-  } else {
-    auto observation_view = _observations.mutable_unchecked<4>();
+  // Order the tokens by distance from the agent, so if we need to drop tokens, we drop the farthest ones first.
+  for (unsigned int distance = 0; distance <= obs_width_radius + obs_height_radius; distance++) {
     for (unsigned int r = r_start; r < r_end; r++) {
-      for (unsigned int c = c_start; c < c_end; c++) {
+      // In this row, there should be one or two columns that have the correct [L1] distance.
+      unsigned int r_dist = std::abs(static_cast<int>(r) - static_cast<int>(observer_row));
+      if (r_dist > distance) continue;
+      int c_dist = distance - r_dist;
+      // This is a bit ugly. We want to run over {c_dist, -c_dist}, but only do it once if c_dist == 0.
+      // Here's how we're trying to do that, and to be performant (e.g., not re-allocating a set).
+      for (int i = 0; i < 2; i++) {
+        if (c_dist == 0 && i == 1) continue;
+        int c_offset = i == 0 ? c_dist : -c_dist;
+        int c = observer_col + c_offset;
+        // c could still be outside of our bounds.
+        if (c < c_start || c >= c_end) continue;
+
         for (unsigned int layer = 0; layer < _grid->num_layers; layer++) {
           GridLocation object_loc(r, c, layer);
           auto obj = _grid->object_at(object_loc);
           if (!obj) continue;
 
+          uint8_t* obs_data = observation_view.mutable_data(agent_idx, tokens_written, 0);
+          ObservationToken* agent_obs_ptr = reinterpret_cast<ObservationToken*>(obs_data);
+          ObservationTokens agent_obs_tokens(agent_obs_ptr, observation_view.shape(1) - tokens_written);
+
           int obs_r = object_loc.r + obs_height_radius - observer_row;
           int obs_c = object_loc.c + obs_width_radius - observer_col;
+          uint8_t location = obs_r << 4 | obs_c;
 
-          auto agent_obs = observation_view.mutable_data(agent_idx, obs_r, obs_c, 0);
-          _obs_encoder->encode(obj, agent_obs);
+          attempted_tokens_written += _obs_encoder->encode_tokens(obj, agent_obs_tokens, location);
+          tokens_written = std::min(attempted_tokens_written, static_cast<size_t>(observation_view.shape(1)));
         }
       }
     }
   }
+  _stats->add("tokens_written", static_cast<float>(tokens_written));
+  _stats->add("tokens_dropped", static_cast<float>(attempted_tokens_written - tokens_written));
+  _stats->add("tokens_free_space", static_cast<float>(observation_view.shape(1) - tokens_written));
 }
 
 void MettaGrid::_compute_observations(py::array_t<ActionType, py::array::c_style> actions) {
   auto actions_view = actions.unchecked<2>();
-  if (_use_observation_tokens) {
-    auto observation_view = _observations.mutable_unchecked<3>();
-    for (size_t idx = 0; idx < _agents.size(); idx++) {
-      auto& agent = _agents[idx];
-      _compute_observation(
-          agent->location.r, agent->location.c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
-    }
-  } else {
-    for (size_t idx = 0; idx < _agents.size(); idx++) {
-      auto& agent = _agents[idx];
-      _compute_observation(agent->location.r, agent->location.c, obs_width, obs_height, idx, 0, 0);
-    }
+  auto observation_view = _observations.mutable_unchecked<3>();
+  for (size_t idx = 0; idx < _agents.size(); idx++) {
+    auto& agent = _agents[idx];
+    _compute_observation(
+        agent->location.r, agent->location.c, obs_width, obs_height, idx, actions_view(idx, 0), actions_view(idx, 1));
   }
 }
 
@@ -350,11 +315,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
-  if (_use_observation_tokens) {
-    std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
-  } else {
-    std::fill(obs_ptr, obs_ptr + obs_size, 0);
-  }
+  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
   std::fill(_action_success.begin(), _action_success.end(), false);
 
@@ -430,11 +391,7 @@ py::tuple MettaGrid::reset() {
   // Clear observations
   auto obs_ptr = static_cast<uint8_t*>(_observations.request().ptr);
   auto obs_size = _observations.size();
-  if (_use_observation_tokens) {
-    std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
-  } else {
-    std::fill(obs_ptr, obs_ptr + obs_size, 0);
-  }
+  std::fill(obs_ptr, obs_ptr + obs_size, EmptyTokenByte);
 
   // Compute initial observations
   std::vector<ssize_t> shape = {static_cast<ssize_t>(_agents.size()), static_cast<ssize_t>(2)};
@@ -449,31 +406,18 @@ void MettaGrid::validate_buffers() {
   // data types and contiguity are handled by pybind11. We still need to check
   // shape.
   unsigned int num_agents = _agents.size();
-  if (_use_observation_tokens) {
-    auto observation_info = _observations.request();
-    auto shape = observation_info.shape;
-    if (observation_info.ndim != 3) {
-      std::stringstream ss;
-      ss << "observations has " << observation_info.ndim << " dimensions but expected 3";
-      throw std::runtime_error(ss.str());
-    }
-    if (shape[0] != num_agents || shape[2] != 3) {
-      std::stringstream ss;
-      ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["
-         << num_agents << ", [something], 3]";
-      throw std::runtime_error(ss.str());
-    }
-  } else {
-    auto observation_info = _observations.request();
-    auto shape = observation_info.shape;
-    if (observation_info.ndim != 4 || shape[0] != num_agents || shape[1] != obs_height || shape[2] != obs_width ||
-        shape[3] != _feature_normalizations.size()) {
-      std::stringstream ss;
-      ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << ", " << shape[3]
-         << "] but expected [" << num_agents << ", " << obs_height << ", " << obs_width << ", "
-         << _feature_normalizations.size() << "]";
-      throw std::runtime_error(ss.str());
-    }
+  auto observation_info = _observations.request();
+  auto shape = observation_info.shape;
+  if (observation_info.ndim != 3) {
+    std::stringstream ss;
+    ss << "observations has " << observation_info.ndim << " dimensions but expected 3";
+    throw std::runtime_error(ss.str());
+  }
+  if (shape[0] != num_agents || shape[2] != 3) {
+    std::stringstream ss;
+    ss << "observations has shape [" << shape[0] << ", " << shape[1] << ", " << shape[2] << "] but expected ["
+       << num_agents << ", [something], 3]";
+    throw std::runtime_error(ss.str());
   }
   {
     auto terminals_info = _terminals.request();

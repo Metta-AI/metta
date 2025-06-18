@@ -13,7 +13,7 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write
-  actions: write  # Added to trigger workflows
+  actions: write
 
 env:
   CLAUDE_MODEL: "claude-sonnet-4-20250514"
@@ -108,7 +108,18 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             try {
+              const pr = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number
+              });
+
+              const prHeadRef = pr.data.head.ref;  // The PR's branch
+              const prBaseRef = pr.data.base.ref;  // What it's merging into
+              console.log(`PR #${context.issue.number}: ${prHeadRef} → ${prBaseRef}`);
+
               const reviewTypes = '${{ steps.check_action.outputs.review_types }}'.split(',');
+
               const reviewTypesDisplay = reviewTypes.map(t =>
                 t.charAt(0).toUpperCase() + t.slice(1)
               ).join(', ');
@@ -135,11 +146,11 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 workflow_id: 'claude-review-orchestrator.yml',
-                ref: context.payload.repository.default_branch,
+                ref: prHeadRef,
                 inputs: inputs
               });
 
-              console.log(`✅ Triggered review for: ${reviewTypesDisplay}`);
+              console.log(`✅ Triggered review for: ${reviewTypesDisplay} on branch: ${prHeadRef}`);
             } catch (error) {
               console.error('Error triggering workflow:', error);
               await github.rest.issues.createComment({

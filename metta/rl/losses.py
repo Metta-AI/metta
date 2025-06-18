@@ -3,8 +3,7 @@ class Losses:
         self.zero()
 
     def zero(self):
-        """Reset all loss values and counters"""
-        # Cumulative values
+        """Reset all loss values to 0.0"""
         self.policy_loss_sum = 0.0
         self.value_loss_sum = 0.0
         self.entropy_sum = 0.0
@@ -14,11 +13,9 @@ class Losses:
         self.l2_init_loss_sum = 0.0
         self.ks_action_loss_sum = 0.0
         self.ks_value_loss_sum = 0.0
+        self.importance_sum = 0.0
 
-        # Special case - this is computed once at the end
         self.explained_variance = 0.0
-
-        # Counter for actual minibatches processed
         self.minibatches_processed = 0
 
     def to_dict(self) -> dict[str, float]:
@@ -35,5 +32,6 @@ class Losses:
             "l2_init_loss": self.l2_init_loss_sum / n,
             "ks_action_loss": self.ks_action_loss_sum / n,
             "ks_value_loss": self.ks_value_loss_sum / n,
+            "importance": self.importance_sum / n,
             "explained_variance": self.explained_variance,
         }

@@ -200,15 +200,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Note: We explicitly allow invalid actions to be used. The environment will
         # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
 
-        if self._replay_writer and self._episode_id:
-            self._replay_writer.log_pre_step(self._episode_id, actions)
-
         with self.timer("_c_env.step"):
             self._c_env.step(actions)
             self._steps += 1
 
         if self._replay_writer and self._episode_id:
-            self._replay_writer.log_post_step(self._episode_id, self.rewards)
+            self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
         infos = {}
         if (self.terminals.all() or self.truncations.all()) and not self._should_reset:
