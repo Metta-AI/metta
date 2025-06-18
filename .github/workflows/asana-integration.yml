@@ -35,4 +35,4 @@ jobs:
           pr_number: ${{ github.event.pull_request.number }}
           repo: ${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
-          task_url: ${{ steps.create-asana-task.outputs.task_url }}
+          task_url: ${{ steps.ensure-asana-task.outputs.task_url }}
