@@ -91,6 +91,7 @@ class MettaTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
+        self.average_reward = 0.0
         self._current_eval_score: float | None = None
         self._eval_grouped_scores: Dict[str, float] = {}
         self._eval_suite_avgs: Dict[str, float] = {}
@@ -113,6 +114,11 @@ class MettaTrainer:
         policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
         assert policy_record is not None, "No policy found"
+
+        # Load average_reward from checkpoint if present
+        if checkpoint.extra_args and "average_reward" in checkpoint.extra_args:
+            self.average_reward = checkpoint.extra_args["average_reward"]
+            logger.info(f"Loaded average_reward from checkpoint: {self.average_reward}")
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {policy_record.policy()}")
@@ -206,7 +212,7 @@ class MettaTrainer:
         if wandb_run and self._master:
             wandb_run.define_metric("train/agent_step")
             wandb_run.define_metric("train/avg_agent_steps_per_update", step_metric="train/agent_step")
-            for k in ["0verview", "env", "losses", "performance", "train"]:
+            for k in ["overview", "env", "losses", "performance", "train"]:
                 wandb_run.define_metric(f"{k}/*", step_metric="train/agent_step")
 
         self.timer = Stopwatch(logger)
@@ -450,6 +456,12 @@ class MettaTrainer:
         # TODO: Better way to enable multiple collects
         return self.stats, infos
 
+    def _get_experience_buffer_mean_reward(self) -> float:
+        """Get mean reward from experience buffer."""
+        if hasattr(self, "experience") and hasattr(self.experience, "rewards"):
+            return float(self.experience.rewards.mean().item())
+        return 0.0
+
     @profile_section("train")
     def _train(self):
         experience, profile = self.experience, self.profile
@@ -478,13 +490,31 @@ class MettaTrainer:
             # Initial importance sampling ratio is all ones
             initial_importance_sampling_ratio = torch.ones_like(experience.values)
 
+            # Apply average reward adjustment if enabled
+            adjusted_rewards = experience.rewards
+            effective_gamma = trainer_cfg.gamma
+
+            if trainer_cfg.get("average_reward", False):
+                # Average reward formulation: A_t = GAE(r_t - ρ, γ=1.0)
+                # where ρ is the average reward estimate
+
+                current_batch_mean = self._get_experience_buffer_mean_reward()
+
+                # Apply IIR filter (exponential moving average)
+                alpha = trainer_cfg.get("average_reward_alpha", 0.01)
+                self.average_reward = (1 - alpha) * self.average_reward + alpha * current_batch_mean
+
+                # Use filtered estimate for advantage computation
+                adjusted_rewards = experience.rewards - self.average_reward
+                effective_gamma = 1.0
+
             advantages = self._compute_advantage(
                 experience.values,
-                experience.rewards,
+                adjusted_rewards,
                 experience.dones,
                 initial_importance_sampling_ratio,
                 advantages,
-                trainer_cfg.gamma,
+                effective_gamma,
                 trainer_cfg.gae_lambda,
                 vtrace_cfg.get("vtrace_rho_clip", 1.0),
                 vtrace_cfg.get("vtrace_c_clip", 1.0),
@@ -523,13 +553,21 @@ class MettaTrainer:
                     clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
 
                 # Re-compute advantages with new ratios (V-trace)
+                # Apply average reward adjustment if enabled
+                minibatch_rewards = minibatch["rewards"]
+                mb_effective_gamma = trainer_cfg.gamma
+
+                if trainer_cfg.get("average_reward", False):
+                    minibatch_rewards = minibatch["rewards"] - self.average_reward
+                    mb_effective_gamma = 1.0
+
                 adv = self._compute_advantage(
                     minibatch["values"],
-                    minibatch["rewards"],
+                    minibatch_rewards,
                     minibatch["dones"],
                     importance_sampling_ratio,
                     minibatch["advantages"],
-                    trainer_cfg.gamma,
+                    mb_effective_gamma,
                     trainer_cfg.gae_lambda,
                     vtrace_cfg.get("vtrace_rho_clip", 1.0),
                     vtrace_cfg.get("vtrace_c_clip", 1.0),
@@ -645,6 +683,10 @@ class MettaTrainer:
         extra_args = {}
         if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
             extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
+
+        # Save average_reward if being used
+        if self.trainer_cfg.get("average_reward", False):
+            extra_args["average_reward"] = self.average_reward
 
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
@@ -782,15 +824,24 @@ class MettaTrainer:
         losses = self.losses.to_dict()
 
         # don't plot losses that are unused
-        if self.trainer_cfg.l2_reg_loss_coef == 0:
+        if self.trainer_cfg.l2_reg_loss_coef == 0 and "l2_reg_loss" in losses:
             losses.pop("l2_reg_loss")
-        if self.trainer_cfg.l2_init_loss_coef == 0:
+        if self.trainer_cfg.l2_init_loss_coef == 0 and "l2_init_loss" in losses:
             losses.pop("l2_init_loss")
         if not self.kickstarter.enabled:
-            losses.pop("ks_action_loss")
-            losses.pop("ks_value_loss")
+            if "ks_action_loss" in losses:
+                losses.pop("ks_action_loss")
+            if "ks_value_loss" in losses:
+                losses.pop("ks_value_loss")
 
-        environment = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
+        environment = {}
+        for k, v in self.stats.items():
+            if "/" in k:
+                parts = k.split("/")
+                env_key = f"env_{parts[0]}/{'/'.join(parts[1:])}"
+            else:
+                env_key = f"env/{k}"
+            environment[env_key] = v
 
         # Add timing metrics to wandb
         if self.wandb_run and self._master:
@@ -803,35 +854,38 @@ class MettaTrainer:
             steps_per_sec = (self.agent_step - self._last_agent_step) / training_time if training_time > 0 else 0
 
             timing_logs = {
-                # Key performance indicators
                 "timing/steps_per_second": steps_per_sec,
                 "timing/training_efficiency": training_time / wall_time if wall_time > 0 else 0,
                 "timing/overhead_ratio": overhead_time / wall_time if wall_time > 0 else 0,
-                # Breakdown by operation (as a single structured metric)
-                "timing/breakdown": {
-                    op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
-                    for op, elapsed in timer_data.items()
-                },
-                # Total time for reference
                 "timing/total_seconds": wall_time,
             }
 
+            # Add breakdown as separate metrics
+            for op, elapsed in timer_data.items():
+                timing_logs[f"timing/breakdown/{op}/seconds"] = elapsed
+                timing_logs[f"timing/breakdown/{op}/fraction"] = elapsed / wall_time if wall_time > 0 else 0
+
+            # Build log dict
+            log_dict = {
+                **{f"overview/{k}": v for k, v in overview.items()},
+                **{f"losses/{k}": v for k, v in losses.items()},
+                **{f"performance/{k}": v for k, v in performance.items()},
+                **environment,
+                **weight_metrics,
+                **self._eval_grouped_scores,
+                "train/agent_step": agent_steps,
+                "train/avg_agent_steps_per_update": avg_steps_per_update,
+                "train/epoch": epoch,
+                "train/learning_rate": learning_rate,
+                **timing_logs,
+            }
+
+            # Only add average_reward if it's being used
+            if self.trainer_cfg.get("average_reward", False):
+                log_dict["train/average_reward"] = self.average_reward
+
             # Log everything to wandb
-            self.wandb_run.log(
-                {
-                    **{f"overview/{k}": v for k, v in overview.items()},
-                    **{f"losses/{k}": v for k, v in losses.items()},
-                    **{f"performance/{k}": v for k, v in performance.items()},
-                    **environment,
-                    **weight_metrics,
-                    **self._eval_grouped_scores,
-                    "train/agent_step": agent_steps,
-                    "train/avg_agent_steps_per_update": avg_steps_per_update,
-                    "train/epoch": epoch,
-                    "train/learning_rate": learning_rate,
-                    **timing_logs,
-                }
-            )
+            self.wandb_run.log(log_dict)
 
         self._eval_grouped_scores = {}
         self.stats.clear()
