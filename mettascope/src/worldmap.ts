@@ -788,9 +788,5 @@ export function drawMap(panel: PanelInfo) {
     drawInfoLine(panel)
   }
 
-  // Draw the mouse cursor.
-  const localMousePos = panel.transformOuter(ui.mousePos)
-  ctx.drawSprite('white.png', localMousePos.x(), localMousePos.y())
-
   ctx.restore()
 }
