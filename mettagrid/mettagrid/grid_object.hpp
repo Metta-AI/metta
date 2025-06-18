@@ -75,12 +75,6 @@ public:
   }
 
   virtual std::vector<PartialObservationToken> obs_features() const = 0;
-
-  /**
-   * Grid-based observations. This is an older style than tokens, and
-   * should be deprecated soon.
-   */
-  virtual void obs(ObsType* obs) const = 0;
 };
 
 #endif  // METTAGRID_METTAGRID_GRID_OBJECT_HPP_
