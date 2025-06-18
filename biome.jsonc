@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "files": {
-    "ignore": ["node_modules", "dist", "build", "*.min.js", "**/node_modules", "**/dist", "**/build"]
+    "ignore": ["node_modules", "dist", "build", "*.min.js", "**/node_modules", "**/dist", "**/build", "package-lock.json", "**/package-lock.json"]
   },
   "formatter": {
     "lineWidth": 120, // Wider for modern screens and JSX
