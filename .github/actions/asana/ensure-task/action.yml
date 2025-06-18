@@ -25,11 +25,11 @@ outputs:
   task_url:
     description: "The URL of the existing or created Asana task."
 
-
-using: "composite"
-steps:
-  - uses: actions/setup-python@v4
-    with:
-      python-version: '3.x'
-  - run: python main.py
-    shell: bash
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    - run: python main.py
+      shell: bash

@@ -15,10 +15,11 @@ inputs:
     description: "The Asana task URL to add to the PR description."
     required: true
 
-using: "composite"
-steps:
-  - uses: actions/setup-python@v4
-    with:
-      python-version: '3.x'
-  - run: python main.py
-    shell: bash
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    - run: python main.py
+      shell: bash
