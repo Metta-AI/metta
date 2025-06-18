@@ -299,22 +299,26 @@ function drawInventory() {
     let numItems = 0
     for (const [key, [icon, color]] of state.replay.resource_inventory) {
       const num = getAttr(gridObject, key)
-      numItems += num
+      if (num !== null && num !== undefined && num > 0) {
+        numItems += num
+      }
     }
     // Draw the actual inventory icons.
     let advanceX = Math.min(32, (Common.TILE_SIZE - Common.INVENTORY_PADDING * 2) / numItems)
     for (const [key, [icon, color]] of state.replay.resource_inventory) {
       const num = getAttr(gridObject, key)
-      for (let i = 0; i < num; i++) {
-        ctx.drawSprite(
-          icon,
-          x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE / 2,
-          y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 16,
-          color,
-          1 / 8,
-          0
-        )
-        inventoryX += advanceX
+      if (num !== null && num !== undefined && num > 0) {
+        for (let i = 0; i < num; i++) {
+          ctx.drawSprite(
+            icon,
+            x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE / 2,
+            y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 16,
+            color,
+            1 / 8,
+            0
+          )
+          inventoryX += advanceX
+        }
       }
     }
   }

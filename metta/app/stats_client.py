@@ -37,7 +37,7 @@ class ClientEpisodeResponse(BaseModel):
 class StatsClient:
     """Client for interacting with the stats API."""
 
-    def __init__(self, http_client: httpx.Client):
+    def __init__(self, http_client: httpx.Client, user: str):
         """
         Initialize the stats client.
 
@@ -45,6 +45,7 @@ class StatsClient:
             http_client: HTTP client implementation to use for requests
         """
         self.http_client = http_client
+        self.user = user
 
     def __enter__(self):
         return self
@@ -79,7 +80,7 @@ class StatsClient:
         return ClientPolicyIdResponse(policy_ids=policy_ids_uuid)
 
     def create_training_run(
-        self, name: str, user_id: str, attributes: Optional[Dict[str, str]] = None, url: Optional[str] = None
+        self, name: str, attributes: Optional[Dict[str, str]] = None, url: Optional[str] = None
     ) -> ClientTrainingRunResponse:
         """
         Create a new training run.
@@ -96,7 +97,7 @@ class StatsClient:
         Raises:
             httpx.HTTPStatusError: If the request fails
         """
-        data = TrainingRunCreate(name=name, user_id=user_id, attributes=attributes or {}, url=url)
+        data = TrainingRunCreate(name=name, user_id=self.user, attributes=attributes or {}, url=url)
         response = self.http_client.post("/stats/training-runs", json=data.model_dump())
         response.raise_for_status()
 
