@@ -95,20 +95,8 @@ if __name__ == "__main__":
     github_url = os.getenv("INPUT_GITHUB_URL")
     github_url_field_id = os.getenv("INPUT_GITHUB_URL_FIELD_ID")
 
-    # Debug: Print all inputs
-    print(f"DEBUG - title: {title}")
-    print(f"DEBUG - description: {description[:50] if description else None}...")
-    print(f"DEBUG - project_id: {project_id}")
-    print(f"DEBUG - workspace_id: {workspace_id}")
-    print(f"DEBUG - asana_token: {asana_token[:10] if asana_token else None}...")
-    print(f"DEBUG - github_url: {github_url}")
-    print(f"DEBUG - github_url_field_id: {github_url_field_id}")
-
     # Ensure task exists and output URL
     task_url = ensure_asana_task_exists(title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token)
-    print(f"DEBUG - Final task_url: '{task_url}'")
-    print(f"DEBUG - task_url type: {type(task_url)}")
-    print(f"DEBUG - task_url length: {len(task_url) if task_url else 0}")
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         f.write(f"task_url={task_url}\n")
