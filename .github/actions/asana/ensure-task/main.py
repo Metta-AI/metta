@@ -19,7 +19,7 @@ def search_asana_tasks(github_url, project_id, github_url_field_id, asana_token)
         f"custom_field.{github_url_field_id}.text_value": github_url,
     }
 
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.get(url, headers=headers, params=params, timeout=30)
     if response.status_code != 200:
         print(f"Asana API Error: {response.status_code} - {response.text}")
         sys.exit(1)
