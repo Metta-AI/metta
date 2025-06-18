@@ -10,6 +10,7 @@ game:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 3
       agents: 1
+      dir: terrain_maps_nohearts
       objects:
         altar: 25
   objects:

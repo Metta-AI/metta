@@ -22,7 +22,9 @@ class LowRewardCurriculum(RandomCurriculum):
     def complete_task(self, id: str, score: float):
         # Update moving average for the completed task
         old_average = self._reward_averages[id]
-        self._reward_averages[id] = (1 - self._alpha) * self._reward_averages[id] + self._alpha * score
+        self._reward_averages[id] = (1 - self._moving_avg_decay_rate) * self._reward_averages[
+            id
+        ] + self._moving_avg_decay_rate * score
         logger.debug(
             f"Updated task {id} "
             + f"reward mean({old_average:.3f} -> {self._reward_averages[id]:.3f}), "

@@ -1,11 +1,12 @@
 sampling: 0
+desync_episodes: false
+replay_level_prob: 0.3
 game:
   num_agents: ???
   obs_width: 11
   obs_height: 11
-  use_observation_tokens: false
+  use_observation_tokens: true
   num_observation_tokens: 128
-  tile_size: 16
   max_steps: 1000
 
   diversity_bonus:
