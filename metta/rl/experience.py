@@ -122,7 +122,7 @@ class Experience:
         if self.minibatch_segments != minibatch_segments:
             raise ValueError(f"minibatch_size {self.minibatch_size} must be divisible by bptt_horizon {bptt_horizon}")
 
-            # Tracking for rollout completion
+        # Tracking for rollout completion
         self.full_rows = 0
 
         # Calculate num_minibatches for compatibility
@@ -204,20 +204,20 @@ class Experience:
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
 
-    def get_lstm_state(self, env_id_start: int) -> Optional[Dict[str, Tensor]]:
-        """Get LSTM state for a batch starting at env_id_start."""
+    def get_lstm_state_dict(self, env_id_start: int) -> Optional[Dict[str, Tensor]]:
+        """Get LSTM state as a dictionary for a batch starting at env_id_start."""
         if not self.use_rnn or env_id_start not in self.lstm_h:
             return None
         return {"lstm_h": self.lstm_h[env_id_start], "lstm_c": self.lstm_c[env_id_start]}
 
-    def get_lstm_state_direct(self, env_id_start: int) -> tuple[Optional[Tensor], Optional[Tensor]]:
-        """Get LSTM state directly as tensors for performance."""
+    def get_lstm_state(self, env_id_start: int) -> tuple[Optional[Tensor], Optional[Tensor]]:
+        """Get LSTM state as tensors."""
         if not self.use_rnn or env_id_start not in self.lstm_h:
             return None, None
         return self.lstm_h[env_id_start], self.lstm_c[env_id_start]
 
-    def set_lstm_state_direct(self, env_id_start: int, lstm_h: Tensor, lstm_c: Tensor) -> None:
-        """Set LSTM state directly for performance."""
+    def set_lstm_state(self, env_id_start: int, lstm_h: Tensor, lstm_c: Tensor) -> None:
+        """Set LSTM state."""
         if self.use_rnn and env_id_start in self.lstm_h:
             self.lstm_h[env_id_start] = lstm_h
             self.lstm_c[env_id_start] = lstm_c

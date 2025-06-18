@@ -387,12 +387,7 @@ class MettaTrainer:
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
-        rollout_iterations = 0
-        total_steps_collected = 0
-
         while not experience.ready_for_training:
-            rollout_iterations += 1
-
             with self.timer("_rollout.env"):
                 o, r, d, t, info, env_id, mask = self.vecenv.recv()
                 if trainer_cfg.require_contiguous_env_ids:
@@ -408,24 +403,6 @@ class MettaTrainer:
             num_steps = mask.sum().item()
             self.agent_step += num_steps * self._world_size
 
-            # Debug logging for first few iterations
-            if self.epoch == 0 and hasattr(self, "_rollout_debug_count"):
-                if self._rollout_debug_count < 5:
-                    logger.info(
-                        f"Rollout debug {self._rollout_debug_count}: mask={mask}, num_steps={num_steps}, env_id={env_id}"
-                    )
-                    self._rollout_debug_count += 1
-            elif self.epoch == 0:
-                self._rollout_debug_count = 0
-
-            # Always log if we're getting zero steps
-            if num_steps == 0 and rollout_iterations <= 3:
-                logger.warning(
-                    f"Rollout iteration {rollout_iterations}: Got 0 steps! mask shape={mask.shape if hasattr(mask, 'shape') else len(mask)}, mask sum={mask.sum() if hasattr(mask, 'sum') else sum(mask)}"
-                )
-
-            total_steps_collected += num_steps
-
             # Convert to tensors once
             o = torch.as_tensor(o)
             # Move to device non-blocking for all tensors that need it
@@ -437,9 +414,9 @@ class MettaTrainer:
             with torch.no_grad():
                 state = PolicyState()
 
-                # Use direct LSTM state access for performance
+                # Use LSTM state access for performance
                 if use_rnn:
-                    lstm_h, lstm_c = experience.get_lstm_state_direct(training_env_id.start)
+                    lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
                     if lstm_h is not None:
                         state.lstm_h = lstm_h
                         state.lstm_c = lstm_c
@@ -452,10 +429,10 @@ class MettaTrainer:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
                     assert_shape(actions, ("BT", 2), "actions")
 
-                # Store LSTM state directly for performance
+                # Store LSTM state for performance
                 lstm_state_to_store = None
                 if use_rnn and state.lstm_h is not None:
-                    experience.set_lstm_state_direct(training_env_id.start, state.lstm_h, state.lstm_c)
+                    experience.set_lstm_state(training_env_id.start, state.lstm_h, state.lstm_c)
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
                 if str(self.device).startswith("cuda"):
@@ -478,21 +455,21 @@ class MettaTrainer:
                 lstm_state=lstm_state_to_store,
             )
 
+            # At this point, infos contains lists of values collected across:
+            # 1. Multiple vectorized environments managed by this GPU's vecenv
+            # 2. Multiple rollout steps (until experience buffer is full)
+            #
+            # - Some stats (like "episode/reward") appear only when episodes complete
+            # - Other stats might appear every step
+            #
+            # These will later be averaged in _process_stats() to get mean values
+            # across all environments on this GPU. Stats from other GPUs (if using
+            # distributed training) are handled separately and not aggregated here.
             if info:
                 raw_infos.extend(info)
 
-            # Debug experience buffer state
-            if hasattr(self, "_rollout_debug_count") and self._rollout_debug_count < 3:
-                logger.info(
-                    f"Experience buffer state: full_rows={experience.full_rows}, segments={experience.segments}, ready={experience.ready_for_training}"
-                )
-
             with self.timer("_rollout.env"):
                 self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
-
-        # Log rollout summary
-        if total_steps_collected == 0:
-            logger.error(f"Rollout completed with 0 total steps after {rollout_iterations} iterations!")
 
         # Batch process info dictionaries after rollout
         for i in raw_infos:
