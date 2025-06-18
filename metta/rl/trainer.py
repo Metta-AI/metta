@@ -632,8 +632,11 @@ class MettaTrainer:
                 if average_approx_kl > trainer_cfg.target_kl:
                     break
 
-            # end loop over epochs
             self.epoch += 1
+            # end loop over epochs
+
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
 
         # Calculate explained variance
         y_pred = experience.values.flatten()
@@ -649,8 +652,8 @@ class MettaTrainer:
         self._checkpoint_policy()
 
         extra_args = {}
-        if self.trainer_cfg.average_reward:
-            extra_args["filtered_mean_reward"] = self.filtered_mean_reward
+        if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
+            extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
 
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
@@ -711,36 +714,34 @@ class MettaTrainer:
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
         if not self._master:
-            return
-
-        replay_sim_config = SingleEnvSimulationConfig(
-            env="/env/mettagrid/mettagrid",
-            num_episodes=1,
-            env_overrides=self._curriculum.get_task().env_cfg(),
-        )
-
-        replay_simulator = Simulation(
-            name=f"replay_{self.epoch}",
-            config=replay_sim_config,
-            policy_pr=self.last_pr,
-            policy_store=self.policy_store,
-            device=self.device,
-            vectorization=self.cfg.vectorization,
-            replay_dir=self.cfg.trainer.replay_dir,
-        )
-        results = replay_simulator.simulate()
-
-        if self.wandb_run is not None:
-            replay_urls = results.stats_db.get_replay_urls(
-                policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+            replay_sim_config = SingleEnvSimulationConfig(
+                env="/env/mettagrid/mettagrid",
+                num_episodes=1,
+                env_overrides=self._curriculum.get_task().env_cfg(),
             )
-            if len(replay_urls) > 0:
-                replay_url = replay_urls[0]
-                player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
-                link_summary = {
-                    "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
-                }
-                self.wandb_run.log(link_summary)
+
+            replay_simulator = Simulation(
+                name=f"replay_{self.epoch}",
+                config=replay_sim_config,
+                policy_pr=self.last_pr,
+                policy_store=self.policy_store,
+                device=self.device,
+                vectorization=self.cfg.vectorization,
+                replay_dir=self.cfg.trainer.replay_dir,
+            )
+            results = replay_simulator.simulate()
+
+            if self.wandb_run is not None:
+                replay_urls = results.stats_db.get_replay_urls(
+                    policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+                )
+                if len(replay_urls) > 0:
+                    replay_url = replay_urls[0]
+                    player_url = "https://metta-ai.github.io/metta/?replayUrl=" + replay_url
+                    link_summary = {
+                        "replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {self.epoch})</a>')
+                    }
+                    self.wandb_run.log(link_summary)
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
