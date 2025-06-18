@@ -93,10 +93,10 @@ export const state = {
   showGrid: true,
   showVisualRanges: true,
   showFogOfWar: false,
-  showMiniMap: true,
-  showInfo: true,
-  showControls: true,
-  showAgentPanel: true,
+  showMiniMap: false,
+  showInfo: false,
+  showControls: false,
+  showAgentPanel: false,
 
   showAttackMode: false,
 
