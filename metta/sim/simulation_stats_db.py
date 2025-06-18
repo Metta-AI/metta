@@ -198,6 +198,12 @@ class SimulationStatsDB(EpisodeStatsDB):
         result = self.con.execute("SELECT DISTINCT policy_key, policy_version FROM simulations").fetchall()
         return [f"{row[0]}:v{row[1]}" for row in result]
 
+    @property
+    def num_episodes(self) -> int:
+        """Get the total number of episodes in the database."""
+        result = self.con.execute("SELECT COUNT(*) FROM episodes").fetchone()
+        return result[0] if result else 0
+
     def _insert_simulation(
         self, sim_id: str, name: str, suite: str, env: str, policy_key: str, policy_version: int
     ) -> None:
