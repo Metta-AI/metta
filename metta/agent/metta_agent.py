@@ -76,11 +76,6 @@ class MettaAgent(nn.Module):
         self.metadata = metadata or {}
         self.local_path = local_path
 
-        # Placeholder for future versioning
-        self.observation_space_version = None
-        self.action_space_version = None
-        self.layer_version = None
-
     def forward(
         self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -119,63 +114,62 @@ class MettaAgent(nn.Module):
             return 0
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
-    def save(self, path: str, compress: Optional[str] = None) -> None:
+    def save(self, path: str, full_model: bool = False) -> None:
         """
         Save the agent to disk.
 
         Args:
             path: Path to save the checkpoint
-            compress: Optional compression method ("gzip", "lz4", "zstd", or None)
+            full_model: If True, saves the complete model object for training resumption.
+                       If False, saves only state_dict for inference/evaluation.
         """
-        save_data = {
-            "model_state_dict": self.model.state_dict() if self.model else None,
-            "model_type": self.model_type,
-            "name": self.name,
-            "uri": self.uri,
-            "metadata": self.metadata,
-            "observation_space_version": self.observation_space_version,
-            "action_space_version": self.action_space_version,
-            "layer_version": self.layer_version,
-            "checkpoint_format_version": 2,  # Track format version for compatibility
-        }
-
-        # Save model-specific config for reconstruction
-        if self.model_type == "brain" and self.model is not None:
-            # For BrainPolicy, save all initialization parameters
-            if hasattr(self.model, "agent_attributes"):
-                save_data["agent_attributes"] = self.model.agent_attributes
-
-            # Also save the component configuration if available
-            if hasattr(self.model, "_component_config"):
-                save_data["component_config"] = self.model._component_config
-
-        if compress:
-            try:
-                from metta.agent.checkpoint_compression import save_compressed
-
-                path = save_compressed(save_data, path, method=compress)
-                logger.info(f"Saved compressed {self.model_type} agent to {path}")
-            except ImportError:
-                logger.warning("Compression requested but compression module not available, saving uncompressed")
-                torch.save(save_data, path)
-                logger.info(f"Saved {self.model_type} agent to {path}")
+        if full_model:
+            # Save complete model object for training resumption
+            save_data = {
+                "model": self.model,
+                "model_type": self.model_type,
+                "name": self.name,
+                "uri": self.uri,
+                "metadata": self.metadata,
+                "checkpoint_format_version": 2,
+            }
+            logger.info(f"Saved complete {self.model_type} agent for training to {path}")
         else:
-            torch.save(save_data, path)
+            # Save state_dict for inference/evaluation
+            save_data = {
+                "model_state_dict": self.model.state_dict() if self.model else None,
+                "model_type": self.model_type,
+                "name": self.name,
+                "uri": self.uri,
+                "metadata": self.metadata,
+                "checkpoint_format_version": 2,
+            }
+
+            # Save model-specific config for reconstruction
+            if self.model_type == "brain" and self.model is not None:
+                if hasattr(self.model, "agent_attributes"):
+                    save_data["agent_attributes"] = self.model.agent_attributes
+                if hasattr(self.model, "_component_config"):
+                    save_data["component_config"] = self.model._component_config
+
             logger.info(f"Saved {self.model_type} agent to {path}")
 
+        torch.save(save_data, path)
+
     @classmethod
-    def load(cls, path: str, device: str = "cpu") -> "MettaAgent":
-        """Load an agent from disk."""
-        logger.info(f"Loading agent from {path}")
+    def load(cls, path: str, device: str = "cpu", full_model: bool = False) -> "MettaAgent":
+        """
+        Load an agent from disk.
 
-        # Try to load with compression support first
-        try:
-            from metta.agent.checkpoint_compression import load_compressed
+        Args:
+            path: Path to load the checkpoint from
+            device: Device to load the model to
+            full_model: If True, expects a checkpoint with complete model object.
+                       If False, expects state_dict and will reconstruct the model.
+        """
+        logger.info(f"Loading agent from {path} (full_model={full_model})")
 
-            checkpoint = load_compressed(path, map_location=device, weights_only=False)
-        except ImportError:
-            # Fall back to standard torch.load
-            checkpoint = torch.load(path, map_location=device, weights_only=False)
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
 
         # Check checkpoint format version
         format_version = checkpoint.get("checkpoint_format_version", 1)
@@ -184,29 +178,6 @@ class MettaAgent(nn.Module):
                 f"Checkpoint has format version {format_version}, but this code supports up to version 2. "
                 "Some features may not work correctly."
             )
-
-        # Check version compatibility
-        try:
-            from metta.agent.version_compatibility import VersionInfo, compatibility_checker
-
-            checkpoint_version = VersionInfo.from_checkpoint(checkpoint)
-            runtime_version = VersionInfo(
-                checkpoint_format=2,
-                observation_space="v1",  # TODO: Get from environment
-                action_space="v1",  # TODO: Get from environment
-                layer_architecture="v1",  # TODO: Get from model config
-            )
-
-            report = compatibility_checker.check_compatibility(checkpoint_version, runtime_version)
-
-            if not report.is_compatible():
-                logger.error(f"Checkpoint compatibility check failed:\n{report}")
-                raise ValueError(f"Incompatible checkpoint: {report.errors}")
-            elif report.warnings:
-                logger.warning(f"Checkpoint compatibility warnings:\n{report}")
-
-        except ImportError:
-            logger.debug("Version compatibility module not available, skipping checks")
 
         # Create MettaAgent instance
         agent = cls(
@@ -218,66 +189,71 @@ class MettaAgent(nn.Module):
             local_path=path,
         )
 
-        # Set version info
-        agent.observation_space_version = checkpoint.get("observation_space_version")
-        agent.action_space_version = checkpoint.get("action_space_version")
-        agent.layer_version = checkpoint.get("layer_version")
+        if full_model:
+            # Load complete model object
+            model = checkpoint.get("model")
+            if model is not None:
+                model = model.to(device)
+            agent.model = model
 
-        # Reconstruct the model
-        model_state_dict = checkpoint.get("model_state_dict")
-        if model_state_dict is not None and agent.model_type == "brain":
-            # For BrainPolicy, we need the agent_attributes to reconstruct
-            agent_attributes = checkpoint.get("agent_attributes")
-            if agent_attributes and "components" in agent_attributes:
-                try:
-                    # Import and create BrainPolicy with saved attributes
-                    from metta.agent.brain_policy import BrainPolicy
-
-                    # Extract necessary attributes
-                    obs_space = agent.metadata.get("observation_space")
-                    action_space = agent.metadata.get("action_space")
-
-                    if obs_space and action_space:
-                        # Create a copy of agent_attributes to avoid modifying the original
-                        brain_attrs = agent_attributes.copy()
-
-                        # Ensure we don't duplicate arguments
-                        brain_attrs["obs_space"] = obs_space
-                        brain_attrs["action_space"] = action_space
-                        brain_attrs["device"] = device
-
-                        # Remove any keys that might conflict
-                        for key in ["obs_space", "action_space", "device"]:
-                            if key in brain_attrs and key != key:  # Don't remove the ones we just set
-                                del brain_attrs[key]
-
-                        # Reconstruct the BrainPolicy
-                        brain_policy = BrainPolicy(**brain_attrs)
-
-                        # Load the state dict
-                        brain_policy.load_state_dict(model_state_dict)
-                        brain_policy.to(device)
-                        agent.model = brain_policy
-
-                        logger.info(f"Successfully loaded BrainPolicy model from {path}")
-                    else:
-                        logger.warning("Missing observation_space or action_space in metadata")
-                except Exception as e:
-                    logger.error(f"Failed to reconstruct BrainPolicy: {e}")
-                    logger.warning("Model will be None - this checkpoint may need migration")
-            else:
-                logger.warning("Checkpoint does not contain component configuration needed for full reconstruction")
-                logger.info(
-                    "For evaluation purposes, you can use the checkpoint with the same code version that created it"
-                )
+            if model is None:
+                logger.warning("No model found in checkpoint (expected for full_model=True)")
         else:
-            if model_state_dict is None:
-                logger.warning("No model state dict found in checkpoint")
-            else:
-                logger.warning(f"Model reconstruction for type '{agent.model_type}' not implemented")
+            # Reconstruct model from state_dict
+            model_state_dict = checkpoint.get("model_state_dict")
+            if model_state_dict is not None and agent.model_type == "brain":
+                # For BrainPolicy, we need the agent_attributes to reconstruct
+                agent_attributes = checkpoint.get("agent_attributes")
+                if agent_attributes and "components" in agent_attributes:
+                    try:
+                        # Import and create BrainPolicy with saved attributes
+                        from metta.agent.brain_policy import BrainPolicy
 
-        if model_state_dict is None:
-            logger.warning("No model found in checkpoint")
+                        # Extract necessary attributes
+                        obs_space = agent.metadata.get("observation_space")
+                        action_space = agent.metadata.get("action_space")
+
+                        if obs_space and action_space:
+                            # Create a copy of agent_attributes to avoid modifying the original
+                            brain_attrs = agent_attributes.copy()
+
+                            # Ensure we don't duplicate arguments
+                            brain_attrs["obs_space"] = obs_space
+                            brain_attrs["action_space"] = action_space
+                            brain_attrs["device"] = device
+
+                            # Remove any keys that might conflict
+                            for key in ["obs_space", "action_space", "device"]:
+                                if key in brain_attrs and key != key:  # Don't remove the ones we just set
+                                    del brain_attrs[key]
+
+                            # Reconstruct the BrainPolicy
+                            brain_policy = BrainPolicy(**brain_attrs)
+
+                            # Load the state dict
+                            brain_policy.load_state_dict(model_state_dict)
+                            brain_policy.to(device)
+                            agent.model = brain_policy
+
+                            logger.info(f"Successfully loaded BrainPolicy model from {path}")
+                        else:
+                            logger.warning("Missing observation_space or action_space in metadata")
+                    except Exception as e:
+                        logger.error(f"Failed to reconstruct BrainPolicy: {e}")
+                        logger.warning("Model will be None - this checkpoint may need migration")
+                else:
+                    logger.warning("Checkpoint does not contain component configuration needed for full reconstruction")
+                    logger.info(
+                        "For evaluation purposes, you can use the checkpoint with the same code version that created it"
+                    )
+            else:
+                if model_state_dict is None:
+                    logger.warning("No model state dict found in checkpoint")
+                else:
+                    logger.warning(f"Model reconstruction for type '{agent.model_type}' not implemented")
+
+        if agent.model is None:
+            logger.warning("No model loaded from checkpoint")
 
         return agent
 
@@ -432,104 +408,28 @@ class MettaAgent(nn.Module):
             return self.model.components
         return {}
 
-    def save_for_training(self, path: str, compress: Optional[str] = None) -> None:
-        """
-        Save the agent for training resumption.
-        This saves the complete model object, allowing training to resume without reconstruction.
-
-        Args:
-            path: Path to save the checkpoint
-            compress: Optional compression method ("gzip", "lz4", "zstd", or None)
-        """
-        save_data = {
-            "model": self.model,  # Save the full model object
-            "model_type": self.model_type,
-            "name": self.name,
-            "uri": self.uri,
-            "metadata": self.metadata,
-            "observation_space_version": self.observation_space_version,
-            "action_space_version": self.action_space_version,
-            "layer_version": self.layer_version,
-            "checkpoint_format_version": 2,  # Track format version
-        }
-
-        if compress:
-            try:
-                from metta.agent.checkpoint_compression import save_compressed
-
-                path = save_compressed(save_data, path, method=compress)
-                logger.info(f"Saved compressed complete {self.model_type} agent for training to {path}")
-            except ImportError:
-                logger.warning("Compression requested but compression module not available, saving uncompressed")
-                torch.save(save_data, path)
-                logger.info(f"Saved complete {self.model_type} agent for training to {path}")
-        else:
-            torch.save(save_data, path)
-            logger.info(f"Saved complete {self.model_type} agent for training to {path}")
-
-    @classmethod
-    def load_for_training(cls, path: str, device: str = "cpu") -> "MettaAgent":
-        """
-        Load an agent for training resumption.
-        This loads the complete model object without needing reconstruction.
-        """
-        logger.info(f"Loading agent for training from {path}")
-
-        # Try to load with compression support first
-        try:
-            from metta.agent.checkpoint_compression import load_compressed
-
-            checkpoint = load_compressed(path, map_location=device, weights_only=False)
-        except ImportError:
-            # Fall back to standard torch.load
-            checkpoint = torch.load(path, map_location=device, weights_only=False)
-
-        # Create MettaAgent instance with the loaded model
-        model = checkpoint.get("model")
-        if model is not None:
-            model = model.to(device)
-
-        agent = cls(
-            model=model,
-            model_type=checkpoint.get("model_type", "brain"),
-            name=checkpoint.get("name", os.path.basename(path)),
-            uri=checkpoint.get("uri", f"file://{path}"),
-            metadata=checkpoint.get("metadata", {}),
-            local_path=path,
-        )
-
-        # Set version info
-        agent.observation_space_version = checkpoint.get("observation_space_version")
-        agent.action_space_version = checkpoint.get("action_space_version")
-        agent.layer_version = checkpoint.get("layer_version")
-
-        if model is None:
-            logger.warning("No model found in checkpoint")
-
-        return agent
-
 
 class DistributedMettaAgent(DistributedDataParallel):
-    """Distributed wrapper for MettaAgent that preserves the interface."""
+    """Distributed wrapper for MettaAgent that properly delegates method calls."""
 
     def __init__(self, agent: MettaAgent, device):
-        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-        super().__init__(agent, device_ids=[device], output_device=device)
+        super().__init__(agent, device_ids=[device])
+        self._wrapped_agent = agent
 
     def __getattr__(self, name):
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
+        """Delegate attribute access to the wrapped MettaAgent."""
+        if hasattr(self._wrapped_agent, name):
+            return getattr(self._wrapped_agent, name)
+        return super().__getattr__(name)
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
-        return self.module.activate_actions(action_names, action_max_params, device)
+        """Delegate action activation to the wrapped agent."""
+        self._wrapped_agent.activate_actions(action_names, action_max_params, device)
 
     def key_and_version(self) -> tuple[str, int]:
-        """Delegate to wrapped module."""
-        return self.module.key_and_version()
+        """Delegate key_and_version to the wrapped agent."""
+        return self._wrapped_agent.key_and_version()
 
     def policy_as_metta_agent(self) -> MettaAgent:
-        """Return wrapped module since it's the actual MettaAgent."""
-        return self.module
+        """Return the wrapped MettaAgent."""
+        return self._wrapped_agent

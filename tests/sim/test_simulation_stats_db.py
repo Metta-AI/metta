@@ -8,16 +8,25 @@ from typing import Tuple
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
-class MockPolicyRecord:
-    """Mock implementation of PolicyRecord for testing."""
+class MockMettaAgent:
+    """Mock implementation of MettaAgent for testing."""
 
     def __init__(self, policy_key: str, policy_version: int):
         self._policy_key = policy_key
         self._policy_version = policy_version
+        self.name = f"{policy_key}_v{policy_version}"
+        self.uri = f"{policy_key}:v{policy_version}"
+        self.metadata = {}
 
     def key_and_version(self) -> Tuple[str, int]:
         """Return the policy key and version as a tuple."""
         return self._policy_key, self._policy_version
+
+    def key(self) -> str:
+        return self._policy_key
+
+    def version(self) -> int:
+        return self._policy_version
 
 
 def _create_worker_db(path: Path, sim_steps: int = 0) -> str:
@@ -272,12 +281,12 @@ def test_from_shards_and_context(tmp_path: Path):
     # Check that the merged database doesn't exist yet
     assert not merged_path.exists(), "Merged DB already exists"
 
-    # Create agent map with our mock PolicyRecord
-    agent_map = {0: MockPolicyRecord("test_policy", 1)}
+    # Create agent map with our mock MettaAgent
+    agent_map = {0: MockMettaAgent("test_policy", 1)}
 
     # Now call the actual from_shards_and_context method
     merged_db = SimulationStatsDB.from_shards_and_context(
-        "sim_id", shard_dir, agent_map, "test_sim", "test_suite", "env_test", MockPolicyRecord("test_policy", 1)
+        "sim_id", shard_dir, agent_map, "test_sim", "test_suite", "env_test", MockMettaAgent("test_policy", 1)
     )
 
     # Verify merged database was created

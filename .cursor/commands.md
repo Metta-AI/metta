@@ -9,7 +9,6 @@ This file contains simple commands for testing the metta codebase. These command
 The codebase underwent a major refactoring to separate the neural network implementation from the wrapper/metadata:
 - `MettaAgent` is now a wrapper class that combines model functionality with metadata storage
 - `BrainPolicy` contains the actual neural network implementation (previously called MettaAgent)
-- `PolicyRecord` has been removed - all its functionality is now in MettaAgent
 - This change enables future versioning support for loading old models when the code changes
 
 **Impact on commands**: No changes to command syntax. The training, simulation, and analysis commands work the same way.

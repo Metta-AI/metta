@@ -1,25 +1,24 @@
 # MettaAgent Saving and Loading Guide
 
-This guide explains the different methods for saving and loading MettaAgent checkpoints, when to use each method, and their trade-offs.
+This guide explains how to save and load MettaAgent checkpoints with the unified save/load API.
 
 ## Overview
 
-MettaAgent provides multiple save/load methods optimized for different use cases:
+MettaAgent provides a single save/load interface with an optional `full_model` parameter:
 
-| Method | Use Case | File Size | Load Speed | Reconstruction Required |
-|--------|----------|-----------|------------|------------------------|
-| `save()` / `load()` | Evaluation, sharing | Small | Slower | Yes |
-| `save_for_training()` / `load_for_training()` | Training resumption | Large | Fast | No |
-| `torch.save()` (raw) | Custom use cases | Variable | Variable | Yes |
+| Method | full_model | Use Case | File Size | Load Speed | Reconstruction Required |
+|--------|------------|----------|-----------|------------|------------------------|
+| `save()` / `load()` | False (default) | Evaluation, sharing | Small | Slower | Yes |
+| `save()` / `load()` | True | Training resumption | Large | Fast | No |
 
 ## Methods
 
-### 1. Standard Save/Load (Recommended for Evaluation)
+### 1. Standard Save/Load (Default - for Evaluation)
 
 ```python
 # Saving
 agent = MettaAgent(model=brain_policy, model_type="brain")
-agent.save("checkpoint.pt")
+agent.save("checkpoint.pt")  # full_model=False by default
 
 # Loading
 loaded_agent = MettaAgent.load("checkpoint.pt", device="cuda")
@@ -29,32 +28,31 @@ loaded_agent = MettaAgent.load("checkpoint.pt", device="cuda")
 - Model state dictionary (weights only)
 - Model type and configuration
 - Metadata (epoch, scores, etc.)
-- Version information
 - Agent attributes for reconstruction
 
 **Pros:**
 - Smaller file size (only weights)
-- Portable across code versions
-- Can be migrated to new formats
+- Portable across similar code versions
+- Good for model sharing and evaluation
 
 **Cons:**
 - Requires model reconstruction
 - May fail if model architecture changed significantly
 - Slower loading time
 
-### 2. Training Save/Load (Recommended for Training)
+### 2. Full Model Save/Load (for Training)
 
 ```python
 # Saving
-agent.save_for_training("training_checkpoint.pt")
+agent.save("training_checkpoint.pt", full_model=True)
 
 # Loading
-agent = MettaAgent.load_for_training("training_checkpoint.pt", device="cuda")
+agent = MettaAgent.load("training_checkpoint.pt", device="cuda", full_model=True)
 ```
 
 **What's saved:**
 - Complete model object (pickled)
-- All metadata and version info
+- All metadata
 - Ready to resume training immediately
 
 **Pros:**
@@ -92,47 +90,11 @@ agents = policy_store.policies("file:///path/to/checkpoints/", n=5, metric="scor
 - Support for wandb artifacts
 - Selection strategies (top, latest, random)
 
-## Version Compatibility
-
-### Checkpoint Format Versions
-
-- **Version 1**: Legacy format (pre-refactor)
-- **Version 2**: Current format with version tracking
-
-### Checking Compatibility
-
-```python
-from metta.agent.version_compatibility import check_checkpoint_compatibility
-
-# Check before loading
-report = check_checkpoint_compatibility("checkpoint.pt")
-print(report)
-# Output:
-# Compatibility Level: full
-# Warnings:
-#   - Action space version mismatch...
-```
-
-### Migration Tool
-
-For old checkpoints:
-
-```bash
-# Migrate single file
-python -m metta.agent.migrate_checkpoints old_checkpoint.pt
-
-# Migrate directory
-python -m metta.agent.migrate_checkpoints checkpoints/ migrated/
-
-# Without backup
-python -m metta.agent.migrate_checkpoints checkpoint.pt --no-backup
-```
-
 ## Best Practices
 
 ### 1. For Model Sharing/Evaluation
 
-Use standard `save()`:
+Use standard save (default):
 ```python
 # Include comprehensive metadata
 agent.metadata.update({
@@ -141,16 +103,16 @@ agent.metadata.update({
     "training_time": total_time,
     "git_hash": get_git_hash(),
 })
-agent.save("final_model.pt")
+agent.save("final_model.pt")  # full_model=False by default
 ```
 
 ### 2. For Training Checkpoints
 
-Use `save_for_training()` with periodic cleanup:
+Use full model save with periodic cleanup:
 ```python
 # Save periodically during training
 if epoch % checkpoint_interval == 0:
-    agent.save_for_training(f"checkpoint_epoch_{epoch}.pt")
+    agent.save(f"checkpoint_epoch_{epoch}.pt", full_model=True)
 
     # Clean up old checkpoints to save space
     if epoch > keep_last_n_checkpoints * checkpoint_interval:
@@ -167,7 +129,7 @@ if torch.distributed.get_rank() == 0:
     if isinstance(agent, DistributedMettaAgent):
         agent = agent.module
 
-    agent.save("checkpoint.pt")
+    agent.save("checkpoint.pt", full_model=True)
 ```
 
 ### 4. For Production Deployment
@@ -175,12 +137,7 @@ if torch.distributed.get_rank() == 0:
 Create a minimal checkpoint:
 ```python
 # Save only essential data for inference
-checkpoint = {
-    "model_state_dict": agent.state_dict(),
-    "action_names": agent.metadata["action_names"],
-    "model_config": minimal_config,
-}
-torch.save(checkpoint, "production_model.pt")
+agent.save("production_model.pt")  # Default full_model=False is perfect for this
 ```
 
 ## Troubleshooting
@@ -193,28 +150,24 @@ torch.save(checkpoint, "production_model.pt")
 
 2. **"Model reconstruction failed"**
    - Missing model configuration in checkpoint
-   - Solution: Use migration tool or load_for_training
+   - Solution: Use full_model=True or ensure matching code version
 
-3. **"Checkpoint format version X not supported"**
-   - Newer checkpoint with older code
-   - Solution: Update code or migrate checkpoint
-
-4. **Large checkpoint files**
-   - Using save_for_training for evaluation
-   - Solution: Re-save with standard save() method
+3. **Large checkpoint files**
+   - Using full_model=True for evaluation
+   - Solution: Re-save with full_model=False
 
 ### Loading Unknown Checkpoints
 
 ```python
 # Safe loading pattern
 try:
-    # Try fast method first
-    agent = MettaAgent.load_for_training(path)
+    # Try with full_model=True first (faster if it works)
+    agent = MettaAgent.load(path, device=device, full_model=True)
 except Exception as e:
-    logger.warning(f"Fast load failed: {e}")
+    logger.warning(f"Full model load failed: {e}")
     try:
         # Try standard method
-        agent = MettaAgent.load(path)
+        agent = MettaAgent.load(path, device=device, full_model=False)
     except Exception as e:
         logger.warning(f"Standard load failed: {e}")
         # Last resort: use PolicyStore
@@ -224,7 +177,7 @@ except Exception as e:
 
 ## File Format Details
 
-### Standard Save Format (v2)
+### Standard Save Format (full_model=False)
 ```python
 {
     "checkpoint_format_version": 2,
@@ -238,14 +191,11 @@ except Exception as e:
         "score": 0.95,
         # ... other metadata
     },
-    "observation_space_version": "v1",
-    "action_space_version": "v1",
-    "layer_version": "v1",
     "agent_attributes": {...},  # For BrainPolicy reconstruction
 }
 ```
 
-### Training Save Format
+### Full Model Save Format (full_model=True)
 ```python
 {
     "checkpoint_format_version": 2,
@@ -259,12 +209,11 @@ except Exception as e:
 
 ### File Sizes (Approximate)
 - Standard save: 5-50 MB (weights only)
-- Training save: 50-500 MB (includes optimizer state, full objects)
-- Compressed: 30-70% reduction with `torch.save(..., compress=True)`
+- Full model save: 50-500 MB (includes full objects)
 
 ### Loading Times
 - Standard load: 1-5 seconds (includes reconstruction)
-- Training load: 0.1-0.5 seconds (direct unpickling)
+- Full model load: 0.1-0.5 seconds (direct unpickling)
 - From wandb: +5-30 seconds (download time)
 
 ### Memory Usage
@@ -272,11 +221,15 @@ except Exception as e:
 - Use `del agent` and `torch.cuda.empty_cache()` when switching models
 - Consider memory-mapped loading for very large models
 
-## Future Improvements
+## Loading Legacy Checkpoints
 
-Planned enhancements:
-1. Incremental checkpointing (save only deltas)
-2. Automatic compression for large checkpoints
-3. Cloud-native checkpoint streaming
-4. Version auto-migration on load
-5. Checkpoint validation and repair tools
+The system automatically handles various legacy formats:
+- Old MettaAgent checkpoints
+- Raw state dictionaries
+- Raw model objects
+
+The PolicyStore provides the most robust loading with automatic fallbacks:
+```python
+policy_store = PolicyStore(cfg, None)
+agent = policy_store.load_from_uri("file:///path/to/any_checkpoint.pt")
+```

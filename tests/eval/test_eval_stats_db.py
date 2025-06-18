@@ -101,7 +101,7 @@ def test_db():
 
 
 @pytest.fixture(autouse=True)
-def _patch_policyrecord(monkeypatch):
+def _patch_metta_agent(monkeypatch):
     monkeypatch.setattr("metta.eval.eval_stats_db.MettaAgent", MockMettaAgent)
 
 
