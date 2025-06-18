@@ -779,9 +779,56 @@ class MettaTrainer:
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
-        if not self.wandb_run or not self._master:
-            self.stats.clear()
-            return
+        # Distributed aggregation must happen on ALL processes
+        if torch.distributed.is_initialized():
+            # Calculate local values
+            elapsed_times = self.timer.get_all_elapsed()
+            wall_time = self.timer.get_elapsed()
+
+            delta_steps = self.timer.get_lap_steps()
+            if delta_steps is None:
+                delta_steps = self.agent_step
+
+            lap_times = self.timer.lap_all(self.agent_step)
+            wall_time_for_lap = lap_times.pop("global", 0)
+
+            # Calculate local SPS values
+            lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+            steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+
+            # Perform distributed aggregation (ALL processes must participate)
+            total_agent_steps = dist_sum(self.agent_step, self.device)
+            total_sps = dist_sum(steps_per_second, self.device)
+            total_lap_sps = dist_sum(lap_steps_per_second, self.device)
+
+            # Now non-master processes can return
+            if not self.wandb_run or not self._master:
+                self.stats.clear()
+                return
+
+            # Master continues with logging using the aggregated values
+        else:
+            # Non-distributed case
+            if not self.wandb_run or not self._master:
+                self.stats.clear()
+                return
+
+            elapsed_times = self.timer.get_all_elapsed()
+            wall_time = self.timer.get_elapsed()
+
+            delta_steps = self.timer.get_lap_steps()
+            if delta_steps is None:
+                delta_steps = self.agent_step
+
+            lap_times = self.timer.lap_all(self.agent_step)
+            wall_time_for_lap = lap_times.pop("global", 0)
+
+            lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+            steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+
+            total_agent_steps = self.agent_step
+            total_sps = steps_per_second
+            total_lap_sps = lap_steps_per_second
 
         # convert lists of values (collected across all environments and rollout steps on this GPU)
         # into single mean values.
@@ -805,24 +852,17 @@ class MettaTrainer:
                     if key != "name":
                         weight_stats[f"weights/{key}/{name}"] = value
 
-        elapsed_times = self.timer.get_all_elapsed()
-        wall_time = self.timer.get_elapsed()
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
 
         # X-axis values for wandb
         # Agent steps should be summed across GPUs (each GPU processes part of the batch)
         # But epoch should be the same on all GPUs, so no aggregation needed
-        total_agent_steps = dist_sum(self.agent_step, self.device)
-
         metric_stats = {
             "metric/step": total_agent_steps,
             "metric/epoch": self.epoch,  # Same on all GPUs, no need to sum
             "metric/total_time": wall_time,
             "metric/train_time": train_time,
         }
-        lap_times = self.timer.lap_all(self.agent_step)
-        wall_time_for_lap = lap_times.pop("global", 0)
-
         timing_stats = {
             **{
                 f"timing_per_epoch/fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
@@ -833,18 +873,6 @@ class MettaTrainer:
                 for op, elapsed in elapsed_times.items()
             },
         }
-
-        delta_steps = self.timer.get_lap_steps()
-        if delta_steps is None:
-            delta_steps = self.agent_step
-
-        # Aggregate steps per second across all GPUs
-        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
-
-        # Sum SPS across all distributed processes
-        total_sps = dist_sum(steps_per_second, self.device)
-        total_lap_sps = dist_sum(lap_steps_per_second, self.device)
 
         mean_reward = self.experience.get_mean_reward()
         overview = {
