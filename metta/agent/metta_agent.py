@@ -136,8 +136,7 @@ class MettaAgent(nn.Module):
         # recursively setup all source components
         if component._sources is not None:
             for source in component._sources:
-                print(f"setting up source {source}")
-                print(f"with name {source['name']}")
+                logger.info(f"setting up {component._name} with source {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
         # setup the current component and pass in the source components
