@@ -1,5 +1,5 @@
 defaults:
-  - sim_suite
+  - simulation_base
   - _self_
 
 name: navigation
@@ -55,4 +55,3 @@ simulations:
     env: env/mettagrid/navigation/evals/walkaround
   navigation/wanderout:
     env: env/mettagrid/navigation/evals/wanderout
-# selector_type: "latest"

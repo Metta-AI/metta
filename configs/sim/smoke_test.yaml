@@ -1,11 +1,13 @@
 defaults:
-  - sim_suite
+  - simulation_base
   - _self_
+
+# override simulation_base
+max_time_s: 10
+num_episodes: 1
 
 name: smoke_test
 
-max_time_s: 10
-num_episodes: 1
 simulations:
   emptyspace_withinsight:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
