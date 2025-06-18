@@ -25,6 +25,7 @@ dependencies = [
     "jmespath>=1.0.1",
     "matplotlib>=3.10.3",
     "mettagrid",
+    "neptune-scale>=0.15.0",
     "numpy>=2.2.6",
     "omegaconf>=2.4.0.dev3",
     "pandas>=2.3.0",

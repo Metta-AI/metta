@@ -7,7 +7,13 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.train",
-      "args": ["+hardware=macbook", "+user=${env:USER}"],
+      "args": [
+        "+hardware=macbook",
+        "+user=${env:USER}"
+      ],
+      "env": {
+        "NEPTUNE_API_TOKEN": "eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vc2NhbGUubmVwdHVuZS5haSIsImFwaV91cmwiOiJodHRwczovL3NjYWxlLm5lcHR1bmUuYWkiLCJhcGlfa2V5IjoiODc5OTFjNmItODgzNy00ZjM5LWEyMmUtNWQ5MDM1MzM2MzIzIn0="
+      },
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -52,7 +58,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sim",
-      "args": ["+user=${env:USER}", "+hardware=macbook", "cmd=sim"],
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook",
+        "cmd=sim"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -60,7 +70,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.dashboard",
-      "args": ["+user=${env:USER}", "+hardware=macbook"],
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -68,7 +81,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.analyze",
-      "args": ["+user=${env:USER}", "+hardware=macbook", "cmd=analyze"],
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook",
+        "cmd=analyze"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -76,7 +93,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.replay",
-      "args": ["+user=${env:USER}", "+hardware=macbook"],
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -84,7 +104,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "tools.play",
-      "args": ["+user=${env:USER}", "+hardware=macbook"],
+      "args": [
+        "+user=${env:USER}",
+        "+hardware=macbook"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {
@@ -92,7 +115,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",
-      "args": ["-v", "-s", "./tests"],
+      "args": [
+        "-v",
+        "-s",
+        "./tests"
+      ],
       "preLaunchTask": "${defaultBuildTask}"
     },
     {

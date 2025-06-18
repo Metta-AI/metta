@@ -7,6 +7,7 @@ from typing import Any, Dict, Set
 from uuid import UUID
 
 import einops
+import neptune_scale
 import numpy as np
 import torch
 import torch.distributed
@@ -89,6 +90,12 @@ class MettaTrainer:
         self.losses = Losses()
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
+        self.neptune_run = neptune_scale.Run(
+            project="softmax/metta-project",
+            experiment_name=cfg.run,
+            run_id=cfg.run,
+            resume=True,
+        )
         self.policy_store = policy_store
         self._current_eval_score: float | None = None
         self._eval_grouped_scores: Dict[str, float] = {}
@@ -840,19 +847,18 @@ class MettaTrainer:
             "parameter/num_minibatches": self.experience.num_minibatches,
         }
 
-        # Log everything to wandb
-        self.wandb_run.log(
-            {
-                **{f"overview/{k}": v for k, v in overview.items()},
-                **{f"losses/{k}": v for k, v in losses.items()},
-                **environment_stats,
-                **weight_stats,
-                **self._eval_grouped_scores,
-                **parameter_stats,
-                **timing_stats,
-                **metric_stats,
-            }
-        )
+        metrics = {
+            **{f"overview/{k}": v for k, v in overview.items()},
+            **{f"losses/{k}": v for k, v in losses.items()},
+            **environment_stats,
+            **weight_stats,
+            **self._eval_grouped_scores,
+            **parameter_stats,
+            **timing_stats,
+            **metric_stats,
+        }
+        self.wandb_run.log(metrics)
+        self.neptune_run.log_metrics(metrics, step=self.agent_step.item())
 
         self._eval_grouped_scores = {}
         self.stats.clear()
