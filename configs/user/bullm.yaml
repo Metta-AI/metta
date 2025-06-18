@@ -1,0 +1,66 @@
+# @package __global__
+
+defaults:
+#  - override /agent: simple
+#  - override /analyzer: eval_analyzer
+  - _self_
+
+trainer:
+#funniness around simulation
+  env: /env/mettagrid/simple
+  evaluate_interval: 10
+  total_timesteps: 1000000
+  batch_size: 262144
+  minibatch_size: 8192
+  bptt_horizon: 64
+  update_epochs: 1
+  learning_rate: 0.0004573146765703167
+  gamma: 0.977
+  gae_lambda: 0.916
+  ent_coef: 0.0021
+  vf_coef: 0.44
+  clip_coef: 0.1
+
+#name of the policy (daveey)
+policy_uri: ${trained_policy_uri}/model_0000.pt
+
+ analyzer:
+   eval_stats_uri: ${run_dir}/eval_stats
+   policy_uri: ${..policy_uri}
+   analysis:
+     metrics:
+       - metric: episode_reward
+
+wandb:
+  enabled: true
+  track: true
+  checkpoint_interval: 10
+
+run_id: 1
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
+
+#sweep means looking for different hyperparameters
+#sweep_params: "sweep/fast"
+#sweep_name: "bullm.local.sweep.${run_id}"
+#seed: null
+
+# Policy comparison settings
+sim_job:
+  env: /env/mettagrid/simple
+  env_overrides:
+    game:
+      max_steps: 100
+      num_agents: 2  # One for policy, one for NPC
+  policy_agents_pct: 0.5  # 50% policy agents, 50% NPC agents
+
+# Use the same policy for both training and evaluation
+npc_policy_uri: ${policy_uri}  # Use the same policy for NPCs
+
+eval:
+  env: /env/mettagrid/simple
+  policy_uri: ${..policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+  eval_db_uri: ${run_dir}/eval_stats
+  num_episodes: 100
+  max_time_s: 600

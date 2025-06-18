@@ -11,5 +11,5 @@ npm install --force -g typescript
 npm install --force
 tsc
 
-# Generate atlas
+# Generate atlasP
 ./tools/gen_atlas.py
