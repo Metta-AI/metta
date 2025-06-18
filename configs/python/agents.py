@@ -16,7 +16,7 @@ def simple_cnn_agent() -> Dict[str, Any]:
         "components": {
             # Input processing
             "_obs_": {
-                "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
+                "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
                 "sources": None,
             },
             "obs_normalizer": {
@@ -115,7 +115,7 @@ def large_cnn_agent() -> Dict[str, Any]:
         "components": {
             # Input processing
             "_obs_": {
-                "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
+                "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
                 "sources": None,
             },
             "obs_normalizer": {
@@ -214,7 +214,7 @@ def attention_agent() -> Dict[str, Any]:
         "components": {
             # Input processing
             "_obs_": {
-                "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
+                "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
                 "sources": None,
             },
             "obs_normalizer": {

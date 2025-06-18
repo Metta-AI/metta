@@ -4,7 +4,7 @@ This module provides a functional interface for training RL agents,
 breaking down the monolithic MettaTrainer into composable functions.
 """
 
-from .checkpoint import load_checkpoint, save_checkpoint
+from .checkpoint import find_latest_checkpoint, load_checkpoint, save_checkpoint
 from .evaluate import evaluate_policy
 from .losses import PPOLossConfig, compute_ppo_loss
 from .rollout import RolloutConfig, rollout
@@ -19,5 +19,6 @@ __all__ = [
     "OptimizerConfig",
     "save_checkpoint",
     "load_checkpoint",
+    "find_latest_checkpoint",
     "evaluate_policy",
 ]

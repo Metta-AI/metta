@@ -124,7 +124,7 @@ def evaluate_on_env(
     episode_rewards = []
     episode_lengths = []
 
-    for episode in range(num_episodes):
+    for _episode in range(num_episodes):
         obs, info = env.reset()
         done = False
         episode_reward = 0

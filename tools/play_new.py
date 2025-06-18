@@ -13,9 +13,9 @@ from configs.python.agents import simple_cnn_agent
 
 # Import Python configs
 from configs.python.environments import NavigationMaze, NavigationWalls
-from metta.agent import MettaAgent
+from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
-from mettagrid.curriculum import curriculum_from_config_path
+from mettagrid.curriculum import SingleTaskCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 
 
@@ -63,7 +63,7 @@ def play_human(env_name: str = "navigation/walls", render_mode: str = "human"):
         # Default
         env_config = NavigationWalls()
 
-    curriculum = curriculum_from_config_path(env_config.to_dict(), {})
+    curriculum = SingleTaskCurriculum("play_task", env_config.to_dict())
     env = MettaGridEnv(curriculum, render_mode=render_mode)
 
     # Create human agent
@@ -147,7 +147,7 @@ def play_agent(
     else:
         env_config = NavigationWalls()
 
-    curriculum = curriculum_from_config_path(env_config.to_dict(), {})
+    curriculum = SingleTaskCurriculum("play_task", env_config.to_dict())
     env = MettaGridEnv(curriculum, render_mode=render_mode)
 
     # Activate agent actions

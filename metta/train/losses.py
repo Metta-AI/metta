@@ -76,7 +76,7 @@ def compute_ppo_loss(
 
     state = PolicyState()
 
-    _, newlogprob, entropy, newvalue, aux_losses = agent(mb["obs"], state, actions=mb["actions"])
+    _, newlogprob, entropy, newvalue, aux_losses = agent(mb["obs"], state, action=mb["actions"])
 
     # Compute ratio for importance sampling
     logratio = newlogprob - mb["logprobs"]
@@ -107,13 +107,10 @@ def compute_ppo_loss(
     loss = pg_loss - config.ent_coef * ent_loss + v_loss * config.vf_coef
 
     # Add auxiliary losses if any
-    if aux_losses:
-        if "l2_reg" in aux_losses:
-            loss += aux_losses["l2_reg"]
-            losses.l2_reg_loss = aux_losses["l2_reg"].item()
-        if "l2_init" in aux_losses:
-            loss += aux_losses["l2_init"]
-            losses.l2_init_loss = aux_losses["l2_init"].item()
+    total_loss = loss
+    if aux_losses is not None and isinstance(aux_losses, dict) and len(aux_losses) > 0:
+        for aux_loss in aux_losses.values():
+            total_loss = total_loss + aux_loss
 
     # Add kickstarter losses if applicable
     if kickstarter:
@@ -145,7 +142,7 @@ def compute_ppo_loss(
 
     losses.minibatches_processed = 1
 
-    return loss, losses
+    return total_loss, losses
 
 
 def compute_advantages(
@@ -162,7 +159,6 @@ def compute_advantages(
 
     This is a simplified version - in practice you'd use the optimized C++ version.
     """
-    device = values.device
     advantages = torch.zeros_like(values)
 
     # Simple GAE computation (without V-trace for now)

@@ -17,7 +17,7 @@ from configs.python.environments import (
     navigation_eval_suite,
     objectuse_eval_suite,
 )
-from metta.agent import MettaAgent
+from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.train import evaluate_policy

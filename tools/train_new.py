@@ -8,10 +8,16 @@ where we create objects directly and use functional training components.
 import argparse
 import time
 
+import gymnasium as gym
+import numpy as np
+import torch
 import wandb
+from omegaconf import DictConfig
 
 # Import agent and environment creation
-from metta.agent import MettaAgent
+from configs.python.agents import simple_cnn_agent
+from metta.agent.metta_agent import MettaAgent
+from metta.agent.policy_state import PolicyState
 from metta.rl.experience import Experience
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -30,100 +36,38 @@ from metta.train import (
     update_policy,
 )
 from metta.train.update import create_lr_scheduler, create_optimizer
-from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv
 
 
 def create_agent(env: MettaGridEnv, config: dict) -> MettaAgent:
-    """Create a MettaAgent directly in Python."""
-    # Get environment info
-    obs_shape = env.single_observation_space.shape
-    action_names = env.action_names
-    max_action_args = env.max_action_args
-
-    # Create agent with sensible defaults
-    agent = MettaAgent(
-        observations={"obs_key": "grid_obs"},
-        clip_range=0,
-        analyze_weights_interval=300,
-        components={
-            # Core components defined in Python
-            "_obs_": {
-                "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
-                "sources": None,
-            },
-            "obs_normalizer": {
-                "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
-                "sources": [{"name": "_obs_"}],
-            },
-            "cnn1": {
-                "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
-                "sources": [{"name": "obs_normalizer"}],
-                "nn_params": {
-                    "out_channels": 64,
-                    "kernel_size": 5,
-                    "stride": 3,
-                },
-            },
-            "cnn2": {
-                "_target_": "metta.agent.lib.nn_layer_library.Conv2d",
-                "sources": [{"name": "cnn1"}],
-                "nn_params": {
-                    "out_channels": 64,
-                    "kernel_size": 3,
-                    "stride": 1,
-                },
-            },
-            "obs_flattener": {
-                "_target_": "metta.agent.lib.nn_layer_library.Flatten",
-                "sources": [{"name": "cnn2"}],
-            },
-            "fc1": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "obs_flattener"}],
-                "nn_params": {"out_features": 512},
-            },
-            "_core_": {
-                "_target_": "metta.agent.lib.lstm.LSTM",
-                "sources": [{"name": "fc1"}],
-                "output_size": 512,
-                "nn_params": {"num_layers": 2},
-            },
-            "critic_1": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "_core_"}],
-                "nn_params": {"out_features": 1024},
-            },
-            "_value_": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "critic_1"}],
-                "nn_params": {"out_features": 1},
-            },
-            "actor_1": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "_core_"}],
-                "nn_params": {"out_features": 512},
-            },
-            "_action_embeds_": {
-                "_target_": "metta.agent.lib.action.ActionEmbedding",
-                "sources": None,
-                "nn_params": {
-                    "num_embeddings": 100,
-                    "embedding_dim": 16,
-                },
-            },
-            "_action_": {
-                "_target_": "metta.agent.lib.actor.MettaActorSingleHead",
-                "sources": [
-                    {"name": "actor_1"},
-                    {"name": "_action_embeds_"},
-                ],
-            },
-        },
+    """Create a MettaAgent with the given configuration."""
+    # Create observation space
+    obs_space = gym.spaces.Dict(
+        {
+            "grid_obs": env.single_observation_space,
+            "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
+        }
     )
 
-    # Activate actions for the environment
-    agent.activate_actions(action_names, max_action_args, config["device"])
+    # Get environment properties
+    obs_width = env.obs_width
+    obs_height = env.obs_height
+    action_space = env.single_action_space
+    feature_normalizations = env.feature_normalizations
+
+    # Create agent with required parameters plus config
+    agent = MettaAgent(
+        obs_space=obs_space,
+        obs_width=obs_width,
+        obs_height=obs_height,
+        action_space=action_space,
+        feature_normalizations=feature_normalizations,
+        device="cpu",  # Will be moved to correct device later
+        **config,
+    )
+
+    # Activate actions
+    agent.activate_actions(env.action_names, env.max_action_args, torch.device("cpu"))
 
     return agent
 
@@ -162,39 +106,97 @@ def main():
 
     # Create environment
     print("🌍 Creating environment...")
-    env_config = {
-        "game": {
-            "num_agents": 1,
-            "max_steps": 1000,
-            "map_builder": {
-                "_target_": "mettagrid.room.mean_distance.MeanDistance",
-                "width": 35,
-                "height": 35,
-                "mean_distance": 25,
-                "border_width": 3,
-                "agents": 1,
-                "objects": {"altar": 3, "wall": 12},
-            },
-        },
-    }
+    from mettagrid.curriculum import SingleTaskCurriculum
 
-    curriculum = curriculum_from_config_path(env_config, {})
+    env_config = DictConfig(
+        {
+            "sampling": 0,
+            "desync_episodes": False,
+            "replay_level_prob": 0.9,
+            "game": {
+                "num_agents": 1,
+                "max_steps": 1000,
+                "obs_width": 11,
+                "obs_height": 11,
+                "use_observation_tokens": True,
+                "num_observation_tokens": 128,
+                "map_builder": {
+                    "_target_": "mettagrid.room.mean_distance.MeanDistance",
+                    "width": 35,
+                    "height": 35,
+                    "mean_distance": 25,
+                    "border_width": 3,
+                    "agents": 1,
+                    "objects": {"altar": 3, "wall": 12},
+                },
+                "agent": {
+                    "default_item_max": 50,
+                    "heart_max": 255,
+                    "freeze_duration": 10,
+                    "rewards": {
+                        "action_failure_penalty": 0,
+                        "heart": 1,
+                        "heart_max": 1000,
+                    },
+                },
+                "groups": {
+                    "agent": {
+                        "id": 0,
+                        "sprite": 0,
+                        "props": {},
+                    },
+                },
+                "objects": {
+                    "altar": {
+                        "input_battery.red": 3,
+                        "output_heart": 1,
+                        "max_output": 5,
+                        "conversion_ticks": 1,
+                        "cooldown": 10,
+                        "initial_items": 1,
+                    },
+                    "wall": {
+                        "swappable": False,
+                    },
+                },
+                "actions": {
+                    "noop": {"enabled": True},
+                    "move": {"enabled": True},
+                    "rotate": {"enabled": True},
+                    "put_items": {"enabled": True},
+                    "get_items": {"enabled": True},
+                    "attack": {"enabled": True},
+                    "swap": {"enabled": True},
+                    "change_color": {"enabled": True},
+                },
+                "reward_sharing": {
+                    "groups": {},
+                },
+            },
+        }
+    )
+
+    curriculum = SingleTaskCurriculum("train_task", env_config)
     driver_env = MettaGridEnv(curriculum, render_mode=None)
 
     # Create vectorized environment
     vecenv = make_vecenv(
-        driver_env,
+        curriculum,
+        vectorization="serial",  # Use serial for CPU testing
         num_envs=args.num_envs,
-        num_workers=4,
-        batch_size=args.batch_size,
-        rollout_length=args.rollout_length,
+        num_workers=1,
     )
 
     # Create agent
     print("🤖 Creating agent...")
-    agent = create_agent(driver_env, config).to(args.device)
+    agent_config = simple_cnn_agent()  # Get the agent configuration
+    agent = create_agent(driver_env, agent_config).to(args.device)
 
     # Create experience buffer
+    # Get hidden size and num layers from agent
+    hidden_size = agent.hidden_size  # Get from agent instead of hardcoding
+    num_lstm_layers = agent.core_num_layers  # Get from agent
+
     experience = Experience(
         total_agents=args.num_envs,
         batch_size=args.batch_size,
@@ -205,8 +207,9 @@ def main():
         atn_space=driver_env.single_action_space,
         device=args.device,
         use_rnn=True,
-        hidden_size=512,
+        hidden_size=hidden_size,
         cpu_offload=False,
+        num_lstm_layers=num_lstm_layers,
     )
 
     # Create optimizer
@@ -251,14 +254,13 @@ def main():
     eval_config = SimulationSuiteConfig(
         {
             "name": "navigation_eval",
+            "num_episodes": 10,
             "simulations": {
                 "navigation/simple": {
                     "env": "env/mettagrid/navigation/evals/emptyspace_withinsight",
-                    "num_episodes": 10,
                 },
                 "navigation/walls": {
                     "env": "env/mettagrid/navigation/evals/walls_sparse",
-                    "num_episodes": 10,
                 },
             },
         }
@@ -266,6 +268,18 @@ def main():
 
     # Training loop
     print("🚀 Starting training...")
+
+    # Initialize environment with reset and first action
+    vecenv.async_reset(seed=42)  # Use async_reset for pufferlib
+
+    # Get initial observation and send first actions
+    obs, _, _, _, _, env_id, mask = vecenv.recv()
+    with torch.no_grad():
+        state = PolicyState()
+        obs_tensor = torch.as_tensor(obs).to(args.device)
+        actions, _, _, _, _ = agent(obs_tensor, state)
+        vecenv.send(actions.cpu().numpy())
+
     while agent_step < args.total_timesteps:
         epoch_start_time = time.time()
 
