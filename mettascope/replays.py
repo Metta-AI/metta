@@ -34,7 +34,7 @@ class FakeAgent(MettaAgent):
 
 class FakePolicyRecord:
     """
-    A fake policy to return a fake agent.
+    A fake policy record used to return a fake agent.
     """
 
     def __init__(self):
