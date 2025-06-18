@@ -1008,7 +1008,6 @@ class MettaTrainer:
                 num_lstm_layers = lstm_module._net.num_layers
 
         # Validate batch size
-        required_segments = total_agents
         actual_segments = self._batch_size // trainer_cfg.bptt_horizon
 
         if total_agents > actual_segments:
