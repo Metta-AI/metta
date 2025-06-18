@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/navseq_basic/training/hard_sequence_defaults@
+  - _self_
+
+game:
+  map_builder:
+    room:
+      style: balanced

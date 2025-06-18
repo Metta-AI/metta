@@ -1,0 +1,9 @@
+defaults:
+  - /env/mettagrid/navseq_basic/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 400
+  map_builder:
+    border_width: 10
+    uri: "configs/env/mettagrid/maps/navseq_basic/cylinder.map"

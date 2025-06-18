@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/navseq_basic/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 150
+  map_builder:
+    uri: "configs/env/mettagrid/maps/navseq_basic/obstacles0.map"

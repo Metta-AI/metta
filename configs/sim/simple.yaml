@@ -2,6 +2,6 @@ defaults:
   - sim_single
   - _self_
 
-env: /env/mettagrid/memory/training/hc4m
+env: /env/mettagrid/memory_basic_evals/easy_sequence
 
 #  /env/mettagrid/navigation/training/varied_terrain_maze
