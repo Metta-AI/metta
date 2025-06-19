@@ -4,6 +4,7 @@ defaults:
 
 game:
   num_agents: 4
+  max_steps: 200
   agent:
     ore.red_max: 1
     ore.blue_max: 1
@@ -37,8 +38,7 @@ game:
         mine.red: 0
   objects:
     altar:
-      cooldown: 50
-      input_battery.red: 0
+      cooldown: 10
       output_heart: 1
       max_output: 1
       conversion_ticks: 1

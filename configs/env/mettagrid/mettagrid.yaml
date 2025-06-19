@@ -1,12 +1,16 @@
 sampling: 0
 
 desync_episodes: false
+<<<<<<< HEAD
 replay_level_prob: 0.3
+=======
+replay_level_prob: 0.2
+>>>>>>> 9b31797666ef549b801ace5ad8b3688d5cc36ab0
 game:
   num_agents: ???
   obs_width: 11
   obs_height: 11
-  num_observation_tokens: 200
+  num_observation_tokens: 128
   max_steps: 1000
 
   diversity_bonus:

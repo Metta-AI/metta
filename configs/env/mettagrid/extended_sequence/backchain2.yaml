@@ -3,6 +3,7 @@ defaults:
   - _self_
 
 game:
+  max_steps: 200
   num_agents: 4
   agent:
     ore.red_max: 1
@@ -45,9 +46,8 @@ game:
       conversion_ticks: 1
       initial_items: 0
     generator.red:
-      cooldown: 50
-      input_ore.red: 0
+      cooldown: 6
       output_battery.red: 1
       max_output: 1
       conversion_ticks: 1
-      initial_items: 0
+      initial_items: 1
