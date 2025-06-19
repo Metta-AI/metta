@@ -60,13 +60,13 @@ def run_evaluation_with_benchmark(
 
     # Extract metrics from output
     full_output = result["stdout"] + "\n" + result["stderr"]
-    metrics = extract_metrics_from_output(full_output)
+    metrics = extract_metrics_from_output(result["stdout"])  # Use stdout only for JSON
 
     return (result["success"], metrics, full_output, result["duration"], result["memory_peak_mb"])
 
 
 def extract_metrics_from_output(output: str) -> Dict:
-    """Extract metrics JSON from output."""
+    """Extract metrics JSON from output using the delimiters."""
     # Look for JSON between markers
     json_start = output.find("===JSON_OUTPUT_START===")
     json_end = output.find("===JSON_OUTPUT_END===")
@@ -78,23 +78,11 @@ def extract_metrics_from_output(output: str) -> Dict:
         except json.JSONDecodeError as e:
             print(f"Failed to parse JSON between markers: {e}")
             print(f"JSON string: {json_str[:200]}...")
+    else:
+        print("JSON markers not found in output")
+        print("Output preview (first 500 chars):")
+        print(output[:500])
 
-    # Try to find JSON-like content in the output
-    import re
-
-    json_pattern = r'\{.*"policies".*\}'
-    matches = re.findall(json_pattern, output, re.DOTALL)
-    if matches:
-        # Try parsing matches from shortest to longest (more likely to be valid)
-        for match in sorted(matches, key=len):
-            try:
-                return json.loads(match)
-            except json.JSONDecodeError:
-                continue
-
-    print("No valid JSON found in output")
-    print("Output preview (first 500 chars):")
-    print(output[:500])
     return {}
 
 
@@ -143,7 +131,7 @@ def main():
         all_memories.append(memory)
 
         if not success:
-            print("Evaluation failed!")
+            print("Evaluation process failed!")
             continue
 
         # Extract and check reward
@@ -174,15 +162,16 @@ def main():
     print(f"Average attempt duration: {avg_duration:.1f}s")
     print(f"Peak memory usage: {max_memory:.1f} MB")
 
-    # Write GitHub Actions outputs using the utility
-    benchmark_result = {
-        "duration": total_duration,
-        "memory_peak_mb": max_memory,
-        "exit_code": 0 if successful_attempt else 1,
+    # Write GitHub Actions outputs
+    outputs = {
+        "duration": f"{total_duration:.1f}",
+        "memory_peak_mb": f"{max_memory:.1f}",
+        "exit_code": "0" if successful_attempt else "1",
     }
-    write_github_output(benchmark_result)
+    write_github_output(outputs)
 
     if successful_attempt:
+        print(f"\n✓ Smoke test passed on attempt {successful_attempt}")
         return 0
     else:
         print(f"\n✗ All {max_attempts} attempts failed to meet minimum reward {min_reward}")
