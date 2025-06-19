@@ -13,6 +13,9 @@ jobs:
       actions: read
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Ensure Asana Task
         id: ensure-asana-task
         uses: ./.github/actions/asana/ensure-task
