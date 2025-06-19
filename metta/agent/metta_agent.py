@@ -76,6 +76,20 @@ class MettaAgent(nn.Module):
         self.metadata = metadata or {}
         self.local_path = local_path
 
+    def __setstate__(self, state):
+        """Custom unpickling to ensure backward compatibility."""
+        # First restore the state normally
+        self.__dict__.update(state)
+
+        # Ensure model_type exists for old checkpoints
+        if not hasattr(self, "model_type"):
+            logger.warning("Loading old MettaAgent without model_type, defaulting to 'brain'")
+            self.model_type = "brain"
+
+        # Ensure metadata is a dict
+        if not hasattr(self, "metadata") or self.metadata is None:
+            self.metadata = {}
+
     def forward(
         self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:

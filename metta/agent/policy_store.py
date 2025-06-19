@@ -493,6 +493,28 @@ class PolicyStore:
             # Cache it
             self._cached_agents[path] = agent
             return agent
+        # Handle old MettaAgent objects that might not have all attributes
+        elif isinstance(loaded_data, MettaAgent):
+            logger.info(f"Found MettaAgent in {path}, ensuring it has all required attributes")
+            agent = loaded_data
+            # Ensure model_type is set
+            if not hasattr(agent, "model_type"):
+                logger.warning("Old MettaAgent missing model_type attribute, defaulting to 'brain'")
+                agent.model_type = "brain"
+            # Ensure other required attributes exist
+            if not hasattr(agent, "name"):
+                agent.name = os.path.basename(path)
+            if not hasattr(agent, "uri"):
+                agent.uri = f"file://{path}"
+            if not hasattr(agent, "metadata"):
+                agent.metadata = {}
+            if not hasattr(agent, "local_path"):
+                agent.local_path = path
+            # Update local path to current location
+            agent.local_path = path
+            # Cache it
+            self._cached_agents[path] = agent
+            return agent
         elif isinstance(loaded_data, dict) and any(k.startswith("components.") for k in loaded_data.keys()):
             logger.warning(f"Loading raw state dict from {path}, model cannot be reconstructed.")
             agent = MettaAgent(
