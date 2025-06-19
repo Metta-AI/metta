@@ -24,6 +24,7 @@ jobs:
         with:
           title: ${{ github.event.pull_request.title }}
           description: ${{ github.event.pull_request.body }}
+          pr_state: ${{ github.event.pull_request.state }}
           project_id: ${{ vars.ASANA_PROJECT_GID }}
           workspace_id: ${{ vars.ASANA_WORKSPACE_GID }}
           asana_token: ${{ secrets.ASANA_API_KEY }}
