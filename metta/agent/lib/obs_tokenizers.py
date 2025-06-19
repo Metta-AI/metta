@@ -138,41 +138,46 @@ class ObsAttrCoordEmbed(LayerBase):
         self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
 
-        self._feat_vectors = torch.empty(
-            (1, 1, self._feat_dim),
-            dtype=torch.float32
-        )
+        self._feat_vectors = torch.empty((1, 1, self._feat_dim), dtype=torch.float32)
+
+        self.linear = nn.Linear(3, 11)
 
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
         observations = td[self._sources[0]["name"]]
+        observations = self.linear(observations)
 
-        coord_indices = observations[..., 0].long()
-        coord_pair_embedding = self._coord_embeds(coord_indices)
-
-        attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-
-        attr_embeds = self._attr_embeds(attr_indices)  # [B_TT, M, embed_dim]
-
-        combined_embeds = attr_embeds + coord_pair_embedding
-
-        attr_values = observations[..., 2].float()  # Shape: [B_TT, M]
-        attr_values = einops.rearrange(attr_values, "... -> ... 1")
-
-        # Assemble feature vectors
-        # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
-        # feat_vectors = torch.empty(
-        #     (*attr_embeds.shape[:-1], self._feat_dim),
-        #     dtype=attr_embeds.dtype,
-        #     device=attr_embeds.device,
-        # )
-        # Combined embedding portion
-        # feat_vectors[..., : self._attr_embed_dim] = combined_embeds
-        # feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
-
-        td[self._name] = torch.cat([combined_embeds, attr_values], dim=-1)
+        td[self._name] = observations
         return td
+
+        # observations = td[self._sources[0]["name"]]
+
+        # coord_indices = observations[..., 0].long()
+        # coord_pair_embedding = self._coord_embeds(coord_indices)
+
+        # attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+
+        # attr_embeds = self._attr_embeds(attr_indices)  # [B_TT, M, embed_dim]
+
+        # combined_embeds = attr_embeds + coord_pair_embedding
+
+        # attr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+        # attr_values = einops.rearrange(attr_values, "... -> ... 1")
+
+        # # Assemble feature vectors
+        # # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
+        # # feat_vectors = torch.empty(
+        # #     (*attr_embeds.shape[:-1], self._feat_dim),
+        # #     dtype=attr_embeds.dtype,
+        # #     device=attr_embeds.device,
+        # # )
+        # # Combined embedding portion
+        # # feat_vectors[..., : self._attr_embed_dim] = combined_embeds
+        # # feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
+
+        # td[self._name] = torch.cat([combined_embeds, attr_values], dim=-1)
+        # return td
 
 
 class ObsAttrEmbedFourier(LayerBase):
