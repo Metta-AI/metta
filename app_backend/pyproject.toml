@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metta-app-backend"
+version = "0.1.0"
+description = "Metta AI App Backend Server"
+requires-python = "==3.11.7"
+license = "MIT"
+dependencies = [
+  "fastapi>=0.115.5",
+  "uvicorn[standard]>=0.34.2",
+  "psycopg[binary]>=3.2.9",
+  "pydantic>=2.11.5",
+]
