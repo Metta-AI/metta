@@ -145,7 +145,7 @@ class MettaTrainer:
 
         self._make_experience_buffer()
 
-        self.agent_step = checkpoint.agent_step
+        self.agent_step: int = checkpoint.agent_step
         self.epoch = checkpoint.epoch
 
         self._stats_epoch_start = self.epoch
@@ -203,13 +203,12 @@ class MettaTrainer:
 
         if wandb_run and self._master:
             # Define metrics (wandb x-axis values)
-            metrics = ["step", "epoch", "total_time", "train_time"]
+            metrics = ["agent_step", "epoch", "total_time", "train_time"]
             for metric in metrics:
                 wandb_run.define_metric(f"metric/{metric}")
 
             # set the default x-axis to be step count
-            for k in ["overview", "env", "losses", "performance"]:
-                wandb_run.define_metric(f"{k}/*", step_metric="metric/step")
+            wandb_run.define_metric("*", step_metric="metric/agent_step")
 
             # set up plots that do not use steps as the x-axis
             metric_overrides = [
@@ -381,7 +380,7 @@ class MettaTrainer:
 
             # Convert mask to tensor once
             mask = torch.as_tensor(mask)
-            num_steps = mask.sum().item()
+            num_steps = int(mask.sum().item())
             self.agent_step += num_steps * self._world_size
 
             # Convert to tensors once
@@ -782,31 +781,24 @@ class MettaTrainer:
         elapsed_times = self.timer.get_all_elapsed()
         wall_time = self.timer.get_elapsed()
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
-
         lap_times = self.timer.lap_all(self.agent_step)
         wall_time_for_lap = lap_times.pop("global", 0)
-
-        delta_steps = self.timer.get_lap_steps()
-        if delta_steps is None:
-            delta_steps = self.agent_step
-        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
         # Approximate total values by multiplying by world size
         total_agent_steps = self.agent_step * self._world_size
 
         # X-axis values for wandb
         metric_stats = {
-            "metric/step": total_agent_steps,
+            "metric/agent_step": total_agent_steps,
             "metric/epoch": self.epoch,
             "metric/total_time": wall_time,
             "metric/train_time": train_time,
         }
 
-        delta_steps = self.timer.get_lap_steps()
-        if delta_steps is None:
-            delta_steps = self.agent_step
-        epoch_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+        epoch_steps = self.timer.get_lap_steps()
+        if epoch_steps is None:
+            epoch_steps = self.agent_step
+        epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
 
         timing_stats = {
@@ -857,7 +849,7 @@ class MettaTrainer:
 
         trainer_params = {
             "learning_rate": self.optimizer.param_groups[0]["lr"],
-            "delta_steps": delta_steps,
+            "epoch_steps": epoch_steps,
             "num_minibatches": self.experience.num_minibatches,
         }
 
