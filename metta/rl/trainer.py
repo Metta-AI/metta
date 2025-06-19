@@ -17,7 +17,6 @@ from pufferlib import unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import MettaAgent as PolicyMettaAgent
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.app.stats_client import StatsClient
@@ -675,7 +674,7 @@ class MettaTrainer:
         )
         checkpoint.save(self.cfg.run_dir)
 
-    def _checkpoint_policy(self) -> PolicyMettaAgent | None:
+    def _checkpoint_policy(self) -> MettaAgent | None:
         if not self._master:
             return
 

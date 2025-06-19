@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Optional, Union
+from typing import Optional, Union
 
 import gymnasium as gym
 import hydra
@@ -10,15 +10,13 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.policy_state import PolicyState
+from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
+from metta.rl.policy import PytorchAgent
 from metta.util.omegaconf import convert_to_dict
 from mettagrid.mettagrid_env import MettaGridEnv
-
-if TYPE_CHECKING:
-    from metta.agent.policy_store import PolicyStore
-    from metta.rl.policy import PytorchAgent
 
 logger = logging.getLogger("metta_agent")
 
@@ -65,17 +63,17 @@ class DistributedMettaAgent(DistributedDataParallel):
 class MettaAgent(nn.Module):
     def __init__(
         self,
-        obs_space: Union[gym.spaces.Space, gym.spaces.Dict, None] = None,
-        obs_width: int = None,
-        obs_height: int = None,
-        action_space: gym.spaces.Space = None,
-        feature_normalizations: dict[int, float] = None,
-        device: str = None,
+        obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
+        obs_width: int,
+        obs_height: int,
+        action_space: gym.spaces.Space,
+        feature_normalizations: dict[int, float],
+        device: str,
         # PolicyRecord compatibility parameters
-        policy_store: "PolicyStore" = None,
-        name: str = None,
-        uri: str = None,
-        metadata: dict = None,
+        policy_store: "PolicyStore",
+        name: str,
+        uri: str,
+        metadata: dict,
         **cfg,
     ):
         super().__init__()
