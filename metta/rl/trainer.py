@@ -657,7 +657,7 @@ class MettaTrainer:
         if not self._master:
             return
 
-        self._checkpoint_policy()
+        pr = self._checkpoint_policy()
 
         extra_args = {}
         if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
@@ -670,6 +670,7 @@ class MettaTrainer:
             if torch.distributed.is_initialized()
             else self.agent_step,
             optimizer_state_dict=self.optimizer.state_dict(),
+            policy_path=pr.uri if pr else None,
             extra_args=extra_args,
         )
         checkpoint.save(self.cfg.run_dir)

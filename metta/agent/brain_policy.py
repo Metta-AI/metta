@@ -7,6 +7,7 @@ import torch
 from omegaconf import OmegaConf
 from torch import nn
 
+from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
@@ -146,7 +147,7 @@ class BrainPolicy(nn.Module):
 
     def forward_inference(
         self, value: torch.Tensor, logits: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass for inference mode - samples new actions based on the policy.
 
@@ -155,23 +156,25 @@ class BrainPolicy(nn.Module):
             logits: Action logits tensor, shape (BT, A)
 
         Returns:
-            Tuple of (action, action_log_prob, entropy, value)
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
             - action: Sampled action, shape (BT, 2)
             - action_log_prob: Log probability of the sampled action, shape (BT,)
             - entropy: Entropy of the action distribution, shape (BT,)
             - value: Value estimate, shape (BT, 1)
+            - log_probs: Log-softmax of logits, shape (BT, A)
         """
         if __debug__:
             assert_shape(value, ("BT", 1), "inference_value")
             assert_shape(logits, ("BT", "A"), "inference_logits")
 
         # Sample actions
-        action_logit_index, action_log_prob, entropy, _ = sample_actions(logits)
+        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
 
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "action_logit_index")
             assert_shape(action_log_prob, ("BT",), "action_log_prob")
             assert_shape(entropy, ("BT",), "entropy")
+            assert_shape(log_probs, ("BT", "A"), "log_probs")
 
         # Convert logit index to action
         action = self._convert_logit_index_to_action(action_logit_index)
@@ -179,11 +182,11 @@ class BrainPolicy(nn.Module):
         if __debug__:
             assert_shape(action, ("BT", 2), "inference_output_action")
 
-        return action, action_log_prob, entropy, value
+        return action, action_log_prob, entropy, value, log_probs
 
     def forward_training(
         self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass for training mode - evaluates the policy on provided actions.
 
@@ -193,10 +196,12 @@ class BrainPolicy(nn.Module):
             action: Action tensor for evaluation, shape (B, T, 2)
 
         Returns:
-            Tuple of (action_log_prob, entropy, value)
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Same as input action, shape (B, T, 2)
             - action_log_prob: Log probability of the provided action, shape (BT,)
             - entropy: Entropy of the action distribution, shape (BT,)
             - value: Value estimate, shape (BT, 1)
+            - log_probs: Log-softmax of logits, shape (BT, A)
         """
         if __debug__:
             assert_shape(value, ("BT", 1), "training_value")
@@ -210,32 +215,29 @@ class BrainPolicy(nn.Module):
         if __debug__:
             assert_shape(action_logit_index, ("BT",), "converted_action_logit_index")
 
-        action_log_prob, entropy, _ = evaluate_actions(logits, action_logit_index)
+        action_log_prob, entropy, log_probs = evaluate_actions(logits, action_logit_index)
 
         if __debug__:
             assert_shape(action_log_prob, ("BT",), "training_action_log_prob")
             assert_shape(entropy, ("BT",), "training_entropy")
+            assert_shape(log_probs, ("BT", "A"), "training_log_probs")
+            assert_shape(action, ("B", "T", 2), "training_output_action")
 
-        return action_log_prob, entropy, value
+        return action, action_log_prob, entropy, value, log_probs
 
     def forward(
-        self,
-        x: torch.Tensor,
-        lstm_h: Optional[torch.Tensor],
-        lstm_c: Optional[torch.Tensor],
-        action: Optional[torch.Tensor] = None,
-    ) -> tuple:
+        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass of the BrainPolicy - delegates to appropriate specialized method.
 
         Args:
             x: Input observation tensor
-            lstm_h: LSTM hidden state
-            lstm_c: LSTM cell state
+            state: Policy state containing LSTM hidden and cell states
             action: Optional action tensor for BPTT
 
         Returns:
-            Tuple of (action, action_log_prob, entropy, value, new_lstm_h, new_lstm_c)
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
         """
         if __debug__:
             # Default values in case obs_shape is not available
@@ -267,12 +269,12 @@ class BrainPolicy(nn.Module):
         td = {"x": x, "state": None}
 
         # Safely handle LSTM state
-        if lstm_h is not None and lstm_c is not None:
+        if state.lstm_h is not None and state.lstm_c is not None:
             # Ensure states are on the same device as input
-            lstm_h_dev = lstm_h.to(x.device)
-            lstm_c_dev = lstm_c.to(x.device)
+            lstm_h = state.lstm_h.to(x.device)
+            lstm_c = state.lstm_c.to(x.device)
             # Concatenate LSTM states along dimension 0
-            td["state"] = torch.cat([lstm_h_dev, lstm_c_dev], dim=0)
+            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
 
         # Forward pass through value network
         self.components["_value_"](td)
@@ -298,15 +300,13 @@ class BrainPolicy(nn.Module):
 
         # Update LSTM states
         split_size = self.core_num_layers
-        new_lstm_h = td["state"][:split_size]
-        new_lstm_c = td["state"][split_size:]
+        state.lstm_h = td["state"][:split_size]
+        state.lstm_c = td["state"][split_size:]
 
         if action is None:
-            action, action_log_prob, entropy, value = self.forward_inference(value, logits)
-            return action, action_log_prob, entropy, value, new_lstm_h, new_lstm_c
+            return self.forward_inference(value, logits)
         else:
-            action_log_prob, entropy, value = self.forward_training(value, logits, action)
-            return action, action_log_prob, entropy, value, new_lstm_h, new_lstm_c
+            return self.forward_training(value, logits, action)
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """

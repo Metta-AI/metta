@@ -15,13 +15,18 @@ class TrainerCheckpoint:
         epoch: int = 0,
         optimizer_state_dict: Optional[Dict[str, Any]] = None,
         policy_path: Optional[str] = None,
+        extra_args: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         self.agent_step = agent_step
         self.epoch = epoch
         self.optimizer_state_dict = optimizer_state_dict
         self.policy_path = policy_path
-        self.extra_args = kwargs
+        self.extra_args = extra_args or {}
+        # Store any additional kwargs that might come from loading old checkpoints
+        for k, v in kwargs.items():
+            if not hasattr(self, k):
+                setattr(self, k, v)
 
     def save(self, run_dir: str) -> None:
         state = {
@@ -29,8 +34,11 @@ class TrainerCheckpoint:
             "agent_step": self.agent_step,
             "epoch": self.epoch,
             "policy_path": self.policy_path,
-            **self.extra_args,
         }
+        # Add extra_args if they exist
+        if self.extra_args:
+            state.update(self.extra_args)
+
         state_path = os.path.join(run_dir, "trainer_state.pt")
         torch.save(state, state_path + ".tmp")
         os.rename(state_path + ".tmp", state_path)

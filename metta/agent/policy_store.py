@@ -19,7 +19,7 @@ from typing import List, Optional, Union
 import hydra
 import torch
 import wandb
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig
 from torch import nn
 
 from metta.agent.brain_policy import BrainPolicy
@@ -98,6 +98,78 @@ class PolicyRecord:
         total_params = sum(p.numel() for p in policy.parameters())
         trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
         lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
+
+        # Add module structure with detailed weight shapes
+        lines.append("\nModule Structure with Weight Shapes:")
+
+        for name, module in policy.named_modules():
+            # Skip top-level module
+            if name == "":
+                continue
+
+            # Create indentation based on module hierarchy
+            indent = "  " * name.count(".")
+
+            # Get module type
+            module_type = module.__class__.__name__
+
+            # Start building the module info line
+            module_info = f"{indent}{name}: {module_type}"
+
+            # Get parameters for this module (non-recursive)
+            params = list(module.named_parameters(recurse=False))
+
+            # Add detailed parameter information
+            if params:
+                # For common layer types, add specialized shape information
+                if isinstance(module, torch.nn.Conv2d):
+                    weight = next((p for name, p in params if name == "weight"), None)
+                    if weight is not None:
+                        out_channels, in_channels, kernel_h, kernel_w = weight.shape
+                        module_info += " ["
+                        module_info += f"out_channels={out_channels}, "
+                        module_info += f"in_channels={in_channels}, "
+                        module_info += f"kernel=({kernel_h}, {kernel_w})"
+                        module_info += "]"
+
+                elif isinstance(module, torch.nn.Linear):
+                    weight = next((p for name, p in params if name == "weight"), None)
+                    if weight is not None:
+                        out_features, in_features = weight.shape
+                        module_info += f" [in_features={in_features}, out_features={out_features}]"
+
+                elif isinstance(module, torch.nn.LSTM):
+                    module_info += " ["
+                    module_info += f"input_size={module.input_size}, "
+                    module_info += f"hidden_size={module.hidden_size}, "
+                    module_info += f"num_layers={module.num_layers}"
+                    module_info += "]"
+
+                elif isinstance(module, torch.nn.Embedding):
+                    weight = next((p for name, p in params if name == "weight"), None)
+                    if weight is not None:
+                        num_embeddings, embedding_dim = weight.shape
+                        module_info += f" [num_embeddings={num_embeddings}, embedding_dim={embedding_dim}]"
+
+                # Add all parameter shapes
+                param_shapes = []
+                for param_name, param in params:
+                    param_shapes.append(f"{param_name}={list(param.shape)}")
+
+                if param_shapes and not any(
+                    x in module_info for x in ["out_channels", "in_features", "hidden_size", "num_embeddings"]
+                ):
+                    module_info += f" ({', '.join(param_shapes)})"
+
+            # Add formatted module info to output
+            lines.append(module_info)
+
+        # Add section for buffer shapes (non-parameter tensors like running_mean in BatchNorm)
+        buffers = list(policy.named_buffers())
+        if buffers:
+            lines.append("\nBuffer Shapes:")
+            for name, buffer in buffers:
+                lines.append(f"  {name}: {list(buffer.shape)}")
 
         return "\n".join(lines)
 
@@ -269,7 +341,6 @@ class PolicyStore:
         reconstruction_attributes = {}
         if isinstance(inner_policy, BrainPolicy):
             reconstruction_attributes = inner_policy.agent_attributes
-            reconstruction_attributes["cfg"] = OmegaConf.to_container(self._cfg.agent, resolve=True)
 
         pr = self.save(
             name,
@@ -289,37 +360,60 @@ class PolicyStore:
 
     def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
         logger.info(f"Saving policy to {path}")
+
         inner_policy = policy.policy if isinstance(policy, MettaAgent) else policy
 
-        if isinstance(inner_policy, BrainPolicy):
-            # Trace the model for revisioning
-            agent_attrs = inner_policy.agent_attributes
-            obs_shape = agent_attrs["obs_shape"]
-            dummy_obs = torch.zeros(1, *obs_shape, device=self._device)
-            dummy_lstm_h = torch.zeros(
-                agent_attrs["core_num_layers"], 1, agent_attrs["hidden_size"], device=self._device
-            )
-            dummy_lstm_c = torch.zeros(
-                agent_attrs["core_num_layers"], 1, agent_attrs["hidden_size"], device=self._device
-            )
+        # Prepare save data
+        save_data = {
+            "metadata": metadata,
+            "class_name": inner_policy.__class__.__name__,
+            "reconstruction_attributes": metadata.get("reconstruction_attributes", {}),
+        }
 
-            traced_policy = torch.jit.trace(inner_policy, (dummy_obs, dummy_lstm_h, dummy_lstm_c))
-            torch.jit.save(traced_policy, path)
-            logger.info(f"Saved JIT traced policy to {path}")
-        else:
-            # Fallback for other policy types
-            torch.save(
-                {
-                    "state_dict": inner_policy.state_dict(),
-                    "metadata": metadata,
-                    "class_name": inner_policy.__class__.__name__,
-                    "reconstruction_attributes": metadata.get("reconstruction_attributes", {}),
-                },
-                path,
-            )
+        # Try to save with torch.jit for better versioning
+        try:
+            # For BrainPolicy, we need to trace through a forward pass
+            if isinstance(inner_policy, BrainPolicy):
+                # Create dummy inputs for tracing
+                from metta.agent.policy_state import PolicyState
+
+                obs_shape = inner_policy.agent_attributes.get("obs_shape", [11, 11, 27])
+                batch_size = 32
+
+                # Get the device from the policy
+                device = getattr(inner_policy, "device", "cpu")
+
+                # Create dummy observation
+                dummy_obs = torch.randn(batch_size, *obs_shape, device=device)
+
+                # Create dummy state
+                hidden_size = inner_policy.hidden_size
+                num_layers = inner_policy.core_num_layers
+                dummy_state = PolicyState(
+                    lstm_h=torch.zeros(num_layers, batch_size, hidden_size, device=device),
+                    lstm_c=torch.zeros(num_layers, batch_size, hidden_size, device=device),
+                )
+
+                # Trace the model
+                traced_model = torch.jit.trace(inner_policy, (dummy_obs, dummy_state))
+                save_data["jit_model"] = traced_model
+                save_data["use_jit"] = True
+                logger.info("Successfully traced model with torch.jit")
+            else:
+                # For other policies, just save state dict
+                save_data["state_dict"] = inner_policy.state_dict()
+                save_data["use_jit"] = False
+        except Exception as e:
+            logger.warning(f"Failed to trace model with torch.jit: {e}. Falling back to state_dict")
+            save_data["state_dict"] = inner_policy.state_dict()
+            save_data["use_jit"] = False
+
+        torch.save(save_data, path)
 
         pr = PolicyRecord(self, path, "file://" + path, metadata)
+        pr._policy = None
         pr._policy_store = self
+        pr._local_path = path
         self._cached_prs[path] = pr
         return pr
 
@@ -358,16 +452,7 @@ class PolicyStore:
         else:
             paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
 
-        # HACK: we have no way of knowing the metadata without loading the file
-        # so we just load them all.
-        records = []
-        for p in paths:
-            try:
-                records.append(self._load_from_file(p, metadata_only=True))
-            except Exception as e:
-                logger.warning(f"Could not load policy record from {p}: {e}")
-
-        return records
+        return [self._load_from_file(path, metadata_only=True) for path in paths]
 
     def _prs_from_wandb_artifact(self, uri: str, version: Optional[str] = None) -> List[PolicyRecord]:
         # Check if wandb is disabled before proceeding
@@ -487,40 +572,19 @@ class PolicyStore:
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         if path in self._cached_prs:
-            pr = self._cached_prs[path]
-            if metadata_only or pr._policy is not None:
-                return pr
-
+            if metadata_only or self._cached_prs[path]._policy is not None:
+                return self._cached_prs[path]
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
         logger.info(f"Loading policy from {path}")
 
         self._make_codebase_backwards_compatible()
+
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
 
-        try:
-            # Try loading as a JIT-traced model first
-            policy = torch.jit.load(path, map_location=self._device)
-            # We can't get metadata from a JIT file, so we have to load it from a sidecar file if it exists
-            metadata_path = path + ".meta.pt"
-            if os.path.exists(metadata_path):
-                metadata = torch.load(metadata_path)["metadata"]
-            else:
-                metadata = {}
-
-            name = os.path.basename(path)
-            pr = PolicyRecord(self, name, "file://" + path, metadata)
-            if not metadata_only:
-                pr._policy = MettaAgent(policy)
-
-            self._cached_prs[path] = pr
-            return pr
-        except (torch.jit.frontend.NotSupportedError, RuntimeError):
-            logger.info(f"Failed to load {path} as a JIT model, falling back to legacy state_dict loading.")
-
-        # Fallback to legacy loading
         checkpoint = torch.load(path, map_location=self._device)
 
+        # Backwards compatibility for models saved as PolicyRecord objects
         if isinstance(checkpoint, PolicyRecord):
             logger.info("Loading legacy PolicyRecord object.")
             pr = checkpoint
@@ -529,28 +593,61 @@ class PolicyStore:
             self._cached_prs[path] = pr
             if metadata_only:
                 pr._policy = None
+                pr._local_path = None
             return pr
 
-        metadata = checkpoint.get("metadata", {})
+        metadata = checkpoint["metadata"]
         name = os.path.basename(path)
         pr = PolicyRecord(self, name, "file://" + path, metadata)
         pr._local_path = path
 
         if not metadata_only:
-            class_name = checkpoint.get("class_name", "BrainPolicy")
-            if class_name == "BrainPolicy":
-                recon_attrs = checkpoint["reconstruction_attributes"]
-                # Use hydra to build the policy from config
-                cfg = OmegaConf.create(recon_attrs.pop("cfg"))
-                brain = hydra.utils.instantiate(cfg, **recon_attrs)
-                brain.load_state_dict(checkpoint["state_dict"])
-                policy = MettaAgent(brain)
-                pr._policy = policy
+            # Check if this is a jit model
+            if checkpoint.get("use_jit", False) and "jit_model" in checkpoint:
+                logger.info("Loading torch.jit model")
+                try:
+                    jit_model = checkpoint["jit_model"]
+                    # Wrap the jit model in MettaAgent
+                    policy = MettaAgent(jit_model)
+                    pr._policy = policy
+                except Exception as e:
+                    logger.warning(f"Failed to load jit model: {e}. Trying state_dict fallback")
+                    # Fall back to state_dict loading if jit fails
+                    if "state_dict" in checkpoint:
+                        self._load_from_state_dict(checkpoint, pr)
+                    else:
+                        raise RuntimeError(f"Could not load model from {path}: no state_dict fallback available")
             else:
-                raise NotImplementedError(f"Legacy loading for {class_name} not implemented")
+                # Load from state_dict
+                self._load_from_state_dict(checkpoint, pr)
 
         self._cached_prs[path] = pr
         return pr
+
+    def _load_from_state_dict(self, checkpoint: dict, pr: PolicyRecord):
+        """Helper method to load a policy from state_dict."""
+        class_name = checkpoint.get("class_name", "BrainPolicy")
+        if class_name == "BrainPolicy":
+            reconstruction_attrs = checkpoint.get("reconstruction_attributes", {})
+            if not reconstruction_attrs:
+                logger.warning("No reconstruction attributes found, using defaults from config")
+                # Use the MettaAgentBuilder to create a default brain
+                from metta.agent.metta_agent import MettaAgentBuilder
+
+                builder = MettaAgentBuilder(self._cfg)
+                # We need a dummy env to get the observation space
+                # This is a limitation of the current design
+                raise NotImplementedError(
+                    "Cannot load BrainPolicy without reconstruction attributes. "
+                    "Please ensure models are saved with reconstruction attributes."
+                )
+
+            brain = hydra.utils.instantiate(self._cfg.agent, **reconstruction_attrs)
+            brain.load_state_dict(checkpoint["state_dict"])
+            policy = MettaAgent(brain)
+            pr._policy = policy
+        else:
+            raise NotImplementedError(f"Loading for {class_name} not implemented from file")
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")

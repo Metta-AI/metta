@@ -1,10 +1,10 @@
-from typing import NamedTuple, Optional
+from typing import Optional
 
 import torch
+from tensordict import TensorClass
 
 
-class PolicyState(NamedTuple):
-    """A container for the policy's state. Use a tuple for JIT compatibility."""
-
-    lstm_h: Optional[torch.Tensor]
-    lstm_c: Optional[torch.Tensor]
+class PolicyState(TensorClass):
+    lstm_h: Optional[torch.Tensor] = None
+    lstm_c: Optional[torch.Tensor] = None
+    hidden: Optional[torch.Tensor] = None

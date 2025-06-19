@@ -9,6 +9,7 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
+from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -49,9 +50,19 @@ class MettaAgentBuilder:
         return MettaAgent(policy)
 
     def load_from_disk(self, path) -> "MettaAgent":
-        # This will be used for loading TorchScript models
-        # For now, it's a placeholder.
-        raise NotImplementedError("Loading from disk with torch.jit is not yet implemented.")
+        """Load a model from disk, supporting both torch.jit and state_dict formats."""
+        checkpoint = torch.load(path, map_location=self._cfg.device)
+
+        if isinstance(checkpoint, dict) and checkpoint.get("use_jit", False) and "jit_model" in checkpoint:
+            # Load torch.jit model
+            jit_model = checkpoint["jit_model"]
+            return MettaAgent(jit_model)
+        else:
+            # Fall back to state_dict loading through PolicyStore
+            raise NotImplementedError(
+                "Loading non-jit models from disk should go through PolicyStore. "
+                "Use PolicyStore._load_from_file instead."
+            )
 
 
 def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig) -> "MettaAgent":
@@ -88,13 +99,9 @@ class MettaAgent(nn.Module):
             return getattr(self.policy, name)
 
     def forward(
-        self,
-        x: torch.Tensor,
-        lstm_h: Optional[torch.Tensor] = None,
-        lstm_c: Optional[torch.Tensor] = None,
-        action: Optional[torch.Tensor] = None,
-    ) -> tuple:
-        return self.policy.forward(x, lstm_h, lstm_c, action)
+        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        return self.policy.forward(x, state, action)
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         if hasattr(self.policy, "activate_actions"):
