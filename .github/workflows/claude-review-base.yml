@@ -97,23 +97,70 @@ jobs:
         run: |
           PR_NUMBER="${{ inputs.pr_number }}"
 
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "$PR_NUMBER" ]; then
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # see https://github.com/anthropics/claude-code-action/pull/112
+            echo "claude-code-action does not yet support workflow_dispatch!"
+          fi
+
+          if [ "${{ github.event_name }}" == "workflow_call" ] && [ -n "$PR_NUMBER" ]; then
+            echo "Setting up context for workflow_call with PR #$PR_NUMBER"
+
             # Get PR info first
-            PR_INFO=$(gh pr view $PR_NUMBER --json headRefName,baseRefName)
+            PR_INFO=$(gh pr view $PR_NUMBER --json headRefName,baseRefName 2>&1)
+
+            # Check if gh command succeeded
+            if [ $? -ne 0 ]; then
+              echo "❌ Error: Failed to get PR info for PR #$PR_NUMBER"
+              echo "Error output: $PR_INFO"
+              exit 1
+            fi
+
             BRANCH_NAME=$(echo "$PR_INFO" | jq -r '.headRefName')
             BASE_REF=$(echo "$PR_INFO" | jq -r '.baseRefName')
 
-            # Use explicit git commands instead of gh pr checkout
-            git fetch origin $BRANCH_NAME:$BRANCH_NAME
-            git checkout $BRANCH_NAME --
+            # Validate we got valid values
+            if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "null" ]; then
+              echo "❌ Error: Could not determine base ref for PR #$PR_NUMBER"
+              echo "PR_INFO: $PR_INFO"
+              echo "BRANCH_NAME: $BRANCH_NAME"
+              echo "BASE_REF: $BASE_REF"
+              exit 1
+            fi
+
+            echo "✅ Got PR info - base: $BASE_REF, head: $BRANCH_NAME"
+
+            # Check if we're already on the PR branch
+            CURRENT_BRANCH=$(git branch --show-current)
+            if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
+              # Only fetch and checkout if we're not already on the branch
+              git fetch origin $BRANCH_NAME:$BRANCH_NAME
+              git checkout $BRANCH_NAME
+            else
+              echo "Already on branch $BRANCH_NAME, skipping checkout"
+            fi
           else
             # For regular PR events, get base ref from the event
             BASE_REF="${{ github.event.pull_request.base.ref }}"
+
+            if [ -z "$BASE_REF" ]; then
+              echo "❌ Error: No base ref available from PR event"
+              echo "Event name: ${{ github.event_name }}"
+              echo "PR number from input: $PR_NUMBER"
+              exit 1
+            fi
+          fi
+
+          # Final validation before output
+          if [ -z "$BASE_REF" ]; then
+            echo "❌ Error: BASE_REF is empty. Cannot continue."
+            exit 1
           fi
 
           # Output the base ref for use in later steps
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           echo "base_ref=$BASE_REF" >> $GITHUB_OUTPUT
+
+          echo "✅ Setup complete - PR: $PR_NUMBER, Base: $BASE_REF"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
