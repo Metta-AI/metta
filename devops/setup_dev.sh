@@ -21,7 +21,6 @@ for arg in "$@"; do
   esac
 done
 
-# check if we're in docker
 if [ -f /.dockerenv ]; then
   export IS_DOCKER=1
 fi
@@ -61,7 +60,6 @@ if [ "$CLEAN" -eq 1 ]; then
 
   make clean
 
-  # Remove the virtual environment
   if [ -d .venv ]; then
     echo "Removing .venv virtual environment..."
     rm -rf .venv
