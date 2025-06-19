@@ -804,12 +804,12 @@ class MettaTrainer:
 
         timing_stats = {
             **{
-                f"timing_per_epoch/fraction/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
+                f"timing_per_epoch/frac/{op}": lap_elapsed / wall_time_for_lap if wall_time_for_lap > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
             "timing_per_epoch/sps": epoch_steps_per_second,
             **{
-                f"timing_cumulative/fraction/{op}": elapsed / wall_time if wall_time > 0 else 0
+                f"timing_cumulative/frac/{op}": elapsed / wall_time if wall_time > 0 else 0
                 for op, elapsed in elapsed_times.items()
             },
             "timing_cumulative/sps": steps_per_second,
