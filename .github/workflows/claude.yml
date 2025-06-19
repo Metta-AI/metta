@@ -230,6 +230,70 @@ jobs:
           echo "✅ Created branch: $(git branch --show-current)"
           echo "✅ Ready for Claude to make changes"
 
+
+      - name: Prepare MCP Configuration
+        if: steps.check_action.outputs.action == 'create_pr'
+        id: mcp_config
+        run: |
+          echo "=== PREPARING MCP CONFIGURATION ==="
+
+          # Debug available paths
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "GITHUB_ACTION_PATH: ${GITHUB_ACTION_PATH:-'NOT SET'}"
+          echo "Current directory: $(pwd)"
+
+          # Find the claude-code-action path
+          CLAUDE_ACTION_PATH="/home/runner/work/_actions/anthropics/claude-code-action/beta"
+          if [ -d "$CLAUDE_ACTION_PATH" ]; then
+            echo "✅ Found Claude action at: $CLAUDE_ACTION_PATH"
+          else
+            echo "⚠️ Claude action not found at expected path, checking alternatives..."
+            find /home/runner/work/_actions -name "github-file-ops-server.ts" -type f 2>/dev/null || true
+          fi
+
+          # Construct the MCP config
+          MCP_CONFIG=$(cat <<EOF
+          {
+            "mcpServers": {
+              "github_file_ops": {
+                "command": "bun",
+                "args": [
+                  "run",
+                  "${CLAUDE_ACTION_PATH}/src/mcp/github-file-ops-server.ts"
+                ],
+                "env": {
+                  "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+                  "REPO_OWNER": "${{ github.repository_owner }}",
+                  "REPO_NAME": "${{ github.event.repository.name }}",
+                  "BRANCH_NAME": "${{ steps.branches.outputs.new_branch }}",
+                  "REPO_DIR": "${{ github.workspace }}",
+                  "CLAUDE_COMMENT_ID": "${{ github.event.comment.id }}",
+                  "GITHUB_EVENT_NAME": "workflow_dispatch",
+                  "IS_PR": "false",
+                  "GITHUB_API_URL": "${{ github.api_url }}",
+                  "DEBUG": "github-file-ops:*"
+                }
+              }
+            }
+          }
+          EOF
+          )
+
+          # Log the config for debugging
+          echo "=== MCP CONFIGURATION ==="
+          echo "$MCP_CONFIG" | jq '.' || echo "$MCP_CONFIG"
+          echo "========================="
+
+          # Validate critical values
+          echo "=== VALIDATING CONFIG ==="
+          echo "Branch name: ${{ steps.branches.outputs.new_branch }}"
+          echo "Repo: ${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          echo "Comment ID: ${{ github.event.comment.id }}"
+
+          # Save config as output (need to escape newlines)
+          MCP_CONFIG_ESCAPED=$(echo "$MCP_CONFIG" | jq -c '.')
+          echo "config=$MCP_CONFIG_ESCAPED" >> $GITHUB_OUTPUT
+
       # Claude PR creation with MCP tools instead of bash
       - name: Claude PR Creation
         if: steps.check_action.outputs.action == 'create_pr'
@@ -240,6 +304,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: ${{ env.CLAUDE_MODEL }}
           timeout_minutes: 45
+          mcp_config: ${{ steps.mcp_config.outputs.config }}
           direct_prompt: |
             You are working on branch: ${{ steps.branches.outputs.new_branch }}
 
