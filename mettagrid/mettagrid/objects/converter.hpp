@@ -76,7 +76,6 @@ public:
 
   Converter(GridCoord r, GridCoord c, ObjectConfig cfg, TypeId type_id) {
     GridObject::init(type_id, GridLocation(r, c, GridLayer::Object_Layer));
-    MettaObject::init_mo(cfg);
     HasInventory::init_has_inventory(cfg);
     this->recipe_input.resize(InventoryItem::InventoryItemCount);
     this->recipe_output.resize(InventoryItem::InventoryItemCount);
@@ -166,33 +165,6 @@ public:
       }
     }
     return features;
-  }
-
-  void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = 1;
-    obs[offsets[1]] = _type_id;
-    obs[offsets[2]] = this->hp;
-    obs[offsets[3]] = this->color;
-    obs[offsets[4]] = this->converting || this->cooling_down;
-    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      obs[offsets[5 + i]] = this->inventory[i];
-    }
-  }
-
-  static std::vector<std::string> feature_names() {
-    std::vector<std::string> names;
-    // We use the same feature names for all converters, since this compresses
-    // the observation space. At the moment we don't expose the recipe, since
-    // we expect converters to be hard coded.
-    names.push_back("converter");
-    names.push_back("type_id");
-    names.push_back("hp");
-    names.push_back("color");
-    names.push_back("converting");
-    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      names.push_back("inv:" + InventoryItemNames[i]);
-    }
-    return names;
   }
 };
 

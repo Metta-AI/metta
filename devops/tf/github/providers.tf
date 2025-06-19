@@ -10,5 +10,5 @@ provider "aws" {
 
 provider "github" {
   token = var.github_token
-  owner = "Metta-AI"
+  owner = var.github_org
 }

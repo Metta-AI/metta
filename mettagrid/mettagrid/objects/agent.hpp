@@ -36,7 +36,6 @@ public:
         // actions or inventory changes.
         std::map<std::string, float> rewards) {
     GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
-    MettaObject::init_mo(cfg);
 
     this->group_name = group_name;
     this->group = group_id;
@@ -125,36 +124,6 @@ public:
       }
     }
     return features;
-  }
-
-  virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = 1;
-    obs[offsets[1]] = _type_id;
-    obs[offsets[2]] = group;
-    obs[offsets[3]] = hp;
-    obs[offsets[4]] = frozen;
-    obs[offsets[5]] = orientation;
-    obs[offsets[6]] = color;
-
-    for (int i = 0; i < InventoryItemCount; i++) {
-      obs[offsets[7 + i]] = inventory[i];
-    }
-  }
-
-  static std::vector<std::string> feature_names() {
-    std::vector<std::string> names;
-    names.push_back("agent");
-    names.push_back("type_id");
-    names.push_back("agent:group");
-    names.push_back("hp");
-    names.push_back("agent:frozen");
-    names.push_back("agent:orientation");
-    names.push_back("agent:color");
-
-    for (const auto& name : InventoryItemNames) {
-      names.push_back("inv:" + name);
-    }
-    return names;
   }
 
 private:

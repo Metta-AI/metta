@@ -540,12 +540,6 @@ INPUT DATA: Below you'll find PR summaries with titles, descriptions, authors, f
 AUDIENCE & TONE: Technical and direct - written for engineering and research staff who understand code architecture,
 implementation details, and technical tradeoffs.
 
-SHOUT OUT GUIDELINES:
-- Only highlight truly exceptional work (1-3 maximum, or none if not warranted)
-- Distribute recognition across different contributors
-- Focus on: complex problem-solving, code quality improvements, mentorship, critical fixes, or innovative solutions
-- Format: "👏 @username - [specific achievement in 1-2 sentences]"
-
 QUALITY CRITERIA:
 - Focus on technical impact and engineering outcomes
   • Good: "Reduced API response time by 40% through query optimization and caching"
@@ -555,9 +549,15 @@ QUALITY CRITERIA:
 - Highlight architectural decisions and their technical rationale
 - Be concise but comprehensive
 - Use active voice and specific metrics when available
+- Maximum 1000 words
+
+SHOUT OUT GUIDELINES:
+- Only highlight truly exceptional work (1-3 maximum, or none if not warranted)
+- Distribute recognition across different contributors
+- Focus on: complex problem-solving, code quality improvements, mentorship, critical fixes, or innovative solutions
+- Format: "👏 @username - [specific achievement in 1-2 sentences]"
 
 OUTPUT FORMAT:
----
 
 ## Summary of changes from {date_range}
 
@@ -575,9 +575,7 @@ include brief descriptions and PR links]
 **Shout Outs:** [List 0-3 shout outs, or "No specific shout outs this period" if none are warranted]
 
 **Closing Thoughts:** [{selected_bonus_prompt}]
----
 
-Maximum 1000 words.
 """
 
         ai_response = self.ai_client.generate_with_retry(prompt, "phase2")
@@ -648,11 +646,8 @@ def create_discord_summary(
         f"• Impact: {', '.join(f'{k}: {v}' for k, v in stats['by_impact'].items())}",
         f"• Generated: <t:{int(time.time())}:R> using Gemini 2.5 with full context analysis",
         "",
-        "---",
-        "",
         collection_summary,
         "",
-        "---",
         f"📦 [**Download Complete Analysis (pr-summary-N.zip)**]({github_run_url})",
     ]
 

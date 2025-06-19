@@ -39,7 +39,6 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             "num_agents": num_agents,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": True,
             "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
                 "noop": {"enabled": True},
@@ -53,10 +52,9 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             },
             "groups": {"red": {"id": 0, "props": {}}},
             "objects": {
-                "wall": {"type_id": 1, "hp": 100},
+                "wall": {"type_id": 1},
                 "altar": {
                     "type_id": 4,
-                    "hp": 100,
                     "output_heart": 1,
                     "initial_items": 5,  # Start with some hearts
                     "max_output": 50,
@@ -66,7 +64,6 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             },
             "agent": {
                 "default_item_max": 10,
-                "hp": 100,
                 "rewards": {"heart": 1.0},  # This gives 1.0 reward per heart collected
             },
         }
@@ -94,7 +91,6 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
             "num_agents": num_agents,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": True,
             "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
                 "noop": {"enabled": True},
@@ -111,8 +107,8 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
                 "blue": {"id": 2, "group_reward_pct": 0.0, "props": {"max_inventory": 50}},
             },
             "objects": {
-                "wall": {"hp": 100},
-                "block": {"hp": 50},
+                "wall": {},
+                "block": {},
             },
             "agent": {"freeze_duration": 100, "max_inventory": 50, "rewards": {"heart": 1.0}},
         }

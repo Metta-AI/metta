@@ -28,7 +28,6 @@ def base_config():
         "num_agents": 1,
         "obs_width": OBS_WIDTH,
         "obs_height": OBS_HEIGHT,
-        "use_observation_tokens": True,
         "num_observation_tokens": NUM_OBS_TOKENS,
         "actions": {
             "noop": {"enabled": True},
@@ -41,8 +40,8 @@ def base_config():
             "change_color": {"enabled": True},
         },
         "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {"wall": {"type_id": 1, "hp": 100}, "altar": {"type_id": 4, "hp": 100}},
-        "agent": {"inventory_size": 10, "hp": 100},
+        "objects": {"wall": {"type_id": 1}, "altar": {"type_id": 4}},
+        "agent": {"inventory_size": 10},
     }
 
 

@@ -33,7 +33,6 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
             "num_agents": NUM_AGENTS,
             "obs_width": OBS_WIDTH,
             "obs_height": OBS_HEIGHT,
-            "use_observation_tokens": True,
             "num_observation_tokens": NUM_OBS_TOKENS,
             "actions": {
                 # don't really care about the actions for this test
@@ -48,12 +47,11 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
             },
             "groups": {"red": {"id": 0, "props": {}}},
             "objects": {
-                "wall": {"type_id": 1, "hp": 100},
-                "block": {"type_id": 2, "hp": 100},
+                "wall": {"type_id": 1},
+                "block": {"type_id": 2},
             },
             "agent": {
                 "inventory_size": 0,
-                "hp": 100,
             },
         }
     }
@@ -132,19 +130,15 @@ def test_grid_objects():
     common_properties = {"r", "c", "layer", "type", "id"}
 
     for obj in objects.values():
-        if obj.get("type_id"):
-            assert set(obj) == {"type_id", "hp", "swappable"} | common_properties
-            assert obj["type_id"] == 1, "Wall should have type 1"
-            assert obj["hp"] == 100, "Wall should have 100 hp"
-        if obj.get("agent"):
-            # agents will also have various inventory, which we don't list here
+        if obj.get("type_id") == 1:
+            # Walls
+            assert set(obj) == {"type_id"} | common_properties
+        if obj.get("type_id") == 0:
+            # Agents
             assert set(obj).issuperset(
-                {"agent", "agent:group", "hp", "agent:frozen", "agent:orientation", "agent:color", "inv:heart"}
-                | common_properties
+                {"agent:group", "agent:frozen", "agent:orientation", "agent:color"} | common_properties
             )
-            assert obj["agent"] == 1, "Agent should have type 1"
             assert obj["agent:group"] == 0, "Agent should be in group 0"
-            assert obj["hp"] == 100, "Agent should have 100 hp"
             assert obj["agent:frozen"] == 0, "Agent should not be frozen"
 
 
