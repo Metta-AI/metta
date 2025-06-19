@@ -25,6 +25,57 @@ from tensordict import TensorDict
 from metta.agent.lib.metta_layer import LayerBase, ParamLayer
 
 
+class ResidualBlock(nn.Module):
+    def __init__(self, hidden_size: int):
+        super().__init__()
+        self.block = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
+            nn.SiLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
+            nn.SiLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
+            nn.SiLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
+            nn.SiLU(),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.block(x)
+
+
+class ResNetMLP(LayerBase):
+    """
+    Applies a residual dense connection to the incoming data: y = x + F(x)
+    Input and output shapes are the same. To scale, you need to create an initial and/or final linear layer separately
+    that maps to the hidden size you want.
+    """
+
+    def __init__(self, depth, **cfg):
+        super().__init__(**cfg)
+        self._depth = depth
+
+    def _make_net(self):
+        self._out_tensor_shape = self._in_tensor_shapes[0].copy()
+
+        if self._depth % 4 != 0:
+            raise ValueError("Depth must be a multiple of 4.")
+        self._num_blocks = self._depth // 4
+
+        hidden_size = self._in_tensor_shapes[0][0]
+
+        self.residual_layers = nn.Sequential(*[ResidualBlock(hidden_size) for _ in range(self._num_blocks)])
+
+    def _forward(self, td: TensorDict):
+        x = td[self._sources[0]["name"]]
+        x = self.residual_layers(x)
+        td[self._name] = x
+        return td
+
+
 class Linear(ParamLayer):
     """
     Applies a linear transformation to the incoming data: y = xA^T + b

@@ -51,10 +51,30 @@ components:
     sources:
       - name: obs_latent_query_attn
 
+  obs_linear_1:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: obs_latent_self_attn
+    nn_params:
+      out_features: 256
+
+  obs_resnet_mlp:
+    _target_: metta.agent.lib.nn_layer_library.ResNetMLP
+    depth: 64
+    sources:
+      - name: obs_linear_1
+
+  obs_linear_2:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: obs_resnet_mlp
+    nn_params:
+      out_features: 128
+
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
-      - name: obs_latent_self_attn
+      - name: obs_linear_2
     output_size: 128
     nn_params:
       num_layers: 2
@@ -64,14 +84,19 @@ components:
     sources:
       - name: _core_
     nn_params:
-      out_features: 1024
+      out_features: 256
     nonlinearity: nn.Tanh
-    effective_rank: true
+
+  critic_2:
+    _target_: metta.agent.lib.nn_layer_library.ResNetMLP
+    depth: 64
+    sources:
+      - name: critic_1
 
   _value_:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: critic_1
+      - name: critic_2
     nn_params:
       out_features: 1
     nonlinearity: null
