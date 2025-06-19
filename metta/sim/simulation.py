@@ -25,7 +25,7 @@ from omegaconf import OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.policy_store import MettaAgent, PolicyStore
 from metta.app.stats_client import StatsClient
 from metta.rl.policy import PytorchAgent
 from metta.rl.vecenv import make_vecenv
@@ -54,7 +54,7 @@ class Simulation:
         self,
         name: str,
         config: SingleEnvSimulationConfig,
-        policy_pr: PolicyRecord,
+        policy_ma: MettaAgent,
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
@@ -105,10 +105,10 @@ class Simulation:
         self._agents_per_env = env_cfg.game.num_agents
 
         # ---------------- policies ------------------------------------- #
-        self._policy_pr = policy_pr
+        self._policy_ma = policy_ma
         self._policy_store = policy_store
-        self._npc_pr = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
-        self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
+        self._npc_ma = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
+        self._policy_agents_pct = config.policy_agents_pct if self._npc_ma is not None else 1.0
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
@@ -120,19 +120,19 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._policy_pr.policy_as_metta_agent()
+        metta_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._policy_ma
         assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), metta_agent
         metta_agent.activate_actions(action_names, max_args, self._device)
 
-        if self._npc_pr is not None:
-            npc_agent: MettaAgent | DistributedMettaAgent = self._npc_pr.policy_as_metta_agent()
+        if self._npc_ma is not None:
+            npc_agent: MettaAgent | DistributedMettaAgent = self._npc_ma.policy_as_metta_agent()
             assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent)), npc_agent
             try:
                 npc_agent.activate_actions(action_names, max_args, self._device)
             except Exception as e:
                 logger.error(f"Error activating NPC actions: {e}")
                 raise SimulationCompatibilityError(
-                    f"[{self._name}] Error activating NPC actions for {self._npc_pr.name}: {e}"
+                    f"[{self._name}] Error activating NPC actions for {self._npc_ma.name}: {e}"
                 ) from e
 
         # ---------------- agent-index bookkeeping ---------------------- #
@@ -190,7 +190,7 @@ class Simulation:
                     "Policy indices should be continuous sequence starting from 0"
                 )
 
-            if self._npc_pr is not None and num_npc > 0:
+            if self._npc_ma is not None and num_npc > 0:
                 expected_npc_start = num_policy
                 assert self._npc_idxs[0] == expected_npc_start, (
                     f"NPC indices should start at {expected_npc_start}, got {self._npc_idxs[0]}"
@@ -215,18 +215,18 @@ class Simulation:
             obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
             my_obs = obs_t[self._policy_idxs]
-            policy = self._policy_pr.policy()
+            policy = self._policy_ma.policy()
             policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
             # NPC agents (if any)
-            if self._npc_pr is not None and len(self._npc_idxs):
+            if self._npc_ma is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
-                npc_policy = self._npc_pr.policy()
+                npc_policy = self._npc_ma.policy()
                 try:
                     npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
-                        f"[{self._name}] Error generating NPC actions for {self._npc_pr.name}: {e}"
+                        f"[{self._name}] Error generating NPC actions for {self._npc_ma.name}: {e}"
                     ) from e
 
         # ---------------- action stitching ----------------------- #
@@ -298,24 +298,24 @@ class Simulation:
     def _from_shards_and_context(self) -> SimulationStatsDB:
         """Merge all *.duckdb* shards for this simulation → one `StatsDB`."""
         # Make sure we're creating a dictionary of the right type
-        agent_map: Dict[int, PolicyRecord] = {}
+        agent_map: Dict[int, MettaAgent] = {}
 
         # Add policy agents to the map
         for idx in self._policy_idxs:
-            agent_map[int(idx.item())] = self._policy_pr
+            agent_map[int(idx.item())] = self._policy_ma
 
         # Add NPC agents to the map if they exist
-        if self._npc_pr is not None:
+        if self._npc_ma is not None:
             for idx in self._npc_idxs:
-                agent_map[int(idx.item())] = self._npc_pr
+                agent_map[int(idx.item())] = self._npc_ma
 
         suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_pr
+            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_ma
         )
         return db
 
-    def get_policy_ids(self, stats_client: StatsClient, policies: List[PolicyRecord]) -> Dict[str, uuid.UUID]:
+    def get_policy_ids(self, stats_client: StatsClient, policies: List[MettaAgent]) -> Dict[str, uuid.UUID]:
         policy_names = [policy.name for policy in policies]
         policy_ids_response = stats_client.get_policy_ids(policy_names)
         policy_ids = policy_ids_response.policy_ids
@@ -331,18 +331,18 @@ class Simulation:
     def _write_remote_stats(self, stats_db: SimulationStatsDB) -> None:
         """Write stats to the remote stats database."""
         if self._stats_client is not None:
-            policies = [self._policy_pr]
-            if self._npc_pr is not None:
-                policies.append(self._npc_pr)
+            policies = [self._policy_ma]
+            if self._npc_ma is not None:
+                policies.append(self._npc_ma)
             policy_ids = self.get_policy_ids(self._stats_client, policies)
 
             agent_map: Dict[int, uuid.UUID] = {}
             for idx in self._policy_idxs:
-                agent_map[int(idx.item())] = policy_ids[self._policy_pr.name]
+                agent_map[int(idx.item())] = policy_ids[self._policy_ma.name]
 
-            if self._npc_pr is not None:
+            if self._npc_ma is not None:
                 for idx in self._npc_idxs:
-                    agent_map[int(idx.item())] = policy_ids[self._npc_pr.name]
+                    agent_map[int(idx.item())] = policy_ids[self._npc_ma.name]
 
             # Get all episodes from the database
             episodes_df = stats_db.query("SELECT * FROM episodes")
@@ -377,7 +377,7 @@ class Simulation:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
-                        primary_policy_id=policy_ids[self._policy_pr.name],
+                        primary_policy_id=policy_ids[self._policy_ma.name],
                         stats_epoch=self._stats_epoch_id,
                         eval_name=self._name,
                         simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,

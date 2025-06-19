@@ -22,7 +22,7 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from metta.agent.policy_store import PolicyRecord
+from metta.agent.policy_store import MettaAgent
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from mettagrid.util.file import local_copy
 
@@ -193,7 +193,7 @@ class EvalStatsDB(SimulationStatsDB):
     def get_average_metric_by_filter(
         self,
         metric: str,
-        policy_record: PolicyRecord,
+        policy_record: MettaAgent,
         filter_condition: str | None = None,
     ) -> Optional[float]:
         pk, pv = policy_record.key_and_version()
@@ -202,7 +202,7 @@ class EvalStatsDB(SimulationStatsDB):
     def get_sum_metric_by_filter(
         self,
         metric: str,
-        policy_record: PolicyRecord,
+        policy_record: MettaAgent,
         filter_condition: str | None = None,
     ) -> Optional[float]:
         pk, pv = policy_record.key_and_version()
@@ -211,7 +211,7 @@ class EvalStatsDB(SimulationStatsDB):
     def get_std_metric_by_filter(
         self,
         metric: str,
-        policy_record: PolicyRecord,
+        policy_record: MettaAgent,
         filter_condition: str | None = None,
     ) -> Optional[float]:
         pk, pv = policy_record.key_and_version()
@@ -222,7 +222,7 @@ class EvalStatsDB(SimulationStatsDB):
     # ------------------------------------------------------------------ #
     def sample_count(
         self,
-        policy_record: Optional[PolicyRecord] = None,
+        policy_record: Optional[MettaAgent] = None,
         sim_suite: Optional[str] = None,
         sim_name: Optional[str] = None,
         sim_env: Optional[str] = None,
@@ -243,7 +243,7 @@ class EvalStatsDB(SimulationStatsDB):
     # ------------------------------------------------------------------ #
     #   Per‑simulation breakdown                                         #
     # ------------------------------------------------------------------ #
-    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple[str, str, str], float]:
+    def simulation_scores(self, policy_record: MettaAgent, metric: str) -> Dict[tuple[str, str, str], float]:
         """Return { (suite,name,env) : normalised mean(metric) }."""
         pk, pv = policy_record.key_and_version()
         sim_rows = self.query(f"""
@@ -263,7 +263,7 @@ class EvalStatsDB(SimulationStatsDB):
     def metric_by_policy_eval(
         self,
         metric: str,
-        policy_record: PolicyRecord | None = None,
+        policy_record: MettaAgent | None = None,
     ) -> pd.DataFrame:
         """
         Return a DataFrame with columns

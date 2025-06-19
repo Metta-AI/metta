@@ -17,7 +17,8 @@ from pufferlib import unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.agent.policy_store import MettaAgent as PolicyMettaAgent
+from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.app.stats_client import StatsClient
 from metta.eval.eval_stats_db import EvalStatsDB
@@ -119,8 +120,8 @@ class MettaTrainer:
         if self._master:
             logger.info(f"MettaTrainer loaded: {policy_record.policy()}")
 
-        self._initial_pr = policy_record
-        self.last_pr = policy_record
+        self._initial_ma = policy_record
+        self.last_ma = policy_record
         self.policy = policy_record.policy().to(self.device)
         self.policy_record = policy_record
         self.uncompiled_policy = self.policy
@@ -309,10 +310,10 @@ class MettaTrainer:
             ).id
             self._stats_epoch_start = self.epoch + 1
 
-        logger.info(f"Simulating policy: {self.last_pr.uri} with config: {self.sim_suite_config}")
+        logger.info(f"Simulating policy: {self.last_ma.uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
             config=self.sim_suite_config,
-            policy_pr=self.last_pr,
+            policy_ma=self.last_ma,
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
@@ -332,7 +333,7 @@ class MettaTrainer:
 
         # Compute scores for each evaluation category
         for category in self._eval_categories:
-            score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
+            score = stats_db.get_average_metric_by_filter("reward", self.last_ma, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
             record_heartbeat()
             # Only add the score if we got a non-None result
@@ -342,9 +343,9 @@ class MettaTrainer:
                 self._eval_suite_avgs[f"{category}_score"] = 0.0
 
         # Get overall score (average of all rewards)
-        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
+        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_ma)
         self._current_eval_score = overall_score if overall_score is not None else 0.0
-        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
+        all_scores = stats_db.simulation_scores(self.last_ma, "reward")
 
         # Categorize scores by environment type
         self._eval_grouped_scores = {}
@@ -674,7 +675,7 @@ class MettaTrainer:
         )
         checkpoint.save(self.cfg.run_dir)
 
-    def _checkpoint_policy(self) -> PolicyRecord | None:
+    def _checkpoint_policy(self) -> PolicyMettaAgent | None:
         if not self._master:
             return
 
@@ -684,12 +685,12 @@ class MettaTrainer:
         name = self.policy_store.make_model_name(self.epoch)
 
         generation = 0
-        if self._initial_pr:
-            generation = self._initial_pr.metadata.get("generation", 0) + 1
+        if self._initial_ma:
+            generation = self._initial_ma.metadata.get("generation", 0) + 1
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
-        self.last_pr = self.policy_store.save(
+        self.last_ma = self.policy_store.save(
             name,
             os.path.join(self.trainer_cfg.checkpoint_dir, name),
             self.uncompiled_policy,
@@ -699,15 +700,15 @@ class MettaTrainer:
                 "run": self.cfg.run,
                 "action_names": metta_grid_env.action_names,
                 "generation": generation,
-                "initial_uri": self._initial_pr.uri,
+                "initial_uri": self._initial_ma.uri,
                 "train_time": training_time,
                 "score": self._current_eval_score,
                 "eval_scores": self._eval_suite_avgs,
             },
         )
-        # this is hacky, but otherwise the initial_pr points
-        # at the same policy as the last_pr
-        return self.last_pr
+        # this is hacky, but otherwise the initial_ma points
+        # at the same policy as the last_ma
+        return self.last_ma
 
     def _save_policy_to_wandb(self):
         if not self._master:
@@ -716,8 +717,8 @@ class MettaTrainer:
         if self.wandb_run is None:
             return
 
-        pr = self._checkpoint_policy()
-        self.policy_store.add_to_wandb_run(self.wandb_run.name, pr)
+        ma = self._checkpoint_policy()
+        self.policy_store.add_to_wandb_run(self.wandb_run.name, ma)
 
     @with_instance_timer("_generate_and_upload_replay", log_level=logging.INFO)
     def _generate_and_upload_replay(self):
@@ -731,7 +732,7 @@ class MettaTrainer:
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
                 config=replay_sim_config,
-                policy_pr=self.last_pr,
+                policy_ma=self.last_ma,
                 policy_store=self.policy_store,
                 device=self.device,
                 vectorization=self.cfg.vectorization,
@@ -741,7 +742,7 @@ class MettaTrainer:
 
             if self.wandb_run is not None:
                 replay_urls = results.stats_db.get_replay_urls(
-                    policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+                    policy_key=self.last_ma.key(), policy_version=self.last_ma.version()
                 )
                 if len(replay_urls) > 0:
                     replay_url = replay_urls[0]
@@ -944,10 +945,10 @@ class MettaTrainer:
         self.vecenv.close()
 
     def initial_pr_uri(self) -> str:
-        return self._initial_pr.uri
+        return self._initial_ma.uri
 
     def last_pr_uri(self) -> str:
-        return self.last_pr.uri
+        return self.last_ma.uri
 
     def _make_experience_buffer(self):
         """Create experience buffer with tensor-based storage for prioritized sampling."""

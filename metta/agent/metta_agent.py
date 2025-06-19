@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import gymnasium as gym
 import hydra
@@ -15,6 +15,10 @@ from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
 from mettagrid.mettagrid_env import MettaGridEnv
+
+if TYPE_CHECKING:
+    from metta.agent.policy_store import PolicyStore
+    from metta.rl.policy import PytorchAgent
 
 logger = logging.getLogger("metta_agent")
 
@@ -61,15 +65,35 @@ class DistributedMettaAgent(DistributedDataParallel):
 class MettaAgent(nn.Module):
     def __init__(
         self,
-        obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
-        obs_width: int,
-        obs_height: int,
-        action_space: gym.spaces.Space,
-        feature_normalizations: dict[int, float],
-        device: str,
+        obs_space: Union[gym.spaces.Space, gym.spaces.Dict, None] = None,
+        obs_width: int = None,
+        obs_height: int = None,
+        action_space: gym.spaces.Space = None,
+        feature_normalizations: dict[int, float] = None,
+        device: str = None,
+        # PolicyRecord compatibility parameters
+        policy_store: "PolicyStore" = None,
+        name: str = None,
+        uri: str = None,
+        metadata: dict = None,
         **cfg,
     ):
         super().__init__()
+
+        # Handle backward compatibility - check if we're being loaded from an old PolicyRecord
+        if obs_space is None and policy_store is not None:
+            # This is an old PolicyRecord initialization
+            self._init_as_policy_record(policy_store, name, uri, metadata or {})
+            return
+
+        # Normal MettaAgent initialization
+        # Initialize PolicyRecord fields
+        self._policy_store = None
+        self.name = name
+        self.uri = uri
+        self.metadata = metadata or {}
+        self._local_path = None
+
         # Note that this doesn't instantiate the components -- that will happen later once
         # we've built up the right parameters for them.
         cfg = OmegaConf.create(cfg)
@@ -127,6 +151,88 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
+
+    def _init_as_policy_record(self, policy_store: "PolicyStore", name: str, uri: str, metadata: dict):
+        """Initialize as a PolicyRecord for backward compatibility"""
+        self._policy_store = policy_store
+        self.name = name
+        self.uri = uri
+        self.metadata = metadata
+        self._policy = None
+        self._local_path = None
+
+        if self.uri.startswith("file://"):
+            self._local_path = self.uri[len("file://") :]
+
+    def policy(self) -> nn.Module:
+        """Get the policy module (for backward compatibility with PolicyRecord)"""
+        # If this MettaAgent has components, it's a real MettaAgent, return self
+        if hasattr(self, "components"):
+            return self
+
+        # Otherwise, check if this is an old-style PolicyRecord that needs to load its policy
+        if hasattr(self, "_policy") and self._policy is None:
+            # This is an old-style PolicyRecord that needs to load its policy
+            ma = self._policy_store.load_from_uri(self.uri)
+            self._policy = ma if hasattr(ma, "components") else ma.policy()
+            self._local_path = ma.local_path() if hasattr(ma, "local_path") else None
+            return self._policy
+        elif hasattr(self, "_policy"):
+            # Return the cached policy
+            return self._policy
+
+        # For new-style MettaAgent, return self
+        return self
+
+    def policy_as_metta_agent(self) -> Union["MettaAgent", DistributedMettaAgent, "PytorchAgent"]:
+        """Get the policy as a MettaAgent or DistributedMettaAgent."""
+        policy = self.policy()
+        return policy
+
+    def num_params(self) -> int:
+        p = self.policy()
+        return sum(param.numel() for param in p.parameters() if param.requires_grad)
+
+    def local_path(self) -> str | None:
+        return self._local_path
+
+    def key_and_version(self) -> tuple[str, int]:
+        """
+        Extract the policy key and version from the URI.
+        TODO: store these on the metadata for new policies,
+        eventually read them from the metadata instead of parsing the URI.
+
+        Returns:
+            tuple: (policy_key, version)
+                - policy_key is the clean name without path or version
+                - version is the numeric version or 0 if not present
+        """
+        if not self.uri:
+            return ("unknown", 0)
+
+        # Get the last part after splitting by slash
+        base_name = self.uri.split("/")[-1]
+
+        # Check if it has a version number in format ":vNUM"
+        if ":" in base_name and ":v" in base_name:
+            parts = base_name.split(":v")
+            key = parts[0]
+            try:
+                version = int(parts[1])
+            except ValueError:
+                version = 0
+        else:
+            # No version, use the whole thing as key and version = 0
+            key = base_name
+            version = 0
+
+        return key, version
+
+    def key(self) -> str:
+        return self.key_and_version()[0]
+
+    def version(self) -> int:
+        return self.key_and_version()[1]
 
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.

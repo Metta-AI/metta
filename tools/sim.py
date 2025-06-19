@@ -65,17 +65,17 @@ def simulate_policy(
     policy_store = PolicyStore(cfg, None)
     # TODO: institutionalize this better?
     metric = sim_job.simulation_suite.name + "_score"
-    policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
+    policy_mas = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
 
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
 
     # For each checkpoint of the policy, simulate
-    for pr in policy_prs:
-        logger.info(f"Evaluating policy {pr.uri}")
-        replay_dir = f"{sim_job.replay_dir}/{pr.name}"
+    for ma in policy_mas:
+        logger.info(f"Evaluating policy {ma.uri}")
+        replay_dir = f"{sim_job.replay_dir}/{ma.name}"
         sim = SimulationSuite(
             config=sim_job.simulation_suite,
-            policy_pr=pr,
+            policy_ma=ma,
             policy_store=policy_store,
             replay_dir=replay_dir,
             stats_dir=sim_job.stats_dir,
@@ -86,7 +86,7 @@ def simulate_policy(
         sim_results = sim.simulate()
 
         # Collect metrics from the results
-        checkpoint_data = {"name": pr.name, "uri": pr.uri, "metrics": {}}
+        checkpoint_data = {"name": ma.name, "uri": ma.uri, "metrics": {}}
 
         # Get average reward
         rewards_df = sim_results.stats_db.query(
@@ -101,7 +101,7 @@ def simulate_policy(
         logger.info("Exporting merged stats DB → %s", sim_job.stats_db_uri)
         sim_results.stats_db.export(sim_job.stats_db_uri)
 
-        logger.info("Evaluation complete for policy %s", pr.uri)
+        logger.info("Evaluation complete for policy %s", ma.uri)
 
     return results
 

@@ -4,13 +4,13 @@ from typing import Dict, List, Optional
 
 from tabulate import tabulate
 
-from metta.agent.policy_store import PolicyRecord
+from metta.agent.policy_store import MettaAgent
 from metta.eval.analysis_config import AnalysisConfig
 from metta.eval.eval_stats_db import EvalStatsDB
 from mettagrid.util.file import local_copy
 
 
-def analyze(policy_record: PolicyRecord, config: AnalysisConfig) -> None:
+def analyze(policy_record: MettaAgent, config: AnalysisConfig) -> None:
     logger = logging.getLogger(__name__)
     logger.info(f"Analyzing policy: {policy_record.uri}")
     logger.info(f"Using eval DB: {config.eval_db_uri}")
@@ -40,7 +40,7 @@ def analyze(policy_record: PolicyRecord, config: AnalysisConfig) -> None:
 # --------------------------------------------------------------------------- #
 #   helpers                                                                   #
 # --------------------------------------------------------------------------- #
-def get_available_metrics(stats_db: EvalStatsDB, policy_record: PolicyRecord) -> List[str]:
+def get_available_metrics(stats_db: EvalStatsDB, policy_record: MettaAgent) -> List[str]:
     policy_key, policy_version = policy_record.key_and_version()
     result = stats_db.query(
         f"""
@@ -65,7 +65,7 @@ def filter_metrics(available_metrics: List[str], patterns: List[str]) -> List[st
 
 def get_metrics_data(
     stats_db: EvalStatsDB,
-    policy_record: PolicyRecord,
+    policy_record: MettaAgent,
     metrics: List[str],
     suite: Optional[str] = None,
 ) -> Dict[str, Dict[str, float]]:
@@ -99,7 +99,7 @@ def get_metrics_data(
     return data
 
 
-def print_metrics_table(metrics_data: Dict[str, Dict[str, float]], policy_record: PolicyRecord) -> None:
+def print_metrics_table(metrics_data: Dict[str, Dict[str, float]], policy_record: MettaAgent) -> None:
     logger = logging.getLogger(__name__)
     if not metrics_data:
         logger.warning(f"No metrics data available for {policy_record.key}:v{policy_record.version}")

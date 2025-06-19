@@ -15,7 +15,7 @@ from typing import Dict, List, Tuple, Union
 
 import duckdb
 
-from metta.agent.policy_store import PolicyRecord
+from metta.agent.policy_store import MettaAgent
 from mettagrid.episode_stats_db import EpisodeStatsDB
 from mettagrid.util.file import exists, local_copy, write_file
 
@@ -80,11 +80,11 @@ class SimulationStatsDB(EpisodeStatsDB):
     def from_shards_and_context(
         sim_id: str,
         dir_with_shards: Union[str, Path],
-        agent_map: Dict[int, PolicyRecord],
+        agent_map: Dict[int, MettaAgent],
         sim_name: str,
         sim_suite: str,
         env: str,
-        policy_record: PolicyRecord,
+        policy_record: MettaAgent,
     ) -> "SimulationStatsDB":
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"
@@ -116,7 +116,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"Found {len(all_episode_ids)} episodes across all shards")
 
         if all_episode_ids:
-            # Convert agent_map with PolicyRecord to agent_map with (key, version) tuples
+            # Convert agent_map with MettaAgent to agent_map with (key, version) tuples
             agent_tuple_map = {agent_id: record.key_and_version() for agent_id, record in agent_map.items()}
 
             merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
