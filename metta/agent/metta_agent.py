@@ -65,12 +65,12 @@ class DistributedMettaAgent(DistributedDataParallel):
 class MettaAgent(nn.Module):
     def __init__(
         self,
-        obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
-        obs_width: int,
-        obs_height: int,
-        action_space: gym.spaces.Space,
-        feature_normalizations: dict[int, float],
-        device: str,
+        obs_space: Optional[Union[gym.spaces.Space, gym.spaces.Dict]] = None,
+        obs_width: Optional[int] = None,
+        obs_height: Optional[int] = None,
+        action_space: Optional[gym.spaces.Space] = None,
+        feature_normalizations: Optional[dict[int, float]] = None,
+        device: Optional[str] = None,
         # PolicyRecord compatibility parameters
         policy_store: "PolicyStore" = None,
         name: str = None,
