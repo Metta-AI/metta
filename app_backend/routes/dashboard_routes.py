@@ -7,7 +7,7 @@ from psycopg.rows import class_row
 from psycopg.sql import SQL
 from pydantic import BaseModel
 
-from metta.app.metta_repo import MettaRepo
+from app_backend.metta_repo import MettaRepo
 
 
 # Pydantic models for API responses
