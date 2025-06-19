@@ -220,8 +220,8 @@ class Stopwatch:
 
         Clears all timing data while preserving timer existence and reference history.
         """
-        # Get list of timer names to avoid modifying dict during iteration
-        timer_names = list(self._timers.keys())
+        with self._lock:
+            timer_names = list(self._timers.keys())
 
         for name in timer_names:
             self.reset(name)
@@ -362,7 +362,10 @@ class Stopwatch:
             steps: Step count. If None, uses internal lap counter for each timer
             checkpoint_name: Optional name for the checkpoint
         """
-        for name, _timer in self._timers.items():
+        with self._lock:
+            timer_names = list(self._timers.keys())
+
+        for name in timer_names:
             self.checkpoint(steps, checkpoint_name, name)
 
     @with_lock
@@ -407,7 +410,10 @@ class Stopwatch:
         Returns:
             Dictionary mapping timer names to their lap times
         """
-        lap_times = {name: self.lap(steps, name) for name in self._timers}
+        with self._lock:
+            timer_names = list(self._timers.keys())
+
+        lap_times = {name: self.lap(steps, name) for name in timer_names}
 
         if exclude_global:
             lap_times.pop(self.GLOBAL_TIMER_NAME)
@@ -519,11 +525,13 @@ class Stopwatch:
             "references": timer.references.copy(),
         }
 
-    @with_lock
     def get_all_summaries(self) -> dict[str, dict[str, Any]]:
         """Get summaries for all timers."""
+        with self._lock:
+            timer_items = list(self._timers.items())
+
         summaries = {}
-        for name, timer in self._timers.items():
+        for name, timer in timer_items:
             if timer.is_running() or timer.total_elapsed > 0:
                 summaries[name] = self.get_summary(name)
         return summaries
@@ -537,7 +545,10 @@ class Stopwatch:
         Returns:
             Dictionary mapping timer names to elapsed times in seconds
         """
-        results = {name: self.get_elapsed(name) for name in self._timers}
+        with self._lock:
+            timer_names = list(self._timers.keys())
+
+        results = {name: self.get_elapsed(name) for name in timer_names}
 
         if exclude_global:
             results.pop(self.GLOBAL_TIMER_NAME, None)
