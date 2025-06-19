@@ -15,11 +15,11 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib import unroll_nested_dict
 
+from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
-from metta.app.stats_client import StatsClient
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
