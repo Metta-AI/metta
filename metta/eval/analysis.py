@@ -27,11 +27,11 @@ def analyze(metta_agent: MettaAgent, config: AnalysisConfig) -> None:
         available_metrics = get_available_metrics(stats_db, metta_agent)
         logger.info(f"Available metrics: {available_metrics}")
 
-        selected_metrics = config.metrics or available_metrics
+        selected_metrics = filter_metrics(available_metrics, config.metrics)
         if not selected_metrics:
-            logger.warning("No metrics specified or found to analyze.")
+            logger.warning(f"No metrics found matching patterns: {config.metrics}")
             return
-        logger.info(f"Selected metrics: {', '.join(selected_metrics)}")
+        logger.info(f"Selected metrics: {selected_metrics}")
 
         metrics_data = get_metrics_data(stats_db, metta_agent, selected_metrics, config.suite)
         print_metrics_table(metrics_data, metta_agent)
@@ -48,9 +48,10 @@ def get_available_metrics(stats_db: EvalStatsDB, metta_agent: MettaAgent) -> Lis
           FROM policy_simulation_agent_metrics
          WHERE policy_key = '{policy_key}'
            AND policy_version = {policy_version}
+         ORDER BY metric
     """
     )
-    return result["metric"].tolist()
+    return [] if result.empty else result["metric"].tolist()
 
 
 def filter_metrics(available_metrics: List[str], patterns: List[str]) -> List[str]:
@@ -76,18 +77,25 @@ def get_metrics_data(
         • K_recorded  – rows in policy_simulation_agent_metrics.
         • N_potential – total agent-episode pairs for that filter.
     """
-    data = {}
     policy_key, policy_version = metta_agent.key_and_version()
     filter_condition = f"sim_suite = '{suite}'" if suite else None
 
+    data: Dict[str, Dict[str, float]] = {}
     for m in metrics:
-        data[m] = {}
         mean = stats_db.get_average_metric_by_filter(m, metta_agent, filter_condition)
-        if mean is not None:
-            data[m]["mean"] = mean
-            std = stats_db.get_std_metric_by_filter(m, metta_agent, filter_condition) or 0.0
-            data[m]["std"] = std
+        if mean is None:
+            continue
+        std = stats_db.get_std_metric_by_filter(m, metta_agent, filter_condition) or 0.0
 
+        k_recorded = stats_db.count_metric_agents(policy_key, policy_version, m, filter_condition)
+        n_potential = stats_db.potential_samples_for_metric(policy_key, policy_version, filter_condition)
+
+        data[m] = {
+            "mean": mean,
+            "std": std,
+            "count": k_recorded,
+            "samples": n_potential,
+        }
     return data
 
 
@@ -97,19 +105,18 @@ def print_metrics_table(metrics_data: Dict[str, Dict[str, float]], metta_agent: 
         logger.warning(f"No metrics data available for {metta_agent.key}:v{metta_agent.version}")
         return
 
-    # Filter out empty metrics
-    metrics_data = {k: v for k, v in metrics_data.items() if v}
-
-    headers = ["Metric", "Mean", "Std Dev"]
-    table_data = [[k, v.get("mean", "N/A"), v.get("std", "N/A")] for k, v in metrics_data.items()]
-
-    # Format numbers to 4 decimal places
-    for row in table_data:
-        if isinstance(row[1], float):
-            row[1] = f"{row[1]:.4f}"
-        if isinstance(row[2], float):
-            row[2] = f"{row[2]:.4f}"
+    headers = ["Metric", "Average", "Std Dev", "Metric Samples", "Agent Samples"]
+    rows = [
+        [
+            metric,
+            f"{stats['mean']:.4f}",
+            f"{stats['std']:.4f}",
+            str(int(stats["count"])),
+            str(int(stats["samples"])),
+        ]
+        for metric, stats in metrics_data.items()
+    ]
 
     logger.info(f"\nMetrics for policy: {metta_agent.uri}\n")
-    logger.info(tabulate(table_data, headers=headers, tablefmt="grid"))
+    print(tabulate(rows, headers=headers, tablefmt="grid"))
     logger.info("")
