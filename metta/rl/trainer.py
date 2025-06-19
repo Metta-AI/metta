@@ -222,7 +222,7 @@ class MettaTrainer:
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
-    def train(self):
+    def train(self) -> None:
         logger.info("Starting training")
         trainer_cfg = self.trainer_cfg
 
@@ -250,6 +250,7 @@ class MettaTrainer:
             train_time = self.timer.get_last_elapsed("_train")
             stats_time = self.timer.get_last_elapsed("_process_stats")
             steps_calculated = self.agent_step - steps_before
+
             total_time = train_time + rollout_time + stats_time
             steps_per_sec = steps_calculated / total_time
 
@@ -627,7 +628,6 @@ class MettaTrainer:
                 # end loop over minibatches
 
             self.epoch += 1
-            # end loop over epochs
 
             # check early exit if we have reached target_kl
             if trainer_cfg.target_kl is not None:
@@ -817,20 +817,10 @@ class MettaTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
-        # Add filtered average reward if applicable
-        if self.trainer_cfg.average_reward:
-            overview["filtered_mean_reward"] = self.filtered_mean_reward
-
         for category in self._eval_categories:
             score = self._eval_suite_avgs.get(f"{category}_score", None)
             if score is not None:
                 overview[f"{category}_evals"] = score
-
-        parameter_stats = {
-            "parameter/learning_rate": self.optimizer.param_groups[0]["lr"],
-            "parameter/delta_steps": delta_steps,
-            "parameter/num_minibatches": self.experience.num_minibatches,
-        }
 
         losses = self.losses.to_dict()
 
@@ -939,7 +929,6 @@ class MettaTrainer:
 
         return adv
 
-    @with_instance_timer("close")
     def close(self):
         self.vecenv.close()
 
@@ -991,7 +980,6 @@ class MettaTrainer:
             agents_per_batch=getattr(vecenv, "agents_per_batch", None),
         )
 
-    @with_instance_timer("_make_vecenv")
     def _make_vecenv(self):
         """Create a vectorized environment."""
         trainer_cfg = self.trainer_cfg
