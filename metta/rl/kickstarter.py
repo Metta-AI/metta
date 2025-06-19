@@ -39,21 +39,14 @@ class Kickstarter:
     def _load_policies(self):
         self.teachers = []
         for teacher_cfg in self.teacher_cfgs:
-            if (
-                teacher_cfg is not None
-                and teacher_cfg.get("enabled", False)
-                and teacher_cfg.get("teacher_uri") is not None
-            ):
-                self.enabled = True
-                self.teacher_uri = teacher_cfg["teacher_uri"]
-                metta_agent = self.policy_store.policy(teacher_cfg["teacher_uri"])
-                policy = metta_agent.policy()
-                policy.action_loss_coef = teacher_cfg["action_loss_coef"]
-                policy.value_loss_coef = teacher_cfg["value_loss_coef"]
-                policy.activate_actions(self.action_names, self.action_max_params, self.device)
-                if self.compile:
-                    policy = torch.compile(policy, mode=self.compile_mode)
-                self.teachers.append(policy)
+            metta_agent = self.policy_store.policy(teacher_cfg["teacher_uri"])
+            policy = metta_agent.policy()
+            policy.action_loss_coef = teacher_cfg["action_loss_coef"]
+            policy.value_loss_coef = teacher_cfg["value_loss_coef"]
+            policy.activate_actions(self.action_names, self.action_max_params, self.device)
+            if self.compile:
+                policy = torch.compile(policy, mode=self.compile_mode)
+            self.teachers.append(policy)
 
     def loss(self, agent_step, student_normalized_logits, student_value, o, teacher_lstm_state: List[PolicyState]):
         ks_value_loss = torch.tensor(0.0, device=self.device)

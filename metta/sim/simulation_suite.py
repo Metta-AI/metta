@@ -27,15 +27,18 @@ class SimulationSuite:
         device: torch.device,
         vectorization: str,
         stats_dir: str,
+        replay_dir: Optional[str] = None,
         stats_client: Optional[StatsClient] = None,
         stats_epoch_id: Optional[str] = None,
     ):
         self._config = config
+        self.name = config.name
         self._policy_ma = policy_ma
         self._policy_store = policy_store
         self._device = device
         self._vectorization = vectorization
         self._stats_dir = stats_dir
+        self._replay_dir = replay_dir
         self._stats_client = stats_client
         self._stats_epoch_id = stats_epoch_id
 
@@ -44,34 +47,45 @@ class SimulationSuite:
         logger = logging.getLogger(__name__)
         # Make a new merged db with a random uuid each time so that we don't copy old stats dbs
         merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{self._stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
-        results = SimulationResults()
-        stats_db = SimulationStatsDB(self._stats_dir)
 
-        total_sims = len(self._config.simulations)
-        logger.info(f"Running simulation suite with {total_sims} simulations")
+        successful_simulations = 0
 
-        for idx, (sim_name, sim_config) in enumerate(self._config.simulations.items(), 1):
+        for sim_name, sim_config in self._config.simulations.items():
             try:
-                logger.info(f"[{idx}/{total_sims}] Running simulation: {sim_name}")
+                # merge global simulation suite overrides with simulation-specific overrides
+                sim_config.env_overrides = {**self._config.env_overrides, **sim_config.env_overrides}
                 sim = Simulation(
                     name=sim_name,
                     config=sim_config,
                     policy_ma=self._policy_ma,
                     policy_store=self._policy_store,
                     device=self._device,
-                    suite_name=self._config.name,
+                    suite_name=self.name,
                     vectorization=self._vectorization,
                     stats_dir=self._stats_dir,
+                    replay_dir=self._replay_dir,
                     stats_client=self._stats_client,
                     stats_epoch_id=self._stats_epoch_id,
                 )
+                logger.info("=== Simulation '%s' ===", sim_name)
                 sim_result = sim.simulate()
-                results.merge(sim_result)
-                logger.info(f"[{idx}/{total_sims}] Completed simulation: {sim_name}")
-            except SimulationCompatibilityError as e:
-                logger.warning(f"[{idx}/{total_sims}] Skipping simulation {sim_name}: {e}")
-            except Exception as e:
-                logger.error(f"[{idx}/{total_sims}] Failed to run simulation {sim_name}: {e}", exc_info=True)
+                merged_db.merge_in(sim_result.stats_db)
+                sim_result.stats_db.close()
+                successful_simulations += 1
 
-        results.stats_db = stats_db
-        return results
+            except SimulationCompatibilityError as e:
+                # Only skip for NPC-related compatibility issues
+                error_msg = str(e).lower()
+                if "npc" in error_msg or "non-player" in error_msg:
+                    logger.warning("Skipping simulation '%s' due to NPC compatibility issue: %s", sim_name, str(e))
+                    continue
+                else:
+                    # Re-raise for non-NPC compatibility issues
+                    logger.error("Critical compatibility error in simulation '%s': %s", sim_name, str(e))
+                    raise
+
+        if successful_simulations == 0:
+            raise RuntimeError("No simulations could be run successfully")
+
+        logger.info("Completed %d/%d simulations successfully", successful_simulations, len(self._config.simulations))
+        return SimulationResults(merged_db)
