@@ -81,14 +81,43 @@ class MettaAgent(nn.Module):
         # First restore the state normally
         self.__dict__.update(state)
 
-        # Ensure model_type exists for old checkpoints
+        # Ensure all required attributes exist with defaults
         if not hasattr(self, "model_type"):
-            logger.warning("Loading old MettaAgent without model_type, defaulting to 'brain'")
             self.model_type = "brain"
 
-        # Ensure metadata is a dict
+        if not hasattr(self, "name") or self.name is None:
+            self.name = ""
+
+        if not hasattr(self, "uri") or self.uri is None:
+            self.uri = ""
+
         if not hasattr(self, "metadata") or self.metadata is None:
             self.metadata = {}
+
+        if not hasattr(self, "local_path"):
+            self.local_path = None
+
+        if not hasattr(self, "model"):
+            self.model = None
+
+    def __getattr__(self, name: str):
+        """Provide defaults for missing attributes to ensure backward compatibility."""
+        # Only called when normal attribute lookup fails
+        if name == "name":
+            # Suppress logging for internal unpickling operations
+            return ""
+        elif name == "uri":
+            return ""
+        elif name == "model_type":
+            return "brain"
+        elif name == "metadata":
+            return {}
+        elif name == "local_path":
+            return None
+        elif name == "model":
+            return None
+        # If it's not one of our known attributes, raise AttributeError as normal
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
     def forward(
         self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
