@@ -22,12 +22,15 @@ class LocationDecoder(nn.Module):
         lstm_h = lstm_h.reshape(lstm_h.shape[0], -1)
         lstm_c = lstm_c.reshape(lstm_c.shape[0], -1)
 
-        input = torch.cat([lstm_h, lstm_c], dim=-1)
-        print(f"Input shape: {input.shape}")
+        input_val = torch.cat([lstm_h, lstm_c], dim=-1)
+        # print(f"Input shape: {input_val.shape}") # This print was present and worked
 
         # then we flatten the batch dimension
-        input = input.view(input.shape[0], -1)
+        input_val = input_val.view(input_val.shape[0], -1)
 
-        assert input.shape[1:] == (2 * 2 * 128,), f"Input shape: {input.shape}"
+        assert input_val.shape[1:] == (2 * 2 * 128,), f"Input shape: {input_val.shape}"
 
-        return self.probe(input)
+        bias_device_info = f"probe bias device: {self.probe.bias.device}" if self.probe.bias is not None else "probe bias: None"
+        print(f"LocationDecoder.forward: input_val device: {input_val.device}, probe weight device: {self.probe.weight.device}, {bias_device_info}")
+
+        return self.probe(input_val)

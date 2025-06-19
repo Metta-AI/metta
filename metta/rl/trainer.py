@@ -220,7 +220,7 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        self.location_decoder = LocationDecoder()
+        self.location_decoder = LocationDecoder().to(self.device)
         self.location_decoder_optimizer = torch.optim.Adam(self.location_decoder.parameters(), lr=0.001)
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
@@ -470,20 +470,34 @@ class MettaTrainer:
                 if info and len(info[0]) > 0:  # Process if info list itself is not empty
                     true_locations_tensor = self._extract_true_locations_from_info(info, o.shape[0], self.device)
 
-                    with torch.enable_grad():
-                        # we need to copy the lstm_h and lstm_c to the device
-                        lstm_h_copy = state.lstm_h.to(self.device)
-                        lstm_c_copy = state.lstm_c.to(self.device)
+                    if state.lstm_h is not None and state.lstm_c is not None and true_locations_tensor is not None:
+                        print(f"Trainer._rollout: self.device: {self.device}")
+                        print(f"Trainer._rollout: state.lstm_h device: {state.lstm_h.device}, state.lstm_c device: {state.lstm_c.device}")
+                        print(f"Trainer._rollout: location_decoder probe weight device: {self.location_decoder.probe.weight.device}")
+                        with torch.enable_grad():
+                            # we need to copy the lstm_h and lstm_c to the device
+                            lstm_h_copy = state.lstm_h.to(self.device)
+                            lstm_c_copy = state.lstm_c.to(self.device)
+                            print(f"Trainer._rollout: lstm_h_copy device: {lstm_h_copy.device}, lstm_c_copy device: {lstm_c_copy.device}")
 
-                        location_estimate = self.location_decoder(lstm_h_copy, lstm_c_copy)
-                        location_decoder_loss = torch.nn.functional.mse_loss(location_estimate, true_locations_tensor)
 
-                    self.location_decoder_optimizer.zero_grad()
-                    location_decoder_loss.backward()
-                    self.location_decoder_optimizer.step()
+                            location_estimate = self.location_decoder(lstm_h_copy, lstm_c_copy)
+                            location_decoder_loss = torch.nn.functional.mse_loss(location_estimate, true_locations_tensor)
 
-                    # print(f"Location Decoder MSE Loss: {location_decoder_loss.item()}")
-                    self.wandb_run.log({"location_decoder_loss": location_decoder_loss.item()})
+                        self.location_decoder_optimizer.zero_grad()
+                        location_decoder_loss.backward()
+                        self.location_decoder_optimizer.step()
+
+                        print(f"Location Decoder MSE Loss: {location_decoder_loss.item()}")
+                        if self.wandb_run:
+                            self.wandb_run.log({"location_decoder_loss": location_decoder_loss.item()})
+                    elif true_locations_tensor is None:
+                        print("Trainer._rollout: true_locations_tensor is None, skipping location decoder step.")
+                        pass # Do nothing if we couldn't get true locations
+                    else:
+                        print("Trainer._rollout: lstm_h or lstm_c is None, skipping location decoder step.")
+                        pass
+
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")

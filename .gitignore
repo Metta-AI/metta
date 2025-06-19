@@ -1,4 +1,6 @@
 .envrc
+__MACOSX/
+varied_terrain
 *.egg-info
 *.pyc
 *.so
