@@ -90,7 +90,7 @@ class MettaTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self.eval_stats: dict[str, float] = {}
+        self.evals: dict[str, float] = {}
 
         self.timer = Stopwatch(logger)
         self.timer.start()
@@ -321,7 +321,7 @@ class MettaTrainer:
         logger.info("Simulation complete")
 
         # Build evaluation metrics
-        self.eval_stats = {}  # used for wandb
+        self.evals = {}  # used for wandb
         categories: Set[str] = set()
         for sim_name in self.sim_suite_config.simulations.keys():
             categories.add(sim_name.split("/")[0])
@@ -332,19 +332,14 @@ class MettaTrainer:
             record_heartbeat()
             if score is None:
                 continue
-            self.eval_stats[f"evals/{category}_score"] = score
-
-        # Get overall score
-        overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
-        overall_score_value = overall_score if overall_score is not None else 0.0
-        self.eval_stats["evals/overall_score"] = overall_score_value
+            self.evals[f"{category}/score"] = score
 
         # Get detailed per-simulation scores
         all_scores = stats_db.simulation_scores(self.last_pr, "reward")
         for (_, sim_name, _), score in all_scores.items():
             category = sim_name.split("/")[0]
             sim_short_name = sim_name.split("/")[-1]
-            self.eval_stats[f"evals/details/{category}/{sim_short_name}"] = score
+            self.evals[f"{category}/{sim_short_name}"] = score
 
     def _on_train_step(self):
         pass
@@ -681,11 +676,10 @@ class MettaTrainer:
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
-        category_scores_map = {
-            key.split("/")[1]: value
-            for key, value in self.eval_stats.items()
-            if key.startswith("evals/") and key.endswith("_score")
-        }
+        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
+
+        category_score_values = [v for k, v in category_scores_map.items()]
+        overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
         self.last_pr = self.policy_store.save(
             name,
@@ -699,7 +693,7 @@ class MettaTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": training_time,
-                "score": self.eval_stats.get("evals/overall_score", 0.0),
+                "score": overall_score,
                 "eval_scores": category_scores_map,
             },
         )
@@ -833,14 +827,10 @@ class MettaTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
-        category_to_score = {
-            key.split("/")[1].split("_score")[0]: value
-            for key, value in self.eval_stats.items()
-            if key.startswith("evals/") and key.endswith("_score")
-        }
+        category_scores_map = {key.split("/")[0]: value for key, value in self.evals.items() if key.endswith("/score")}
 
-        for category, score in category_to_score.items():
-            overview[f"{category}_evals"] = score
+        for category, score in category_scores_map.items():
+            overview[f"{category}_score"] = score
 
         losses = self.losses.to_dict()
 
@@ -867,9 +857,9 @@ class MettaTrainer:
                 **{f"losses/{k}": v for k, v in losses.items()},
                 **{f"experience/{k}": v for k, v in experience.items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
+                **{f"eval_{k}": v for k, v in self.evals.items()},
                 **environment_stats,
                 **weight_stats,
-                **self.eval_stats,
                 **timing_stats,
                 **metric_stats,
             }
