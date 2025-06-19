@@ -468,9 +468,12 @@ class MettaTrainer:
                 # Check if info has content. `info` is a list of dicts.
                 # The first call to recv() after a reset might yield info as `[{}, {}, ...]`
                 if info and len(info[0]) > 0:  # Process if info list itself is not empty
-                    true_locations_tensor = self._extract_true_locations_from_info(info, o.shape[0], self.device)
+                    true_locations_tensor = self._extract_true_locations_from_info(info, o.shape[0], self.device).to(
+                        self.device
+                    )
 
                     with torch.enable_grad():
+                        # we need to copy the lstm_h and lstm_c to the device
                         location_estimate = self.location_decoder(state.lstm_h, state.lstm_c)
                         location_decoder_loss = torch.nn.functional.mse_loss(location_estimate, true_locations_tensor)
 
