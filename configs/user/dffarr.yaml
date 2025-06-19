@@ -4,10 +4,13 @@ defaults:
   - _self_
 
 wandb:
-  enabled: true
+  enabled: false
 
 trainer:
   curriculum: env/mettagrid/curriculum/navigation
+  learning_rate: 0.0 # do not train the main network while training the probe
+  initial_policy:
+    url: wandb://run/george.mem_mettascope_pretrained.metta2
 
 run_id: 498
 run: ${oc.env:USER}.local.${run_id}
