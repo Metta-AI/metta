@@ -311,12 +311,7 @@ class Stopwatch:
             stopwatch.checkpoint()  # uses internal counter
         """
         timer = self._get_timer(timer_name)
-
-        if timer.start_time is not None:
-            elapsed = time.time() - timer.start_time
-        else:
-            # For stopped timers, use total elapsed time
-            elapsed = timer.total_elapsed
+        elapsed = self.get_elapsed(timer_name)
 
         # Use internal counter if steps not provided
         if steps is None:
@@ -325,7 +320,8 @@ class Stopwatch:
 
         # Generate name if not provided
         if checkpoint_name is None:
-            checkpoint_name = f"_lap_{len(timer.checkpoints)}"
+            # Use 1-based indexing to match lap numbers
+            checkpoint_name = f"_lap_{len(timer.checkpoints) + 1}"
 
         timer.checkpoints[checkpoint_name] = Checkpoint(elapsed_time=elapsed, steps=steps)
 
@@ -345,8 +341,11 @@ class Stopwatch:
 
         # Get time since last checkpoint (or start)
         if timer.checkpoints:
-            last_time = max(timer.checkpoints.values(), key=lambda x: x["elapsed_time"])["elapsed_time"]
-            lap_time = self.get_elapsed(name) - last_time
+            # Since checkpoints are added in chronological order and dicts maintain
+            # insertion order (Python 3.7+), we can get the last one efficiently
+            *_, last_item = timer.checkpoints.items()
+            _last_checkpoint_name, last_checkpoint = last_item
+            lap_time = self.get_elapsed(name) - last_checkpoint["elapsed_time"]
         else:
             lap_time = self.get_elapsed(name)
 
@@ -526,6 +525,7 @@ class Stopwatch:
         Returns:
             Step count for the specified lap, or None if the lap doesn't exist.
             For lap N, this returns the number of steps taken between checkpoint N-1 and checkpoint N.
+            For lap 1, this returns the steps from 0 to the first checkpoint.
         """
         timer = self._get_timer(name)
 
@@ -534,10 +534,6 @@ class Stopwatch:
 
         # Sort checkpoints by time to get them in order
         sorted_checkpoints = sorted(timer.checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
-
-        # Need at least 2 checkpoints to have a completed lap
-        if len(sorted_checkpoints) < 2:
-            return None
 
         # Handle negative indices
         if lap_index < 0:
