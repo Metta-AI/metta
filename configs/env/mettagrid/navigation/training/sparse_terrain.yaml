@@ -1,0 +1,13 @@
+defaults:
+  - /env/mettagrid/navigation/training/defaults@
+  - _self_
+
+game:
+  map_builder:
+    room:
+      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      width: 80
+      height: 80
+      style: all-sparse # ${choose:"all-sparse","balanced","dense","maze"}
+      objects:
+        altar: 15

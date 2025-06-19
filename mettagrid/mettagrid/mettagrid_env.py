@@ -250,6 +250,9 @@ class MettaGridEnv(PufferEnv, GymEnv):
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
+        infos.update(get_completion_rates(self._curriculum))
+
+        stats = self._c_env.get_episode_stats()
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
 
@@ -453,3 +456,13 @@ class MettaGridEnv(PufferEnv, GymEnv):
     @property
     def config(self) -> dict[str, Any]:
         return cast(dict[str, Any], OmegaConf.to_container(self._task.env_cfg(), resolve=False))
+
+
+def get_completion_rates(curriculum):
+    completion_rates = {}
+    completed_tasks = curriculum.completed_tasks
+    if completed_tasks is not None and len(completed_tasks) > 0:
+        for task_id in curriculum._curriculums:
+            task_completion_rate = completed_tasks.count(task_id) / len(completed_tasks)
+            completion_rates[f"task_completions/{task_id}"] = task_completion_rate
+    return completion_rates
