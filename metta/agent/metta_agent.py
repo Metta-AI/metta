@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 import gymnasium as gym
 import hydra
@@ -10,13 +10,15 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.rl.policy import PytorchAgent
 from metta.util.omegaconf import convert_to_dict
 from mettagrid.mettagrid_env import MettaGridEnv
+
+if TYPE_CHECKING:
+    from metta.agent.policy_store import PolicyStore
 
 logger = logging.getLogger("metta_agent")
 
