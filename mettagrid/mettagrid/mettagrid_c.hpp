@@ -118,6 +118,8 @@ private:
                             ActionArg action_arg);
   void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
   void _step(py::array_t<ActionType, py::array::c_style> actions);
+
+  void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
 };
 
 #endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_
