@@ -466,26 +466,14 @@ class MettaTrainer:
 
                 # Check if info has content. `info` is a list of dicts.
                 # The first call to recv() after a reset might yield info as `[{}, {}, ...]`
-                if info:  # Process if info list itself is not empty
+                if len(info[0]) > 0:  # Process if info list itself is not empty
                     true_locations_tensor = self._extract_true_locations_from_info(info, o.shape[0], self.device)
 
-                    if true_locations_tensor is not None:
-                        location_estimate = self.location_decoder(state.lstm_h, state.lstm_c)
+                    location_estimate = self.location_decoder(state.lstm_h, state.lstm_c)
 
-                        if location_estimate.shape == true_locations_tensor.shape:
-                            valid_targets_mask = ~torch.isnan(true_locations_tensor).any(dim=1)
+                    loss = torch.nn.functional.mse_loss(location_estimate, true_locations_tensor)
 
-                            if valid_targets_mask.any():
-                                location_loss = torch.nn.functional.mse_loss(
-                                    location_estimate[valid_targets_mask], true_locations_tensor[valid_targets_mask]
-                                )
-                                print(
-                                    f"Location Decoder MSE Loss (masked, {valid_targets_mask.sum().item()} valid targets): {location_loss.item()}"
-                                )
-                        else:
-                            print(
-                                f"Shape mismatch for loss calculation: Est. {location_estimate.shape} vs True {true_locations_tensor.shape}"
-                            )
+                    print(f"Location Decoder MSE Loss: {loss.item()}")
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
