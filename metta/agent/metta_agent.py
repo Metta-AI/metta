@@ -72,10 +72,10 @@ class MettaAgent(nn.Module):
         feature_normalizations: dict[int, float],
         device: str,
         # PolicyRecord compatibility parameters
-        policy_store: "PolicyStore",
-        name: str,
-        uri: str,
-        metadata: dict,
+        policy_store: "PolicyStore" = None,
+        name: str = None,
+        uri: str = None,
+        metadata: dict = None,
         **cfg,
     ):
         super().__init__()
