@@ -14,16 +14,17 @@ import logging
 import os
 import random
 import sys
-import warnings
 from typing import List, Optional, Union
 
+import hydra
 import torch
 import wandb
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch import nn
 
+from metta.agent.brain_policy import BrainPolicy
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
-from metta.rl.policy import PytorchAgent, load_policy
+from metta.rl.policy import load_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
@@ -54,10 +55,10 @@ class PolicyRecord:
             self._local_path = pr.local_path()
         return self._policy
 
-    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent, PytorchAgent]:
+    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
         """Get the policy as a MettaAgent or DistributedMettaAgent."""
         policy = self.policy()
-        if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PytorchAgent)):
+        if not isinstance(policy, (MettaAgent, DistributedMettaAgent)):
             raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
         return policy
 
@@ -97,78 +98,6 @@ class PolicyRecord:
         total_params = sum(p.numel() for p in policy.parameters())
         trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
         lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
-
-        # Add module structure with detailed weight shapes
-        lines.append("\nModule Structure with Weight Shapes:")
-
-        for name, module in policy.named_modules():
-            # Skip top-level module
-            if name == "":
-                continue
-
-            # Create indentation based on module hierarchy
-            indent = "  " * name.count(".")
-
-            # Get module type
-            module_type = module.__class__.__name__
-
-            # Start building the module info line
-            module_info = f"{indent}{name}: {module_type}"
-
-            # Get parameters for this module (non-recursive)
-            params = list(module.named_parameters(recurse=False))
-
-            # Add detailed parameter information
-            if params:
-                # For common layer types, add specialized shape information
-                if isinstance(module, torch.nn.Conv2d):
-                    weight = next((p for name, p in params if name == "weight"), None)
-                    if weight is not None:
-                        out_channels, in_channels, kernel_h, kernel_w = weight.shape
-                        module_info += " ["
-                        module_info += f"out_channels={out_channels}, "
-                        module_info += f"in_channels={in_channels}, "
-                        module_info += f"kernel=({kernel_h}, {kernel_w})"
-                        module_info += "]"
-
-                elif isinstance(module, torch.nn.Linear):
-                    weight = next((p for name, p in params if name == "weight"), None)
-                    if weight is not None:
-                        out_features, in_features = weight.shape
-                        module_info += f" [in_features={in_features}, out_features={out_features}]"
-
-                elif isinstance(module, torch.nn.LSTM):
-                    module_info += " ["
-                    module_info += f"input_size={module.input_size}, "
-                    module_info += f"hidden_size={module.hidden_size}, "
-                    module_info += f"num_layers={module.num_layers}"
-                    module_info += "]"
-
-                elif isinstance(module, torch.nn.Embedding):
-                    weight = next((p for name, p in params if name == "weight"), None)
-                    if weight is not None:
-                        num_embeddings, embedding_dim = weight.shape
-                        module_info += f" [num_embeddings={num_embeddings}, embedding_dim={embedding_dim}]"
-
-                # Add all parameter shapes
-                param_shapes = []
-                for param_name, param in params:
-                    param_shapes.append(f"{param_name}={list(param.shape)}")
-
-                if param_shapes and not any(
-                    x in module_info for x in ["out_channels", "in_features", "hidden_size", "num_embeddings"]
-                ):
-                    module_info += f" ({', '.join(param_shapes)})"
-
-            # Add formatted module info to output
-            lines.append(module_info)
-
-        # Add section for buffer shapes (non-parameter tensors like running_mean in BatchNorm)
-        buffers = list(policy.named_buffers())
-        if buffers:
-            lines.append("\nBuffer Shapes:")
-            for name, buffer in buffers:
-                lines.append(f"  {name}: {list(buffer.shape)}")
 
         return "\n".join(lines)
 
@@ -335,6 +264,13 @@ class PolicyStore:
         policy = make_policy(env, self._cfg)
         name = self.make_model_name(0)
         path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
+
+        inner_policy = policy.policy if isinstance(policy, MettaAgent) else policy
+        reconstruction_attributes = {}
+        if isinstance(inner_policy, BrainPolicy):
+            reconstruction_attributes = inner_policy.agent_attributes
+            reconstruction_attributes["cfg"] = OmegaConf.to_container(self._cfg.agent, resolve=True)
+
         pr = self.save(
             name,
             path,
@@ -345,6 +281,7 @@ class PolicyStore:
                 "epoch": 0,
                 "generation": 0,
                 "train_time": 0,
+                "reconstruction_attributes": reconstruction_attributes,
             },
         )
         pr._policy = policy
@@ -352,15 +289,37 @@ class PolicyStore:
 
     def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
         logger.info(f"Saving policy to {path}")
+        inner_policy = policy.policy if isinstance(policy, MettaAgent) else policy
+
+        if isinstance(inner_policy, BrainPolicy):
+            # Trace the model for revisioning
+            agent_attrs = inner_policy.agent_attributes
+            obs_shape = agent_attrs["obs_shape"]
+            dummy_obs = torch.zeros(1, *obs_shape, device=self._device)
+            dummy_lstm_h = torch.zeros(
+                agent_attrs["core_num_layers"], 1, agent_attrs["hidden_size"], device=self._device
+            )
+            dummy_lstm_c = torch.zeros(
+                agent_attrs["core_num_layers"], 1, agent_attrs["hidden_size"], device=self._device
+            )
+
+            traced_policy = torch.jit.trace(inner_policy, (dummy_obs, dummy_lstm_h, dummy_lstm_c))
+            torch.jit.save(traced_policy, path)
+            logger.info(f"Saved JIT traced policy to {path}")
+        else:
+            # Fallback for other policy types
+            torch.save(
+                {
+                    "state_dict": inner_policy.state_dict(),
+                    "metadata": metadata,
+                    "class_name": inner_policy.__class__.__name__,
+                    "reconstruction_attributes": metadata.get("reconstruction_attributes", {}),
+                },
+                path,
+            )
+
         pr = PolicyRecord(self, path, "file://" + path, metadata)
-        pr._policy = policy
-        pr._policy_store = None
-        torch.save(pr, path)
         pr._policy_store = self
-        # Don't cache the policy that we just saved,
-        # since it might be updated later. We always
-        # load the policy from the file when needed.
-        pr._policy = None
         self._cached_prs[path] = pr
         return pr
 
@@ -399,7 +358,16 @@ class PolicyStore:
         else:
             paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
 
-        return [self._load_from_file(path, metadata_only=True) for path in paths]
+        # HACK: we have no way of knowing the metadata without loading the file
+        # so we just load them all.
+        records = []
+        for p in paths:
+            try:
+                records.append(self._load_from_file(p, metadata_only=True))
+            except Exception as e:
+                logger.warning(f"Could not load policy record from {p}: {e}")
+
+        return records
 
     def _prs_from_wandb_artifact(self, uri: str, version: Optional[str] = None) -> List[PolicyRecord]:
         # Check if wandb is disabled before proceeding
@@ -514,35 +482,75 @@ class PolicyStore:
                 "train_time": 0,
             },
         )
-        pr._policy = policy
+        pr._policy = MettaAgent(policy)
         return pr
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         if path in self._cached_prs:
-            if metadata_only or self._cached_prs[path]._policy is not None:
-                return self._cached_prs[path]
+            pr = self._cached_prs[path]
+            if metadata_only or pr._policy is not None:
+                return pr
+
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
         logger.info(f"Loading policy from {path}")
 
         self._make_codebase_backwards_compatible()
-
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=FutureWarning)
 
-            pr = torch.load(
-                path,
-                map_location=self._device,
-                weights_only=False,
-            )
+        try:
+            # Try loading as a JIT-traced model first
+            policy = torch.jit.load(path, map_location=self._device)
+            # We can't get metadata from a JIT file, so we have to load it from a sidecar file if it exists
+            metadata_path = path + ".meta.pt"
+            if os.path.exists(metadata_path):
+                metadata = torch.load(metadata_path)["metadata"]
+            else:
+                metadata = {}
+
+            name = os.path.basename(path)
+            pr = PolicyRecord(self, name, "file://" + path, metadata)
+            if not metadata_only:
+                pr._policy = MettaAgent(policy)
+
+            self._cached_prs[path] = pr
+            return pr
+        except (torch.jit.frontend.NotSupportedError, RuntimeError):
+            logger.info(f"Failed to load {path} as a JIT model, falling back to legacy state_dict loading.")
+
+        # Fallback to legacy loading
+        checkpoint = torch.load(path, map_location=self._device)
+
+        if isinstance(checkpoint, PolicyRecord):
+            logger.info("Loading legacy PolicyRecord object.")
+            pr = checkpoint
             pr._policy_store = self
             pr._local_path = path
             self._cached_prs[path] = pr
             if metadata_only:
                 pr._policy = None
-                pr._local_path = None
             return pr
+
+        metadata = checkpoint.get("metadata", {})
+        name = os.path.basename(path)
+        pr = PolicyRecord(self, name, "file://" + path, metadata)
+        pr._local_path = path
+
+        if not metadata_only:
+            class_name = checkpoint.get("class_name", "BrainPolicy")
+            if class_name == "BrainPolicy":
+                recon_attrs = checkpoint["reconstruction_attributes"]
+                # Use hydra to build the policy from config
+                cfg = OmegaConf.create(recon_attrs.pop("cfg"))
+                brain = hydra.utils.instantiate(cfg, **recon_attrs)
+                brain.load_state_dict(checkpoint["state_dict"])
+                policy = MettaAgent(brain)
+                pr._policy = policy
+            else:
+                raise NotImplementedError(f"Legacy loading for {class_name} not implemented")
+
+        self._cached_prs[path] = pr
+        return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")

@@ -1,45 +1,62 @@
 import logging
-from typing import Optional, Union
+from typing import Optional
 
 import gymnasium as gym
 import hydra
 import numpy as np
 import torch
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
-from metta.agent.policy_state import PolicyState
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
-from metta.agent.util.safe_get import safe_get_from_obs_space
-from metta.util.omegaconf import convert_to_dict
 from mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
-    obs_space = gym.spaces.Dict(
-        {
-            "grid_obs": env.single_observation_space,
-            "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
-        }
-    )
+class MettaAgentBuilder:
+    def __init__(self, cfg):
+        self._cfg = cfg
 
-    # Here's where we create MettaAgent. We're including the term MettaAgent here for better
-    # searchability. Otherwise you might only find yaml files.
-    return hydra.utils.instantiate(
-        cfg.agent,
-        obs_space=obs_space,
-        obs_width=env.obs_width,
-        obs_height=env.obs_height,
-        action_space=env.single_action_space,
-        feature_normalizations=env.feature_normalizations,
-        global_features=env.global_features,
-        device=cfg.device,
-        _recursive_=False,
-    )
+    def build_from_brain_policy(self, env) -> "MettaAgent":
+        obs_space = gym.spaces.Dict(
+            {
+                "grid_obs": env.single_observation_space,
+                "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
+            }
+        )
+
+        # Here's where we create a BrainPolicy.
+        brain = hydra.utils.instantiate(
+            self._cfg.agent,
+            obs_space=obs_space,
+            obs_width=env.obs_width,
+            obs_height=env.obs_height,
+            action_space=env.single_action_space,
+            feature_normalizations=env.feature_normalizations,
+            device=self._cfg.device,
+            _target_="metta.agent.brain_policy.BrainPolicy",
+            _recursive_=False,
+        )
+        return MettaAgent(brain)
+
+    def build_from_pytorch_policy(self, path) -> "MettaAgent":
+        from metta.rl.policy import load_policy
+
+        policy = load_policy(path, self._cfg.device, puffer=self._cfg.puffer)
+        return MettaAgent(policy)
+
+    def load_from_disk(self, path) -> "MettaAgent":
+        # This will be used for loading TorchScript models
+        # For now, it's a placeholder.
+        raise NotImplementedError("Loading from disk with torch.jit is not yet implemented.")
+
+
+def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig) -> "MettaAgent":
+    builder = MettaAgentBuilder(cfg)
+    return builder.build_from_brain_policy(env)
 
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -59,130 +76,41 @@ class DistributedMettaAgent(DistributedDataParallel):
 
 
 class MettaAgent(nn.Module):
-    def __init__(
-        self,
-        obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
-        obs_width: int,
-        obs_height: int,
-        action_space: gym.spaces.Space,
-        feature_normalizations: dict[int, float],
-        device: str,
-        **cfg,
-    ):
+    def __init__(self, policy: nn.Module):
         super().__init__()
-        # Note that this doesn't instantiate the components -- that will happen later once
-        # we've built up the right parameters for them.
-        cfg = OmegaConf.create(cfg)
+        self.policy = policy
 
-        logger.info(f"obs_space: {obs_space} ")
+    def __getattr__(self, name):
+        """Pass through attributes to the underlying policy."""
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.policy, name)
 
-        self.hidden_size = cfg.components._core_.output_size
-        self.core_num_layers = cfg.components._core_.nn_params.num_layers
-        self.clip_range = cfg.clip_range
-
-        assert hasattr(cfg.observations, "obs_key") and cfg.observations.obs_key is not None, (
-            "Configuration is missing required field 'observations.obs_key'"
-        )
-        obs_key = cfg.observations.obs_key  # typically "grid_obs"
-
-        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
-
-        self.agent_attributes = {
-            "clip_range": self.clip_range,
-            "action_space": action_space,
-            "feature_normalizations": feature_normalizations,
-            "obs_width": obs_width,
-            "obs_height": obs_height,
-            "obs_key": cfg.observations.obs_key,
-            "obs_shape": obs_shape,
-            "hidden_size": self.hidden_size,
-            "core_num_layers": self.core_num_layers,
-        }
-
-        logging.info(f"agent_attributes: {self.agent_attributes}")
-
-        self.components = nn.ModuleDict()
-        component_cfgs = convert_to_dict(cfg.components)
-
-        for component_key in component_cfgs:
-            # Convert key to string to ensure compatibility
-            component_name = str(component_key)
-            component_cfgs[component_key]["name"] = component_name
-            logger.info(f"calling hydra instantiate from MettaAgent __init__ for {component_name}")
-            component = hydra.utils.instantiate(component_cfgs[component_key], **self.agent_attributes)
-            self.components[component_name] = component
-
-        component = self.components["_value_"]
-        self._setup_components(component)
-        component = self.components["_action_"]
-        self._setup_components(component)
-
-        for name, component in self.components.items():
-            if not getattr(component, "ready", False):
-                raise RuntimeError(
-                    f"Component {name} in MettaAgent was never setup. It might not be accessible by other components."
-                )
-
-        self.components = self.components.to(device)
-
-        self._total_params = sum(p.numel() for p in self.parameters())
-        logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
-
-    def _setup_components(self, component):
-        """_sources is a list of dicts albeit many layers simply have one element.
-        It must always have a "name" and that name should be the same as the relevant key in self.components.
-        source_components is a dict of components that are sources for the current component. The keys
-        are the names of the source components."""
-        # recursively setup all source components
-        if component._sources is not None:
-            for source in component._sources:
-                logger.info(f"setting up {component._name} with source {source['name']}")
-                self._setup_components(self.components[source["name"]])
-
-        # setup the current component and pass in the source components
-        source_components = None
-        if component._sources is not None:
-            source_components = {}
-            for source in component._sources:
-                source_components[source["name"]] = self.components[source["name"]]
-        component.setup(source_components)
+    def forward(
+        self,
+        x: torch.Tensor,
+        lstm_h: Optional[torch.Tensor] = None,
+        lstm_c: Optional[torch.Tensor] = None,
+        action: Optional[torch.Tensor] = None,
+    ) -> tuple:
+        return self.policy.forward(x, lstm_h, lstm_c, action)
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Run this at the beginning of training."""
-
-        assert isinstance(action_max_params, list), "action_max_params must be a list"
-
-        self.device = device
-        self.action_max_params = action_max_params
-        self.action_names = action_names
-
-        self.active_actions = list(zip(action_names, action_max_params, strict=False))
-
-        # Precompute cumulative sums for faster conversion
-        self.cum_action_max_params = torch.cumsum(torch.tensor([0] + action_max_params, device=self.device), dim=0)
-
-        full_action_names = []
-        for action_name, max_param in self.active_actions:
-            for i in range(max_param + 1):
-                full_action_names.append(f"{action_name}_{i}")
-        self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
-
-        # Create action_index tensor
-        action_index = []
-        for action_type_idx, max_param in enumerate(action_max_params):
-            for j in range(max_param + 1):
-                action_index.append([action_type_idx, j])
-
-        self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
-        logger.info(f"Agent actions activated with: {self.active_actions}")
+        if hasattr(self.policy, "activate_actions"):
+            self.policy.activate_actions(action_names, action_max_params, device)
+        else:
+            logger.warning(
+                f"Policy of type {type(self.policy).__name__} does not have 'activate_actions' method. Skipping."
+            )
 
     @property
     def lstm(self):
-        return self.components["_core_"]._net
+        return self.policy._net
 
     @property
     def total_params(self):
-        return self._total_params
+        return sum(p.numel() for p in self.policy.parameters())
 
     def forward_inference(
         self, value: torch.Tensor, logits: torch.Tensor
@@ -264,89 +192,6 @@ class MettaAgent(nn.Module):
 
         return action, action_log_prob, entropy, value, log_probs
 
-    def forward(
-        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Forward pass of the MettaAgent - delegates to appropriate specialized method.
-
-        Args:
-            x: Input observation tensor
-            state: Policy state containing LSTM hidden and cell states
-            action: Optional action tensor for BPTT
-
-        Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
-        """
-        if __debug__:
-            # Default values in case obs_shape is not available
-            obs_w, obs_h, features = "W", "H", "F"
-
-            # Check if agent_attributes exists, is not None, and contains obs_shape
-            if (
-                hasattr(self, "agent_attributes")
-                and self.agent_attributes is not None
-                and "obs_shape" in self.agent_attributes
-            ):
-                # Get obs_shape and ensure it has the expected format
-                obs_shape = self.agent_attributes["obs_shape"]
-                if isinstance(obs_shape, (list, tuple)) and len(obs_shape) == 3:
-                    obs_w, obs_h, features = obs_shape
-
-            # TODO: redo this and the above once we converge on token obs space. Commenting out for now.
-            if action is None:
-                # Inference: x should have shape (BT, obs_w, obs_h, features)
-                pass
-            else:
-                # Training: x should have shape (B, T, obs_w, obs_h, features)
-                B, T, A = action.shape
-                assert A == 2, f"Action dimensionality should be 2, got {A}"
-                # assert_shape(x, (B, T, obs_w, obs_h, features), "training_input_x")
-                # assert_shape(action, (B, T, 2), "training_input_action")
-
-        # Initialize dictionary for TensorDict
-        td = {"x": x, "state": None}
-
-        # Safely handle LSTM state
-        if state.lstm_h is not None and state.lstm_c is not None:
-            # Ensure states are on the same device as input
-            lstm_h = state.lstm_h.to(x.device)
-            lstm_c = state.lstm_c.to(x.device)
-            # Concatenate LSTM states along dimension 0
-            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
-
-        # Forward pass through value network
-        self.components["_value_"](td)
-        value = td["_value_"]
-
-        # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
-        # This design supports potential future extensions like distributional value functions
-        # or multi-head value networks which would require more than a scalar per state
-        if __debug__:
-            assert_shape(value, ("BT", 1), "value")
-
-        # Forward pass through action network
-        self.components["_action_"](td)
-        logits = td["_action_"]
-
-        if __debug__:
-            # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
-            assert_shape(logits, ("BT", "A"), "logits")
-
-        # NOTE: Both value and logits always have shape (BT, *) regardless of input mode:
-        # - Training input: (B, T, *obs_shape) gets internally reshaped to (BT, *) by LSTM
-        # - Inference input: (BT, *obs_shape) stays as (BT, *)
-
-        # Update LSTM states
-        split_size = self.core_num_layers
-        state.lstm_h = td["state"][:split_size]
-        state.lstm_c = td["state"][split_size:]
-
-        if action is None:
-            return self.forward_inference(value, logits)
-        else:
-            return self.forward_training(value, logits, action)
-
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """
         Convert (action_type, action_param) pairs to discrete action indices
@@ -409,10 +254,10 @@ class MettaAgent(nn.Module):
             TypeError: If a component's method is not callable
             AssertionError: If no components are available
         """
-        assert len(self.components) != 0, "No components available to apply method"
+        assert len(self.policy.components) != 0, "No components available to apply method"
 
         results = []
-        for name, component in self.components.items():
+        for name, component in self.policy.components.items():
             if not hasattr(component, method_name):
                 raise AttributeError(f"Component '{name}' does not have method '{method_name}'")
 
@@ -462,7 +307,7 @@ class MettaAgent(nn.Module):
         Returns a list of metric dictionaries, one per component. Set analyze_weights to True in the config to turn it
         on for a given component."""
         results = {}
-        for name, component in self.components.items():
+        for name, component in self.policy.components.items():
             method_name = "compute_weight_metrics"
             if not hasattr(component, method_name):
                 continue  # Skip components that don't have this method instead of raising an error
