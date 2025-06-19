@@ -58,7 +58,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         try:
-            policy_ma = policy_store.policy("wandb://run/" + cfg.run)
+            metta_agent = policy_store.policy("wandb://run/" + cfg.run)
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
             WandbCarbs._record_failure(wandb_run)
@@ -66,7 +66,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
 
         eval = SimulationSuite(
             simulation_suite_cfg,
-            policy_ma,
+            metta_agent,
             policy_store,
             device=cfg.device,
             vectorization=cfg.vectorization,
@@ -86,18 +86,18 @@ def main(cfg: DictConfig | ListConfig) -> int:
         # Start evaluation
         eval_start_time = time.time()
 
-        logger.info(f"Evaluating policy {policy_ma.name}")
+        logger.info(f"Evaluating policy {metta_agent.name}")
         log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
 
         results = eval.simulate()
         eval_time = time.time() - eval_start_time
         eval_stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
-        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.metric, policy_ma)
+        eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.metric, metta_agent)
 
         # Get training stats from metadata if available
-        train_time = policy_ma.metadata.get("train_time", 0)
-        agent_step = policy_ma.metadata.get("agent_step", 0)
-        epoch = policy_ma.metadata.get("epoch", 0)
+        train_time = metta_agent.metadata.get("train_time", 0)
+        agent_step = metta_agent.metadata.get("agent_step", 0)
+        epoch = metta_agent.metadata.get("epoch", 0)
 
         # Update sweep stats with evaluation results
         stats_update = {
@@ -106,7 +106,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
             "time.train": train_time,
             "time.eval": eval_time,
             "time.total": train_time + eval_time,
-            "uri": policy_ma.uri,
+            "uri": metta_agent.uri,
             "score": eval_metric,
         }
 
@@ -114,14 +114,14 @@ def main(cfg: DictConfig | ListConfig) -> int:
 
         # Update lineage stats
         for stat in ["train.agent_step", "train.epoch", "time.train", "time.eval", "time.total"]:
-            sweep_stats["lineage." + stat] = sweep_stats[stat] + policy_ma.metadata.get("lineage." + stat, 0)
+            sweep_stats["lineage." + stat] = sweep_stats[stat] + metta_agent.metadata.get("lineage." + stat, 0)
 
         # Update wandb summary
         wandb_run.summary.update(sweep_stats)
         logger.info("Sweep Stats: \n" + json.dumps({k: str(v) for k, v in sweep_stats.items()}, indent=4))
 
         # Update policy metadata
-        policy_ma.metadata.update(
+        metta_agent.metadata.update(
             {
                 **sweep_stats,
                 "training_run": cfg.run,
@@ -129,7 +129,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
         )
 
         # Add policy to wandb sweep
-        policy_store.add_to_wandb_sweep(cfg.sweep_name, policy_ma)
+        policy_store.add_to_wandb_sweep(cfg.sweep_name, metta_agent)
 
         # Record observation in CARBS if enabled
         total_time = train_time + eval_time

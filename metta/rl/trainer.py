@@ -311,7 +311,7 @@ class MettaTrainer:
         logger.info(f"Simulating policy: {self.last_ma.uri} with config: {self.sim_suite_config}")
         sim = SimulationSuite(
             config=self.sim_suite_config,
-            policy_ma=self.last_ma,
+            metta_agent=self.last_ma,
             policy_store=self.policy_store,
             device=self.device,
             vectorization=self.cfg.vectorization,
@@ -730,7 +730,7 @@ class MettaTrainer:
             replay_simulator = Simulation(
                 name=f"replay_{self.epoch}",
                 config=replay_sim_config,
-                policy_ma=self.last_ma,
+                metta_agent=self.last_ma,
                 policy_store=self.policy_store,
                 device=self.device,
                 vectorization=self.cfg.vectorization,

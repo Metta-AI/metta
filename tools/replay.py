@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run
 # Generate a replay file that can be used in MettaScope to visualize a single run.
 
+import os
 import platform
 import webbrowser
 
@@ -38,28 +39,34 @@ def main(cfg):
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
         replay_job = ReplayJob(cfg.replay_job)
-        policy_ma = policy_store.policy(replay_job.policy_uri)
+        metta_agent = policy_store.policy(replay_job.policy_uri)
+        logger.info(f"Generating replays for policy: {metta_agent.name}")
+
+        if not os.path.exists(replay_job.replay_dir):
+            os.makedirs(replay_job.replay_dir, exist_ok=True)
+        if not os.path.exists(replay_job.stats_dir):
+            os.makedirs(replay_job.stats_dir, exist_ok=True)
+
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
-
-        sim_name = sim_config.env.split("/")[-1]
-        replay_dir = f"{replay_job.replay_dir}/{sim_name}"
-
         sim = Simulation(
-            sim_name,
-            sim_config,
-            policy_ma,
-            policy_store,
+            name=f"replay_{metta_agent.name.replace('/', '_')}",
+            config=sim_config,
+            metta_agent=metta_agent,
+            policy_store=policy_store,
             device=cfg.device,
             vectorization=cfg.vectorization,
+            replay_dir=replay_job.replay_dir,
             stats_dir=replay_job.stats_dir,
-            replay_dir=replay_dir,
         )
-        result = sim.simulate()
-        replay_url = result.stats_db.get_replay_urls(policy_key=policy_ma.key(), policy_version=policy_ma.version())[0]
+        results = sim.simulate()
+
+        replay_urls = results.stats_db.get_replay_urls(
+            policy_key=metta_agent.key(), policy_version=metta_agent.version()
+        )
 
         # Only on macos open a browser to the replay
         if platform.system() == "Darwin":
-            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={http_url(replay_url)}")
+            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={http_url(replay_urls[0])}")
 
 
 if __name__ == "__main__":

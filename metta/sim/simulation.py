@@ -54,7 +54,7 @@ class Simulation:
         self,
         name: str,
         config: SingleEnvSimulationConfig,
-        policy_ma: MettaAgent,
+        metta_agent: MettaAgent,
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
@@ -105,7 +105,7 @@ class Simulation:
         self._agents_per_env = env_cfg.game.num_agents
 
         # ---------------- policies ------------------------------------- #
-        self._policy_ma = policy_ma
+        self._metta_agent = metta_agent
         self._policy_store = policy_store
         self._npc_ma = policy_store.policy(config.npc_policy_uri) if config.npc_policy_uri else None
         self._policy_agents_pct = config.policy_agents_pct if self._npc_ma is not None else 1.0
@@ -120,7 +120,7 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._policy_ma
+        metta_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._metta_agent
         assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), metta_agent
         metta_agent.activate_actions(action_names, max_args, self._device)
 
@@ -215,7 +215,7 @@ class Simulation:
             obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
             my_obs = obs_t[self._policy_idxs]
-            policy = self._policy_ma.policy()
+            policy = self._metta_agent.policy()
             policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
             # NPC agents (if any)
             if self._npc_ma is not None and len(self._npc_idxs):
@@ -302,7 +302,7 @@ class Simulation:
 
         # Add policy agents to the map
         for idx in self._policy_idxs:
-            agent_map[int(idx.item())] = self._policy_ma
+            agent_map[int(idx.item())] = self._metta_agent
 
         # Add NPC agents to the map if they exist
         if self._npc_ma is not None:
@@ -311,7 +311,7 @@ class Simulation:
 
         suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_ma
+            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._metta_agent
         )
         return db
 
@@ -331,14 +331,14 @@ class Simulation:
     def _write_remote_stats(self, stats_db: SimulationStatsDB) -> None:
         """Write stats to the remote stats database."""
         if self._stats_client is not None:
-            policies = [self._policy_ma]
+            policies = [self._metta_agent]
             if self._npc_ma is not None:
                 policies.append(self._npc_ma)
             policy_ids = self.get_policy_ids(self._stats_client, policies)
 
             agent_map: Dict[int, uuid.UUID] = {}
             for idx in self._policy_idxs:
-                agent_map[int(idx.item())] = policy_ids[self._policy_ma.name]
+                agent_map[int(idx.item())] = policy_ids[self._metta_agent.name]
 
             if self._npc_ma is not None:
                 for idx in self._npc_idxs:
@@ -377,7 +377,7 @@ class Simulation:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
                         agent_metrics=agent_metrics,
-                        primary_policy_id=policy_ids[self._policy_ma.name],
+                        primary_policy_id=policy_ids[self._metta_agent.name],
                         stats_epoch=self._stats_epoch_id,
                         eval_name=self._name,
                         simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,

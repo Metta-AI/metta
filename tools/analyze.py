@@ -21,8 +21,8 @@ def main(cfg: DictConfig) -> None:
     config = AnalysisConfig(cfg.analysis)
 
     policy_store = PolicyStore(cfg, None)
-    policy_ma = policy_store.policy(cfg.policy_uri, selector_type=cfg.selector_type, n=1, metric=cfg.metric)
-    analyze(policy_ma, config)
+    metta_agent = policy_store.policy(cfg.policy_uri, selector_type=cfg.selector_type, n=1, metric=cfg.metric)
+    analyze(metta_agent, config)
 
 
 if __name__ == "__main__":

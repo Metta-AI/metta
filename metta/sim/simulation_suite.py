@@ -1,6 +1,7 @@
 import logging
 import uuid
 from pathlib import Path
+from typing import Optional
 
 import torch
 
@@ -21,23 +22,23 @@ class SimulationSuite:
     def __init__(
         self,
         config: SimulationSuiteConfig,
-        policy_ma: MettaAgent,
+        metta_agent: MettaAgent,
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
-        stats_dir: str = "/tmp/stats",
-        replay_dir: str | None = None,
-        stats_client: StatsClient | None = None,
-        stats_epoch_id: uuid.UUID | None = None,
+        stats_dir: str,
+        replay_dir: Optional[str] = None,
+        stats_client: Optional[StatsClient] = None,
+        stats_epoch_id: Optional[str] = None,
     ):
         self._config = config
-        self._policy_ma = policy_ma
+        self.name = config.name
+        self._metta_agent = metta_agent
         self._policy_store = policy_store
-        self._replay_dir = replay_dir
-        self._stats_dir = stats_dir
         self._device = device
         self._vectorization = vectorization
-        self.name = config.name
+        self._stats_dir = stats_dir
+        self._replay_dir = replay_dir
         self._stats_client = stats_client
         self._stats_epoch_id = stats_epoch_id
 
@@ -56,7 +57,7 @@ class SimulationSuite:
                 sim = Simulation(
                     name,
                     sim_config,
-                    self._policy_ma,
+                    self._metta_agent,
                     self._policy_store,
                     device=self._device,
                     vectorization=self._vectorization,
