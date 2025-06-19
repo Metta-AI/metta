@@ -1,7 +1,6 @@
 import logging
 import uuid
 from pathlib import Path
-from typing import Optional
 
 import torch
 
@@ -26,19 +25,19 @@ class SimulationSuite:
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
-        stats_dir: str,
-        replay_dir: Optional[str] = None,
-        stats_client: Optional[StatsClient] = None,
-        stats_epoch_id: Optional[str] = None,
+        stats_dir: str = "/tmp/stats",
+        replay_dir: str | None = None,
+        stats_client: StatsClient | None = None,
+        stats_epoch_id: uuid.UUID | None = None,
     ):
         self._config = config
-        self.name = config.name
         self._policy_ma = policy_ma
         self._policy_store = policy_store
+        self._replay_dir = replay_dir
+        self._stats_dir = stats_dir
         self._device = device
         self._vectorization = vectorization
-        self._stats_dir = stats_dir
-        self._replay_dir = replay_dir
+        self.name = config.name
         self._stats_client = stats_client
         self._stats_epoch_id = stats_epoch_id
 
@@ -50,24 +49,24 @@ class SimulationSuite:
 
         successful_simulations = 0
 
-        for sim_name, sim_config in self._config.simulations.items():
+        for name, sim_config in self._config.simulations.items():
             try:
                 # merge global simulation suite overrides with simulation-specific overrides
                 sim_config.env_overrides = {**self._config.env_overrides, **sim_config.env_overrides}
                 sim = Simulation(
-                    name=sim_name,
-                    config=sim_config,
-                    policy_ma=self._policy_ma,
-                    policy_store=self._policy_store,
+                    name,
+                    sim_config,
+                    self._policy_ma,
+                    self._policy_store,
                     device=self._device,
-                    suite_name=self.name,
                     vectorization=self._vectorization,
+                    sim_suite_name=self.name,
                     stats_dir=self._stats_dir,
                     replay_dir=self._replay_dir,
                     stats_client=self._stats_client,
                     stats_epoch_id=self._stats_epoch_id,
                 )
-                logger.info("=== Simulation '%s' ===", sim_name)
+                logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()
                 merged_db.merge_in(sim_result.stats_db)
                 sim_result.stats_db.close()
@@ -77,11 +76,11 @@ class SimulationSuite:
                 # Only skip for NPC-related compatibility issues
                 error_msg = str(e).lower()
                 if "npc" in error_msg or "non-player" in error_msg:
-                    logger.warning("Skipping simulation '%s' due to NPC compatibility issue: %s", sim_name, str(e))
+                    logger.warning("Skipping simulation '%s' due to NPC compatibility issue: %s", name, str(e))
                     continue
                 else:
                     # Re-raise for non-NPC compatibility issues
-                    logger.error("Critical compatibility error in simulation '%s': %s", sim_name, str(e))
+                    logger.error("Critical compatibility error in simulation '%s': %s", name, str(e))
                     raise
 
         if successful_simulations == 0:
