@@ -4,6 +4,7 @@ from .multi_task import MultiTaskCurriculum
 from .progressive import ProgressiveCurriculum
 from .random import RandomCurriculum
 from .sampling import SamplingCurriculum
+from .learning_progress import LearningProgressCurriculum
 from .util import curriculum_from_config_path
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "SamplingCurriculum",
     "LowRewardCurriculum",
     "ProgressiveCurriculum",
+    "LearningProgressCurriculum",
     "curriculum_from_config_path",
 ]

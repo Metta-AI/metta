@@ -1,0 +1,16 @@
+# User config for Learning Progress Curriculum testing
+defaults:
+  - env/mettagrid/curriculum/learning_progress
+  - _self_
+
+# Training parameters
+trainer:
+  total_timesteps: 1000000
+  eval_freq: 10000
+  save_freq: 50000
+
+# Environment overrides
+env_overrides:
+  game:
+    num_agents: 1
+    max_steps: 1000
