@@ -9,13 +9,14 @@ Extends EpisodeStatsDB with tables for simulation metadata:
 from __future__ import annotations
 
 import logging
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, List, Tuple, Union
 
 import duckdb
 
-from metta.agent.policy_store import MettaAgent
+from metta.agent.metta_agent import MettaAgent
 from mettagrid.episode_stats_db import EpisodeStatsDB
 from mettagrid.util.file import exists, local_copy, write_file
 
@@ -84,52 +85,39 @@ class SimulationStatsDB(EpisodeStatsDB):
         sim_name: str,
         sim_suite: str,
         env: str,
-        policy_record: MettaAgent,
+        metta_agent: MettaAgent,
     ) -> "SimulationStatsDB":
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
-        merged_path = dir_with_shards / "merged.duckdb"
+        assert dir_with_shards.is_dir(), f"Directory with shards not found at: {dir_with_shards}"
 
-        # Find shards
-        shards = [s for s in dir_with_shards.glob("*.duckdb") if s.name != merged_path.name]
+        # Create a temporary, unique path for the merged DB
+        # TODO: This should be in a temporary directory
+        merged_db_path = Path(f"{dir_with_shards}/all_{uuid.uuid4().hex[:8]}.duckdb")
+        merged_db = SimulationStatsDB(merged_db_path)
 
-        logger = logging.getLogger(__name__)
-        if not shards:
-            logger.warning(f"No shards found in {dir_with_shards}")
-            merged = SimulationStatsDB(merged_path)
-            return merged
-
-        if merged_path.exists():
-            merged_path.unlink()
-
-        merged = SimulationStatsDB(merged_path)
-
-        policy_key, policy_version = policy_record.key_and_version()
-        merged._insert_simulation(sim_id, sim_name, sim_suite, env, policy_key, policy_version)
-
-        # Merge each shard
-        for shard_path in shards:
-            logger.debug(f"Merging shard {shard_path}")
-            merged._merge_db(shard_path)
-
-        # Update all episodes to use our simulation ID
-        all_episode_ids = [row[0] for row in merged.con.execute("SELECT id FROM episodes").fetchall()]
-        logger.debug(f"Found {len(all_episode_ids)} episodes across all shards")
+        all_episode_ids = []
+        shard_paths = list(dir_with_shards.glob(f"{sim_id}*.duckdb"))
+        for shard_path in shard_paths:
+            merged_db.merge_in(shard_path)
+            # after merging, we can delete the shard
+            # os.remove(shard_path)
 
         if all_episode_ids:
             # Convert agent_map with MettaAgent to agent_map with (key, version) tuples
             agent_tuple_map = {agent_id: record.key_and_version() for agent_id, record in agent_map.items()}
 
-            merged._insert_agent_policies(all_episode_ids, agent_tuple_map)
-            merged._update_episode_simulations(all_episode_ids, sim_id)
-
-        else:
-            logger.warning(
-                "No episodes found in merged database. This suggests an issue with environment instrumentation. "
-                "Check that stats_writer.start_episode() and end_episode() are being called properly."
+            merged_db._add_simulation_entry(
+                sim_id,
+                sim_name,
+                sim_suite,
+                env,
+                metta_agent.key(),
+                metta_agent.version(),
+                agent_tuple_map,
+                all_episode_ids,
             )
 
-        merged.con.commit()
-        return merged
+        return merged_db
 
     def export(self, dest: str) -> None:
         """

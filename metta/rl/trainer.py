@@ -112,17 +112,16 @@ class MettaTrainer:
         os.makedirs(trainer_cfg.checkpoint_dir, exist_ok=True)
 
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
-        policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
+        metta_agent = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
-        assert policy_record is not None, "No policy found"
+        assert metta_agent is not None, "No policy found"
 
         if self._master:
-            logger.info(f"MettaTrainer loaded: {policy_record.policy()}")
+            logger.info(f"MettaTrainer loaded: {metta_agent.policy()}")
 
-        self._initial_ma = policy_record
-        self.last_ma = policy_record
-        self.policy = policy_record.policy().to(self.device)
-        self.policy_record = policy_record
+        self._initial_ma = metta_agent
+        self.last_ma = metta_agent
+        self.policy = metta_agent.policy().to(self.device)
         self.uncompiled_policy = self.policy
 
         # Note that these fields are specific to MettaGridEnv, which is why we can't keep

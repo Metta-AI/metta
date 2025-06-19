@@ -1,15 +1,16 @@
 import logging
+import uuid
+from pathlib import Path
 from typing import Optional
 
 import torch
 
-from metta.agent.policy_store import MettaAgent, PolicyStore
+from metta.agent.metta_agent import MettaAgent
+from metta.agent.policy_store import PolicyStore
 from metta.app.stats_client import StatsClient
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
-
-logger = logging.getLogger("simulation-suite")
 
 
 class SimulationSuite:
@@ -39,6 +40,10 @@ class SimulationSuite:
         self._stats_epoch_id = stats_epoch_id
 
     def simulate(self) -> SimulationResults:
+        """Run every simulation, merge their DBs/replay dicts, and return a single `SimulationResults`."""
+        logger = logging.getLogger(__name__)
+        # Make a new merged db with a random uuid each time so that we don't copy old stats dbs
+        merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{self._stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
         results = SimulationResults()
         stats_db = SimulationStatsDB(self._stats_dir)
 

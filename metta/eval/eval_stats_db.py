@@ -22,7 +22,7 @@ from typing import Dict, Optional
 
 import pandas as pd
 
-from metta.agent.policy_store import MettaAgent
+from metta.agent.metta_agent import MettaAgent
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from mettagrid.util.file import local_copy
 
@@ -193,28 +193,28 @@ class EvalStatsDB(SimulationStatsDB):
     def get_average_metric_by_filter(
         self,
         metric: str,
-        policy_record: MettaAgent,
+        metta_agent: MettaAgent,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = policy_record.key_and_version()
+        pk, pv = metta_agent.key_and_version()
         return self._normalised_value(pk, pv, metric, "AVG", filter_condition)
 
     def get_sum_metric_by_filter(
         self,
         metric: str,
-        policy_record: MettaAgent,
+        metta_agent: MettaAgent,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = policy_record.key_and_version()
+        pk, pv = metta_agent.key_and_version()
         return self._normalised_value(pk, pv, metric, "SUM", filter_condition)
 
     def get_std_metric_by_filter(
         self,
         metric: str,
-        policy_record: MettaAgent,
+        metta_agent: MettaAgent,
         filter_condition: str | None = None,
     ) -> Optional[float]:
-        pk, pv = policy_record.key_and_version()
+        pk, pv = metta_agent.key_and_version()
         return self._normalised_value(pk, pv, metric, "STD", filter_condition)
 
     # ------------------------------------------------------------------ #
@@ -222,15 +222,15 @@ class EvalStatsDB(SimulationStatsDB):
     # ------------------------------------------------------------------ #
     def sample_count(
         self,
-        policy_record: Optional[MettaAgent] = None,
+        metta_agent: Optional[MettaAgent] = None,
         sim_suite: Optional[str] = None,
         sim_name: Optional[str] = None,
         sim_env: Optional[str] = None,
     ) -> int:
         """Return potential‑sample count for arbitrary filters."""
         q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
-        if policy_record:
-            pk, pv = policy_record.key_and_version()
+        if metta_agent:
+            pk, pv = metta_agent.key_and_version()
             q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
         if sim_suite:
             q += f" AND sim_suite = '{sim_suite}'"
@@ -243,9 +243,9 @@ class EvalStatsDB(SimulationStatsDB):
     # ------------------------------------------------------------------ #
     #   Per‑simulation breakdown                                         #
     # ------------------------------------------------------------------ #
-    def simulation_scores(self, policy_record: MettaAgent, metric: str) -> Dict[tuple[str, str, str], float]:
+    def simulation_scores(self, metta_agent: MettaAgent, metric: str) -> Dict[tuple[str, str, str], float]:
         """Return { (suite,name,env) : normalised mean(metric) }."""
-        pk, pv = policy_record.key_and_version()
+        pk, pv = metta_agent.key_and_version()
         sim_rows = self.query(f"""
             SELECT DISTINCT sim_suite, sim_name, sim_env
               FROM policy_simulation_agent_samples
@@ -263,7 +263,7 @@ class EvalStatsDB(SimulationStatsDB):
     def metric_by_policy_eval(
         self,
         metric: str,
-        policy_record: MettaAgent | None = None,
+        metta_agent: MettaAgent | None = None,
     ) -> pd.DataFrame:
         """
         Return a DataFrame with columns
@@ -273,8 +273,8 @@ class EvalStatsDB(SimulationStatsDB):
         * `eval_name`  →  `sim_env`
         * `value`      →  normalised mean of *metric*
         """
-        if policy_record is not None:
-            policy_key, policy_version = policy_record.key_and_version()
+        if metta_agent is not None:
+            policy_key, policy_version = metta_agent.key_and_version()
             policy_clause = f"policy_key = '{policy_key}' AND policy_version = {policy_version}"
         else:
             # All policies

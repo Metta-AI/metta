@@ -25,7 +25,7 @@ from omegaconf import OmegaConf
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import MettaAgent, PolicyStore
+from metta.agent.policy_store import PolicyStore
 from metta.app.stats_client import StatsClient
 from metta.rl.policy import PytorchAgent
 from metta.rl.vecenv import make_vecenv

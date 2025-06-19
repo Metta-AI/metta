@@ -35,7 +35,6 @@ class PolicySelectorConfig(Config):
     metric: str = "score"
 
 
-# Create a PolicyRecord class that can handle unpickling old files
 class PolicyRecord:
     """Compatibility class for loading old PolicyRecord checkpoints."""
 
@@ -43,7 +42,7 @@ class PolicyRecord:
         self._policy_store = policy_store
         self.name = name
         self.uri = uri
-        self.metadata = metadata or {}
+        self.metadata = metadata
         self._policy = None
         self._local_path = None
 
