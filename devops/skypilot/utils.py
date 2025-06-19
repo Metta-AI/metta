@@ -194,7 +194,7 @@ def display_job_summary(
         first_line = pr_title.split("\n")[0]
         print(f"{bold('PR:')} {yellow(f'#{pr_number} - {first_line}')}")
     else:
-        print(f"{bold('PR:')} {red('Not a PR HEAD')}")
+        print(f"{bold('PR:')} {red('Not an open PR HEAD')}")
 
     print(blue("-" * divider_length))
     print(f"\n{bold('Command:')} {yellow(cmd)}")
