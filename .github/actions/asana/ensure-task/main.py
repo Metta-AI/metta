@@ -15,7 +15,7 @@ def search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id
 
     # Use workspace search with custom field filtering
     params = {
-        "opt_fields": "permalink_url,custom_fields,name,modified_at",
+        "opt_fields": "permalink_url,custom_fields,name,notes,modified_at",
         "limit": 100,  # Maximum allowed by Asana API
         "sort_by": "created_at",
         "projects.any": project_id,  # Filter to specific project
@@ -35,7 +35,7 @@ def search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id
     if tasks:
         task = tasks[0]
         print(f"Found existing Asana task: {task['permalink_url']}")
-        return task["permalink_url"]
+        return task
 
     print("No tasks found with matching GitHub URL")
     return None
@@ -72,15 +72,49 @@ def create_asana_task(title, description, project_id, workspace_id, github_url, 
         sys.exit(1)
 
 
+def update_asana_task(task_gid, title, description, asana_token):
+    """Update an existing Asana task with new title and description."""
+    url = f"https://app.asana.com/api/1.0/tasks/{task_gid}"
+    headers = {
+        "Authorization": f"Bearer {asana_token}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "data": {
+            "name": title,
+            "notes": description,
+        }
+    }
+
+    print(f"Updating task {task_gid} with payload: {payload}")
+
+    response = requests.put(url, json=payload, headers=headers, timeout=30)
+    if response.status_code == 200:
+        print(f"Successfully updated task {task_gid}")
+    else:
+        print(f"Asana API Error updating task: {response.status_code} - {response.text}")
+
+
 def ensure_asana_task_exists(
     title, description, project_id, workspace_id, github_url, github_url_field_id, asana_token
 ):
     """Ensure an Asana task exists with the given GitHub URL. Return existing or create new."""
     # First, search for existing task with this GitHub URL
-    existing_task_url = search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id, asana_token)
-    if existing_task_url:
-        print(f"Found existing Asana task: {existing_task_url}")
-        return existing_task_url
+    existing_task = search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id, asana_token)
+    if existing_task:
+        print(f"Found existing Asana task: {existing_task['permalink_url']}")
+
+        # Check if the task needs updates using the data from search
+        if existing_task:
+            current_title = existing_task.get("name", "")
+            current_notes = existing_task.get("notes", "")
+
+            if current_title != title or current_notes != description:
+                print("Task needs updates - updating title and description")
+                update_asana_task(existing_task["gid"], title, description, asana_token)
+
+        return existing_task["permalink_url"]
 
     # If no existing task found, create a new one
     print(f"No existing task found with GitHub URL: {github_url}")
