@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 from pydantic import BaseModel
 
-from metta.app.routes.stats_routes import (
+from app_backend.routes.stats_routes import (
     EpisodeCreate,
     EpochCreate,
     PolicyCreate,
@@ -87,7 +87,6 @@ class StatsClient:
 
         Args:
             name: Name of the training run
-            user_id: ID of the user creating the run
             attributes: Optional attributes for the training run
             url: Optional URL associated with the training run
 

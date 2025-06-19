@@ -48,7 +48,7 @@ class ColumnDefinition {
 
   generateIcon() {
     if (this.field.startsWith('inv:') || this.field.startsWith('agent:inv:')) {
-      return 'data/resources/' + this.field.replace('inv:', '').replace('agent:', '') + '.png'
+      return 'data/atlas/resources/' + this.field.replace('inv:', '').replace('agent:', '') + '.png'
     } else {
       return 'data/ui/table/' + this.field.replace('agent:', '') + '.png'
     }
