@@ -93,6 +93,10 @@ if [ -z "$IS_DOCKER" ]; then
   echo -e "\nSetting up MettaScope..."
   bash "mettascope/install.sh"
 
+  # ========== CHECK AWS TOKEN SETUP ==========
+  echo -e "\nSetting up AWS access..."
+  bash "devops/aws/setup_aws_profiles.sh"
+
   echo -e "\nInstalling Skypilot..."
   bash "devops/skypilot/install.sh"
 
@@ -110,11 +114,11 @@ for i in {1..5}; do # removing a child dir can make the parent empty, so loop a 
 
   # Find and remove empty directories
   while IFS= read -r -d '' dir; do
-    if rmdir "$dir" 2>/dev/null; then
+    if rmdir "$dir" 2> /dev/null; then
       echo "  Removed: $dir"
       found_empty=1
     fi
-  done < <(find "$PROJECT_DIR" -type d -empty -not \( $EXCLUDE_PATTERN \) -print0 2>/dev/null)
+  done < <(find "$PROJECT_DIR" -type d -empty -not \( $EXCLUDE_PATTERN \) -print0 2> /dev/null)
 
   # If no empty directories were found, we're done
   [ $found_empty -eq 0 ] && break
