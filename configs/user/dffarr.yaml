@@ -6,5 +6,8 @@ defaults:
 wandb:
   enabled: true
 
-run_id: 491
+trainer:
+  curriculum: env/mettagrid/curriculum/navigation
+
+run_id: 495
 run: ${oc.env:USER}.local.${run_id}

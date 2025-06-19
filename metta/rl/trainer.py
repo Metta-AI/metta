@@ -221,6 +221,7 @@ class MettaTrainer:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
         self.location_decoder = LocationDecoder()
+        self.location_decoder_optimizer = torch.optim.Adam(self.location_decoder.parameters(), lr=0.001)
 
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
@@ -466,14 +467,19 @@ class MettaTrainer:
 
                 # Check if info has content. `info` is a list of dicts.
                 # The first call to recv() after a reset might yield info as `[{}, {}, ...]`
-                if len(info[0]) > 0:  # Process if info list itself is not empty
+                if info and len(info[0]) > 0:  # Process if info list itself is not empty
                     true_locations_tensor = self._extract_true_locations_from_info(info, o.shape[0], self.device)
 
-                    location_estimate = self.location_decoder(state.lstm_h, state.lstm_c)
+                    with torch.enable_grad():
+                        location_estimate = self.location_decoder(state.lstm_h, state.lstm_c)
+                        location_decoder_loss = torch.nn.functional.mse_loss(location_estimate, true_locations_tensor)
 
-                    loss = torch.nn.functional.mse_loss(location_estimate, true_locations_tensor)
+                    self.location_decoder_optimizer.zero_grad()
+                    location_decoder_loss.backward()
+                    self.location_decoder_optimizer.step()
 
-                    print(f"Location Decoder MSE Loss: {loss.item()}")
+                    self.stats["location_decoder_loss"].append(location_decoder_loss.item())
+                    print(f"Location Decoder MSE Loss: {location_decoder_loss.item()}")
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
@@ -901,6 +907,9 @@ class MettaTrainer:
                 overview[f"{category}_evals"] = score
 
         losses = self.losses.to_dict()
+        location_decoder_loss_val = self.stats.pop("location_decoder_loss", None)
+        if location_decoder_loss_val is not None:
+            losses["location_decoder_loss"] = location_decoder_loss_val
 
         # don't plot losses that are unused
         if self.trainer_cfg.l2_reg_loss_coef == 0:
