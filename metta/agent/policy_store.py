@@ -35,8 +35,25 @@ class PolicySelectorConfig(Config):
     metric: str = "score"
 
 
-# For backward compatibility
-PolicyRecord = MettaAgent
+# Create a PolicyRecord class that can handle unpickling old files
+class PolicyRecord:
+    """Compatibility class for loading old PolicyRecord checkpoints."""
+
+    def __init__(self, policy_store=None, name=None, uri=None, metadata=None):
+        self._policy_store = policy_store
+        self.name = name
+        self.uri = uri
+        self.metadata = metadata or {}
+        self._policy = None
+        self._local_path = None
+
+    def __setstate__(self, state):
+        """Handle unpickling of old PolicyRecord objects."""
+        self.__dict__.update(state)
+
+    def __getstate__(self):
+        """Handle pickling (though we shouldn't save PolicyRecord anymore)."""
+        return self.__dict__
 
 
 class PolicyStore:
@@ -307,6 +324,7 @@ class PolicyStore:
 
         We can use this function to alias old layout structures. For now we are supporting:
         - agent --> metta.agent
+        - PolicyRecord --> Available in both old and new module paths
         """
         # Memoize
         if getattr(self, "_made_codebase_backwards_compatible", False):
@@ -315,6 +333,20 @@ class PolicyStore:
 
         # Handle agent --> metta.agent
         sys.modules["agent"] = sys.modules["metta.agent"]
+
+        # Make sure PolicyRecord is available in various module paths for old checkpoints
+        # Import current module first
+        import metta.agent.policy_store
+
+        # Set up PolicyRecord in the current module
+        if not hasattr(metta.agent.policy_store, "PolicyRecord"):
+            # This shouldn't happen since we defined it above, but just in case
+            metta.agent.policy_store.PolicyRecord = PolicyRecord
+
+        # Also make it available in old module paths that might have been used
+        if "agent.policy_store" in sys.modules:
+            sys.modules["agent.policy_store"].PolicyRecord = PolicyRecord
+
         modules_queue = collections.deque(["metta.agent"])
 
         processed = set()
@@ -329,6 +361,10 @@ class PolicyStore:
             module = sys.modules[module_name]
             old_name = module_name.replace("metta.agent", "agent")
             sys.modules[old_name] = module
+
+            # Make sure PolicyRecord is available in the old module path too
+            if old_name == "agent.policy_store" and hasattr(module, "PolicyRecord"):
+                sys.modules[old_name].PolicyRecord = PolicyRecord
 
             # Find all submodules
             for attr_name in dir(module):
@@ -387,8 +423,28 @@ class PolicyStore:
                 weights_only=False,
             )
 
-            # Handle backward compatibility - check if we loaded an old PolicyRecord
-            if hasattr(loaded, "_policy_store"):
+            # Check if we loaded an old PolicyRecord by checking its class name
+            if type(loaded).__name__ == "PolicyRecord":
+                logger.info("Detected old PolicyRecord format, converting to MettaAgent")
+                # This is an old PolicyRecord, extract the policy and metadata
+                inner_policy = loaded._policy
+
+                # If the inner policy is already a MettaAgent with components, use it directly
+                if hasattr(inner_policy, "components"):
+                    ma = inner_policy
+                    # Copy metadata from the PolicyRecord wrapper
+                    ma.name = loaded.name
+                    ma.uri = loaded.uri
+                    ma.metadata = loaded.metadata
+                    ma._local_path = path
+                    ma._policy_store = self
+                else:
+                    # Create a new MettaAgent wrapper for the inner policy
+                    ma = MettaAgent(policy_store=self, name=loaded.name, uri=loaded.uri, metadata=loaded.metadata)
+                    ma._policy = inner_policy
+                    ma._local_path = path
+            # Handle backward compatibility - check if we loaded an old PolicyRecord or new MettaAgent
+            elif hasattr(loaded, "_policy_store"):
                 # This is either an old PolicyRecord or a new MettaAgent with metadata
                 ma = loaded
                 ma._policy_store = self
