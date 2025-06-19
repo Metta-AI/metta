@@ -260,15 +260,40 @@ jobs:
         run: |
           echo "Checking WANDB for metta-research/metta/runs/$POLICY"
 
-          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $WANDB_API_KEY" \
-            "https://api.wandb.ai/runs/metta-research/metta/$POLICY")
+          # Check if API key is set
+          if [ -z "$WANDB_API_KEY" ]; then
+            echo "Error: WANDB_API_KEY is not set"
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
-          echo "WANDB run check returned HTTP $STATUS_CODE"
+          # Build the GraphQL query
+          QUERY='{"query": "{ project(name: \"metta\", entityName: \"metta-research\") { run(name: \"'${POLICY}'\") { id state } } }"}'
 
-          if [ "$STATUS_CODE" = "200" ]; then
+          # Query WANDB GraphQL API for the specific run
+          RESPONSE=$(curl -s -X POST https://api.wandb.ai/graphql/cli \
+            -H "Authorization: Bearer ${WANDB_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "$QUERY")
+
+          echo "API Response: $RESPONSE"
+
+          # Check if we got an error response
+          if echo "$RESPONSE" | grep -q "\"errors\""; then
+            echo "API returned errors"
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Check if the run exists (will be null if not found)
+          if echo "$RESPONSE" | grep -q "\"run\":null"; then
+            echo "Run not found"
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
+          elif echo "$RESPONSE" | grep -q "\"run\":{\"id\":"; then
+            echo "Run found!"
             echo "result=success" >> "$GITHUB_OUTPUT"
           else
+            echo "Unexpected response format"
             echo "result=skipped" >> "$GITHUB_OUTPUT"
           fi
 
