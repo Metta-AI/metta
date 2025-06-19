@@ -217,10 +217,6 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
-        # Temporary debug print to check the content of 'infos' before returning
-        # You can add an identifier if multiple envs are running, e.g., using self._episode_id or another unique ID
-        print(f"DEBUG MettaGridEnv.step (episode {self._episode_id}): Returning infos = {infos}")
-
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     @override
