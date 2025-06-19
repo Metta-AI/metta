@@ -265,6 +265,9 @@ jobs:
             echo "Error: WANDB_API_KEY is not set"
             echo "result=skipped" >> "$GITHUB_OUTPUT"
             exit 0
+          else
+            # Debug: Check API key format (show only first/last few chars)
+            echo "API Key format check: ${WANDB_API_KEY:0:4}...${WANDB_API_KEY: -4}"
           fi
 
           # Build the GraphQL query
