@@ -492,10 +492,17 @@ class MettaTrainer:
                         self.location_decoder_optimizer.step()
 
                         print(f"Location Decoder MSE Loss: {location_decoder_loss.item()}")
-                        print(f"Predicted location: {location_estimate}")
-                        print(f"True location: {true_locations_tensor}")
+                        print(f"Predicted location: {location_estimate[0]}")
+                        print(f"True location: {true_locations_tensor[0]}")
+                        avg_euclidean_distance = torch.norm(location_estimate - true_locations_tensor, dim=1).mean()
+                        print(f"Average Euclidean Distance: {avg_euclidean_distance.item()}")
                         if self.wandb_run:
-                            self.wandb_run.log({"location_decoder_loss": location_decoder_loss.item()})
+                            self.wandb_run.log(
+                                {
+                                    "location_decoder_loss": location_decoder_loss.item(),
+                                    "avg_euclidean_distance": avg_euclidean_distance.item(),
+                                }
+                            )
                     elif true_locations_tensor is None:
                         print("Trainer._rollout: true_locations_tensor is None, skipping location decoder step.")
                         pass  # Do nothing if we couldn't get true locations
@@ -719,7 +726,7 @@ class MettaTrainer:
                 self.losses.minibatches_processed += 1
 
                 self.optimizer.zero_grad()
-                loss.backward()
+                # loss.backward()
                 if (minibatch_idx + 1) % self.experience.accumulate_minibatches == 0:
                     torch.nn.utils.clip_grad_norm_(self.policy.parameters(), trainer_cfg.max_grad_norm)
                     self.optimizer.step()
