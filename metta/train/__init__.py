@@ -1,24 +1,50 @@
-"""Functional training API for Metta.
+"""Training interfaces for Metta."""
 
-This module provides a functional interface for training RL agents,
-breaking down the monolithic MettaTrainer into composable functions.
-"""
+# Configuration
+from .config import (
+    AgentConfig,
+    OptimizerConfig,
+    TrainerConfig,
+    TrainingConfig,
+    WandbConfig,
+)
 
-from .checkpoint import find_latest_checkpoint, load_checkpoint, save_checkpoint
-from .evaluate import evaluate_policy
-from .losses import PPOLossConfig, compute_ppo_loss
-from .rollout import RolloutConfig, rollout
-from .update import OptimizerConfig, update_policy
+# Training jobs
+from .job import (
+    JobBuilder,
+    TrainingJob,
+    quick_train,
+)
+
+# Minimal interface
+from .minimal import (
+    Experiment,
+    Metta,
+    train,
+)
+
+# Simple trainer
+from .simple_trainer import (
+    SimpleTrainer,
+    train_agent,
+)
 
 __all__ = [
-    "rollout",
-    "RolloutConfig",
-    "compute_ppo_loss",
-    "PPOLossConfig",
-    "update_policy",
+    # Configuration
+    "TrainingConfig",
+    "TrainerConfig",
+    "AgentConfig",
     "OptimizerConfig",
-    "save_checkpoint",
-    "load_checkpoint",
-    "find_latest_checkpoint",
-    "evaluate_policy",
+    "WandbConfig",
+    # Jobs
+    "TrainingJob",
+    "JobBuilder",
+    "quick_train",
+    # Minimal
+    "Metta",
+    "train",
+    "Experiment",
+    # Simple
+    "SimpleTrainer",
+    "train_agent",
 ]

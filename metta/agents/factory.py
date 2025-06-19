@@ -21,8 +21,8 @@ AGENT_REGISTRY: Dict[str, Type[BaseAgent]] = {
 
 def create_agent(
     agent_name: str,
-    obs_space: gym.spaces.Space,
-    action_space: gym.spaces.Space,
+    obs_space: gym.Space,
+    action_space: gym.Space,
     obs_width: int,
     obs_height: int,
     feature_normalizations: dict,
@@ -32,14 +32,14 @@ def create_agent(
     """Create an agent by name.
 
     Args:
-        agent_name: Name of the agent to create (e.g., "simple_cnn")
+        agent_name: Name of the agent type
         obs_space: Observation space
         action_space: Action space
         obs_width: Width of observations
         obs_height: Height of observations
-        feature_normalizations: Feature normalization values
+        feature_normalizations: Feature normalization config
         device: Device to place agent on
-        **kwargs: Additional arguments passed to agent constructor
+        **kwargs: Additional agent-specific arguments
 
     Returns:
         Instantiated agent
@@ -52,9 +52,7 @@ def create_agent(
         raise ValueError(f"Unknown agent: {agent_name}. Available agents: {available}")
 
     agent_class = AGENT_REGISTRY[agent_name]
-
-    # Create the agent
-    agent = agent_class(
+    return agent_class(
         obs_space=obs_space,
         action_space=action_space,
         obs_width=obs_width,
@@ -64,22 +62,10 @@ def create_agent(
         **kwargs,
     )
 
-    return agent
-
-
-def register_agent(name: str, agent_class: Type[BaseAgent]) -> None:
-    """Register a custom agent class.
-
-    Args:
-        name: Name to register the agent under
-        agent_class: Agent class (must inherit from BaseAgent)
-    """
-    if not issubclass(agent_class, BaseAgent):
-        raise TypeError(f"{agent_class} must inherit from BaseAgent")
-
-    AGENT_REGISTRY[name] = agent_class
-
 
 def list_agents() -> list[str]:
-    """List all available agent names."""
-    return list(AGENT_REGISTRY.keys())
+    """List all available agent types."""
+    return sorted(AGENT_REGISTRY.keys())
+
+
+__all__ = ["create_agent", "list_agents", "AGENT_REGISTRY"]

@@ -2,234 +2,286 @@
 
 ## Overview
 
-This guide documents the refactoring of the Metta codebase from a Hydra-based configuration system to a more traditional Python library architecture. The goal is to make the codebase more modular, easier to understand, and simpler to extend.
+This guide documents the comprehensive refactoring of the Metta codebase from a Hydra-based configuration system to a modular Python library architecture. The goal is to make the codebase more pythonic, easier to understand, and simpler to use as a library.
 
-## Key Changes
+## Key Improvements
 
-### 1. Agent Architecture
+### 1. Direct Object Creation
 
-**Before (Hydra-based):**
+**Before (YAML + Hydra):**
 ```yaml
-# configs/agent/simple.yaml
-agent:
-  _target_: metta.agent.metta_agent.MettaAgent
-  components:
-    _obs_:
-      _target_: metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper
-    cnn1:
-      _target_: metta.agent.lib.nn_layer_library.Conv2d
-      sources: [{name: obs_normalizer}]
-      nn_params:
-        out_channels: 64
-        kernel_size: 5
+# Multiple YAML files with complex inheritance
+defaults:
+  - common
+  - agent: simple_token_to_box
+  - trainer: puffer
+  - sim: all
+  - wandb: metta_research
 ```
 
-**After (Python classes):**
+**After (Direct Python):**
 ```python
-from metta.agents import SimpleCNNAgent
+from metta import SimpleCNNAgent, Metta
+
+agent = SimpleCNNAgent(hidden_size=256, lstm_layers=3)
+metta = Metta(agent=agent)
+metta.train()
+```
+
+### 2. Modular Components
+
+#### Runtime Configuration (replaces common.yaml)
+```python
+from metta import configure
+
+runtime = configure(
+    run_name="my_experiment",
+    device="cuda",
+    seed=42,
+    data_dir="./experiments"
+)
+```
+
+#### Agent Creation
+```python
+from metta import create_agent, SimpleCNNAgent
+
+# Using factory
+agent = create_agent("simple_cnn", hidden_size=256)
 
 # Direct instantiation
 agent = SimpleCNNAgent(
-    obs_space=env.observation_space,
-    action_space=env.action_space,
-    obs_width=env.obs_width,
-    obs_height=env.obs_height,
-    feature_normalizations=env.feature_normalizations,
-    device="cuda",
+    obs_width=11,
+    obs_height=11,
+    hidden_size=256,
+    lstm_layers=3
 )
 ```
 
-### 2. Agent Implementation
-
-Agents are now standard `torch.nn.Module` classes that inherit from `BaseAgent`:
-
+#### Environment Creation
 ```python
-class SimpleCNNAgent(BaseAgent):
-    def __init__(self, obs_space, action_space, ...):
-        super().__init__(obs_space, action_space, ...)
+from metta import create_env, create_env_from_preset
 
-        # Direct layer instantiation
-        self.cnn1 = nn.Conv2d(in_channels, 64, kernel_size=5)
-        self.lstm = LSTM(input_size, hidden_size, num_layers)
-        self.value_head = nn.Linear(hidden_size, 1)
+# Custom environment
+env = create_env(width=15, height=15, num_agents=2)
 
-    def compute_outputs(self, x, state):
-        # Standard PyTorch forward pass
-        x = self.cnn1(x)
-        x, new_state = self.lstm(x, state)
-        value = self.value_head(x)
-        logits = self.actor_head(x)
-        return value, logits, new_state
+# From preset
+env = create_env_from_preset("large")
 ```
 
-### 3. Training Configuration
+### 3. Training Interfaces
 
-**Before (Hydra):**
-```yaml
-# Complex nested YAML files with defaults and overrides
-defaults:
-  - _self_
-  - agent: simple
-  - trainer: simple
-  - env: mettagrid
+#### Minimal Interface
+```python
+from metta import train
+
+# One-line training
+trained_agent = train(agent, timesteps=1_000_000)
 ```
 
-**After (Python dataclasses):**
+#### Job Builder Pattern
 ```python
-from metta.train.config import TrainingConfig, AgentConfig
+from metta import JobBuilder
 
-config = TrainingConfig(
-    agent=AgentConfig(
-        name="simple_cnn",
-        hidden_size=128,
-        lstm_layers=2,
-    ),
-    trainer=TrainerConfig(
-        total_timesteps=10_000_000,
-        batch_size=32768,
-    ),
+agent = (JobBuilder()
+    .with_agent("large_cnn")
+    .with_timesteps(5_000_000)
+    .with_evaluations("navigation")
+    .with_wandb("my_project")
+    .run())
+```
+
+#### Direct Control
+```python
+from metta import Metta
+
+metta = Metta(
+    agent=agent,
+    env=env,
+    total_timesteps=10_000_000,
+    batch_size=32768
 )
+
+while metta.training():
+    metta.train(timesteps=100_000)
+    results = metta.eval()
+    print(f"Reward: {results['mean_reward']}")
 ```
 
-### 4. Environment Creation
+### 4. Simulation Registry (replaces sim/all.yaml)
+
+```python
+from metta import SimulationSpec, register_simulation
+
+# Register custom simulation
+register_simulation(
+    name="custom/my_eval",
+    env="path/to/env",
+    num_episodes=10,
+    max_time_s=120
+)
+
+# Get evaluation suite
+suite = get_simulation_suite("navigation")
+```
+
+### 5. Component Independence
+
+Each component can be used independently:
+
+```python
+# Just create an agent
+from metta.agents import SimpleCNNAgent
+agent = SimpleCNNAgent(...)
+
+# Just create an environment
+from metta.env import create_env
+env = create_env(...)
+
+# Just run evaluation
+from metta.sim import Simulation
+sim = Simulation(agent=agent, env=env)
+results = sim.run()
+```
+
+## Migration Examples
+
+### From train_job.yaml
 
 **Before:**
-```python
-env = hydra.utils.instantiate(cfg.env)
+```yaml
+defaults:
+  - common
+  - agent: simple_token_to_box
+  - trainer: puffer
+
+train_job:
+  evals: ${sim}
+
+seed: 1
 ```
 
 **After:**
 ```python
-from metta.env.factory import create_env, create_env_from_preset
+from metta import TrainingJob
 
-# Option 1: Direct creation
-env = create_env(width=11, height=11, max_steps=1024)
-
-# Option 2: From preset
-env = create_env_from_preset("medium", num_agents=4)
+job = TrainingJob(
+    agent="simple_cnn",
+    trainer=TrainerConfig(
+        total_timesteps=10_000_000,
+        batch_size=32768
+    ),
+    evaluations="all",
+    seed=1
+)
+job.run()
 ```
 
-## Migration Guide
+### From Agent YAML
 
-### Converting Existing Agents
-
-1. **Identify the agent configuration** in YAML files
-2. **Create a new Python class** inheriting from `BaseAgent`
-3. **Convert component instantiation** to direct layer creation
-4. **Implement `compute_outputs`** method
-5. **Register the agent** in the factory
-
-Example conversion:
-
-```python
-# Old YAML component
-cnn1:
-  _target_: metta.agent.lib.nn_layer_library.Conv2d
-  sources: [{name: obs_normalizer}]
-  nn_params:
-    out_channels: 64
-    kernel_size: 5
-    stride: 3
-
-# New Python code
-self.cnn1 = nn.Conv2d(in_channels, 64, kernel_size=5, stride=3)
+**Before:**
+```yaml
+agent:
+  _target_: metta.agent.metta_agent.MettaAgent
+  components:
+    cnn1:
+      _target_: metta.agent.lib.nn_layer_library.Conv2d
+      nn_params: {out_channels: 64}
 ```
 
-### Creating Custom Agents
-
+**After:**
 ```python
-from metta.agents import BaseAgent, register_agent
-
-class MyCustomAgent(BaseAgent):
-    def __init__(self, obs_space, action_space, **kwargs):
-        super().__init__(obs_space, action_space, **kwargs)
-        # Your architecture here
-
-    def compute_outputs(self, x, state):
-        # Your forward pass
-        return value, logits, new_state
-
-# Register for factory use
-register_agent("my_custom", MyCustomAgent)
+class MyAgent(BaseAgent):
+    def __init__(self, ...):
+        super().__init__(...)
+        self.cnn1 = nn.Conv2d(in_channels, 64, kernel_size=5)
 ```
 
-### Training Scripts
+## Best Practices
 
-**Simple training:**
+### 1. Use Type Hints
 ```python
-from metta.train.simple_trainer import train_agent
+def create_agent(name: str, hidden_size: int = 128) -> BaseAgent:
+    ...
+```
 
-agent = train_agent(
-    agent_name="simple_cnn",
-    total_timesteps=1_000_000,
-    device="cuda",
+### 2. Prefer Composition
+```python
+# Good: Compose functionality
+agent = SimpleCNNAgent(...)
+optimizer = torch.optim.Adam(agent.parameters())
+metta = Metta(agent=agent, optimizer=optimizer)
+
+# Avoid: Monolithic configs
+config = load_yaml("massive_config.yaml")
+```
+
+### 3. Make Components Testable
+```python
+# Each component works standalone
+agent = create_agent("simple_cnn")
+assert agent.total_params > 0
+
+env = create_env()
+assert env.observation_space is not None
+```
+
+## Summary of New Interfaces
+
+### Core Imports
+```python
+from metta import (
+    # Runtime
+    configure, RuntimeConfig,
+
+    # Agents
+    SimpleCNNAgent, create_agent,
+
+    # Environments
+    create_env, create_env_from_preset,
+
+    # Training
+    train, Metta, TrainingJob, JobBuilder,
+
+    # Simulations
+    SimulationSpec, register_simulation
 )
 ```
 
-**Advanced training:**
+### Quick Start
 ```python
-from metta.train.config import TrainingConfig
-from metta.train.simple_trainer import SimpleTrainer
+# Simplest possible usage
+from metta import train, SimpleCNNAgent
 
-config = TrainingConfig(
-    agent=AgentConfig(name="large_cnn", hidden_size=512),
-    trainer=TrainerConfig(batch_size=65536),
+agent = SimpleCNNAgent()
+trained = train(agent, timesteps=1_000_000)
+```
+
+### Advanced Usage
+```python
+# Full control
+from metta import Metta, SimpleCNNAgent, create_env
+
+agent = SimpleCNNAgent(hidden_size=512)
+env = create_env(width=21, height=21)
+
+metta = Metta(
+    agent=agent,
+    env=env,
+    optimizer=torch.optim.AdamW(agent.parameters()),
+    on_checkpoint=lambda m: m.save(f"ckpt_{m.epoch}.pt")
 )
 
-trainer = SimpleTrainer(config, env)
-trainer.train()
+metta.train()
 ```
 
 ## Benefits
 
-1. **Clarity**: Agent architectures are explicit Python code
-2. **Modularity**: Components can be imported and used independently
-3. **Type Safety**: IDEs can provide better autocomplete and type checking
-4. **Debugging**: Standard Python debugging tools work normally
-5. **Extensibility**: Creating custom agents is straightforward
+1. **No Configuration Files Required**: Everything can be done in Python
+2. **IDE Support**: Full autocomplete and type checking
+3. **Debugging**: Standard Python debugging tools work
+4. **Flexibility**: Mix and match components as needed
+5. **Testability**: Each component can be tested in isolation
+6. **Gradual Adoption**: Old YAML configs still work
 
-## Backward Compatibility
-
-The old `MettaAgent` class raises a deprecation warning pointing users to the new architecture. Existing checkpoints can still be loaded using the `PytorchAgent` adapter.
-
-## Common Patterns
-
-### Adding Regularization
-
-```python
-class RegularizedAgent(BaseAgent):
-    def l2_reg_loss(self):
-        return sum(p.norm(2) for p in self.parameters()) * 0.001
-```
-
-### Custom Action Heads
-
-```python
-class MultiHeadAgent(BaseAgent):
-    def __init__(self, ...):
-        super().__init__(...)
-        self.action_heads = nn.ModuleList([
-            nn.Linear(hidden_size, action_size)
-            for action_size in action_sizes
-        ])
-```
-
-### Attention Mechanisms
-
-```python
-from metta.agents import AttentionAgent
-
-# Built-in attention agent
-agent = AttentionAgent(
-    obs_space=env.observation_space,
-    num_attention_heads=8,
-    ...
-)
-```
-
-## Next Steps
-
-1. Remove remaining Hydra dependencies
-2. Convert all YAML configurations to Python
-3. Update documentation and examples
-4. Create migration tools for existing experiments
+The refactoring makes Metta a true Python library that can be imported and used like any other ML library (PyTorch, scikit-learn, etc.) while maintaining backward compatibility with existing configurations.
