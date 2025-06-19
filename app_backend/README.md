@@ -35,8 +35,7 @@ To run locally without Docker:
 
 ```bash
 cd app_backend
-uv sync
-uv run python src/server.py
+uv run python server.py
 ```
 
 ## API Endpoints
