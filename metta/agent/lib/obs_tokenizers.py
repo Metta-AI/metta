@@ -146,7 +146,7 @@ class ObsAttrCoordEmbed(LayerBase):
 
     def _forward(self, td: TensorDict) -> TensorDict:
         observations = td[self._sources[0]["name"]]
-        observations = self.linear(observations)
+        observations = self.linear(observations.float())
 
         td[self._name] = observations
         return td
