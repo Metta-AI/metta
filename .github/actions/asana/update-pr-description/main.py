@@ -36,5 +36,7 @@ if __name__ == "__main__":
     task_url = os.getenv("INPUT_TASK_URL")
     token = os.getenv("INPUT_TOKEN")
 
+    print(f"Updating PR description for {repo} #{pr_number} with task {task_url}")
+
     # Update the PR description
     update_pr_description(repo, pr_number, task_url, token)
