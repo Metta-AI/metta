@@ -848,23 +848,22 @@ class MettaTrainer:
             losses.pop("ks_action_loss")
             losses.pop("ks_value_loss")
 
-        trainer_experience = self.experience.to_dict()
+        experience = self.experience.to_dict()
 
         environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        trainer_params = {
+        parameters = {
             "learning_rate": self.optimizer.param_groups[0]["lr"],
             "epoch_steps": epoch_steps,
             "num_minibatches": self.experience.num_minibatches,
         }
 
-        # Log everything to wandb
         self.wandb_run.log(
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
                 **{f"losses/{k}": v for k, v in losses.items()},
-                **{f"trainer_experience/{k}": v for k, v in trainer_experience.items()},
-                **{f"trainer_params/{k}": v for k, v in trainer_params.items()},
+                **{f"experience/{k}": v for k, v in experience.items()},
+                **{f"parameters/{k}": v for k, v in parameters.items()},
                 **environment_stats,
                 **weight_stats,
                 **self.eval_stats,
