@@ -41,7 +41,7 @@ class DummyObsTokenizer(LayerBase):
             TT = observations.shape[1]
             td["_TT_"] = TT
             # observations = einops.rearrange(observations, "b t h c -> (b t) h c")
-            observations = observations.flatten(start_dim=1)
+            observations = observations.reshape(B * TT, -1, 3)
         td["_BxTT_"] = B * TT
 
         observations = self.linear(observations.float())
