@@ -114,71 +114,7 @@ class MettaTrainer:
 
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
 
-        agent = None
-        load_policy_attempts = 10
-        while agent is None and load_policy_attempts > 0:
-            # Check if we're explicitly requesting an external PyTorch agent
-            # This should take precedence over existing checkpoints
-            initial_policy_uri = cfg.trainer.initial_policy.uri
-            # Fallback to top-level policy_uri if trainer.initial_policy.uri is not set
-            if initial_policy_uri is None and hasattr(cfg, "policy_uri"):
-                initial_policy_uri = cfg.policy_uri
-
-            if initial_policy_uri is not None and initial_policy_uri.startswith("pytorch://"):
-                logger.info(f"Loading external PyTorch agent from URI: {initial_policy_uri}")
-                # Use the URI directly since policy_store.policy expects a string or config
-                agent = policy_store.policy(initial_policy_uri)
-            elif checkpoint.policy_path:
-                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                try:
-                    agent = policy_store.policy(checkpoint.policy_path)
-                    if "average_reward" in checkpoint.extra_args:
-                        self.average_reward = checkpoint.extra_args["average_reward"]
-                except ValueError as e:
-                    if "No policies found at" in str(e):
-                        logger.info(f"No policies found at {checkpoint.policy_path}")
-                        agent = None
-                    else:
-                        raise
-            elif initial_policy_uri is not None:
-                logger.info(f"Loading initial policy URI: {initial_policy_uri}")
-                try:
-                    agent = policy_store.policy(initial_policy_uri)
-                except ValueError as e:
-                    if "No policies found at" in str(e):
-                        logger.info(f"No policies found at {initial_policy_uri}")
-                        # Continue to try other methods
-                        agent = None
-                    else:
-                        raise
-            else:
-                policy_path = os.path.join(cfg.trainer.checkpoint_dir, policy_store.make_model_name(0))
-
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    try:
-                        agent = policy_store.policy(policy_path)
-                    except ValueError as e:
-                        if "No policies found at" in str(e):
-                            logger.info(f"No policies found at {policy_path}")
-                            agent = None
-                        else:
-                            raise
-                elif self._master:
-                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                    agent = policy_store.create(metta_grid_env)
-
-            # If all loading attempts failed and we're the master, create a new policy
-            if agent is None and self._master:
-                logger.info("All policy loading attempts failed. Creating a new policy!")
-                agent = policy_store.create(metta_grid_env)
-
-            if agent is not None:
-                break
-            load_policy_attempts -= 1
-            time.sleep(5)
-
-        assert agent is not None, "No policy found"
+        agent = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
         if self._master:
             logger.info(f"MettaTrainer loaded: {agent.model}")
@@ -1123,27 +1059,68 @@ class MettaTrainer:
 
     def _load_policy(self, checkpoint, policy_store, metta_grid_env):
         """Load policy from checkpoint, initial_policy.uri, or create new."""
+        cfg = self.cfg
         trainer_cfg = self.trainer_cfg
 
-        for _attempt in range(10):
-            if checkpoint.policy_path:
-                logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-                return policy_store.policy(checkpoint.policy_path)
-            elif (
-                hasattr(trainer_cfg, "initial_policy") and getattr(trainer_cfg.initial_policy, "uri", None) is not None
-            ):
-                initial_uri = trainer_cfg.initial_policy.uri
-                logger.info(f"Loading initial policy URI: {initial_uri}")
-                return policy_store.policy(initial_uri)
-            else:
-                policy_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
-                if os.path.exists(policy_path):
-                    logger.info(f"Loading policy from checkpoint: {policy_path}")
-                    return policy_store.policy(policy_path)
-                elif self._master:
-                    logger.info(f"Failed to load policy from default checkpoint: {policy_path}. Creating a new policy!")
-                    return policy_store.create(metta_grid_env)
-            time.sleep(5)
+        # Get initial policy URI with fallback
+        initial_policy_uri = (
+            getattr(trainer_cfg.initial_policy, "uri", None) if hasattr(trainer_cfg, "initial_policy") else None
+        )
+        if initial_policy_uri is None:
+            initial_policy_uri = getattr(cfg, "policy_uri", None)
+
+        # Define loading strategies in priority order
+        loading_strategies = []
+
+        # 1. External PyTorch agents have highest priority
+        if initial_policy_uri and initial_policy_uri.startswith("pytorch://"):
+            loading_strategies.append(("external PyTorch agent", initial_policy_uri))
+
+        # 2. Checkpoint policy path
+        if checkpoint.policy_path:
+            loading_strategies.append(("checkpoint", checkpoint.policy_path))
+
+        # 3. Initial policy URI (non-pytorch)
+        if initial_policy_uri and not initial_policy_uri.startswith("pytorch://"):
+            loading_strategies.append(("initial policy", initial_policy_uri))
+
+        # 4. Default checkpoint path
+        default_path = os.path.join(trainer_cfg.checkpoint_dir, policy_store.make_model_name(0))
+        if os.path.exists(default_path):
+            loading_strategies.append(("default checkpoint", default_path))
+
+        # Try loading with retries
+        for attempt in range(10):
+            for source, uri in loading_strategies:
+                try:
+                    logger.info(f"Loading {source} from: {uri}")
+                    agent = policy_store.policy(uri)
+
+                    # Validate the loaded agent has a model
+                    if agent and agent.model is None:
+                        logger.warning(f"Loaded agent from {uri} has no model, treating as failed load")
+                        continue
+
+                    # Handle checkpoint-specific logic
+                    if source == "checkpoint" and "average_reward" in checkpoint.extra_args:
+                        self.average_reward = checkpoint.extra_args["average_reward"]
+
+                    return agent
+
+                except ValueError as e:
+                    if "No policies found at" in str(e):
+                        logger.info(f"No policies found at {uri}")
+                        continue
+                    raise
+
+            # If all strategies failed and we're the master, create a new policy
+            if self._master:
+                logger.info("All loading attempts failed. Creating a new policy!")
+                return policy_store.create(metta_grid_env)
+
+            # Wait before retrying (except on last attempt)
+            if attempt < 9:
+                time.sleep(5)
 
         raise RuntimeError("Failed to load policy after 10 attempts")
 
