@@ -154,8 +154,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._grid_env = self._c_env
 
     @override  # pufferlib.PufferEnv.reset
-    @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+        self.timer.reset_all()
+        self.timer.start("reset")
+
         self._task = self._curriculum.get_task()
 
         self._initialize_c_env()
@@ -176,6 +178,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         obs, infos = self._c_env.reset()
         self._should_reset = False
+
+        self.timer.stop("reset")
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
@@ -318,7 +322,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         }
 
         self._episode_id = None
-        # self.timer.reset_all()
 
     @property
     def max_steps(self) -> int:
