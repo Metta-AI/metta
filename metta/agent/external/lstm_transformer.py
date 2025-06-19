@@ -7,60 +7,6 @@ import torch.nn as nn
 from einops import rearrange
 
 
-def token_to_box(token_observations, num_layers, height, width):
-    """Convert token observations to box format.
-
-    Args:
-        token_observations: Shape [B, M, 3] or [B, T, M, 3] where M is num tokens,
-                          3 channels are: coords_byte, attribute_index, attribute_value
-        num_layers: Number of feature layers (channels) in the output
-        height: Height of the output grid
-        width: Width of the output grid
-
-    Returns:
-        Box observations of shape [B, L, H, W] or [B, T, L, H, W]
-    """
-    original_shape = token_observations.shape
-    needs_time_dim = len(original_shape) == 4
-
-    if needs_time_dim:
-        B, T, M, _ = original_shape
-        token_observations = rearrange(token_observations, "b t m c -> (b t) m c")
-    else:
-        B = original_shape[0]
-        T = 1
-
-    BT = token_observations.shape[0]
-
-    # Extract coordinates and attributes
-    coords_byte = token_observations[..., 0].to(torch.uint8)
-    x_coords = ((coords_byte >> 4) & 0x0F).long()
-    y_coords = (coords_byte & 0x0F).long()
-    attr_indices = token_observations[..., 1].long()
-    attr_values = token_observations[..., 2].float()
-
-    # Create box observations
-    box_obs = torch.zeros((BT, num_layers, height, width), dtype=attr_values.dtype, device=token_observations.device)
-
-    # Fill in the box observations
-    batch_indices = torch.arange(BT, device=token_observations.device).unsqueeze(-1).expand_as(attr_values)
-
-    # Filter out invalid tokens:
-    # 1. coords_byte != 0xFF (standard invalid token marker)
-    # 2. attr_indices < num_layers (ensure attribute index is within bounds)
-    # 3. x_coords < height and y_coords < width (ensure coordinates are within grid bounds)
-    valid_tokens = (coords_byte != 0xFF) & (attr_indices < num_layers) & (x_coords < height) & (y_coords < width)
-
-    box_obs[batch_indices[valid_tokens], attr_indices[valid_tokens], x_coords[valid_tokens], y_coords[valid_tokens]] = (
-        attr_values[valid_tokens]
-    )
-
-    if needs_time_dim:
-        box_obs = rearrange(box_obs, "(b t) l h w -> b t l h w", b=B, t=T)
-
-    return box_obs
-
-
 class Recurrent(pufferlib.models.LSTMWrapper):
     def __init__(self, env, policy=None, cnn_channels=128, input_size=384, hidden_size=384):
         if policy is None:
@@ -69,37 +15,13 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
     def forward(self, observations, state):
         """Forward function for inference. 3x faster than using LSTM directly"""
-        # Check if observations are tokens (shape ends with 3)
-        if observations.shape[-1] == 3:
-            # Determine the number of layers based on the model architecture
-            # Check the first conv layer's input channels to determine expected observation channels
-            if hasattr(self.policy, "conv_stem"):
-                first_conv = self.policy.conv_stem[0]
-                num_layers = first_conv.in_channels if hasattr(first_conv, "in_channels") else 34
-            else:
-                # Fallback to checking max_vec shape
-                num_layers = self.policy.max_vec.shape[1] if hasattr(self.policy, "max_vec") else 22
-
-            # Token observations: convert to box format
-            if len(observations.shape) == 3:
-                # Inference: [B, M, 3] -> [B, C, H, W]
-                box_obs = token_to_box(observations, num_layers=num_layers, height=11, width=11)
-                x = box_obs.float() / self.policy.max_vec
-            else:
-                # Training: [B, T, M, 3] -> [B, T, C, H, W]
-                box_obs = token_to_box(observations, num_layers=num_layers, height=11, width=11)
-                x = box_obs.float() / self.policy.max_vec
-                return self.forward_train(x, state)
+        # Either [B, T, H, W, C] or [B, H, W, C]
+        if len(observations.shape) == 5:
+            x = rearrange(observations, "b t h w c -> b t c h w").float()
+            x[:] /= self.policy.max_vec
+            return self.forward_train(x, state)
         else:
-            # Box observations: use original logic
-            # Either [B, T, H, W, C] or [B, H, W, C]
-            if len(observations.shape) == 5:
-                x = rearrange(observations, "b t h w c -> b t c h w").float()
-                x[:] /= self.policy.max_vec
-                return self.forward_train(x, state)
-            else:
-                x = rearrange(observations, "b h w c -> b c h w").float() / self.policy.max_vec
-
+            x = rearrange(observations, "b h w c -> b c h w").float() / self.policy.max_vec
         hidden = self.policy.encode_observations(x, state=state)
         h = state.lstm_h
         c = state.lstm_c

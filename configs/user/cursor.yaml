@@ -3,12 +3,11 @@
 
 # Essential configuration
 policy_uri: pytorch:///tmp/puffer_metta_cursor.pt
-npc_policy_uri: null
 
 # Analysis settings
 analysis:
   policy_uri: ${..policy_uri}
-  eval_db_uri: ${..run_dir}/stats.db
+  eval_db_uri: ./${..data_dir}/${run}/stats.db
 
 # Training settings optimized for quick testing
 trainer:
@@ -18,8 +17,6 @@ trainer:
 
 # Hardware - assume CPU for compatibility
 device: cpu
-hardware: macbook
 
 # Run naming for test tracking
-run: cursor.test_${now:%Y%m%d_%H%M%S}
-run_dir: ${data_dir}/${run}
+run: cursor_test_${now:%Y%m%d_%H%M%S}

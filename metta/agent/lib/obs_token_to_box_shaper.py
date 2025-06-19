@@ -56,12 +56,7 @@ class ObsTokenToBoxShaper(LayerBase):
         )
         batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
 
-        valid_tokens = (
-            (coords_byte != 0xFF)
-            & (atr_indices < self.num_layers)
-            & (x_coord_indices < self.out_width)
-            & (y_coord_indices < self.out_height)
-        )
+        valid_tokens = coords_byte != 0xFF
         box_obs[
             batch_indices[valid_tokens],
             atr_indices[valid_tokens],
