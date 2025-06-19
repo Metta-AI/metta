@@ -258,47 +258,28 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
         run: |
-          echo "Checking WANDB for metta-research/metta/runs/$POLICY"
+          uv pip install --system wandb
 
-          # Check if API key is set
-          if [ -z "$WANDB_API_KEY" ]; then
-            echo "Error: WANDB_API_KEY is not set"
-            echo "result=skipped" >> "$GITHUB_OUTPUT"
-            exit 0
-          else
-            # Debug: Check API key format (show only first/last few chars)
-            echo "API Key format check: ${WANDB_API_KEY:0:4}...${WANDB_API_KEY: -4}"
-          fi
+          python3 -c "
+            import os
+            import sys
+            import wandb
 
-          # Build the GraphQL query
-          QUERY='{"query": "{ project(name: \"metta\", entityName: \"metta-research\") { run(name: \"'${POLICY}'\") { id state } } }"}'
+            api = wandb.Api()
+            policy = os.environ['POLICY']
 
-          # Query WANDB GraphQL API for the specific run
-          RESPONSE=$(curl -s -X POST https://api.wandb.ai/graphql/cli \
-            -H "Authorization: Bearer ${WANDB_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d "$QUERY")
-
-          echo "API Response: $RESPONSE"
-
-          # Check if we got an error response
-          if echo "$RESPONSE" | grep -q "\"errors\""; then
-            echo "API returned errors"
-            echo "result=skipped" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # Check if the run exists (will be null if not found)
-          if echo "$RESPONSE" | grep -q "\"run\":null"; then
-            echo "Run not found"
-            echo "result=skipped" >> "$GITHUB_OUTPUT"
-          elif echo "$RESPONSE" | grep -q "\"run\":{\"id\":"; then
-            echo "Run found!"
-            echo "result=success" >> "$GITHUB_OUTPUT"
-          else
-            echo "Unexpected response format"
-            echo "result=skipped" >> "$GITHUB_OUTPUT"
-          fi
+            try:
+                runs = api.runs('metta-research/metta', filters={'display_name': policy})
+                if len(list(runs)) > 0:
+                    print('Run found!')
+                    sys.exit(0)
+                else:
+                    print('Run not found')
+                    sys.exit(1)
+            except Exception as e:
+                print(f'Error: {e}')
+                sys.exit(1)
+            " && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
 
       - name: Run evals smoke test
         id: eval_smoke_test
