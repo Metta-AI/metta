@@ -815,9 +815,14 @@ class MettaTrainer:
             "timing_cumulative/sps": steps_per_second,
         }
 
-        mean_reward = self.stats.get("episode/reward.mean", 0)
+        environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
+
+        # average over all env_task_reward entries
+        task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
+        mean_reward = sum(task_reward_values) / len(task_reward_values) if task_reward_values else 0
+
         overview = {
-            "sps": steps_per_second,
+            "sps": epoch_steps_per_second,
             "reward": mean_reward,
             "reward_vs_total_time": mean_reward,
         }
@@ -849,8 +854,6 @@ class MettaTrainer:
             losses.pop("ks_value_loss")
 
         experience = self.experience.to_dict()
-
-        environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
         parameters = {
             "learning_rate": self.optimizer.param_groups[0]["lr"],
