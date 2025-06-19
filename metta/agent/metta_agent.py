@@ -408,6 +408,39 @@ class MettaAgent(nn.Module):
             return self.model.components
         return {}
 
+    @property
+    def action_index_tensor(self):
+        """Get the action index tensor from the underlying model."""
+        if self.model and hasattr(self.model, "action_index_tensor"):
+            return self.model.action_index_tensor
+        raise AttributeError(f"{self.model_type} model does not have action_index_tensor attribute")
+
+    @property
+    def cum_action_max_params(self):
+        """Get the cumulative action max params from the underlying model."""
+        if self.model and hasattr(self.model, "cum_action_max_params"):
+            return self.model.cum_action_max_params
+        raise AttributeError(f"{self.model_type} model does not have cum_action_max_params attribute")
+
+    @property
+    def active_actions(self):
+        """Get the active actions from the underlying model."""
+        if self.model and hasattr(self.model, "active_actions"):
+            return self.model.active_actions
+        raise AttributeError(f"{self.model_type} model does not have active_actions attribute")
+
+    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
+        """Delegate action conversion to the underlying model."""
+        if self.model and hasattr(self.model, "_convert_action_to_logit_index"):
+            return self.model._convert_action_to_logit_index(flattened_action)
+        raise AttributeError(f"{self.model_type} model does not have _convert_action_to_logit_index method")
+
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
+        """Delegate logit index conversion to the underlying model."""
+        if self.model and hasattr(self.model, "_convert_logit_index_to_action"):
+            return self.model._convert_logit_index_to_action(action_logit_index)
+        raise AttributeError(f"{self.model_type} model does not have _convert_logit_index_to_action method")
+
 
 class DistributedMettaAgent(DistributedDataParallel):
     """Distributed wrapper for MettaAgent that properly delegates method calls."""

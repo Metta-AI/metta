@@ -4,7 +4,9 @@ import json
 import time
 
 import hydra
+import torch
 
+from metta.agent.metta_agent import MettaAgent
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
@@ -12,6 +14,23 @@ from metta.util.config import setup_metta_environment
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
+
+
+class FakeAgent(MettaAgent):
+    """
+    A fake agent that does nothing, used to run play without requiring a policy to be trained
+    """
+
+    def __init__(self):
+        # Initialize parent class without a model
+        super().__init__(model=None, model_type="fake", name="fake_agent", uri="fake://agent", metadata={})
+
+    def activate_actions(self, *args):
+        pass
+
+    def forward(self, obs, state, action=None):
+        num_agents = obs.shape[0]
+        return (torch.zeros((num_agents, 2)), None, None, None, None)
 
 
 def create_simulation(cfg):
@@ -23,7 +42,11 @@ def create_simulation(cfg):
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = PolicyStore(cfg, wandb_run)
-        agent = policy_store.policy(cfg.replay_job.policy_uri)
+        if cfg.replay_job.policy_uri is not None:
+            agent = policy_store.policy(cfg.replay_job.policy_uri)
+        else:
+            # Set the policy_uri to None to run play without a policy.
+            agent = FakeAgent()
         sim_config = SingleEnvSimulationConfig(cfg.replay_job.sim)
 
         sim_name = sim_config.env.split("/")[-1]

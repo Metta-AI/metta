@@ -71,7 +71,7 @@ class MettaTrainer:
 
         self._master = True
         self._world_size = 1
-        self.device: torch.device = cfg.device
+        self.device: torch.device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
 
         self._batch_size = self.trainer_cfg.batch_size
         self._minibatch_size = self.trainer_cfg.minibatch_size
@@ -444,9 +444,11 @@ class MettaTrainer:
     def _rollout(self):
         experience = self.experience
         trainer_cfg = self.trainer_cfg
+        device = self.device
 
         policy = self.policy
         infos = defaultdict(list)
+        raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
 
         while not experience.ready_for_training:
@@ -460,46 +462,52 @@ class MettaTrainer:
 
                 training_env_id = slice(env_id[0], env_id[-1] + 1)
 
-            num_steps = sum(mask)
+            # Convert mask to tensor once
+            mask = torch.as_tensor(mask)
+            num_steps = mask.sum().item()
             self.agent_step += num_steps * self._world_size
 
-            o = torch.as_tensor(o)
-            r = torch.as_tensor(r)
-            d = torch.as_tensor(d)
-            t = torch.as_tensor(t)
+            # Convert to tensors once
+            o = torch.as_tensor(o).to(device, non_blocking=True)
+            r = torch.as_tensor(r).to(device, non_blocking=True)
+            d = torch.as_tensor(d).to(device, non_blocking=True)
+            t = torch.as_tensor(t).to(device, non_blocking=True)
 
             with torch.no_grad():
                 state = PolicyState()
 
-                lstm_state = experience.get_lstm_state(training_env_id.start)
-                if lstm_state is not None:
-                    state.lstm_h = lstm_state["lstm_h"]
-                    state.lstm_c = lstm_state["lstm_c"]
+                # Use LSTM state access for performance
+                lstm_h, lstm_c = experience.get_lstm_state(training_env_id.start)
+                if lstm_h is not None:
+                    state.lstm_h = lstm_h
+                    state.lstm_c = lstm_c
 
-                o_device = o.to(self.device, non_blocking=True)
-                actions, selected_action_log_probs, _, value, _ = policy(o_device, state)
+                # Use pre-moved tensor
+                actions, selected_action_log_probs, _, value, _ = policy(o, state)
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
                     assert_shape(actions, ("BT", 2), "actions")
 
+                # Store LSTM state for performance
                 lstm_state_to_store = None
-                if trainer_cfg.get("use_rnn", True) and state.lstm_h is not None:
+                if state.lstm_h is not None:
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
-                if self.device == "cuda":
+                if str(self.device).startswith("cuda"):
                     torch.cuda.synchronize()
 
             value = value.flatten()
-            mask = torch.as_tensor(mask)  # * policy.mask)
+            # mask already converted to tensor above
 
+            # All tensors are already on device, avoid redundant transfers
             experience.store(
-                obs=o if trainer_cfg.cpu_offload else o_device,
+                obs=o,
                 actions=actions,
                 logprobs=selected_action_log_probs,
-                rewards=r.to(self.device, non_blocking=True),
-                dones=d.to(self.device, non_blocking=True),
-                truncations=t.to(self.device, non_blocking=True),
+                rewards=r,
+                dones=d,
+                truncations=t,
                 values=value,
                 env_id=training_env_id,
                 mask=mask,
@@ -516,23 +524,24 @@ class MettaTrainer:
             # These will later be averaged in _process_stats() to get mean values
             # across all environments on this GPU. Stats from other GPUs (if using
             # distributed training) are handled separately and not aggregated here.
-
-            for i in info:
-                for k, v in unroll_nested_dict(i):
-                    infos[k].append(v)
+            if info:
+                raw_infos.extend(info)
 
             with self.timer("_rollout.env"):
-                actions_np = actions.cpu().numpy().astype(dtype_actions)
-                self.vecenv.send(actions_np)
+                self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
+        # Batch process info dictionaries after rollout
+        for i in raw_infos:
+            for k, v in unroll_nested_dict(i):
+                infos[k].append(v)
+
+        # Batch process stats more efficiently
         for k, v in infos.items():
             if isinstance(v, np.ndarray):
                 v = v.tolist()
 
             if isinstance(v, list):
-                if k not in self.stats:
-                    self.stats[k] = []
-                self.stats[k].extend(v)
+                self.stats.setdefault(k, []).extend(v)
             else:
                 if k not in self.stats:
                     self.stats[k] = v
@@ -597,8 +606,6 @@ class MettaTrainer:
                 )
 
                 obs = minibatch["obs"]
-                if not trainer_cfg.get("use_rnn", True):
-                    obs = obs.reshape(-1, *self.vecenv.single_observation_space.shape)
 
                 lstm_state = PolicyState()
                 _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
@@ -676,6 +683,7 @@ class MettaTrainer:
                     + ks_value_loss
                 )
 
+                # Update values in experience buffer
                 experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
 
                 if self.losses is None:
@@ -703,7 +711,7 @@ class MettaTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if self.device == "cuda":
+                    if str(self.device).startswith("cuda"):
                         torch.cuda.synchronize()
 
                 minibatch_idx += 1
@@ -841,7 +849,7 @@ class MettaTrainer:
 
     @with_instance_timer("_process_stats")
     def _process_stats(self):
-        if not self.wandb_run or not self._master:
+        if not self._master or not self.wandb_run:
             self.stats.clear()
             return
 
@@ -871,15 +879,25 @@ class MettaTrainer:
         wall_time = self.timer.get_elapsed()
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
 
+        lap_times = self.timer.lap_all(self.agent_step)
+        wall_time_for_lap = lap_times.pop("global", 0)
+
+        delta_steps = self.timer.get_lap_steps()
+        if delta_steps is None:
+            delta_steps = self.agent_step
+        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+
+        # Approximate total values by multiplying by world size
+        total_agent_steps = self.agent_step * self._world_size
+
         # X-axis values for wandb
         metric_stats = {
-            "metric/step": self.agent_step,
+            "metric/step": total_agent_steps,
             "metric/epoch": self.epoch,
             "metric/total_time": wall_time,
             "metric/train_time": train_time,
         }
-        lap_times = self.timer.lap_all(self.agent_step)
-        wall_time_for_lap = lap_times.pop("global", 0)
 
         timing_stats = {
             **{
@@ -891,17 +909,13 @@ class MettaTrainer:
                 for op, elapsed in elapsed_times.items()
             },
         }
-
-        delta_steps = self.timer.get_lap_steps()
-        if delta_steps is None:
-            delta_steps = self.agent_step
-        lap_steps_per_second = delta_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+        total_sps = steps_per_second * self._world_size
+        total_lap_sps = lap_steps_per_second * self._world_size
 
         mean_reward = self.experience.get_mean_reward()
         overview = {
-            "sps": steps_per_second,
-            "lap_sps": lap_steps_per_second,
+            "sps": total_sps,
+            "lap_sps": total_lap_sps,
             "reward": mean_reward,
             "reward_vs_total_time": mean_reward,
         }
@@ -969,8 +983,6 @@ class MettaTrainer:
 
         # Get correct device for this process
         device = torch.device(self.device) if isinstance(self.device, str) else self.device
-        if torch.distributed.is_initialized() and str(device).startswith("cuda"):
-            device = torch.device(f"cuda:{int(os.environ.get('LOCAL_RANK', 0))}")
 
         # Move tensors to device and compute advantage
         tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
@@ -1047,8 +1059,7 @@ class MettaTrainer:
         minibatch_size = trainer_cfg.minibatch_size
         max_minibatch_size = trainer_cfg.get("max_minibatch_size", minibatch_size)
 
-        # Get LSTM parameters if using RNN
-        use_rnn = trainer_cfg.get("use_rnn", True)
+        # Get LSTM parameters
         hidden_size = getattr(self.policy, "hidden_size", 256)
         num_lstm_layers = 2  # Default value
 
@@ -1068,7 +1079,6 @@ class MettaTrainer:
             obs_space=obs_space,
             atn_space=atn_space,
             device=self.device,
-            use_rnn=use_rnn,
             hidden_size=hidden_size,
             cpu_offload=trainer_cfg.cpu_offload,
             num_lstm_layers=num_lstm_layers,
@@ -1139,6 +1149,7 @@ class MettaTrainer:
             time.sleep(5)
 
         raise RuntimeError("Failed to load policy after 10 attempts")
+
 
 class AbortingTrainer(MettaTrainer):
     def __init__(self, *args: Any, **kwargs: Any):

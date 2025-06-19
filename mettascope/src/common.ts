@@ -58,6 +58,8 @@ export const ui = {
   lastClickTime: 0, // For double-click detection.
   mainScrubberDown: false,
 
+  dpr: 1, // DPI scale factor used for Retina displays.
+
   // Split between trace and info panels.
   traceSplit: localStorageGetNumber('traceSplit', 0.8),
   agentPanelSplit: localStorageGetNumber('agentPanelSplit', 0.5),
@@ -93,10 +95,10 @@ export const state = {
   showGrid: true,
   showVisualRanges: true,
   showFogOfWar: false,
-  showMiniMap: true,
-  showInfo: true,
-  showControls: true,
-  showAgentPanel: true,
+  showMiniMap: false,
+  showInfo: false,
+  showControls: false,
+  showAgentPanel: false,
 
   showAttackMode: false,
 
