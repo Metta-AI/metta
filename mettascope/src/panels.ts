@@ -49,7 +49,7 @@ export class PanelInfo {
 
   /** Transforms a point from the panel's inner coordinate system to the outer coordinate system. */
   transformInner(point: Vec2f): Vec2f {
-    return this.transform().transform(point.mul(1 / ui.dpr))
+    return this.transform().transform(point).mul(1 / ui.dpr)
   }
 
   rectInner(): Rect {
