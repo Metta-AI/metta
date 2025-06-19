@@ -15,7 +15,7 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
 from pufferlib import unroll_nested_dict
 
-from app_backend.src.stats_client import StatsClient
+from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore

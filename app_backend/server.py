@@ -4,8 +4,8 @@ import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
-from app_backend.src.metta_repo import MettaRepo
-from app_backend.src.routes import dashboard_routes, stats_routes
+from app_backend.metta_repo import MettaRepo
+from app_backend.routes import dashboard_routes, stats_routes
 
 
 def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
@@ -34,7 +34,7 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
 
 if __name__ == "__main__":
-    from app_backend.src.config import host, port, stats_db_uri
+    from app_backend.config import host, port, stats_db_uri
 
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)

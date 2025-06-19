@@ -10,7 +10,7 @@ import torch.distributed as dist
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
-from app_backend.src.stats_client import StatsClient
+from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config, setup_metta_environment

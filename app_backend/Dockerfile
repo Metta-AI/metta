@@ -9,25 +9,17 @@ RUN apt-get update && apt-get install -y \
 # Install uv
 RUN pip install uv
 
-RUN mkdir -p /app/app_backend
-
 # Set working directory
 WORKDIR /app
 
-# Copy uv configuration files
-COPY pyproject.toml uv.lock* ./
+# Copy uv configuration files from top-level directory
+COPY uv.lock ./
+COPY app_backend/pyproject.toml ./
+
+COPY app_backend ./app_backend
 
 # Install dependencies using uv
 RUN uv sync --frozen
-
-WORKDIR /app/app_backend
-
-# Copy the entire app_backend directory
-COPY . .
-
-# Create a non-root user
-RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
-USER app
 
 # Expose port
 EXPOSE 8000
@@ -36,8 +28,5 @@ EXPOSE 8000
 ENV HOST=0.0.0.0
 ENV PORT=8000
 
-WORKDIR /app
-ENV PYTHONPATH=/app
-
 # Run the application
-CMD ["uv", "run", "python", "app_backend/src/server.py"]
+CMD ["uv", "run", "python", "app_backend/server.py"]

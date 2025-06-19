@@ -17,7 +17,7 @@ from typing import Any, Dict, List
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from app_backend.src.stats_client import StatsClient
+from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
