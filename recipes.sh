@@ -1,5 +1,5 @@
 #NAVIGATION
-./devops/skypilot/launch.py train run=georgdeane.navigation.baseline.128tokens.06-19  trainer.curriculum=env/mettagrid/curriculum/navigation --no-spot --gpus=4 --skip-git-check \
+./devops/skypilot/launch.py train run=george.deane.navigation.baseline.06-19  trainer.curriculum=env/mettagrid/curriculum/navigation --no-spot --gpus=4 --skip-git-check \
 
 #LEARNING THE SEQUENCE
 ./devops/skypilot/launch.py train run=georgdeane.sequence.baseline.128tokens.06-19.2  trainer.curriculum=env/mettagrid/curriculum/sequence --no-spot --gpus=4 --skip-git-check \
