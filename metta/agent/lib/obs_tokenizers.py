@@ -8,6 +8,47 @@ from tensordict import TensorDict
 from metta.agent.lib.nn_layer_library import LayerBase
 
 
+class DummyObsTokenizer(LayerBase):
+    """
+    This is a dummy obs tokenizer that just returns the observations.
+    """
+    def __init__(
+            self,
+            obs_shape: Tuple[int, ...],
+            **cfg,
+        ) -> None:
+            super().__init__(**cfg)
+            self._obs_shape = obs_shape
+            self._M = obs_shape[0]
+
+    def _make_net(self) -> None:
+        # unfortunately, we can't know the output shape's 0th dim (seq length) until we see the data. however,
+        # downstream layers should not need to know this in initializing any of their learnable parameters.
+        # so we just set it to 0 for now.
+        self._out_tensor_shape = [0, 11]
+
+        self.linear = nn.Linear(3, 11)
+
+    def _forward(self, td: TensorDict) -> TensorDict:
+        # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
+        observations = td["x"]
+
+        B = observations.shape[0]
+        TT = 1
+        td["_B_"] = B
+        td["_TT_"] = TT
+        if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
+            TT = observations.shape[1]
+            td["_TT_"] = TT
+            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
+        td["_BxTT_"] = B * TT
+
+        observations = self.linear(observations.float())
+
+        td[self._name] = observations
+        return td
+
+
 class ObsTokenPadStrip(LayerBase):
     """
     This is a top-level layer that grabs environment token observations and strips them of padding, returning a tensor
@@ -138,46 +179,37 @@ class ObsAttrCoordEmbed(LayerBase):
         self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
 
-        self._feat_vectors = torch.empty((1, 1, self._feat_dim), dtype=torch.float32)
-
-        self.linear = nn.Linear(3, 11)
-
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
         observations = td[self._sources[0]["name"]]
-        observations = self.linear(observations.float())
 
-        td[self._name] = observations
+        coord_indices = observations[..., 0].long()
+        coord_pair_embedding = self._coord_embeds(coord_indices)
+
+        attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+
+        attr_embeds = self._attr_embeds(attr_indices)  # [B_TT, M, embed_dim]
+
+        combined_embeds = attr_embeds + coord_pair_embedding
+
+        attr_values = observations[..., 2].float()  # Shape: [B_TT, M]
+        attr_values = einops.rearrange(attr_values, "... -> ... 1")
+
+        # Assemble feature vectors
+        # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
+        feat_vectors = torch.empty(
+            (*attr_embeds.shape[:-1], self._feat_dim),
+            dtype=attr_embeds.dtype,
+            device=attr_embeds.device,
+        )
+        # Combined embedding portion
+        feat_vectors[..., : self._attr_embed_dim] = combined_embeds
+        feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
+
+        td[self._name] = feat_vectors
+
         return td
-
-        # observations = td[self._sources[0]["name"]]
-
-        # coord_indices = observations[..., 0].long()
-        # coord_pair_embedding = self._coord_embeds(coord_indices)
-
-        # attr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
-
-        # attr_embeds = self._attr_embeds(attr_indices)  # [B_TT, M, embed_dim]
-
-        # combined_embeds = attr_embeds + coord_pair_embedding
-
-        # attr_values = observations[..., 2].float()  # Shape: [B_TT, M]
-        # attr_values = einops.rearrange(attr_values, "... -> ... 1")
-
-        # # Assemble feature vectors
-        # # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
-        # # feat_vectors = torch.empty(
-        # #     (*attr_embeds.shape[:-1], self._feat_dim),
-        # #     dtype=attr_embeds.dtype,
-        # #     device=attr_embeds.device,
-        # # )
-        # # Combined embedding portion
-        # # feat_vectors[..., : self._attr_embed_dim] = combined_embeds
-        # # feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
-
-        # td[self._name] = torch.cat([combined_embeds, attr_values], dim=-1)
-        # return td
 
 
 class ObsAttrEmbedFourier(LayerBase):
