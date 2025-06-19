@@ -257,29 +257,10 @@ jobs:
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
+          # Install wandb in the already activated virtual environment
         run: |
           uv pip install wandb
-
-          python3 -c "
-            import os
-            import sys
-            import wandb
-
-            api = wandb.Api()
-            policy = os.environ['POLICY']
-
-            try:
-                runs = api.runs('metta-research/metta', filters={'display_name': policy})
-                if len(list(runs)) > 0:
-                    print('Run found!')
-                    sys.exit(0)
-                else:
-                    print('Run not found')
-                    sys.exit(1)
-            except Exception as e:
-                print(f'Error: {e}')
-                sys.exit(1)
-            " && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
+          python .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
 
       - name: Run evals smoke test
         id: eval_smoke_test
