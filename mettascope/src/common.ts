@@ -12,8 +12,8 @@ export const MIN_ZOOM_LEVEL = 0.025
 export const MAX_ZOOM_LEVEL = 2.0
 export const DEFAULT_ZOOM_LEVEL = 1 / 2
 export const DEFAULT_TRACE_ZOOM_LEVEL = 1 / 4
-export const SPLIT_DRAG_THRESHOLD = 10  // Pixels to detect split dragging.
-export const SCROLL_ZOOM_FACTOR = 1000  // Divisor for scroll delta to zoom conversion.
+export const SPLIT_DRAG_THRESHOLD = 10 // Pixels to detect split dragging.
+export const SCROLL_ZOOM_FACTOR = 1000 // Divisor for scroll delta to zoom conversion.
 export const PANEL_BOTTOM_MARGIN = 60
 export const HEADER_HEIGHT = 60
 export const FOOTER_HEIGHT = 128
@@ -36,9 +36,9 @@ export const INFO_PANEL_POP_TIME = 300 // ms
 
 // Colors for resources
 export const COLORS: [string, [number, number, number, number]][] = [
-  ["red", parseHtmlColor("#E4433A")],
-  ["green", parseHtmlColor("#66BB6A")],
-  ["blue", parseHtmlColor("#3498DB")],
+  ['red', parseHtmlColor('#E4433A')],
+  ['green', parseHtmlColor('#66BB6A')],
+  ['blue', parseHtmlColor('#3498DB')],
 ]
 
 export const ui = {
@@ -49,7 +49,7 @@ export const ui = {
   mouseDoubleClick: false,
   mousePos: new Vec2f(0, 0),
   mouseTargets: [] as string[],
-  dragging: "",
+  dragging: '',
   dragHtml: null as HTMLElement | null,
   dragOffset: new Vec2f(0, 0),
   lastMousePos: new Vec2f(0, 0),
@@ -58,17 +58,19 @@ export const ui = {
   lastClickTime: 0, // For double-click detection.
   mainScrubberDown: false,
 
+  dpr: 1, // DPI scale factor used for Retina displays.
+
   // Split between trace and info panels.
-  traceSplit: localStorageGetNumber("traceSplit", 0.8),
-  agentPanelSplit: localStorageGetNumber("agentPanelSplit", 0.5),
+  traceSplit: localStorageGetNumber('traceSplit', 0.8),
+  agentPanelSplit: localStorageGetNumber('agentPanelSplit', 0.5),
 
   // Panels
-  mapPanel: new PanelInfo("#worldmap-panel"),
-  miniMapPanel: new PanelInfo("#minimap-panel"),
-  tracePanel: new PanelInfo("#trace-panel"),
-  infoPanel: new PanelInfo("#info-panel"),
-  agentPanel: new PanelInfo("#agent-panel"),
-  timelinePanel: new PanelInfo("#timeline-panel"),
+  mapPanel: new PanelInfo('#worldmap-panel'),
+  miniMapPanel: new PanelInfo('#minimap-panel'),
+  tracePanel: new PanelInfo('#trace-panel'),
+  infoPanel: new PanelInfo('#info-panel'),
+  agentPanel: new PanelInfo('#agent-panel'),
+  timelinePanel: new PanelInfo('#timeline-panel'),
 
   hoverPanels: [] as HoverPanel[],
   hoverObject: null as any,
@@ -93,10 +95,10 @@ export const state = {
   showGrid: true,
   showVisualRanges: true,
   showFogOfWar: false,
-  showMiniMap: true,
-  showInfo: true,
-  showControls: true,
-  showAgentPanel: true,
+  showMiniMap: false,
+  showInfo: false,
+  showControls: false,
+  showAgentPanel: false,
 
   showAttackMode: false,
 
@@ -154,9 +156,9 @@ export function setFollowSelection(map: boolean | null) {
   if (map != null) {
     state.followSelection = map
     if (map) {
-      html.focusToggle.style.opacity = "1"
+      html.focusToggle.style.opacity = '1'
     } else {
-      html.focusToggle.style.opacity = "0.2"
+      html.focusToggle.style.opacity = '0.2'
     }
   }
 }

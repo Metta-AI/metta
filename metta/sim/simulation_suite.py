@@ -4,6 +4,7 @@ from pathlib import Path
 
 import torch
 
+from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -25,6 +26,8 @@ class SimulationSuite:
         vectorization: str,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
+        stats_client: StatsClient | None = None,
+        stats_epoch_id: uuid.UUID | None = None,
     ):
         self._config = config
         self._policy_pr = policy_pr
@@ -34,6 +37,8 @@ class SimulationSuite:
         self._device = device
         self._vectorization = vectorization
         self.name = config.name
+        self._stats_client = stats_client
+        self._stats_epoch_id = stats_epoch_id
 
     def simulate(self) -> SimulationResults:
         """Run every simulation, merge their DBs/replay dicts, and return a single `SimulationResults`."""
@@ -54,9 +59,11 @@ class SimulationSuite:
                     self._policy_store,
                     device=self._device,
                     vectorization=self._vectorization,
-                    suite=self,
+                    sim_suite_name=self.name,
                     stats_dir=self._stats_dir,
                     replay_dir=self._replay_dir,
+                    stats_client=self._stats_client,
+                    stats_epoch_id=self._stats_epoch_id,
                 )
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()

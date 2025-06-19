@@ -30,7 +30,7 @@ class Mesh {
 
   // Scissor properties
   public scissorEnabled: boolean = false
-  public scissorRect: [number, number, number, number] = [0, 0, 0, 0]; // x, y, width, height
+  public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
 
   constructor(name: string, device: GPUDevice, maxQuads: number = 1024 * 8) {
     this.name = name
@@ -87,21 +87,15 @@ class Mesh {
     })
 
     // Write the index pattern to the GPU immediately (it never changes)
-    this.device.queue.writeBuffer(
-      this.indexBuffer,
-      0,
-      this.indexData,
-      0,
-      this.indexData.length
-    )
+    this.device.queue.writeBuffer(this.indexBuffer, 0, this.indexData, 0, this.indexData.length)
   }
 
   /** Resize the maximum number of quads the mesh can hold. */
   resizeMaxQuads(newMaxQuads: number): void {
-    console.info("Resizing max ", this.name, " quads from", this.maxQuads, "to", newMaxQuads)
+    console.info('Resizing max ', this.name, ' quads from', this.maxQuads, 'to', newMaxQuads)
 
     if (newMaxQuads <= this.maxQuads) {
-      console.warn("New max quads must be larger than current max quads")
+      console.warn('New max quads must be larger than current max quads')
       return
     }
 
@@ -180,10 +174,10 @@ class Mesh {
 
     // Define the vertex attributes for each corner
     const corners = [
-      { pos: topLeft, uv: [u0, v0] },      // Top-left
-      { pos: bottomLeft, uv: [u0, v1] },   // Bottom-left
-      { pos: topRight, uv: [u1, v0] },     // Top-right
-      { pos: bottomRight, uv: [u1, v1] }   // Bottom-right
+      { pos: topLeft, uv: [u0, v0] }, // Top-left
+      { pos: bottomLeft, uv: [u0, v1] }, // Bottom-left
+      { pos: topRight, uv: [u1, v0] }, // Top-right
+      { pos: bottomRight, uv: [u1, v1] }, // Bottom-right
     ]
 
     // Loop through each corner and set its vertex data
@@ -259,11 +253,12 @@ export class Context3d {
   private canvasSizeUniformBuffer: GPUBuffer | null
   private canvasSize: Vec2f
   private atlasMargin: number
+  public dpr: number
 
   // Mesh management
   private meshes: Map<string, Mesh> = new Map()
   private currentMesh: Mesh | null = null
-  private currentMeshName: string = ""
+  private currentMeshName: string = ''
 
   // Transformation state
   private currentTransform: Mat3f
@@ -286,6 +281,7 @@ export class Context3d {
     this.canvasSizeUniformBuffer = null
     this.canvasSize = new Vec2f(0, 0)
     this.atlasMargin = 4 // Default margin for texture sampling.
+    this.dpr = 1
 
     // Initialize transformation matrix
     this.currentTransform = Mat3f.identity()
@@ -296,7 +292,7 @@ export class Context3d {
   /** Create or switch to a mesh with the given name. */
   useMesh(name: string): void {
     if (!this.device || !this.ready) {
-      throw new Error("Cannot use mesh before initialization")
+      throw new Error('Cannot use mesh before initialization')
     }
 
     // If we already have this mesh, set it as current
@@ -331,18 +327,26 @@ export class Context3d {
   /** Helper method to ensure a mesh is selected before drawing. */
   private ensureMeshSelected(): void {
     if (!this.currentMesh) {
-      throw new Error("No mesh selected. Call useMesh() before drawing.")
+      throw new Error('No mesh selected. Call useMesh() before drawing.')
     }
   }
 
   /** Save the current transform. */
   save(): void {
     // Push a copy of the current transform onto the stack
-    this.transformStack.push(new Mat3f(
-      this.currentTransform.get(0, 0), this.currentTransform.get(0, 1), this.currentTransform.get(0, 2),
-      this.currentTransform.get(1, 0), this.currentTransform.get(1, 1), this.currentTransform.get(1, 2),
-      this.currentTransform.get(2, 0), this.currentTransform.get(2, 1), this.currentTransform.get(2, 2)
-    ))
+    this.transformStack.push(
+      new Mat3f(
+        this.currentTransform.get(0, 0),
+        this.currentTransform.get(0, 1),
+        this.currentTransform.get(0, 2),
+        this.currentTransform.get(1, 0),
+        this.currentTransform.get(1, 1),
+        this.currentTransform.get(1, 2),
+        this.currentTransform.get(2, 0),
+        this.currentTransform.get(2, 1),
+        this.currentTransform.get(2, 2)
+      )
+    )
   }
 
   /** Restore the last transform. */
@@ -351,7 +355,7 @@ export class Context3d {
     if (this.transformStack.length > 0) {
       this.currentTransform = this.transformStack.pop()!
     } else {
-      console.warn("Transform stack is empty")
+      console.warn('Transform stack is empty')
     }
   }
 
@@ -380,9 +384,14 @@ export class Context3d {
 
   /** Initialize the context. */
   async init(atlasJsonUrl: string, atlasImageUrl: string): Promise<boolean> {
+    this.dpr = 1.0
+    if (window.devicePixelRatio > 1.0) {
+      this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
+    }
+
     // Initialize WebGPU device.
     const adapter = await navigator.gpu?.requestAdapter()
-    this.device = await adapter?.requestDevice() || null
+    this.device = (await adapter?.requestDevice()) || null
     if (!this.device) {
       this.fail('Need a browser that supports WebGPU')
       return false
@@ -391,7 +400,7 @@ export class Context3d {
     // Load Atlas and Texture.
     const [atlasData, source] = await Promise.all([
       this.loadAtlasJson(atlasJsonUrl),
-      this.loadAtlasImage(atlasImageUrl)
+      this.loadAtlasImage(atlasImageUrl),
     ])
 
     if (!atlasData || !source) {
@@ -421,15 +430,13 @@ export class Context3d {
       label: atlasImageUrl,
       format: 'rgba8unorm',
       size: [this.textureSize.x(), this.textureSize.y()],
-      usage: GPUTextureUsage.TEXTURE_BINDING |
-        GPUTextureUsage.COPY_DST |
-        GPUTextureUsage.RENDER_ATTACHMENT,
+      usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
       mipLevelCount: mipLevels,
     })
     this.device.queue.copyExternalImageToTexture(
       { source, flipY: false }, // Don't flip Y if UVs start top-left.
       { texture: this.atlasTexture },
-      { width: this.textureSize.x(), height: this.textureSize.y() },
+      { width: this.textureSize.x(), height: this.textureSize.y() }
     )
 
     // Generate mipmaps for the texture.
@@ -515,21 +522,23 @@ export class Context3d {
       fragment: {
         module: shaderModule,
         entryPoint: 'fs',
-        targets: [{
-          format: presentationFormat,
-          blend: {
-            color: {
-              srcFactor: 'one',
-              dstFactor: 'one-minus-src-alpha',
-              operation: 'add'
+        targets: [
+          {
+            format: presentationFormat,
+            blend: {
+              color: {
+                srcFactor: 'one',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add',
+              },
+              alpha: {
+                srcFactor: 'one',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add',
+              },
             },
-            alpha: {
-              srcFactor: 'one',
-              dstFactor: 'one-minus-src-alpha',
-              operation: 'add'
-            }
-          }
-        }],
+          },
+        ],
       },
       primitive: {
         topology: 'triangle-list', // Each sprite is 2 triangles.
@@ -570,8 +579,7 @@ export class Context3d {
     console.error(msg)
     const failDiv = document.createElement('div')
     failDiv.id = 'fail'
-    failDiv.textContent =
-      `Initialization Error: ${msg}. See console for details.`
+    failDiv.textContent = `Initialization Error: ${msg}. See console for details.`
     document.body.appendChild(failDiv)
   }
 
@@ -586,7 +594,7 @@ export class Context3d {
       // Use premultiplied alpha to fix border issues
       return await createImageBitmap(blob, {
         colorSpaceConversion: 'none',
-        premultiplyAlpha: 'premultiply'
+        premultiplyAlpha: 'premultiply',
       })
     } catch (err) {
       console.error(`Error loading image ${url}:`, err)
@@ -635,7 +643,7 @@ export class Context3d {
     color: number[] = [1, 1, 1, 1]
   ): void {
     if (!this.ready) {
-      throw new Error("Drawer not initialized")
+      throw new Error('Drawer not initialized')
     }
 
     this.ensureMeshSelected()
@@ -656,10 +664,7 @@ export class Context3d {
     const bottomRight = this.currentTransform.transform(untransformedBottomRight)
 
     // Send pre-transformed vertices to the mesh
-    this.currentMesh!.drawRectWithTransform(
-      topLeft, bottomLeft, topRight, bottomRight,
-      u0, v0, u1, v1, color
-    )
+    this.currentMesh!.drawRectWithTransform(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
   }
 
   /** Check if the image is in the atlas. */
@@ -670,7 +675,7 @@ export class Context3d {
   /** Draws an image from the atlas with its top-right corner at (x, y). */
   drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]): void {
     if (!this.ready) {
-      throw new Error("Drawer not initialized")
+      throw new Error('Drawer not initialized')
     }
 
     this.ensureMeshSelected()
@@ -694,17 +699,21 @@ export class Context3d {
     // Adjust both UVs and vertex positions by the margin.
     this.drawRect(
       x - m, // Adjust x position by adding margin (from the right).
-      y - m,      // Adjust y position by adding margin.
-      sw + 2 * m,   // Reduce width by twice the margin (left and right).
-      sh + 2 * m,   // Reduce height by twice the margin (top and bottom).
-      u0, v0, u1, v1, color
+      y - m, // Adjust y position by adding margin.
+      sw + 2 * m, // Reduce width by twice the margin (left and right).
+      sh + 2 * m, // Reduce height by twice the margin (top and bottom).
+      u0,
+      v0,
+      u1,
+      v1,
+      color
     )
   }
 
   /** Draws an image from the atlas centered at (x, y). */
   drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0): void {
     if (!this.ready) {
-      throw new Error("Drawer not initialized")
+      throw new Error('Drawer not initialized')
     }
 
     this.ensureMeshSelected()
@@ -730,11 +739,15 @@ export class Context3d {
       this.rotate(rotation)
       this.scale(scale, scale)
       this.drawRect(
-        - sw / 2 - m, // Center horizontally with margin adjustment.
-        - sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m,         // Reduce width by twice the margin.
-        sh + 2 * m,         // Reduce height by twice the margin.
-        u0, v0, u1, v1, color
+        -sw / 2 - m, // Center horizontally with margin adjustment.
+        -sh / 2 - m, // Center vertically with margin adjustment.
+        sw + 2 * m, // Reduce width by twice the margin.
+        sh + 2 * m, // Reduce height by twice the margin.
+        u0,
+        v0,
+        u1,
+        v1,
+        color
       )
       this.restore()
     } else {
@@ -743,28 +756,26 @@ export class Context3d {
       this.drawRect(
         x - sw / 2 - m, // Center horizontally with margin adjustment.
         y - sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m,         // Reduce width by twice the margin.
-        sh + 2 * m,         // Reduce height by twice the margin.
-        u0, v0, u1, v1, color
+        sw + 2 * m, // Reduce width by twice the margin.
+        sh + 2 * m, // Reduce height by twice the margin.
+        u0,
+        v0,
+        u1,
+        v1,
+        color
       )
     }
   }
 
   /** Draws a solid filled rectangle. */
-  drawSolidRect(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    color: number[]
-  ) {
+  drawSolidRect(x: number, y: number, width: number, height: number, color: number[]) {
     if (!this.ready) {
-      throw new Error("Drawer not initialized")
+      throw new Error('Drawer not initialized')
     }
 
     this.ensureMeshSelected()
 
-    const imageName = "white.png"
+    const imageName = 'white.png'
     if (!this.atlasData?.[imageName]) {
       throw new Error(`Image "${imageName}" not found in atlas`)
     }
@@ -773,28 +784,11 @@ export class Context3d {
     const [sx, sy, sw, sh] = this.atlasData[imageName]
     const uvx = (sx + sw / 2) / this.textureSize.x()
     const uvy = (sy + sh / 2) / this.textureSize.y()
-    this.drawRect(
-      x,
-      y,
-      width,
-      height,
-      uvx,
-      uvy,
-      uvx,
-      uvy,
-      color
-    )
+    this.drawRect(x, y, width, height, uvx, uvy, uvx, uvy, color)
   }
 
   /** Draws a stroked rectangle with set stroke width. */
-  drawStrokeRect(
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    strokeWidth: number,
-    color: number[]
-  ) {
+  drawStrokeRect(x: number, y: number, width: number, height: number, strokeWidth: number, color: number[]) {
     // Draw 4 rectangles as borders for the stroke rectangle.
     // Top border.
     this.drawSolidRect(x, y, width, strokeWidth, color)
@@ -815,6 +809,17 @@ export class Context3d {
     // If no meshes have been created, nothing to do
     if (this.meshes.size === 0) {
       return
+    }
+
+    // Handle high-DPI displays by resizing the canvas if necessary.
+    const { clientWidth, clientHeight } = this.canvas
+    const newWidth = Math.round(clientWidth * this.dpr)
+    const newHeight = Math.round(clientHeight * this.dpr)
+    if (this.canvas.width !== newWidth || this.canvas.height !== newHeight) {
+      this.canvas.width = newWidth
+      this.canvas.height = newHeight
+      this.canvas.style.width = `${clientWidth}px`
+      this.canvas.style.height = `${clientHeight}px`
     }
 
     // Setup for rendering
@@ -856,13 +861,7 @@ export class Context3d {
         const indexDataCount = quadCount * 6 // 6 indices per quad
 
         // Write vertex data to the GPU
-        device.queue.writeBuffer(
-          vertexBuffer,
-          0,
-          mesh.getVertexData(),
-          0,
-          vertexDataCount
-        )
+        device.queue.writeBuffer(vertexBuffer, 0, mesh.getVertexData(), 0, vertexDataCount)
 
         // Set buffers
         passEncoder.setVertexBuffer(0, vertexBuffer)
@@ -943,7 +942,7 @@ export class Context3d {
         fn fragmentMain(@location(0) texCoord: vec2f) -> @location(0) vec4f {
           return textureSample(imgTexture, imgSampler, texCoord);
         }
-      `
+      `,
     })
 
     const mipmapPipeline = this.device.createRenderPipeline({

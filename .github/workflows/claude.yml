@@ -13,6 +13,7 @@ permissions:
   pull-requests: write
   issues: write
   id-token: write
+  actions: write
 
 env:
   CLAUDE_MODEL: "claude-sonnet-4-20250514"
@@ -21,6 +22,10 @@ jobs:
   claude-response:
     if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
+    outputs:
+      action: ${{ steps.check_action.outputs.action }}
+      review_types: ${{ steps.check_action.outputs.review_types }}
+      pr_number: ${{ github.event.issue.number }}
 
     steps:
       - name: Debug - Workflow Context
@@ -35,34 +40,102 @@ jobs:
           echo "Is Pull Request: ${{ !!github.event.issue.pull_request }}"
           echo "==========================="
 
-      - name: Check for PR creation request
+      - name: Check for action type
         id: check_action
         run: |
           echo "=== ACTION DETECTION DEBUG ==="
           echo "Full comment: ${{ github.event.comment.body }}"
-          if echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
-            echo "✅ Detected: PR creation request"
-            echo "action=create_pr" >> $GITHUB_OUTPUT
-            echo "fetch_depth=0" >> $GITHUB_OUTPUT
+
+          # Check for review commands first (must be on a PR)
+          if [[ "${{ !!github.event.issue.pull_request }}" == "true" ]]; then
+            if echo "${{ github.event.comment.body }}" | grep -q "@claude review"; then
+              echo "✅ Detected: Review request"
+              echo "action=review" >> $GITHUB_OUTPUT
+              echo "fetch_depth=0" >> $GITHUB_OUTPUT
+
+              # Extract review types from the comment
+              # This regex captures everything after "review" until end of line or next @claude
+              REVIEW_ARGS=$(echo "${{ github.event.comment.body }}" | sed -n 's/.*@claude review\s*\([^@]*\).*/\1/p' | head -1)
+              echo "Review arguments: '$REVIEW_ARGS'"
+
+              # Parse the review types
+              REVIEW_TYPES=""
+
+              # Check for special keywords first
+              if echo "$REVIEW_ARGS" | grep -qw "all"; then
+                echo "✅ Detected: All reviews requested"
+                REVIEW_TYPES="readme,comments,types,einops"
+              else
+                # Parse comma-separated list
+                # Remove brackets if present, normalize spacing
+                PARSED_TYPES=$(echo "$REVIEW_ARGS" | sed 's/[\[\]]//g' | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | grep -E '^(readme|comments|types|einops)$' | tr '\n' ',' | sed 's/,$//')
+
+                if [ -z "$PARSED_TYPES" ]; then
+                  echo "⚠️ No valid review types found, defaulting to all"
+                  REVIEW_TYPES="readme,comments,types,einops"
+                else
+                  REVIEW_TYPES="$PARSED_TYPES"
+                fi
+              fi
+
+              echo "review_types=$REVIEW_TYPES" >> $GITHUB_OUTPUT
+              echo "✅ Review types to run: $REVIEW_TYPES"
+
+            elif echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
+              echo "✅ Detected: PR creation request"
+              echo "action=create_pr" >> $GITHUB_OUTPUT
+              echo "fetch_depth=0" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Detected: Regular comment request"
+              echo "action=comment" >> $GITHUB_OUTPUT
+              echo "fetch_depth=1" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "✅ Detected: Regular comment request"
-            echo "action=comment" >> $GITHUB_OUTPUT
-            echo "fetch_depth=1" >> $GITHUB_OUTPUT
+            # Not on a PR, check for open-pr or default to comment
+            if echo "${{ github.event.comment.body }}" | grep -q "@claude open-pr"; then
+              echo "✅ Detected: PR creation request"
+              echo "action=create_pr" >> $GITHUB_OUTPUT
+              echo "fetch_depth=0" >> $GITHUB_OUTPUT
+            else
+              echo "✅ Detected: Regular comment request"
+              echo "action=comment" >> $GITHUB_OUTPUT
+              echo "fetch_depth=1" >> $GITHUB_OUTPUT
+            fi
           fi
           echo "=============================="
 
+      # Post acknowledgment for review requests
+      - name: Post Review Acknowledgment
+        if: steps.check_action.outputs.action == 'review'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const reviewTypes = '${{ steps.check_action.outputs.review_types }}'.split(',');
+
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🔍 **Starting Claude review...**\n\nI'll analyze:\n${reviewTypes.map(t => `- ${t.charAt(0).toUpperCase() + t.slice(1)}`).join('\n')}\n\nThis may take a few minutes. You can check the progress in the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions).`
+            });
+
+      # Only checkout and run Claude if not a review action
       - name: Checkout repository
+        if: contains(fromJson('["comment", "create_pr"]'), steps.check_action.outputs.action)
         uses: actions/checkout@v4
         with:
           fetch-depth: ${{ steps.check_action.outputs.fetch_depth == '0' && 0 || 1 }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
+        if: steps.check_action.outputs.action == 'create_pr'
         run: |
           git config --global user.name "Claude Assistant"
           git config --global user.email "claude-assistant@users.noreply.github.com"
 
       - name: Debug - Check Secrets
+        if: contains(fromJson('["comment", "create_pr"]'), steps.check_action.outputs.action)
         run: |
           echo "=== SECRETS DEBUG ==="
           if [ -n "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
@@ -157,6 +230,70 @@ jobs:
           echo "✅ Created branch: $(git branch --show-current)"
           echo "✅ Ready for Claude to make changes"
 
+
+      - name: Prepare MCP Configuration
+        if: steps.check_action.outputs.action == 'create_pr'
+        id: mcp_config
+        run: |
+          echo "=== PREPARING MCP CONFIGURATION ==="
+
+          # Debug available paths
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "GITHUB_ACTION_PATH: ${GITHUB_ACTION_PATH:-'NOT SET'}"
+          echo "Current directory: $(pwd)"
+
+          # Find the claude-code-action path
+          CLAUDE_ACTION_PATH="/home/runner/work/_actions/anthropics/claude-code-action/beta"
+          if [ -d "$CLAUDE_ACTION_PATH" ]; then
+            echo "✅ Found Claude action at: $CLAUDE_ACTION_PATH"
+          else
+            echo "⚠️ Claude action not found at expected path, checking alternatives..."
+            find /home/runner/work/_actions -name "github-file-ops-server.ts" -type f 2>/dev/null || true
+          fi
+
+          # Construct the MCP config
+          MCP_CONFIG=$(cat <<EOF
+          {
+            "mcpServers": {
+              "github_file_ops": {
+                "command": "bun",
+                "args": [
+                  "run",
+                  "${CLAUDE_ACTION_PATH}/src/mcp/github-file-ops-server.ts"
+                ],
+                "env": {
+                  "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+                  "REPO_OWNER": "${{ github.repository_owner }}",
+                  "REPO_NAME": "${{ github.event.repository.name }}",
+                  "BRANCH_NAME": "${{ steps.branches.outputs.new_branch }}",
+                  "REPO_DIR": "${{ github.workspace }}",
+                  "CLAUDE_COMMENT_ID": "${{ github.event.comment.id }}",
+                  "GITHUB_EVENT_NAME": "workflow_dispatch",
+                  "IS_PR": "false",
+                  "GITHUB_API_URL": "${{ github.api_url }}",
+                  "DEBUG": "github-file-ops:*"
+                }
+              }
+            }
+          }
+          EOF
+          )
+
+          # Log the config for debugging
+          echo "=== MCP CONFIGURATION ==="
+          echo "$MCP_CONFIG" | jq '.' || echo "$MCP_CONFIG"
+          echo "========================="
+
+          # Validate critical values
+          echo "=== VALIDATING CONFIG ==="
+          echo "Branch name: ${{ steps.branches.outputs.new_branch }}"
+          echo "Repo: ${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          echo "Comment ID: ${{ github.event.comment.id }}"
+
+          # Save config as output (need to escape newlines)
+          MCP_CONFIG_ESCAPED=$(echo "$MCP_CONFIG" | jq -c '.')
+          echo "config=$MCP_CONFIG_ESCAPED" >> $GITHUB_OUTPUT
+
       # Claude PR creation with MCP tools instead of bash
       - name: Claude PR Creation
         if: steps.check_action.outputs.action == 'create_pr'
@@ -167,6 +304,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: ${{ env.CLAUDE_MODEL }}
           timeout_minutes: 45
+          mcp_config: ${{ steps.mcp_config.outputs.config }}
           direct_prompt: |
             You are working on branch: ${{ steps.branches.outputs.new_branch }}
 
@@ -272,7 +410,7 @@ jobs:
               const targetBranch = "${{ steps.branches.outputs.target_branch }}";
               const newBranch = "${{ steps.branches.outputs.new_branch }}";
               const contextInfo = "${{ steps.branches.outputs.context_info }}";
-              const commitCount = "${{ steps.verify_git.outputs.commit_count }}";
+              const commitCount = "${{ steps.push_branch.outputs.commit_count }}";
 
               console.log(`Creating PR: ${newBranch} -> ${targetBranch}`);
               console.log(`Context: ${contextInfo}`);
@@ -349,9 +487,9 @@ jobs:
                   "**Debug info:**",
                   `- New branch: \`${{ steps.branches.outputs.new_branch }}\``,
                   `- Target branch: \`${{ steps.branches.outputs.target_branch }}\``,
-                  `- Branch pushed: ${{ steps.verify_git.outputs.branch_pushed }}`,
-                  `- Has commits: ${{ steps.verify_git.outputs.has_commits }}`,
-                  `- Commit count: ${{ steps.verify_git.outputs.commit_count }}`,
+                  `- Branch pushed: ${{ steps.push_branch.outputs.branch_pushed }}`,
+                  `- Has commits: ${{ steps.push_branch.outputs.has_commits }}`,
+                  `- Commit count: ${{ steps.push_branch.outputs.commit_count }}`,
                   "",
                   "Please check the Actions logs for more details."
                 ].join('\n')
@@ -398,6 +536,49 @@ jobs:
               ].join('\n')
             });
 
+      # Add help message for unrecognized commands on PRs
+      - name: Post Help Message
+        if: steps.check_action.outputs.action == 'comment' && github.event.issue.pull_request
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Check if the comment might have been trying to use a review command
+            const comment = "${{ github.event.comment.body }}".toLowerCase();
+            if (comment.includes('review')) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: [
+                  "💡 **Claude Review Commands Available**",
+                  "",
+                  "I noticed you mentioned 'review'. Here's how to use review commands:",
+                  "",
+                  "**Syntax:** `@claude review <types>`",
+                  "",
+                  "**Examples:**",
+                  "- `@claude review all` - Run all review types",
+                  "- `@claude review einops` - Check for einops optimization opportunities",
+                  "- `@claude review comments, types` - Review comments and type annotations",
+                  "- `@claude review readme, einops, comments` - Run multiple specific reviews",
+                  "",
+                  "**Available review types:**",
+                  "- `readme` - Verify README accuracy",
+                  "- `comments` - Review code comments and docstrings",
+                  "- `types` - Check type annotations",
+                  "- `einops` - Suggest einops optimizations",
+                  "- `all` - Run all review types",
+                  "",
+                  "You can also:",
+                  "- `@claude open-pr` - Create a new PR with changes",
+                  "- `@claude [question]` - Ask me anything about the code",
+                  "",
+                  "*Note: Review commands only work on pull requests.*"
+                ].join('\n')
+              });
+            }
+
       - name: Final Debug Summary
         if: always()
         run: |
@@ -412,3 +593,16 @@ jobs:
           echo "Claude outcome: ${{ steps.claude_pr.outcome }}"
           echo "Workflow status: ${{ job.status }}"
           echo "=============================="
+
+  # Call the orchestrator workflow as a job when review is requested
+  run-orchestrator:
+    needs: claude-response
+    if: needs.claude-response.outputs.action == 'review'
+    uses: ./.github/workflows/claude-review-orchestrator.yml
+    secrets: inherit
+    with:
+      pr_number: ${{ needs.claude-response.outputs.pr_number }}
+      run_readme: ${{ contains(needs.claude-response.outputs.review_types, 'readme') }}
+      run_comments: ${{ contains(needs.claude-response.outputs.review_types, 'comments') }}
+      run_types: ${{ contains(needs.claude-response.outputs.review_types, 'types') }}
+      run_einops: ${{ contains(needs.claude-response.outputs.review_types, 'einops') }}
