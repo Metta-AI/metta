@@ -13,7 +13,7 @@ components:
   #necessary input_source: _obs_
 
   _obs_:
-    _target_: metta.agent.lib.obs_shaper.ObsShaper
+    _target_: metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper
     sources:
       null
 
