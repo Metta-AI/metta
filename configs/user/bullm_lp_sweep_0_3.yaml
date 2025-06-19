@@ -1,19 +1,17 @@
-# LP Sweep Config: LP_weight = 0.5 (Moderate Learning Progress)
-# This adds moderate learning progress influence to LowRewardCurriculum
+# LP Sweep Config: LP_weight = 0.3 (Light Learning Progress)
+# This adds light learning progress influence to LowRewardCurriculum
 
 defaults:
   - _self_
 
 # Basic run configuration
-run: ${oc.env:USER}.lp_sweep_0.5
+run: ${oc.env:USER}.lp_sweep_0.3
 run_dir: ${data_dir}/${run}
 
 # Training configuration
 trainer:
   curriculum: env/mettagrid/curriculum/lp_low_reward
   total_timesteps: 1000000  # 1M timesteps for comparison
-
-  # Fixed hyperparameters for fair comparison
   gamma: 0.99
   gae_lambda: 0.95
   vf_coef: 0.5
@@ -23,20 +21,20 @@ trainer:
   bptt_horizon: 8
   learning_rate: 3e-4
   evaluate_interval: 100
+  lp_weight: 0.3
+  num_workers: 4
+  env_cfg:
+    envs:
+      - /env/mettagrid/navigation/training/terrain_from_numpy
+      - /env/mettagrid/navigation/training/cylinder_world
+      - /env/mettagrid/navigation/training/varied_terrain_sparse
+      - /env/mettagrid/navigation/training/varied_terrain_balanced
+      - /env/mettagrid/navigation/training/varied_terrain_maze
+      - /env/mettagrid/navigation/training/varied_terrain_dense
+    num_agents: 24
 
-# LP weight = 0.5 (moderate learning progress influence)
-trainer.curriculum.lp_weight: 0.5
-
-# Environment configuration
-trainer.curriculum.env_cfg:
-  envs:
-    - /env/mettagrid/navigation/training/terrain_from_numpy
-    - /env/mettagrid/navigation/training/cylinder_world
-    - /env/mettagrid/navigation/training/varied_terrain_sparse
-    - /env/mettagrid/navigation/training/varied_terrain_balanced
-    - /env/mettagrid/navigation/training/varied_terrain_maze
-    - /env/mettagrid/navigation/training/varied_terrain_dense
-  num_agents: 24
+# LP weight = 0.3 (light learning progress influence)
+trainer.curriculum.lp_weight: 0.3
 
 # LPC-specific parameters (only used when lp_weight > 0)
 trainer.curriculum.ema_alpha: 0.001
@@ -58,7 +56,5 @@ wandb:
   project: metta
   entity: metta-research
   name: ${run}
-  tags: ["lp_sweep", "lp_weight_0.5", "low_reward_curriculum", "moderate_lp"]
+  tags: ["lp_sweep", "lp_weight_0.3", "low_reward_curriculum", "light_lp"]
 
-# Hardware configuration
-hardware: macbook
