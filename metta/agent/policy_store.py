@@ -402,6 +402,16 @@ class PolicyStore:
         return [self._load_from_file(path, metadata_only=True) for path in paths]
 
     def _prs_from_wandb_artifact(self, uri: str, version: Optional[str] = None) -> List[PolicyRecord]:
+        # Check if wandb is disabled before proceeding
+        if (
+            not hasattr(self._cfg, "wandb")
+            or not hasattr(self._cfg.wandb, "entity")
+            or not hasattr(self._cfg.wandb, "project")
+        ):
+            raise ValueError(
+                f"Cannot load wandb artifact '{uri}' when wandb is disabled (wandb=off). "
+                "Either enable wandb or use a local policy URI (file://) instead."
+            )
         entity, project, artifact_type, name = uri.split("/")
         path = f"{entity}/{project}/{name}"
         if not wandb.Api().artifact_collection_exists(type=artifact_type, name=path):
@@ -447,17 +457,16 @@ class PolicyStore:
         """
         torch.load expects the codebase to be in the same structure as when the model was saved.
 
-        We can use this function to alias old layout structures. For now we are just supporting moving
-        agent --> metta.agent
+        We can use this function to alias old layout structures. For now we are supporting:
+        - agent --> metta.agent
         """
         # Memoize
         if getattr(self, "_made_codebase_backwards_compatible", False):
             return
         self._made_codebase_backwards_compatible = True
 
-        # Start with the base module
+        # Handle agent --> metta.agent
         sys.modules["agent"] = sys.modules["metta.agent"]
-
         modules_queue = collections.deque(["metta.agent"])
 
         processed = set()

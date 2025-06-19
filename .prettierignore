@@ -2,6 +2,13 @@
 **/templates/**/*.yaml
 **/templates/**/*.yml
 
+# Forked from upstream so should not be formatted
+devops/tf/eks/skypilot/skypilot-chart/
+
+# Formatted by Biome
+/mettascope/**
+/observatory/**
+
 .DS_Store
 node_modules/
 dist/

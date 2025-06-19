@@ -93,8 +93,8 @@ def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
         tuple(pr_number, pr_title) if commit is HEAD of an open PR, None otherwise
     """
 
-    # Get all open PRs
-    pr_json = run_gh("pr", "list", "--state", "open", "--json", "number,title,headRefOid")
+    # Get ALL open PRs by setting a high limit
+    pr_json = run_gh("pr", "list", "--state", "open", "--limit", "999", "--json", "number,title,headRefOid")
     prs = json.loads(pr_json)
 
     for pr in prs:
@@ -102,7 +102,7 @@ def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
         pr_head_sha = pr.get("headRefOid", "")
 
         # Compare commits (handle both short and full hashes)
-        if pr_head_sha.startswith(commit_hash):
+        if pr_head_sha.startswith(commit_hash) or commit_hash.startswith(pr_head_sha):
             return (int(pr["number"]), pr["title"])
 
     return None
