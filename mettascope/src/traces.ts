@@ -64,21 +64,22 @@ export function drawTrace(panel: PanelInfo) {
   }
 
   ctx.save()
-  ctx.setScissorRect(panel.x, panel.y, panel.width, panel.height)
+  const rect = panel.rectInner()
+  ctx.setScissorRect(rect.x, rect.y, rect.width, rect.height)
 
   const fullSize = new Vec2f(state.replay.max_steps * Common.TRACE_WIDTH, state.replay.num_agents * Common.TRACE_HEIGHT)
 
   // Draw the background.
   ctx.drawSolidRect(
-    panel.x,
-    panel.y,
-    panel.width,
-    panel.height,
+    rect.x,
+    rect.y,
+    rect.width,
+    rect.height,
     //[0.08, 0.08, 0.08, 1.0] // Dark background
     parseHtmlColor('#141B23')
   )
 
-  ctx.translate(panel.x + panel.width / 2, panel.y + panel.height / 2)
+  ctx.translate(rect.x + rect.width / 2, rect.y + rect.height / 2)
   ctx.scale(panel.zoomLevel, panel.zoomLevel)
   ctx.translate(panel.panPos.x(), panel.panPos.y())
 
