@@ -89,18 +89,6 @@ EOF
   aws configure set profile.softmax-root.region us-east-1
   aws configure set profile.softmax-root.output json
 
-  # Set up softmax-db profile
-  aws configure set profile.softmax-db.sso_session softmax-sso
-  aws configure set profile.softmax-db.sso_account_id 767406518141
-  aws configure set profile.softmax-db.sso_role_name PowerUserAccess
-  aws configure set profile.softmax-db.region us-east-1
-
-  # Set up softmax-db-admin profile
-  aws configure set profile.softmax-db-admin.sso_session softmax-sso
-  aws configure set profile.softmax-db-admin.sso_account_id 767406518141
-  aws configure set profile.softmax-db-admin.sso_role_name AdministratorAccess
-  aws configure set profile.softmax-db-admin.region us-east-1
-
   # Set up softmax profile
   aws configure set profile.softmax.sso_session softmax-sso
   aws configure set profile.softmax.sso_account_id 751442549699
@@ -144,6 +132,10 @@ if [ -z "$CI" ] && [ "$IS_DOCKER" = "false" ]; then
       initialize_aws_config
     fi
   fi
+
+  echo "Removing old AWS profiles..."
+  sed -i.bak '/^\[profile softmax-db\]/,/^\[/{/^\[profile softmax-db\]/d;/^\[/!d;}' ~/.aws/config
+  sed -i.bak '/^\[profile softmax-db-admin\]/,/^\[/{/^\[profile softmax-db-admin\]/d;/^\[/!d;}' ~/.aws/config
 
   echo "Running AWS SSO login..."
   aws sso login --profile softmax
