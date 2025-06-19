@@ -1,54 +1,37 @@
 name: Asana Integration
 
 on:
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: "The branch to test the workflow on"
-        default: "main"
-        required: true
-      pr_number:
-        description: "The pull request number to test the workflow on"
-        required: true
+  pull_request:
+    types: [opened, reopened]
 
 jobs:
   asana_integration:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ github.event.inputs.branch }}
-
-      - name: Get PR details
-        id: pr-details
-        run: |
-          PR_TITLE=$(gh pr view ${{ github.event.inputs.pr_number }} --json title --jq '.title')
-          PR_BODY=$(gh pr view ${{ github.event.inputs.pr_number }} --json body --jq '.body')
-          PR_URL=$(gh pr view ${{ github.event.inputs.pr_number }} --json url --jq '.url')
-          echo "title=$PR_TITLE" >> $GITHUB_OUTPUT
-          echo "body=$PR_BODY" >> $GITHUB_OUTPUT
-          echo "url=$PR_URL" >> $GITHUB_OUTPUT
-
-      - name: Install requests library
-        run: pip install requests
+        uses: actions/checkout@v4
 
       - name: Ensure Asana Task
         id: ensure-asana-task
         uses: ./.github/actions/asana/ensure-task
         with:
-          title: ${{ steps.pr-details.outputs.title }}
-          description: ${{ steps.pr-details.outputs.body }}
-          project_id: ${{ secrets.ASANA_PROJECT_ID }}
-          asana_token: ${{ secrets.ASANA_TOKEN }}
-          github_url: ${{ steps.pr-details.outputs.url }}
-          github_url_field_id: ${{ secrets.ASANA_GITHUB_URL_FIELD_ID }}
+          title: ${{ github.event.pull_request.title }}
+          description: ${{ github.event.pull_request.body }}
+          project_id: ${{ vars.ASANA_PROJECT_GID }}
+          workspace_id: ${{ vars.ASANA_WORKSPACE_GID }}
+          asana_token: ${{ secrets.ASANA_API_KEY }}
+          github_url: ${{ github.event.pull_request.html_url }}
+          github_url_field_id: ${{ vars.ASANA_GITHUB_URL_FIELD_GID }}
 
       - name: Update PR Description
         uses: ./.github/actions/asana/update-pr-description
         with:
-          pr_number: ${{ github.event.inputs.pr_number }}
+          pr_number: ${{ github.event.pull_request.number }}
           repo: ${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
           task_url: ${{ steps.ensure-asana-task.outputs.task_url }}

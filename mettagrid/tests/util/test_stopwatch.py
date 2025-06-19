@@ -102,7 +102,7 @@ class TestStopwatch:
         time.sleep(0.1)
 
         # Record anonymous checkpoint
-        stopwatch.checkpoint(200, timer_name="test_timer")
+        stopwatch.checkpoint(200, name="test_timer")
 
         stopwatch.stop("test_timer")
 
@@ -153,26 +153,26 @@ class TestStopwatch:
     def test_reset_functionality(self, stopwatch):
         """Test resetting timers."""
         # Start and stop a timer
-        stopwatch.start("reset_test")
+        stopwatch.start("A")
         time.sleep(0.1)
-        stopwatch.stop("reset_test")
+        stopwatch.stop("A")
 
         # Check it has elapsed time
-        assert stopwatch.get_elapsed("reset_test") > 0
+        assert stopwatch.get_elapsed("A") > 0
 
         # Reset specific timer
-        stopwatch.reset("reset_test")
-        assert stopwatch.get_elapsed("reset_test") == 0
+        stopwatch.reset("A")
+        assert stopwatch.get_elapsed("A") == 0
 
         # Test reset_all
-        stopwatch.start("timer1")
-        stopwatch.start("timer2")
+        stopwatch.start("B")
+        stopwatch.start("C")
         time.sleep(0.1)
-        stopwatch.stop("timer1")
-        stopwatch.stop("timer2")
+        stopwatch.stop("B")
+        stopwatch.stop("C")
 
         stopwatch.reset_all()
-        assert len(stopwatch._timers) == 1  # Only global timer
+        assert len(stopwatch._timers) == 4  # 3 + global; reset zeroes all timers
         assert stopwatch.GLOBAL_TIMER_NAME in stopwatch._timers
 
     def test_get_last_elapsed(self, stopwatch):
@@ -425,27 +425,27 @@ class TestStopwatch:
             "C": [0.3, 0.5, 0.6],
         }
 
-        for timer_name, expected_times in expected_checkpoints.items():
-            timer = stopwatch._get_timer(timer_name)
+        for name, expected_times in expected_checkpoints.items():
+            timer = stopwatch._get_timer(name)
             checkpoints = sorted(timer.checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
 
             assert len(checkpoints) == len(expected_times), (
-                f"Timer {timer_name}: expected {len(expected_times)} checkpoints, got {len(checkpoints)}"
+                f"Timer {name}: expected {len(expected_times)} checkpoints, got {len(checkpoints)}"
             )
 
             for i, (_, checkpoint_data) in enumerate(checkpoints):
                 actual_time = checkpoint_data["elapsed_time"]
                 expected_time = expected_times[i]
                 assert abs(actual_time - expected_time) < tol, (
-                    f"Timer {timer_name} checkpoint {i}: expected {expected_time}, got {actual_time}\n"
+                    f"Timer {name} checkpoint {i}: expected {expected_time}, got {actual_time}\n"
                     f"All checkpoints: {checkpoints}"
                 )
 
             if checkpoints:
                 first_checkpoint_time = checkpoints[0][1]["elapsed_time"]
-                first_lap_time = lap_times[timer_name]
+                first_lap_time = lap_times[name]
                 assert abs(first_checkpoint_time - first_lap_time) < tol, (
-                    f"Timer {timer_name}: checkpoint time {first_checkpoint_time} != lap time {first_lap_time}"
+                    f"Timer {name}: checkpoint time {first_checkpoint_time} != lap time {first_lap_time}"
                 )
 
     def test_get_lap_steps_first_lap(self, stopwatch):
@@ -458,7 +458,7 @@ class TestStopwatch:
         time.sleep(0.1)
 
         # Record first checkpoint at 100 steps
-        stopwatch.checkpoint(100, timer_name="test_timer")
+        stopwatch.checkpoint(100, name="test_timer")
 
         # Try to get the first lap steps
         first_lap_steps = stopwatch.get_lap_steps(1, "test_timer")
@@ -473,7 +473,7 @@ class TestStopwatch:
 
         # Add second checkpoint
         time.sleep(0.1)
-        stopwatch.checkpoint(250, timer_name="test_timer")
+        stopwatch.checkpoint(250, name="test_timer")
 
         # Now test both laps
         first_lap_steps = stopwatch.get_lap_steps(1, "test_timer")

@@ -40,12 +40,38 @@ class Timer:
         return self.start_time is not None
 
 
-def with_timer(timer: "Stopwatch", timer_name: str, log_level: int | None = None):
+def _capture_caller_info(extra_skip_frames: int = 0) -> Tuple[str, int]:
+    """Capture the filename and line number of the caller.
+
+    Args:
+        extra_skip_frames: Number of additional stack frames to skip beyond the baseline 2
+                          (this function + direct caller)
+
+    Returns:
+        Tuple of (filename, line_number)
+    """
+    frame = inspect.currentframe()
+    try:
+        # Skip baseline frames (this function + direct caller) plus any extra
+        for _ in range(2 + extra_skip_frames):
+            if frame is None:
+                break
+            frame = frame.f_back
+
+        if frame is not None:
+            return frame.f_code.co_filename, frame.f_lineno
+        return "unknown", 0
+    finally:
+        # Avoid reference cycles
+        del frame
+
+
+def with_timer(timer: "Stopwatch", name: str, log_level: int | None = None):
     """Decorator that wraps function execution in a timer context.
 
     Args:
         timer: The Stopwatch instance to use
-        timer_name: Name of the timer
+        name: Name of the timer
         log_level: Optional logging level to automatically log elapsed time
 
     Usage:
@@ -57,17 +83,11 @@ def with_timer(timer: "Stopwatch", timer_name: str, log_level: int | None = None
 
     def decorator(func: F) -> F:
         # Capture where the decorator is applied
-        frame = inspect.currentframe()
-        if frame and frame.f_back:
-            filename = frame.f_back.f_code.co_filename
-            lineno = frame.f_back.f_lineno
-        else:
-            filename = "unknown"
-            lineno = 0
+        filename, lineno = _capture_caller_info(extra_skip_frames=0)
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            with timer.time(timer_name, log_level=log_level, filename=filename, lineno=lineno):
+            with timer.time(name, log_level=log_level, filename=filename, lineno=lineno):
                 return func(*args, **kwargs)
 
         return cast(F, wrapper)
@@ -75,11 +95,11 @@ def with_timer(timer: "Stopwatch", timer_name: str, log_level: int | None = None
     return decorator
 
 
-def with_instance_timer(timer_name: str, log_level: int | None = None, timer_attr: str = "timer"):
+def with_instance_timer(name: str, log_level: int | None = None, timer_attr: str = "timer"):
     """Decorator that uses a timer from the instance.
 
     Args:
-        timer_name: Name of the timer
+        name: Name of the timer
         log_level: Optional logging level
         timer_attr: Name of the timer attribute on the instance (default: "timer")
 
@@ -96,13 +116,7 @@ def with_instance_timer(timer_name: str, log_level: int | None = None, timer_att
 
     def decorator(func: F) -> F:
         # Capture where the decorator is applied
-        frame = inspect.currentframe()
-        if frame and frame.f_back:
-            filename = frame.f_back.f_code.co_filename
-            lineno = frame.f_back.f_lineno
-        else:
-            filename = "unknown"
-            lineno = 0
+        filename, lineno = _capture_caller_info(extra_skip_frames=0)
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -111,7 +125,7 @@ def with_instance_timer(timer_name: str, log_level: int | None = None, timer_att
                 raise ValueError("with_instance_timer can only be used on instance methods")
             instance = args[0]
             timer = getattr(instance, timer_attr)
-            with timer.time(timer_name, log_level=log_level, filename=filename, lineno=lineno):
+            with timer.time(name, log_level=log_level, filename=filename, lineno=lineno):
                 return func(*args, **kwargs)
 
         return cast(F, wrapper)
@@ -168,59 +182,49 @@ class Stopwatch:
 
     def _get_timer(self, name: str | None = None) -> Timer:
         """Get or create a timer. None defaults to global timer."""
-        if name == self.GLOBAL_TIMER_NAME:
-            raise ValueError(
-                f"'{self.GLOBAL_TIMER_NAME}' is a reserved timer name. Use None to access the global timer."
-            )
 
-        if name is None:
-            name = self.GLOBAL_TIMER_NAME
+        name = name or self.GLOBAL_TIMER_NAME
 
         with self._lock:
             if name not in self._timers:
                 self._timers[name] = self._create_timer(name)
             return self._timers[name]
 
-    def _capture_caller_info(self, skip_frames: int = 2) -> Tuple[str, int]:
-        """Capture the filename and line number of the caller.
-
-        Args:
-            skip_frames: Number of stack frames to skip (default 2: this method + caller)
-
-        Returns:
-            Tuple of (filename, line_number)
-        """
-        frame = inspect.currentframe()
-        try:
-            # Skip the specified number of frames
-            for _ in range(skip_frames):
-                if frame is None:
-                    break
-                frame = frame.f_back
-
-            if frame is not None:
-                return frame.f_code.co_filename, frame.f_lineno
-            return "unknown", 0
-        finally:
-            # Avoid reference cycles
-            del frame
-
     @with_lock
     def reset(self, name: str | None = None):
-        """Reset timing data for a specific timer or all timers."""
-        if name is None:
-            # Reset just the global timer
-            self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
+        """Reset timing data for a specific timer.
+
+        Clears all timing data while preserving the timer's existence and reference history.
+
+        Args:
+            name: Timer name (None for global timer)
+        """
+
+        name = name or self.GLOBAL_TIMER_NAME
+
+        if name in self._timers:
+            timer = self._timers[name]
+            # Reset state while preserving the timer's existence and references
+            timer.start_time = None
+            timer.total_elapsed = 0.0
+            timer.last_elapsed = 0.0
+            timer.checkpoints.clear()
+            timer.lap_counter = 0
+            # Keep timer.references intact to preserve decorator information
         else:
-            if name == self.GLOBAL_TIMER_NAME:
-                raise ValueError(f"Use None to reset the global timer, not '{self.GLOBAL_TIMER_NAME}'")
+            # Timer doesn't exist yet, create it
             self._timers[name] = self._create_timer(name)
 
-    @with_lock
     def reset_all(self):
-        """Reset all timers including global."""
-        self._timers.clear()
-        self._timers[self.GLOBAL_TIMER_NAME] = self._create_timer(self.GLOBAL_TIMER_NAME)
+        """Reset all timers including global.
+
+        Clears all timing data while preserving timer existence and reference history.
+        """
+        with self._lock:
+            timer_names = list(self._timers.keys())
+
+        for name in timer_names:
+            self.reset(name)
 
     @with_lock
     def start(self, name: str | None = None, filename: str | None = None, lineno: int | None = None):
@@ -232,15 +236,17 @@ class Stopwatch:
             lineno: Optional line number for reference (auto-captured if not provided)
         """
         timer = self._get_timer(name)
-        timer_name = name or "global"
+        name = name or self.GLOBAL_TIMER_NAME
 
         if timer.is_running():
-            self.logger.warning(f"Timer '{timer_name}' already running")
+            self.logger.warning(f"Timer '{name}' already running")
             return
 
         # Capture caller info if not provided
         if filename is None or lineno is None:
-            filename, lineno = self._capture_caller_info(skip_frames=3)
+            caller_filename, caller_lineno = _capture_caller_info(extra_skip_frames=1)  # skip lock
+            filename = filename or caller_filename
+            lineno = lineno or caller_lineno
 
         # Store reference
         timer.references.append(TimerReference(filename=filename, lineno=lineno))
@@ -250,14 +256,14 @@ class Stopwatch:
     def stop(self, name: str | None = None) -> float:
         """Stop a timer and return elapsed time"""
         timer = self._get_timer(name)
-        timer_name = name or "global"
+        name = name or self.GLOBAL_TIMER_NAME
 
         if not timer.is_running():
-            self.logger.warning(f"Timer '{timer_name}' not running")
+            self.logger.warning(f"Timer '{name}' not running")
             return 0.0
 
         if timer.start_time is None:
-            self.logger.warning(f"Timer '{timer_name}' has no start time")
+            self.logger.warning(f"Timer '{name}' has no start time")
             return 0.0
 
         elapsed = time.time() - timer.start_time
@@ -287,9 +293,10 @@ class Stopwatch:
                 # code to time
                 pass
         """
+
         # Capture caller info if not provided
         if filename is None or lineno is None:
-            caller_filename, caller_lineno = self._capture_caller_info(skip_frames=3)
+            caller_filename, caller_lineno = _capture_caller_info(extra_skip_frames=1)  # skip context
             filename = filename or caller_filename
             lineno = lineno or caller_lineno
 
@@ -299,7 +306,7 @@ class Stopwatch:
         finally:
             elapsed = self.stop(name)
             if log_level is not None:
-                display_name = name or "global"
+                display_name = name or self.GLOBAL_TIMER_NAME
                 self.logger.log(log_level, f"{display_name} took {elapsed:.3f}s")
 
     def __call__(self, name: str | None = None, log_level: int | None = None) -> ContextManager["Stopwatch"]:
@@ -317,13 +324,13 @@ class Stopwatch:
         return self.time(name, log_level)
 
     @with_lock
-    def checkpoint(self, steps: int | None = None, checkpoint_name: str | None = None, timer_name: str | None = None):
+    def checkpoint(self, steps: int | None = None, checkpoint_name: str | None = None, name: str | None = None):
         """Record a checkpoint (i.e. lap marker) with step count.
 
         Args:
             steps: Step count. If None, uses internal lap counter
             checkpoint_name: Optional name for the checkpoint. If None, uses auto-generated name.
-            timer_name: Name of the timer (None for global)
+            name: Name of the timer (None for global)
 
         Usage:
             # With explicit steps
@@ -332,9 +339,9 @@ class Stopwatch:
             # With auto-incrementing internal counter
             stopwatch.checkpoint()  # uses internal counter
         """
-        timer = self._get_timer(timer_name)
+        timer = self._get_timer(name)
 
-        elapsed = self.get_elapsed(timer_name)
+        elapsed = self.get_elapsed(name)
 
         # Use internal counter if steps not provided
         if steps is None:
@@ -347,6 +354,19 @@ class Stopwatch:
             checkpoint_name = f"_lap_{len(timer.checkpoints) + 1}"
 
         timer.checkpoints[checkpoint_name] = Checkpoint(elapsed_time=elapsed, steps=steps)
+
+    def checkpoint_all(self, steps: int | None = None, checkpoint_name: str | None = None):
+        """Record a checkpoint on all active timers.
+
+        Args:
+            steps: Step count. If None, uses internal lap counter for each timer
+            checkpoint_name: Optional name for the checkpoint
+        """
+        with self._lock:
+            timer_names = list(self._timers.keys())
+
+        for name in timer_names:
+            self.checkpoint(steps, checkpoint_name, name)
 
     @with_lock
     def lap(self, steps: int | None = None, name: str | None = None) -> float:
@@ -376,24 +396,11 @@ class Stopwatch:
             lap_time = current_elapsed
 
         # Record this lap (still within the lock)
-        self.checkpoint(steps, timer_name=name)
+        self.checkpoint(steps, name=name)
 
         return lap_time
 
-    @with_lock
-    def checkpoint_all(self, steps: int | None = None, checkpoint_name: str | None = None):
-        """Record a checkpoint on all active timers.
-
-        Args:
-            steps: Step count. If None, uses internal lap counter for each timer
-            checkpoint_name: Optional name for the checkpoint
-        """
-        for timer_name, _timer in self._timers.items():
-            actual_name = timer_name if timer_name != self.GLOBAL_TIMER_NAME else None
-            self.checkpoint(steps, checkpoint_name, actual_name)
-
-    @with_lock
-    def lap_all(self, steps: int | None = None, exclude_global: bool = False) -> dict[str, float]:
+    def lap_all(self, steps: int | None = None, exclude_global: bool = True) -> dict[str, float]:
         """Mark a lap on all timers and return lap times.
 
         Args:
@@ -403,16 +410,13 @@ class Stopwatch:
         Returns:
             Dictionary mapping timer names to their lap times
         """
-        lap_times = {}
+        with self._lock:
+            timer_names = list(self._timers.keys())
 
-        for timer_name, _timer in self._timers.items():
-            # Use None for global timer in internal API
-            actual_name = None if timer_name == self.GLOBAL_TIMER_NAME else timer_name
-            lap_time = self.lap(steps, actual_name)
+        lap_times = {name: self.lap(steps, name) for name in timer_names}
 
-            # Only include in results based on exclude_global setting
-            if not (exclude_global and timer_name == self.GLOBAL_TIMER_NAME):
-                lap_times[timer_name] = lap_time
+        if exclude_global:
+            lap_times.pop(self.GLOBAL_TIMER_NAME)
 
         return lap_times
 
@@ -521,17 +525,17 @@ class Stopwatch:
             "references": timer.references.copy(),
         }
 
-    @with_lock
     def get_all_summaries(self) -> dict[str, dict[str, Any]]:
         """Get summaries for all timers."""
+        with self._lock:
+            timer_items = list(self._timers.items())
+
         summaries = {}
-        for timer_name, timer in self._timers.items():
+        for name, timer in timer_items:
             if timer.is_running() or timer.total_elapsed > 0:
-                actual_name = None if timer_name == self.GLOBAL_TIMER_NAME else timer_name
-                summaries[timer_name] = self.get_summary(actual_name)
+                summaries[name] = self.get_summary(name)
         return summaries
 
-    @with_lock
     def get_all_elapsed(self, exclude_global: bool = True) -> dict[str, float]:
         """Get elapsed times for all timers.
 
@@ -541,14 +545,13 @@ class Stopwatch:
         Returns:
             Dictionary mapping timer names to elapsed times in seconds
         """
-        results = {}
-        for timer_name in self._timers:
-            if exclude_global and timer_name == self.GLOBAL_TIMER_NAME:
-                continue
+        with self._lock:
+            timer_names = list(self._timers.keys())
 
-            actual_name = None if timer_name == self.GLOBAL_TIMER_NAME else timer_name
-            elapsed = self.get_elapsed(actual_name)
-            results[timer_name] = elapsed
+        results = {name: self.get_elapsed(name) for name in timer_names}
+
+        if exclude_global:
+            results.pop(self.GLOBAL_TIMER_NAME, None)
 
         return results
 
