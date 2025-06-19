@@ -3,7 +3,7 @@ import os
 import time
 from collections import defaultdict
 from contextlib import nullcontext
-from typing import Any, Dict, Set
+from typing import Any, Set
 from uuid import UUID
 
 import einops
@@ -91,8 +91,8 @@ class MettaTrainer:
         self.wandb_run = wandb_run
         self.policy_store = policy_store
         self._current_eval_score: float | None = None
-        self._eval_grouped_scores: Dict[str, float] = {}
-        self._eval_suite_avgs: Dict[str, float] = {}
+        self._eval_grouped_scores: dict[str, float] = {}
+        self._eval_suite_avgs: dict[str, float] = {}
         self._eval_categories: Set[str] = set()
 
         self.timer = Stopwatch(logger)
