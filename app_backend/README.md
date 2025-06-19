@@ -2,34 +2,16 @@
 
 A FastAPI-based backend server for the Metta AI framework, containerized with Docker and managed with uv.
 
-## Structure
-
-```
-app_backend/
-├── src/                    # Source code
-│   ├── server.py          # Main FastAPI application
-│   ├── config.py          # Configuration settings
-│   ├── metta_repo.py      # Database repository
-│   ├── schema_manager.py  # Database migration utilities
-│   └── routes/            # API route handlers
-├── Dockerfile             # Docker configuration
-├── pyproject.toml         # Project dependencies (uv)
-├── build.sh              # Build script
-└── .dockerignore         # Docker ignore file
-```
-
 ## Building the Docker Image
 
-1. Make sure you have Docker and uv installed
-2. Run the build script:
-   ```bash
-   ./build.sh
-   ```
+In the parent directory run the command
 
-This will:
+```
+docker build -t metta-app-backend:latest -f app_backend/Dockerfile .
+```
 
-- Generate a `uv.lock` file with pinned dependencies
-- Build the Docker image tagged as `metta-app-backend:latest`
+This will build the Docker image tagged as `metta-app-backend:latest`.
+The command must be run from the parent directory because we are using the parent `uv.lock` file.
 
 ## Running the Container
 
@@ -38,6 +20,8 @@ docker run -p 8000:8000 \
   -e STATS_DB_URI="postgres://user:password@host:port/db" \
   metta-app-backend:latest
 ```
+
+If you are running a postgres instance locally, use `host.docker.internal` as host
 
 ## Environment Variables
 

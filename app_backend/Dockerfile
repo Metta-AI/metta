@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
-RUN pip install uv
+COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
 
 # Set working directory
 WORKDIR /app
