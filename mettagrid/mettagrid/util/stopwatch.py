@@ -438,20 +438,22 @@ class Stopwatch:
         Returns:
             Steps per second since the last checkpoint (or since start if no checkpoints)
         """
-        timer = self._get_timer(name)
+        with self._lock:
+            timer = self._get_timer(name)
 
-        if not timer.checkpoints:
-            # No checkpoints, fall back to total rate
-            return self.get_rate(current_steps, name)
+            if not timer.checkpoints:
+                # No checkpoints, fall back to total rate
+                return self.get_rate(current_steps, name)
 
-        # Find the most recent checkpoint
-        last_checkpoint = max(timer.checkpoints.values(), key=lambda x: x["elapsed_time"])
+            # Get the most recent checkpoint efficiently (same as in lap())
+            *_, last_item = timer.checkpoints.items()
+            _last_checkpoint_name, last_checkpoint = last_item
 
-        # Calculate elapsed time and steps since last checkpoint
-        elapsed_since_checkpoint = self.get_elapsed(name) - last_checkpoint["elapsed_time"]
-        steps_since_checkpoint = current_steps - last_checkpoint["steps"]
+            # Calculate elapsed time and steps since last checkpoint
+            elapsed_since_checkpoint = self.get_elapsed(name) - last_checkpoint["elapsed_time"]
+            steps_since_checkpoint = current_steps - last_checkpoint["steps"]
 
-        return steps_since_checkpoint / elapsed_since_checkpoint if elapsed_since_checkpoint > 0 else 0.0
+            return steps_since_checkpoint / elapsed_since_checkpoint if elapsed_since_checkpoint > 0 else 0.0
 
     def format_time(self, seconds: float) -> str:
         """Format time duration in human-readable format."""
