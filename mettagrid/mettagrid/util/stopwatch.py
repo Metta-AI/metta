@@ -400,7 +400,7 @@ class Stopwatch:
 
         return lap_time
 
-    def lap_all(self, steps: int | None = None, exclude_global: bool = False) -> dict[str, float]:
+    def lap_all(self, steps: int | None = None, exclude_global: bool = True) -> dict[str, float]:
         """Mark a lap on all timers and return lap times.
 
         Args:

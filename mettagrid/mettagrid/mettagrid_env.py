@@ -314,8 +314,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         wall_time = self.timer.get_elapsed()
         adjusted_wall_time = wall_time - overhead_time
 
-        lap_times = self.timer.lap_all()
-        lap_overhead_time = elapsed_times.pop("overhead", 0)
+        lap_times = self.timer.lap_all(exclude_global=False)
+        lap_overhead_time = lap_times.pop("overhead", 0)
         wall_time_for_lap = lap_times.pop("global", 0)
         adjusted_lap_time = wall_time_for_lap - lap_overhead_time
 
