@@ -193,7 +193,6 @@ jobs:
         uses: ./.github/actions/setup-uv
 
       - name: Install smoke test dependencies
-        id: smoke-test-dependencies
         run: |
           uv pip install psutil
           uv pip install wandb
@@ -204,13 +203,10 @@ jobs:
           WANDB_API_KEY: set_but_not_used
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
-          CHECKPOINT_PATH: train_dir/checkpoints
-          MIN_TRAINING_STEPS: ${{ vars.TRAIN_MIN_STEPS || '10' }}
-          MAX_FINAL_LOSS: ${{ vars.TRAIN_MAX_LOSS || '10.0' }}
-          TRAINING_TIMEOUT: ${{ vars.TRAIN_TIMEOUT || '600' }}
         run: |
           mkdir -p train_dir
           python3 .github/scripts/train_smoke_test.py
+          ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
         uses: ./.github/actions/save-benchmarks
@@ -219,26 +215,12 @@ jobs:
           metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_peak_mb }}}'
           filename: smoke_test_train_benchmark_results.json
 
-      - name: Verify training artifacts
-        run: |
-          ls -la train_dir/
-          ls -la ${{ steps.train.outputs.checkpoint_path || env.CHECKPOINT_PATH }} || echo "Checkpoint directory not found!"
-          echo "Training steps completed: ${{ steps.train.outputs.steps_completed }}"
-          echo "Checkpoint files created: ${{ steps.train.outputs.checkpoint_files }}"
-          echo "Checkpoint size: ${{ steps.train.outputs.checkpoint_size_mb }} MB"
-
       - name: Replay smoke test
         id: replay
         env:
           WANDB_API_KEY: set_but_not_used
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
-          REPLAY_OUTPUT_DIR: replay_output
-          MIN_EPISODES: ${{ vars.REPLAY_MIN_EPISODES || '1' }}
-          MIN_FRAMES: ${{ vars.REPLAY_MIN_FRAMES || '10' }}
-          REPLAY_TIMEOUT: ${{ vars.REPLAY_TIMEOUT || '300' }}
-          REQUIRE_VIDEO_OUTPUT: ${{ vars.REPLAY_REQUIRE_VIDEO || 'false' }}
-          REPLAY_ADDITIONAL_ARGS: ${{ vars.REPLAY_ADDITIONAL_ARGS || '' }}
         run: |
           python3 .github/scripts/replay_smoke_test.py
 
@@ -248,18 +230,6 @@ jobs:
           name: replay_smoke_test
           metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_peak_mb }}}'
           filename: smoke_test_replay_benchmark_results.json
-
-      - name: Verify replay outputs
-        run: |
-          echo "Episodes replayed: ${{ steps.replay.outputs.episodes_replayed }}"
-          echo "Frames processed: ${{ steps.replay.outputs.frames_processed }}"
-          echo "Output files: ${{ steps.replay.outputs.output_files }}"
-          echo "Video files: ${{ steps.replay.outputs.video_files }}"
-          echo "FPS: ${{ steps.replay.outputs.fps }}"
-          if [ -d "replay_output" ]; then
-            echo "Sample replay outputs:"
-            find "replay_output" -type f | head -10
-          fi
 
       - name: Check evals smoke test policy availability
         id: check_evals_policy
@@ -284,7 +254,6 @@ jobs:
           python3 .github/scripts/eval_smoke_test.py
 
       - name: Save evals benchmark
-        id: save_evals_benchmark
         if: steps.eval_smoke_test.conclusion == 'success'
         uses: ./.github/actions/save-benchmarks
         with:
