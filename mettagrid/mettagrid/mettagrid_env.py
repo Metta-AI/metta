@@ -209,7 +209,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._c_env.step(actions)
 
         if self._replay_writer and self._episode_id:
-            self._replay_writer.log_step(self._episode_id, actions, self.rewards)
+            with self.timer("_replay_writer.log_step"):
+                self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
