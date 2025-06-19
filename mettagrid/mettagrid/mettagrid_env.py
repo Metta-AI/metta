@@ -71,8 +71,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     ):
         self.timer = Stopwatch(logger)
         self.timer.start()
-        self._last_overhead_time = 0.0
-        self._cumulative_overhead_time = 0.0
+        self.timer.start("overhead")
 
         self._render_mode = render_mode
         self._curriculum = curriculum
@@ -158,12 +157,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     @override  # pufferlib.PufferEnv.reset
     @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
-        # by recording an extra lap here, we can collect overhead timing information from the global timer
-        # we expect that the lap times should be zero for all of the named timers
-        overhead_lap_times = self.timer.lap_all()
-        self._last_overhead_time = overhead_lap_times.pop("global", 0)
-        self._cumulative_overhead_time += self._last_overhead_time
-        assert all(lap_time == 0.0 for lap_time in overhead_lap_times.values())
+        self.timer.stop("overhead")
 
         self._task = self._curriculum.get_task()
 
@@ -185,6 +179,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         obs, infos = self._c_env.reset()
         self._should_reset = False
+
+        self.timer.start("overhead")
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
@@ -204,6 +200,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             Tuple of (observations, rewards, terminals, truncations, infos)
 
         """
+        self.timer.stop("overhead")
 
         # Note: We explicitly allow invalid actions to be used. The environment will
         # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
@@ -228,6 +225,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
+        self.timer.start("overhead")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     @override
@@ -311,26 +309,29 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self.timer.stop("process_episode_stats")
 
         elapsed_times = self.timer.get_all_elapsed()
+        overhead_time = elapsed_times.pop("overhead", 0)
+
         wall_time = self.timer.get_elapsed()
-        adjusted_wall_time = wall_time - self._last_overhead_time
+        adjusted_wall_time = wall_time - overhead_time
 
         lap_times = self.timer.lap_all()
+        lap_overhead_time = elapsed_times.pop("overhead", 0)
         wall_time_for_lap = lap_times.pop("global", 0)
-        adjusted_lap_time = wall_time_for_lap - self._last_overhead_time
+        adjusted_lap_time = wall_time_for_lap - lap_overhead_time
 
         infos["timing_per_epoch"] = {
             **{
-                f"fraction/{op}": lap_elapsed / adjusted_lap_time if adjusted_lap_time > 0 else 0
+                f"residual_fraction/{op}": lap_elapsed / adjusted_lap_time if adjusted_lap_time > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
-            "fraction/overhead": self._last_overhead_time / wall_time_for_lap,
+            "fraction/overhead": lap_overhead_time / wall_time_for_lap,
         }
         infos["timing_cumulative"] = {
             **{
-                f"fraction/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
+                f"residual_fraction/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
                 for op, elapsed in elapsed_times.items()
             },
-            "fraction/overhead": self._cumulative_overhead_time / wall_time,
+            "fraction/overhead": overhead_time / wall_time,
         }
 
         self._episode_id = None
