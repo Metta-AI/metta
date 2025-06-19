@@ -71,6 +71,17 @@ class PolicyRecord:
         """Convert this PolicyRecord to a MettaAgent."""
         logger.info(f"Converting legacy PolicyRecord '{self.name}' to MettaAgent")
 
+        # If the PolicyRecord contains a MettaAgent as its policy, return it directly
+        if self._policy is not None and isinstance(self._policy, MettaAgent):
+            logger.info("PolicyRecord contains MettaAgent, returning it directly")
+            # Update its metadata from the PolicyRecord
+            self._policy.name = self.name
+            self._policy.uri = self.uri
+            self._policy.metadata = self.metadata
+            self._policy.local_path = self._local_path
+            return self._policy
+
+        # Otherwise, create a new MettaAgent with the policy as the model
         # Determine model type based on the policy object
         model_type = "brain"  # default
         if self._policy is not None:
@@ -458,10 +469,14 @@ class PolicyStore:
         # First try with full_model=True (for training), then full_model=False (for inference)
         for full_model in [True, False]:
             try:
+                logger.info(f"Attempting to load with full_model={full_model}")
                 agent = MettaAgent.load(path, device=self._device, full_model=full_model)
                 if full_model and agent.model is None:
                     logger.info("load with full_model=True resulted in a null model, trying next.")
                     continue
+                logger.info(
+                    f"Successfully loaded with full_model={full_model}, model type: {type(agent.model) if agent.model else None}"
+                )
                 self._cached_agents[path] = agent
                 return agent
             except Exception as e:

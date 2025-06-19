@@ -69,7 +69,14 @@ class MettaAgent(nn.Module):
         local_path: Optional[str] = None,
     ):
         super().__init__()
-        self.model: Optional[Union[BrainPolicy, PytorchAgent]] = model
+
+        # Register model as a submodule if it's an nn.Module
+        if model is not None and isinstance(model, nn.Module):
+            self.add_module("model", model)
+        else:
+            # For non-Module models or None, use regular attribute
+            self._model = model
+
         self.model_type = model_type
         self.name = name
         self.uri = uri
@@ -97,8 +104,12 @@ class MettaAgent(nn.Module):
         if not hasattr(self, "local_path"):
             self.local_path = None
 
-        if not hasattr(self, "model"):
-            self.model = None
+        # Handle model attribute for backward compatibility
+        if hasattr(self, "model") and not isinstance(self.model, property):
+            # Old format had model as direct attribute
+            old_model = self.model
+            delattr(self, "model")
+            self.model = old_model  # This will use the setter
 
     def __getattr__(self, name: str):
         """Provide defaults for missing attributes to ensure backward compatibility."""
@@ -114,10 +125,38 @@ class MettaAgent(nn.Module):
             return {}
         elif name == "local_path":
             return None
-        elif name == "model":
-            return None
         # If it's not one of our known attributes, raise AttributeError as normal
         raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+
+    @property
+    def model(self):
+        """Get the model, handling both submodule and regular attribute cases."""
+        if hasattr(self, "_modules") and "model" in self._modules:
+            return self._modules["model"]
+        return getattr(self, "_model", None)
+
+    @model.setter
+    def model(self, value):
+        """Set the model, handling both submodule and regular attribute cases."""
+        # Remove old model if it exists
+        if hasattr(self, "_modules") and "model" in self._modules:
+            del self._modules["model"]
+        if hasattr(self, "_model"):
+            del self._model
+
+        # Set new model
+        if value is not None and isinstance(value, nn.Module):
+            self.add_module("model", value)
+        else:
+            self._model = value
+
+    @model.deleter
+    def model(self):
+        """Delete the model."""
+        if hasattr(self, "_modules") and "model" in self._modules:
+            del self._modules["model"]
+        if hasattr(self, "_model"):
+            del self._model
 
     def forward(
         self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
@@ -235,9 +274,11 @@ class MettaAgent(nn.Module):
         if full_model:
             # Load complete model object
             model = checkpoint.get("model")
+            logger.info(f"Loaded model from checkpoint: type={type(model)}, is None: {model is None}")
             if model is not None:
                 model = model.to(device)
             agent.model = model
+            logger.info(f"Set agent.model, is None: {agent.model is None}")
 
             if model is None:
                 logger.warning("No model found in checkpoint (expected for full_model=True)")
