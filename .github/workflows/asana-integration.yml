@@ -14,6 +14,10 @@ on:
 jobs:
   asana_integration:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
 
     steps:
       - name: Checkout repository
@@ -23,16 +27,30 @@ jobs:
 
       - name: Get PR details
         id: pr-details
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           PR_TITLE=$(gh pr view ${{ github.event.inputs.pr_number }} --json title --jq '.title')
           PR_BODY=$(gh pr view ${{ github.event.inputs.pr_number }} --json body --jq '.body')
           PR_URL=$(gh pr view ${{ github.event.inputs.pr_number }} --json url --jq '.url')
-          echo "title=$PR_TITLE" >> $GITHUB_OUTPUT
-          echo "body=$PR_BODY" >> $GITHUB_OUTPUT
-          echo "url=$PR_URL" >> $GITHUB_OUTPUT
 
-      - name: Install requests library
-        run: pip install requests
+          # Clean the data - remove problematic characters and normalize
+          PR_TITLE=$(echo "$PR_TITLE" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          PR_BODY=$(echo "$PR_BODY" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          PR_URL=$(echo "$PR_URL" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+          # Escape and write outputs safely using multiline syntax
+          echo "title<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_TITLE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "url<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_URL" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Ensure Asana Task
         id: ensure-asana-task
@@ -40,10 +58,11 @@ jobs:
         with:
           title: ${{ steps.pr-details.outputs.title }}
           description: ${{ steps.pr-details.outputs.body }}
-          project_id: ${{ secrets.ASANA_PROJECT_ID }}
-          asana_token: ${{ secrets.ASANA_TOKEN }}
+          project_id: ${{ vars.ASANA_PROJECT_GID }}
+          workspace_id: ${{ vars.ASANA_WORKSPACE_GID }}
+          asana_token: ${{ secrets.ASANA_API_KEY }}
           github_url: ${{ steps.pr-details.outputs.url }}
-          github_url_field_id: ${{ secrets.ASANA_GITHUB_URL_FIELD_ID }}
+          github_url_field_id: ${{ vars.ASANA_GITHUB_URL_FIELD_GID }}
 
       - name: Update PR Description
         uses: ./.github/actions/asana/update-pr-description
