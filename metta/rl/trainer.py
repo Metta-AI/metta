@@ -13,7 +13,6 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from pufferlib import unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -35,6 +34,7 @@ from metta.util.heartbeat import record_heartbeat
 from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from mettagrid.util.dict_utils import unroll_nested_dict
 from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 try:
@@ -90,10 +90,7 @@ class MettaTrainer:
         self.stats = defaultdict(list)
         self.wandb_run = wandb_run
         self.policy_store = policy_store
-        self._current_eval_score: float | None = None
-        self._eval_grouped_scores: dict[str, float] = {}
-        self._eval_suite_avgs: dict[str, float] = {}
-        self._eval_categories: Set[str] = set()
+        self.eval_stats: dict[str, float] = {}
 
         self.timer = Stopwatch(logger)
         self.timer.start()
@@ -321,37 +318,33 @@ class MettaTrainer:
         )
         result = sim.simulate()
         stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
-
         logger.info("Simulation complete")
 
-        self._eval_categories: Set[str] = set()
+        # Build evaluation metrics
+        self.eval_stats = {}  # used for wandb
+        categories: Set[str] = set()
         for sim_name in self.sim_suite_config.simulations.keys():
-            self._eval_categories.add(sim_name.split("/")[0])
-        self._eval_suite_avgs = {}
+            categories.add(sim_name.split("/")[0])
 
-        # Compute scores for each evaluation category
-        for category in self._eval_categories:
+        for category in categories:
             score = stats_db.get_average_metric_by_filter("reward", self.last_pr, f"sim_name LIKE '%{category}%'")
             logger.info(f"{category} score: {score}")
             record_heartbeat()
-            # Only add the score if we got a non-None result
-            if score is not None:
-                self._eval_suite_avgs[f"{category}_score"] = score
-            else:
-                self._eval_suite_avgs[f"{category}_score"] = 0.0
+            if score is None:
+                continue
+            self.eval_stats[f"evals/{category}_score"] = score
 
-        # Get overall score (average of all rewards)
+        # Get overall score
         overall_score = stats_db.get_average_metric_by_filter("reward", self.last_pr)
-        self._current_eval_score = overall_score if overall_score is not None else 0.0
-        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
+        overall_score_value = overall_score if overall_score is not None else 0.0
+        self.eval_stats["evals/overall_score"] = overall_score_value
 
-        # Categorize scores by environment type
-        self._eval_grouped_scores = {}
-        # Process each score and assign to the right category
+        # Get detailed per-simulation scores
+        all_scores = stats_db.simulation_scores(self.last_pr, "reward")
         for (_, sim_name, _), score in all_scores.items():
-            for category in self._eval_categories:
-                if category in sim_name.lower():
-                    self._eval_grouped_scores[f"{category}/{sim_name.split('/')[-1]}"] = score
+            category = sim_name.split("/")[0]
+            sim_short_name = sim_name.split("/")[-1]
+            self.eval_stats[f"evals/details/{category}/{sim_short_name}"] = score
 
     def _on_train_step(self):
         pass
@@ -688,6 +681,12 @@ class MettaTrainer:
 
         training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
 
+        category_scores_map = {
+            key.split("/")[1]: value
+            for key, value in self.eval_stats.items()
+            if key.startswith("evals/") and key.endswith("_score")
+        }
+
         self.last_pr = self.policy_store.save(
             name,
             os.path.join(self.trainer_cfg.checkpoint_dir, name),
@@ -700,10 +699,11 @@ class MettaTrainer:
                 "generation": generation,
                 "initial_uri": self._initial_pr.uri,
                 "train_time": training_time,
-                "score": self._current_eval_score,
-                "eval_scores": self._eval_suite_avgs,
+                "score": self.eval_stats.get("evals/overall_score", 0.0),
+                "eval_scores": category_scores_map,
             },
         )
+
         # this is hacky, but otherwise the initial_pr points
         # at the same policy as the last_pr
         return self.last_pr
@@ -828,10 +828,14 @@ class MettaTrainer:
                 if k in self.stats:
                     overview[v] = self.stats[k]
 
-        for category in self._eval_categories:
-            score = self._eval_suite_avgs.get(f"{category}_score", None)
-            if score is not None:
-                overview[f"{category}_evals"] = score
+        category_to_score = {
+            key.split("/")[1].split("_score")[0]: value
+            for key, value in self.eval_stats.items()
+            if key.startswith("evals/") and key.endswith("_score")
+        }
+
+        for category, score in category_to_score.items():
+            overview[f"{category}_evals"] = score
 
         losses = self.losses.to_dict()
 
@@ -863,13 +867,12 @@ class MettaTrainer:
                 **{f"trainer_params/{k}": v for k, v in trainer_params.items()},
                 **environment_stats,
                 **weight_stats,
-                **self._eval_grouped_scores,
+                **self.eval_stats,
                 **timing_stats,
                 **metric_stats,
             }
         )
 
-        self._eval_grouped_scores = {}
         self.stats.clear()
 
     def _compute_advantage(
