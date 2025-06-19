@@ -478,8 +478,8 @@ class MettaTrainer:
                     location_decoder_loss.backward()
                     self.location_decoder_optimizer.step()
 
-                    self.stats["location_decoder_loss"].append(location_decoder_loss.item())
-                    print(f"Location Decoder MSE Loss: {location_decoder_loss.item()}")
+                    # print(f"Location Decoder MSE Loss: {location_decoder_loss.item()}")
+                    self.wandb_run.log({"location_decoder_loss": location_decoder_loss.item()})
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
@@ -907,9 +907,6 @@ class MettaTrainer:
                 overview[f"{category}_evals"] = score
 
         losses = self.losses.to_dict()
-        location_decoder_loss_val = self.stats.pop("location_decoder_loss", None)
-        if location_decoder_loss_val is not None:
-            losses["location_decoder_loss"] = location_decoder_loss_val
 
         # don't plot losses that are unused
         if self.trainer_cfg.l2_reg_loss_coef == 0:

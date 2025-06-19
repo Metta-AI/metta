@@ -9,5 +9,5 @@ wandb:
 trainer:
   curriculum: env/mettagrid/curriculum/navigation
 
-run_id: 495
+run_id: 496
 run: ${oc.env:USER}.local.${run_id}
