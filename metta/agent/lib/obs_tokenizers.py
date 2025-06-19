@@ -18,8 +18,9 @@ class DummyObsTokenizer(LayerBase):
         **cfg,
     ) -> None:
         super().__init__(**cfg)
-        self._obs_shape = obs_shape
-        self._M = obs_shape[0]
+        self._obs_shape = list(obs_shape)
+        self._M = self._obs_shape[0]
+        # self._M = obs_shape[0]
 
     def _make_net(self) -> None:
         # unfortunately, we can't know the output shape's 0th dim (seq length) until we see the data. however,
