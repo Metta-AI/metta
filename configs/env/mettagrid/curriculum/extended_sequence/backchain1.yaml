@@ -10,5 +10,3 @@ buckets:
         "varied_terrain/balanced_small",
         "varied_terrain/dense_small",
       ]
-  game.objects.altar.cooldown:
-    range: [15, 100]

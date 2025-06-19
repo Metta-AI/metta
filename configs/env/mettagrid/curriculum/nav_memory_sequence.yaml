@@ -4,9 +4,9 @@ tasks:
   /env/mettagrid/curriculum/navsequence/mem_hard: 1
   /env/mettagrid/curriculum/navsequence/mem_medium: 1
   /env/mettagrid/curriculum/navsequence/sequence: 1
-  /env/mettagrid/curriculum/navsequence/backchain1: 1
-  /env/mettagrid/curriculum/navsequence/backchain2: 1
-  /env/mettagrid/curriculum/navsequence/backchain3: 1
+  /env/mettagrid/curriculum/extended_sequence/backchain1: 1
+  /env/mettagrid/curriculum/extended_sequence/backchain2: 1
+  /env/mettagrid/curriculum/extended_sequence/backchain3: 1
   /env/mettagrid/curriculum/navigation: 4
   /env/mettagrid/curriculum/object_use: 1
 

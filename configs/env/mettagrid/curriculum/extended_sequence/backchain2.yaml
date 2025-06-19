@@ -10,11 +10,3 @@ buckets:
         "varied_terrain/balanced_small",
         "varied_terrain/dense_small",
       ]
-  game.objects.altar.cooldown:
-    range: [15, 100]
-  game.objects.altar.initial_items:
-    values: [0, 1]
-  game.map_builder.room.objects.generator.red:
-    range: [1, 3]
-  game.objects.generator.red.cooldown:
-    range: [15, 100]

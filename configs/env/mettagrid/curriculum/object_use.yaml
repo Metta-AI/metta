@@ -2,7 +2,6 @@ _target_: mettagrid.curriculum.BucketedCurriculum
 
 env_cfg_template: /env/mettagrid/object_use/training/easy_all_objects
 
-<<<<<<< HEAD
 buckets:
   game.map_builder.room.width:
     range: [20, 60]
@@ -42,8 +41,3 @@ buckets:
   objects.mine.red.cooldown:
     range: [10, 60]
     bins: 2
-=======
-env_overrides:
-  game:
-    num_agents: 24
->>>>>>> 9b31797666ef549b801ace5ad8b3688d5cc36ab0
