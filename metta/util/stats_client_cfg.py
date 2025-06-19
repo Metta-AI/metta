@@ -3,7 +3,7 @@ from logging import Logger
 from httpx import Client
 from omegaconf import DictConfig, ListConfig
 
-from metta.app.stats_client import StatsClient
+from app_backend.stats_client import StatsClient
 
 
 def get_stats_client(cfg: DictConfig | ListConfig, logger: Logger) -> StatsClient | None:
