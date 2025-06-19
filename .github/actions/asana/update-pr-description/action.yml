@@ -15,10 +15,19 @@ inputs:
     description: "The Asana task URL to add to the PR description."
     required: true
 
-using: "composite"
-steps:
-  - uses: actions/setup-python@v4
-    with:
-      python-version: '3.x'
-  - run: python ${{ github.action_path }}/main.py
-    shell: bash
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    - name: Install requests library
+      run: pip install requests
+      shell: bash
+    - run: python ${{ github.action_path }}/main.py
+      shell: bash
+      env:
+        INPUT_REPO: ${{ inputs.repo }}
+        INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        INPUT_TASK_URL: ${{ inputs.task_url }}
+        INPUT_TOKEN: ${{ inputs.token }}

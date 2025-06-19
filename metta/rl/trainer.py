@@ -783,7 +783,7 @@ class MettaTrainer:
         wall_time = self.timer.get_elapsed()
         train_time = elapsed_times.get("_rollout", 0) + elapsed_times.get("_train", 0)
 
-        lap_times = self.timer.lap_all(self.agent_step)
+        lap_times = self.timer.lap_all(self.agent_step, exclude_global=False)
         wall_time_for_lap = lap_times.pop("global", 0)
 
         delta_steps = self.timer.get_lap_steps()

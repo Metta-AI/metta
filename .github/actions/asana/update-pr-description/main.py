@@ -21,7 +21,7 @@ def update_pr_description(repo, pr_number, task_url, token):
     # Update the description
     new_body = current_body
     if task_url not in current_body:
-        new_body = f"{current_body}\n\nLinked Asana Task: {task_url}"
+        new_body = f"{current_body}\n\n[Asana Task]({task_url})"
     payload = {"body": new_body}
     response = requests.patch(url, json=payload, headers=headers)
     if response.status_code != 200:
@@ -35,6 +35,8 @@ if __name__ == "__main__":
     pr_number = os.getenv("INPUT_PR_NUMBER")
     task_url = os.getenv("INPUT_TASK_URL")
     token = os.getenv("INPUT_TOKEN")
+
+    print(f"Updating PR description for {repo} #{pr_number} with task {task_url}")
 
     # Update the PR description
     update_pr_description(repo, pr_number, task_url, token)

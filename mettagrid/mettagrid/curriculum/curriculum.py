@@ -43,6 +43,9 @@ class Task:
     def name(self) -> str:
         return self._name
 
+    def short_name(self) -> str:
+        return self._name.split("/")[-1]
+
     def add_parent(self, parent_curriculum: "Curriculum", parent_id: str):
         self._curriculums.append((parent_curriculum, parent_id))
         self._name = f"{parent_id}:{self._name}"
