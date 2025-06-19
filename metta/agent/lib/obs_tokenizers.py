@@ -48,7 +48,9 @@ class DummyObsTokenizer(LayerBase):
         td["_BxTT_"] = B * TT
 
         # observations = self.linear(observations.float())
+        observations = observations.permute(0, 2, 1)
         observations = self.conv1d(observations.float())
+        observations = observations.permute(0, 2, 1)
 
         td[self._name] = observations
         return td
@@ -70,8 +72,9 @@ class DummyAttn(LayerBase):
     def _forward(self, td: TensorDict) -> TensorDict:
         observations = td[self._sources[0]["name"]]
         # observations = self.linear(observations)
+        observations = observations.permute(0, 2, 1)
         observations = self.conv1d(observations.float())
-
+        observations = observations.permute(0, 2, 1)
         td[self._name] = observations[:, 0]
         return td
 
