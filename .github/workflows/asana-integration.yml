@@ -2,7 +2,9 @@ name: Asana Integration
 
 on:
   pull_request:
-    types: [opened, reopened]
+    # we'll add assigned, unassigned, and review_requested later
+    # we'll also need to handle pull_request_review events
+    types: [opened, closed, reopened, edited]
 
 jobs:
   asana_integration:
