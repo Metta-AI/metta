@@ -16,7 +16,7 @@ def update_pr_description(repo, pr_number, task_url, token):
     if response.status_code != 200:
         print(f"GitHub API Error: {response.status_code} - {response.text}")
         sys.exit(1)
-    current_body = response.json().get("body", "")
+    current_body = response.json().get("body") or ""
 
     # Update the description
     new_body = current_body
