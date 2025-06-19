@@ -87,7 +87,7 @@ def get_asana_users_by_github_logins(
     github_login_to_asana_email = {}
     # Paginate through all tasks in the roster project, since we can't search for multiple github logins at once
     for task in _get_task_custom_fields_from_project(roster_project_id, asana_token):
-        custom_fields = task.get("custom_fields", {})
+        custom_fields = task.get("custom_fields") or {}
         gh_login = None
         asana_email = None
         for field in custom_fields:
@@ -197,10 +197,10 @@ def ensure_asana_task_exists(
 
         # Check if the task needs updates using the data from search
         if existing_task:
-            current_title = existing_task.get("name", "")
-            current_notes = existing_task.get("notes", "")
-            current_completed = existing_task.get("completed", False)
-            current_assignee = existing_task.get("assignee", {}).get("email", "")
+            current_title = existing_task.get("name") or ""
+            current_notes = existing_task.get("notes") or ""
+            current_completed = existing_task.get("completed") or False
+            current_assignee = (existing_task.get("assignee") or {}).get("email") or ""
             # TODO: update followers -- probably only add.
 
             # Update title and description if needed
