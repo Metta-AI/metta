@@ -40,6 +40,32 @@ class Timer:
         return self.start_time is not None
 
 
+def _capture_caller_info(extra_skip_frames: int = 0) -> Tuple[str, int]:
+    """Capture the filename and line number of the caller.
+
+    Args:
+        extra_skip_frames: Number of additional stack frames to skip beyond the baseline 2
+                          (this function + direct caller)
+
+    Returns:
+        Tuple of (filename, line_number)
+    """
+    frame = inspect.currentframe()
+    try:
+        # Skip baseline frames (this function + direct caller) plus any extra
+        for _ in range(2 + extra_skip_frames):
+            if frame is None:
+                break
+            frame = frame.f_back
+
+        if frame is not None:
+            return frame.f_code.co_filename, frame.f_lineno
+        return "unknown", 0
+    finally:
+        # Avoid reference cycles
+        del frame
+
+
 def with_timer(timer: "Stopwatch", name: str, log_level: int | None = None):
     """Decorator that wraps function execution in a timer context.
 
@@ -57,13 +83,7 @@ def with_timer(timer: "Stopwatch", name: str, log_level: int | None = None):
 
     def decorator(func: F) -> F:
         # Capture where the decorator is applied
-        frame = inspect.currentframe()
-        if frame and frame.f_back:
-            filename = frame.f_back.f_code.co_filename
-            lineno = frame.f_back.f_lineno
-        else:
-            filename = "unknown"
-            lineno = 0
+        filename, lineno = _capture_caller_info(extra_skip_frames=0)
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -96,13 +116,7 @@ def with_instance_timer(name: str, log_level: int | None = None, timer_attr: str
 
     def decorator(func: F) -> F:
         # Capture where the decorator is applied
-        frame = inspect.currentframe()
-        if frame and frame.f_back:
-            filename = frame.f_back.f_code.co_filename
-            lineno = frame.f_back.f_lineno
-        else:
-            filename = "unknown"
-            lineno = 0
+        filename, lineno = _capture_caller_info(extra_skip_frames=0)
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -176,30 +190,6 @@ class Stopwatch:
                 self._timers[name] = self._create_timer(name)
             return self._timers[name]
 
-    def _capture_caller_info(self, skip_frames: int = 2) -> Tuple[str, int]:
-        """Capture the filename and line number of the caller.
-
-        Args:
-            skip_frames: Number of stack frames to skip (default 2: this method + caller)
-
-        Returns:
-            Tuple of (filename, line_number)
-        """
-        frame = inspect.currentframe()
-        try:
-            # Skip the specified number of frames
-            for _ in range(skip_frames):
-                if frame is None:
-                    break
-                frame = frame.f_back
-
-            if frame is not None:
-                return frame.f_code.co_filename, frame.f_lineno
-            return "unknown", 0
-        finally:
-            # Avoid reference cycles
-            del frame
-
     @with_lock
     def reset(self, name: str | None = None):
         """Reset timing data for a specific timer.
@@ -254,7 +244,9 @@ class Stopwatch:
 
         # Capture caller info if not provided
         if filename is None or lineno is None:
-            filename, lineno = self._capture_caller_info(skip_frames=3)
+            caller_filename, caller_lineno = _capture_caller_info(extra_skip_frames=1)  # skip lock
+            filename = filename or caller_filename
+            lineno = lineno or caller_lineno
 
         # Store reference
         timer.references.append(TimerReference(filename=filename, lineno=lineno))
@@ -304,7 +296,7 @@ class Stopwatch:
 
         # Capture caller info if not provided
         if filename is None or lineno is None:
-            caller_filename, caller_lineno = self._capture_caller_info(skip_frames=3)
+            caller_filename, caller_lineno = _capture_caller_info(extra_skip_frames=1)  # skip context
             filename = filename or caller_filename
             lineno = lineno or caller_lineno
 
@@ -314,8 +306,8 @@ class Stopwatch:
         finally:
             elapsed = self.stop(name)
             if log_level is not None:
-                name = name or self.GLOBAL_TIMER_NAME
-                self.logger.log(log_level, f"{name} took {elapsed:.3f}s")
+                display_name = name or self.GLOBAL_TIMER_NAME
+                self.logger.log(log_level, f"{display_name} took {elapsed:.3f}s")
 
     def __call__(self, name: str | None = None, log_level: int | None = None) -> ContextManager["Stopwatch"]:
         """Make Stopwatch callable to return context manager.
