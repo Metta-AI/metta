@@ -2,7 +2,7 @@ _target_: mettagrid.curriculum.ProgressiveMultiTaskCurriculum
 
 tasks:
   /env/mettagrid/curriculum/navigation: 1
-  /env/mettagrid/curriculum/object_use: 2
+  /env/mettagrid/curriculum/sequence: 2
 
 env_overrides:
   game:
