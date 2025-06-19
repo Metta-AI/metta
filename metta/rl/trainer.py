@@ -811,15 +811,16 @@ class MettaTrainer:
 
         environment_stats = {f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in self.stats.items()}
 
-        # average over all env_task_reward entries
-        task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
-        mean_reward = sum(task_reward_values) / len(task_reward_values) if task_reward_values else 0
-
         overview = {
             "sps": epoch_steps_per_second,
-            "reward": mean_reward,
-            "reward_vs_total_time": mean_reward,
         }
+
+        # Calculate average reward from all env_task_reward entries
+        task_reward_values = [v for k, v in environment_stats.items() if k.startswith("env_task_reward")]
+        if task_reward_values:
+            mean_reward = sum(task_reward_values) / len(task_reward_values)
+            overview["reward"] = mean_reward
+            overview["reward_vs_total_time"] = mean_reward
 
         # include custom stats from trainer config
         if hasattr(self.trainer_cfg, "stats") and hasattr(self.trainer_cfg.stats, "overview"):
