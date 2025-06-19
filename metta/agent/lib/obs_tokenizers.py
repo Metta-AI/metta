@@ -138,6 +138,11 @@ class ObsAttrCoordEmbed(LayerBase):
         self._attr_embeds = nn.Embedding(self._max_embeds, self._attr_embed_dim, padding_idx=255)
         nn.init.trunc_normal_(self._attr_embeds.weight, std=0.02)
 
+        self._feat_vectors = torch.empty(
+            (1, 1, self._feat_dim),
+            dtype=torch.float32
+        )
+
         return None
 
     def _forward(self, td: TensorDict) -> TensorDict:
@@ -157,16 +162,16 @@ class ObsAttrCoordEmbed(LayerBase):
 
         # Assemble feature vectors
         # feat_vectors will have shape [B_TT, M, _feat_dim] where _feat_dim = _embed_dim + _value_dim
-        feat_vectors = torch.empty(
-            (*attr_embeds.shape[:-1], self._feat_dim),
-            dtype=attr_embeds.dtype,
-            device=attr_embeds.device,
-        )
+        # feat_vectors = torch.empty(
+        #     (*attr_embeds.shape[:-1], self._feat_dim),
+        #     dtype=attr_embeds.dtype,
+        #     device=attr_embeds.device,
+        # )
         # Combined embedding portion
-        feat_vectors[..., : self._attr_embed_dim] = combined_embeds
-        feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
+        # feat_vectors[..., : self._attr_embed_dim] = combined_embeds
+        # feat_vectors[..., self._attr_embed_dim : self._attr_embed_dim + self._value_dim] = attr_values
 
-        td[self._name] = feat_vectors
+        td[self._name] = torch.cat([combined_embeds, attr_values], dim=-1)
         return td
 
 

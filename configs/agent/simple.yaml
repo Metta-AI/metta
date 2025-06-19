@@ -23,7 +23,8 @@ components:
       - name: _obs_
 
   obs_fourier:
-    _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
+    # _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
+    _target_: metta.agent.lib.obs_tokenizers.ObsAttrCoordEmbed
     attr_embed_dim: 10
     num_freqs: 4
     sources:
