@@ -8,6 +8,9 @@ inputs:
   description:
     description: "The body/description of the pull request."
     required: true
+  pr_state:
+    description: "The state of the pull request."
+    required: true
   project_id:
     description: "The Asana project ID where the task will be created."
     required: true
@@ -45,6 +48,7 @@ runs:
       env:
         INPUT_TITLE: ${{ inputs.title }}
         INPUT_DESCRIPTION: ${{ inputs.description }}
+        INPUT_PR_STATE: ${{ inputs.pr_state }}
         INPUT_PROJECT_ID: ${{ inputs.project_id }}
         INPUT_WORKSPACE_ID: ${{ inputs.workspace_id }}
         INPUT_ASANA_TOKEN: ${{ inputs.asana_token }}
