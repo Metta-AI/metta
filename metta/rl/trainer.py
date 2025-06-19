@@ -21,6 +21,7 @@ from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
 from metta.app.stats_client import StatsClient
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.decoder import LocationDecoder
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -219,7 +220,61 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
+        self.location_decoder = LocationDecoder()
+
         logger.info(f"MettaTrainer initialization complete on device: {self.device}")
+
+    def _extract_true_locations_from_info(
+        self, info: list, expected_total_agents: int, device: torch.device
+    ) -> torch.Tensor | None:
+        if not hasattr(self.vecenv, "driver_env") or not hasattr(self.vecenv.driver_env, "num_agents"):
+            # print("Debug: driver_env or num_agents not available on vecenv.")
+            return None
+
+        num_agents_per_env = self.vecenv.driver_env.num_agents
+        if num_agents_per_env <= 0:
+            # print(f"Debug: num_agents_per_env is invalid: {num_agents_per_env}.")
+            return None
+
+        # Initialize with NaNs. Shape will be (expected_total_agents, 2)
+        all_true_locations_list = [[float("nan"), float("nan")] for _ in range(expected_total_agents)]
+
+        num_envs_in_info = len(info)
+        expected_envs_based_on_agents = expected_total_agents // num_agents_per_env
+
+        # Iterate only over the environments for which info was provided or expected
+        # PufferLib might not always return info for all envs in a batch if some didn't step or are in weird states.
+        # We trust o.shape[0] (expected_total_agents) as the ground truth for batch size.
+        envs_to_process = min(num_envs_in_info, expected_envs_based_on_agents)
+
+        for env_idx in range(envs_to_process):
+            env_info_dict = info[env_idx]
+            agent_idx_offset = env_idx * num_agents_per_env
+
+            if isinstance(env_info_dict, dict) and "agent_locations" in env_info_dict:
+                env_locations = env_info_dict["agent_locations"]
+                for agent_in_env_idx, loc_tuple in enumerate(env_locations):
+                    if agent_in_env_idx >= num_agents_per_env:  # Should not happen if C++ populates correctly
+                        break
+                    target_batch_idx = agent_idx_offset + agent_in_env_idx
+                    if target_batch_idx < expected_total_agents:  # Ensure we don't write out of bounds
+                        if loc_tuple is not None and isinstance(loc_tuple, tuple) and len(loc_tuple) == 2:
+                            all_true_locations_list[target_batch_idx] = list(loc_tuple)
+                        # Else, it remains [nan, nan] from pre-initialization
+            # Else (env_info_dict is not as expected), corresponding agent slots remain [nan, nan]
+
+        try:
+            true_locations_tensor = torch.tensor(all_true_locations_list, dtype=torch.float32, device=device)
+        except Exception:
+            # print(f"Error converting all_true_locations_list to tensor: {e}.")
+            return None
+
+        # Final critical shape check
+        if true_locations_tensor.shape != (expected_total_agents, 2):
+            # print(f"Final true_locations_tensor shape mismatch: {true_locations_tensor.shape}, expected ({expected_total_agents}, 2).")
+            return None
+
+        return true_locations_tensor
 
     def train(self) -> None:
         logger.info("Starting training")
@@ -401,13 +456,36 @@ class MettaTrainer:
                 # and try to reconstruct the location of the agent
                 # signature: (lstm_h, lstm_c) -> location estimate
                 # beware of the batch dimension (we should get one prediction per agent)
-                print(f"Shape of lstm_h: {state.lstm_h.shape}")
-                print(f"Shape of lstm_c: {state.lstm_c.shape}")
-                print(f"Number of agents: {self.vecenv.num_agents}")
-                print(f"Number of envs: {self.vecenv.num_envs}")
-                print(f"Observation shape: {o.shape}")
+                # print(f"Shape of lstm_h: {state.lstm_h.shape}")
+                # print(f"Shape of lstm_c: {state.lstm_c.shape}")
+                # print(f"Number of agents: {self.vecenv.num_agents}")
+                # print(f"Number of envs: {self.vecenv.num_envs}")
+                # print(f"Observation shape: {o.shape}")
 
-                print(f"Info: {info}")
+                # print(f"Info: {info}")
+
+                # Check if info has content. `info` is a list of dicts.
+                # The first call to recv() after a reset might yield info as `[{}, {}, ...]`
+                if info:  # Process if info list itself is not empty
+                    true_locations_tensor = self._extract_true_locations_from_info(info, o.shape[0], self.device)
+
+                    if true_locations_tensor is not None:
+                        location_estimate = self.location_decoder(state.lstm_h, state.lstm_c)
+
+                        if location_estimate.shape == true_locations_tensor.shape:
+                            valid_targets_mask = ~torch.isnan(true_locations_tensor).any(dim=1)
+
+                            if valid_targets_mask.any():
+                                location_loss = torch.nn.functional.mse_loss(
+                                    location_estimate[valid_targets_mask], true_locations_tensor[valid_targets_mask]
+                                )
+                                print(
+                                    f"Location Decoder MSE Loss (masked, {valid_targets_mask.sum().item()} valid targets): {location_loss.item()}"
+                                )
+                        else:
+                            print(
+                                f"Shape mismatch for loss calculation: Est. {location_estimate.shape} vs True {true_locations_tensor.shape}"
+                            )
 
                 if __debug__:
                     assert_shape(selected_action_log_probs, ("BT",), "selected_action_log_probs")
