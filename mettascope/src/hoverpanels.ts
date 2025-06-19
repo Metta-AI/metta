@@ -140,7 +140,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
       let item = itemTemplate.cloneNode(true) as HTMLElement
       item.querySelector('.amount')!.textContent = value
       let resource = key.replace('inv:', '').replace('agent:', '')
-      item.querySelector('.icon')!.setAttribute('src', 'data/resources/' + resource + '.png')
+      item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
       inventory.appendChild(item)
     } else {
       if (key == 'type') {
@@ -194,7 +194,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
             let amount = objectConfig[key]
             let item = itemTemplate.cloneNode(true) as HTMLElement
             item.querySelector('.amount')!.textContent = amount
-            item.querySelector('.icon')!.setAttribute('src', 'data/resources/' + resource + '.png')
+            item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
             recipe.appendChild(item)
             displayedResources++
           }
@@ -208,7 +208,7 @@ function updateDom(htmlPanel: HTMLElement, object: any) {
             let amount = objectConfig[key]
             let item = itemTemplate.cloneNode(true) as HTMLElement
             item.querySelector('.amount')!.textContent = amount
-            item.querySelector('.icon')!.setAttribute('src', 'data/resources/' + resource + '.png')
+            item.querySelector('.icon')!.setAttribute('src', 'data/atlas/resources/' + resource + '.png')
             recipe.appendChild(item)
             displayedResources++
           }
