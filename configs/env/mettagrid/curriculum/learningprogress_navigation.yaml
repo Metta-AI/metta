@@ -1,0 +1,36 @@
+# Learning Progress Navigation Curriculum Configuration
+# This configuration defines the learning progress settings and navigation environments
+
+_target_: mettagrid.curriculum.LPLowRewardCurriculum
+
+tasks:
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1
+  /env/mettagrid/navigation/training/cylinder_world: 1
+  /env/mettagrid/navigation/training/varied_terrain_sparse: 1
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
+  /env/mettagrid/navigation/training/varied_terrain_maze: 1
+  /env/mettagrid/navigation/training/varied_terrain_dense: 1
+
+# Learning Progress Parameters
+lp_weight: 0.0  # Adjustable parameter (0.0 to 1.0)
+ema_alpha: 0.001  # Exponential moving average decay rate for learning progress calculation
+p_theta: 0.05
+num_active_tasks: 16
+rand_task_rate: 0.25
+sample_threshold: 10
+memory: 25
+
+# Training Environment Configuration
+environments:
+  - /env/mettagrid/navigation/training/terrain_from_numpy
+  - /env/mettagrid/navigation/training/cylinder_world
+  - /env/mettagrid/navigation/training/varied_terrain_sparse
+  - /env/mettagrid/navigation/training/varied_terrain_balanced
+  - /env/mettagrid/navigation/training/varied_terrain_maze
+  - /env/mettagrid/navigation/training/varied_terrain_dense
+
+# Environment Settings
+num_agents: 24
+
+# Curriculum Type
+type: low_reward  # Uses low reward curriculum with learning progress

@@ -6,7 +6,7 @@ from typing import Dict, Optional
 import numpy as np
 from omegaconf import DictConfig
 
-from .lpc import BidirectionalLearningProgess
+from .learning_progress import BidirectionalLearningProgess
 
 logger = logging.getLogger(__name__)
 
