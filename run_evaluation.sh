@@ -48,7 +48,7 @@ for i in "${!POLICIES[@]}"; do
     sim_job.stats_db_uri=wandb://stats/nav_sequence_db2 \
     device=cpu \
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db2 run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
 
   python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db2 run=memory_db ++dashboard.output_path=s3://softmax-public/policydash/memory.html
 
