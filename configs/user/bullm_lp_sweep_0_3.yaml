@@ -11,6 +11,17 @@ run_dir: ${data_dir}/${run}
 # Training configuration
 trainer:
   curriculum: env/mettagrid/curriculum/lp_low_reward
+    lp_weight: 0.3
+    ema_alpha: 0.001
+    p_theta: 0.05
+    num_active_tasks: 16
+    rand_task_rate: 0.25
+    sample_threshold: 10
+    memory: 25
+    lp_metric: "episode/reward.mean"
+    low_reward_threshold: 0.1
+    min_tasks_per_env: 2
+    max_tasks_per_env: 8
   total_timesteps: 1000000  # 1M timesteps for comparison
   gamma: 0.99
   gae_lambda: 0.95
@@ -31,25 +42,6 @@ trainer:
       - /env/mettagrid/navigation/training/varied_terrain_balanced
       - /env/mettagrid/navigation/training/varied_terrain_maze
       - /env/mettagrid/navigation/training/varied_terrain_dense
-    num_agents: 24
-
-# LP weight = 0.3 (light learning progress influence)
-trainer.curriculum.lp_weight: 0.3
-
-# LPC-specific parameters (only used when lp_weight > 0)
-trainer.curriculum.ema_alpha: 0.001
-trainer.curriculum.p_theta: 0.05
-trainer.curriculum.num_active_tasks: 16
-trainer.curriculum.rand_task_rate: 0.25
-trainer.curriculum.sample_threshold: 10
-trainer.curriculum.memory: 25
-trainer.curriculum.lp_metric: "episode/reward.mean"
-
-# LowRewardCurriculum parameters
-trainer.curriculum.low_reward_threshold: 0.1
-trainer.curriculum.min_tasks_per_env: 2
-trainer.curriculum.max_tasks_per_env: 8
-
 # WandB configuration
 wandb:
   enabled: true
