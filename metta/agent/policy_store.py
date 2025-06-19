@@ -29,6 +29,68 @@ from metta.util.wandb.wandb_context import WandbRun
 logger = logging.getLogger("policy_store")
 
 
+# Compatibility shim for loading old checkpoints that contain PolicyRecord
+class PolicyRecord:
+    """Compatibility wrapper for loading old PolicyRecord checkpoints.
+
+    This class exists solely to allow unpickling of old checkpoints that contain
+    PolicyRecord objects. When loaded, it will convert itself to a MettaAgent.
+    """
+
+    def __init__(self, policy_store: "PolicyStore", name: str, uri: str, metadata: dict):
+        self._policy_store = policy_store
+        self.name = name
+        self.uri = uri
+        self.metadata = metadata
+        self._policy = None
+        self._local_path = None
+
+        if self.uri.startswith("file://"):
+            self._local_path = self.uri[len("file://") :]
+
+    def __getstate__(self):
+        """Custom pickle state to save PolicyRecord data."""
+        return {
+            "name": self.name,
+            "uri": self.uri,
+            "metadata": self.metadata,
+            "_policy": self._policy,
+            "_local_path": self._local_path,
+        }
+
+    def __setstate__(self, state):
+        """Custom unpickle to restore PolicyRecord data."""
+        self._policy_store = None  # Will be set later if needed
+        self.name = state["name"]
+        self.uri = state["uri"]
+        self.metadata = state["metadata"]
+        self._policy = state.get("_policy")
+        self._local_path = state.get("_local_path")
+
+    def to_metta_agent(self) -> MettaAgent:
+        """Convert this PolicyRecord to a MettaAgent."""
+        logger.info(f"Converting legacy PolicyRecord '{self.name}' to MettaAgent")
+
+        # Determine model type based on the policy object
+        model_type = "brain"  # default
+        if self._policy is not None:
+            from metta.rl.policy import PytorchAgent
+
+            if isinstance(self._policy, PytorchAgent):
+                model_type = "pytorch"
+
+        agent = MettaAgent(
+            model=self._policy,
+            model_type=model_type,
+            name=self.name,
+            uri=self.uri,
+            metadata=self.metadata,
+            local_path=self._local_path,
+        )
+
+        return agent
+
+
 class PolicySelectorConfig(Config):
     type: str = "top"
     metric: str = "score"
@@ -421,7 +483,17 @@ class PolicyStore:
     def _load_legacy_checkpoint(self, path: str, loaded_data: object) -> Optional[MettaAgent]:
         """Attempt to load a policy from a legacy checkpoint object."""
         agent = None
-        if isinstance(loaded_data, dict) and any(k.startswith("components.") for k in loaded_data.keys()):
+
+        # Handle old PolicyRecord objects
+        if isinstance(loaded_data, PolicyRecord):
+            logger.info(f"Found legacy PolicyRecord in {path}, converting to MettaAgent")
+            agent = loaded_data.to_metta_agent()
+            # Update the local path since it might have changed
+            agent.local_path = path
+            # Cache it
+            self._cached_agents[path] = agent
+            return agent
+        elif isinstance(loaded_data, dict) and any(k.startswith("components.") for k in loaded_data.keys()):
             logger.warning(f"Loading raw state dict from {path}, model cannot be reconstructed.")
             agent = MettaAgent(
                 model=None,
