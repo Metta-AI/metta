@@ -97,9 +97,6 @@ def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
     pr_json = run_gh("pr", "list", "--state", "open", "--limit", "999", "--json", "number,title,headRefOid")
     prs = json.loads(pr_json)
 
-    print(f"DEBUG: Looking for commit {commit_hash}")
-    print(f"DEBUG: Found {len(prs)} open PRs")
-
     for pr in prs:
         # Check if this PR's HEAD commit matches our commit
         pr_head_sha = pr.get("headRefOid", "")
