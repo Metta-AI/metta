@@ -43,20 +43,16 @@ def analyze(agent: MettaAgent, config: AnalysisConfig) -> None:
 # --------------------------------------------------------------------------- #
 def get_available_metrics(stats_db: EvalStatsDB, agent: MettaAgent) -> List[str]:
     policy_key, policy_version = agent.key_and_version()
-    try:
-        result = stats_db.execute_query(
-            """
-            SELECT DISTINCT metric
-            FROM episode_data
-            WHERE policy_key = ? AND policy_version = ?
-            ORDER BY metric
-            """,
-            (policy_key, policy_version),
-        )
-        return [row[0] for row in result]
-    except Exception as e:
-        logger.error(f"Error getting available metrics: {e}")
-        return []
+    result = stats_db.query(
+        f"""
+        SELECT DISTINCT metric
+          FROM policy_simulation_agent_metrics
+         WHERE policy_key     = '{policy_key}'
+           AND policy_version =  {policy_version}
+         ORDER BY metric
+        """
+    )
+    return [] if result.empty else result["metric"].tolist()
 
 
 def filter_metrics(available_metrics: List[str], patterns: List[str]) -> List[str]:
@@ -72,7 +68,7 @@ def get_metrics_data(
     stats_db: EvalStatsDB,
     agent: MettaAgent,
     metrics: List[str],
-    suite_filter: Optional[str] = None,
+    suite: Optional[str] = None,
 ) -> Dict[str, Dict[str, float]]:
     """
     Return {metric: {"mean": μ, "std": σ,
@@ -83,30 +79,24 @@ def get_metrics_data(
         • N_potential – total agent-episode pairs for that filter.
     """
     policy_key, policy_version = agent.key_and_version()
-    filter_condition = None
-    if suite_filter:
-        filter_condition = f"sim_name LIKE '%{suite_filter}%'"
+    filter_condition = f"sim_suite = '{suite}'" if suite else None
 
     data: Dict[str, Dict[str, float]] = {}
     for m in metrics:
-        try:
-            mean = stats_db.get_average_metric_by_filter(m, agent, filter_condition)
-            if mean is None:
-                continue
-            std = stats_db.get_std_metric_by_filter(m, agent, filter_condition) or 0.0
-
-            k_recorded = stats_db.count_metric_agents(policy_key, policy_version, m, filter_condition)
-            n_potential = stats_db.potential_samples_for_metric(policy_key, policy_version, filter_condition)
-
-            data[m] = {
-                "mean": mean,
-                "std": std,
-                "count": k_recorded,
-                "samples": n_potential,
-            }
-        except Exception as e:
-            logger.error(f"Error getting data for metric {m}: {e}")
+        mean = stats_db.get_average_metric_by_filter(m, agent, filter_condition)
+        if mean is None:
             continue
+        std = stats_db.get_std_metric_by_filter(m, agent, filter_condition) or 0.0
+
+        k_recorded = stats_db.count_metric_agents(policy_key, policy_version, m, filter_condition)
+        n_potential = stats_db.potential_samples_for_metric(policy_key, policy_version, filter_condition)
+
+        data[m] = {
+            "mean": mean,
+            "std": std,
+            "count": k_recorded,
+            "samples": n_potential,
+        }
     return data
 
 

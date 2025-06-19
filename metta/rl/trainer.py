@@ -73,8 +73,8 @@ class MettaTrainer:
         self._world_size = 1
         self.device: torch.device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
 
-        self._batch_size = self.trainer_cfg.batch_size
-        self._minibatch_size = self.trainer_cfg.minibatch_size
+        self._batch_size = trainer_cfg.batch_size
+        self._minibatch_size = trainer_cfg.minibatch_size
         if torch.distributed.is_initialized():
             self._master = int(os.environ["RANK"]) == 0
             self._world_size = torch.distributed.get_world_size()
@@ -85,8 +85,6 @@ class MettaTrainer:
             logger.info(
                 f"Rank: {os.environ['RANK']}, Local rank: {os.environ['LOCAL_RANK']}, World size: {self._world_size}"
             )
-            self.device = torch.device(f"cuda:{os.environ['LOCAL_RANK']}")
-            logger.info(f"Setting up distributed training on device {self.device}")
 
         self.torch_profiler = TorchProfiler(self._master, cfg.run_dir, trainer_cfg.profiler_interval_epochs, wandb_run)
         self.losses = Losses()
@@ -195,7 +193,6 @@ class MettaTrainer:
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
 
-        # Activate actions for the current environment, regardless of model type
         self.policy.activate_actions(actions_names, actions_max_params, self.device)
 
         if torch.distributed.is_initialized():

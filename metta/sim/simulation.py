@@ -122,6 +122,17 @@ class Simulation:
 
         metta_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._policy_agent.policy_as_metta_agent()
         assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), metta_agent
+
+        # Check if the agent has a valid model before activating actions
+        if isinstance(metta_agent, (MettaAgent, DistributedMettaAgent)):
+            if metta_agent.model is None:
+                raise SimulationCompatibilityError(
+                    f"[{self._name}] Policy agent '{self._policy_agent.name}' has no model loaded. "
+                    f"This is likely a legacy checkpoint issue. "
+                    f"The checkpoint may contain a PolicyRecord with nested MettaAgents that lost their model. "
+                    f"URI: {self._policy_agent.uri}"
+                )
+
         metta_agent.activate_actions(action_names, max_args, self._device)
 
         if self._npc_agent is not None:

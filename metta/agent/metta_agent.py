@@ -105,11 +105,28 @@ class MettaAgent(nn.Module):
             self.local_path = None
 
         # Handle model attribute for backward compatibility
-        if hasattr(self, "model") and not isinstance(self.model, property):
+        # Check directly in __dict__ to avoid triggering property getter
+        if "model" in self.__dict__:
             # Old format had model as direct attribute
-            old_model = self.model
-            delattr(self, "model")
+            old_model = self.__dict__["model"]
+            del self.__dict__["model"]
             self.model = old_model  # This will use the setter
+
+        # Additional check for old-style agents with missing or None models
+        if not hasattr(self, "_model") and not (hasattr(self, "_modules") and "model" in self._modules):
+            # Try to find model in various legacy locations
+            if hasattr(self, "_policy") and self._policy is not None:
+                logger.info("Found _policy attribute in old MettaAgent, using as model")
+                self.model = self._policy
+            elif "policy" in self.__dict__ and hasattr(self.__dict__["policy"], "__self__"):
+                # Old bound method case
+                logger.info("Found policy as bound method in old MettaAgent")
+                self.model = self.__dict__["policy"].__self__
+            elif "components" in self.__dict__ and isinstance(self.__dict__["components"], nn.ModuleDict):
+                # This might be a BrainPolicy that was saved as MettaAgent
+                logger.info("Found components in old MettaAgent, likely a mis-saved BrainPolicy")
+                # Set self as the model (it's actually a BrainPolicy)
+                self._model = self
 
     def __getattr__(self, name: str):
         """Provide defaults for missing attributes to ensure backward compatibility."""
@@ -131,9 +148,26 @@ class MettaAgent(nn.Module):
     @property
     def model(self):
         """Get the model, handling both submodule and regular attribute cases."""
-        if hasattr(self, "_modules") and "model" in self._modules:
-            return self._modules["model"]
-        return getattr(self, "_model", None)
+        # Check for model in _modules first
+        if hasattr(self, "_modules"):
+            if "model" in self._modules:
+                return self._modules["model"]
+            elif "_model" in self._modules:
+                return self._modules["_model"]
+
+        # Then check for _model attribute
+        model = getattr(self, "_model", None)
+
+        # If model is another MettaAgent, recursively get its model
+        if isinstance(model, MettaAgent) and model != self:
+            logger.warning("MettaAgent has another MettaAgent as its model, extracting nested model")
+            nested_model = model.model
+            if nested_model is not None and not isinstance(nested_model, MettaAgent):
+                # Update our model to point directly to the nested model
+                self.model = nested_model
+                return nested_model
+
+        return model
 
     @model.setter
     def model(self, value):
@@ -158,25 +192,48 @@ class MettaAgent(nn.Module):
         if hasattr(self, "_model"):
             del self._model
 
+    @property
+    def _is_model(self):
+        """Check if this MettaAgent IS the model (has components directly)."""
+        return hasattr(self, "_modules") and "components" in self._modules
+
     def forward(
         self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Forward pass through the underlying model."""
-        if self.model is None:
+        if self._is_model:
+            # This MettaAgent IS the model, call parent's forward directly
+            # This assumes it inherits from BrainPolicy
+            from metta.agent.brain_policy import BrainPolicy
+
+            return BrainPolicy.forward(self, x, state, action)
+        elif self.model is None:
             raise RuntimeError("Model not loaded. Call load() first.")
-        return self.model(x, state, action)
+        else:
+            return self.model(x, state, action)
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Activate actions on the underlying model."""
-        if self.model is None:
+        if self._is_model:
+            # This MettaAgent IS the model, call parent's activate_actions directly
+            from metta.agent.brain_policy import BrainPolicy
+
+            logger.info("MettaAgent IS the model (has components), activating actions on self")
+            BrainPolicy.activate_actions(self, action_names, action_max_params, device)
+        elif self.model is None:
             raise RuntimeError("Model not loaded")
-        self.model.activate_actions(action_names, action_max_params, device)
+        else:
+            self.model.activate_actions(action_names, action_max_params, device)
 
     def parameters(self, recurse: bool = True):
         """Return model parameters."""
-        if self.model is None:
+        if self._is_model:
+            # This MettaAgent IS the model, use parent's parameters
+            return nn.Module.parameters(self, recurse)
+        elif self.model is None:
             return iter([])
-        return self.model.parameters(recurse)
+        else:
+            return self.model.parameters(recurse)
 
     def state_dict(self, *args, **kwargs):
         """Return model state_dict."""
@@ -524,6 +581,38 @@ class MettaAgent(nn.Module):
         if self.model and hasattr(self.model, "_convert_logit_index_to_action"):
             return self.model._convert_logit_index_to_action(action_logit_index)
         raise AttributeError(f"{self.model_type} model does not have _convert_logit_index_to_action method")
+
+    @staticmethod
+    def wrap_legacy_agent(legacy_agent, name="", uri="", metadata=None, local_path=None):
+        """Create a new MettaAgent wrapping a legacy agent that might be a mis-saved BrainPolicy."""
+
+        # If the legacy agent has components in _modules, it's likely a mis-saved BrainPolicy
+        if hasattr(legacy_agent, "_modules") and "components" in legacy_agent._modules:
+            logger.info("Legacy agent has components, treating as BrainPolicy")
+            # Create a new BrainPolicy-like wrapper
+            # The legacy agent IS the model in this case
+            wrapper = MettaAgent.__new__(MettaAgent)
+            nn.Module.__init__(wrapper)  # Initialize as nn.Module
+
+            # Set attributes directly to avoid conflicts
+            wrapper._model = legacy_agent
+            wrapper.model_type = "brain"
+            wrapper.name = name
+            wrapper.uri = uri
+            wrapper.metadata = metadata or {}
+            wrapper.local_path = local_path
+
+            return wrapper
+        else:
+            # Standard case - create normally
+            return MettaAgent(
+                model=legacy_agent,
+                model_type="brain",
+                name=name,
+                uri=uri,
+                metadata=metadata,
+                local_path=local_path,
+            )
 
 
 class DistributedMettaAgent(DistributedDataParallel):

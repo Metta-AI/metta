@@ -18,6 +18,7 @@ import warnings
 from typing import List, Optional, Union
 
 import torch
+import torch.nn as nn
 import wandb
 from omegaconf import DictConfig, ListConfig
 
@@ -71,15 +72,88 @@ class PolicyRecord:
         """Convert this PolicyRecord to a MettaAgent."""
         logger.info(f"Converting legacy PolicyRecord '{self.name}' to MettaAgent")
 
-        # If the PolicyRecord contains a MettaAgent as its policy, return it directly
+        # If the PolicyRecord contains a MettaAgent as its policy, check if it's valid
         if self._policy is not None and isinstance(self._policy, MettaAgent):
-            logger.info("PolicyRecord contains MettaAgent, returning it directly")
-            # Update its metadata from the PolicyRecord
-            self._policy.name = self.name
-            self._policy.uri = self.uri
-            self._policy.metadata = self.metadata
-            self._policy.local_path = self._local_path
-            return self._policy
+            logger.info("PolicyRecord contains MettaAgent, checking if it has a valid model")
+
+            # Check if the MettaAgent has a valid model
+            if hasattr(self._policy, "model") and self._policy.model is not None:
+                logger.info("MettaAgent has valid model, returning it directly")
+                # Update its metadata from the PolicyRecord
+                self._policy.name = self.name
+                self._policy.uri = self.uri
+                self._policy.metadata = self.metadata
+                self._policy.local_path = self._local_path
+                return self._policy
+            else:
+                logger.warning("MettaAgent in PolicyRecord has no model, checking if it IS the model")
+
+                # Check if the MettaAgent itself IS the model (has components in _modules)
+                if hasattr(self._policy, "_modules") and "components" in self._policy._modules:
+                    logger.info("MettaAgent has components in _modules, it IS a BrainPolicy")
+                    # The MettaAgent is actually a mis-saved BrainPolicy
+                    # Use the static wrapper method to handle this case
+                    agent = MettaAgent.wrap_legacy_agent(
+                        self._policy,
+                        name=self.name,
+                        uri=self.uri,
+                        metadata=self.metadata,
+                        local_path=self._local_path,
+                    )
+                    return agent
+
+                # Try to find the actual model in nested attributes
+                actual_model = None
+
+                # Check for _policy attribute (nested PolicyRecord/Agent)
+                if hasattr(self._policy, "_policy") and self._policy._policy is not None:
+                    logger.info("Found nested _policy attribute")
+                    actual_model = self._policy._policy
+
+                # Check for policy attribute
+                elif hasattr(self._policy, "policy") and callable(getattr(self._policy, "policy", None)):
+                    try:
+                        actual_model = self._policy.policy()
+                        logger.info(f"Extracted model via policy() method: {type(actual_model)}")
+                    except:
+                        pass
+
+                # Check for components (BrainPolicy indicator) in __dict__
+                elif "components" in self._policy.__dict__ and isinstance(
+                    self._policy.__dict__["components"], nn.ModuleDict
+                ):
+                    logger.info("Found components in __dict__, likely a BrainPolicy")
+                    actual_model = self._policy
+
+                if actual_model is not None:
+                    # Determine model type
+                    from metta.agent.brain_policy import BrainPolicy
+                    from metta.rl.policy import PytorchAgent
+
+                    model_type = "brain"  # default
+                    if isinstance(actual_model, PytorchAgent):
+                        model_type = "pytorch"
+                    elif isinstance(actual_model, BrainPolicy) or hasattr(actual_model, "components"):
+                        model_type = "brain"
+
+                    # Create new MettaAgent with the extracted model
+                    agent = MettaAgent(
+                        model=actual_model,
+                        model_type=model_type,
+                        name=self.name,
+                        uri=self.uri,
+                        metadata=self.metadata,
+                        local_path=self._local_path,
+                    )
+                    return agent
+                else:
+                    logger.warning("Could not extract valid model from nested MettaAgent")
+                    # Return the MettaAgent as-is, even without a model
+                    self._policy.name = self.name
+                    self._policy.uri = self.uri
+                    self._policy.metadata = self.metadata
+                    self._policy.local_path = self._local_path
+                    return self._policy
 
         # Otherwise, create a new MettaAgent with the policy as the model
         # Determine model type based on the policy object
@@ -427,19 +501,16 @@ class PolicyStore:
 
     def _load_from_pytorch(self, path: str) -> MettaAgent:
         """Load a pytorch policy and wrap it in a MettaAgent."""
-        # Check for pytorch config first, then fall back to puffer for backward compatibility
         pytorch_config = None
         if hasattr(self._cfg, "pytorch"):
             pytorch_config = self._cfg.pytorch
-        elif hasattr(self._cfg, "puffer"):
-            pytorch_config = self._cfg.puffer
         else:
             raise ValueError(
-                "Neither 'pytorch' nor 'puffer' configuration found. "
+                "Pytorch configuration not found. "
                 "Please add a 'pytorch' section to your config with _target_ pointing to your policy class."
             )
 
-        policy = load_policy(path, self._device, puffer=pytorch_config)
+        policy = load_policy(path, self._device, pytorch=pytorch_config)
         name = os.path.basename(path)
 
         agent = MettaAgent(

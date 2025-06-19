@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import pandas as pd
 
@@ -195,7 +195,7 @@ class EvalStatsDB(SimulationStatsDB):
         metric: str,
         agent: MettaAgent,
         filter_condition: str | None = None,
-    ) -> float | None:
+    ) -> Optional[float]:
         pk, pv = agent.key_and_version()
         return self._normalised_value(pk, pv, metric, "AVG", filter_condition)
 
@@ -223,26 +223,23 @@ class EvalStatsDB(SimulationStatsDB):
     def sample_count(
         self,
         agent: MettaAgent,
-        suite_filter: str | None = None,
+        sim_suite: Optional[str] = None,
+        sim_name: Optional[str] = None,
+        sim_env: Optional[str] = None,
     ) -> int:
         pk, pv = agent.key_and_version()
-
-        if suite_filter:
-            base_query = """
-                SELECT COUNT(*)
-                FROM episode_data
-                WHERE policy_key = ? AND policy_version = ? AND sim_name LIKE ?
-            """
-            result = self.con.execute(base_query, (pk, pv, f"%{suite_filter}%")).fetchall()
-        else:
-            base_query = """
-                SELECT COUNT(*)
-                FROM episode_data
-                WHERE policy_key = ? AND policy_version = ?
-            """
-            result = self.con.execute(base_query, (pk, pv)).fetchall()
-
-        return result[0][0] if result and result[0] else 0
+        """Return potential‑sample count for arbitrary filters."""
+        q = "SELECT COUNT(*) AS cnt FROM policy_simulation_agent_samples WHERE 1=1"
+        if policy_record:
+            pk, pv = policy_record.key_and_version()
+            q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
+        if sim_suite:
+            q += f" AND sim_suite = '{sim_suite}'"
+        if sim_name:
+            q += f" AND sim_name  = '{sim_name}'"
+        if sim_env:
+            q += f" AND sim_env   = '{sim_env}'"
+        return int(self.query(q)["cnt"][0])
 
     # ------------------------------------------------------------------ #
     #   Per‑simulation breakdown                                         #
@@ -312,26 +309,3 @@ class EvalStatsDB(SimulationStatsDB):
         ORDER BY policy_uri, eval_name
         """
         return self.query(sql)
-
-    def get_replay_urls(
-        self,
-        policy_key: str,
-        policy_version: int,
-        agent: MettaAgent | None = None,
-        sim_name_filter: str | None = None,
-    ) -> List[str]:
-        """Get replay URLs for specified policy and optional simulation filter."""
-        if agent is not None:
-            policy_key, policy_version = agent.key_and_version()
-
-        query = "SELECT DISTINCT replay_url FROM episode_data WHERE policy_key = ? AND policy_version = ?"
-        params = [policy_key, policy_version]
-
-        if sim_name_filter:
-            query += " AND sim_name LIKE ?"
-            params.append(f"%{sim_name_filter}%")
-
-        query += " ORDER BY replay_url"
-
-        result = self.con.execute(query, params).fetchall()
-        return [row[0] for row in result if row[0]]

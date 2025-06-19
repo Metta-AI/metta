@@ -1,6 +1,5 @@
 import logging
 from types import SimpleNamespace
-from typing import Optional
 
 import torch
 from hydra.utils import instantiate
@@ -11,40 +10,19 @@ from torch import nn
 logger = logging.getLogger(__name__)
 
 
-def load_policy(path: str, device: str = "cpu", puffer: Optional[DictConfig] = None):
+def load_policy(path: str, device: str = "cpu", pytorch: DictConfig = None):
     weights = torch.load(path, map_location=device, weights_only=True)
 
     try:
         num_actions, hidden_size = weights["policy.actor.0.weight"].shape
         num_action_args, _ = weights["policy.actor.1.weight"].shape
         _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
-        logger.info(
-            f"Successfully parsed model architecture from weights: "
-            f"actions={num_actions}, args={num_action_args}, channels={obs_channels}"
-        )
     except Exception as e:
+        print(f"Failed automatic parse from weights: {e}")
+        # TODO -- fix all magic numbers
+        num_actions, num_action_args = 9, 10
+        _, obs_channels = 128, 34
         logger.warning(f"Failed automatic parse from weights: {e}")
-        # Try alternative weight keys
-        try:
-            # Check for alternative naming conventions
-            if "actor.0.weight" in weights:
-                num_actions, hidden_size = weights["actor.0.weight"].shape
-                num_action_args, _ = weights["actor.1.weight"].shape
-                _, obs_channels, _, _ = weights["network.0.weight"].shape
-                logger.info(
-                    f"Parsed using alternative naming: "
-                    f"actions={num_actions}, args={num_action_args}, channels={obs_channels}"
-                )
-            else:
-                raise KeyError("No recognized weight naming pattern found")
-        except Exception as e2:
-            logger.warning(f"Alternative parsing also failed: {e2}")
-            # TODO -- fix all magic numbers
-            num_actions, num_action_args = 9, 10
-            _, obs_channels = 128, 34
-            logger.warning(
-                f"Using fallback values: actions={num_actions}, args={num_action_args}, channels={obs_channels}"
-            )
 
     # Create environment namespace
     env = SimpleNamespace(
@@ -52,10 +30,7 @@ def load_policy(path: str, device: str = "cpu", puffer: Optional[DictConfig] = N
         single_observation_space=SimpleNamespace(shape=tuple(torch.tensor([obs_channels, 11, 11]).tolist())),
     )
 
-    if puffer is None:
-        raise ValueError("Puffer config is required to load a Pytorch policy.")
-
-    policy = instantiate(puffer, env=env, policy=None)
+    policy = instantiate(pytorch, env=env, policy=None)
     policy.load_state_dict(weights)
     policy = PytorchAgent(policy).to(device)
     return policy
