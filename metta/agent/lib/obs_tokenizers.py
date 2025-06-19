@@ -1,7 +1,6 @@
 from typing import Tuple
 
 # import einops
-import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
@@ -41,7 +40,8 @@ class DummyObsTokenizer(LayerBase):
         if observations.dim() != 3:  # hardcoding for shape [B, M, 3]
             TT = observations.shape[1]
             td["_TT_"] = TT
-            observations = einops.rearrange(observations, "b t h c -> (b t) h c")
+            # observations = einops.rearrange(observations, "b t h c -> (b t) h c")
+            observations = observations.flatten(start_dim=1)
         td["_BxTT_"] = B * TT
 
         observations = self.linear(observations.float())
