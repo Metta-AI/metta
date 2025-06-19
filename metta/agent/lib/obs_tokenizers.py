@@ -12,14 +12,15 @@ class DummyObsTokenizer(LayerBase):
     """
     This is a dummy obs tokenizer that just returns the observations.
     """
+
     def __init__(
-            self,
-            obs_shape: Tuple[int, ...],
-            **cfg,
-        ) -> None:
-            super().__init__(**cfg)
-            self._obs_shape = obs_shape
-            self._M = obs_shape[0]
+        self,
+        obs_shape: Tuple[int, ...],
+        **cfg,
+    ) -> None:
+        super().__init__(**cfg)
+        self._obs_shape = obs_shape
+        self._M = obs_shape[0]
 
     def _make_net(self) -> None:
         # unfortunately, we can't know the output shape's 0th dim (seq length) until we see the data. however,
@@ -46,6 +47,26 @@ class DummyObsTokenizer(LayerBase):
         observations = self.linear(observations.float())
 
         td[self._name] = observations
+        return td
+
+
+class DummyAttn(LayerBase):
+    """Takes the [B, M, 11] and returns [B, 128] after a linear layer"""
+
+    def __init__(self, **cfg):
+        super().__init__(**cfg)
+        self._out_dim = 128
+
+    def _make_net(self) -> None:
+        self._out_tensor_shape = [self._out_dim]
+
+        self.linear = nn.Linear(11, self._out_dim)
+
+    def _forward(self, td: TensorDict) -> TensorDict:
+        observations = td[self._sources[0]["name"]]
+        observations = self.linear(observations.float())
+
+        td[self._name] = observations[:, 0] 
         return td
 
 
