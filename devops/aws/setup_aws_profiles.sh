@@ -115,6 +115,18 @@ fi
 # Main execution logic
 if [ -z "$CI" ] && [ "$IS_DOCKER" = "false" ]; then
 
+  if [ -f ~/.aws/config ]; then
+    if grep -q '^\[profile softmax-db\]' ~/.aws/config; then
+      echo "Removing softmax-db profile..."
+      sed -i.bak '/^\[profile softmax-db\]/,/^\[/{/^\[profile softmax-db\]/d;/^\[/!d;}' ~/.aws/config
+    fi
+
+    if grep -q '^\[profile softmax-db-admin\]' ~/.aws/config; then
+      echo "Removing softmax-db-admin profile..."
+      sed -i.bak '/^\[profile softmax-db-admin\]/,/^\[/{/^\[profile softmax-db-admin\]/d;/^\[/!d;}' ~/.aws/config
+    fi
+  fi
+
   # Handle reset if requested
   if [ "$RESET_CONFIG" = true ]; then
     clear_aws_completely
@@ -132,10 +144,6 @@ if [ -z "$CI" ] && [ "$IS_DOCKER" = "false" ]; then
       initialize_aws_config
     fi
   fi
-
-  echo "Removing old AWS profiles..."
-  sed -i.bak '/^\[profile softmax-db\]/,/^\[/{/^\[profile softmax-db\]/d;/^\[/!d;}' ~/.aws/config
-  sed -i.bak '/^\[profile softmax-db-admin\]/,/^\[/{/^\[profile softmax-db-admin\]/d;/^\[/!d;}' ~/.aws/config
 
   echo "Running AWS SSO login..."
   aws sso login --profile softmax
