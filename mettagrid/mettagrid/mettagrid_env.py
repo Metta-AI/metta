@@ -71,7 +71,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     ):
         self.timer = Stopwatch(logger)
         self.timer.start()
-        self.timer.start("overhead")
+        self.timer.start("thread_idle")
 
         self._render_mode = render_mode
         self._curriculum = curriculum
@@ -157,7 +157,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     @override  # pufferlib.PufferEnv.reset
     @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
-        self.timer.stop("overhead")
+        self.timer.stop("thread_idle")
 
         self._task = self._curriculum.get_task()
 
@@ -180,7 +180,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         obs, infos = self._c_env.reset()
         self._should_reset = False
 
-        self.timer.start("overhead")
+        self.timer.start("thread_idle")
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
@@ -200,7 +200,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             Tuple of (observations, rewards, terminals, truncations, infos)
 
         """
-        self.timer.stop("overhead")
+        self.timer.stop("thread_idle")
 
         # Note: We explicitly allow invalid actions to be used. The environment will
         # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
@@ -209,7 +209,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._c_env.step(actions)
 
         if self._replay_writer and self._episode_id:
-            self._replay_writer.log_step(self._episode_id, actions, self.rewards)
+            with self.timer("_replay_writer.log_step"):
+                self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
@@ -225,7 +226,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
-        self.timer.start("overhead")
+        self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     @override
@@ -309,29 +310,29 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self.timer.stop("process_episode_stats")
 
         elapsed_times = self.timer.get_all_elapsed()
-        overhead_time = elapsed_times.pop("overhead", 0)
+        thread_idle_time = elapsed_times.pop("thread_idle", 0)
 
         wall_time = self.timer.get_elapsed()
-        adjusted_wall_time = wall_time - overhead_time
+        adjusted_wall_time = wall_time - thread_idle_time
 
         lap_times = self.timer.lap_all(exclude_global=False)
-        lap_overhead_time = lap_times.pop("overhead", 0)
+        lap_thread_idle_time = lap_times.pop("thread_idle", 0)
         wall_time_for_lap = lap_times.pop("global", 0)
-        adjusted_lap_time = wall_time_for_lap - lap_overhead_time
+        adjusted_lap_time = wall_time_for_lap - lap_thread_idle_time
 
         infos["timing_per_epoch"] = {
             **{
-                f"residual_fraction/{op}": lap_elapsed / adjusted_lap_time if adjusted_lap_time > 0 else 0
+                f"active_frac/{op}": lap_elapsed / adjusted_lap_time if adjusted_lap_time > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
-            "fraction/overhead": lap_overhead_time / wall_time_for_lap,
+            "frac/thread_idle": lap_thread_idle_time / wall_time_for_lap,
         }
         infos["timing_cumulative"] = {
             **{
-                f"residual_fraction/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
+                f"active_frac/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
                 for op, elapsed in elapsed_times.items()
             },
-            "fraction/overhead": overhead_time / wall_time,
+            "frac/thread_idle": thread_idle_time / wall_time,
         }
 
         self._episode_id = None
