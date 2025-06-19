@@ -5,15 +5,13 @@ set -e
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
   # "daphne.3.navsequence.all.sky"
-  "daphne.navsequence.all.metta1.16"
-  "daphne.navsequence.all.metta3"
-  "daphned.navsequence.all.metta4"
+  "daphned.all.bucketed.sky.06-18"
+  "daphned.navsequence.bucketed.sky.06-18"
+  "daphned.object_use.bucketed.sky.06-18"
+  "daphned.navigation.bucketed.sky.06-18"
+  "daphne.all.bucketed.sky"
+  "daphne.navigation.bucketed.skypilot"
   "daphne.navsequence.all2.withbackchain.sky"
-  "daphne.4.navsequence.all.sky"
-  "daphne.3.navsequence.all.sky"
-  "daphne2.navsequence.all.metta3"
-  "georgedeane.nav_scratch"
-
 )
 
 for i in "${!POLICIES[@]}"; do
