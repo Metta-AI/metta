@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: env/mettagrid/curriculum/lpc_navigation
+  curriculum: env/mettagrid/curriculum/learning_progress_navigation
 
 # Optionally, you can add other overrides as needed
 
