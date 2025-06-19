@@ -1,4 +1,4 @@
-name: "Build Docker Image"
+name: "Build App Backend Docker Image"
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
