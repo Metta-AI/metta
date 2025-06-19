@@ -1,5 +1,6 @@
 import einops
 import torch
+import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
@@ -24,6 +25,7 @@ class ObsTokenToBoxShaper(LayerBase):
         self.out_height = obs_height
         self.num_layers = max(feature_normalizations.keys()) + 1
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
+        self.conv1d = nn.Conv1d(3, 11, kernel_size=1)
 
     def _forward(self, td: TensorDict):
         token_observations = td["x"]
@@ -34,6 +36,10 @@ class ObsTokenToBoxShaper(LayerBase):
             TT = token_observations.shape[1]
             token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
         td["_BxTT_"] = B * TT
+
+        token_observations = token_observations.permute(0, 2, 1)
+        token_observations = self.conv1d(token_observations.float())
+        token_observations = token_observations.permute(0, 2, 1)
 
         assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
 
