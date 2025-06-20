@@ -844,8 +844,6 @@ class MettaTrainer:
             losses.pop("ks_action_loss")
             losses.pop("ks_value_loss")
 
-        experience = self.experience.to_dict()
-
         parameters = {
             "learning_rate": self.optimizer.param_groups[0]["lr"],
             "epoch_steps": epoch_steps,
@@ -856,7 +854,7 @@ class MettaTrainer:
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
                 **{f"losses/{k}": v for k, v in losses.items()},
-                **{f"experience/{k}": v for k, v in experience.items()},
+                **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
                 **{f"eval_{k}": v for k, v in self.evals.items()},
                 **environment_stats,
