@@ -138,7 +138,7 @@ class GameConfig_cpp(BaseModelWithForbidExtra):
 def agent_rewards_dict_from_flat_dict(flat_rewards_dict: Dict[str, float]) -> Dict[str, float]:
     """Converts from a dictionary like
       {
-        "invalid_action_penalty": 0,
+        "action_failure_penalty": 0,
         "ore.red": 0.005,
         "ore.red_max": 4,
         "battery.red": 0.01,
@@ -158,15 +158,17 @@ def agent_rewards_dict_from_flat_dict(flat_rewards_dict: Dict[str, float]) -> Di
       }
     """
 
-    result = {}
+    result = {
+        "inventory_item_rewards": {},
+    }
     for k, v in flat_rewards_dict.items():
-        if k == "invalid_action_penalty":
+        if k == "action_failure_penalty":
             result["action_failure_penalty"] = v
         elif k.endswith("_max"):
             inventory_item_name = k.replace("_max", "")
-            result.setdefault(inventory_item_name, {})["max_reward"] = v
+            result["inventory_item_rewards"].setdefault(inventory_item_name, {})["max_reward"] = v
         else:
-            result.setdefault(k, {})["reward"] = v
+            result["inventory_item_rewards"].setdefault(k, {})["reward"] = v
 
     return result
 
@@ -191,7 +193,8 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
             else:
                 agent_group_config[key] = value
         agent_group_config["group_id"] = group_config.id
-        agent_group_config["rewards"] = agent_rewards_dict_from_flat_dict(agent_group_config.get("rewards", {}))
+        agent_group_config["rewards"] = agent_rewards_dict_from_flat_dict(agent_group_config["rewards"])
+
         agent_configs["agent." + group_name] = AgentConfig_cpp(**agent_group_config)
 
     return GameConfig_cpp(
