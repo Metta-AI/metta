@@ -1,0 +1,18 @@
+_target_: mettagrid.curriculum.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1
+  /env/mettagrid/navigation/training/cylinder_world: 1
+  /env/mettagrid/navigation/training/varied_terrain_sparse: 1
+  /env/mettagrid/navigation/training/varied_terrain_balanced: 1
+  /env/mettagrid/navigation/training/varied_terrain_maze: 1
+  /env/mettagrid/navigation/training/varied_terrain_dense: 1
+
+# Learning Progress specific parameters
+ema_timescale: 0.001
+progress_smoothing: 0.05
+num_active_tasks: 16
+rand_task_rate: 0.25
+sample_threshold: 10
+memory: 25
+lp_metric: "episode/reward.mean"

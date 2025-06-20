@@ -1,16 +1,33 @@
-# User config for Learning Progress Curriculum testing
+# @package __global__
+
+# Learning Progress Training Configuration
+# Uses the learning progress navigation curriculum defined in env/mettagrid/curriculum/learningprogress_navigation.yaml
+
 defaults:
-  - env/mettagrid/curriculum/learning_progress
   - _self_
 
-# Training parameters
-trainer:
-  total_timesteps: 1000000
-  eval_freq: 10000
-  save_freq: 50000
+# Basic run configuration
+run: ${oc.env:USER}.lp_cric
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
 
-# Environment overrides
-env_overrides:
-  game:
-    num_agents: 1
-    max_steps: 1000
+trainer:
+  curriculum: env/mettagrid/curriculum/learningprogress_navigation
+  total_timesteps: 1_000_000
+  gamma: 0.99
+  gae_lambda: 0.95
+  vf_coef: 0.5
+  ent_coef: 0.01
+  batch_size: 512
+  minibatch_size: 256
+  bptt_horizon: 8
+  learning_rate: 3e-4
+  evaluate_interval: 100
+  num_workers: 4
+
+wandb:
+  enabled: True
+  project: metta
+  entity: metta-research
+  name: ${run}
+  tags: ["msb_nav_lp"]

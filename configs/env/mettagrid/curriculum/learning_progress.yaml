@@ -8,7 +8,7 @@ tasks:
 
 # Learning progress parameters
 ema_timescale: 0.001
-p_theta: 0.05
+progress_smoothing: 0.05
 num_active_tasks: 16
 rand_task_rate: 0.25
 sample_threshold: 10

@@ -19,7 +19,6 @@ from omegaconf.omegaconf import OmegaConf
 from metta.util.config import config_from_path
 
 from mettagrid.curriculum.curriculum import Task
-from mettagrid.curriculum.multi_task import MultiTaskCurriculum
 from mettagrid.curriculum.random import RandomCurriculum
 
 logger = logging.getLogger(__name__)
@@ -33,7 +32,7 @@ class LearningProgressCurriculum(RandomCurriculum):
     """Curriculum that adaptively samples tasks based on learning progress."""
 
     def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig,
-                 ema_timescale: float = 0.001, p_theta: float = 0.05,
+                 ema_timescale: float = 0.001, progress_smoothing: float = 0.05,
                  num_active_tasks: int = 16, rand_task_rate: float = 0.25,
                  sample_threshold: int = 10, memory: int = 25):
         super().__init__(tasks, env_overrides)
@@ -43,7 +42,7 @@ class LearningProgressCurriculum(RandomCurriculum):
         self.lp_tracker = BidirectionalLearningProgess(
             search_space=search_space_size,
             ema_timescale=ema_timescale,
-            p_theta=p_theta,
+            progress_smoothing=progress_smoothing,
             num_active_tasks=num_active_tasks,
             rand_task_rate=rand_task_rate,
             sample_threshold=sample_threshold,
@@ -97,7 +96,7 @@ class LearningProgressCurriculum(RandomCurriculum):
 
 
 class BidirectionalLearningProgess:
-    def __init__(self, search_space, ema_timescale = 0.001, p_theta = 0.05, num_active_tasks = 16, rand_task_rate = 0.25,
+    def __init__(self, search_space, ema_timescale = 0.001, progress_smoothing = 0.05, num_active_tasks = 16, rand_task_rate = 0.25,
                  sample_threshold = 10, memory = 25):
         if isinstance(search_space, int):
             search_space = Discrete(search_space)
@@ -105,7 +104,7 @@ class BidirectionalLearningProgess:
         self.search_space = search_space
         self.num_tasks = max_num_levels = search_space.n
         self.ema_alpha = ema_timescale  # Fixed: use ema_timescale as ema_alpha
-        self.p_theta = p_theta
+        self.progress_smoothing = progress_smoothing
         self.n = int(num_active_tasks)
         self.rand_task_rate = rand_task_rate
         self.sample_threshold = sample_threshold
@@ -186,8 +185,8 @@ class BidirectionalLearningProgess:
         return abs(fast - slow)
 
     def _reweight(self, p: np.ndarray) -> float:
-        numerator = p * (1.0 - self.p_theta)
-        denominator = p + self.p_theta * (1.0 - 2.0 * p)
+        numerator = p * (1.0 - self.progress_smoothing)
+        denominator = p + self.progress_smoothing * (1.0 - 2.0 * p)
         return numerator / denominator
 
     def _sigmoid(self, x: np.ndarray):
