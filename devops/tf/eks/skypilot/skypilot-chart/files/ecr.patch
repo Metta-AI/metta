@@ -1,40 +1,44 @@
-diff -ur sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
---- sky/provision/docker_utils.py	2025-06-02 23:54:17
-+++ sky-patched/provision/docker_utils.py	2025-06-16 15:57:46
-@@ -234,6 +234,23 @@
-                     f'--password {shlex.quote(docker_login_config.password)} '
-                     f'{shlex.quote(docker_login_config.server)}',
-                     wait_for_docker_daemon=True)
-+            elif docker_login_config.server.endswith(".amazonaws.com") and ".ecr." in docker_login_config.server:
-+                # Handle AWS ECR authentication
-+                server = docker_login_config.server
-+                if server.endswith(".amazonaws.com") and ".ecr." in server:
-+                    self._run('sudo apt update && sudo apt install -y amazon-ecr-credential-helper')
-+                    # Create the docker config directory if it doesn't exist
-+                    self._run('mkdir -p ~/.docker')
-+                    # Create or update the docker config.json file with ECR credentials helper
-+                    config_json = {
-+                        "credHelpers": {
-+                            server: "ecr-login"
-+                        }
-+                    }
-+                    # Write the config to a temporary file and move it to the right location
-+                    import json
-+                    self._run(f'echo \'{json.dumps(config_json, indent=2)}\' > /tmp/docker_config.json && '
-+                              f'mv /tmp/docker_config.json ~/.docker/config.json')
-             elif docker_login_config.server.endswith('-docker.pkg.dev'):
-                 # Docker image server is on GCR, we need to do additional setup
-                 # to pull the image.
-diff -ur sky/resources.py sky-patched/resources.py
---- sky/resources.py	2025-06-16 15:54:40
-+++ sky-patched/resources.py	2025-06-16 15:57:08
-@@ -1699,9 +1699,6 @@
-         add_if_not_none('labels', self.labels)
-         if self._autostop_config is not None:
-             config['autostop'] = self._autostop_config.to_yaml_config()
--        if self._docker_login_config is not None:
--            config['_docker_login_config'] = dataclasses.asdict(
--                self._docker_login_config)
-         if self._docker_username_for_runpod is not None:
-             config['_docker_username_for_runpod'] = (
-                 self._docker_username_for_runpod)
+diff -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
+51a52,66
+>         server = d[constants.DOCKER_SERVER_ENV_VAR]
+>         if server.endswith(".amazonaws.com"):
+>             # AWS ECR; rewrite region to the current region if we're running on AWS
+>             import socket
+>             import re
+> 
+>             hostname = socket.getfqdn()
+>             hostname_parts = hostname.split(".")
+>             if hostname_parts[-2] == "compute" and hostname_parts[-1] == "internal":
+>                 # looks like AWS
+>                 region = hostname_parts[-3]
+>                 server = re.sub(
+>                     r"\.[\w-]+\.amazonaws\.com", f".{region}.amazonaws.com", server
+>                 )
+> 
+55c70
+<             server=d[constants.DOCKER_SERVER_ENV_VAR],
+---
+>             server=server,
+236a252,268
+>             elif docker_login_config.server.endswith(".amazonaws.com") and ".ecr." in docker_login_config.server:
+>                 # Handle AWS ECR authentication
+>                 server = docker_login_config.server
+>                 if server.endswith(".amazonaws.com") and ".ecr." in server:
+>                     self._run('sudo apt install -y amazon-ecr-credential-helper')
+>                     # Create the docker config directory if it doesn't exist
+>                     self._run('mkdir -p ~/.docker')
+>                     # Create or update the docker config.json file with ECR credentials helper
+>                     config_json = {
+>                         "credHelpers": {
+>                             server: "ecr-login"
+>                         }
+>                     }
+>                     # Write the config to a temporary file and move it to the right location
+>                     import json
+>                     self._run(f'echo \'{json.dumps(config_json, indent=2)}\' > /tmp/docker_config.json && '
+>                               f'mv /tmp/docker_config.json ~/.docker/config.json')
+diff -r sky/resources.py sky-patched/resources.py
+1702,1704d1701
+<         if self._docker_login_config is not None:
+<             config['_docker_login_config'] = dataclasses.asdict(
+<                 self._docker_login_config)
