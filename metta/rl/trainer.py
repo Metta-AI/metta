@@ -833,7 +833,7 @@ class MettaTrainer:
         for category, score in category_scores_map.items():
             overview[f"{category}_score"] = score
 
-        losses = self.losses.to_dict()
+        losses = self.losses.stats()
 
         # don't plot losses that are unused
         if self.trainer_cfg.l2_reg_loss_coef == 0:
