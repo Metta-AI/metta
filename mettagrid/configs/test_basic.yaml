@@ -11,6 +11,7 @@ game:
     height: 25
     border_width: 0
     agents: 5
+    seed: 42
 
     objects:
       altar: 1
