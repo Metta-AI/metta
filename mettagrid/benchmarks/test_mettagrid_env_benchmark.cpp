@@ -24,7 +24,6 @@ namespace py = pybind11;
 
 // Helper functions for creating configuration and map
 py::dict CreateBenchmarkConfig(int num_agents) {
-  py::dict cfg;
   py::dict game_cfg;
 
   // Basic game configuration
@@ -90,9 +89,7 @@ py::dict CreateBenchmarkConfig(int num_agents) {
   game_cfg["objects"] = objects_cfg;
   game_cfg["agent"] = agent_cfg;
 
-  cfg["game"] = game_cfg;
-
-  return cfg;
+  return game_cfg;
 }
 
 py::list CreateDefaultMap(int num_agents_per_team = 2) {

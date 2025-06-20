@@ -15,9 +15,9 @@ def sample_logits_data():
     batch_size = 3
     vocab_size = 5
 
-    single_logits = torch.tensor([[1.0, 2.0, 0.5, -1.0, 0.0]])
+    single_logits = torch.tensor([[1.0, 2.0, 0.5, -1.0, 0.0]], dtype=torch.float32)
     batch_logits = torch.randn(batch_size, vocab_size)
-    deterministic_logits = torch.tensor([[-1000.0, 1000.0, -1000.0, -1000.0, -1000.0]])
+    deterministic_logits = torch.tensor([[-1000.0, 1000.0, -1000.0, -1000.0, -1000.0]], dtype=torch.float32)
 
     return {
         "single": single_logits,
@@ -93,7 +93,7 @@ class TestEvaluateActions:
 
     def test_provided_actions(self, sample_logits_data):
         logits = sample_logits_data["batch"]
-        actions = torch.tensor([0, 1, 2][: logits.shape[0]])
+        actions = torch.tensor([0, 1, 2][: logits.shape[0]], dtype=torch.long)
         logprob, _, norm = evaluate_actions(logits, actions)
         expected = norm.gather(-1, actions.unsqueeze(-1)).squeeze(-1)
         assert torch.allclose(logprob, expected)

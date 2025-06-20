@@ -19,6 +19,7 @@ from metta.util.s3_cache import S3CacheManager
 from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
+from mettagrid.mettagrid_config import GameConfig
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.dict_utils import unroll_nested_dict
@@ -153,25 +154,29 @@ class MettaGridEnv(PufferEnv, GymEnv):
             f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        # Convert to container for C++ code with explicit casting to Dict[str, Any]
-        config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
+        game_config_dict = OmegaConf.to_container(task.env_cfg().game)
+        # map_builder probably shouldn't be in the game config. For now we deal with this by removing it, so we can
+        # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
+        if "map_builder" in game_config_dict:
+            del game_config_dict["map_builder"]
+        if "diversity_bonus" in game_config_dict:
+            del game_config_dict["diversity_bonus"]
+        game_config = GameConfig(**game_config_dict)
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
         # Ideally vecenv would have a way to desync the episodes, but it doesn't.
         if self._num_episodes == 0 and task.env_cfg().desync_episodes:
-            max_steps = int(task.env_cfg().game.max_steps)
-            config_game = cast(Dict[str, Any], config_dict.get("game", {}))
-            config_game["max_steps"] = int(np.random.randint(1, max_steps + 1))
-            config_dict["game"] = config_game
-            logger.info(f"Desync episode with max_steps {config_game['max_steps']}")
+            max_steps = game_config.max_steps
+            game_config.max_steps = int(np.random.randint(1, max_steps + 1))
+            logger.info(f"Desync episode with max_steps {game_config.max_steps}")
 
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(config_dict, level.grid.tolist())
+            self._c_env = MettaGrid(game_config.model_dump(by_alias=True, exclude_unset=True), level.grid.tolist())
 
         self._grid_env = self._c_env
 
@@ -302,6 +307,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
                     "seed": str(self._current_seed),
                     "map_w": str(self.map_width),
                     "map_h": str(self.map_height),
+                    "initial_grid_hash": self.initial_grid_hash,
                 }
 
                 container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
@@ -476,5 +482,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.inventory_item_names()
 
     @property
-    def config(self) -> dict[str, Any]:
-        return cast(dict[str, Any], OmegaConf.to_container(self._task.env_cfg(), resolve=False))
+    def initial_grid_hash(self) -> int:
+        """Returns the hash of the initial grid configuration."""
+        return self._c_env.initial_grid_hash
