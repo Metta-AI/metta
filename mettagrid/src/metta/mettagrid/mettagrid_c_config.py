@@ -1,6 +1,9 @@
+import copy
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field, RootModel
+
+from mettagrid.mettagrid_config import GameConfig as MettaGridGameConfig
 
 
 class InventoryItemReward(BaseModel):
@@ -128,3 +131,48 @@ class GameConfig(BaseModel):
 
     class Config:
         extra = "forbid"
+
+
+def from_mettagrid_config(mettagrid_config: MettaGridGameConfig) -> GameConfig:
+    """Convert a mettagrid_config.GameConfig to a mettagrid_c_config.GameConfig."""
+
+    agent_rewards = AgentRewards(
+        inventory_item_rewards={
+            item: InventoryItemReward(reward=reward.reward, max_reward=reward.max_reward)
+            for item, reward in mettagrid_config.agent.rewards.inventory_item_rewards.items()
+        }
+    )
+
+    # these are the baseline settings for all agents
+    agent_default_config_dict = mettagrid_config.agent.model_dump(by_alias=True, exclude_unset=True)
+
+    # Group information is more specific than the defaults, so it should override
+    for group_name, group_config in mettagrid_config.groups.items():
+        group_config_dict = group_config.model_dump(by_alias=True, exclude_unset=True)
+        agent_group_config = copy.deepcopy(agent_default_config_dict)
+        # update, but in a nested way
+        for key, value in group_config_dict.get("props", {}).items():
+            if isinstance(value, dict):
+                # At the time of writing, this should only be the rewards field
+                agent_group_config[key] = value
+            else:
+                agent_group_config[key] = value
+        agent_group_config["group_id"] = group_config.id
+        agent_default_config_dict[group_name] = agent_group_config
+
+    agent_config = AgentConfig(**agent_default_config_dict)
+
+    return GameConfig(
+        num_agents=mettagrid_config.num_agents,
+        max_steps=mettagrid_config.max_steps,
+        obs_width=mettagrid_config.obs_width,
+        obs_height=mettagrid_config.obs_height,
+        num_observation_tokens=mettagrid_config.num_observation_tokens,
+        agent=AgentConfig(
+            default_item_max=mettagrid_config.agent.default_item_max,
+            freeze_duration=mettagrid_config.agent.freeze_duration,
+            inventory_size=mettagrid_config.agent.inventory_size,
+            rewards=mettagrid_config.agent.rewards,
+        ),
+        groups=mettagrid_config.groups,
+    )
