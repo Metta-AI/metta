@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 import torch
+from pufferlib.pytorch import sample_logits
 from torch import nn
 
 from metta.agent.policy_state import PolicyState
@@ -21,6 +22,9 @@ class PytorchPolicy(nn.Module):
     External policies should either:
     1. Inherit from this class and override the necessary methods
     2. Be wrapped by this class if they follow a different interface
+
+    This class also handles legacy policies that return (hidden, critic) tuples
+    by translating them to the expected MettaAgent interface.
     """
 
     def __init__(self, policy: Optional[nn.Module] = None):
@@ -29,6 +33,9 @@ class PytorchPolicy(nn.Module):
             # Wrapping an existing policy
             self.policy = policy
             self._wrapped = True
+            # For legacy policies, ensure we expose their hidden_size
+            if hasattr(policy, "hidden_size"):
+                self.hidden_size = policy.hidden_size
         else:
             # Subclass usage
             self._wrapped = False
@@ -94,14 +101,28 @@ class PytorchPolicy(nn.Module):
         if self._wrapped:
             # Handle wrapped policies with different interfaces
             if hasattr(self.policy, "forward"):
-                # Check if it's a policy that returns (action, logprob, entropy, value, logits)
-                # This handles the old PytorchAgent interface
+                # Get the raw output from the policy
                 result = self.policy(x, state, action)
-                if len(result) == 5:
+
+                # Check if it's a legacy policy that returns (hidden, critic)
+                if len(result) == 2 and result[0].dim() >= 2:
+                    # Legacy policy interface: (hidden, critic) -> (action, logprob, entropy, value, logits)
+                    hidden, critic = result
+
+                    # Use pufferlib's sample_logits to handle action sampling
+                    action_result, logprob, logits_entropy = sample_logits(hidden, action)
+
+                    # Return in MettaAgent format
+                    # hidden -> log_probs (the raw logits)
+                    # critic -> value
+                    return action_result, logprob, logits_entropy, critic, hidden
+
+                # Check if it's a policy that returns the full 5-tuple
+                elif len(result) == 5:
                     return result
 
-                # Handle policies that return (logits, value)
-                if len(result) == 2:
+                # Handle other policies that might return (logits, value)
+                elif len(result) == 2:
                     logits, value = result
                     if action is None:
                         # Inference mode

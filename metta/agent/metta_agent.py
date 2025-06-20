@@ -1,10 +1,12 @@
 import logging
+from types import SimpleNamespace
 from typing import Optional
 
 import gymnasium as gym
 import hydra
 import numpy as np
 import torch
+from hydra.utils import instantiate
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
@@ -13,6 +15,41 @@ from metta.agent.policy_state import PolicyState
 from mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
+
+
+def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
+    """Load a policy from a PyTorch checkpoint.
+
+    This function handles legacy policies and wraps them appropriately
+    for use with MettaAgent.
+    """
+    weights = torch.load(path, map_location=device, weights_only=True)
+
+    try:
+        num_actions, hidden_size = weights["policy.actor.0.weight"].shape
+        num_action_args, _ = weights["policy.actor.1.weight"].shape
+        _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
+    except Exception as e:
+        print(f"Failed automatic parse from weights: {e}")
+        # TODO -- fix all magic numbers
+        num_actions, num_action_args = 9, 10
+        _, obs_channels = 128, 34
+
+    # Create environment namespace
+    env = SimpleNamespace(
+        single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
+        single_observation_space=SimpleNamespace(shape=tuple(torch.tensor([obs_channels, 11, 11]).tolist())),
+    )
+
+    policy = instantiate(puffer, env=env, policy=None)
+    policy.load_state_dict(weights)
+
+    # Use PytorchPolicy from pytorch_policy.py to wrap the loaded policy
+    from metta.agent.pytorch_policy import PytorchPolicy
+
+    wrapped_policy = PytorchPolicy(policy)
+    wrapped_policy.hidden_size = hidden_size
+    return wrapped_policy.to(device)
 
 
 class MettaAgentBuilder:
@@ -47,8 +84,6 @@ class MettaAgentBuilder:
         This loads a policy using the load_policy function which handles
         legacy policies and wraps them appropriately.
         """
-        from metta.rl.policy import load_policy
-
         policy = load_policy(path, self._cfg.device, puffer=self._cfg.puffer)
         return MettaAgent(policy)
 

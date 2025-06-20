@@ -23,8 +23,7 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 
 from metta.agent.brain_policy import BrainPolicy
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
-from metta.rl.policy import load_policy
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, load_policy, make_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
