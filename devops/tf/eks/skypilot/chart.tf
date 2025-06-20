@@ -3,7 +3,7 @@ resource "random_password" "skypilot_password" {
   special = false
 }
 
-resource "kubernetes_secret" "skypilot_api_server_credentials" {
+resource "kubernetes_secret" "skypilot_auth" {
   metadata {
     name      = "skypilot-basic-auth" # default name in skypilot chart
     namespace = "skypilot"
@@ -74,7 +74,7 @@ resource "helm_release" "skypilot" {
 
     {
       name  = "ingress.authSecret"
-      value = kubernetes_secret.skypilot_api_server_credentials.metadata[0].name
+      value = kubernetes_secret.skypilot_auth.metadata[0].name
     }
   ]
 }
