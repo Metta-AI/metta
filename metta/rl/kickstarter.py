@@ -1,6 +1,7 @@
 from typing import List
 
 import torch
+from torch import Tensor, nn
 
 from metta.agent.policy_state import PolicyState
 
@@ -37,17 +38,17 @@ class Kickstarter:
                 }
             )
 
-        self.enabled = True
+        self.enabled: bool = True
         if self.teacher_cfgs is None:
             self.enabled = False
             return
 
-        self.compile = cfg.trainer.compile
-        self.compile_mode = cfg.trainer.compile_mode
+        self.compile: bool = cfg.trainer.compile
+        self.compile_mode: str = cfg.trainer.compile_mode
         self.policy_store = policy_store
-        self.kickstart_steps = cfg.trainer.kickstart.kickstart_steps
-        self.action_names = action_names
-        self.action_max_params = action_max_params
+        self.kickstart_steps: int = cfg.trainer.kickstart.kickstart_steps
+        self.action_names: list[str] = action_names
+        self.action_max_params: list[int] = action_max_params
         self.anneal_factor = 1.0
 
         if self.anneal_ratio > 0:
@@ -59,8 +60,8 @@ class Kickstarter:
 
         self._load_policies()
 
-    def _load_policies(self):
-        self.teachers = []
+    def _load_policies(self) -> None:
+        self.teachers: list[nn.Module] = []
         for teacher_cfg in self.teacher_cfgs:
             policy_record = self.policy_store.policy(teacher_cfg["teacher_uri"])
             policy = policy_record.policy()
@@ -71,9 +72,16 @@ class Kickstarter:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)
 
-    def loss(self, agent_step, student_normalized_logits, student_value, o, teacher_lstm_state: List[PolicyState]):
-        ks_value_loss = torch.tensor(0.0, device=self.device)
-        ks_action_loss = torch.tensor(0.0, device=self.device)
+    def loss(
+        self,
+        agent_step: int,
+        student_normalized_logits: Tensor,
+        student_value: Tensor,
+        o: Tensor,  # Observation tensor
+        teacher_lstm_state: List[PolicyState],
+    ) -> tuple[Tensor, Tensor]:
+        ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+        ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
         if not self.enabled or agent_step > self.kickstart_steps:
             return ks_action_loss, ks_value_loss
