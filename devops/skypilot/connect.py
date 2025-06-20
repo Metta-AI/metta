@@ -37,7 +37,7 @@ def main():
 
     for region in REGIONS:
         os.environ["AWS_REGION"] = region
-        instance = subprocess.check_output(
+        output = subprocess.check_output(
             [
                 "aws",
                 "ec2",
@@ -51,9 +51,14 @@ def main():
             ],
             text=True,
         )
-        if instance is None:
-            raise ValueError(f"Could not find EC2 instance for job {job_id}")
-        instance = instance.strip()
+        if output and not output.startswith("None"):
+            instance = output.strip()
+            break
+
+    print(f"Found EC2 instance: {instance}")
+
+    if not instance:
+        raise ValueError(f"Could not find EC2 instance for job {job_id}")
 
     print("Looking up skypilot job...")
     request_id = sky.jobs.queue(refresh=True, skip_finished=True, all_users=True)
