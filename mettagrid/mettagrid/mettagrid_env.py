@@ -122,7 +122,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
     @with_instance_timer("_initialize_c_env")
     def _initialize_c_env(self) -> None:
         """Initialize the C++ environment."""
-
         task = self._task
         level = self._level
         last_level = self._last_level_per_task.get(task.id(), None)
@@ -200,8 +199,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._replay_writer:
             self._replay_writer.start_episode(self._episode_id, self)
 
-        with self.timer("_c_env.reset"):
-            obs, infos = self._c_env.reset()
+        obs, infos = self._c_env.reset()
 
         self._should_reset = False
 
@@ -272,7 +270,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 f"task_timing/{self._task.short_name()}/init_time": init_time,
             }
         )
-        infos["rewards/raw"] = episode_rewards
 
         for label in self._map_labels + self.labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
