@@ -1,24 +1,13 @@
 from __future__ import annotations
 
-from pdb import set_trace as T
-
-import numpy as np
-from collections import defaultdict
 import logging
 import random
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
-import torch
+from typing import Dict, TYPE_CHECKING
 
-import pufferlib
+import numpy as np
 from gymnasium.spaces import Discrete
-
 from omegaconf import DictConfig
-from omegaconf.omegaconf import OmegaConf
 
-from metta.util.config import config_from_path
-
-from mettagrid.curriculum.curriculum import Task
 from mettagrid.curriculum.random import RandomCurriculum
 
 logger = logging.getLogger(__name__)
