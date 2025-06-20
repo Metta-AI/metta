@@ -22,6 +22,10 @@ jobs:
   claude-response:
     if: contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
+    outputs:
+      action: ${{ steps.check_action.outputs.action }}
+      review_types: ${{ steps.check_action.outputs.review_types }}
+      pr_number: ${{ github.event.issue.number }}
 
     steps:
       - name: Debug - Workflow Context
@@ -100,66 +104,21 @@ jobs:
           fi
           echo "=============================="
 
-      # Trigger review workflows
-      - name: Trigger Review
+      # Post acknowledgment for review requests
+      - name: Post Review Acknowledgment
         if: steps.check_action.outputs.action == 'review'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            try {
-              const pr = await github.rest.pulls.get({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.issue.number
-              });
+            const reviewTypes = '${{ steps.check_action.outputs.review_types }}'.split(',');
 
-              const prHeadRef = pr.data.head.ref;  // The PR's branch
-              const prBaseRef = pr.data.base.ref;  // What it's merging into
-              console.log(`PR #${context.issue.number}: ${prHeadRef} → ${prBaseRef}`);
-
-              const reviewTypes = '${{ steps.check_action.outputs.review_types }}'.split(',');
-
-              const reviewTypesDisplay = reviewTypes.map(t =>
-                t.charAt(0).toUpperCase() + t.slice(1)
-              ).join(', ');
-
-              // Post acknowledgment comment
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: `🔍 **Starting Claude review...**\n\nI'll analyze:\n${reviewTypes.map(t => `- ${t.charAt(0).toUpperCase() + t.slice(1)}`).join('\n')}\n\nThis may take a few minutes. You can check the progress in the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions).`
-              });
-
-              // Build inputs object based on requested reviews
-              const inputs = {
-                pr_number: context.issue.number.toString(),
-                run_readme: reviewTypes.includes('readme') ? 'true' : 'false',
-                run_comments: reviewTypes.includes('comments') ? 'true' : 'false',
-                run_types: reviewTypes.includes('types') ? 'true' : 'false',
-                run_einops: reviewTypes.includes('einops') ? 'true' : 'false'
-              };
-
-              // Trigger the orchestrator workflow
-              const result = await github.rest.actions.createWorkflowDispatch({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                workflow_id: 'claude-review-orchestrator.yml',
-                ref: prHeadRef,
-                inputs: inputs
-              });
-
-              console.log(`✅ Triggered review for: ${reviewTypesDisplay} on branch: ${prHeadRef}`);
-            } catch (error) {
-              console.error('Error triggering workflow:', error);
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: `❌ **Failed to trigger review**\n\nError: ${error.message}\n\nPlease check that the workflow file exists and you have the necessary permissions.`
-              });
-            }
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🔍 **Starting Claude review...**\n\nI'll analyze:\n${reviewTypes.map(t => `- ${t.charAt(0).toUpperCase() + t.slice(1)}`).join('\n')}\n\nThis may take a few minutes. You can check the progress in the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions).`
+            });
 
       # Only checkout and run Claude if not a review action
       - name: Checkout repository
@@ -271,6 +230,70 @@ jobs:
           echo "✅ Created branch: $(git branch --show-current)"
           echo "✅ Ready for Claude to make changes"
 
+
+      - name: Prepare MCP Configuration
+        if: steps.check_action.outputs.action == 'create_pr'
+        id: mcp_config
+        run: |
+          echo "=== PREPARING MCP CONFIGURATION ==="
+
+          # Debug available paths
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "GITHUB_ACTION_PATH: ${GITHUB_ACTION_PATH:-'NOT SET'}"
+          echo "Current directory: $(pwd)"
+
+          # Find the claude-code-action path
+          CLAUDE_ACTION_PATH="/home/runner/work/_actions/anthropics/claude-code-action/beta"
+          if [ -d "$CLAUDE_ACTION_PATH" ]; then
+            echo "✅ Found Claude action at: $CLAUDE_ACTION_PATH"
+          else
+            echo "⚠️ Claude action not found at expected path, checking alternatives..."
+            find /home/runner/work/_actions -name "github-file-ops-server.ts" -type f 2>/dev/null || true
+          fi
+
+          # Construct the MCP config
+          MCP_CONFIG=$(cat <<EOF
+          {
+            "mcpServers": {
+              "github_file_ops": {
+                "command": "bun",
+                "args": [
+                  "run",
+                  "${CLAUDE_ACTION_PATH}/src/mcp/github-file-ops-server.ts"
+                ],
+                "env": {
+                  "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+                  "REPO_OWNER": "${{ github.repository_owner }}",
+                  "REPO_NAME": "${{ github.event.repository.name }}",
+                  "BRANCH_NAME": "${{ steps.branches.outputs.new_branch }}",
+                  "REPO_DIR": "${{ github.workspace }}",
+                  "CLAUDE_COMMENT_ID": "${{ github.event.comment.id }}",
+                  "GITHUB_EVENT_NAME": "workflow_dispatch",
+                  "IS_PR": "false",
+                  "GITHUB_API_URL": "${{ github.api_url }}",
+                  "DEBUG": "github-file-ops:*"
+                }
+              }
+            }
+          }
+          EOF
+          )
+
+          # Log the config for debugging
+          echo "=== MCP CONFIGURATION ==="
+          echo "$MCP_CONFIG" | jq '.' || echo "$MCP_CONFIG"
+          echo "========================="
+
+          # Validate critical values
+          echo "=== VALIDATING CONFIG ==="
+          echo "Branch name: ${{ steps.branches.outputs.new_branch }}"
+          echo "Repo: ${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          echo "Comment ID: ${{ github.event.comment.id }}"
+
+          # Save config as output (need to escape newlines)
+          MCP_CONFIG_ESCAPED=$(echo "$MCP_CONFIG" | jq -c '.')
+          echo "config=$MCP_CONFIG_ESCAPED" >> $GITHUB_OUTPUT
+
       # Claude PR creation with MCP tools instead of bash
       - name: Claude PR Creation
         if: steps.check_action.outputs.action == 'create_pr'
@@ -281,6 +304,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           model: ${{ env.CLAUDE_MODEL }}
           timeout_minutes: 45
+          mcp_config: ${{ steps.mcp_config.outputs.config }}
           direct_prompt: |
             You are working on branch: ${{ steps.branches.outputs.new_branch }}
 
@@ -569,3 +593,16 @@ jobs:
           echo "Claude outcome: ${{ steps.claude_pr.outcome }}"
           echo "Workflow status: ${{ job.status }}"
           echo "=============================="
+
+  # Call the orchestrator workflow as a job when review is requested
+  run-orchestrator:
+    needs: claude-response
+    if: needs.claude-response.outputs.action == 'review'
+    uses: ./.github/workflows/claude-review-orchestrator.yml
+    secrets: inherit
+    with:
+      pr_number: ${{ needs.claude-response.outputs.pr_number }}
+      run_readme: ${{ contains(needs.claude-response.outputs.review_types, 'readme') }}
+      run_comments: ${{ contains(needs.claude-response.outputs.review_types, 'comments') }}
+      run_types: ${{ contains(needs.claude-response.outputs.review_types, 'types') }}
+      run_einops: ${{ contains(needs.claude-response.outputs.review_types, 'einops') }}

@@ -199,3 +199,54 @@ export function localStorageGetObject<T>(key: string, defaultValue: T): T {
 export function localStorageSetObject<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value))
 }
+
+export function initHighDpiMode() {
+  if (typeof window === 'undefined' || !window.document || window.devicePixelRatio <= 1) {
+    return
+  }
+
+  function swapToHighDpiImage(img: HTMLImageElement) {
+    let src = img.src
+    if (
+      !src.endsWith('@2x.png') &&
+      src.endsWith('.png') &&
+      src.includes('data/ui/')
+    ) {
+      src = src.replace(/\.png$/, '@2x.png')
+      img.src = src
+    }
+  }
+
+  console.info('initHighDpiMode: All images will serve @2x.png versions.')
+
+  document.querySelectorAll('img').forEach((img) => swapToHighDpiImage(img as HTMLImageElement))
+
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (
+        mutation.type === 'attributes' &&
+        mutation.attributeName === 'src' &&
+        mutation.target instanceof HTMLImageElement
+      ) {
+        swapToHighDpiImage(mutation.target)
+      } else if (mutation.type === 'childList') {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof HTMLImageElement) {
+            swapToHighDpiImage(node)
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+            ; (node as HTMLElement)
+              .querySelectorAll('img')
+              .forEach((img) => swapToHighDpiImage(img as HTMLImageElement))
+          }
+        }
+      }
+    }
+  })
+
+  observer.observe(document.body, {
+    attributes: true,
+    childList: true,
+    subtree: true,
+    attributeFilter: ['src'],
+  })
+}
