@@ -37,6 +37,11 @@ class SystemMonitor:
         self.sampling_interval_sec = sampling_interval_sec
         self.history_size = history_size
 
+        # Initialize process object for CPU tracking
+        self._process = psutil.Process(os.getpid())
+        # Call cpu_percent once to initialize the baseline
+        self._process.cpu_percent()
+
         # Thread control
         self._thread: Optional[Thread] = None
         self._stop_flag = False
@@ -69,7 +74,7 @@ class SystemMonitor:
             "memory_total_mb": lambda: psutil.virtual_memory().total / (1024 * 1024),
             # Process-specific metrics
             "process_memory_mb": self._get_process_memory_mb,
-            "process_cpu_percent": self._get_process_cpu_percent,
+            "process_cpu_percent": lambda: self._process.cpu_percent(),
             "process_threads": self._get_process_threads,
         }
 
@@ -98,15 +103,29 @@ class SystemMonitor:
         if torch.cuda.is_available():
             self._has_gpu = True
             self._gpu_backend = "cuda"
+            gpu_count = torch.cuda.device_count()
+
+            # Add aggregate metrics (rename to make it clear they're aggregates)
             self._metric_collectors.update(
                 {
-                    "gpu_count": lambda: torch.cuda.device_count(),
-                    "gpu_utilization": self._get_gpu_utilization_cuda,
-                    "gpu_memory_percent": self._get_gpu_memory_percent_cuda,
-                    "gpu_memory_used_mb": self._get_gpu_memory_used_mb_cuda,
+                    "gpu_count": lambda: gpu_count,
+                    "gpu_utilization_avg": self._get_gpu_utilization_cuda,
+                    "gpu_memory_percent_avg": self._get_gpu_memory_percent_cuda,
+                    "gpu_memory_used_mb_total": self._get_gpu_memory_used_mb_cuda,
                 }
             )
-            self.logger.info(f"GPU monitoring enabled via CUDA ({torch.cuda.device_count()} devices)")
+
+            # Add per-GPU metrics
+            for i in range(gpu_count):
+                self._metric_collectors.update(
+                    {
+                        f"gpu{i}_utilization": lambda idx=i: self._get_single_gpu_utilization(idx),
+                        f"gpu{i}_memory_percent": lambda idx=i: self._get_single_gpu_memory_percent(idx),
+                        f"gpu{i}_memory_used_mb": lambda idx=i: self._get_single_gpu_memory_used_mb(idx),
+                    }
+                )
+
+            self.logger.info(f"GPU monitoring enabled via CUDA ({gpu_count} devices)")
 
         # Try PyTorch MPS (Apple Silicon)
         elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
@@ -177,14 +196,6 @@ class SystemMonitor:
         try:
             process = psutil.Process(os.getpid())
             return process.memory_info().rss / (1024 * 1024)
-        except Exception:
-            return 0.0
-
-    def _get_process_cpu_percent(self) -> float:
-        """Get current process CPU usage percent."""
-        try:
-            process = psutil.Process(os.getpid())
-            return process.cpu_percent()
         except Exception:
             return 0.0
 
@@ -273,6 +284,32 @@ class SystemMonitor:
             return 0.0
         except Exception as e:
             self.logger.warning(f"Unexpected error in GPU memory used: {type(e).__name__}: {e}")
+            return 0.0
+
+    def _get_single_gpu_utilization(self, gpu_idx: int) -> float:
+        """Get utilization for a specific GPU."""
+        try:
+            return torch.cuda.utilization(gpu_idx)
+        except Exception as e:
+            self.logger.debug(f"Failed to get utilization for GPU {gpu_idx}: {e}")
+            return 0.0
+
+    def _get_single_gpu_memory_percent(self, gpu_idx: int) -> float:
+        """Get memory usage percent for a specific GPU."""
+        try:
+            free, total = torch.cuda.mem_get_info(gpu_idx)
+            return (total - free) / total * 100
+        except Exception as e:
+            self.logger.debug(f"Failed to get memory percent for GPU {gpu_idx}: {e}")
+            return 0.0
+
+    def _get_single_gpu_memory_used_mb(self, gpu_idx: int) -> float:
+        """Get memory used in MB for a specific GPU."""
+        try:
+            free, total = torch.cuda.mem_get_info(gpu_idx)
+            return (total - free) / (1024 * 1024)
+        except Exception as e:
+            self.logger.debug(f"Failed to get memory used for GPU {gpu_idx}: {e}")
             return 0.0
 
     def _collect_sample(self):
@@ -449,5 +486,8 @@ class SystemMonitor:
         summary = self.get_summary()
         for metric_name, metric_data in summary["metrics"].items():
             if metric_data["latest"] is not None:
+                # Special handling for temperature - skip if it's None
+                if metric_name == "cpu_temperature" and metric_data["latest"] is None:
+                    continue
                 stats[f"monitor/{metric_name}"] = metric_data["latest"]
         return stats

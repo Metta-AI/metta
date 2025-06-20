@@ -26,11 +26,16 @@ class FakeProcess:
         self._memory_rss = memory_rss
         self._cpu_percent = cpu_percent
         self._num_threads = num_threads
+        self._first_call = True
 
     def memory_info(self):
         return type("MemInfo", (), {"rss": self._memory_rss})()
 
     def cpu_percent(self, interval=None):
+        # Simulate the behavior where first call might return 0
+        if self._first_call and interval is None:
+            self._first_call = False
+            return 0.0
         return self._cpu_percent
 
     def num_threads(self):
@@ -83,7 +88,10 @@ def mock_psutil(monkeypatch):
         return mock_data["memory"]
 
     def mock_process(pid=None):
-        return mock_data["process"]
+        # Return the same instance to simulate persistent process object
+        if not hasattr(mock_process, "_instance"):
+            mock_process._instance = mock_data["process"]
+        return mock_process._instance
 
     def mock_sensors_temperatures():
         return mock_data["temperatures"]
@@ -181,6 +189,21 @@ class TestMetricCollection:
         assert latest["cpu_count_logical"] == 8
         assert latest["cpu_count_physical"] == 4
 
+    def test_process_cpu_initialization(self, mock_psutil):
+        """Test that process CPU is properly initialized"""
+        # Create monitor which should initialize process CPU
+        monitor = SystemMonitor(auto_start=False)
+
+        # First collection might be 0 due to initialization
+        monitor._collect_sample()
+
+        # Second collection should have real value
+        monitor._collect_sample()
+        latest = monitor.get_latest()
+
+        # Should have non-zero CPU after initialization
+        assert latest["process_cpu_percent"] == 25.0
+
     def test_memory_metrics(self, monitor, mock_psutil):
         """Test memory metric collection"""
         monitor._collect_sample()
@@ -229,10 +252,42 @@ class TestMetricCollection:
         monitor._collect_sample()
 
         latest = monitor.get_latest()
+
+        # Test aggregate metrics with new names
         assert latest["gpu_count"] == 2
-        assert latest["gpu_utilization"] == 50.0  # Average of 60 and 40
-        assert latest["gpu_memory_percent"] == 68.75  # Average of 75% and 62.5%
-        assert latest["gpu_memory_used_mb"] == 11264.0  # Total used across GPUs
+        assert latest["gpu_utilization_avg"] == 50.0  # Average of 60 and 40
+        assert latest["gpu_memory_percent_avg"] == 68.75  # Average of 75% and 62.5%
+        assert latest["gpu_memory_used_mb_total"] == 11264.0  # Total used across GPUs
+
+        # Test per-GPU metrics
+        assert latest["gpu0_utilization"] == 60.0
+        assert latest["gpu0_memory_percent"] == 75.0
+        assert latest["gpu0_memory_used_mb"] == 6144.0
+
+        assert latest["gpu1_utilization"] == 40.0
+        assert latest["gpu1_memory_percent"] == 62.5
+        assert latest["gpu1_memory_used_mb"] == 5120.0
+
+    @pytest.mark.skipif(not HAS_CUDA, reason="CUDA not available")
+    def test_per_gpu_metrics(self, monitor, mock_psutil, mock_torch_cuda):
+        """Test per-GPU metric collection"""
+        # Reinitialize to pick up GPU metrics
+        monitor._initialize_default_metrics()
+
+        # Verify all per-GPU metrics are registered
+        metrics = monitor.get_available_metrics()
+        for i in range(2):  # mock has 2 GPUs
+            assert f"gpu{i}_utilization" in metrics
+            assert f"gpu{i}_memory_percent" in metrics
+            assert f"gpu{i}_memory_used_mb" in metrics
+
+        # Collect samples
+        monitor._collect_sample()
+        latest = monitor.get_latest()
+
+        # Verify values match mock data
+        assert latest["gpu0_utilization"] == 60.0
+        assert latest["gpu1_utilization"] == 40.0
 
 
 # Tests for monitoring control
@@ -435,7 +490,7 @@ class TestErrorHandling:
 
         # Should handle error gracefully
         latest = monitor.get_latest()
-        assert latest["gpu_utilization"] == 0.0
+        assert latest["gpu_utilization_avg"] == 0.0
 
 
 # Integration tests
@@ -517,10 +572,13 @@ class TestPlatformSpecific:
         # GPU metrics should not be available
         metrics = monitor.get_available_metrics()
         assert "gpu_count" not in metrics
-        assert "gpu_utilization" not in metrics
-        assert "gpu_memory_percent" not in metrics
-        assert "gpu_memory_used_mb" not in metrics
+        assert "gpu_utilization_avg" not in metrics
+        assert "gpu_memory_percent_avg" not in metrics
+        assert "gpu_memory_used_mb_total" not in metrics
         assert "gpu_available" not in metrics
+        # Also check per-GPU metrics aren't created
+        assert not any(metric.startswith("gpu0_") for metric in metrics)
+        assert not any(metric.startswith("gpu1_") for metric in metrics)
 
 
 class TestRealSystemMonitoring:
