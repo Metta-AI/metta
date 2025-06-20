@@ -76,7 +76,7 @@ class Kickstarter:
         student_normalized_logits: Tensor,
         student_value: Tensor,
         o: Tensor,  # Observation tensor
-        teacher_policy_state: list[PolicyState],
+        teacher_lstm_state: List[PolicyState],
     ) -> tuple[Tensor, Tensor]:
         ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
