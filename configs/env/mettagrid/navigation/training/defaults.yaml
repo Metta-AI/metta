@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/mettagrid_deterministic@
   - _self_
 
 game:
@@ -12,6 +12,7 @@ game:
     room:
       agents: 1
       border_width: 2
+      dir: ???
   objects:
     altar:
       cooldown: 1000
