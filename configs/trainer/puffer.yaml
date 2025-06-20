@@ -74,7 +74,7 @@ async_factor: 2
 kickstart:
   teacher_uri: null
   action_loss_coef: 0.3
-  value_loss_coef: 0.9
+  value_loss_coef: 0.4
   anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
   kickstart_steps: 1_000_000_000
   additional_teachers:
