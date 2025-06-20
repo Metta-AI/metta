@@ -192,10 +192,6 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
 
-      - name: Install smoke test dependencies
-        run: |
-          uv pip install -r .github/scripts/requirements-smoke-test.txt
-
       - name: Training smoke test
         id: train
         env:
@@ -204,7 +200,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           mkdir -p train_dir
-          python3 .github/scripts/train_smoke_test.py
+          uv run .github/scripts/train_smoke_test.py
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
@@ -221,7 +217,7 @@ jobs:
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
-          python3 .github/scripts/replay_smoke_test.py
+          uv run .github/scripts/replay_smoke_test.py
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
@@ -237,7 +233,7 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
         run: |
-          python .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
+          uv run .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
 
       - name: Run evals smoke test
         id: eval_smoke_test
@@ -250,7 +246,7 @@ jobs:
           MIN_REWARD: ${{ vars.EVAL_SMOKE_TEST_MIN_REWARD }}
           MAX_ATTEMPTS: ${{ vars.EVAL_SMOKE_TEST_MAX_ATTEMPTS }}
         run: |
-          python3 .github/scripts/eval_smoke_test.py
+          uv run .github/scripts/eval_smoke_test.py
 
       - name: Save evals benchmark
         if: steps.eval_smoke_test.conclusion == 'success'

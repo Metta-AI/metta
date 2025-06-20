@@ -1,7 +1,12 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "psutil>=6.0.0",
+# ]
+# ///
 """
 Benchmarking utilities for GitHub Actions workflows.
-
 Provides memory and time monitoring for subprocess execution.
 """
 

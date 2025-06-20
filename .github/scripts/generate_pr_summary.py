@@ -1,4 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "google-generativeai>=0.3.0",
+#   "requests>=2.31.0",
+# ]
+# ///
 
 import json
 import logging

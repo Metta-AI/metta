@@ -1,11 +1,14 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "PyGithub>=2.1.1",
+#   "requests>=2.31.0",
+# ]
+# ///
 """
-Consolidate multiple Claude review artifacts and create a unified GitHub review.
-
-This script:
-1. Downloads artifacts from individual Claude review runs
-2. Consolidates them into a unified review structure
-3. Creates a GitHub PR review with all suggestions as inline comments
+Benchmarking utilities for GitHub Actions workflows.
+Provides memory and time monitoring for subprocess execution.
 """
 
 import json

@@ -1,7 +1,12 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "wandb>=0.20.1",
+# ]
+# ///
 """
 Validate that a W&B run exists for a given policy name.
-
 Exit codes:
   0 - Run found
   1 - Run not found or error

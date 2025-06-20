@@ -18,108 +18,18 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Install jq
-      shell: bash
-      run: |
-        if ! command -v jq &> /dev/null; then
-          echo "Installing jq for JSON parsing..."
-          if [ -x "$(command -v apt-get)" ]; then
-            sudo apt-get update && sudo apt-get install -y jq
-          elif [ -x "$(command -v brew)" ]; then
-            brew install jq
-          else
-            echo "Could not install jq. Using fallback method."
-          fi
-        fi
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
 
     - name: Save benchmark data
       shell: bash
+      env:
+        BENCHMARK_NAME: ${{ inputs.name }}
+        BENCHMARK_METRICS: ${{ inputs.metrics }}
+        BENCHMARK_FILENAME: ${{ inputs.filename }}
+        BENCHMARK_GROUP: ${{ inputs.group }}
       run: |
-        echo "Saving benchmark data for: ${{ inputs.name }}"
-        echo "Metrics: ${{ inputs.metrics }}"
-        # Parse metrics as JSON
-        METRICS='${{ inputs.metrics }}'
-        # Function to create the benchmark results file
-        create_benchmark_file() {
-          local name="${1}"
-          local metrics="${2}"
-          local filename="${3}"
-          local group="${4:-default}"
-          
-          # Extract values from metrics JSON using jq if available
-          local duration
-          if command -v jq &> /dev/null; then
-            duration=$(echo "${metrics}" | jq -r '.duration // 0')
-          else
-            # Fallback to grep method
-            duration=$(echo "${metrics}" | grep -o '"duration":[^,}]*' | cut -d':' -f2)
-          fi
-          
-          # Create benchmark file in pytest format
-          cat > "${filename}" << EOF
-        {
-          "machine_info": {
-            "node": "$(hostname)",
-            "processor": "GitHub Actions Runner",
-            "machine": "GitHub Actions Runner",
-            "python_implementation": "$(python -c 'import platform; print(platform.python_implementation())')",
-            "python_version": "$(python -c 'import platform; print(platform.python_version())')",
-            "python_compiler": "$(python -c 'import platform; print(platform.python_compiler())')"
-          },
-          "commit_info": {
-            "id": "${GITHUB_SHA}",
-            "time": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-            "author_time": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-            "dirty": false,
-            "project": "mettagrid",
-            "branch": "${GITHUB_REF_NAME}"
-          },
-          "benchmarks": [
-            {
-              "name": "${name}",
-              "fullname": "${name}",
-              "group": "${group}",
-              "params": {
-                "hardware": "github"
-              },
-              "stats": {
-                "min": ${duration},
-                "max": ${duration},
-                "mean": ${duration},
-                "stddev": 0,
-                "rounds": 1,
-                "median": ${duration},
-                "iqr": 0,
-                "q1": ${duration},
-                "q3": ${duration},
-                "iqr_outliers": 0,
-                "stddev_outliers": 0,
-                "outliers": "0;0",
-                "ld15iqr": ${duration},
-                "hd15iqr": ${duration},
-                "ops": null,
-                "total": ${duration},
-                "iterations": 1
-              }
-            }
-          ]
-        }
-        EOF
-
-        echo "Benchmark results written to: ${filename}"
-
-        # Debug: Print file contents
-        echo "DEBUG: Contents of ${filename}:"
-        cat "${filename}"
-
-        # Validate the JSON file
-        if command -v jq &> /dev/null; then
-          if jq . "${filename}" > /dev/null 2>&1; then
-            echo "DEBUG: File contains valid JSON"
-          else
-            echo "WARNING: File contains invalid JSON"
-          fi
-        fi
-        }
-        # Call the function to create the benchmark file
-        create_benchmark_file "${{ inputs.name }}" "${METRICS}" "${{ inputs.filename }}" "${{ inputs.group }}"
+        uv run ${{ github.action_path }}/save_benchmarks.py
