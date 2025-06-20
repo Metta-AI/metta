@@ -1,6 +1,6 @@
 diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 --- sky/provision/docker_utils.py	2025-06-02 23:54:17
-+++ sky-patched/provision/docker_utils.py	2025-06-20 02:40:00
++++ sky-patched/provision/docker_utils.py	2025-06-20 03:05:40
 @@ -51,0 +52,15 @@
 +        server = d[constants.DOCKER_SERVER_ENV_VAR]
 +        if server.endswith(".amazonaws.com"):
@@ -10,7 +10,7 @@ diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 +
 +            hostname = socket.getfqdn()
 +            hostname_parts = hostname.split(".")
-+            if hostname_parts[-2] == "compute" and hostname_parts[-1] == "internal":
++            if len(hostname_parts) >= 3 and hostname_parts[-2] == "compute" and hostname_parts[-1] == "internal":
 +                # looks like AWS
 +                region = hostname_parts[-3]
 +                server = re.sub(
