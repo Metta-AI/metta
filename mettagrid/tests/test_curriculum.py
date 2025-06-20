@@ -36,7 +36,7 @@ def test_single_task_curriculum(env_cfg):
 
 def test_random_curriculum_selects_task(monkeypatch, env_cfg):
     monkeypatch.setattr(random, "choices", lambda population, weights: ["b"])
-    monkeypatch.setattr("mettagrid.curriculum.curriculum_from_config_path", fake_curriculum_from_config_path)
+    monkeypatch.setattr("mettagrid.curriculum.random.curriculum_from_config_path", fake_curriculum_from_config_path)
 
     curr = RandomCurriculum({"a": 1.0, "b": 1.0}, OmegaConf.create({}))
     task = curr.get_task()
@@ -45,7 +45,7 @@ def test_random_curriculum_selects_task(monkeypatch, env_cfg):
 
 
 def test_low_reward_curriculum_updates(monkeypatch, env_cfg):
-    monkeypatch.setattr("mettagrid.curriculum.multi_task.curriculum_from_config_path", fake_curriculum_from_config_path)
+    monkeypatch.setattr("mettagrid.curriculum.random.curriculum_from_config_path", fake_curriculum_from_config_path)
     curr = LowRewardCurriculum({"a": 1.0, "b": 1.0}, OmegaConf.create({}))
 
     curr.complete_task("a", 0.1)
