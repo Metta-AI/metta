@@ -255,7 +255,7 @@ class MettaTrainer:
             steps_calculated = self.agent_step - steps_before
 
             total_time = train_time + rollout_time + stats_time
-            steps_per_sec = steps_calculated / total_time
+            steps_per_sec = steps_calculated * self._world_size / total_time
 
             train_pct = (train_time / total_time) * 100
             rollout_pct = (rollout_time / total_time) * 100
@@ -378,7 +378,7 @@ class MettaTrainer:
             # Convert mask to tensor once
             mask = torch.as_tensor(mask)
             num_steps = int(mask.sum().item())
-            self.agent_step += num_steps * self._world_size
+            self.agent_step += num_steps
 
             # Convert to tensors once
             o = torch.as_tensor(o).to(device, non_blocking=True)
@@ -695,7 +695,7 @@ class MettaTrainer:
             os.path.join(self.trainer_cfg.checkpoint_dir, name),
             self.uncompiled_policy,
             metadata={
-                "agent_step": self.agent_step,
+                "agent_step": self.agent_step * self._world_size,
                 "epoch": self.epoch,
                 "run": self.cfg.run,
                 "action_names": metta_grid_env.action_names,
@@ -788,7 +788,7 @@ class MettaTrainer:
         lap_times = self.timer.lap_all(self.agent_step, exclude_global=False)
         wall_time_for_lap = lap_times.pop("global", 0)
 
-        # Approximate total values by multiplying by world size
+        # Calculate total steps across all GPUs by multiplying local steps by world size
         total_agent_steps = self.agent_step * self._world_size
 
         # X-axis values for wandb
@@ -802,8 +802,9 @@ class MettaTrainer:
         epoch_steps = self.timer.get_lap_steps()
         if epoch_steps is None:
             epoch_steps = self.agent_step
-        epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
-        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+        # These rates show total steps/sec across all GPUs
+        epoch_steps_per_second = epoch_steps * self._world_size / wall_time_for_lap if wall_time_for_lap > 0 else 0
+        steps_per_second = self.timer.get_rate(self.agent_step) * self._world_size if wall_time > 0 else 0
 
         timing_stats = {
             **{
@@ -855,7 +856,7 @@ class MettaTrainer:
 
         parameters = {
             "learning_rate": self.optimizer.param_groups[0]["lr"],
-            "epoch_steps": epoch_steps,
+            "epoch_steps": epoch_steps * self._world_size,
             "num_minibatches": self.experience.num_minibatches,
         }
 
@@ -1072,7 +1073,9 @@ class AbortingTrainer(MettaTrainer):
             return
 
         logger.info("Abort tag detected. Stopping the run.")
-        self.trainer_cfg.total_timesteps = int(self.agent_step)
+        # Calculate total steps across all GPUs
+        total_steps = self.agent_step * self._world_size if torch.distributed.is_initialized() else self.agent_step
+        self.trainer_cfg.total_timesteps = int(total_steps)
         self.wandb_run.config.update(
             {"trainer.total_timesteps": self.trainer_cfg.total_timesteps}, allow_val_change=True
         )
