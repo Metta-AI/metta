@@ -23,7 +23,7 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
-from metta.rl.pufferlib.policy import PufferAgent, load_policy
+from metta.rl.policy import PytorchAgent, load_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
@@ -54,10 +54,10 @@ class PolicyRecord:
             self._local_path = pr.local_path()
         return self._policy
 
-    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent, PufferAgent]:
+    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent, PytorchAgent]:
         """Get the policy as a MettaAgent or DistributedMettaAgent."""
         policy = self.policy()
-        if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PufferAgent)):
+        if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PytorchAgent)):
             raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
         return policy
 
@@ -248,8 +248,8 @@ class PolicyStore:
                 prs = self._prs_from_wandb_artifact(wandb_uri, version)
         elif uri.startswith("file://"):
             prs = self._prs_from_path(uri[len("file://") :])
-        elif uri.startswith("puffer://"):
-            prs = self._prs_from_puffer(uri[len("puffer://") :])
+        elif uri.startswith("pytorch://"):
+            prs = self._prs_from_pytorch(uri[len("pytorch://") :])
         else:
             prs = self._prs_from_path(uri)
 
@@ -402,6 +402,16 @@ class PolicyStore:
         return [self._load_from_file(path, metadata_only=True) for path in paths]
 
     def _prs_from_wandb_artifact(self, uri: str, version: Optional[str] = None) -> List[PolicyRecord]:
+        # Check if wandb is disabled before proceeding
+        if (
+            not hasattr(self._cfg, "wandb")
+            or not hasattr(self._cfg.wandb, "entity")
+            or not hasattr(self._cfg.wandb, "project")
+        ):
+            raise ValueError(
+                f"Cannot load wandb artifact '{uri}' when wandb is disabled (wandb=off). "
+                "Either enable wandb or use a local policy URI (file://) instead."
+            )
         entity, project, artifact_type, name = uri.split("/")
         path = f"{entity}/{project}/{name}"
         if not wandb.Api().artifact_collection_exists(type=artifact_type, name=path):
@@ -428,16 +438,16 @@ class PolicyStore:
             f"{self._cfg.wandb.entity}/{self._cfg.wandb.project}/model/{run_id}", version
         )
 
-    def _prs_from_puffer(self, path: str) -> List[PolicyRecord]:
-        return [self._load_from_puffer(path)]
+    def _prs_from_pytorch(self, path: str) -> List[PolicyRecord]:
+        return [self._load_from_pytorch(path)]
 
     def load_from_uri(self, uri: str) -> PolicyRecord:
         if uri.startswith("wandb://"):
             return self._load_wandb_artifact(uri[len("wandb://") :])
         if uri.startswith("file://"):
             return self._load_from_file(uri[len("file://") :])
-        if uri.startswith("puffer://"):
-            return self._load_from_puffer(uri[len("puffer://") :])
+        if uri.startswith("pytorch://"):
+            return self._load_from_pytorch(uri[len("pytorch://") :])
         if "://" not in uri:
             return self._load_from_file(uri)
 
@@ -447,17 +457,16 @@ class PolicyStore:
         """
         torch.load expects the codebase to be in the same structure as when the model was saved.
 
-        We can use this function to alias old layout structures. For now we are just supporting moving
-        agent --> metta.agent
+        We can use this function to alias old layout structures. For now we are supporting:
+        - agent --> metta.agent
         """
         # Memoize
         if getattr(self, "_made_codebase_backwards_compatible", False):
             return
         self._made_codebase_backwards_compatible = True
 
-        # Start with the base module
+        # Handle agent --> metta.agent
         sys.modules["agent"] = sys.modules["metta.agent"]
-
         modules_queue = collections.deque(["metta.agent"])
 
         processed = set()
@@ -490,13 +499,13 @@ class PolicyStore:
                 if submodule_name in sys.modules:
                     modules_queue.append(submodule_name)
 
-    def _load_from_puffer(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+    def _load_from_pytorch(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         policy = load_policy(path, self._device, puffer=self._cfg.puffer)
         name = os.path.basename(path)
         pr = PolicyRecord(
             self,
             name,
-            "puffer://" + name,
+            "pytorch://" + name,
             {
                 "action_names": [],
                 "agent_step": 0,

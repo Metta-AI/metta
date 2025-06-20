@@ -17,12 +17,14 @@ from typing import Any, Dict, List
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.util.config import Config
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
+from metta.util.stats_client_cfg import get_stats_client
 
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
@@ -65,6 +67,8 @@ def simulate_policy(
     metric = sim_job.simulation_suite.name + "_score"
     policy_prs = policy_store.policies(policy_uri, sim_job.selector_type, n=1, metric=metric)
 
+    stats_client: StatsClient | None = get_stats_client(cfg, logger)
+
     # For each checkpoint of the policy, simulate
     for pr in policy_prs:
         logger.info(f"Evaluating policy {pr.uri}")
@@ -77,6 +81,7 @@ def simulate_policy(
             stats_dir=sim_job.stats_dir,
             device=cfg.device,
             vectorization=cfg.vectorization,
+            stats_client=stats_client,
         )
         sim_results = sim.simulate()
 

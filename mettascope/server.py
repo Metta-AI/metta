@@ -7,7 +7,7 @@ import numpy as np
 import torch as th
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
@@ -89,6 +89,11 @@ def make_app(cfg: DictConfig):
     app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
     app.mount("/dist", StaticFiles(directory="mettascope/dist"), name="dist")
     app.mount("/local", StaticFiles(directory="mettascope/local"), name="local")
+
+    # Direct favicon.ico to the data/ui dir.
+    @app.get("/favicon.ico")
+    async def get_favicon():
+        return FileResponse("mettascope/data/ui/logo@2x.png")
 
     @app.websocket("/ws")
     async def websocket_endpoint(

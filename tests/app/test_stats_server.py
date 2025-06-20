@@ -1,10 +1,14 @@
+import uuid
+from typing import List
+
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from testcontainers.postgres import PostgresContainer
 
-from metta.app.metta_repo import MettaRepo
-from metta.app.server import create_app
-from metta.app.stats_client import StatsClient
+from app_backend.metta_repo import MettaRepo
+from app_backend.server import create_app
+from app_backend.stats_client import StatsClient
 
 
 class TestStatsServerSimple:
@@ -13,49 +17,51 @@ class TestStatsServerSimple:
     @pytest.fixture(scope="class")
     def postgres_container(self):
         """Create a PostgreSQL container for testing."""
-        container = PostgresContainer(
-            image="postgres:17",
-            username="test_user",
-            password="test_password",
-            dbname="test_db",
-            driver=None,
-        )
-        container.start()
-        yield container
-        container.stop()
+        try:
+            container = PostgresContainer(
+                image="postgres:17",
+                username="test_user",
+                password="test_password",
+                dbname="test_db",
+                driver=None,
+            )
+            container.start()
+            yield container
+            container.stop()
+        except Exception as e:
+            pytest.skip(f"Failed to start PostgreSQL container: {e}")
 
     @pytest.fixture(scope="class")
-    def db_uri(self, postgres_container):
+    def db_uri(self, postgres_container: PostgresContainer) -> str:
         """Get the database URI for the test container."""
         return postgres_container.get_connection_url()
 
     @pytest.fixture(scope="class")
-    def stats_repo(self, db_uri):
+    def stats_repo(self, db_uri: str) -> MettaRepo:
         """Create a StatsRepo instance with the test database."""
         return MettaRepo(db_uri)
 
     @pytest.fixture(scope="class")
-    def test_app(self, stats_repo):
+    def test_app(self, stats_repo: MettaRepo) -> FastAPI:
         """Create a test FastAPI app with dependency injection."""
         return create_app(stats_repo)
 
     @pytest.fixture(scope="class")
-    def test_client(self, test_app):
+    def test_client(self, test_app: FastAPI) -> TestClient:
         """Create a test client."""
         return TestClient(test_app)
 
     @pytest.fixture(scope="class")
-    def stats_client(self, test_client):
+    def stats_client(self, test_client: TestClient) -> StatsClient:
         """Create a stats client for testing."""
-        return StatsClient(test_client)
+        return StatsClient(test_client, user="test_user")
 
-    def test_complete_workflow(self, stats_client: StatsClient):
+    def test_complete_workflow(self, stats_client: StatsClient) -> None:
         """Test the complete end-to-end workflow."""
 
         # 1. Create a training run
         training_run = stats_client.create_training_run(
             name="test_training_run",
-            user_id="test_user",
             attributes={"environment": "test_env", "algorithm": "test_alg"},
             url="https://example.com/run",
         )
@@ -104,11 +110,11 @@ class TestStatsServerSimple:
         assert policy_ids.policy_ids["test_policy_v1"] == policy.id
         assert policy_ids.policy_ids["test_policy_v2"] == policy2.id
 
-    def test_multiple_episodes(self, stats_client):
+    def test_multiple_episodes(self, stats_client: StatsClient) -> None:
         """Test recording multiple episodes."""
 
         # Create a training run
-        training_run = stats_client.create_training_run(name="multi_episode_test", user_id="test_user")
+        training_run = stats_client.create_training_run(name="multi_episode_test")
 
         # Create an epoch
         epoch = stats_client.create_epoch(run_id=training_run.id, start_training_epoch=0, end_training_epoch=10)
@@ -117,7 +123,7 @@ class TestStatsServerSimple:
         policy = stats_client.create_policy(name="multi_episode_policy", epoch_id=epoch.id)
 
         # Record multiple episodes
-        episode_ids = []
+        episode_ids: List[uuid.UUID] = []
         for i in range(5):
             episode = stats_client.record_episode(
                 agent_policies={0: policy.id},
@@ -132,12 +138,12 @@ class TestStatsServerSimple:
         # Verify all episodes have different IDs
         assert len(set(episode_ids)) == 5
 
-    def test_policy_id_lookup_empty(self, stats_client):
+    def test_policy_id_lookup_empty(self, stats_client: StatsClient) -> None:
         """Test policy ID lookup with empty list."""
         policy_ids = stats_client.get_policy_ids([])
         assert policy_ids.policy_ids == {}
 
-    def test_policy_id_lookup_nonexistent(self, stats_client):
+    def test_policy_id_lookup_nonexistent(self, stats_client: StatsClient) -> None:
         """Test policy ID lookup for non-existent policies."""
         policy_ids = stats_client.get_policy_ids(["nonexistent_policy"])
         assert policy_ids.policy_ids == {}

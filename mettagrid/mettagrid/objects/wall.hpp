@@ -14,7 +14,6 @@ public:
 
   Wall(GridCoord r, GridCoord c, ObjectConfig cfg) {
     GridObject::init(ObjectType::WallT, GridLocation(r, c, GridLayer::Object_Layer));
-    MettaObject::init_mo(cfg);
     this->_swappable = cfg["swappable"];
   }
 
@@ -27,20 +26,6 @@ public:
       features.push_back({ObservationFeature::Swappable, 1});
     }
     return features;
-  }
-
-  virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const override {
-    obs[offsets[0]] = _type_id;
-    obs[offsets[1]] = this->hp;
-    obs[offsets[2]] = this->_swappable;
-  }
-
-  static std::vector<std::string> feature_names() {
-    std::vector<std::string> names;
-    names.push_back("type_id");
-    names.push_back("hp");
-    names.push_back("swappable");
-    return names;
   }
 
   virtual bool swappable() const override {

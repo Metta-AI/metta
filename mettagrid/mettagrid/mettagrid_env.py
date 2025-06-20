@@ -7,23 +7,24 @@ import time
 import uuid
 from typing import Any, Dict, Optional, cast
 
-import gymnasium as gym
 import numpy as np
-import pufferlib
+from gymnasium import Env as GymEnv
+from gymnasium import spaces
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
-from pufferlib import unroll_nested_dict
+from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
 
 from metta.util.s3_cache import S3CacheManager
-from metta.util.timing import Stopwatch
-from mettagrid.curriculum import Curriculum, Task
+from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
+from mettagrid.util.dict_utils import unroll_nested_dict
 from mettagrid.util.diversity import calculate_diversity_bonus
+from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 # These data types must match PufferLib -- see pufferlib/vector.py
 #
@@ -60,7 +61,7 @@ def required(func):
     return func
 
 
-class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
+class MettaGridEnv(PufferEnv, GymEnv):
     # Type hints for attributes defined in the C++ extension to help Pylance
     observations: np.ndarray
     terminals: np.ndarray
@@ -81,24 +82,27 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     ):
         self.timer = Stopwatch(logger)
         self.timer.start()
-        self._steps = 0
+
         self._cache_hits = 0
         self._cache_misses = 0
+        self.timer.start("thread_idle")
 
         self._render_mode = render_mode
         self._curriculum = curriculum
-        self._task: Task = self._curriculum.get_task()
+        self._task = self._curriculum.get_task()
         self._level = level
         self._last_level_per_task = {}
         self._renderer = None
-        self._map_labels = []
+        self._map_labels: list[str] = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._current_seed = 0
-        self.labels = self._task.env_cfg().get("labels", None)
+
+        self.labels: list[str] = self._task.env_cfg().get("labels", [])
         self._should_reset = False
+        self._num_episodes = 0
 
         self._initialize_c_env()
         super().__init__(buf)
@@ -116,6 +120,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     def _make_episode_id(self):
         return str(uuid.uuid4())
 
+    @with_instance_timer("_initialize_c_env")
     def _initialize_c_env(self) -> None:
         """Initialize the C++ environment."""
 
@@ -157,20 +162,34 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
 
+        # During training, we run a lot of envs in parallel, and it's better if they are not
+        # all synced together. The desync_episodes flag is used to desync the episodes.
+        # Ideally vecenv would have a way to desync the episodes, but it doesn't.
+        if self._num_episodes == 0 and task.env_cfg().desync_episodes:
+            max_steps = int(task.env_cfg().game.max_steps)
+            config_game = cast(Dict[str, Any], config_dict.get("game", {}))
+            config_game["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            config_dict["game"] = config_game
+            logger.info(f"Desync episode with max_steps {config_game['max_steps']}")
+
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        with self.timer("mettagrid_init"):
+        with self.timer("_initialize_c_env.make_c_env"):
             self._c_env = MettaGrid(config_dict, level.grid.tolist())
 
         self._grid_env = self._c_env
 
     @override  # pufferlib.PufferEnv.reset
+    @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+        self.timer.stop("thread_idle")
+
         self._task = self._curriculum.get_task()
 
         self._initialize_c_env()
+        self._num_episodes += 1
 
         assert self.observations.dtype == dtype_observations
         assert self.terminals.dtype == dtype_terminals
@@ -189,9 +208,12 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             obs, infos = self._c_env.reset()
 
         self._should_reset = False
+
+        self.timer.start("thread_idle")
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
+    @with_instance_timer("step")
     def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
         """
         Execute one timestep of the environment dynamics with the given actions.
@@ -207,21 +229,17 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             Tuple of (observations, rewards, terminals, truncations, infos)
 
         """
+        self.timer.stop("thread_idle")
 
-        if __debug__:
-            from mettagrid.util.actions import validate_actions
-
-            validate_actions(self, actions, logger)
-
-        if self._replay_writer and self._episode_id:
-            self._replay_writer.log_pre_step(self._episode_id, actions)
+        # Note: We explicitly allow invalid actions to be used. The environment will
+        # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
 
         with self.timer("_c_env.step"):
             self._c_env.step(actions)
-            self._steps += 1
 
         if self._replay_writer and self._episode_id:
-            self._replay_writer.log_post_step(self._episode_id, self.rewards)
+            with self.timer("_replay_writer.log_step"):
+                self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
@@ -237,6 +255,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
+        self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     @override
@@ -244,57 +263,30 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         pass
 
     def process_episode_stats(self, infos: Dict[str, Any]):
+        self.timer.start("process_episode_stats")
+
         episode_rewards = self._c_env.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
         episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
 
+        init_time = self.timer.get_elapsed("_initialize_c_env")
         infos.update(
             {
-                "rewards/sum": episode_rewards_sum,
-                "rewards/mean": episode_rewards_mean,
-                "rewards/min": episode_rewards.min(),
-                "rewards/max": episode_rewards.max(),
-                f"rewards/{self._task.name()}/sum": episode_rewards_sum,
-                f"rewards/{self._task.name()}/mean": episode_rewards_mean,
-                f"rewards/{self._task.name()}/min": episode_rewards.min(),
-                f"rewards/{self._task.name()}/max": episode_rewards.max(),
+                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
+                f"task_timing/{self._task.short_name()}/init_time": init_time,
             }
         )
         infos["rewards/raw"] = episode_rewards
 
-        for label in self._map_labels:
-            infos[f"rewards/map:{label}"] = episode_rewards_mean
-
-        if self.labels is not None:
-            for label in self.labels:
-                infos[f"rewards/env:{label}"] = episode_rewards_mean
+        for label in self._map_labels + self.labels:
+            infos[f"map_reward/{label}"] = episode_rewards_mean
 
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
 
-        wall_time = self.timer.get_elapsed()  # global timer
-        timer_data = self.timer.get_all_elapsed()
-
-        steps_per_sec = self._steps / wall_time if wall_time > 0 else 0
-
-        timing_logs = {
-            # Key performance indicators
-            "timing/steps_per_second": steps_per_sec,
-            # Breakdown by operation (as a single structured metric)
-            "timing/breakdown": {
-                op: {"seconds": elapsed, "fraction": elapsed / wall_time if wall_time > 0 else 0}
-                for op, elapsed in timer_data.items()
-            },
-            # Total time for reference
-            "timing/total_seconds": wall_time,
-            "timing/total_steps": self._c_env.current_step,
-        }
-        infos["timing"] = timing_logs
-
         infos["cache/hits"] = self._cache_hits
         infos["cache/misses"] = self._cache_misses
 
-        # infos["agent_raw"] = stats["agent"]
         infos["game"] = stats["game"]
         infos["agent"] = {}
         for agent_stats in stats["agent"]:
@@ -304,45 +296,78 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
             infos["agent"][n] = v / self._c_env.num_agents
 
         replay_url = None
+
         if self._replay_writer:
-            assert self._episode_id is not None, "Episode ID must be set before writing a replay"
-            replay_url = self._replay_writer.write_replay(self._episode_id)
-            infos["replay_url"] = replay_url
+            with self.timer("_replay_writer"):
+                assert self._episode_id is not None, "Episode ID must be set before writing a replay"
+                replay_url = self._replay_writer.write_replay(self._episode_id)
+                infos["replay_url"] = replay_url
 
         if self._stats_writer:
-            assert self._episode_id is not None, "Episode ID must be set before writing stats"
+            with self.timer("_stats_writer"):
+                assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-            attributes = {
-                "seed": self._current_seed,
-                "map_w": self.map_width,
-                "map_h": self.map_height,
-            }
+                attributes: dict[str, str] = {
+                    "seed": str(self._current_seed),
+                    "map_w": str(self.map_width),
+                    "map_h": str(self.map_height),
+                }
 
-            for k, v in unroll_nested_dict(OmegaConf.to_container(self._task.env_cfg(), resolve=False)):
-                attributes[f"config.{k.replace('/', '.')}"] = str(v)
+                container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
+                for k, v in unroll_nested_dict(cast(dict[str, Any], container)):
+                    attributes[f"config.{str(k).replace('/', '.')}"] = str(v)
 
-            agent_metrics = {}
-            for agent_idx, agent_stats in enumerate(stats["agent"]):
-                agent_metrics[agent_idx] = {}
-                agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
-                for k, v in agent_stats.items():
-                    agent_metrics[agent_idx][k] = float(v)
+                agent_metrics = {}
+                for agent_idx, agent_stats in enumerate(stats["agent"]):
+                    agent_metrics[agent_idx] = {}
+                    agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
+                    for k, v in agent_stats.items():
+                        agent_metrics[agent_idx][k] = float(v)
 
-            grid_objects: Dict[int, Any] = self._c_env.grid_objects()
-            # iterate over grid_object values
-            agent_groups: Dict[int, int] = {
-                v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
-            }
+                grid_objects: Dict[int, Any] = self._c_env.grid_objects()
+                # iterate over grid_object values
+                agent_groups: Dict[int, int] = {
+                    v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+                }
 
-            self._stats_writer.record_episode(
-                self._episode_id,
-                attributes,
-                agent_metrics,
-                agent_groups,
-                self.max_steps,
-                replay_url,
-                self._reset_at,
-            )
+                self._stats_writer.record_episode(
+                    self._episode_id,
+                    attributes,
+                    agent_metrics,
+                    agent_groups,
+                    self.max_steps,
+                    replay_url,
+                    self._reset_at,
+                )
+
+        self.timer.stop("process_episode_stats")
+
+        elapsed_times = self.timer.get_all_elapsed()
+        thread_idle_time = elapsed_times.pop("thread_idle", 0)
+
+        wall_time = self.timer.get_elapsed()
+        adjusted_wall_time = wall_time - thread_idle_time
+
+        lap_times = self.timer.lap_all(exclude_global=False)
+        lap_thread_idle_time = lap_times.pop("thread_idle", 0)
+        wall_time_for_lap = lap_times.pop("global", 0)
+        adjusted_lap_time = wall_time_for_lap - lap_thread_idle_time
+
+        infos["timing_per_epoch"] = {
+            **{
+                f"active_frac/{op}": lap_elapsed / adjusted_lap_time if adjusted_lap_time > 0 else 0
+                for op, lap_elapsed in lap_times.items()
+            },
+            "frac/thread_idle": lap_thread_idle_time / wall_time_for_lap,
+        }
+        infos["timing_cumulative"] = {
+            **{
+                f"active_frac/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
+                for op, elapsed in elapsed_times.items()
+            },
+            "frac/thread_idle": thread_idle_time / wall_time,
+        }
+
         self._episode_id = None
 
     @property
@@ -351,7 +376,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     @required
-    def single_observation_space(self) -> gym.spaces.Box:
+    def single_observation_space(self) -> spaces.Box:
         """
         Return the observation space for a single agent.
         Returns:
@@ -363,7 +388,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
 
     @property
     @required
-    def single_action_space(self) -> gym.spaces.MultiDiscrete:
+    def single_action_space(self) -> spaces.MultiDiscrete:
         """
         Return the action space for a single agent.
         Returns:
@@ -402,7 +427,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
         return self._should_reset
 
     @property
-    def feature_normalizations(self) -> list[float]:
+    def feature_normalizations(self) -> dict[int, float]:
         return self._c_env.feature_normalizations()
 
     @property
@@ -458,3 +483,7 @@ class MettaGridEnv(pufferlib.PufferEnv, gym.Env):
     @property
     def inventory_item_names(self) -> list[str]:
         return self._c_env.inventory_item_names()
+
+    @property
+    def config(self) -> dict[str, Any]:
+        return cast(dict[str, Any], OmegaConf.to_container(self._task.env_cfg(), resolve=False))

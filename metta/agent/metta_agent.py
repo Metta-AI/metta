@@ -44,6 +44,8 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
 
 class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent, device):
+        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
         super().__init__(agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name):
@@ -63,7 +65,7 @@ class MettaAgent(nn.Module):
         obs_width: int,
         obs_height: int,
         action_space: gym.spaces.Space,
-        feature_normalizations: list[float],
+        feature_normalizations: dict[int, float],
         device: str,
         **cfg,
     ):
@@ -134,8 +136,7 @@ class MettaAgent(nn.Module):
         # recursively setup all source components
         if component._sources is not None:
             for source in component._sources:
-                print(f"setting up source {source}")
-                print(f"with name {source['name']}")
+                logger.info(f"setting up {component._name} with source {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
         # setup the current component and pass in the source components

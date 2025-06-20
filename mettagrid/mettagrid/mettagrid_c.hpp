@@ -54,7 +54,7 @@ public:
 
   unsigned int map_width();
   unsigned int map_height();
-  py::list feature_normalizations();
+  py::dict feature_normalizations();
   unsigned int num_agents();
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
@@ -89,7 +89,6 @@ private:
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
 
-  bool _use_observation_tokens;
   unsigned int _num_observation_tokens;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
@@ -104,7 +103,7 @@ private:
   py::array_t<float> _rewards;
   py::array_t<float> _episode_rewards;
 
-  std::vector<float> _feature_normalizations;
+  std::map<uint8_t, float> _feature_normalizations;
 
   std::vector<bool> _action_success;
 
@@ -114,9 +113,13 @@ private:
                             unsigned int observer_c,
                             unsigned short obs_width,
                             unsigned short obs_height,
-                            size_t agent_idx);
+                            size_t agent_idx,
+                            ActionType action,
+                            ActionArg action_arg);
   void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
   void _step(py::array_t<ActionType, py::array::c_style> actions);
+
+  void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
 };
 
 #endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_
