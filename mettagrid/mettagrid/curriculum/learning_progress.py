@@ -59,7 +59,12 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
         """Get a task based on learning progress weights."""
         # Get current learning progress weights
         lp_weights, _ = self.lp_tracker.calculate_dist()
-        if lp_weights is not None:
+
+        # Debug logging
+        logger.debug(f"LearningProgressCurriculum get_task called")
+        logger.debug(f"  lp_weights: {lp_weights}")
+
+        if lp_weights is not None and len(lp_weights) > 0:
             # Update weights based on learning progress
             for i, task_id in enumerate(self._curriculums.keys()):
                 if i < len(lp_weights):
@@ -67,6 +72,12 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
 
             # Normalize weights
             self._normalize_weights()
+        else:
+            # If no learning progress data yet, use uniform weights
+            logger.debug("No learning progress data yet, using uniform weights")
+            num_tasks = len(self._curriculums)
+            uniform_weight = 1.0 / num_tasks
+            self._task_weights = {task_id: uniform_weight for task_id in self._curriculums.keys()}
 
         # Sample task based on current weights
         task_ids = list(self._curriculums.keys())
@@ -79,13 +90,31 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
         total_weight = sum(weights)
         if total_weight <= 0:
             # If all weights are zero or negative, use uniform distribution
+            logger.warning("All weights are zero or negative, using uniform distribution")
             weights = [1.0] * len(weights)
             total_weight = len(weights)
 
         # Normalize weights to sum to 1
         weights = [w / total_weight for w in weights]
 
+        # Debug logging
+        logger.debug(f"LearningProgressCurriculum task selection:")
+        logger.debug(f"  Available tasks: {task_ids}")
+        logger.debug(f"  Task weights: {weights}")
+        logger.debug(f"  Total weight: {total_weight}")
+
         task_id = random.choices(task_ids, weights=weights)[0]
+
+        # Additional debug check
+        if task_id is None:
+            logger.error("Selected task_id is None! Falling back to first task.")
+            task_id = task_ids[0] if task_ids else None
+
+        if task_id is None:
+            raise ValueError("No valid task ID available in curriculum")
+
+        logger.debug(f"  Selected task: {task_id}")
+
         task = self._curriculums[task_id].get_task()
         task.add_parent(self, task_id)
         logger.debug(f"Task selected: {task.name()}")
@@ -335,10 +364,13 @@ class BidirectionalLearningProgess:
 
     def calculate_dist(self):
         if all([v < self.sample_threshold for k, v in self.counter.items()]) and self.random_baseline is not None:
+            logger.debug(f"Using existing task_dist: {self.task_dist}")
             return self.task_dist, self.sample_levels
         self.task_success_rate = self._update()
         dist = self._sample_distribution()
         tasks = self._sample_tasks()
+        logger.debug(f"Calculated new task_dist: {dist}")
+        logger.debug(f"Sample levels: {tasks}")
         return dist, tasks
 
     def reset_outcomes(self):
