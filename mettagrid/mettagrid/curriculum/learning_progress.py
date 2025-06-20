@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Dict
+from typing import Dict
 
 import numpy as np
 from gymnasium.spaces import Discrete
@@ -10,11 +10,6 @@ from omegaconf import DictConfig
 from mettagrid.curriculum.random import RandomCurriculum
 
 logger = logging.getLogger(__name__)
-
-
-if TYPE_CHECKING:
-    pass
-
 
 class LearningProgressCurriculum(RandomCurriculum):
     """Curriculum that adaptively samples tasks based on learning progress."""
@@ -34,7 +29,7 @@ class LearningProgressCurriculum(RandomCurriculum):
 
         # Initialize learning progress tracker
         search_space_size = len(tasks)
-        self.lp_tracker = BidirectionalLearningProgress(
+        self._lp_tracker = BidirectionalLearningProgress(
             search_space=search_space_size,
             ema_timescale=ema_timescale,
             progress_smoothing=progress_smoothing,
@@ -55,10 +50,10 @@ class LearningProgressCurriculum(RandomCurriculum):
         task_idx = list(self._curriculums.keys()).index(id)
 
         # Collect data for learning progress
-        self.lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
+        self._lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
 
         # Update task weights based on learning progress
-        lp_weights, _ = self.lp_tracker.calculate_dist()
+        lp_weights, _ = self._lp_tracker.calculate_dist()
 
         # Update weights based on learning progress
         for i, task_id in enumerate(self._curriculums.keys()):
@@ -66,20 +61,16 @@ class LearningProgressCurriculum(RandomCurriculum):
                 self._task_weights[task_id] = lp_weights[i]
 
         # Normalize weights
-        self._normalize_weights()
-
-        super().complete_task(id, score)
-
-    def _normalize_weights(self):
-        """Normalize task weights to sum to 1."""
         total_weight = sum(self._task_weights.values())
         if total_weight > 0:
             self._task_weights = {k: v / total_weight for k, v in self._task_weights.items()}
 
-    def get_stats(self) -> Dict[str, float]:
+        super().complete_task(id, score)
+
+    def stats(self) -> Dict[str, float]:
         """Get learning progress statistics for logging."""
         stats = {}
-        self.lp_tracker.add_stats(stats)
+        self._lp_tracker.add_stats(stats)
         return stats
 
 
@@ -110,16 +101,13 @@ class BidirectionalLearningProgress:
         self.outcomes = {}
         for i in range(max_num_levels):
             self.outcomes[i] = []
-        self.ema_tsr = None
         self._p_fast = None
         self._p_slow = None
         self._p_true = None
-        self.random_baseline = None
+        self._random_baseline = None
         self.task_success_rate = np.zeros(max_num_levels)
-        self.task_sampled_tracker = max_num_levels * [0]
         self.mean_samples_per_eval = []
         self.num_nans = []
-        self.collecting = True
         self.update_mask = np.ones(max_num_levels).astype(bool)
         self.sample_levels = np.arange(max_num_levels).astype(np.int32)
         self.counter = {i: 0 for i in self.sample_levels}
@@ -141,17 +129,16 @@ class BidirectionalLearningProgress:
         task_success_rates = np.nan_to_num(task_success_rates, nan=0.0)
         update_mask = self.update_mask
 
-        if self.random_baseline is None:
-            self.random_baseline = np.minimum(task_success_rates, 0.75)
-            self.task_rates = task_success_rates
+        if self._random_baseline is None:
+            self._random_baseline = np.minimum(task_success_rates, 0.75)
 
         # Handle division by zero in normalization
-        denominator = 1.0 - self.random_baseline[update_mask]
+        denominator = 1.0 - self._random_baseline[update_mask]
         denominator = np.where(denominator <= 0, 1.0, denominator)
 
         normalized_task_success_rates = (
             np.maximum(
-                task_success_rates[update_mask] - self.random_baseline[update_mask],
+                task_success_rates[update_mask] - self._random_baseline[update_mask],
                 np.zeros(task_success_rates[update_mask].shape),
             )
             / denominator
@@ -172,7 +159,6 @@ class BidirectionalLearningProgress:
                 self._p_true[update_mask] * (1.0 - self.ema_alpha)
             )
 
-        self.task_rates[update_mask] = task_success_rates[update_mask]
         self._stale_dist = True
         self.task_dist = None
 
@@ -189,9 +175,6 @@ class BidirectionalLearningProgress:
                     self.outcomes[task_id].append(res)
                     if task_id in self.sample_levels:
                         self.counter[task_id] += 1
-
-    def continue_collecting(self):
-        return self.collecting
 
     def _learning_progress(self, reweight: bool = True) -> float:
         fast = self._reweight(self._p_fast) if reweight else self._p_fast
@@ -253,7 +236,6 @@ class BidirectionalLearningProgress:
 
         for i in range(self.num_tasks):
             self.outcomes[i] = self.outcomes[i][-self.memory :]
-        self.collecting = True
         return self.task_dist
 
     def _sample_tasks(self):
@@ -290,7 +272,7 @@ class BidirectionalLearningProgress:
         return self.sample_levels
 
     def calculate_dist(self):
-        if all([v < self.sample_threshold for k, v in self.counter.items()]) and self.random_baseline is not None:
+        if all([v < self.sample_threshold for k, v in self.counter.items()]) and self._random_baseline is not None:
             # Ensure we have valid task_dist and sample_levels
             if self.task_dist is None or len(self.task_dist) == 0:
                 self.task_dist = np.ones(self.num_tasks) / self.num_tasks
@@ -309,9 +291,3 @@ class BidirectionalLearningProgress:
             tasks = np.arange(self.num_tasks).astype(np.int32)
 
         return dist, tasks
-
-    def reset_outcomes(self):
-        self.prev_outcomes = self.outcomes
-        self.outcomes = {}
-        for i in range(self.num_tasks):
-            self.outcomes[i] = []
