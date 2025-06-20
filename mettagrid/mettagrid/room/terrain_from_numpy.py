@@ -81,23 +81,25 @@ class TerrainFromNumpy(Room):
         team: str | None = None,
     ):
         root = dir.split("/")[0]
-        zipped_dir = root + ".zip"
-        lock_path = zipped_dir + ".lock"
+        map_dir = f"train_dir/{dir}"
+        root_dir = f"train_dir/{root}"
+
+        s3_path = f"s3://softmax-public/maps/{root}.zip"
+        local_zipped_dir = root_dir + ".zip"
         # Only one process can hold this lock at a time:
-        with FileLock(lock_path):
-            if not os.path.exists(dir) and not os.path.exists(zipped_dir):
-                s3_path = f"s3://softmax-public/maps/{zipped_dir}"
-                download_from_s3(s3_path, zipped_dir)
-            if not os.path.exists(root) and os.path.exists(zipped_dir):
-                with zipfile.ZipFile(zipped_dir, "r") as zip_ref:
-                    zip_ref.extractall(os.path.dirname(root))
-                os.remove(zipped_dir)
-                logger.info(f"Extracted {zipped_dir} to {root}")
+        with FileLock(local_zipped_dir + ".lock"):
+            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
+                download_from_s3(s3_path, local_zipped_dir)
+            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
+                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
+                    zip_ref.extractall(os.path.dirname(root_dir))
+                os.remove(local_zipped_dir)
+                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
         if file is None:
-            self.uri = pick_random_file(dir)
+            self.uri = pick_random_file(map_dir)
         else:
             self.uri = file
-        self.dir = dir
+        self.dir = map_dir
         self._agents = agents
         self._objects = objects
         self.team = team

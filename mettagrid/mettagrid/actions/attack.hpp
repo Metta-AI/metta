@@ -8,6 +8,7 @@
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/metta_object.hpp"
+#include "types.hpp"
 
 class Attack : public ActionHandler {
 public:
