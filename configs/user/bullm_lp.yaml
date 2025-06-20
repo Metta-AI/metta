@@ -8,9 +8,9 @@ defaults:
   - _self_
 
 # Basic run configuration
-run: ${oc.env:USER}.lp_cric
-data_dir: ${oc.env:DATA_DIR,./train_dir}
-run_dir: ${data_dir}/${run}
+#run: ${oc.env:USER}.lp_cric
+#data_dir: ${oc.env:DATA_DIR,./train_dir}
+#run_dir: ${data_dir}/${run}
 
 trainer:
   curriculum: env/mettagrid/curriculum/learningprogress_navigation
