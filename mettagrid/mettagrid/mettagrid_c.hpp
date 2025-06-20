@@ -72,9 +72,10 @@ public:
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
 
+  uint64_t initial_grid_hash;
+
 private:
   // Member variables
-  py::dict _cfg;
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;

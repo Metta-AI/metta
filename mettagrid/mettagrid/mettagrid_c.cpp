@@ -18,6 +18,7 @@
 #include "actions/swap.hpp"
 #include "event.hpp"
 #include "grid.hpp"
+#include "hash.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
@@ -29,11 +30,9 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
-  // env_cfg is a dict-form of the OmegaCong config.
+MettaGrid::MettaGrid(py::dict cfg, py::list map) {
+  // cfg is a dict-form of the OmegaConf config.
   // `map` is a list of lists of strings, which are the map cells.
-  auto cfg = env_cfg["game"].cast<py::dict>();
-  _cfg = cfg;
 
   int num_agents = cfg["num_agents"].cast<int>();
   max_steps = cfg["max_steps"].cast<unsigned int>();
@@ -107,9 +106,16 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
   }
 
   // Initialize objects from map
+  std::string grid_hash_data;                   // String to accumulate grid data for hashing
+  grid_hash_data.reserve(height * width * 20);  // Pre-allocate for efficiency
+
   for (int r = 0; r < height; r++) {
     for (int c = 0; c < width; c++) {
       std::string cell = map[r].cast<py::list>()[c].cast<std::string>();
+
+      // Add cell position and type to hash data
+      grid_hash_data += std::to_string(r) + "," + std::to_string(c) + ":" + cell + ";";
+
       Converter* converter = nullptr;
       if (cell == "wall") {
         Wall* wall = new Wall(r, c, cfg["objects"]["wall"].cast<ObjectConfig>());
@@ -164,6 +170,9 @@ MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
       }
     }
   }
+
+  // Use wyhash for deterministic, high-performance grid fingerprinting across platforms
+  initial_grid_hash = wyhash::hash_string(grid_hash_data);
 
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
   // so nothing above should depend on them before this point.
@@ -752,5 +761,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
       .def("inventory_item_names", &MettaGrid::inventory_item_names)
-      .def("get_agent_groups", &MettaGrid::get_agent_groups);
+      .def("get_agent_groups", &MettaGrid::get_agent_groups)
+      .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
 }

@@ -3,11 +3,13 @@ name: Asana Integration
 on:
   pull_request:
     # TODO: also handle reviews and comments
-    types: [opened, closed, reopened, edited, assigned, unassigned, review_requested]
+    types: [opened, closed, reopened, edited, assigned, unassigned, review_requested, ready_for_review]
 
 jobs:
   asana_integration:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    concurrency: ${{ github.workflow }}-${{ github.event.pull_request.number }}
     permissions:
       contents: read
       pull-requests: write

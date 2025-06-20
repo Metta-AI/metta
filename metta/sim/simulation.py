@@ -146,7 +146,7 @@ class Simulation:
         self._npc_idxs = (
             idx_matrix[:, self._policy_agents_per_env :].reshape(-1)
             if self._npc_agents_per_env
-            else torch.tensor([], device=self._device)
+            else torch.tensor([], device=self._device, dtype=torch.long)
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 

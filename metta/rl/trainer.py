@@ -31,6 +31,7 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.types.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.util.heartbeat import record_heartbeat
+from metta.util.system_monitor import SystemMonitor
 from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
@@ -94,6 +95,13 @@ class MettaTrainer:
 
         self.timer = Stopwatch(logger)
         self.timer.start()
+
+        self.system_monitor = SystemMonitor(
+            sampling_interval_sec=1.0,  # Sample every second
+            history_size=100,  # Keep last 100 samples
+            logger=logger,
+            auto_start=True,  # Start monitoring immediately
+        )
 
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
@@ -290,6 +298,7 @@ class MettaTrainer:
 
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
+        self.system_monitor.stop()
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
@@ -517,7 +526,7 @@ class MettaTrainer:
                 )
 
                 new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
-                logratio = new_logprobs.detach() - minibatch["logprobs"]
+                logratio = new_logprobs - minibatch["logprobs"]
                 importance_sampling_ratio = logratio.exp()
                 experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
 
@@ -569,11 +578,11 @@ class MettaTrainer:
                     self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
                 )
 
-                l2_reg_loss = torch.tensor(0.0, device=self.device)
+                l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                 if trainer_cfg.l2_reg_loss_coef > 0:
                     l2_reg_loss = trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
 
-                l2_init_loss = torch.tensor(0.0, device=self.device)
+                l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                 if trainer_cfg.l2_init_loss_coef > 0:
                     l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
@@ -857,6 +866,7 @@ class MettaTrainer:
                 **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
                 **{f"eval_{k}": v for k, v in self.evals.items()},
+                **{f"monitor/{k}": v for k, v in self.system_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
                 **timing_stats,

@@ -64,7 +64,7 @@ Four specialized review types, each a thin wrapper around the base:
 - `claude-review-readme.yml` - Documentation accuracy
 - `claude-review-comments.yml` - Comment cleanup
 - `claude-review-einops.yml` - Tensor operation improvements
-- `claude-review-typing.yml` - Type annotation coverage
+- `claude-review-types.yml` - Type annotation coverage
 
 ### 4. Consolidation Script (`claude_review.py`)
 
@@ -246,7 +246,6 @@ review_name: string        # Display name for the review
 review_type: string        # Unique identifier for artifact naming
 file_pattern: string       # Regex for file filtering (default: ".*")
 setup_python: boolean      # Whether to setup Python (default: false)
-install_packages: string   # Space-separated packages to install
 tools: string             # Comma-separated Claude tools
 prompt: string            # Review-specific instructions
 pr_number: string         # PR number to review
