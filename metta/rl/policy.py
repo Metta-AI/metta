@@ -3,8 +3,9 @@ from types import SimpleNamespace
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
-from pufferlib.pytorch import sample_logits
 from torch import nn
+
+from metta.agent.pytorch_policy import PytorchPolicy
 
 
 def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
@@ -28,34 +29,44 @@ def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
 
     policy = instantiate(puffer, env=env, policy=None)
     policy.load_state_dict(weights)
-    policy = PytorchAgent(policy).to(device)
-    return policy
+
+    # Wrap with PytorchPolicy for compatibility
+    wrapped_policy = LegacyPytorchPolicy(policy)
+    return wrapped_policy.to(device)
 
 
-class PytorchAgent(nn.Module):
-    """Adapter to make torch.nn.Module-based policies compatible with MettaAgent interface.
+class LegacyPytorchPolicy(PytorchPolicy):
+    """Adapter for legacy PyTorch policies that follow the old interface.
 
-    This adapter wraps policies loaded from checkpoints and translates their
-    outputs to match the expected MettaAgent interface, handling naming
-    differences like critic→value, hidden→logits, etc.
+    This specifically handles policies that return (hidden, critic) from forward
+    and need translation to the MettaAgent interface.
     """
 
     def __init__(self, policy: nn.Module):
-        super().__init__()
-        self.policy = policy
-        self.hidden_size = policy.hidden_size
-        self.lstm = policy.lstm  # Point to the actual LSTM module, not the entire policy
+        super().__init__(policy)
+        # Ensure we have access to these properties
+        self._hidden_size = policy.hidden_size
+        self._lstm = policy.lstm  # Point to the actual LSTM module
 
     def forward(self, obs: torch.Tensor, state, action=None):
-        """Uses variable names from LSTMWrapper. Translating for Metta:
-        critic -> value
-        logprob -> logprob_act
-        hidden -> logits then, after sample_logits(), log_sftmx_logits
+        """Translates legacy policy output to MettaAgent interface.
+
+        Legacy policies return: (hidden, critic)
+        MettaAgent expects: (action, action_log_prob, entropy, value, log_probs)
         """
-        hidden, critic = self.policy(obs, state)  # using variable names from LSTMWrapper
+        # Get raw outputs from legacy policy
+        hidden, critic = self.policy(obs, state)
+
+        # Use pufferlib's sample_logits to handle action sampling
+        from pufferlib.pytorch import sample_logits
+
         action, logprob, logits_entropy = sample_logits(hidden, action)
+
+        # Return in MettaAgent format
+        # hidden -> log_probs (the raw logits)
+        # critic -> value
         return action, logprob, logits_entropy, critic, hidden
 
-    def activate_actions(self, actions_names, actions_max_params, device):
-        # TODO: this could implement a check that policy's action space matches the environment's
-        pass
+
+# Keep PytorchAgent as an alias for backward compatibility
+PytorchAgent = LegacyPytorchPolicy

@@ -17,6 +17,7 @@ import sys
 from typing import List, Optional, Union
 
 import hydra
+import numpy as np
 import torch
 import wandb
 from omegaconf import DictConfig, ListConfig
@@ -361,23 +362,96 @@ class PolicyStore:
     def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
         logger.info(f"Saving policy to {path}")
 
-        inner_policy = policy.policy if isinstance(policy, MettaAgent) else policy
+        # Handle MettaAgent wrapping
+        if hasattr(policy, "policy"):
+            inner_policy = policy.policy
+        else:
+            inner_policy = policy
+
+        # Ensure reconstruction_attributes are captured
+        reconstruction_attrs = metadata.get("reconstruction_attributes", {})
+
+        if not reconstruction_attrs:
+            # Try to get from the wrapped policy first
+            if isinstance(inner_policy, BrainPolicy) and hasattr(inner_policy, "agent_attributes"):
+                reconstruction_attrs = inner_policy.agent_attributes.copy()  # Make a copy to avoid modifying original
+                if reconstruction_attrs:
+                    logger.info(
+                        f"Extracted reconstruction attributes from inner BrainPolicy: {list(reconstruction_attrs.keys())}"
+                    )
+            # If not found on inner policy, try the wrapper (MettaAgent delegates via __getattr__)
+            elif hasattr(policy, "agent_attributes"):
+                reconstruction_attrs = policy.agent_attributes.copy()  # Make a copy to avoid modifying original
+                if reconstruction_attrs:
+                    logger.info(
+                        f"Extracted reconstruction attributes via MettaAgent delegation: {list(reconstruction_attrs.keys())}"
+                    )
+
+            if not reconstruction_attrs and isinstance(inner_policy, BrainPolicy):
+                logger.warning("BrainPolicy found but agent_attributes could not be accessed")
+
+        # Convert gymnasium spaces to serializable format
+        if "action_space" in reconstruction_attrs:
+            import gymnasium.spaces
+
+            action_space = reconstruction_attrs["action_space"]
+            if isinstance(action_space, gymnasium.spaces.MultiDiscrete):
+                reconstruction_attrs["action_space"] = {
+                    "_type": "MultiDiscrete",
+                    "nvec": action_space.nvec.tolist()
+                    if hasattr(action_space.nvec, "tolist")
+                    else list(action_space.nvec),
+                }
+            elif isinstance(action_space, gymnasium.spaces.Discrete):
+                reconstruction_attrs["action_space"] = {"_type": "Discrete", "n": action_space.n}
+            # For other space types, we'll just remove them and let the system reconstruct from environment
+            elif action_space is not None:
+                logger.warning(
+                    f"Cannot serialize action_space of type {type(action_space).__name__}, removing from reconstruction attributes"
+                )
+                reconstruction_attrs.pop("action_space", None)
+
+        # Convert feature_normalizations to plain dict with simple types
+        if "feature_normalizations" in reconstruction_attrs:
+            feature_norm = reconstruction_attrs["feature_normalizations"]
+            if isinstance(feature_norm, dict):
+                # Convert keys and values to plain Python types
+                reconstruction_attrs["feature_normalizations"] = {int(k): float(v) for k, v in feature_norm.items()}
+            elif isinstance(feature_norm, list):
+                # If it's a list, keep it as is but ensure values are floats
+                reconstruction_attrs["feature_normalizations"] = [float(v) for v in feature_norm]
+
+        # Ensure all values in reconstruction_attrs are serializable
+        # Remove any numpy arrays or other non-serializable types
+        clean_attrs = {}
+        for key, value in reconstruction_attrs.items():
+            if isinstance(value, (str, int, float, bool, list, dict)):
+                clean_attrs[key] = value
+            elif hasattr(value, "tolist"):
+                # Convert numpy arrays to lists
+                clean_attrs[key] = value.tolist()
+            elif value is None:
+                clean_attrs[key] = value
+            else:
+                logger.warning(f"Skipping non-serializable attribute {key} of type {type(value).__name__}")
+
+        reconstruction_attrs = clean_attrs
 
         # Prepare save data
         save_data = {
             "metadata": metadata,
             "class_name": inner_policy.__class__.__name__,
-            "reconstruction_attributes": metadata.get("reconstruction_attributes", {}),
+            "reconstruction_attributes": reconstruction_attrs,
         }
 
         # Try to save with torch.jit for better versioning
         try:
             # For BrainPolicy, we need to trace through a forward pass
-            if isinstance(inner_policy, BrainPolicy):
+            if isinstance(inner_policy, BrainPolicy) and reconstruction_attrs:
                 # Create dummy inputs for tracing
                 from metta.agent.policy_state import PolicyState
 
-                obs_shape = inner_policy.agent_attributes.get("obs_shape", [11, 11, 27])
+                obs_shape = reconstruction_attrs.get("obs_shape", [11, 11, 27])
                 batch_size = 32
 
                 # Get the device from the policy
@@ -387,8 +461,8 @@ class PolicyStore:
                 dummy_obs = torch.randn(batch_size, *obs_shape, device=device)
 
                 # Create dummy state
-                hidden_size = inner_policy.hidden_size
-                num_layers = inner_policy.core_num_layers
+                hidden_size = reconstruction_attrs.get("hidden_size", inner_policy.hidden_size)
+                num_layers = reconstruction_attrs.get("core_num_layers", inner_policy.core_num_layers)
                 dummy_state = PolicyState(
                     lstm_h=torch.zeros(num_layers, batch_size, hidden_size, device=device),
                     lstm_c=torch.zeros(num_layers, batch_size, hidden_size, device=device),
@@ -582,6 +656,19 @@ class PolicyStore:
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
 
+        # Add gymnasium spaces to safe globals for PyTorch 2.6+
+        import gymnasium.spaces
+
+        torch.serialization.add_safe_globals(
+            [
+                gymnasium.spaces.multi_discrete.MultiDiscrete,
+                gymnasium.spaces.discrete.Discrete,
+                gymnasium.spaces.box.Box,
+                gymnasium.spaces.dict.Dict,
+                np.dtype,
+            ]
+        )
+
         checkpoint = torch.load(path, map_location=self._device)
 
         # Backwards compatibility for models saved as PolicyRecord objects
@@ -630,22 +717,88 @@ class PolicyStore:
         if class_name == "BrainPolicy":
             reconstruction_attrs = checkpoint.get("reconstruction_attributes", {})
             if not reconstruction_attrs:
-                logger.warning("No reconstruction attributes found, using defaults from config")
-                # Use the MettaAgentBuilder to create a default brain
-                from metta.agent.metta_agent import MettaAgentBuilder
+                logger.warning("No reconstruction attributes found in checkpoint")
 
-                builder = MettaAgentBuilder(self._cfg)
-                # We need a dummy env to get the observation space
-                # This is a limitation of the current design
-                raise NotImplementedError(
-                    "Cannot load BrainPolicy without reconstruction attributes. "
-                    "Please ensure models are saved with reconstruction attributes."
+                # Try to infer some attributes from the state dict if available
+                state_dict = checkpoint.get("state_dict", {})
+                if state_dict:
+                    # Try to infer hidden size from common layer names
+                    for key, tensor in state_dict.items():
+                        if "components._core_._net.weight_ih_l0" in key:
+                            # LSTM input weight shape is (4*hidden_size, input_size)
+                            hidden_size = tensor.shape[0] // 4
+                            reconstruction_attrs["hidden_size"] = hidden_size
+                            logger.info(f"Inferred hidden_size={hidden_size} from LSTM weights")
+                            break
+
+                    # Try to infer action space size
+                    for key, tensor in state_dict.items():
+                        if "components._action_._net" in key and "weight" in key and tensor.dim() == 2:
+                            # Last layer of action network
+                            reconstruction_attrs["action_space"] = tensor.shape[0]
+                            logger.info(f"Inferred action_space size={tensor.shape[0]} from action network")
+                            break
+
+                # If we still don't have enough info, we need to fail with a helpful message
+                if not reconstruction_attrs:
+                    raise NotImplementedError(
+                        "Cannot load BrainPolicy without reconstruction attributes. "
+                        "This checkpoint was saved without the necessary metadata. "
+                        "Please re-save the model with the latest code version, or provide "
+                        "the original environment configuration used to create this model."
+                    )
+
+                # Fill in some reasonable defaults for missing attributes
+                defaults = {
+                    "clip_range": 0.2,
+                    "obs_width": 11,
+                    "obs_height": 11,
+                    "obs_key": "grid_obs",
+                    "obs_shape": [11, 11, 27],
+                    "core_num_layers": 2,
+                    "device": self._device,
+                }
+
+                for key, value in defaults.items():
+                    if key not in reconstruction_attrs:
+                        reconstruction_attrs[key] = value
+                        logger.info(f"Using default value for {key}={value}")
+
+            # Reconstruct action_space from serialized format
+            if "action_space" in reconstruction_attrs:
+                action_space_data = reconstruction_attrs["action_space"]
+                if isinstance(action_space_data, dict) and "_type" in action_space_data:
+                    import gymnasium.spaces
+
+                    if action_space_data["_type"] == "MultiDiscrete":
+                        reconstruction_attrs["action_space"] = gymnasium.spaces.MultiDiscrete(action_space_data["nvec"])
+                        logger.info(f"Reconstructed MultiDiscrete action space with nvec={action_space_data['nvec']}")
+                    elif action_space_data["_type"] == "Discrete":
+                        reconstruction_attrs["action_space"] = gymnasium.spaces.Discrete(action_space_data["n"])
+                        logger.info(f"Reconstructed Discrete action space with n={action_space_data['n']}")
+                elif isinstance(action_space_data, int):
+                    # Legacy format where just the size was saved
+                    import gymnasium.spaces
+
+                    reconstruction_attrs["action_space"] = gymnasium.spaces.Discrete(action_space_data)
+                    logger.info(f"Reconstructed Discrete action space from legacy format with n={action_space_data}")
+                else:
+                    # If we can't reconstruct, remove it and let the system handle it
+                    logger.warning(f"Cannot reconstruct action_space from data: {action_space_data}")
+                    reconstruction_attrs.pop("action_space", None)
+
+            try:
+                brain = hydra.utils.instantiate(self._cfg.agent, **reconstruction_attrs)
+                brain.load_state_dict(checkpoint["state_dict"])
+                policy = MettaAgent(brain)
+                pr._policy = policy
+            except Exception as e:
+                logger.error(f"Failed to instantiate BrainPolicy with attributes: {reconstruction_attrs}")
+                logger.error(f"Error: {e}")
+                raise RuntimeError(
+                    f"Failed to load BrainPolicy. The checkpoint may be incompatible with the current "
+                    f"configuration. Error: {str(e)}"
                 )
-
-            brain = hydra.utils.instantiate(self._cfg.agent, **reconstruction_attrs)
-            brain.load_state_dict(checkpoint["state_dict"])
-            policy = MettaAgent(brain)
-            pr._policy = policy
         else:
             raise NotImplementedError(f"Loading for {class_name} not implemented from file")
 
