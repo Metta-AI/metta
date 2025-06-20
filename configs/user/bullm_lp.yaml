@@ -27,7 +27,7 @@ trainer:
   num_workers: 4
 
 wandb:
-  enabled: false
+  enabled: true
   project: metta
   entity: metta-research
   name: ${run}
