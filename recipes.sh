@@ -5,7 +5,7 @@
 ./devops/skypilot/launch.py train run=georgedeane.sequence.baseline.06-20  trainer.curriculum=env/mettagrid/curriculum/sequence --no-spot --gpus=4 --skip-git-check \
 
 #OBJECT USE
-./devops/skypilot/launch.py train run=georgedeane.object_use.baseline.06-20  trainer.curriculum=env/mettagrid/curriculum/object_use --no-spot --gpus=4 --skip-git-check \
+./devops/skypilot/launch.py train run=georgedeane.object_use.baseline.06-20.2  trainer.curriculum=env/mettagrid/curriculum/object_use --no-spot --gpus=4 --skip-git-check \
 
 #NAV-MEMORY-SEQUENCE
 ./devops/skypilot/launch.py train run=georgedeane.nav_memory_sequence.baseline.06-20  trainer.curriculum=env/mettagrid/curriculum/nav_memory_sequence --no-spot --gpus=4 --skip-git-check \
