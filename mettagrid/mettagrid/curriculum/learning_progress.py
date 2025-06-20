@@ -81,6 +81,11 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
 
         # Sample task based on current weights
         task_ids = list(self._curriculums.keys())
+
+        # Safety check: ensure we have valid task IDs
+        if not task_ids:
+            raise ValueError("No tasks available in curriculum")
+
         weights = [self._task_weights[task_id] for task_id in task_ids]
 
         # Handle NaN values in weights
@@ -103,7 +108,11 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
         logger.debug(f"  Task weights: {weights}")
         logger.debug(f"  Total weight: {total_weight}")
 
-        task_id = random.choices(task_ids, weights=weights)[0]
+        try:
+            task_id = random.choices(task_ids, weights=weights)[0]
+        except (ValueError, IndexError) as e:
+            logger.error(f"Error in random.choices: {e}, falling back to random task")
+            task_id = random.choices(task_ids)[0]
 
         # Additional debug check
         if task_id is None:
@@ -115,7 +124,18 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
 
         logger.debug(f"  Selected task: {task_id}")
 
+        # Get the actual task from the curriculum
+        if task_id not in self._curriculums:
+            logger.error(f"Task ID {task_id} not found in curriculums: {list(self._curriculums.keys())}")
+            # Fall back to first available task
+            task_id = list(self._curriculums.keys())[0]
+
         task = self._curriculums[task_id].get_task()
+
+        # Safety check: ensure task is not None
+        if task is None:
+            raise ValueError(f"Curriculum {task_id} returned None task")
+
         task.add_parent(self, task_id)
         logger.debug(f"Task selected: {task.name()}")
         return task
@@ -351,11 +371,33 @@ class BidirectionalLearningProgess:
     def _sample_tasks(self):
         sample_levels = []
         self.update_mask = np.zeros(self.num_tasks).astype(bool)
+
+        # Ensure task_dist is valid
+        if self.task_dist is None or len(self.task_dist) == 0:
+            # Use uniform distribution if task_dist is not available
+            task_dist = np.ones(self.num_tasks) / self.num_tasks
+        else:
+            task_dist = self.task_dist.copy()
+
+        # Handle NaN values in task_dist
+        task_dist = np.nan_to_num(task_dist, nan=1.0/len(task_dist))
+
+        # Ensure task_dist sums to 1
+        sum_dist = np.sum(task_dist)
+        if sum_dist <= 0:
+            task_dist = np.ones(self.num_tasks) / self.num_tasks
+        else:
+            task_dist = task_dist / sum_dist
+
         for i in range(self.n):
             if np.random.rand() < self.rand_task_rate:
                 level = np.random.choice(range(self.num_tasks))
             else:
-                level = np.random.choice(range(self.num_tasks), p=self.task_dist)
+                try:
+                    level = np.random.choice(range(self.num_tasks), p=task_dist)
+                except ValueError as e:
+                    logger.warning(f"Error in np.random.choice: {e}, using uniform distribution")
+                    level = np.random.choice(range(self.num_tasks))
             sample_levels.append(level)
             self.update_mask[level] = True
         self.sample_levels = np.array(sample_levels).astype(np.int32)
@@ -365,10 +407,23 @@ class BidirectionalLearningProgess:
     def calculate_dist(self):
         if all([v < self.sample_threshold for k, v in self.counter.items()]) and self.random_baseline is not None:
             logger.debug(f"Using existing task_dist: {self.task_dist}")
+            # Ensure we have valid task_dist and sample_levels
+            if self.task_dist is None or len(self.task_dist) == 0:
+                self.task_dist = np.ones(self.num_tasks) / self.num_tasks
+            if self.sample_levels is None or len(self.sample_levels) == 0:
+                self.sample_levels = np.arange(self.num_tasks).astype(np.int32)
             return self.task_dist, self.sample_levels
+
         self.task_success_rate = self._update()
         dist = self._sample_distribution()
         tasks = self._sample_tasks()
+
+        # Ensure we have valid return values
+        if dist is None or len(dist) == 0:
+            dist = np.ones(self.num_tasks) / self.num_tasks
+        if tasks is None or len(tasks) == 0:
+            tasks = np.arange(self.num_tasks).astype(np.int32)
+
         logger.debug(f"Calculated new task_dist: {dist}")
         logger.debug(f"Sample levels: {tasks}")
         return dist, tasks
