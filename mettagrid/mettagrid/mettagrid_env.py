@@ -461,6 +461,3 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def initial_grid_hash(self) -> int:
         """Returns the hash of the initial grid configuration."""
         return self._c_env.initial_grid_hash
-
-    def config(self) -> dict[str, Any]:
-        return cast(dict[str, Any], OmegaConf.to_container(self._task.env_cfg(), resolve=False))
