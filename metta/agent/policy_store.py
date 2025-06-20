@@ -9,12 +9,9 @@ It provides functionality to:
 The PolicyStore is used by the training system to manage opponent policies and checkpoints.
 """
 
-import collections
 import logging
 import os
-import pickle
 import random
-import sys
 from typing import List, Optional, Union
 
 import torch
@@ -42,7 +39,6 @@ class PolicyStore:
         self._device = cfg.device
         self._wandb_run = wandb_run
         self._cached_prs = {}
-        self._made_codebase_backwards_compatible = False
 
     def policy(
         self, policy: Union[str, ListConfig | DictConfig], selector_type: str = "top", n=1, metric="score"
@@ -87,72 +83,43 @@ class PolicyStore:
         logger.info(f"Found {len(prs)} policies at {uri}")
 
         if selector_type == "all":
-            logger.info(f"Returning all {len(prs)} policies")
             return prs
         elif selector_type == "latest":
-            selected = [prs[0]]
-            logger.info(f"Selected latest policy: {selected[0].name}")
-            return selected
+            return [prs[0]]
         elif selector_type == "rand":
-            selected = [random.choice(prs)]
-            logger.info(f"Selected random policy: {selected[0].name}")
-            return selected
+            return [random.choice(prs)]
         elif selector_type == "top":
+            # Try to find metric in metadata
             if (
                 "eval_scores" in prs[0].metadata
                 and prs[0].metadata["eval_scores"] is not None
                 and metric in prs[0].metadata["eval_scores"]
             ):
-                # Metric is in eval_scores
-                logger.info(f"Found metric '{metric}' in metadata['eval_scores']")
                 policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric, None) for p in prs}
             elif metric in prs[0].metadata:
-                # Metric is directly in metadata
-                logger.info(f"Found metric '{metric}' directly in metadata")
                 policy_scores = {p: p.metadata.get(metric, None) for p in prs}
             else:
-                # Metric not found anywhere
-                logger.warning(
-                    f"Metric '{metric}' not found in policy metadata or eval_scores, returning latest policy"
-                )
-                selected = [prs[0]]
-                logger.info(f"Selected latest policy (due to missing metric): {selected[0].name}")
-                return selected
+                logger.warning(f"Metric '{metric}' not found, returning latest policy")
+                return [prs[0]]
 
             policies_with_scores = [p for p, s in policy_scores.items() if s is not None]
 
             # If more than 20% of the policies have no score, return the latest policy
             if len(policies_with_scores) < len(prs) * 0.8:
                 logger.warning("Too many invalid scores, returning latest policy")
-                selected = [prs[0]]  # return latest if metric not found
-                logger.info(f"Selected latest policy (due to too many invalid scores): {selected[0].name}")
-                return selected
+                return [prs[0]]
 
             # Sort by metric score (assuming higher is better)
-            def get_policy_score(policy: PolicyRecord) -> float:  # Explicitly return a comparable type
+            def get_policy_score(policy: PolicyRecord) -> float:
                 score = policy_scores.get(policy)
-                if score is None:
-                    return float("-inf")  # Or another appropriate default
-                return score
+                return float("-inf") if score is None else score
 
             top = sorted(policies_with_scores, key=get_policy_score)[-n:]
 
             if len(top) < n:
                 logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")
 
-            logger.info(f"Top {len(top)} policies by {metric}:")
-            logger.info(f"{'Policy':<40} | {metric:<20}")
-            logger.info("-" * 62)
-            for pr in top:
-                score = policy_scores[pr]
-                logger.info(f"{pr.name:<40} | {score:<20.4f}")
-
-            selected = top[-n:]
-            logger.info(f"Selected {len(selected)} top policies by {metric}")
-            for i, pr in enumerate(selected):
-                logger.info(f"  {i + 1}. {pr.name} (score: {policy_scores[pr]:.4f})")
-
-            return selected
+            return top[-n:]
         else:
             raise ValueError(f"Invalid selector type {selector_type}")
 
@@ -287,52 +254,6 @@ class PolicyStore:
 
         raise ValueError(f"Invalid URI: {uri}")
 
-    def _make_codebase_backwards_compatible(self):
-        """
-        torch.load expects the codebase to be in the same structure as when the model was saved.
-
-        We can use this function to alias old layout structures. For now we are supporting:
-        - agent --> metta.agent
-        """
-        # Memoize
-        if getattr(self, "_made_codebase_backwards_compatible", False):
-            return
-        self._made_codebase_backwards_compatible = True
-
-        # Handle agent --> metta.agent
-        sys.modules["agent"] = sys.modules["metta.agent"]
-        modules_queue = collections.deque(["metta.agent"])
-
-        processed = set()
-        while modules_queue:
-            module_name = modules_queue.popleft()
-            if module_name in processed:
-                continue
-            processed.add(module_name)
-
-            if module_name not in sys.modules:
-                continue
-            module = sys.modules[module_name]
-            old_name = module_name.replace("metta.agent", "agent")
-            sys.modules[old_name] = module
-
-            # Find all submodules
-            for attr_name in dir(module):
-                try:
-                    attr = getattr(module, attr_name)
-                except (ImportError, AttributeError):
-                    continue
-                if hasattr(attr, "__module__"):
-                    attr_module = getattr(attr, "__module__", None)
-
-                    # If it's a module and part of metta.agent, queue it
-                    if attr_module and attr_module.startswith("metta.agent"):
-                        modules_queue.append(attr_module)
-
-                submodule_name = f"{module_name}.{attr_name}"
-                if submodule_name in sys.modules:
-                    modules_queue.append(submodule_name)
-
     def _load_from_pytorch(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a policy from a PyTorch checkpoint or JIT model."""
         name = os.path.basename(path)
@@ -346,26 +267,18 @@ class PolicyStore:
             "train_time": 0,
         }
 
-        # First try to load as a JIT model
+        # Try to load as a JIT model first
         try:
             jit_model = torch.jit.load(path, map_location=self._device)
-            logger.info(f"Successfully loaded as JIT model from {path}")
-
             pr = PolicyRecord(self, name, "pytorch://" + name, default_metadata)
             pr._policy = MettaAgent(jit_model)
             return pr
-        except Exception as e:
-            logger.debug(f"Not a JIT model ({e}), trying as regular PyTorch checkpoint")
-
-        # Fall back to regular PyTorch checkpoint loading
-        try:
+        except Exception:
+            # Fall back to regular PyTorch checkpoint loading
             policy = MettaAgent._build_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
             pr = PolicyRecord(self, name, "pytorch://" + name, default_metadata)
             pr._policy = MettaAgent(policy)
             return pr
-        except Exception as e:
-            logger.error(f"Failed to load policy from {path}: {e}")
-            raise
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a policy from a file using PolicyRecord's load method."""
@@ -378,20 +291,14 @@ class PolicyStore:
 
         logger.info(f"Loading policy from {path}")
 
-        self._make_codebase_backwards_compatible()
+        checkpoint = torch.load(path, map_location=self._device, weights_only=False)
 
-        assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
-
-        try:
-            checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+        # Try to get PolicyRecord from checkpoint
+        if "policy_record" in checkpoint:
             pr = checkpoint["policy_record"]
             pr._policy_store = self
-        except (pickle.PicklingError, AttributeError, KeyError) as e:
-            logger.warning(f"Failed to load PolicyRecord from checkpoint, attempting fallback: {e}")
-            # For very old checkpoints, create a minimal PolicyRecord
-            checkpoint = torch.load(path, map_location=self._device, weights_only=False)
-
-            # Extract metadata if available
+        else:
+            # Create a minimal PolicyRecord for old checkpoints
             metadata = checkpoint.get(
                 "metadata",
                 {
@@ -402,20 +309,12 @@ class PolicyStore:
                     "train_time": 0,
                 },
             )
-
-            # Create a new PolicyRecord
             pr = PolicyRecord(self, name=os.path.basename(path), uri=f"file://{path}", metadata=metadata)
 
-            # Mark this as a legacy checkpoint
-            pr._is_legacy_checkpoint = True
-
         if not metadata_only:
-            # Use PolicyRecord's load method for reconstruction
             pr._policy = pr.load(path, self._device)
 
         pr._local_path = path
-
-        # Cache it
         self._cached_prs[path] = pr
         return pr
 

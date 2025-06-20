@@ -191,31 +191,24 @@ class MettaAgent(nn.Module):
         source_code = {}
 
         # Capture BrainPolicy source
-        try:
-            brain_module = sys.modules[brain.__class__.__module__]
-            if hasattr(brain_module, "__file__") and brain_module.__file__:
-                with open(brain_module.__file__, "r") as f:
-                    source_code["metta.agent.brain_policy"] = f.read()
-        except Exception as e:
-            logger.warning(f"Could not capture BrainPolicy source: {e}")
+        brain_module = sys.modules.get(brain.__class__.__module__)
+        if brain_module and hasattr(brain_module, "__file__") and brain_module.__file__:
+            with open(brain_module.__file__, "r") as f:
+                source_code["metta.agent.brain_policy"] = f.read()
 
         # Capture component sources
         if hasattr(brain, "components"):
             for name, component in brain.components.items():
-                try:
-                    component_class = component.__class__
-                    module_name = component_class.__module__
+                component_class = component.__class__
+                module_name = component_class.__module__
 
-                    # Skip if already captured
-                    if module_name in source_code:
-                        continue
+                if module_name in source_code:
+                    continue
 
-                    module = sys.modules.get(module_name)
-                    if module and hasattr(module, "__file__") and module.__file__:
-                        with open(module.__file__, "r") as f:
-                            source_code[module_name] = f.read()
-                except Exception as e:
-                    logger.warning(f"Could not capture source for component {name}: {e}")
+                module = sys.modules.get(module_name)
+                if module and hasattr(module, "__file__") and module.__file__:
+                    with open(module.__file__, "r") as f:
+                        source_code[module_name] = f.read()
 
         # Also capture key dependencies
         for module_name in [
@@ -224,16 +217,13 @@ class MettaAgent(nn.Module):
             "metta.agent.util.distribution_utils",
             "metta.agent.policy_state",
         ]:
-            try:
-                if module_name in source_code:
-                    continue
+            if module_name in source_code:
+                continue
 
-                module = sys.modules.get(module_name)
-                if module and hasattr(module, "__file__") and module.__file__:
-                    with open(module.__file__, "r") as f:
-                        source_code[module_name] = f.read()
-            except Exception as e:
-                logger.warning(f"Could not capture source for {module_name}: {e}")
+            module = sys.modules.get(module_name)
+            if module and hasattr(module, "__file__") and module.__file__:
+                with open(module.__file__, "r") as f:
+                    source_code[module_name] = f.read()
 
         return source_code
 
@@ -241,53 +231,28 @@ class MettaAgent(nn.Module):
     def _capture_policy_source_code(policy: nn.Module) -> Dict[str, str]:
         """Capture source code for a policy class and its dependencies."""
         source_code = {}
+
+        # Handle wrapped policies (e.g., PytorchPolicy wrapping another policy)
+        if isinstance(policy, PytorchPolicy) and hasattr(policy, "policy"):
+            wrapped_source = MettaAgent._capture_policy_source_code(policy.policy)
+            source_code.update(wrapped_source)
+
+        policy_class = policy.__class__
+        module_name = policy_class.__module__
+        class_name = policy_class.__name__
+        full_class_path = f"{module_name}.{class_name}"
+
+        # Save the class source
         try:
-            # Handle wrapped policies (e.g., PytorchPolicy wrapping another policy)
-            if isinstance(policy, PytorchPolicy) and hasattr(policy, "policy"):
-                # Capture source for the wrapped policy too
-                wrapped_source = MettaAgent._capture_policy_source_code(policy.policy)
-                source_code.update(wrapped_source)
+            source_code[full_class_path] = inspect.getsource(policy_class)
+        except OSError:
+            pass  # Built-in classes won't have source
 
-            policy_class = policy.__class__
-            module_name = policy_class.__module__
-            class_name = policy_class.__name__
-            full_class_path = f"{module_name}.{class_name}"
-
-            # Save the class source
-            try:
-                source_code[full_class_path] = inspect.getsource(policy_class)
-            except OSError:
-                # If we can't get the source (e.g., built-in classes), skip
-                logger.warning(f"Could not get source for class {full_class_path}")
-
-            # Save the module source if possible
-            module = sys.modules.get(module_name)
-            if module and hasattr(module, "__file__") and module.__file__:
-                try:
-                    with open(module.__file__, "r") as f:
-                        source_code[module_name] = f.read()
-                except Exception:
-                    # For __main__ module or modules without files, try to capture from source
-                    if module_name == "__main__":
-                        # Try to capture the entire __main__ module source
-                        try:
-                            import __main__
-
-                            # Get all classes and functions defined in __main__
-                            main_source = []
-                            for name, obj in vars(__main__).items():
-                                if inspect.isclass(obj) or inspect.isfunction(obj):
-                                    try:
-                                        main_source.append(inspect.getsource(obj))
-                                    except:
-                                        pass
-                            if main_source:
-                                source_code[module_name] = "\n\n".join(main_source)
-                        except:
-                            pass
-
-        except Exception as e:
-            logger.warning(f"Could not capture source code: {e}")
+        # Save the module source if possible
+        module = sys.modules.get(module_name)
+        if module and hasattr(module, "__file__") and module.__file__:
+            with open(module.__file__, "r") as f:
+                source_code[module_name] = f.read()
 
         return source_code
 
