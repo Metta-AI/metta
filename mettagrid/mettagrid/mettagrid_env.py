@@ -81,7 +81,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
     ):
         self.timer = Stopwatch(logger)
         self.timer.start()
-
         self._cache_hits = 0
         self._cache_misses = 0
         self.timer.start("thread_idle")
@@ -200,7 +199,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._replay_writer.start_episode(self._episode_id, self)
 
         obs, infos = self._c_env.reset()
-
         self._should_reset = False
 
         self.timer.start("thread_idle")
