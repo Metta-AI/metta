@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import logging
-import random
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 import numpy as np
 from gymnasium.spaces import Discrete
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    from mettagrid.mettagrid_env import MettaGridEnv
+    pass
 
 
 class LearningProgressCurriculum(RandomCurriculum):
@@ -275,7 +274,7 @@ class BidirectionalLearningProgress:
         else:
             task_dist = task_dist / sum_dist
 
-        for i in range(self.n):
+        for _i in range(self.n):
             if np.random.rand() < self.rand_task_rate:
                 level = np.random.choice(range(self.num_tasks))
             else:
