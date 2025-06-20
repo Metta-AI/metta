@@ -378,7 +378,7 @@ class MettaTrainer:
             # Convert mask to tensor once
             mask = torch.as_tensor(mask)
             num_steps = int(mask.sum().item())
-            self.agent_step += num_steps * self._world_size
+            self.agent_step += num_steps
 
             # Convert to tensors once
             o = torch.as_tensor(o).to(device, non_blocking=True)
@@ -802,8 +802,11 @@ class MettaTrainer:
         epoch_steps = self.timer.get_lap_steps()
         if epoch_steps is None:
             epoch_steps = self.agent_step
-        epoch_steps_per_second = (epoch_steps / wall_time_for_lap) * self._world_size if wall_time_for_lap > 0 else 0
-        steps_per_second = (self.timer.get_rate(self.agent_step) * self._world_size) if wall_time > 0 else 0
+        epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
+        steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+
+        epoch_steps_per_second *= self._world_size
+        steps_per_second *= self._world_size
 
         timing_stats = {
             **{
