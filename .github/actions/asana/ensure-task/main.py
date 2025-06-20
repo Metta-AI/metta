@@ -41,7 +41,6 @@ def search_asana_tasks(
     # Return the first matching task (should be the most recently created due to sorting)
     if tasks:
         task = tasks[0]
-        print(f"Found existing Asana task: {task['permalink_url']}")
         return task
 
     print("No tasks found with matching GitHub URL")
@@ -51,7 +50,7 @@ def search_asana_tasks(
 def _get_task_custom_fields_from_project(
     project_id: str,
     asana_token: str,
-) -> Generator[dict[str, str]]:
+) -> Generator[dict[str, str], None, None]:
     """Get the custom fields for all tasks in the given project."""
     url = f"https://app.asana.com/api/1.0/projects/{project_id}/tasks"
     headers = {
@@ -93,6 +92,9 @@ def get_asana_users_by_github_logins(
         for field in custom_fields:
             if field.get("gid") == gh_login_field_id:
                 gh_login = field.get("text_value")
+                if gh_login not in github_logins:
+                    # This isn't the user we're looking for.
+                    break
             if field.get("gid") == asana_email_field_id:
                 asana_email = field.get("text_value")
             if gh_login and asana_email:
@@ -210,7 +212,7 @@ def ensure_asana_task_exists(
                 or current_completed != task_completed
                 or current_assignee != asana_assignee
             ):
-                print("Task needs updates - updating title and description")
+                print("Task needs updates")
                 update_asana_task(
                     existing_task["gid"],
                     title,
@@ -265,6 +267,7 @@ if __name__ == "__main__":
         asana_email_field_id,
         asana_token,
     )
+    print(f"github_login_to_asana_email: {github_login_to_asana_email}")
 
     # github allows multiple assignees. Asana doesn't. So we'll just use the first one.
     asana_assignee = github_login_to_asana_email.get(assignees[0]) if assignees else None
