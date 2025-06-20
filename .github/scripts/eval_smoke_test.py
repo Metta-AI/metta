@@ -18,9 +18,9 @@ class EvaluationSmokeTest(SmokeTest):
     """Evaluation smoke test with reward checking."""
 
     def __init__(self):
-        self.policy = os.environ.get("POLICY", "b.rwalters.0605.nav.pr811.00")
-        self.min_reward = float(os.environ.get("MIN_REWARD", "0.15"))
-        self.max_attempts = int(os.environ.get("MAX_ATTEMPTS", "4"))
+        self.policy = os.environ["POLICY"]
+        self.min_reward = float(os.environ["MIN_REWARD"])
+        self.max_attempts = int(os.environ["MAX_ATTEMPTS"])
         super().__init__()
 
     def get_command(self) -> List[str]:
@@ -45,11 +45,9 @@ class EvaluationSmokeTest(SmokeTest):
     def get_timeout(self) -> int:
         return int(os.environ.get("EVAL_TIMEOUT", "300"))
 
-    def print_config(self):
+    def header_config_lines(self) -> list[str]:
         """Print evaluation-specific configuration."""
-        print(f"Policy: {self.policy}")
-        print(f"Minimum reward: {self.min_reward}")
-        print(f"Max attempts: {self.max_attempts}")
+        return [f"Policy: {self.policy}", f"Minimum reward: {self.min_reward}", f"Max attempts: {self.max_attempts}"]
 
     def extract_metrics_from_output(self, output: str) -> Dict:
         """Extract metrics JSON from output using the delimiters."""

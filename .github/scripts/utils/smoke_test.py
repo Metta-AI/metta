@@ -35,13 +35,13 @@ class SmokeTest(ABC):
         print(f"{self.test_name.title()} Smoke Test")
         print("=" * 60)
         print(f"Timeout: {self.timeout}s")
-        self.print_config()
+        for line in self.header_config_lines():
+            print(line)
         print("=" * 60)
 
-    @abstractmethod
-    def print_config(self):
+    def header_config_lines(self) -> list[str]:
         """Override to print additional configuration."""
-        pass
+        return []
 
     def process_result(self, result: Dict) -> Tuple[bool, str]:
         """
