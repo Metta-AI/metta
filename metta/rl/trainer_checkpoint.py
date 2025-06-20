@@ -15,18 +15,11 @@ class TrainerCheckpoint:
         epoch: int = 0,
         optimizer_state_dict: Optional[Dict[str, Any]] = None,
         policy_path: Optional[str] = None,
-        extra_args: Optional[Dict[str, Any]] = None,
-        **kwargs,
     ):
         self.agent_step = agent_step
         self.epoch = epoch
         self.optimizer_state_dict = optimizer_state_dict
         self.policy_path = policy_path
-        self.extra_args = extra_args or {}
-        # Store any additional kwargs that might come from loading old checkpoints
-        for k, v in kwargs.items():
-            if not hasattr(self, k):
-                setattr(self, k, v)
 
     def save(self, run_dir: str) -> None:
         state = {
@@ -35,9 +28,6 @@ class TrainerCheckpoint:
             "epoch": self.epoch,
             "policy_path": self.policy_path,
         }
-        # Add extra_args if they exist
-        if self.extra_args:
-            state.update(self.extra_args)
 
         state_path = os.path.join(run_dir, "trainer_state.pt")
         torch.save(state, state_path + ".tmp")
@@ -54,4 +44,12 @@ class TrainerCheckpoint:
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
-            return TrainerCheckpoint(**torch.load(trainer_path, weights_only=False))
+            checkpoint_data = torch.load(trainer_path, weights_only=False)
+
+        # Extract only the expected fields
+        return TrainerCheckpoint(
+            agent_step=checkpoint_data.get("agent_step", 0),
+            epoch=checkpoint_data.get("epoch", 0),
+            optimizer_state_dict=checkpoint_data.get("optimizer_state_dict"),
+            policy_path=checkpoint_data.get("policy_path"),
+        )
