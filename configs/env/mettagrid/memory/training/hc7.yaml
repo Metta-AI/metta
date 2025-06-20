@@ -4,7 +4,7 @@ defaults:
 sampling: 1
 game:
   num_agents: 16
-  max_steps: 78
+  max_steps: 500
   agent:
     rewards:
       heart: 1
@@ -14,7 +14,7 @@ game:
     room:
       _target_: mettagrid.room.ascii.Ascii
       border_width: 1
-      uri: "configs/env/mettagrid/maps/memory/memory_training/easy.map"
+      uri: "configs/env/mettagrid/maps/memory/memory_training/hc7.map"
 
   objects:
     altar:

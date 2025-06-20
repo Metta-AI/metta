@@ -1,0 +1,9 @@
+_target_: mettagrid.curriculum.LowRewardCurriculum
+
+tasks:
+  /env/mettagrid/memory/training/easy: 1
+  /env/mettagrid/memory/training/medium: 1
+  /env/mettagrid/memory/training/hard: 1
+  /env/mettagrid/memory/training/easy_short: 1
+  /env/mettagrid/memory/training/medium_short: 1
+  /env/mettagrid/memory/training/hard_short: 1
