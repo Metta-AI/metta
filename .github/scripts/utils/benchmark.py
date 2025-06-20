@@ -10,7 +10,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Tuple, Union
 
 import psutil
 
@@ -68,13 +68,13 @@ class ProcessMonitor:
 
 
 def run_with_benchmark(
-    cmd: Union[str, List[str]],
+    cmd: Union[str, list[str]],
     name: str = "process",
-    timeout: Optional[int] = None,
+    timeout: int | None = None,
     shell: bool = False,
-    env: Optional[Dict[str, str]] = None,
-    cwd: Optional[str] = None,
-) -> Dict:
+    env: dict[str, str] | None = None,
+    cwd: str | None = None,
+) -> dict:
     """
     Run a command with benchmarking.
 
@@ -149,7 +149,7 @@ def run_with_benchmark(
         }
 
 
-def write_github_output(outputs: Dict[str, str]):
+def write_github_output(outputs: dict[str, str]):
     """Write multiple outputs for GitHub Actions."""
     if "GITHUB_OUTPUT" in os.environ:
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:

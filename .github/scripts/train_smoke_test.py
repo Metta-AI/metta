@@ -4,7 +4,6 @@ Run training smoke tests with benchmarking.
 
 import os
 import sys
-from typing import List
 
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -14,7 +13,7 @@ from utils.smoke_test import SmokeTest
 class TrainingSmokeTest(SmokeTest):
     """Training smoke test implementation."""
 
-    def get_command(self) -> List[str]:
+    def get_command(self) -> list[str]:
         return [
             "python3",
             "./tools/train.py",

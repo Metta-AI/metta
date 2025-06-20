@@ -7,7 +7,7 @@ and reporting results.
 
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple
+from typing import Tuple
 
 from .benchmark import run_with_benchmark, write_github_output
 
@@ -20,7 +20,7 @@ class SmokeTest(ABC):
         self.timeout = self.get_timeout()
 
     @abstractmethod
-    def get_command(self) -> List[str]:
+    def get_command(self) -> list[str]:
         """Return the command to run for this test."""
         pass
 
@@ -43,7 +43,7 @@ class SmokeTest(ABC):
         """Override to print additional configuration."""
         return []
 
-    def process_result(self, result: Dict) -> Tuple[bool, str]:
+    def process_result(self, result: dict) -> Tuple[bool, str]:
         """
         Process the benchmark result.
 

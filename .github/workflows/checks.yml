@@ -194,8 +194,7 @@ jobs:
 
       - name: Install smoke test dependencies
         run: |
-          uv pip install psutil
-          uv pip install wandb
+          uv pip install -r .github/scripts/requirements-smoke-test.txt
 
       - name: Training smoke test
         id: train

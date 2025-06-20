@@ -6,7 +6,7 @@ import json
 import os
 import sys
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Tuple
 
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,11 +23,11 @@ class EvaluationSmokeTest(SmokeTest):
         self.max_attempts = int(os.environ["MAX_ATTEMPTS"])
         super().__init__()
 
-    def get_command(self) -> List[str]:
+    def get_command(self) -> list[str]:
         # This is overridden in get_command_for_attempt
         return []
 
-    def get_command_for_attempt(self, attempt: int) -> List[str]:
+    def get_command_for_attempt(self, attempt: int) -> list[str]:
         """Get command for a specific attempt."""
         return [
             "python3",
@@ -49,7 +49,7 @@ class EvaluationSmokeTest(SmokeTest):
         """Print evaluation-specific configuration."""
         return [f"Policy: {self.policy}", f"Minimum reward: {self.min_reward}", f"Max attempts: {self.max_attempts}"]
 
-    def extract_metrics_from_output(self, output: str) -> Dict:
+    def extract_metrics_from_output(self, output: str) -> dict:
         """Extract metrics JSON from output using the delimiters."""
         json_start = output.find("===JSON_OUTPUT_START===")
         json_end = output.find("===JSON_OUTPUT_END===")
@@ -68,7 +68,7 @@ class EvaluationSmokeTest(SmokeTest):
 
         return {}
 
-    def extract_reward(self, metrics: Dict) -> Optional[float]:
+    def extract_reward(self, metrics: dict) -> float | None:
         """Extract reward value from metrics dictionary."""
         try:
             reward = metrics["policies"][0]["checkpoints"][0]["metrics"]["reward_avg"]
@@ -79,7 +79,7 @@ class EvaluationSmokeTest(SmokeTest):
                 print(f"Metrics structure: {json.dumps(metrics, indent=2)[:500]}...")
             return None
 
-    def run_evaluation_attempt(self, attempt: int) -> Tuple[bool, Optional[float], float, float]:
+    def run_evaluation_attempt(self, attempt: int) -> Tuple[bool, float | None, float, float]:
         """
         Run a single evaluation attempt.
 
