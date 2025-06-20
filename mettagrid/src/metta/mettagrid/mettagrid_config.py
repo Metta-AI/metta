@@ -28,12 +28,18 @@ class AgentRewards(BaseModelWithForbidExtra):
     heart_max: Optional[float] = None
 
 
-class AgentConfig(BaseModel):
+class AgentConfig(BaseModelWithForbidExtra):
     """Agent configuration."""
 
     default_item_max: Optional[int] = None
     freeze_duration: Optional[int] = None
     rewards: Optional[AgentRewards] = None
+    ore_red_max: Optional[int] = Field(default=None, alias="ore.red_max")
+    ore_blue_max: Optional[int] = Field(default=None, alias="ore.blue_max")
+    ore_green_max: Optional[int] = Field(default=None, alias="ore.green_max")
+    battery_red_max: Optional[int] = Field(default=None, alias="battery.red_max")
+    battery_blue_max: Optional[int] = Field(default=None, alias="battery.blue_max")
+    battery_green_max: Optional[int] = Field(default=None, alias="battery.green_max")
     heart_max: Optional[int] = None
 
 
@@ -43,7 +49,7 @@ class GroupProps(RootModel[Dict[str, Any]]):
     pass
 
 
-class GroupConfig(BaseModel):
+class GroupConfig(BaseModelWithForbidExtra):
     """Group configuration."""
 
     id: int
@@ -52,13 +58,13 @@ class GroupConfig(BaseModel):
     props: Optional[GroupProps] = None
 
 
-class ActionConfig(BaseModel):
+class ActionConfig(BaseModelWithForbidExtra):
     """Action configuration."""
 
     enabled: bool
 
 
-class ActionsConfig(BaseModel):
+class ActionsConfig(BaseModelWithForbidExtra):
     """Actions configuration."""
 
     noop: ActionConfig
@@ -71,13 +77,13 @@ class ActionsConfig(BaseModel):
     change_color: ActionConfig
 
 
-class WallConfig(BaseModel):
+class WallConfig(BaseModelWithForbidExtra):
     """Wall/Block configuration."""
 
     swappable: Optional[bool] = None
 
 
-class ConverterConfig(BaseModel):
+class ConverterConfig(BaseModelWithForbidExtra):
     """Converter configuration for objects that convert items."""
 
     # Input items (e.g., "input_ore.red": 3)
@@ -110,7 +116,7 @@ class ConverterConfig(BaseModel):
     color: Optional[int] = None
 
 
-class ObjectsConfig(BaseModel):
+class ObjectsConfig(BaseModelWithForbidExtra):
     """Objects configuration."""
 
     altar: Optional[ConverterConfig] = None
@@ -135,13 +141,13 @@ class RewardSharingGroup(RootModel[Dict[str, float]]):
     pass
 
 
-class RewardSharingConfig(BaseModel):
+class RewardSharingConfig(BaseModelWithForbidExtra):
     """Reward sharing configuration."""
 
     groups: Optional[Dict[str, RewardSharingGroup]] = None
 
 
-class GameConfig(BaseModel):
+class GameConfig(BaseModelWithForbidExtra):
     """Game configuration."""
 
     num_agents: int
@@ -154,6 +160,3 @@ class GameConfig(BaseModel):
     actions: ActionsConfig
     objects: ObjectsConfig
     reward_sharing: Optional[RewardSharingConfig] = None
-
-    class Config:
-        extra = "forbid"
