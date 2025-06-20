@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Tuple
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
+from mettagrid.curriculum.curriculum import Curriculum
 from mettagrid.curriculum.sampling import SampledTaskCurriculum
 from mettagrid.curriculum.util import config_from_path
 
@@ -21,28 +22,26 @@ class BucketedCurriculum(LowRewardCurriculum):
         env_cfg_template: str,
         buckets: Dict[str, Dict[str, Any]],
         env_overrides: DictConfig,
-        *,
         default_bins: int = 1,
         moving_avg_decay_rate: float = 0.01,
     ):
-        bucket_parameters, bucket_values = _expand_buckets(buckets, default_bins)
+        expanded_buckets = _expand_buckets(buckets, default_bins)
 
-        # here, tasks map directly to curricula
-        curricula = {}
+        self._id_to_curriculum = {}
         base_cfg = config_from_path(env_cfg_template, env_overrides)
         env_cfg_template = OmegaConf.create(OmegaConf.to_container(base_cfg, resolve=False))
-        logger.info("Generating bucketed tasks")
-        # make task id interpretable
-        for parameter_values in tqdm(product(*bucket_values)):
-            curriculum_id = get_id(bucket_parameters, parameter_values)
-            curricula[curriculum_id] = SampledTaskCurriculum(
-                curriculum_id, env_cfg_template, bucket_parameters, parameter_values
-            )
-        super().__init__(tasks=curricula, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
 
-    def load_curricula(self, curricula_cfgs, env_overrides=None):
-        self._task_weights = {t: 1.0 for t in curricula_cfgs}  # uniform task weights
-        return curricula_cfgs
+        logger.info("Generating bucketed tasks")
+        for parameter_values in tqdm(product(*expanded_buckets.values())):
+            curriculum_id = get_id(expanded_buckets.keys(), parameter_values)
+            self._id_to_curriculum[curriculum_id] = SampledTaskCurriculum(
+                curriculum_id, env_cfg_template, expanded_buckets.keys(), parameter_values
+            )
+        tasks = {t: 1.0 for t in self._id_to_curriculum.keys()}
+        super().__init__(tasks=tasks, env_overrides=env_overrides, moving_avg_decay_rate=moving_avg_decay_rate)
+
+    def _curriculum_from_id(self, id: str) -> Curriculum:
+        return self._id_to_curriculum[id]
 
 
 def get_id(parameters, values):
@@ -77,4 +76,4 @@ def _expand_buckets(buckets: Dict[str, Dict[str, Any]], default_bins: int = 1) -
             buckets_unpacked[parameter] = binned_ranges
         else:
             raise ValueError(f"Invalid bucket spec: {bucket_spec}")
-    return list(buckets_unpacked.keys()), list(buckets_unpacked.values())
+    return buckets_unpacked
