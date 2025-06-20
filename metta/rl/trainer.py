@@ -197,29 +197,6 @@ class MettaTrainer:
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
-        # Automatic Mixed Precision setup
-        self.amp_enabled = getattr(trainer_cfg, "amp_enabled", False)
-        self.amp_dtype = getattr(trainer_cfg, "amp_dtype", "bfloat16")
-
-        if self.amp_enabled:
-            if self.amp_dtype not in ("float32", "bfloat16", "float16"):
-                raise ValueError(f"Invalid amp_dtype: {self.amp_dtype}. Use float32, bfloat16, or float16")
-
-            # Determine device type for AMP
-            device_type = str(self.device).split(":")[0]  # Extract device type (cuda, mps, cpu)
-
-            # MPS only supports float32 and float16
-            if device_type == "mps" and self.amp_dtype == "bfloat16":
-                logger.warning("MPS does not support bfloat16, falling back to float16")
-                self.amp_dtype = "float16"
-
-            logger.info(f"Automatic Mixed Precision enabled with dtype: {self.amp_dtype} on {device_type}")
-            self.amp_context = torch.amp.autocast(device_type=device_type, dtype=getattr(torch, self.amp_dtype))
-        else:
-            from contextlib import nullcontext
-
-            self.amp_context = nullcontext()
-
         if wandb_run and self._master:
             # Define metrics (wandb x-axis values)
             metrics = ["agent_step", "epoch", "total_time", "train_time"]
@@ -403,7 +380,7 @@ class MettaTrainer:
             if getattr(trainer_cfg, "clip_rewards", False):
                 r = torch.clamp(r, -1, 1)
 
-            with torch.no_grad(), self.amp_context:
+            with torch.no_grad():
                 state = PolicyState()
 
                 # Use LSTM state access for performance
@@ -526,10 +503,9 @@ class MettaTrainer:
 
                 lstm_state = PolicyState()
 
-                with self.amp_context:
-                    _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
-                        obs, lstm_state, action=minibatch["actions"]
-                    )
+                _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
+                    obs, lstm_state, action=minibatch["actions"]
+                )
 
                 new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
                 logratio = new_logprobs - minibatch["logprobs"]
