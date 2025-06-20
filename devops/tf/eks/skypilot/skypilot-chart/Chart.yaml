@@ -2,7 +2,7 @@ apiVersion: v2
 name: skypilot
 description: A Helm chart for deploying SkyPilot API server on Kubernetes
 type: application
-version: 0.0.0
+version: 0.0.6
 appVersion: "0.0"
 dependencies:
   - name: ingress-nginx
