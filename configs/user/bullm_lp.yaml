@@ -33,4 +33,4 @@ wandb:
   project: metta
   entity: metta-research
   name: ${run}
-  tags: ["msb_nav_lp_comparionsion"]
+  tags: ["msb_nav_lp_comparison"]

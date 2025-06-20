@@ -31,22 +31,29 @@ if TYPE_CHECKING:
 class LearningProgressCurriculum(MultiTaskCurriculum):
     """Curriculum that adaptively samples tasks based on learning progress."""
 
-    def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig,
-                 ema_timescale: float = 0.001, progress_smoothing: float = 0.05,
-                 num_active_tasks: int = 16, rand_task_rate: float = 0.25,
-                 sample_threshold: int = 10, memory: int = 25):
+    def __init__(
+        self,
+        tasks: Dict[str, float],
+        env_overrides: DictConfig,
+        ema_timescale: float = 0.001,
+        progress_smoothing: float = 0.05,
+        num_active_tasks: int = 16,
+        rand_task_rate: float = 0.25,
+        sample_threshold: int = 10,
+        memory: int = 25,
+    ):
         super().__init__(tasks, env_overrides)
 
         # Initialize learning progress tracker
         search_space_size = len(tasks)
-        self.lp_tracker = BidirectionalLearningProgess(
+        self.lp_tracker = BidirectionalLearningProgress(
             search_space=search_space_size,
             ema_timescale=ema_timescale,
             progress_smoothing=progress_smoothing,
             num_active_tasks=num_active_tasks,
             rand_task_rate=rand_task_rate,
             sample_threshold=sample_threshold,
-            memory=memory
+            memory=memory,
         )
 
         # Initialize task weights to uniform distribution
@@ -149,7 +156,7 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
         task_idx = list(self._curriculums.keys()).index(id)
 
         # Collect data for learning progress
-        self.lp_tracker.collect_data({f'tasks/{task_idx}': [success_rate]})
+        self.lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
 
         # Update task distribution based on learning progress
         lp_weights, _ = self.lp_tracker.calculate_dist()
@@ -177,17 +184,27 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
     def get_stats(self) -> Dict[str, float]:
         """Get learning progress statistics for logging."""
         stats = {}
-        if hasattr(self.lp_tracker, 'add_stats'):
+        if hasattr(self.lp_tracker, "add_stats"):
             self.lp_tracker.add_stats(stats)
         return stats
 
 
-class BidirectionalLearningProgess:
-    def __init__(self, search_space, ema_timescale = 0.001, progress_smoothing = 0.05, num_active_tasks = 16, rand_task_rate = 0.25,
-                 sample_threshold = 10, memory = 25):
+class BidirectionalLearningProgress:
+    def __init__(
+        self,
+        search_space,
+        ema_timescale=0.001,
+        progress_smoothing=0.05,
+        num_active_tasks=16,
+        rand_task_rate=0.25,
+        sample_threshold=10,
+        memory=25,
+    ):
         if isinstance(search_space, int):
             search_space = Discrete(search_space)
-        assert isinstance(search_space, Discrete), f"search_space must be a Discrete space or int, got {type(search_space)}"
+        assert isinstance(search_space, Discrete), (
+            f"search_space must be a Discrete space or int, got {type(search_space)}"
+        )
         self.search_space = search_space
         self.num_tasks = max_num_levels = search_space.n
         self.ema_alpha = ema_timescale  # Fixed: use ema_timescale as ema_alpha
@@ -214,15 +231,15 @@ class BidirectionalLearningProgess:
         self.counter = {i: 0 for i in self.sample_levels}
 
     def add_stats(self, info):
-        info['lp/num_active_tasks'] = len(self.sample_levels)
-        info['lp/mean_sample_prob'] = np.mean(self.task_dist)
-        info['lp/num_zeros_lp_dist'] = np.sum(self.task_dist == 0)
-        info['lp/task_1_success_rate'] = self.task_success_rate[0]
-        info[f'lp/task_{self.num_tasks // 2}_success_rate'] = self.task_success_rate[self.num_tasks // 2]
-        info['lp/last_task_success_rate'] = self.task_success_rate[-1]
-        info['lp/task_success_rate'] = np.mean(self.task_success_rate)
-        info['lp/mean_evals_per_task'] = self.mean_samples_per_eval[-1]
-        info['lp/num_nan_tasks'] = self.num_nans[-1]
+        info["lp/num_active_tasks"] = len(self.sample_levels)
+        info["lp/mean_sample_prob"] = np.mean(self.task_dist)
+        info["lp/num_zeros_lp_dist"] = np.sum(self.task_dist == 0)
+        info["lp/task_1_success_rate"] = self.task_success_rate[0]
+        info[f"lp/task_{self.num_tasks // 2}_success_rate"] = self.task_success_rate[self.num_tasks // 2]
+        info["lp/last_task_success_rate"] = self.task_success_rate[-1]
+        info["lp/task_success_rate"] = np.mean(self.task_success_rate)
+        info["lp/mean_evals_per_task"] = self.mean_samples_per_eval[-1]
+        info["lp/num_nan_tasks"] = self.num_nans[-1]
 
     def _update(self):
         task_success_rates = np.array([np.mean(self.outcomes[i]) for i in range(self.num_tasks)])
@@ -235,12 +252,16 @@ class BidirectionalLearningProgess:
             self.task_rates = task_success_rates
 
         # Handle division by zero and NaN in normalization
-        denominator = (1.0 - self.random_baseline[update_mask])
+        denominator = 1.0 - self.random_baseline[update_mask]
         denominator = np.where(denominator <= 0, 1.0, denominator)  # Avoid division by zero
 
-        normalized_task_success_rates = np.maximum(
-            task_success_rates[update_mask] - self.random_baseline[update_mask],
-            np.zeros(task_success_rates[update_mask].shape)) / denominator
+        normalized_task_success_rates = (
+            np.maximum(
+                task_success_rates[update_mask] - self.random_baseline[update_mask],
+                np.zeros(task_success_rates[update_mask].shape),
+            )
+            / denominator
+        )
 
         # Handle NaN values in normalized rates
         normalized_task_success_rates = np.nan_to_num(normalized_task_success_rates, nan=0.0)
@@ -250,9 +271,15 @@ class BidirectionalLearningProgess:
             self._p_slow = normalized_task_success_rates[update_mask]
             self._p_true = task_success_rates[update_mask]
         else:
-            self._p_fast[update_mask] = (normalized_task_success_rates * self.ema_alpha) + (self._p_fast[update_mask] * (1.0 - self.ema_alpha))
-            self._p_slow[update_mask] = (self._p_fast[update_mask] * self.ema_alpha) + (self._p_slow[update_mask] * (1.0 - self.ema_alpha))
-            self._p_true[update_mask] = (task_success_rates[update_mask] * self.ema_alpha) + (self._p_true[update_mask] * (1.0 - self.ema_alpha))
+            self._p_fast[update_mask] = (normalized_task_success_rates * self.ema_alpha) + (
+                self._p_fast[update_mask] * (1.0 - self.ema_alpha)
+            )
+            self._p_slow[update_mask] = (self._p_fast[update_mask] * self.ema_alpha) + (
+                self._p_slow[update_mask] * (1.0 - self.ema_alpha)
+            )
+            self._p_true[update_mask] = (task_success_rates[update_mask] * self.ema_alpha) + (
+                self._p_true[update_mask] * (1.0 - self.ema_alpha)
+            )
 
         # Handle NaN values in EMA updates
         self._p_fast = np.nan_to_num(self._p_fast, nan=0.0)
@@ -270,8 +297,8 @@ class BidirectionalLearningProgess:
             return
 
         for k, v in infos.items():
-            if 'tasks' in k:
-                task_id = int(k.split('/')[1])
+            if "tasks" in k:
+                task_id = int(k.split("/")[1])
                 for res in v:
                     self.outcomes[task_id].append(res)
                     if task_id in self.sample_levels:
@@ -347,7 +374,7 @@ class BidirectionalLearningProgess:
             task_dist = subprobs
 
         # Final NaN check and normalization
-        task_dist = np.nan_to_num(task_dist, nan=1.0/len(task_dist))
+        task_dist = np.nan_to_num(task_dist, nan=1.0 / len(task_dist))
         sum_dist = np.sum(task_dist)
         if sum_dist > 0:
             task_dist = task_dist / sum_dist
@@ -364,7 +391,7 @@ class BidirectionalLearningProgess:
         self.mean_samples_per_eval.append(np.mean([len(self.outcomes[i]) for i in range(self.num_tasks)]))
 
         for i in range(self.num_tasks):
-            self.outcomes[i] = self.outcomes[i][-self.memory:]
+            self.outcomes[i] = self.outcomes[i][-self.memory :]
         self.collecting = True
         return self.task_dist
 
@@ -380,7 +407,7 @@ class BidirectionalLearningProgess:
             task_dist = self.task_dist.copy()
 
         # Handle NaN values in task_dist
-        task_dist = np.nan_to_num(task_dist, nan=1.0/len(task_dist))
+        task_dist = np.nan_to_num(task_dist, nan=1.0 / len(task_dist))
 
         # Ensure task_dist sums to 1
         sum_dist = np.sum(task_dist)
@@ -433,4 +460,3 @@ class BidirectionalLearningProgess:
         self.outcomes = {}
         for i in range(self.num_tasks):
             self.outcomes[i] = []
-
