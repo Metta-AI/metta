@@ -1,43 +1,53 @@
 diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 --- sky/provision/docker_utils.py	2025-06-02 23:54:17
-+++ sky-patched/provision/docker_utils.py	2025-06-20 03:15:29
-@@ -51,0 +52,15 @@
-+        server = d[constants.DOCKER_SERVER_ENV_VAR]
-+        if server.endswith(".amazonaws.com"):
-+            # AWS ECR; rewrite region to the current region if we're running on AWS
-+            import socket
-+            import re
++++ sky-patched/provision/docker_utils.py	2025-06-20 16:47:40
+@@ -35,0 +36,24 @@
++def is_ecr_server(server: str):
++    return server.endswith(".amazonaws.com") and ".ecr." in server
 +
-+            hostname = socket.getfqdn()
-+            hostname_parts = hostname.split(".")
-+            if len(hostname_parts) >= 3 and hostname_parts[-2] == "compute" and hostname_parts[-1] == "internal":
-+                # looks like AWS
-+                region = hostname_parts[-3]
-+                server = re.sub(
-+                    r"\.[\w-]+\.amazonaws\.com", f".{region}.amazonaws.com", server
-+                )
 +
-@@ -55 +70 @@
--            server=d[constants.DOCKER_SERVER_ENV_VAR],
-+            server=server,
-@@ -236,0 +252,17 @@
-+            elif docker_login_config.server.endswith(".amazonaws.com") and ".ecr." in docker_login_config.server:
++def fix_ecr_server(server: str):
++    if not is_ecr_server(server):
++        return server
++
++    # AWS ECR; rewrite region to the current region if we're running on AWS
++    import socket
++    import re
++
++    hostname = socket.getfqdn()
++    hostname_parts = hostname.split(".")
++    if len(hostname_parts) >= 3 and hostname_parts[-2] == "compute" and hostname_parts[-1] == "internal":
++        # looks like AWS
++        region = hostname_parts[-3]
++        server = re.sub(
++            r"\.[\w-]+\.amazonaws\.com", f".{region}.amazonaws.com", server
++        )
++
++    return server
++
++
+@@ -45 +69,3 @@
+-        server_prefix = f'{self.server}/'
++        server = fix_ecr_server(self.server)
++
++        server_prefix = f'{server}/'
+@@ -236,0 +263,16 @@
++            elif is_ecr_server(docker_login_config.server):
 +                # Handle AWS ECR authentication
-+                server = docker_login_config.server
-+                if server.endswith(".amazonaws.com") and ".ecr." in server:
-+                    self._run('sudo apt update && sudo apt install -y amazon-ecr-credential-helper')
-+                    # Create the docker config directory if it doesn't exist
-+                    self._run('mkdir -p ~/.docker')
-+                    # Create or update the docker config.json file with ECR credentials helper
-+                    config_json = {
-+                        "credHelpers": {
-+                            server: "ecr-login"
-+                        }
++                server = fix_ecr_server(docker_login_config.server)
++                self._run('sudo apt update && sudo apt install -y amazon-ecr-credential-helper')
++                # Create the docker config directory if it doesn't exist
++                self._run('mkdir -p ~/.docker')
++                # Create or update the docker config.json file with ECR credentials helper
++                config_json = {
++                    "credHelpers": {
++                        server: "ecr-login"
 +                    }
-+                    # Write the config to a temporary file and move it to the right location
-+                    import json
-+                    self._run(f'echo \'{json.dumps(config_json, indent=2)}\' > /tmp/docker_config.json && '
-+                              f'mv /tmp/docker_config.json ~/.docker/config.json')
++                }
++                # Write the config to a temporary file and move it to the right location
++                import json
++                self._run(f'echo \'{json.dumps(config_json, indent=2)}\' > /tmp/docker_config.json && '
++                            f'mv /tmp/docker_config.json ~/.docker/config.json')
 diff -U0 -r sky/resources.py sky-patched/resources.py
 --- sky/resources.py	2025-06-16 15:54:40
 +++ sky-patched/resources.py	2025-06-16 15:57:08
