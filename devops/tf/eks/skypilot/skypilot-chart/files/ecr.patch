@@ -1,6 +1,6 @@
 diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 --- sky/provision/docker_utils.py	2025-06-02 23:54:17
-+++ sky-patched/provision/docker_utils.py	2025-06-20 03:05:40
++++ sky-patched/provision/docker_utils.py	2025-06-20 03:15:29
 @@ -51,0 +52,15 @@
 +        server = d[constants.DOCKER_SERVER_ENV_VAR]
 +        if server.endswith(".amazonaws.com"):
@@ -25,7 +25,7 @@ diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 +                # Handle AWS ECR authentication
 +                server = docker_login_config.server
 +                if server.endswith(".amazonaws.com") and ".ecr." in server:
-+                    self._run('sudo apt install -y amazon-ecr-credential-helper')
++                    self._run('sudo apt update && sudo apt install -y amazon-ecr-credential-helper')
 +                    # Create the docker config directory if it doesn't exist
 +                    self._run('mkdir -p ~/.docker')
 +                    # Create or update the docker config.json file with ECR credentials helper
