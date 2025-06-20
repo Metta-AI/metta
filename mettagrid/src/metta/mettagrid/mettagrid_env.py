@@ -19,6 +19,7 @@ from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_config import GameConfig
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
@@ -141,6 +142,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if "diversity_bonus" in game_config_dict:
             del game_config_dict["diversity_bonus"]
         game_config = GameConfig(**game_config_dict)
+
+        game_config_cpp = from_mettagrid_config(game_config)
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
