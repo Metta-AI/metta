@@ -27,7 +27,6 @@ def safe_load(path, retries=5, delay=1.0):
 
 
 def pick_random_file(path):
-    logger.debug(f"pick_random_file called with path: {path}")
     chosen = None
     count = 0
     with os.scandir(path) as it:
@@ -36,7 +35,6 @@ def pick_random_file(path):
             # with probability 1/count, pick this entry
             if random.randrange(count) == 0:
                 chosen = entry.name
-    logger.debug(f"pick_random_file found {count} files, chose: {chosen}")
     if chosen is None:
         logger.error(f"No files found in directory: {path}")
     return chosen
@@ -84,12 +82,9 @@ class TerrainFromNumpy(Room):
         file: str | None = None,
         team: str | None = None,
     ):
-        logger.debug(f"TerrainFromNumpy __init__ called with dir: {dir}")
         root = dir.split("/")[0]
         map_dir = f"train_dir/{dir}"
         root_dir = f"train_dir/{root}"
-
-        logger.debug(f"TerrainFromNumpy: root={root}, map_dir={map_dir}, root_dir={root_dir}")
 
         s3_path = f"s3://softmax-public/maps/{root}.zip"
         local_zipped_dir = root_dir + ".zip"
@@ -103,12 +98,9 @@ class TerrainFromNumpy(Room):
                 os.remove(local_zipped_dir)
                 logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
         if file is None:
-            logger.debug(f"TerrainFromNumpy: calling pick_random_file with map_dir: {map_dir}")
             self.uri = pick_random_file(map_dir)
-            logger.debug(f"TerrainFromNumpy: pick_random_file returned uri: {self.uri}")
         else:
             self.uri = file
-            logger.debug(f"TerrainFromNumpy: using provided file: {self.uri}")
         self.dir = map_dir
         self._agents = agents
         self._objects = objects
@@ -140,7 +132,6 @@ class TerrainFromNumpy(Room):
         return valid_positions
 
     def _build(self):
-        logger.debug(f"TerrainFromNumpy _build called with self.uri: {self.uri}, self.dir: {self.dir}")
         if self.uri is None:
             logger.error(f"self.uri is None! Cannot load file from {self.dir}")
             raise ValueError(f"Cannot load terrain file: uri is None, dir={self.dir}")
