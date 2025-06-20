@@ -65,7 +65,7 @@ resource "helm_release" "skypilot" {
 
     {
       name  = "ingress.authCredentials"
-      value = "skypilot:${bcrypt(random_password.skypilot_password.result)}"
+      value = sensitive("skypilot:${bcrypt(random_password.skypilot_password.result)}")
     }
   ]
 }
