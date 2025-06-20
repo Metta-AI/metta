@@ -27,4 +27,4 @@ runs:
         CPP_FILES: ${{ inputs.cpp_files }}
         OUTPUT_FILE: ${{ inputs.output_file }}
       run: |
-        uv run ${{ github.action_path }}/combine_benchmarks.py
+        uv run ${{ github.action_path }}/combine_all_benchmarks.py
