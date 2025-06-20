@@ -106,7 +106,7 @@ for i in "${!POLICIES[@]}"; do
         sim=navigation \
         run=navigation$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/navstatsdbgd \
+        sim_job.stats_db_uri=wandb://stats/navigation_db2 \
         device=cpu \
 
 
@@ -114,14 +114,14 @@ for i in "${!POLICIES[@]}"; do
         sim=memory \
         run=memory$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/memstatsdbgd \
+        sim_job.stats_db_uri=wandb://stats/memory_db2 \
         device=cpu \
 
     python3 -m tools.sim \
         sim=object_use \
         run=objectuse$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/objusestatsdbgd \
+        sim_job.stats_db_uri=wandb://stats/objectuse_db2 \
         device=cpu \
 
 
@@ -129,7 +129,7 @@ for i in "${!POLICIES[@]}"; do
         sim=nav_sequence \
         run=nav_sequence$IDX \
         policy_uri=wandb://run/$POLICY_URI \
-        sim_job.stats_db_uri=wandb://stats/navseqstatsdbgd \
+        sim_job.stats_db_uri=wandb://stats/nav_sequence_db2 \
         device=cpu \
 
   #  python3 -m tools.sim \
@@ -139,9 +139,9 @@ for i in "${!POLICIES[@]}"; do
   #       sim_job.stats_db_uri=wandb://stats/stats_db1 \
   # #       # device=cpu \
 
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/navstatsdbgd run=makestatsdbnav ++dashboard.output_path=s3://softmax-public/policydash/navstatsdb.html
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/memstatsdbgd run=makestatsdbmem ++dashboard.output_path=s3://softmax-public/policydash/memstatsdb.html
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/objusestatsdbgd run=makestatsdbobj ++dashboard.output_path=s3://softmax-public/policydash/objusestatsdb.html
-  python3 -m tools.dashboard +eval_db_uri=wandb://stats/navseqstatsdbgd run=makestatsdbnavseq ++dashboard.output_path=s3://softmax-public/policydash/navseqstatsdb.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/navigation_db2 run=makestatsdbnav ++dashboard.output_path=s3://softmax-public/policydash/navigation_test.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/memory_db2 run=makestatsdbmem ++dashboard.output_path=s3://softmax-public/policydash/memory.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/objectuse_db2 run=makestatsdbobj ++dashboard.output_path=s3://softmax-public/policydash/object_use.html
+  python3 -m tools.dashboard +eval_db_uri=wandb://stats/nav_sequence_db2 run=makestatsdbnavseq ++dashboard.output_path=s3://softmax-public/policydash/nav_sequence.html
 
 done
