@@ -14,9 +14,13 @@ defaults:
 
 trainer:
   curriculum: /env/mettagrid/curriculum/navigation
+<<<<<<< HEAD
+  evaluate_interval: 10
+=======
+>>>>>>> 9d4fd93da41f0c07511bdd8de1cf6e1220c290b3
 
 policy_uri: wandb://run/dd_navigation_curriculum
 
-run_id: 7
+run_id: 8
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
