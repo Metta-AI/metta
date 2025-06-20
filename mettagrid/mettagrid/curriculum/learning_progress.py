@@ -141,7 +141,7 @@ class BidirectionalLearningProgress:
 
     def _update(self):
         task_success_rates = np.array([np.mean(self.outcomes[i]) for i in range(self.num_tasks)])
-        # Handle NaN values in task success rates
+        # Handle NaN values in task success rates (empty lists)
         task_success_rates = np.nan_to_num(task_success_rates, nan=0.0)
         update_mask = self.update_mask
 
@@ -149,9 +149,9 @@ class BidirectionalLearningProgress:
             self.random_baseline = np.minimum(task_success_rates, 0.75)
             self.task_rates = task_success_rates
 
-        # Handle division by zero and NaN in normalization
+        # Handle division by zero in normalization
         denominator = 1.0 - self.random_baseline[update_mask]
-        denominator = np.where(denominator <= 0, 1.0, denominator)  # Avoid division by zero
+        denominator = np.where(denominator <= 0, 1.0, denominator)
 
         normalized_task_success_rates = (
             np.maximum(
@@ -160,9 +160,6 @@ class BidirectionalLearningProgress:
             )
             / denominator
         )
-
-        # Handle NaN values in normalized rates
-        normalized_task_success_rates = np.nan_to_num(normalized_task_success_rates, nan=0.0)
 
         if self._p_fast is None:
             self._p_fast = normalized_task_success_rates[update_mask]
@@ -178,11 +175,6 @@ class BidirectionalLearningProgress:
             self._p_true[update_mask] = (task_success_rates[update_mask] * self.ema_alpha) + (
                 self._p_true[update_mask] * (1.0 - self.ema_alpha)
             )
-
-        # Handle NaN values in EMA updates
-        self._p_fast = np.nan_to_num(self._p_fast, nan=0.0)
-        self._p_slow = np.nan_to_num(self._p_slow, nan=0.0)
-        self._p_true = np.nan_to_num(self._p_true, nan=0.0)
 
         self.task_rates[update_mask] = task_success_rates[update_mask]
         self._stale_dist = True
@@ -211,9 +203,6 @@ class BidirectionalLearningProgress:
         return abs(fast - slow)
 
     def _reweight(self, p: np.ndarray) -> float:
-        # Handle NaN values in input
-        p = np.nan_to_num(p, nan=0.0)
-
         numerator = p * (1.0 - self.progress_smoothing)
         denominator = p + self.progress_smoothing * (1.0 - 2.0 * p)
 
@@ -221,8 +210,6 @@ class BidirectionalLearningProgress:
         denominator = np.where(denominator <= 0, 1.0, denominator)
         result = numerator / denominator
 
-        # Handle NaN values in result
-        result = np.nan_to_num(result, nan=0.0)
         return result
 
     def _sigmoid(self, x: np.ndarray):
@@ -232,15 +219,9 @@ class BidirectionalLearningProgress:
         task_dist = np.ones(self.num_tasks) / self.num_tasks
         learning_progress = self._learning_progress()
 
-        # Handle NaN values in learning progress
-        learning_progress = np.nan_to_num(learning_progress, nan=0.0)
-
         posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0 or self._p_true[i] > 0]
         any_progress = len(posidxs) > 0
         subprobs = learning_progress[posidxs] if any_progress else learning_progress
-
-        # Handle NaN values in subprobs
-        subprobs = np.nan_to_num(subprobs, nan=0.0)
 
         std = np.std(subprobs)
         if std > 0:
@@ -249,13 +230,7 @@ class BidirectionalLearningProgress:
             # If all values are the same, keep them as is
             subprobs = subprobs - np.mean(subprobs)
 
-        # Handle NaN values after normalization
-        subprobs = np.nan_to_num(subprobs, nan=0.0)
-
         subprobs = self._sigmoid(subprobs)
-
-        # Handle NaN values after sigmoid
-        subprobs = np.nan_to_num(subprobs, nan=0.0)
 
         # Normalize to sum to 1, handling zero sum case
         sum_probs = np.sum(subprobs)
@@ -271,8 +246,7 @@ class BidirectionalLearningProgress:
         else:
             task_dist = subprobs
 
-        # Final NaN check and normalization
-        task_dist = np.nan_to_num(task_dist, nan=1.0 / len(task_dist))
+        # Final normalization
         sum_dist = np.sum(task_dist)
         if sum_dist > 0:
             task_dist = task_dist / sum_dist
@@ -303,9 +277,6 @@ class BidirectionalLearningProgress:
             task_dist = np.ones(self.num_tasks) / self.num_tasks
         else:
             task_dist = self.task_dist.copy()
-
-        # Handle NaN values in task_dist
-        task_dist = np.nan_to_num(task_dist, nan=1.0 / len(task_dist))
 
         # Ensure task_dist sums to 1
         sum_dist = np.sum(task_dist)
