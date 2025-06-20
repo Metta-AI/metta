@@ -1,4 +1,9 @@
 # see reference_design.yaml for explanation of components
+
+# This is a CNN-based model that takes environment tokens and converts them into a box with channels, width, and
+# height, and then passes it to a CNN encoder stack. It is not robust to changing observation features. For that,
+# use the attention-based models.
+
 _target_: metta.agent.metta_agent.MettaAgent
 
 observations:
