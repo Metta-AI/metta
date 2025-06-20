@@ -2,7 +2,6 @@ import logging
 import os
 import time
 from collections import defaultdict
-from contextlib import nullcontext
 from typing import Any, Set
 from uuid import UUID
 
@@ -31,7 +30,6 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.util.heartbeat import record_heartbeat
-from metta.util.system_monitor import SystemMonitor
 from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
@@ -95,13 +93,6 @@ class MettaTrainer:
 
         self.timer = Stopwatch(logger)
         self.timer.start()
-
-        self.system_monitor = SystemMonitor(
-            sampling_interval_sec=1.0,  # Sample every second
-            history_size=100,  # Keep last 100 samples
-            logger=logger,
-            auto_start=True,  # Start monitoring immediately
-        )
 
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
@@ -225,6 +216,8 @@ class MettaTrainer:
             logger.info(f"Automatic Mixed Precision enabled with dtype: {self.amp_dtype} on {device_type}")
             self.amp_context = torch.amp.autocast(device_type=device_type, dtype=getattr(torch, self.amp_dtype))
         else:
+            from contextlib import nullcontext
+
             self.amp_context = nullcontext()
 
         if wandb_run and self._master:
@@ -247,17 +240,6 @@ class MettaTrainer:
                 logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self) -> None:
-        """
-        Main training loop with improvements from state-of-the-art implementations:
-
-        New features added:
-        - Automatic Mixed Precision (AMP) support - set trainer.amp_enabled=true, trainer.amp_dtype="bfloat16"
-        - Reward clipping - set trainer.clip_rewards=true to clamp rewards to [-1, 1]
-        - Fresh advantage computation per minibatch for better V-trace
-        - In-place value updates during training for improved estimates
-        - Proper CUDA device context handling for distributed training
-        - Optional advantage recomputation - set vtrace.recompute_advantages=false to disable
-        """
         logger.info("Starting training")
         trainer_cfg = self.trainer_cfg
 
@@ -330,7 +312,6 @@ class MettaTrainer:
 
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
-        self.system_monitor.stop()
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
@@ -892,7 +873,6 @@ class MettaTrainer:
                 **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
                 **{f"eval_{k}": v for k, v in self.evals.items()},
-                **{f"monitor/{k}": v for k, v in self.system_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
                 **timing_stats,
@@ -901,12 +881,6 @@ class MettaTrainer:
         )
 
         self.stats.clear()
-
-    def _get_device_context(self, device):
-        """Get appropriate device context manager."""
-        if device.type == "cuda" and torch.cuda.is_available():
-            return torch.cuda.device(device)
-        return nullcontext()
 
     def _sync_device(self):
         """Synchronize CUDA device if applicable."""
@@ -940,7 +914,16 @@ class MettaTrainer:
         vtrace_c_clip,
     ):
         """CUDA kernel for puffer advantage computation with proper device context."""
-        with self._get_device_context(values.device):
+        from contextlib import nullcontext
+
+        # Use CUDA device context for multi-GPU setups, nullcontext otherwise
+        context = (
+            torch.cuda.device(values.device)
+            if values.device.type == "cuda" and torch.cuda.is_available()
+            else nullcontext()
+        )
+
+        with context:
             torch.ops.pufferlib.compute_puff_advantage(
                 values,
                 rewards,
