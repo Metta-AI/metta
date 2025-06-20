@@ -285,6 +285,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
                     "seed": str(self._current_seed),
                     "map_w": str(self.map_width),
                     "map_h": str(self.map_height),
+                    "initial_grid_hash": self.initial_grid_hash,
                 }
 
                 container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
@@ -461,6 +462,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
     @property
     def config(self) -> dict[str, Any]:
         return cast(dict[str, Any], OmegaConf.to_container(self._task.env_cfg(), resolve=False))
+
+    def initial_grid_hash(self) -> int:
+        """Returns the hash of the initial grid configuration."""
+        return self._c_env.initial_grid_hash
 
 
 def get_completion_rates(curriculum):

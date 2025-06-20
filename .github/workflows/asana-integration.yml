@@ -9,6 +9,7 @@ jobs:
   asana_integration:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
+    concurrency: ${{ github.workflow }}-${{ github.event.pull_request.number }}
     permissions:
       contents: read
       pull-requests: write

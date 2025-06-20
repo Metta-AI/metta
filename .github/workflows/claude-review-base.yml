@@ -16,10 +16,6 @@ on:
         required: false
         type: boolean
         default: false
-      install_packages:
-        required: false
-        type: string
-        default: ""
       tools:
         required: true
         type: string
@@ -188,12 +184,6 @@ jobs:
         with:
           version: "0.7.3"
           enable-cache: true
-
-      - name: Install dependencies
-        if: steps.check-files.outputs.has_relevant_changes == 'true' && inputs.install_packages != ''
-        shell: bash
-        run: |
-          uv pip install --system ${{ inputs.install_packages }}
 
       - name: Run Claude Analysis
         id: claude-analysis
