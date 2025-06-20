@@ -24,10 +24,11 @@ class AgentRewards(BaseModel):
 class AgentConfig(BaseModel):
     """Agent configuration."""
 
-    default_item_max: Optional[int] = None
-    freeze_duration: Optional[int] = None
-    inventory_size: Optional[int] = None
-    rewards: Optional[AgentRewards] = None
+    default_item_max: int
+    freeze_duration: int
+    inventory_size: int
+    group_id: int
+    rewards: AgentRewards
 
 
 class GroupProps(RootModel[Dict[str, Any]]):
@@ -42,7 +43,6 @@ class GroupConfig(BaseModel):
     id: int
     sprite: Optional[int] = None
     group_reward_pct: Optional[float] = None
-    props: Optional[GroupProps] = None
 
 
 class ActionConfig(BaseModel):
@@ -133,15 +133,46 @@ class GameConfig(BaseModel):
         extra = "forbid"
 
 
+def agent_rewards_dict_from_flat_dict(flat_rewards_dict: Dict[str, float]) -> Dict[str, float]:
+    """Converts from a dictionary like
+      {
+        "invalid_action_penalty": 0,
+        "ore.red": 0.005,
+        "ore.red_max": 4,
+        "battery.red": 0.01,
+        "battery.red_max": 5
+      }
+    to a dictionary like
+      {
+        "action_failure_penalty": 0,
+        "ore.red": {
+          "reward": 0.005,
+          "max_reward": 4,
+        },
+        "battery.red": {
+          "reward": 0.01,
+          "max_reward": 5,
+        }
+      }
+    """
+
+    result = {}
+    for k, v in flat_rewards_dict.items():
+        if k == "invalid_action_penalty":
+            result["action_failure_penalty"] = v
+        elif k.endswith("_max"):
+            inventory_item_name = k.replace("_max", "")
+            result.setdefault(inventory_item_name, {})["max_reward"] = v
+        else:
+            result.setdefault(k, {})["reward"] = v
+
+    return result
+
+
 def from_mettagrid_config(mettagrid_config: MettaGridGameConfig) -> GameConfig:
     """Convert a mettagrid_config.GameConfig to a mettagrid_c_config.GameConfig."""
 
-    agent_rewards = AgentRewards(
-        inventory_item_rewards={
-            item: InventoryItemReward(reward=reward.reward, max_reward=reward.max_reward)
-            for item, reward in mettagrid_config.agent.rewards.inventory_item_rewards.items()
-        }
-    )
+    agent_configs = {}
 
     # these are the baseline settings for all agents
     agent_default_config_dict = mettagrid_config.agent.model_dump(by_alias=True, exclude_unset=True)
@@ -158,9 +189,8 @@ def from_mettagrid_config(mettagrid_config: MettaGridGameConfig) -> GameConfig:
             else:
                 agent_group_config[key] = value
         agent_group_config["group_id"] = group_config.id
-        agent_default_config_dict[group_name] = agent_group_config
-
-    agent_config = AgentConfig(**agent_default_config_dict)
+        agent_group_config["rewards"] = agent_rewards_dict_from_flat_dict(agent_group_config.get("rewards", {}))
+        agent_configs["agent." + group_name] = AgentConfig(**agent_group_config)
 
     return GameConfig(
         num_agents=mettagrid_config.num_agents,
