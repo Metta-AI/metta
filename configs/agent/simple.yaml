@@ -31,12 +31,12 @@ components:
       - name: obs_normalizer
 
   obs_cross_attn:
-    _target_: metta.agent.lib.obs_enc.ObsLatentAttn
+    _target_: metta.agent.lib.obs_enc.ObsLatentAttnNestedRaw
     out_dim: 128
-    use_mask: true
+    # use_mask: true
     num_layers: 2
     num_heads: 4
-    num_query_tokens: 1
+    num_query_tokens: 3
     use_cls_token: true
     query_token_dim: 32
     qk_dim: 32

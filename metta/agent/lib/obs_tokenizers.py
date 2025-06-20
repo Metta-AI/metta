@@ -126,7 +126,7 @@ class ObsTokenPadStrip(LayerBase):
         # find each row's flip‐point ie when it goes from dense to padding
         flip_pts = obs_mask.int().argmax(dim=1)  # shape [B]
 
-        # find the global max flip‐point as a 0‐d tensor
+        # # find the global max flip‐point as a 0‐d tensor
         max_flip = flip_pts.max()
         if max_flip == 0:
             max_flip = max_flip + self._M  # hack to avoid 0. should instead grab
@@ -142,6 +142,7 @@ class ObsTokenPadStrip(LayerBase):
 
         td[self._name] = observations
         td["obs_mask"] = obs_mask
+        td["flip_pts"] = flip_pts
         return td
 
 
