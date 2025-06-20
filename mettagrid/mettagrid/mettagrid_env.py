@@ -136,8 +136,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         game_config_dict = OmegaConf.to_container(task.env_cfg().game)
         # map_builder probably shouldn't be in the game config. For now we deal with this by removing it, so we can
         # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
-        del game_config_dict["map_builder"]
-        del game_config_dict["diversity_bonus"]
+        if "map_builder" in game_config_dict:
+            del game_config_dict["map_builder"]
+        if "diversity_bonus" in game_config_dict:
+            del game_config_dict["diversity_bonus"]
         game_config = GameConfig(**game_config_dict)
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
