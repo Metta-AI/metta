@@ -38,4 +38,4 @@ runs:
         SPECIFIC_FILES: ${{ inputs.specific_files }}
         DIRECTORY_PATHS: ${{ inputs.directory_paths }}
       run: |
-        uv run ${{ github.action_path }}/check_file_changes.py
+        uv run ${{ github.action_path }}/file_changes.py
