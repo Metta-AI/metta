@@ -16,9 +16,10 @@ class Kickstarter:
 
         The kickstarting loss is annealed over a number of steps (`kickstart_steps`).
         The `anneal_ratio` parameter controls what fraction of the `kickstart_steps` are used for annealing.
-        Annealing begins at `(1 - anneal_ratio) * kickstart_steps` and goes down to 0 at `kickstart_steps` using a
-        cosine schedule. For example, if `anneal_ratio` is 0.2, the loss coefficient is 1.0 for the first 80% of
-        `kickstart_steps`, then anneals to 0 over the last 20%.
+        The annealing is symmetric: it ramps up at the beginning and ramps down at the end, using a cosine schedule
+        for both. For example, if `anneal_ratio` is 0.2, the loss coefficient will ramp up from 0 to 1.0 over the
+        first 10% of `kickstart_steps`, stay at 1.0 for the next 80%, then anneal from 1.0 down to 0 over the last
+        10%.
         """
         self.device = cfg.device
         self.teacher_cfgs = cfg.trainer.kickstart.additional_teachers
@@ -46,7 +47,6 @@ class Kickstarter:
         self.compile_mode = cfg.trainer.compile_mode
         self.policy_store = policy_store
         self.kickstart_steps = cfg.trainer.kickstart.kickstart_steps
-        self.start_anneal_step = (1 - self.anneal_ratio) * self.kickstart_steps
         self.action_names = action_names
         self.action_max_params = action_max_params
         self.anneal_factor = 1.0
@@ -72,18 +72,30 @@ class Kickstarter:
         if not self.enabled or agent_step > self.kickstart_steps:
             return ks_action_loss, ks_value_loss
 
-        if agent_step >= self.start_anneal_step and self.anneal_ratio > 0:
-            progress = (agent_step - self.start_anneal_step) / (self.kickstart_steps * self.anneal_ratio)
-            # Cosine annealing from 1 to 0
-            self.anneal_factor = 0.5 * (1 + torch.cos(torch.tensor(torch.pi * progress, device=self.device)))
+        if self.anneal_ratio > 0:
+            anneal_ramp_steps = self.kickstart_steps * self.anneal_ratio / 2.0
+            ramp_up_end_step = anneal_ramp_steps
+            ramp_down_start_step = self.kickstart_steps - anneal_ramp_steps
+
+            if agent_step < ramp_up_end_step:
+                # Ramp up
+                progress = agent_step / ramp_up_end_step
+                self.anneal_factor = 0.5 * (1 - torch.cos(torch.tensor(torch.pi * progress, device=self.device)))
+            elif agent_step > ramp_down_start_step:
+                # Ramp down
+                progress = (agent_step - ramp_down_start_step) / anneal_ramp_steps
+                self.anneal_factor = 0.5 * (1 + torch.cos(torch.tensor(torch.pi * progress, device=self.device)))
+            else:
+                # Plateau
+                self.anneal_factor = 1.0
+        else:
+            self.anneal_factor = 1.0
 
         if len(teacher_lstm_state) == 0:
             teacher_lstm_state = [PolicyState() for _ in range(len(self.teachers))]
 
         for i, teacher in enumerate(self.teachers):
-            teacher_value, teacher_normalized_logits = self._forward(
-                teacher, o, teacher_lstm_state[i]
-            )
+            teacher_value, teacher_normalized_logits = self._forward(teacher, o, teacher_lstm_state[i])
             ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
             ks_action_loss *= teacher.action_loss_coef * self.anneal_factor
 
