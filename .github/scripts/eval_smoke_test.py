@@ -101,10 +101,16 @@ class EvaluationSmokeTest(SmokeTest):
 
         if not success:
             print("Evaluation process failed!")
+            # Continue to next attempt
             return False, None, result["duration"], result["memory_peak_mb"]
 
         # Extract metrics and reward
         metrics = self.extract_metrics_from_output(result["stdout"])
+
+        if not metrics:
+            print("No metrics found in output")
+            return False, None, result["duration"], result["memory_peak_mb"]
+
         reward = self.extract_reward(metrics)
 
         if reward is None:
@@ -115,10 +121,10 @@ class EvaluationSmokeTest(SmokeTest):
 
         if reward >= self.min_reward:
             print(f"✓ SUCCESS: Reward {reward} >= {self.min_reward}")
+            return True, reward, result["duration"], result["memory_peak_mb"]
         else:
             print(f"✗ FAILED: Reward {reward} < {self.min_reward}")
-
-        return True, reward, result["duration"], result["memory_peak_mb"]
+            return False, reward, result["duration"], result["memory_peak_mb"]
 
     def run(self) -> int:
         """Run evaluation with multiple attempts and reward checking."""
@@ -136,6 +142,7 @@ class EvaluationSmokeTest(SmokeTest):
             all_durations.append(duration)
             all_memories.append(memory)
 
+            # Check if this attempt was successful with reward meeting threshold
             if success and reward is not None and reward >= self.min_reward:
                 successful_attempt = attempt
                 break
