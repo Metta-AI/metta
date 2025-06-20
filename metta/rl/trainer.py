@@ -223,7 +223,7 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-            logger.info(f"MettaTrainer initialization complete on device: {self.device}")
+        logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self) -> None:
         logger.info("Starting training")
@@ -896,14 +896,8 @@ class MettaTrainer:
     ):
         """CUDA kernel for puffer advantage computation with proper device context."""
 
-        # Use CUDA device context for multi-GPU setups, nullcontext otherwise
-        context = (
-            torch.cuda.device(values.device)
-            if values.device.type == "cuda" and torch.cuda.is_available()
-            else nullcontext()
-        )
-
-        with context:
+        device_context = torch.cuda.device(values.device) if str(values.device).startswith("cuda") else nullcontext()
+        with device_context:
             torch.ops.pufferlib.compute_puff_advantage(
                 values,
                 rewards,
@@ -915,6 +909,7 @@ class MettaTrainer:
                 vtrace_rho_clip,
                 vtrace_c_clip,
             )
+
         return advantages
 
     def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
