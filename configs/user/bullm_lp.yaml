@@ -25,9 +25,9 @@ trainer:
   #evaluate_interval: 100
   num_workers: 4
 
-#wandb:
-#  enabled: true
-#  project: metta
-#  entity: metta-research
-#  name: ${run}
-#  tags: ["msb_nav_lp_comparionsion"]
+wandb:
+  enabled: true
+  project: metta
+  entity: metta-research
+  name: ${run}
+  tags: ["msb_nav_lp_comparionsion"]
