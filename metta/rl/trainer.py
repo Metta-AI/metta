@@ -575,7 +575,7 @@ class MettaTrainer:
                 entropy_loss = entropy.mean()
 
                 ks_action_loss, ks_value_loss = self.kickstarter.loss(
-                    self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
+                    self.agent_step, full_logprobs, newvalue, obs, teacher_policy_state=[]
                 )
 
                 l2_reg_loss = torch.tensor(0.0, device=self.device)
