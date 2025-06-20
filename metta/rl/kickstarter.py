@@ -81,7 +81,7 @@ class Kickstarter:
             teacher_lstm_state = [PolicyState() for _ in range(len(self.teachers))]
 
         for i, teacher in enumerate(self.teachers):
-            teacher_value, teacher_normalized_logits, teacher_lstm_state[i] = self._forward(
+            teacher_value, teacher_normalized_logits = self._forward(
                 teacher, o, teacher_lstm_state[i]
             )
             ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
