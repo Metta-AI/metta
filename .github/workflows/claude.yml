@@ -328,18 +328,28 @@ jobs:
 
             3. THIRD: Make all the requested code changes using Edit/Replace tools
 
-            4. FINALLY: When all changes are complete, commit them using:
+            4. FINALLY: Commit your changes using ONE of these methods:
+
+               Option A (preferred): Use the MCP tool:
                mcp__github_file_ops__commit_files
+
+               Option B (if MCP fails): Use bash commands:
+               Bash(git add -A)
+               Bash(git commit -m "feat: implement requested changes from ${{ steps.branches.outputs.context_info }}")
 
                Use a descriptive commit message like:
                "feat: implement requested changes from ${{ steps.branches.outputs.context_info }}"
 
             CRITICAL REMINDERS:
             - You MUST switch to branch ${{ steps.branches.outputs.new_branch }} before making ANY changes
-            - Use mcp__github_file_ops__commit_files to commit your changes (this commits to the current branch)
-            - Do NOT use any other git commands after the initial checkout
-            - Do NOT try to create a PR - the workflow handles that
+            - If mcp__github_file_ops__commit_files fails with 404, use the bash git commands instead
+            - Do NOT push or create a PR - the workflow handles that
             - All your changes should be on ${{ steps.branches.outputs.new_branch }}, NOT on ${{ steps.branches.outputs.target_branch }}
+
+            TROUBLESHOOTING:
+            - If you get "permission denied" for bash commands, report this in your response
+            - If MCP tools fail with 404 errors, use the bash git fallback commands
+            - Always verify you're on the correct branch before and after making changes
 
           allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,Read,Write,mcp__github_file_ops__commit_files,mcp__github__update_issue_comment"
 
@@ -448,13 +458,13 @@ jobs:
                   "**Original request:**",
                   "> ${{ github.event.comment.body }}",
                   "",
-                  `**Context:** This PR addresses the request from ${contextInfo}`,
-                  `**Target:** This PR will merge into \`${targetBranch}\` (not main)`,
+                  "**Context:** This PR addresses the request from " + contextInfo,
+                  "**Target:** This PR will merge into " + targetBranch + " (not main)",
                   "",
                   "**Changes made:**",
-                  `- ${commitCount} commit(s) with: ${latestCommit}`,
+                  "- " + commitCount + " commit(s) with: " + latestCommit,
                   "",
-                  `**Branch flow:** \`${newBranch}\` → \`${targetBranch}\``,
+                  "**Branch flow:** " + newBranch + " → " + targetBranch,
                   "",
                   "---",
                   "*This PR was automatically created by Claude Code Assistant. It targets the original feature branch for iterative development.*"
@@ -471,15 +481,15 @@ jobs:
                 body: [
                   "🚀 **PR Created Successfully!**",
                   "",
-                  `I've implemented your request and created PR #${prResponse.data.number}:`,
-                  `${prResponse.data.html_url}`,
+                  "I've implemented your request and created PR #" + prResponse.data.number + ":",
+                  prResponse.data.html_url,
                   "",
-                  `**Branch flow:** \`${newBranch}\` → \`${targetBranch}\``,
-                  `**Commits:** ${commitCount}`,
-                  `**Changes:** ${latestCommit}`,
+                  "**Branch flow:** " + newBranch + " → " + targetBranch,
+                  "**Commits:** " + commitCount,
+                  "**Changes:** " + latestCommit,
                   "",
                   context.payload.issue.pull_request
-                    ? `This PR targets your feature branch \`${targetBranch}\` for iterative development! 🔄`
+                    ? "This PR targets your feature branch " + targetBranch + " for iterative development! 🔄"
                     : "This PR is ready for review! 🎉"
                 ].join('\n')
               });
@@ -494,14 +504,14 @@ jobs:
                 body: [
                   "❌ **Failed to create PR**",
                   "",
-                  `Error: ${error.message}`,
+                  "Error: " + error.message,
                   "",
                   "**Debug info:**",
-                  `- New branch: \`${{ steps.branches.outputs.new_branch }}\``,
-                  `- Target branch: \`${{ steps.branches.outputs.target_branch }}\``,
-                  `- Branch pushed: ${{ steps.push_branch.outputs.branch_pushed }}`,
-                  `- Has commits: ${{ steps.fix_git_state.outputs.has_commits }}`,
-                  `- Commit count: ${{ steps.fix_git_state.outputs.commit_count }}`,
+                  "- New branch: ${{ steps.branches.outputs.new_branch }}",
+                  "- Target branch: ${{ steps.branches.outputs.target_branch }}",
+                  "- Branch pushed: ${{ steps.push_branch.outputs.branch_pushed }}",
+                  "- Has commits: ${{ steps.fix_git_state.outputs.has_commits }}",
+                  "- Commit count: ${{ steps.fix_git_state.outputs.commit_count }}",
                   "",
                   "Please check the Actions logs for more details."
                 ].join('\n')
