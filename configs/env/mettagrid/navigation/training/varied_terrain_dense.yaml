@@ -17,7 +17,7 @@ game:
       agents: 1
       dir: ${choose:varied_terrain/dense_large,varied_terrain/dense_medium,varied_terrain/dense_small}
       objects:
-        altar: 25
+        altar: 12
   objects:
     altar:
       cooldown: 1000
