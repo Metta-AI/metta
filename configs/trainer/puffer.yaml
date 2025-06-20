@@ -10,7 +10,7 @@ use_e3b: false
 total_timesteps: 50_000_000_000
 
 clip_coef: 0.1
-ent_coef: 0.0021
+ent_coef: 0.003
 gae_lambda: 0.916
 gamma: 0.977
 
@@ -28,7 +28,7 @@ optimizer:
   beta2: 0.999
   eps: 1e-12
   learning_rate: 0.0004573146765703167
-  weight_decay: 0
+  weight_decay: 0.0003
 
 lr_scheduler:
   enabled: false
@@ -73,9 +73,9 @@ async_factor: 2
 
 kickstart:
   teacher_uri: null
-  action_loss_coef: 0.5
-  value_loss_coef: 0.5
-  anneal_ratio: 0.4 # ratio of kickstart_steps to anneal to 0 coef
+  action_loss_coef: 0.3
+  value_loss_coef: 0.7
+  anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
   kickstart_steps: 1_000_000_000
   additional_teachers:
     - teacher_uri: wandb://run/m_alexv_ks_dr_lam_001:v22
