@@ -133,6 +133,7 @@ class BidirectionalLearningProgress:
         info["lp/num_nan_tasks"] = self._num_nans[-1]
 
     def _update(self):
+        """Update learning progress tracking with current task success rates."""
         task_success_rates = np.array([np.mean(self.outcomes[i]) for i in range(self.num_tasks)])
         # Handle NaN values in task success rates (empty lists)
         task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
@@ -142,8 +143,8 @@ class BidirectionalLearningProgress:
             self._random_baseline = np.minimum(task_success_rates, RANDOM_BASELINE_CAP)
 
         # Handle division by zero in normalization
-        denominator = UNIFORM_PROBABILITY - self._random_baseline[update_mask]
-        denominator = np.where(denominator <= 0, UNIFORM_PROBABILITY, denominator)
+        denominator = 1.0 - self._random_baseline[update_mask]
+        denominator = np.where(denominator <= 0, 1.0, denominator)
 
         normalized_task_success_rates = (
             np.maximum(
@@ -159,10 +160,10 @@ class BidirectionalLearningProgress:
             self._p_true = task_success_rates[update_mask]
         else:
             self._p_fast[update_mask] = (normalized_task_success_rates * self.ema_alpha) + (
-                self._p_fast[update_mask] * (UNIFORM_PROBABILITY - self.ema_alpha)
+                self._p_fast[update_mask] * (1.0 - self.ema_alpha)
             )
             self._p_slow[update_mask] = (self._p_fast[update_mask] * self.ema_alpha) + (
-                self._p_slow[update_mask] * (UNIFORM_PROBABILITY - self.ema_alpha)
+                self._p_slow[update_mask] * (1.0 - self.ema_alpha)
             )
             self._p_true[update_mask] = (task_success_rates[update_mask] * self.ema_alpha) + (
                 self._p_true[update_mask] * (1.0 - self.ema_alpha)
@@ -193,7 +194,7 @@ class BidirectionalLearningProgress:
 
     def _reweight(self, probs: np.ndarray) -> np.ndarray:
         """Apply progress smoothing reweighting to probability values."""
-        numerator = probs * (UNIFORM_PROBABILITY - self.progress_smoothing)
+        numerator = probs * (1.0 - self.progress_smoothing)
         denominator = probs + self.progress_smoothing * (1.0 - 2.0 * probs)
 
         # Handle division by zero
@@ -203,6 +204,7 @@ class BidirectionalLearningProgress:
         return result
 
     def _sigmoid(self, x: np.ndarray):
+        """Apply sigmoid function to array values."""
         return 1 / (1 + np.exp(-x))
 
     def _sample_distribution(self):
