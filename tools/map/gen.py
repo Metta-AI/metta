@@ -1,18 +1,17 @@
+#!/usr/bin/env -S uv run
 import argparse
 import logging
 import os
 import random
 import signal
 import string
-import time
-from datetime import datetime
 from typing import cast, get_args
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
 from metta.map.utils.show import ShowMode, show_map
-from metta.map.utils.storable_map import StorableMap
+from metta.map.utils.storable_map import map_builder_cfg_to_storable_map
 from metta.util.config import config_from_path
 from metta.util.resolvers import register_resolvers
 
@@ -21,25 +20,6 @@ signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-
-
-def map_builder_cfg_to_storable_map(cfg: DictConfig) -> StorableMap:
-    # Generate and measure time taken
-    start = time.time()
-    map_builder = hydra.utils.instantiate(cfg, _recursive_=True)
-    level = map_builder.build()
-    gen_time = time.time() - start
-    logger.info(f"Time taken to build map: {gen_time}s")
-
-    storable_map = StorableMap(
-        grid=level.grid,
-        metadata={
-            "gen_time": gen_time,
-            "timestamp": datetime.now().isoformat(),
-        },
-        config=cfg,
-    )
-    return storable_map
 
 
 def make_map(cfg_path: str, overrides: DictConfig | None = None):
@@ -76,6 +56,7 @@ def uri_is_file(uri: str) -> bool:
 
 
 def main():
+    register_resolvers()
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-uri", type=str, help="Output URI")
     parser.add_argument("--show-mode", choices=get_args(ShowMode), help="Show the map in the specified mode")

@@ -1,13 +1,26 @@
 name: "Claude Review: Orchestrator"
 on:
-  pull_request:
-    types: [opened, reopened]
-  workflow_dispatch:
+  workflow_call:
     inputs:
       pr_number:
-        description: "Pull Request number to review"
         required: true
         type: string
+      run_readme:
+        required: false
+        type: boolean
+        default: true
+      run_comments:
+        required: false
+        type: boolean
+        default: true
+      run_types:
+        required: false
+        type: boolean
+        default: true
+      run_einops:
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -24,21 +37,20 @@ jobs:
       - name: Validate PR Number
         id: validate
         run: |
-          PR_NUMBER="${{ inputs.pr_number || github.event.pull_request.number }}"
+          PR_NUMBER="${{ inputs.pr_number }}"
 
           if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "0" ]; then
-            echo "❌ Error: No valid PR number found"
-            echo "For workflow_dispatch, you must provide a pr_number input"
-            echo "For pull_request events, this should be automatic"
+            echo "❌ Error: No valid PR number provided"
             exit 1
           fi
 
           echo "✅ Valid PR number: $PR_NUMBER"
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
 
-  # Run all review types in parallel
+  # Run review types conditionally based on inputs (in parallel)
   review-readme:
     needs: validate-pr
+    if: inputs.run_readme
     secrets: inherit
     uses: ./.github/workflows/claude-review-readme.yml
     with:
@@ -46,6 +58,7 @@ jobs:
 
   review-comments:
     needs: validate-pr
+    if: inputs.run_comments
     secrets: inherit
     uses: ./.github/workflows/claude-review-comments.yml
     with:
@@ -53,6 +66,7 @@ jobs:
 
   review-types:
     needs: validate-pr
+    if: inputs.run_types
     secrets: inherit
     uses: ./.github/workflows/claude-review-typing.yml
     with:
@@ -60,6 +74,7 @@ jobs:
 
   review-einops:
     needs: validate-pr
+    if: inputs.run_einops
     secrets: inherit
     uses: ./.github/workflows/claude-review-einops.yml
     with:
@@ -80,11 +95,18 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.11.7"
 
-      - name: Install Dependencies
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+          enable-cache: true
+
+      - name: Install dependencies
+        shell: bash
         run: |
-          pip install -r .github/scripts/requirements-claude-review.txt
+          uv pip install --system -r .github/scripts/requirements-claude-review.txt
 
       - name: Consolidate Reviews and Create GitHub Review
         id: consolidate
@@ -103,14 +125,24 @@ jobs:
           if [ "${{ steps.consolidate.outputs.has_any_issues }}" = "true" ]; then
             echo "**Status**: ✅ Review completed with suggestions" >> $GITHUB_STEP_SUMMARY
             echo "**Total suggestions**: ${{ steps.consolidate.outputs.total_suggestions }}" >> $GITHUB_STEP_SUMMARY
-            echo "**Total compliments**: ${{ steps.consolidate.outputs.total_compliments }}" >> $GITHUB_STEP_SUMMARY
           else
             echo "**Status**: ✅ All checks passed - no issues found" >> $GITHUB_STEP_SUMMARY
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Review Types Run" >> $GITHUB_STEP_SUMMARY
-          echo "- README Accuracy: ${{ needs.review-readme.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Code Comments: ${{ needs.review-comments.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Type Annotations: ${{ needs.review-types.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Einops Suggestions: ${{ needs.review-einops.result }}" >> $GITHUB_STEP_SUMMARY
+
+          # Show which reviews were requested and their results
+          if [ "${{ inputs.run_readme }}" = "true" ]; then
+            echo "- README Accuracy: ${{ needs.review-readme.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.run_comments }}" = "true" ]; then
+            echo "- Code Comments: ${{ needs.review-comments.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.run_types }}" = "true" ]; then
+            echo "- Type Annotations: ${{ needs.review-types.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "${{ inputs.run_einops }}" = "true" ]; then
+            echo "- Einops Suggestions: ${{ needs.review-einops.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          fi
+

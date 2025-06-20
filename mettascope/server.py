@@ -4,9 +4,10 @@ import webbrowser
 
 import hydra
 import numpy as np
+import torch as th
 import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
@@ -15,6 +16,50 @@ import mettascope.replays as replays
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
+    """Clear the memory of the policy."""
+    policy_state = sim.get_policy_state()
+
+    if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
+        logger.error("No policy state to clear")
+        return
+
+    if what == "0":
+        policy_state.lstm_c[:, agent_id, :].zero_()
+        policy_state.lstm_h[:, agent_id, :].zero_()
+    elif what == "1":
+        policy_state.lstm_c[:, agent_id, :].fill_(1)
+        policy_state.lstm_h[:, agent_id, :].fill_(1)
+    elif what == "random":
+        policy_state.lstm_c[:, agent_id, :].normal_(mean=0, std=1)
+        policy_state.lstm_h[:, agent_id, :].normal_(mean=0, std=1)
+
+
+def copy_memory(sim: replays.Simulation, agent_id: int) -> tuple[list[float], list[float]]:
+    """Copy the memory of the policy."""
+    policy_state = sim.get_policy_state()
+    if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
+        logger.error("No policy state to copy")
+        return [], []
+
+    # Copy the memory of the policy.
+    lstm_c = policy_state.lstm_c[:, agent_id, :].clone()
+    lstm_h = policy_state.lstm_h[:, agent_id, :].clone()
+    return lstm_c.tolist(), lstm_h.tolist()
+
+
+def paste_memory(sim: replays.Simulation, agent_id: int, memory: tuple[list[float], list[float]]):
+    """Paste the memory of the policy."""
+    policy_state = sim.get_policy_state()
+    if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
+        logger.error("No policy state to paste")
+        return
+
+    [lstm_c, lstm_h] = memory
+    policy_state.lstm_c[:, agent_id, :] = th.tensor(lstm_c)
+    policy_state.lstm_h[:, agent_id, :] = th.tensor(lstm_h)
 
 
 def make_app(cfg: DictConfig):
@@ -44,6 +89,11 @@ def make_app(cfg: DictConfig):
     app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
     app.mount("/dist", StaticFiles(directory="mettascope/dist"), name="dist")
     app.mount("/local", StaticFiles(directory="mettascope/local"), name="local")
+
+    # Direct favicon.ico to the data/ui dir.
+    @app.get("/favicon.ico")
+    async def get_favicon():
+        return FileResponse("mettascope/data/ui/logo@2x.png")
 
     @app.websocket("/ws")
     async def websocket_endpoint(
@@ -94,8 +144,31 @@ def make_app(cfg: DictConfig):
             # Main message loop.
 
             message = await websocket.receive_json()
+
             if message["type"] == "action":
                 action_message = message
+
+            elif message["type"] == "advance":
+                action_message = None
+
+            elif message["type"] == "clear_memory":
+                clear_memory(sim, message["what"], message["agent_id"])
+                continue
+
+            elif message["type"] == "copy_memory":
+                memory = copy_memory(sim, message["agent_id"])
+                await send_message(
+                    type="memory_copied",
+                    memory=memory,
+                )
+                continue
+
+            elif message["type"] == "paste_memory":
+                paste_memory(sim, message["agent_id"], message["memory"])
+                continue
+
+            else:
+                raise ValueError(f"Unknown type: {message['type']}")
 
             if current_step < 1000:
                 await send_message(type="message", message="Step!")

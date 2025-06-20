@@ -162,8 +162,8 @@ class ParamLayer(LayerBase):
         self,
         clip_scale=1,
         analyze_weights=None,
-        l2_norm_scale=None,
-        l2_init_scale=None,
+        l2_norm_scale=1,
+        l2_init_scale=1,
         nonlinearity="nn.ReLU",
         initialization="Orthogonal",
         clip_range=None,
@@ -184,7 +184,9 @@ class ParamLayer(LayerBase):
         self._initialize_weights()
 
         if self.clip_scale > 0:
-            self.clip_value = self.global_clip_range * self.largest_weight * self.clip_scale
+            self.clip_value = (
+                self.global_clip_range * self.largest_weight * self.clip_scale
+            )
         else:
             self.clip_value = 0  # disables clipping (not clip to 0)
 
@@ -203,7 +205,9 @@ class ParamLayer(LayerBase):
                 self._net = nn.Sequential(self.weight_net, nonlinearity_class())
                 self.__dict__["weight_net"] = self._net[0]
             except (AttributeError, KeyError, ValueError) as e:
-                raise ValueError(f"Unsupported nonlinearity: {self.nonlinearity}") from e
+                raise ValueError(
+                    f"Unsupported nonlinearity: {self.nonlinearity}"
+                ) from e
 
     def _initialize_weights(self):
         """
@@ -232,11 +236,15 @@ class ParamLayer(LayerBase):
         elif self.initialization.lower() == "max_0_01":
             # set to uniform with largest weight = 0.01
             largest_weight = 0.01
-            nn.init.uniform_(self.weight_net.weight, a=-largest_weight, b=largest_weight)
+            nn.init.uniform_(
+                self.weight_net.weight, a=-largest_weight, b=largest_weight
+            )
         else:
             raise ValueError(f"Invalid initialization method: {self.initialization}")
 
-        if hasattr(self.weight_net, "bias") and isinstance(self.weight_net.bias, torch.nn.parameter.Parameter):
+        if hasattr(self.weight_net, "bias") and isinstance(
+            self.weight_net.bias, torch.nn.parameter.Parameter
+        ):
             self.weight_net.bias.data.fill_(0)
 
         self.largest_weight = largest_weight
@@ -249,7 +257,9 @@ class ParamLayer(LayerBase):
         """
         if self.clip_value > 0:
             with torch.no_grad():
-                self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
+                self.weight_net.weight.data = self.weight_net.weight.data.clamp(
+                    -self.clip_value, self.clip_value
+                )
 
     def l2_reg_loss(self) -> torch.Tensor:
         """
@@ -259,9 +269,10 @@ class ParamLayer(LayerBase):
             torch.Tensor: The L2 regularization loss scaled by l2_norm_scale,
                           or zero if regularization is disabled.
         """
-        l2_reg_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device, dtype=torch.float32)
-        if self.l2_norm_scale != 0 and self.l2_norm_scale is not None:
-            l2_reg_loss = (torch.sum(self.weight_net.weight.data**2)) * self.l2_norm_scale
+        l2_reg_loss = torch.tensor(
+            0.0, device=self.weight_net.weight.data.device, dtype=torch.float32
+        )
+        l2_reg_loss = torch.sum(self.weight_net.weight.data**2) * self.l2_norm_scale
         return l2_reg_loss
 
     def l2_init_loss(self) -> torch.Tensor:
@@ -274,9 +285,13 @@ class ParamLayer(LayerBase):
             torch.Tensor: The L2-init regularization loss scaled by l2_init_scale,
                           or zero if regularization is disabled.
         """
-        l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device, dtype=torch.float32)
-        if self.l2_init_scale != 0 and self.l2_init_scale is not None:
-            l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
+        l2_init_loss = torch.tensor(
+            0.0, device=self.weight_net.weight.data.device, dtype=torch.float32
+        )
+        l2_init_loss = (
+            torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2)
+            * self.l2_init_scale
+        )
         return l2_init_loss
 
     def update_l2_init_weight_copy(self, alpha: float = 0.9):
@@ -291,7 +306,9 @@ class ParamLayer(LayerBase):
                           10% new weights)
         """
         if self.initial_weights is not None:
-            self.initial_weights = (self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)).clone()
+            self.initial_weights = (
+                self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)
+            ).clone()
 
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         """

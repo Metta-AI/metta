@@ -22,8 +22,7 @@ setup: |
   git fetch
   git checkout $METTA_GIT_REF
 
-  uv pip install -r requirements.txt
-  uv pip install -e .
+  uv sync
 
   mkdir -p $WANDB_DIR
 
@@ -36,9 +35,9 @@ run: |
   export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
   export MASTER_PORT=8008
   export NODE_INDEX=$SKYPILOT_NODE_RANK
+  export NCCL_SHM_DISABLE=1
 
   ./devops/$METTA_CMD.sh \
-    +hardware=$METTA_HARDWARE \
     run=$METTA_RUN_ID \
     $METTA_CMD_ARGS
 
@@ -50,18 +49,20 @@ file_mounts:
     source: s3://softmax-public
     mode: MOUNT_CACHED
 
-  /workspace/metta/train_dir:
+  /mnt/s3/train_dir:
     name: softmax-train-dir
     store: s3
     mode: MOUNT_CACHED
 
 envs:
   METTA_RUN_ID: ""
-  METTA_HARDWARE: aws
   METTA_CMD: train
   METTA_CMD_ARGS: ""
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
+
+  # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
+  DATA_DIR: /mnt/s3/train_dir
 
   # username and password are acquired automatically by our api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""

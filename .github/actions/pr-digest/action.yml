@@ -43,18 +43,18 @@ runs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.10"
+        python-version: "3.11.7"
 
-    - name: Cache Python dependencies
-      uses: actions/cache@v3
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
       with:
-        path: ~/.cache/pip
-        key: pip-${{ hashFiles('**/requirements.txt') }}
+        version: "0.7.3"
+        enable-cache: true
 
     - name: Install dependencies
       shell: bash
       run: |
-        pip install -r ${{ github.action_path }}/requirements.txt
+        uv pip install --system -r ${{ github.action_path }}/requirements.txt
 
     - name: Set cache key
       id: cache-key
@@ -67,7 +67,7 @@ runs:
 
     - name: Restore PR cache
       id: cache-restore
-      uses: actions/cache/restore@v3
+      uses: actions/cache/restore@v4
       with:
         path: .pr-digest-cache/
         key: ${{ steps.cache-key.outputs.cache_key }}-${{ github.run_id }}
@@ -93,7 +93,7 @@ runs:
         python ${{ github.action_path }}/fetch_pr_digest.py
 
     - name: Save PR cache
-      uses: actions/cache/save@v3
+      uses: actions/cache/save@v4
       if: always()
       with:
         path: .pr-digest-cache/

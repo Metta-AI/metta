@@ -1,3 +1,4 @@
+#!/usr/bin/env -S uv run
 import json
 import os
 
@@ -84,12 +85,11 @@ def put_image(img, name):
 
 
 # Walk the data dir:
-for root, _dirs, files in os.walk("data"):
+for root, _dirs, files in os.walk("data/atlas"):
     for file in files:
         if file.endswith(".png"):
-            print("Processing", root + "/" + file)
             img = pixie.read_image(root + "/" + file)
-            put_image(img, (root + "/" + file).replace("data/", ""))
+            put_image(img, (root + "/" + file).replace("data/atlas/", ""))
 
 # Write the atlas image and the atlas json file.
 with open("dist/atlas.json", "w") as f:

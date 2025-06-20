@@ -19,6 +19,10 @@ enum GridLayer {
   GridLayerCount
 };
 
+// We want empty tokens to be 0xff, since 0s are very natural numbers to have in the observations, and we want
+// empty to be obviously different.
+const uint8_t EmptyTokenByte = 0xff;
+
 // Changing observation feature ids will break models that have
 // been trained on the old feature ids.
 // In the future, the string -> id mapping should be stored on a
@@ -30,19 +34,23 @@ enum GridLayer {
 // The namespace allows us to use these descriptive names without conflicts.
 namespace ObservationFeature {
 enum ObservationFeatureEnum : uint8_t {
-  TypeId = 1,
-  Group = 2,
-  Hp = 3,
-  Frozen = 4,
-  Orientation = 5,
-  Color = 6,
-  ConvertingOrCoolingDown = 7,
-  Swappable = 8,
+  TypeId = 0,
+  Group = 1,
+  Hp = 2,
+  Frozen = 3,
+  Orientation = 4,
+  Color = 5,
+  ConvertingOrCoolingDown = 6,
+  Swappable = 7,
+  EpisodeCompletionPct = 8,
+  LastAction = 9,
+  LastActionArg = 10,
+  LastReward = 11,
   ObservationFeatureCount
 };
 }  // namespace ObservationFeature
 
-const uint8_t InventoryFeatureOffset = 100;
+const uint8_t InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
 
 // There should be a one-to-one mapping between ObjectType and ObjectTypeNames.
 // ObjectTypeName is mostly used for human-readability, but may be used as a key
@@ -87,10 +95,73 @@ enum InventoryItem {
   InventoryItemCount
 };
 
-constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {
-    {"ore.red", "ore.blue", "ore.green", "battery.red", "battery.blue", "battery.green", "heart", "armor", "laser", "blueprint"}};
+constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {{"ore.red",
+                                                                                  "ore.blue",
+                                                                                  "ore.green",
+                                                                                  "battery.red",
+                                                                                  "battery.blue",
+                                                                                  "battery.green",
+                                                                                  "heart",
+                                                                                  "armor",
+                                                                                  "laser",
+                                                                                  "blueprint"}};
 
 const std::vector<std::string> InventoryItemNames(InventoryItemNamesArray.begin(), InventoryItemNamesArray.end());
+
+constexpr std::array<const char*, ObservationFeature::ObservationFeatureCount> ObservationFeatureNamesArray = {
+    {"type_id",
+     "agent:group",
+     "hp",
+     "agent:frozen",
+     "agent:orientation",
+     "agent:color",
+     "converting",
+     "swappable",
+     "episode_completion_pct",
+     "last_action",
+     "last_action_arg",
+     "last_reward"}};
+
+const std::vector<std::string> ObservationFeatureNames = []() {
+  std::vector<std::string> names;
+  names.reserve(ObservationFeatureNamesArray.size() + InventoryItemNamesArray.size());
+  names.insert(names.end(), ObservationFeatureNamesArray.begin(), ObservationFeatureNamesArray.end());
+  for (const auto& name : InventoryItemNames) {
+    names.push_back("inv:" + name);
+  }
+  return names;
+}();
+
+// ##ObservationNormalization
+// These are approximate maximum values for each feature. Ideally they would be defined closer to their source,
+// but here we are. If you add / remove a feature, you should add / remove the corresponding normalization.
+// These should move to configuration "soon". E.g., by 2025-06-10.
+const std::map<uint8_t, float> FeatureNormalizations = {
+    {ObservationFeature::LastAction, 10.0},
+    {ObservationFeature::LastActionArg, 10.0},
+    {ObservationFeature::EpisodeCompletionPct, 255.0},
+    {ObservationFeature::LastReward, 100.0},
+    {ObservationFeature::TypeId, 1.0},
+    {ObservationFeature::Group, 10.0},
+    {ObservationFeature::Hp, 30.0},
+    {ObservationFeature::Frozen, 1.0},
+    {ObservationFeature::Orientation, 1.0},
+    {ObservationFeature::Color, 255.0},
+    {ObservationFeature::ConvertingOrCoolingDown, 1.0},
+    {ObservationFeature::Swappable, 1.0},
+    {InventoryFeatureOffset + InventoryItem::ore_red, 100.0},
+    {InventoryFeatureOffset + InventoryItem::ore_blue, 100.0},
+    {InventoryFeatureOffset + InventoryItem::ore_green, 100.0},
+    {InventoryFeatureOffset + InventoryItem::battery_red, 100.0},
+    {InventoryFeatureOffset + InventoryItem::battery_blue, 100.0},
+    {InventoryFeatureOffset + InventoryItem::battery_green, 100.0},
+    {InventoryFeatureOffset + InventoryItem::heart, 100.0},
+    {InventoryFeatureOffset + InventoryItem::laser, 100.0},
+    {InventoryFeatureOffset + InventoryItem::armor, 100.0},
+    {InventoryFeatureOffset + InventoryItem::blueprint, 100.0},
+};
+
+const float DEFAULT_NORMALIZATION = 1.0;
 
 const std::map<TypeId, GridLayer> ObjectLayers = {{ObjectType::AgentT, GridLayer::Agent_Layer},
                                                   {ObjectType::WallT, GridLayer::Object_Layer},

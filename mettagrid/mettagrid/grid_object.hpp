@@ -1,8 +1,8 @@
 #ifndef METTAGRID_METTAGRID_GRID_OBJECT_HPP_
 #define METTAGRID_METTAGRID_GRID_OBJECT_HPP_
 
-#include <span>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -66,27 +66,7 @@ public:
     this->location = loc;
   }
 
-  void init(TypeId type_id, GridCoord r, GridCoord c) {
-    init(type_id, GridLocation(r, c, 0));
-  }
-
-  void init(TypeId type_id, GridCoord r, GridCoord c, Layer layer) {
-    init(type_id, GridLocation(r, c, layer));
-  }
-
   virtual std::vector<PartialObservationToken> obs_features() const = 0;
-
-  size_t obs_tokens(ObservationTokens tokens) const {
-    std::vector<PartialObservationToken> features = this->obs_features();
-    size_t tokens_to_write = std::min(tokens.size(), features.size());
-    for (size_t i = 0; i < tokens_to_write; i++) {
-      tokens[i].feature_id = features[i].feature_id;
-      tokens[i].value = features[i].value;
-    }
-    return tokens_to_write;
-  }
-
-  virtual void obs(ObsType* obs, const std::vector<uint8_t>& offsets) const = 0;
 };
 
 #endif  // METTAGRID_METTAGRID_GRID_OBJECT_HPP_

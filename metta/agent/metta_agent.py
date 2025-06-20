@@ -27,11 +27,15 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
         }
     )
 
+    # Here's where we create MettaAgent. We're including the term MettaAgent here for better
+    # searchability. Otherwise you might only find yaml files.
     return hydra.utils.instantiate(
         cfg.agent,
         obs_space=obs_space,
+        obs_width=env.obs_width,
+        obs_height=env.obs_height,
         action_space=env.single_action_space,
-        grid_features=env.grid_features,
+        feature_normalizations=env.feature_normalizations,
         global_features=env.global_features,
         device=cfg.device,
         _recursive_=False,
@@ -40,6 +44,8 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
 
 class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent, device):
+        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
         super().__init__(agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name):
@@ -56,12 +62,16 @@ class MettaAgent(nn.Module):
     def __init__(
         self,
         obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
+        obs_width: int,
+        obs_height: int,
         action_space: gym.spaces.Space,
-        grid_features: list[str],
+        feature_normalizations: dict[int, float],
         device: str,
         **cfg,
     ):
         super().__init__()
+        # Note that this doesn't instantiate the components -- that will happen later once
+        # we've built up the right parameters for them.
         cfg = OmegaConf.create(cfg)
 
         logger.info(f"obs_space: {obs_space} ")
@@ -80,7 +90,9 @@ class MettaAgent(nn.Module):
         self.agent_attributes = {
             "clip_range": self.clip_range,
             "action_space": action_space,
-            "grid_features": grid_features,
+            "feature_normalizations": feature_normalizations,
+            "obs_width": obs_width,
+            "obs_height": obs_height,
             "obs_key": cfg.observations.obs_key,
             "obs_shape": obs_shape,
             "hidden_size": self.hidden_size,
@@ -88,9 +100,6 @@ class MettaAgent(nn.Module):
         }
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
-
-        # self.observation_space = obs_space # for use with FeatureSetEncoder
-        # self.global_features = global_features # for use with FeatureSetEncoder
 
         self.components = nn.ModuleDict()
         component_cfgs = convert_to_dict(cfg.components)
@@ -127,8 +136,7 @@ class MettaAgent(nn.Module):
         # recursively setup all source components
         if component._sources is not None:
             for source in component._sources:
-                print(f"setting up source {source}")
-                print(f"with name {source['name']}")
+                logger.info(f"setting up {component._name} with source {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
         # setup the current component and pass in the source components
@@ -414,7 +422,9 @@ class MettaAgent(nn.Module):
             if not callable(method):
                 raise TypeError(f"Component '{name}' has {method_name} attribute but it's not callable")
 
-            results.append(method(*args, **kwargs))
+            result = method(*args, **kwargs)
+            if result is not None:
+                results.append(result)
 
         return results
 
@@ -423,14 +433,20 @@ class MettaAgent(nn.Module):
         it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
         """
         component_loss_tensors = self._apply_to_components("l2_reg_loss")
-        return torch.sum(torch.stack(component_loss_tensors))
+        if len(component_loss_tensors) > 0:
+            return torch.sum(torch.stack(component_loss_tensors))
+        else:
+            return torch.tensor(0.0, device=self.device)
 
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
         it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.
         """
         component_loss_tensors = self._apply_to_components("l2_init_loss")
-        return torch.sum(torch.stack(component_loss_tensors))
+        if len(component_loss_tensors) > 0:
+            return torch.sum(torch.stack(component_loss_tensors))
+        else:
+            return torch.tensor(0.0, device=self.device)
 
     def update_l2_init_weight_copy(self):
         """Update interval set by l2_init_weight_update_interval. 0 means no updating."""

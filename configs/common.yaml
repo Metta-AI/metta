@@ -5,7 +5,11 @@ hydra:
 
 run: ???
 dist_cfg_path: null
-data_dir: ./train_dir
+
+# We override DATA_DIR when running on skypilot.
+# This is because we mount train_dir with S3 and uv gets slow when it tries to scan it.
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+
 run_dir: ${data_dir}/${run}
 policy_uri: file://${run_dir}/checkpoints
 
@@ -13,3 +17,5 @@ torch_deterministic: true
 vectorization: multiprocessing
 seed: 0
 device: cuda
+
+stats_user: ${oc.env:USER,unknown}

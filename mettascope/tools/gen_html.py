@@ -54,27 +54,27 @@ def px(value: Any) -> str:
     return f"{rounded:.2f}px"
 
 
-def parse_name(name: str) -> tuple[str, str, str, str]:
+def parse_name(name: str) -> tuple[str, str, list[str], str]:
     """Parse figma name into tag, id or class"""
     tags = ["input", "img", "textarea", "button", "a", "canvas", "iframe"]
     tag = "div"
     id = ""
-    cls = ""
+    clss = []
     for part in name.split("."):
         if part in tags:
             tag = part
         elif part.startswith("#"):
             id = part[1:]
         else:
-            cls = part.lower().replace(" ", "_")
+            clss.append(part.lower().replace(" ", "_"))
     selector = ""
     if tag and tag not in ["div", "span"]:
         selector = tag
     if id:
         selector += "#" + id
-    if cls:
-        selector += "." + cls
-    return (tag, id, cls, selector)
+    if len(clss) > 0:
+        selector += "." + ".".join(clss)
+    return (tag, id, clss, selector)
 
 
 class DomNode:
@@ -475,7 +475,7 @@ html, body {
             primary_axis_sizing = element.get("primaryAxisSizingMode")
             counter_axis_sizing = element.get("counterAxisSizingMode")
 
-            if primary_axis_sizing == "FIXED":
+            if primary_axis_sizing == "FIXED" or primary_axis_sizing is None:
                 # Fixed size is handled by the width/height already set
                 pass
             elif primary_axis_sizing == "AUTO":
@@ -483,8 +483,10 @@ html, body {
                     css["width"] = "auto"
                 else:
                     css["height"] = "auto"
+            else:
+                print("Unknown primary axis sizing mode:", primary_axis_sizing)
 
-            if counter_axis_sizing == "FIXED":
+            if counter_axis_sizing == "FIXED" or counter_axis_sizing is None:
                 # Fixed size is handled by the width/height already set
                 pass
             elif counter_axis_sizing == "AUTO":
@@ -492,6 +494,8 @@ html, body {
                     css["height"] = "auto"
                 else:
                     css["width"] = "auto"
+            else:
+                print("Unknown counter axis sizing mode:", counter_axis_sizing)
 
         if parent and "layoutMode" in parent:
             # Handle auto layout child properties
@@ -503,7 +507,19 @@ html, body {
             layout_align = element.get("layoutAlign")
             layout_grow = element.get("layoutGrow", 0)
 
-            del css["position"]
+            if css["position"] == "absolute":
+                # If the element is absolutely positioned, we need to remove the:
+                # left, right, top, and bottom properties.
+                # And set the position to relative.
+                if "left" in css:
+                    del css["left"]
+                if "right" in css:
+                    del css["right"]
+                if "top" in css:
+                    del css["top"]
+                if "bottom" in css:
+                    del css["bottom"]
+                css["position"] = "relative"
 
             if layout_align == "STRETCH":
                 css["align-self"] = "stretch"
@@ -520,19 +536,28 @@ html, body {
                 css["flex-shrink"] = "1"
                 css["flex-basis"] = "auto"
 
-            # Handle sizing modes for children
-            h_sizing = element.get("layoutSizingHorizontal")
-            v_sizing = element.get("layoutSizingVertical")
+        layout_sizing_horizontal = element.get("layoutSizingHorizontal")
+        layout_sizing_vertical = element.get("layoutSizingVertical")
 
-            if h_sizing == "FILL":
-                css["width"] = "100%"
-            elif h_sizing == "HUG":
-                css["width"] = "auto"
+        if layout_sizing_horizontal == "FIXED" or layout_sizing_horizontal is None:
+            # Fixed size is handled by the width/height already set
+            pass
+        elif layout_sizing_horizontal == "FILL":
+            css["width"] = "100%"
+        elif layout_sizing_horizontal == "HUG":
+            css["width"] = "fit-content"
+        else:
+            print("Unknown layout sizing horizontal:", layout_sizing_horizontal)
 
-            if v_sizing == "FILL":
-                css["height"] = "100%"
-            elif v_sizing == "HUG":
-                css["height"] = "auto"
+        if layout_sizing_vertical == "FIXED" or layout_sizing_vertical is None:
+            # Fixed size is handled by the width/height already set
+            pass
+        elif layout_sizing_vertical == "FILL":
+            css["height"] = "100%"
+        elif layout_sizing_vertical == "HUG":
+            css["height"] = "fit-content"
+        else:
+            print("Unknown layout sizing vertical:", layout_sizing_vertical)
 
     def compute_text_properties(self, css: Dict[str, Any], element: Dict[str, Any]) -> None:
         """Computes the text properties"""
@@ -560,7 +585,14 @@ html, body {
 
             if "textAlignVertical" in style:
                 # No exact match in CSS for vertical text alignment on blocks
-                css["vertical-align"] = style["textAlignVertical"].lower()
+                if style["textAlignVertical"].lower() == "top":
+                    css["vertical-align"] = "top"
+                elif style["textAlignVertical"].lower() == "center":
+                    css["vertical-align"] = "middle"
+                elif style["textAlignVertical"].lower() == "bottom":
+                    css["vertical-align"] = "bottom"
+                else:
+                    print("Unknown vertical text alignment:", style["textAlignVertical"])
 
             if "letterSpacing" in style:
                 css["letter-spacing"] = px(style["letterSpacing"])
@@ -660,7 +692,7 @@ html, body {
         element_name = element.get("name", "")
 
         # Combine classes if they're different
-        (tag, id, cls, selector) = parse_name(element_name)
+        (tag, id, clss, selector) = parse_name(element_name)
 
         # CSS rules for this element and its children
         css_rules = []
@@ -702,11 +734,16 @@ html, body {
         component = None
 
         if "componentId" in element:
-            component = self.components[element["componentId"]]
+            if element["componentId"] in self.components:
+                component = self.components[element["componentId"]]
+            else:
+                print(f"Component {element['componentId']} not found")
 
         # Process based on element type
         if tag == "input" or tag == "textarea":
-            dom_element = DomNode(tag, {"name": cls})
+            dom_element = DomNode(tag)
+            if len(clss) > 0:
+                dom_element.attributes["name"] = clss[0]
 
             # Look for placeholder text which is what we will use as the text style.
             if "children" in element:
@@ -799,8 +836,8 @@ html, body {
 
         if id:
             dom_element.attributes["id"] = id
-        if cls:
-            dom_element.attributes["class"] = cls
+        if len(clss) > 0:
+            dom_element.attributes["class"] = " ".join(clss)
 
         return dom_element, css_rules
 
