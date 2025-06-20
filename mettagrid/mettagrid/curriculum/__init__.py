@@ -1,3 +1,4 @@
+from .bucketed import BucketedCurriculum
 from .curriculum import Curriculum, SingleTaskCurriculum, Task
 from .low_reward import LowRewardCurriculum
 from .multi_task import MultiTaskCurriculum
@@ -15,5 +16,6 @@ __all__ = [
     "SamplingCurriculum",
     "LowRewardCurriculum",
     "ProgressiveCurriculum",
+    "BucketedCurriculum",
     "curriculum_from_config_path",
 ]
