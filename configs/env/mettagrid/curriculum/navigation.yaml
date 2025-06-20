@@ -23,3 +23,6 @@ buckets:
         "varied_terrain/cylinder-world_medium",
         "varied_terrain/cylinder-world_small",
       ]
+  game.map_builder.room.objects.altar:
+    range: [10, 30]
+    bins: 2
