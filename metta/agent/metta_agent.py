@@ -73,32 +73,17 @@ class MettaAgentBuilder:
         return MettaAgent(policy)
 
     def load_from_disk(self, path) -> "MettaAgent":
-        """Load a model from disk, supporting both torch.jit and state_dict formats."""
-        # Add gymnasium spaces to safe globals for PyTorch 2.6+
-        import gymnasium.spaces
-        import numpy as np
-
-        torch.serialization.add_safe_globals(
-            [
-                gymnasium.spaces.multi_discrete.MultiDiscrete,
-                gymnasium.spaces.discrete.Discrete,
-                gymnasium.spaces.box.Box,
-                gymnasium.spaces.dict.Dict,
-                np.dtype,
-            ]
-        )
-
-        checkpoint = torch.load(path, map_location=self._cfg.device)
-
-        if isinstance(checkpoint, dict) and checkpoint.get("use_jit", False) and "jit_model" in checkpoint:
-            # Load torch.jit model
-            jit_model = checkpoint["jit_model"]
-            return MettaAgent(jit_model)
-        else:
-            # Fall back to state_dict loading through PolicyStore
+        """Load a model from disk, supporting torch.jit models."""
+        try:
+            # Try loading as torch.jit model first
+            model = torch.jit.load(path, map_location=self._cfg.device)
+            logger.info(f"Successfully loaded torch.jit model from {path}")
+            return MettaAgent(model)
+        except Exception as e:
+            logger.debug(f"Not a torch.jit model ({e}), falling back to PolicyStore")
+            # Fall back to PolicyStore loading for regular checkpoints
             raise NotImplementedError(
-                "Loading non-jit models from disk should go through PolicyStore. "
-                "Use PolicyStore._load_from_file instead."
+                "Loading non-jit models should go through PolicyStore. Use PolicyStore.load_from_uri instead."
             )
 
 
@@ -243,3 +228,26 @@ class MettaAgent(nn.Module):
         if hasattr(self.policy, "compute_weight_metrics"):
             return self.policy.compute_weight_metrics(delta)
         return []
+
+    def save_jit(self, path: str, example_input=None):
+        """Save the model as torch.jit for version-independent loading.
+
+        Args:
+            path: Path to save the jit model
+            example_input: Optional example input for tracing. If not provided,
+                          will use scripting instead of tracing.
+        """
+        try:
+            if example_input is not None:
+                # Use tracing with example input
+                traced = torch.jit.trace(self.policy, example_input)
+                torch.jit.save(traced, path)
+                logger.info(f"Saved traced torch.jit model to {path}")
+            else:
+                # Use scripting
+                scripted = torch.jit.script(self.policy)
+                torch.jit.save(scripted, path)
+                logger.info(f"Saved scripted torch.jit model to {path}")
+        except Exception as e:
+            logger.error(f"Failed to save as torch.jit: {e}")
+            raise

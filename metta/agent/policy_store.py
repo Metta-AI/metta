@@ -14,12 +14,12 @@ import logging
 import os
 import random
 import sys
+import warnings
 from typing import List, Optional, Union
 
-import numpy as np
 import torch
 import wandb
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig
 from torch import nn
 
 from metta.agent.brain_policy import BrainPolicy
@@ -361,153 +361,23 @@ class PolicyStore:
     def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
         logger.info(f"Saving policy to {path}")
 
-        # Handle MettaAgent wrapping
-        if hasattr(policy, "policy"):
-            inner_policy = policy.policy
-        else:
-            inner_policy = policy
+        # Create PolicyRecord with the policy
+        pr = PolicyRecord(self, name, "file://" + path, metadata)
+        pr._policy = policy
 
-        # Ensure reconstruction_attributes are captured
-        reconstruction_attrs = metadata.get("reconstruction_attributes", {})
+        # Temporarily remove policy_store to avoid circular reference during save
+        pr._policy_store = None
 
-        if not reconstruction_attrs:
-            # Try to get from the wrapped policy first
-            if isinstance(inner_policy, BrainPolicy) and hasattr(inner_policy, "agent_attributes"):
-                reconstruction_attrs = inner_policy.agent_attributes.copy()  # Make a copy to avoid modifying original
-                if reconstruction_attrs:
-                    logger.info(
-                        f"Extracted reconstruction attributes from inner BrainPolicy: {list(reconstruction_attrs.keys())}"
-                    )
-            # If not found on inner policy, try the wrapper (MettaAgent delegates via __getattr__)
-            elif hasattr(policy, "agent_attributes"):
-                reconstruction_attrs = policy.agent_attributes.copy()  # Make a copy to avoid modifying original
-                if reconstruction_attrs:
-                    logger.info(
-                        f"Extracted reconstruction attributes via MettaAgent delegation: {list(reconstruction_attrs.keys())}"
-                    )
+        # Simple save - just save the entire PolicyRecord
+        torch.save(pr, path)
 
-            if not reconstruction_attrs and isinstance(inner_policy, BrainPolicy):
-                logger.warning("BrainPolicy found but agent_attributes could not be accessed")
-
-        # Convert gymnasium spaces to serializable format
-        if "action_space" in reconstruction_attrs:
-            import gymnasium.spaces
-
-            action_space = reconstruction_attrs["action_space"]
-            if isinstance(action_space, gymnasium.spaces.MultiDiscrete):
-                reconstruction_attrs["action_space"] = {
-                    "_type": "MultiDiscrete",
-                    "nvec": action_space.nvec.tolist()
-                    if hasattr(action_space.nvec, "tolist")
-                    else list(action_space.nvec),
-                }
-            elif isinstance(action_space, gymnasium.spaces.Discrete):
-                reconstruction_attrs["action_space"] = {"_type": "Discrete", "n": action_space.n}
-            # For other space types, we'll just remove them and let the system reconstruct from environment
-            elif action_space is not None:
-                logger.warning(
-                    f"Cannot serialize action_space of type {type(action_space).__name__}, removing from reconstruction attributes"
-                )
-                reconstruction_attrs.pop("action_space", None)
-
-        # Convert feature_normalizations to plain dict with simple types
-        if "feature_normalizations" in reconstruction_attrs:
-            feature_norm = reconstruction_attrs["feature_normalizations"]
-            if isinstance(feature_norm, dict):
-                # Convert keys and values to plain Python types
-                reconstruction_attrs["feature_normalizations"] = {int(k): float(v) for k, v in feature_norm.items()}
-            elif isinstance(feature_norm, list):
-                # If it's a list, keep it as is but ensure values are floats
-                reconstruction_attrs["feature_normalizations"] = [float(v) for v in feature_norm]
-            elif hasattr(feature_norm, "items"):  # Handle DictConfig from OmegaConf
-                reconstruction_attrs["feature_normalizations"] = {int(k): float(v) for k, v in feature_norm.items()}
-
-        # Convert obs_shape to list if it's a tuple
-        if "obs_shape" in reconstruction_attrs and isinstance(reconstruction_attrs["obs_shape"], tuple):
-            reconstruction_attrs["obs_shape"] = list(reconstruction_attrs["obs_shape"])
-
-        # Convert obs_space to serializable format
-        if "obs_space" in reconstruction_attrs:
-            import gymnasium.spaces
-
-            obs_space = reconstruction_attrs["obs_space"]
-            if isinstance(obs_space, gymnasium.spaces.Dict):
-                # For Dict spaces, we'll just store the type and reconstruct later
-                reconstruction_attrs["obs_space"] = {"_type": "Dict"}
-                logger.info("Simplified obs_space to just type for reconstruction")
-            elif obs_space is not None:
-                logger.warning(
-                    f"Cannot serialize obs_space of type {type(obs_space).__name__}, removing from reconstruction attributes"
-                )
-                reconstruction_attrs.pop("obs_space", None)
-
-        # Ensure all values in reconstruction_attrs are serializable
-        # Remove any numpy arrays or other non-serializable types
-        clean_attrs = {}
-        for key, value in reconstruction_attrs.items():
-            if isinstance(value, (str, int, float, bool, list, dict)):
-                clean_attrs[key] = value
-            elif hasattr(value, "tolist"):
-                # Convert numpy arrays to lists
-                clean_attrs[key] = value.tolist()
-            elif value is None:
-                clean_attrs[key] = value
-            else:
-                logger.warning(f"Skipping non-serializable attribute {key} of type {type(value).__name__}")
-
-        reconstruction_attrs = clean_attrs
-
-        # Prepare save data
-        save_data = {
-            "metadata": metadata,
-            "class_name": inner_policy.__class__.__name__,
-            "reconstruction_attributes": reconstruction_attrs,
-        }
-
-        # Try to save with torch.jit for better versioning
-        try:
-            # For BrainPolicy, we need to trace through a forward pass
-            if isinstance(inner_policy, BrainPolicy) and reconstruction_attrs:
-                # Create dummy inputs for tracing
-                from metta.agent.policy_state import PolicyState
-
-                obs_shape = reconstruction_attrs.get("obs_shape", [11, 11, 27])
-                batch_size = 32
-
-                # Get the device from the policy
-                device = getattr(inner_policy, "device", "cpu")
-
-                # Create dummy observation
-                dummy_obs = torch.randn(batch_size, *obs_shape, device=device)
-
-                # Create dummy state
-                hidden_size = reconstruction_attrs.get("hidden_size", inner_policy.hidden_size)
-                num_layers = reconstruction_attrs.get("core_num_layers", inner_policy.core_num_layers)
-                dummy_state = PolicyState(
-                    lstm_h=torch.zeros(num_layers, batch_size, hidden_size, device=device),
-                    lstm_c=torch.zeros(num_layers, batch_size, hidden_size, device=device),
-                )
-
-                # Trace the model
-                traced_model = torch.jit.trace(inner_policy, (dummy_obs, dummy_state))
-                save_data["jit_model"] = traced_model
-                save_data["use_jit"] = True
-                logger.info("Successfully traced model with torch.jit")
-            else:
-                # For other policies, just save state dict
-                save_data["state_dict"] = inner_policy.state_dict()
-                save_data["use_jit"] = False
-        except Exception as e:
-            logger.warning(f"Failed to trace model with torch.jit: {e}. Falling back to state_dict")
-            save_data["state_dict"] = inner_policy.state_dict()
-            save_data["use_jit"] = False
-
-        torch.save(save_data, path)
-
-        pr = PolicyRecord(self, path, "file://" + path, metadata)
-        pr._policy = None
+        # Restore policy_store reference
         pr._policy_store = self
-        pr._local_path = path
+
+        # Don't cache the policy that we just saved,
+        # since it might be updated later. We always
+        # load the policy from the file when needed.
+        pr._policy = None
         self._cached_prs[path] = pr
         return pr
 
@@ -676,25 +546,15 @@ class PolicyStore:
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
 
-        # Add gymnasium spaces to safe globals for PyTorch 2.6+
-        import gymnasium.spaces
+        # Simple load - just load the PolicyRecord object
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
 
-        torch.serialization.add_safe_globals(
-            [
-                gymnasium.spaces.multi_discrete.MultiDiscrete,
-                gymnasium.spaces.discrete.Discrete,
-                gymnasium.spaces.box.Box,
-                gymnasium.spaces.dict.Dict,
-                np.dtype,
-            ]
-        )
-
-        checkpoint = torch.load(path, map_location=self._device)
-
-        # Backwards compatibility for models saved as PolicyRecord objects
-        if isinstance(checkpoint, PolicyRecord):
-            logger.info("Loading legacy PolicyRecord object.")
-            pr = checkpoint
+            pr = torch.load(
+                path,
+                map_location=self._device,
+                weights_only=False,
+            )
             pr._policy_store = self
             pr._local_path = path
             self._cached_prs[path] = pr
@@ -702,255 +562,6 @@ class PolicyStore:
                 pr._policy = None
                 pr._local_path = None
             return pr
-
-        metadata = checkpoint["metadata"]
-        name = os.path.basename(path)
-        pr = PolicyRecord(self, name, "file://" + path, metadata)
-        pr._local_path = path
-
-        if not metadata_only:
-            # Check if this is a jit model
-            if checkpoint.get("use_jit", False) and "jit_model" in checkpoint:
-                logger.info("Loading torch.jit model")
-                try:
-                    jit_model = checkpoint["jit_model"]
-                    # Wrap the jit model in MettaAgent
-                    policy = MettaAgent(jit_model)
-                    pr._policy = policy
-                except Exception as e:
-                    logger.warning(f"Failed to load jit model: {e}. Trying state_dict fallback")
-                    # Fall back to state_dict loading if jit fails
-                    if "state_dict" in checkpoint:
-                        self._load_from_state_dict(checkpoint, pr)
-                    else:
-                        raise RuntimeError(f"Could not load model from {path}: no state_dict fallback available")
-            else:
-                # Load from state_dict
-                self._load_from_state_dict(checkpoint, pr)
-
-        self._cached_prs[path] = pr
-        return pr
-
-    def _load_from_state_dict(self, checkpoint: dict, pr: PolicyRecord):
-        """Helper method to load a policy from state_dict."""
-        class_name = checkpoint.get("class_name", "BrainPolicy")
-        if class_name == "BrainPolicy":
-            reconstruction_attrs = checkpoint.get("reconstruction_attributes", {})
-
-            # Always try to infer missing attributes from the state dict
-            state_dict = checkpoint.get("state_dict", {})
-            if state_dict:
-                # Try to infer hidden size if not present
-                if "hidden_size" not in reconstruction_attrs:
-                    for key, tensor in state_dict.items():
-                        if "components._core_._net.weight_ih_l0" in key:
-                            # LSTM input weight shape is (4*hidden_size, input_size)
-                            hidden_size = tensor.shape[0] // 4
-                            reconstruction_attrs["hidden_size"] = hidden_size
-                            logger.info(f"Inferred hidden_size={hidden_size} from LSTM weights")
-                            break
-
-                # Try to infer number of features if not present
-                if "num_features" not in reconstruction_attrs or "obs_shape" not in reconstruction_attrs:
-                    for key, tensor in state_dict.items():
-                        if "components.obs_normalizer.obs_norm" in key:
-                            # Shape is [1, num_features, 1, 1]
-                            num_features = tensor.shape[1]
-                            reconstruction_attrs["num_features"] = num_features
-                            logger.info(f"Inferred num_features={num_features} from obs_normalizer")
-                            # Update obs_shape if needed
-                            if "obs_shape" not in reconstruction_attrs:
-                                obs_width = reconstruction_attrs.get("obs_width", 11)
-                                obs_height = reconstruction_attrs.get("obs_height", 11)
-                                reconstruction_attrs["obs_shape"] = [obs_width, obs_height, num_features]
-                                logger.info(f"Set obs_shape to {reconstruction_attrs['obs_shape']}")
-                            break
-
-                # Try to infer action space size if not present
-                if "total_actions" not in reconstruction_attrs:
-                    for key, tensor in state_dict.items():
-                        if "components._action_embeds_.active_indices" in key:
-                            # This tells us the total number of discrete actions
-                            num_actions = tensor.shape[0]
-                            reconstruction_attrs["total_actions"] = num_actions
-                            logger.info(f"Inferred total_actions={num_actions} from action embeddings")
-                            break
-
-            if reconstruction_attrs:
-                logger.info(f"Found reconstruction attributes: {list(reconstruction_attrs.keys())}")
-            else:
-                logger.warning("No reconstruction attributes found in checkpoint")
-
-            # Fill in some reasonable defaults for missing attributes
-            defaults = {
-                "clip_range": 0.2,
-                "obs_width": 11,
-                "obs_height": 11,
-                "obs_key": "grid_obs",
-                "core_num_layers": 2,
-                "device": self._device,
-            }
-
-            # Only add obs_shape default if we don't have num_features
-            if "num_features" not in reconstruction_attrs and "obs_shape" not in reconstruction_attrs:
-                defaults["obs_shape"] = [11, 11, 27]
-
-            for key, value in defaults.items():
-                if key not in reconstruction_attrs:
-                    reconstruction_attrs[key] = value
-                    logger.info(f"Using default value for {key}={value}")
-
-            # Reconstruct action_space from serialized format
-            if "action_space" in reconstruction_attrs:
-                action_space_data = reconstruction_attrs["action_space"]
-                if isinstance(action_space_data, dict) and "_type" in action_space_data:
-                    import gymnasium.spaces
-
-                    if action_space_data["_type"] == "MultiDiscrete":
-                        reconstruction_attrs["action_space"] = gymnasium.spaces.MultiDiscrete(action_space_data["nvec"])
-                        logger.info(f"Reconstructed MultiDiscrete action space with nvec={action_space_data['nvec']}")
-                    elif action_space_data["_type"] == "Discrete":
-                        reconstruction_attrs["action_space"] = gymnasium.spaces.Discrete(action_space_data["n"])
-                        logger.info(f"Reconstructed Discrete action space with n={action_space_data['n']}")
-                elif isinstance(action_space_data, int):
-                    # Legacy format where just the size was saved
-                    import gymnasium.spaces
-
-                    reconstruction_attrs["action_space"] = gymnasium.spaces.Discrete(action_space_data)
-                    logger.info(f"Reconstructed Discrete action space from legacy format with n={action_space_data}")
-                else:
-                    # If we can't reconstruct, remove it and let the system handle it
-                    logger.warning(f"Cannot reconstruct action_space from data: {action_space_data}")
-                    reconstruction_attrs.pop("action_space", None)
-
-            # Reconstruct obs_space if needed
-            if "obs_space" in reconstruction_attrs:
-                obs_space_data = reconstruction_attrs["obs_space"]
-                if isinstance(obs_space_data, dict) and "_type" in obs_space_data:
-                    if obs_space_data["_type"] == "Dict":
-                        # Reconstruct a basic Dict space - the actual contents will be filled by the environment
-                        import gymnasium.spaces
-
-                        # Create a minimal Dict space that BrainPolicy can work with
-                        obs_shape = reconstruction_attrs.get("obs_shape", [11, 11, 27])
-                        reconstruction_attrs["obs_space"] = gymnasium.spaces.Dict(
-                            {
-                                "grid_obs": gymnasium.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                                "global_vars": gymnasium.spaces.Box(
-                                    low=-np.inf, high=np.inf, shape=[0], dtype=np.int32
-                                ),
-                            }
-                        )
-                        logger.info("Reconstructed Dict observation space")
-                else:
-                    reconstruction_attrs.pop("obs_space", None)
-
-            # Ensure all required fields are present
-            if "obs_space" not in reconstruction_attrs:
-                # Create a default obs_space if missing
-                import gymnasium.spaces
-
-                obs_shape = reconstruction_attrs.get("obs_shape", [11, 11, 27])
-                # If we have num_features, update obs_shape
-                if "num_features" in reconstruction_attrs:
-                    num_features = reconstruction_attrs["num_features"]
-                    obs_shape = [
-                        reconstruction_attrs.get("obs_width", 11),
-                        reconstruction_attrs.get("obs_height", 11),
-                        num_features,
-                    ]
-                    reconstruction_attrs["obs_shape"] = obs_shape
-                reconstruction_attrs["obs_space"] = gymnasium.spaces.Dict(
-                    {
-                        "grid_obs": gymnasium.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                        "global_vars": gymnasium.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
-                    }
-                )
-                logger.info(f"Created default observation space with shape {obs_shape}")
-
-            if "action_space" not in reconstruction_attrs:
-                # Create a default action space if missing
-                import gymnasium.spaces
-
-                # Check if we have action_names in metadata
-                action_names = pr.metadata.get("action_names", [])
-                total_actions = reconstruction_attrs.get("total_actions", 25)
-
-                if action_names and total_actions:
-                    # Try to infer the action space from the total number of actions and action names
-                    # This is a heuristic - distribute the actions somewhat evenly
-                    num_action_types = len(action_names)
-                    if num_action_types > 0:
-                        # Simple heuristic: some actions have more params than others
-                        # Common pattern: move/rotate have 4 params (0-3), others have fewer
-                        if num_action_types == 9 and total_actions == 25:
-                            # This matches the checkpoint we're debugging
-                            # 25 total actions means indices 0-24, distributed across 9 action types
-                            # Common pattern: some actions have no params (just the base action)
-                            # others have multiple params
-                            nvec = [1, 1, 1, 4, 2, 1, 1, 16, 1]  # Sums to 28, but we'll adjust
-                            # Actually, let's try a different distribution that sums correctly
-                            # 25 actions total, 9 types means average ~2.7 per type
-                            nvec = [2, 2, 1, 4, 2, 2, 2, 8, 2]  # Sums to 25
-                            reconstruction_attrs["action_space"] = gymnasium.spaces.MultiDiscrete(nvec)
-                            logger.info(f"Created action space for {action_names} with nvec={nvec}")
-                        else:
-                            # Generic fallback
-                            avg_per_action = max(1, (total_actions - 1) // num_action_types)
-                            nvec = [avg_per_action] * num_action_types
-                            reconstruction_attrs["action_space"] = gymnasium.spaces.MultiDiscrete(nvec)
-                            logger.info(f"Created generic action space with {num_action_types} types")
-                    else:
-                        reconstruction_attrs["action_space"] = gymnasium.spaces.Discrete(total_actions)
-                        logger.info(f"Created discrete action space with {total_actions} actions")
-                else:
-                    # Final fallback
-                    reconstruction_attrs["action_space"] = gymnasium.spaces.MultiDiscrete([9, 3])
-                    logger.info("Created default action space MultiDiscrete([9, 3])")
-
-            if "feature_normalizations" not in reconstruction_attrs:
-                # Create default feature normalizations based on num_features
-                num_features = reconstruction_attrs.get("num_features", 27)
-                if "obs_shape" in reconstruction_attrs and len(reconstruction_attrs["obs_shape"]) >= 3:
-                    num_features = reconstruction_attrs["obs_shape"][2]
-                reconstruction_attrs["feature_normalizations"] = {i: 1.0 for i in range(num_features)}
-                logger.info(f"Created default feature normalizations for {num_features} features")
-
-            if "device" not in reconstruction_attrs:
-                reconstruction_attrs["device"] = self._device
-
-            try:
-                # Create BrainPolicy directly instead of using hydra.instantiate
-                # This avoids issues with nested component instantiation
-                from metta.agent.brain_policy import BrainPolicy
-
-                # Convert agent config to dict and remove _target_ field
-                agent_cfg_dict = OmegaConf.to_container(self._cfg.agent, resolve=True)
-                if isinstance(agent_cfg_dict, dict) and "_target_" in agent_cfg_dict:
-                    agent_cfg_dict.pop("_target_", None)
-
-                # Merge the config with reconstruction attributes
-                all_kwargs = {**agent_cfg_dict, **reconstruction_attrs}
-
-                # Create the BrainPolicy instance
-                brain = BrainPolicy(**all_kwargs)
-                brain.load_state_dict(checkpoint["state_dict"])
-                policy = MettaAgent(brain)
-                pr._policy = policy
-            except Exception as e:
-                logger.error(f"Failed to instantiate BrainPolicy with attributes: {reconstruction_attrs}")
-                logger.error(f"Error: {e}")
-                raise RuntimeError(
-                    f"Failed to load BrainPolicy. The checkpoint may be incompatible with the current "
-                    f"configuration. Error: {str(e)}"
-                )
-        else:
-            raise NotImplementedError(f"Loading for {class_name} not implemented from file")
-
-        # Log what we have so far
-        logger.info(
-            f"Reconstruction attrs after inference: num_features={reconstruction_attrs.get('num_features')}, obs_shape={reconstruction_attrs.get('obs_shape')}"
-        )
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")
