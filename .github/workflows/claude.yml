@@ -402,29 +402,40 @@ jobs:
 
             2. SECOND: Verify you're on the correct branch with `Bash(git branch --show-current)`
 
-            3. THIRD: Make all the requested code changes using Edit/Replace tools
+            3. THIRD: Check for project standards:
+              - Look for CLAUDE.md file and follow any coding standards defined there
+              - Check for .prettierrc, .eslintrc, pyproject.toml, or similar config files
 
-            4. FINALLY: Commit your changes using ONE of these methods:
+            4. FOURTH: Make all the requested code changes using Edit/Replace tools
 
-               Option A (preferred): Use the MCP tool:
-               mcp__github_file_ops__commit_files
+            5. FIFTH: Run quality checks if available:
+              - Check for test commands in package.json, Makefile, or similar
+              - Run linters/formatters if configured (e.g., prettier, eslint, black, ruff)
+              - Only proceed if no errors, or document any issues you can't resolve
 
-               Option B (if MCP fails): Use bash commands:
-               Bash(git add -A)
-               Bash(git commit -m "feat: implement requested changes from ${{ steps.branches.outputs.context_info }}")
+            6. FINALLY: Commit your changes using ONE of these methods:
 
-               Use a descriptive commit message like:
-               "feat: implement requested changes from ${{ steps.branches.outputs.context_info }}"
+              Option A (preferred): Use the MCP tool:
+              mcp__github_file_ops__commit_files
+
+              Option B (if MCP fails): Use bash commands:
+              Bash(git add -A)
+              Bash(git commit -m "feat: implement requested changes from ${{ steps.branches.outputs.context_info }}")
+
+              Use a descriptive commit message like:
+              "feat: implement requested changes from ${{ steps.branches.outputs.context_info }}"
 
             CRITICAL REMINDERS:
             - You MUST switch to branch ${{ steps.branches.outputs.new_branch }} before making ANY changes
             - If mcp__github_file_ops__commit_files fails with 404, use the bash git commands instead
             - Do NOT push or create a PR - the workflow handles that
             - All your changes should be on ${{ steps.branches.outputs.new_branch }}, NOT on ${{ steps.branches.outputs.target_branch }}
+            - If tests fail, try to fix the issues before committing, or clearly document what's failing
 
             TROUBLESHOOTING:
             - If you get "permission denied" for bash commands, report this in your response
             - If MCP tools fail with 404 errors, use the bash git fallback commands
+            - If tests or linters fail, attempt to fix issues or document them clearly
             - Always verify you're on the correct branch before and after making changes
           allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,Read,Write,mcp__github_file_ops__commit_files,mcp__github__update_issue_comment,Bash(git checkout*),Bash(git branch*),Bash(git status),Bash(git add*),Bash(git commit*),Bash(git log*)"
 
