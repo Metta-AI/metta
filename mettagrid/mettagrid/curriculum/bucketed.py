@@ -29,8 +29,8 @@ class BucketedCurriculum(LowRewardCurriculum):
 
         # here, tasks map directly to curricula
         curricula = {}
-        base = config_from_path(env_cfg_template, env_overrides)
-        env_cfg_template = OmegaConf.create(OmegaConf.to_container(base, resolve=False))
+        base_cfg = config_from_path(env_cfg_template, env_overrides)
+        env_cfg_template = OmegaConf.create(OmegaConf.to_container(base_cfg, resolve=False))
         logger.info("Generating bucketed tasks")
         # make task id interpretable
         for parameter_values in tqdm(product(*bucket_values)):

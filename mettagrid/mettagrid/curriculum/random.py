@@ -21,8 +21,8 @@ class RandomCurriculum(MultiTaskCurriculum):
         super().__init__(curricula, env_overrides)
 
     def get_task(self) -> Task:
-        task_id = random.choices(list(self._curriculums.keys()), weights=list(self._task_weights.values()))[0]
-        task = self._curriculums[task_id].get_task()
+        task_id = random.choices(list(self._curricula.keys()), weights=list(self._task_weights.values()))[0]
+        task = self._curricula[task_id].get_task()
         task.add_parent(self, task_id)
         logger.debug(f"Task selected: {task.name()}")
         return task

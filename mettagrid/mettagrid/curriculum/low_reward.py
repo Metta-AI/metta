@@ -22,7 +22,9 @@ class LowRewardCurriculum(RandomCurriculum):
     def complete_task(self, id: str, score: float):
         # Update moving average for the completed task
         old_average = self._reward_averages[id]
-        self._reward_averages[id] = (1 - self._moving_avg_decay_rate) * self._reward_averages[id] + self._moving_avg_decay_rate * score
+        self._reward_averages[id] = (1 - self._moving_avg_decay_rate) * self._reward_averages[
+            id
+        ] + self._moving_avg_decay_rate * score
         logger.debug(
             f"Updated task {id} "
             + f"reward mean({old_average:.3f} -> {self._reward_averages[id]:.3f}), "
@@ -30,6 +32,6 @@ class LowRewardCurriculum(RandomCurriculum):
         )
         self._reward_maxes[id] = max(self._reward_maxes[id], score)
         self._task_weights = {
-            t: 1e-6 + self._reward_maxes[t] / (self._reward_averages[t] + 1e-6) for t in self._curriculums.keys()
+            t: 1e-6 + self._reward_maxes[t] / (self._reward_averages[t] + 1e-6) for t in self._curricula.keys()
         }
         super().complete_task(id, score)

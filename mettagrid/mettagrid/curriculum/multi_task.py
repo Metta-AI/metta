@@ -12,9 +12,9 @@ class MultiTaskCurriculum(Curriculum):
     """Base class for curricula with multiple tasks."""
 
     def __init__(self, curricula: Dict[str, float], env_overrides: DictConfig, moving_avg_window: int = 500):
-        self._curriculums = curricula
+        self._curricula = curricula
         num_agents = None
-        for task_id, curriculum in self._curriculums.items():
+        for task_id, curriculum in self._curricula.items():
             cfg_num_agents = curriculum.get_task().env_cfg().game.num_agents
             if num_agents is None:
                 num_agents = cfg_num_agents
