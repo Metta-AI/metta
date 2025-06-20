@@ -12,7 +12,7 @@ all the same. Their observation encoders also use the same initial stack: stripp
 environment tokens and using a Fourier feature representation for position encoding, which perform better than
 learnable encodings. Finally, they pass the encoded sequence of environment tokens to attention mechanisms, all of
 which are multi-headed.
-Their differences are in their size and complextiy which affect their speed an sample-efficiency.
+Their differences are in their size and complexity which affect their speed and sample-efficiency.
 
 ### latent_attn_tiny.yaml
 Uses a single learnable token as a query against the entire sequence of encoded observations. It's the fastest to run
