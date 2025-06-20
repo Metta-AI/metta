@@ -12,6 +12,7 @@ The PolicyStore is used by the training system to manage opponent policies and c
 import collections
 import logging
 import os
+import pickle
 import random
 import sys
 from types import SimpleNamespace
@@ -418,9 +419,32 @@ class PolicyStore:
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
 
-        checkpoint = torch.load(path, map_location=self._device, weights_only=False)
-        pr = checkpoint["policy_record"]
-        pr._policy_store = self
+        try:
+            checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+            pr = checkpoint["policy_record"]
+            pr._policy_store = self
+        except (pickle.PicklingError, AttributeError, KeyError) as e:
+            logger.warning(f"Failed to load PolicyRecord from checkpoint, attempting fallback: {e}")
+            # For very old checkpoints, create a minimal PolicyRecord
+            checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+
+            # Extract metadata if available
+            metadata = checkpoint.get(
+                "metadata",
+                {
+                    "action_names": [],
+                    "agent_step": 0,
+                    "epoch": 0,
+                    "generation": 0,
+                    "train_time": 0,
+                },
+            )
+
+            # Create a new PolicyRecord
+            pr = PolicyRecord(self, name=os.path.basename(path), uri=f"file://{path}", metadata=metadata)
+
+            # Mark this as a legacy checkpoint
+            pr._is_legacy_checkpoint = True
 
         if not metadata_only:
             # Use PolicyRecord's load method for reconstruction
