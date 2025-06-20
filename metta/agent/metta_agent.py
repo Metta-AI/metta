@@ -303,7 +303,6 @@ class MettaAgent(nn.Module):
                 # Training: x should have shape (B, T, obs_w, obs_h, features)
                 B, T, A = action.shape
                 assert A == 2, f"Action dimensionality should be 2, got {A}"
-                # assert_shape(x, (B, T, obs_w, obs_h, features), "training_input_x")
                 # assert_shape(action, (B, T, 2), "training_input_action")
 
         # Initialize dictionary for TensorDict
