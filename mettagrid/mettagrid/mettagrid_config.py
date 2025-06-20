@@ -6,27 +6,27 @@ from pydantic import BaseModel, Field, RootModel
 class AgentRewards(BaseModel):
     """Agent reward configuration."""
 
-    action_failure_penalty: Optional[float]
-    ore_red: Optional[float] = Field(alias="ore.red")
-    ore_blue: Optional[float] = Field(alias="ore.blue")
-    ore_green: Optional[float] = Field(alias="ore.green")
-    battery_red: Optional[float] = Field(alias="battery.red")
-    battery_blue: Optional[float] = Field(alias="battery.blue")
-    battery_green: Optional[float] = Field(alias="battery.green")
-    battery_red_max: Optional[float] = Field(alias="battery.red_max")
-    battery_blue_max: Optional[float] = Field(alias="battery.blue_max")
-    battery_green_max: Optional[float] = Field(alias="battery.green_max")
-    heart: Optional[float]
-    heart_max: Optional[float]
+    action_failure_penalty: Optional[float] = None
+    ore_red: Optional[float] = Field(default=None, alias="ore.red")
+    ore_blue: Optional[float] = Field(default=None, alias="ore.blue")
+    ore_green: Optional[float] = Field(default=None, alias="ore.green")
+    battery_red: Optional[float] = Field(default=None, alias="battery.red")
+    battery_blue: Optional[float] = Field(default=None, alias="battery.blue")
+    battery_green: Optional[float] = Field(default=None, alias="battery.green")
+    battery_red_max: Optional[float] = Field(default=None, alias="battery.red_max")
+    battery_blue_max: Optional[float] = Field(default=None, alias="battery.blue_max")
+    battery_green_max: Optional[float] = Field(default=None, alias="battery.green_max")
+    heart: Optional[float] = None
+    heart_max: Optional[float] = None
 
 
 class AgentConfig(BaseModel):
     """Agent configuration."""
 
-    default_item_max: Optional[int]
-    freeze_duration: Optional[int]
-    inventory_size: Optional[int]
-    rewards: Optional[AgentRewards]
+    default_item_max: Optional[int] = None
+    freeze_duration: Optional[int] = None
+    inventory_size: Optional[int] = None
+    rewards: Optional[AgentRewards] = None
 
 
 class GroupProps(RootModel[Dict[str, Any]]):
@@ -39,15 +39,15 @@ class GroupConfig(BaseModel):
     """Group configuration."""
 
     id: int
-    sprite: Optional[int]
-    group_reward_pct: Optional[float]
-    props: Optional[GroupProps]
+    sprite: Optional[int] = None
+    group_reward_pct: Optional[float] = None
+    props: Optional[GroupProps] = None
 
 
 class ActionConfig(BaseModel):
     """Action configuration."""
 
-    enabled: bool = True
+    enabled: bool
 
 
 class ActionsConfig(BaseModel):
@@ -66,7 +66,7 @@ class ActionsConfig(BaseModel):
 class WallConfig(BaseModel):
     """Wall/Block configuration."""
 
-    swappable: Optional[bool]
+    swappable: Optional[bool] = None
 
 
 class ConverterConfig(BaseModel):
@@ -99,7 +99,7 @@ class ConverterConfig(BaseModel):
     conversion_ticks: int
     cooldown: int
     initial_items: int
-    color: Optional[int] = 0
+    color: Optional[int] = None
 
 
 class ObjectsConfig(BaseModel):
