@@ -21,7 +21,6 @@ for arg in "$@"; do
   esac
 done
 
-# check if we're in docker
 if [ -f /.dockerenv ]; then
   export IS_DOCKER=1
 fi
@@ -61,7 +60,6 @@ if [ "$CLEAN" -eq 1 ]; then
 
   make clean
 
-  # Remove the virtual environment
   if [ -d .venv ]; then
     echo "Removing .venv virtual environment..."
     rm -rf .venv
@@ -105,3 +103,23 @@ if [ -z "$IS_DOCKER" ]; then
   echo "✅ setup_dev.sh completed successfully!"
   echo -e "Activate virtual environment with: \033[32;1msource $VENV_PATH/bin/activate\033[0m"
 fi
+
+# ========== CLEAN UP REPO ==========
+echo -e "\n🧹🧹🧹 cleaning up"
+
+EXCLUDE_PATTERN="-name personal -o -name wandb -o -name train_dir"
+
+for i in {1..5}; do # removing a child dir can make the parent empty, so loop a few times
+  found_empty=0
+
+  # Find and remove empty directories
+  while IFS= read -r -d '' dir; do
+    if rmdir "$dir" 2> /dev/null; then
+      echo "  Removed: $dir"
+      found_empty=1
+    fi
+  done < <(find "$PROJECT_DIR" -type d -empty -not \( $EXCLUDE_PATTERN \) -print0 2> /dev/null)
+
+  # If no empty directories were found, we're done
+  [ $found_empty -eq 0 ] && break
+done

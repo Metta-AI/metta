@@ -66,14 +66,6 @@ public:
     this->location = loc;
   }
 
-  void init(TypeId type_id, GridCoord r, GridCoord c) {
-    init(type_id, GridLocation(r, c, 0));
-  }
-
-  void init(TypeId type_id, GridCoord r, GridCoord c, Layer layer) {
-    init(type_id, GridLocation(r, c, layer));
-  }
-
   virtual std::vector<PartialObservationToken> obs_features() const = 0;
 };
 
