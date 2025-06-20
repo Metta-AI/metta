@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime
 import logging
 import random
-import time
 import uuid
 from typing import Any, Dict, Optional, cast
 
@@ -151,13 +150,10 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self._last_level_per_task[task.id()] = level
 
         # Validate the level
-        validation_start = time.perf_counter()
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
         assert task.env_cfg().game.num_agents == level_agents, (
             f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
-        validation_time = time.perf_counter() - validation_start
-        logging.debug(f"Level validation required {validation_time:.4f} sec")
 
         # Convert to container for C++ code with explicit casting to Dict[str, Any]
         config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
