@@ -15,4 +15,4 @@ num_active_tasks: 16
 rand_task_rate: 0.25
 sample_threshold: 10
 memory: 25
-lp_metric: "episode/reward.mean"
+#lp_metric: "episode/reward.mean"
