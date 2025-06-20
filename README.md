@@ -128,17 +128,6 @@ for your machine. You can pass `+user=<name>` to load defaults from
 `configs/user/<name>.yaml`. Use `wandb=off` to disable Weights & Biases logging
 if you don't have access.
 
-### Run the evaluation
-
-```
-./tools/sim.py run=my_experiment +hardware=macbook wandb=off
-```
-
-Use the same `run`, `+hardware` and `+user` arguments as in training to control
-where evaluation results are stored and to apply machine or personal presets.
-
-If you're a member of `metta-research` on WandB, or you add your own WandB config in `configs/wandb`, you should be able to remove the `wandb=off` command. This is assumed for the rest of the README.
-
 ## Visualizing a Model
 
 ### Run the interactive simulation
@@ -182,14 +171,6 @@ To add your policy to the existing navigation evals DB:
 This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db` artifact on WandB.
 
 Then, to see the results in the heatmap along with the other policies in the database, you can run:
-
-```
-./tools/analyze.py run=analyze +eval_db_uri=wandb://stats/navigation_db analyzer.policy_uri=YOUR_POLICY_URI
-```
-
-Currently you need to pass in a policy_uri here, and need to use any policy that is in the navigation DB, for example `wandb://run/b.daveey.t.8.rdr9.3`, but that shouldn't be necessary in the future, and we are working on refactoring that. You can do the same process for the object-use eval artifact using: `wandb://stats/object_use_db`
-
-Furthermore, you can post your results to the dashboard here:
 
 ```
 ./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
