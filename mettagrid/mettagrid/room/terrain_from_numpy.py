@@ -35,8 +35,6 @@ def pick_random_file(path):
             # with probability 1/count, pick this entry
             if random.randrange(count) == 0:
                 chosen = entry.name
-    if chosen is None:
-        logger.error(f"No files found in directory: {path}")
     return chosen
 
 
@@ -132,9 +130,6 @@ class TerrainFromNumpy(Room):
         return valid_positions
 
     def _build(self):
-        if self.uri is None:
-            logger.error(f"self.uri is None! Cannot load file from {self.dir}")
-            raise ValueError(f"Cannot load terrain file: uri is None, dir={self.dir}")
         level = safe_load(f"{self.dir}/{self.uri}")
         height, width = level.shape
         self.set_size_labels(width, height)
