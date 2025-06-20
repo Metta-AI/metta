@@ -5,6 +5,7 @@
 
 defaults:
   - /trainer/trainer
+  - /sim/all@evals  # Use navigation-only evaluation suite
   - _self_
 
 # Basic run configuration
@@ -14,6 +15,7 @@ run_dir: ${data_dir}/${run}
 
 trainer:
   curriculum: env/mettagrid/curriculum/learningprogress_navigation
+  evaluate_interval: 100
   #total_timesteps: 1000000
   #gamma: 0.99
   #gae_lambda: 0.95
