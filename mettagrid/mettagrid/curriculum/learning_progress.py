@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Dict
+from typing import Dict, Tuple
 
 import numpy as np
 from gymnasium.spaces import Discrete
@@ -10,6 +10,12 @@ from omegaconf import DictConfig
 from mettagrid.curriculum.random import RandomCurriculum
 
 logger = logging.getLogger(__name__)
+
+# Constants
+DEFAULT_SUCCESS_RATE = 0.0
+DEFAULT_WEIGHT = 1.0
+RANDOM_BASELINE_CAP = 0.75
+
 
 class LearningProgressCurriculum(RandomCurriculum):
     """Curriculum that adaptively samples tasks based on learning progress."""
@@ -75,16 +81,18 @@ class LearningProgressCurriculum(RandomCurriculum):
 
 
 class BidirectionalLearningProgress:
+    """Tracks bidirectional learning progress using fast and slow exponential moving averages."""
+
     def __init__(
         self,
-        search_space,
-        ema_timescale=0.001,
-        progress_smoothing=0.05,
-        num_active_tasks=16,
-        rand_task_rate=0.25,
-        sample_threshold=10,
-        memory=25,
-    ):
+        search_space: int | Discrete,
+        ema_timescale: float = 0.001,
+        progress_smoothing: float = 0.05,
+        num_active_tasks: int = 16,
+        rand_task_rate: float = 0.25,
+        sample_threshold: int = 10,
+        memory: int = 25,
+    ) -> None:
         if isinstance(search_space, int):
             search_space = Discrete(search_space)
         assert isinstance(search_space, Discrete), (
@@ -94,7 +102,7 @@ class BidirectionalLearningProgress:
         self.num_tasks = max_num_levels = search_space.n
         self.ema_alpha = ema_timescale  # Fixed: use ema_timescale as ema_alpha
         self.progress_smoothing = progress_smoothing
-        self.n = int(num_active_tasks)
+        self.num_active_tasks = int(num_active_tasks)
         self.rand_task_rate = rand_task_rate
         self.sample_threshold = sample_threshold
         self.memory = int(memory)
@@ -105,36 +113,37 @@ class BidirectionalLearningProgress:
         self._p_slow = None
         self._p_true = None
         self._random_baseline = None
-        self.task_success_rate = np.zeros(max_num_levels)
-        self.mean_samples_per_eval = []
-        self.num_nans = []
+        self._task_success_rate = np.zeros(max_num_levels)
+        self._mean_samples_per_eval = []
+        self._num_nans = []
         self.update_mask = np.ones(max_num_levels).astype(bool)
         self.sample_levels = np.arange(max_num_levels).astype(np.int32)
         self.counter = {i: 0 for i in self.sample_levels}
 
-    def add_stats(self, info):
+    def add_stats(self, info: Dict[str, float]) -> None:
+        """Add learning progress statistics to the info dictionary."""
         info["lp/num_active_tasks"] = len(self.sample_levels)
         info["lp/mean_sample_prob"] = np.mean(self.task_dist)
         info["lp/num_zeros_lp_dist"] = np.sum(self.task_dist == 0)
-        info["lp/task_1_success_rate"] = self.task_success_rate[0]
-        info[f"lp/task_{self.num_tasks // 2}_success_rate"] = self.task_success_rate[self.num_tasks // 2]
-        info["lp/last_task_success_rate"] = self.task_success_rate[-1]
-        info["lp/task_success_rate"] = np.mean(self.task_success_rate)
-        info["lp/mean_evals_per_task"] = self.mean_samples_per_eval[-1]
-        info["lp/num_nan_tasks"] = self.num_nans[-1]
+        info["lp/task_1_success_rate"] = self._task_success_rate[0]
+        info[f"lp/task_{self.num_tasks // 2}_success_rate"] = self._task_success_rate[self.num_tasks // 2]
+        info["lp/last_task_success_rate"] = self._task_success_rate[-1]
+        info["lp/task_success_rate"] = np.mean(self._task_success_rate)
+        info["lp/mean_evals_per_task"] = self._mean_samples_per_eval[-1]
+        info["lp/num_nan_tasks"] = self._num_nans[-1]
 
     def _update(self):
         task_success_rates = np.array([np.mean(self.outcomes[i]) for i in range(self.num_tasks)])
         # Handle NaN values in task success rates (empty lists)
-        task_success_rates = np.nan_to_num(task_success_rates, nan=0.0)
+        task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
         update_mask = self.update_mask
 
         if self._random_baseline is None:
-            self._random_baseline = np.minimum(task_success_rates, 0.75)
+            self._random_baseline = np.minimum(task_success_rates, RANDOM_BASELINE_CAP)
 
         # Handle division by zero in normalization
-        denominator = 1.0 - self._random_baseline[update_mask]
-        denominator = np.where(denominator <= 0, 1.0, denominator)
+        denominator = UNIFORM_PROBABILITY - self._random_baseline[update_mask]
+        denominator = np.where(denominator <= 0, UNIFORM_PROBABILITY, denominator)
 
         normalized_task_success_rates = (
             np.maximum(
@@ -150,10 +159,10 @@ class BidirectionalLearningProgress:
             self._p_true = task_success_rates[update_mask]
         else:
             self._p_fast[update_mask] = (normalized_task_success_rates * self.ema_alpha) + (
-                self._p_fast[update_mask] * (1.0 - self.ema_alpha)
+                self._p_fast[update_mask] * (UNIFORM_PROBABILITY - self.ema_alpha)
             )
             self._p_slow[update_mask] = (self._p_fast[update_mask] * self.ema_alpha) + (
-                self._p_slow[update_mask] * (1.0 - self.ema_alpha)
+                self._p_slow[update_mask] * (UNIFORM_PROBABILITY - self.ema_alpha)
             )
             self._p_true[update_mask] = (task_success_rates[update_mask] * self.ema_alpha) + (
                 self._p_true[update_mask] * (1.0 - self.ema_alpha)
@@ -176,14 +185,16 @@ class BidirectionalLearningProgress:
                     if task_id in self.sample_levels:
                         self.counter[task_id] += 1
 
-    def _learning_progress(self, reweight: bool = True) -> float:
+    def _learning_progress(self, reweight: bool = True) -> np.ndarray:
+        """Calculate learning progress as the difference between fast and slow moving averages."""
         fast = self._reweight(self._p_fast) if reweight else self._p_fast
         slow = self._reweight(self._p_slow) if reweight else self._p_slow
         return abs(fast - slow)
 
-    def _reweight(self, p: np.ndarray) -> float:
-        numerator = p * (1.0 - self.progress_smoothing)
-        denominator = p + self.progress_smoothing * (1.0 - 2.0 * p)
+    def _reweight(self, probs: np.ndarray) -> np.ndarray:
+        """Apply progress smoothing reweighting to probability values."""
+        numerator = probs * (UNIFORM_PROBABILITY - self.progress_smoothing)
+        denominator = probs + self.progress_smoothing * (1.0 - 2.0 * probs)
 
         # Handle division by zero
         denominator = np.where(denominator <= 0, 1.0, denominator)
@@ -229,10 +240,10 @@ class BidirectionalLearningProgress:
         self._stale_dist = False
 
         out_vec = [np.mean(self.outcomes[i]) for i in range(self.num_tasks)]
-        out_vec = [0.0 if np.isnan(x) else x for x in out_vec]  # Handle NaN in outcomes
-        self.num_nans.append(sum(np.isnan(out_vec)))
-        self.task_success_rate = np.array(out_vec)
-        self.mean_samples_per_eval.append(np.mean([len(self.outcomes[i]) for i in range(self.num_tasks)]))
+        out_vec = [DEFAULT_SUCCESS_RATE if np.isnan(x) else x for x in out_vec]  # Handle NaN in outcomes
+        self._num_nans.append(sum(np.isnan(out_vec)))
+        self._task_success_rate = np.array(out_vec)
+        self._mean_samples_per_eval.append(np.mean([len(self.outcomes[i]) for i in range(self.num_tasks)]))
 
         for i in range(self.num_tasks):
             self.outcomes[i] = self.outcomes[i][-self.memory :]
@@ -256,7 +267,7 @@ class BidirectionalLearningProgress:
         else:
             task_dist = task_dist / sum_dist
 
-        for _i in range(self.n):
+        for _i in range(self.num_active_tasks):
             if np.random.rand() < self.rand_task_rate:
                 level = np.random.choice(range(self.num_tasks))
             else:
@@ -271,7 +282,8 @@ class BidirectionalLearningProgress:
         self.counter = {i: 0 for i in self.sample_levels}
         return self.sample_levels
 
-    def calculate_dist(self):
+    def calculate_dist(self) -> Tuple[np.ndarray, np.ndarray]:
+        """Calculate task distribution and sample levels based on learning progress."""
         if all([v < self.sample_threshold for k, v in self.counter.items()]) and self._random_baseline is not None:
             # Ensure we have valid task_dist and sample_levels
             if self.task_dist is None or len(self.task_dist) == 0:
@@ -280,14 +292,8 @@ class BidirectionalLearningProgress:
                 self.sample_levels = np.arange(self.num_tasks).astype(np.int32)
             return self.task_dist, self.sample_levels
 
-        self.task_success_rate = self._update()
-        dist = self._sample_distribution()
+        self._task_success_rate = self._update()
+        task_dist = self._sample_distribution()
         tasks = self._sample_tasks()
 
-        # Ensure we have valid return values
-        if dist is None or len(dist) == 0:
-            dist = np.ones(self.num_tasks) / self.num_tasks
-        if tasks is None or len(tasks) == 0:
-            tasks = np.arange(self.num_tasks).astype(np.int32)
-
-        return dist, tasks
+        return task_dist, tasks
