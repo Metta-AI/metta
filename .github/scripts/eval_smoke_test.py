@@ -39,8 +39,7 @@ class EvaluationSmokeTest(SmokeTest):
         return [
             "uv",
             "run",
-            "-m",
-            "tools.sim",
+            "./tools/sim.py",
             "sim=navigation",
             f"run=navigation_smoke_{attempt}",
             f"policy_uri=wandb://run/{self.policy}",
