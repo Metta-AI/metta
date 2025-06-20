@@ -23,7 +23,6 @@ from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
-from metta.rl.policy import PytorchAgent
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.vecenv import make_vecenv
@@ -171,7 +170,7 @@ class MettaTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), self.metta_agent
+        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)), self.metta_agent
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
@@ -653,7 +652,7 @@ class MettaTrainer:
         if not self._master:
             return
 
-        self._checkpoint_policy()
+        pr = self._checkpoint_policy()
 
         extra_args = {}
         if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
@@ -666,6 +665,7 @@ class MettaTrainer:
             if torch.distributed.is_initialized()
             else self.agent_step,
             optimizer_state_dict=self.optimizer.state_dict(),
+            policy_path=pr.uri if pr else None,
             extra_args=extra_args,
         )
         checkpoint.save(self.cfg.run_dir)
@@ -690,6 +690,11 @@ class MettaTrainer:
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
+        # Get build context from initial policy record if available
+        build_context = None
+        if hasattr(self._initial_pr, "_build_context"):
+            build_context = self._initial_pr._build_context
+
         self.last_pr = self.policy_store.save(
             name,
             os.path.join(self.trainer_cfg.checkpoint_dir, name),
@@ -705,6 +710,7 @@ class MettaTrainer:
                 "score": overall_score,
                 "eval_scores": category_scores_map,
             },
+            build_context=build_context,
         )
 
         # this is hacky, but otherwise the initial_pr points
