@@ -27,6 +27,8 @@
 #include "stats_tracker.hpp"
 #include "types.hpp"
 
+#define PYBIND11_DETAILED_ERROR_MESSAGES
+
 namespace py = pybind11;
 
 MettaGrid::MettaGrid(py::dict cfg, py::list map) {
