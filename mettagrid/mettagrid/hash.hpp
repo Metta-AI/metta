@@ -2,6 +2,14 @@
 // Based on wyhash v4.2 by Wang Yi (王一)
 // Original: https://github.com/wangyi-fudan/wyhash
 // License: Public Domain (Unlicense)
+//
+// Why wyhash over std::hash?
+// - Performance: 2-3x faster than many std::hash implementations
+// - Determinism: std::hash is not guaranteed to produce consistent results across 
+//   platforms, compilers, or program runs - critical for ML research reproducibility
+// - Quality: Superior collision resistance and statistical distribution properties
+// - Cross-platform consistency: Essential for comparing map configurations across
+//   different training and evaluation environments
 
 #ifndef METTAGRID_METTAGRID_HASH_HPP_
 #define METTAGRID_METTAGRID_HASH_HPP_
