@@ -1,6 +1,6 @@
 # Architecture Overview 06-18-2025
 ## CNN-based Encoder Models
-simple.yaml uses a token-to-box converter that takes environment-generated tokens, converts them into a tensor that
+fast.yaml uses a token-to-box converter that takes environment-generated tokens, converts them into a tensor that
 represents the tokens in a box with channels, width, and height, and then passes it to a CNN encoder stack. It's
 super fast and expressive but not quite as expressive as the attention-based architectures and is not robust when
 the features in the environment change - you'll have to train a new model.
@@ -16,7 +16,7 @@ Their differences are in their size and complextiy which affect their speed an s
 
 ### latent_attn_tiny.yaml
 Uses a single learnable token as a query against the entire sequence of encoded observations. It's the fastst to run
-and is robust to changing environments but is not as as expressive as any of the other models including simple.yaml.
+and is robust to changing environments but is not as as expressive as any of the other models including fast.yaml.
 
 ### latent_attn_small.yaml
 This is the sweet spot of performance and expressivity. It uses latent attention: a small number of learnable tokens
