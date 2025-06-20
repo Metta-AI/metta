@@ -106,3 +106,7 @@ class Kickstarter:
             )
 
         return ks_action_loss, ks_value_loss
+
+    def _forward(self, teacher, o, teacher_lstm_state: PolicyState):
+        _, _, _, value, norm_logits = teacher(o, teacher_lstm_state)
+        return value, norm_logits
