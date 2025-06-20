@@ -119,7 +119,7 @@ def test_tensors_have_dtype():
             + "- Use dtype=torch.long for integer indices and counters\n"
             + "- Use dtype=torch.int32 for integer data when memory efficiency is important"
         )
-        assert False, error_message
+        raise AssertionError(error_message)
 
 
 if __name__ == "__main__":
