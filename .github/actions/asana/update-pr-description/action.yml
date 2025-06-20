@@ -21,10 +21,7 @@ runs:
     - uses: actions/setup-python@v4
       with:
         python-version: '3.x'
-    - name: Install requests library
-      run: pip install requests
-      shell: bash
-    - run: python ${{ github.action_path }}/main.py
+    - run: uv run ${{ github.action_path }}/main.py
       shell: bash
       env:
         INPUT_REPO: ${{ inputs.repo }}
