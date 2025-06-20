@@ -36,7 +36,7 @@ def test_single_task_curriculum(env_cfg):
 
 def test_random_curriculum_selects_task(monkeypatch, env_cfg):
     monkeypatch.setattr(random, "choices", lambda population, weights: ["b"])
-    monkeypatch.setattr("mettagrid.curriculum.multi_task.curriculum_from_config_path", fake_curriculum_from_config_path)
+    monkeypatch.setattr("mettagrid.curriculum.curriculum_from_config_path", fake_curriculum_from_config_path)
 
     curr = RandomCurriculum({"a": 1.0, "b": 1.0}, OmegaConf.create({}))
     task = curr.get_task()
