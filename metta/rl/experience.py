@@ -270,7 +270,7 @@ class Experience:
         """Update importance sampling ratios for given indices."""
         self.ratio[indices] = new_ratio.detach()
 
-    def to_dict(self) -> Dict[str, float]:
+    def stats(self) -> Dict[str, float]:
         """Get mean values of all tracked buffers.
 
         Returns:

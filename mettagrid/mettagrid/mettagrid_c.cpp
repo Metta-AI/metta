@@ -29,11 +29,9 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(py::dict env_cfg, py::list map) {
-  // env_cfg is a dict-form of the OmegaCong config.
+MettaGrid::MettaGrid(py::dict cfg, py::list map) {
+  // cfg is a dict-form of the OmegaConf config.
   // `map` is a list of lists of strings, which are the map cells.
-  auto cfg = env_cfg["game"].cast<py::dict>();
-  _cfg = cfg;
 
   int num_agents = cfg["num_agents"].cast<int>();
   max_steps = cfg["max_steps"].cast<unsigned int>();
