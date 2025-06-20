@@ -1,11 +1,7 @@
-from typing import Any
-
 import torch
-from omegaconf import DictConfig
 from torch import Tensor, nn
 
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyStore
 
 
 class Kickstarter:
