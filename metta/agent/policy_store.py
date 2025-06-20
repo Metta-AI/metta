@@ -16,11 +16,10 @@ import random
 import sys
 from typing import List, Optional, Union
 
-import hydra
 import numpy as np
 import torch
 import wandb
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from torch import nn
 
 from metta.agent.brain_policy import BrainPolicy
@@ -788,7 +787,20 @@ class PolicyStore:
                     reconstruction_attrs.pop("action_space", None)
 
             try:
-                brain = hydra.utils.instantiate(self._cfg.agent, **reconstruction_attrs)
+                # Create BrainPolicy directly instead of using hydra.instantiate
+                # This avoids issues with nested component instantiation
+                from metta.agent.brain_policy import BrainPolicy
+
+                # Convert agent config to dict and remove _target_ field
+                agent_cfg_dict = OmegaConf.to_container(self._cfg.agent, resolve=True)
+                if isinstance(agent_cfg_dict, dict) and "_target_" in agent_cfg_dict:
+                    agent_cfg_dict.pop("_target_", None)
+
+                # Merge the config with reconstruction attributes
+                all_kwargs = {**agent_cfg_dict, **reconstruction_attrs}
+
+                # Create the BrainPolicy instance
+                brain = BrainPolicy(**all_kwargs)
                 brain.load_state_dict(checkpoint["state_dict"])
                 policy = MettaAgent(brain)
                 pr._policy = policy
