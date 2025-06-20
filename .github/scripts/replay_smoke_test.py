@@ -22,7 +22,8 @@ class ReplaySmokeTest(SmokeTest):
 
     def get_command(self) -> list[str]:
         return [
-            sys.executable,
+            "uv",
+            "run",
             "./tools/replay.py",
             "+hardware=github",
             "wandb=off",
