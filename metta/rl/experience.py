@@ -270,6 +270,44 @@ class Experience:
         """Update importance sampling ratios for given indices."""
         self.ratio[indices] = new_ratio.detach()
 
-    def get_mean_reward(self) -> float:
-        """Get mean reward from the buffer."""
-        return self.rewards.mean().item()
+    def stats(self) -> Dict[str, float]:
+        """Get mean values of all tracked buffers.
+
+        Returns:
+            Dictionary containing mean values for:
+            - rewards: Mean reward across all stored experiences
+            - values: Mean value estimates
+            - advantages: Mean advantages (if computed)
+            - logprobs: Mean log probabilities of actions
+            - dones: Fraction of episodes that ended
+            - truncateds: Fraction of episodes that were truncated
+            - ratio: Mean importance sampling ratio
+            - ep_lengths: Mean episode length for active episodes
+        """
+        stats = {
+            "rewards": self.rewards.mean().item(),
+            "values": self.values.mean().item(),
+            "logprobs": self.logprobs.mean().item(),
+            "dones": self.dones.mean().item(),
+            "truncateds": self.truncateds.mean().item(),
+            "ratio": self.ratio.mean().item(),
+        }
+
+        # Add episode length stats for active episodes
+        active_episodes = self.ep_lengths > 0
+        if active_episodes.any():
+            stats["ep_lengths"] = self.ep_lengths[active_episodes].float().mean().item()
+        else:
+            stats["ep_lengths"] = 0.0
+
+        # Add action statistics based on action space type
+        if self.actions.dtype in [torch.int32, torch.int64]:
+            # For discrete actions, we can add distribution info
+            stats["actions_mean"] = self.actions.float().mean().item()
+            stats["actions_std"] = self.actions.float().std().item()
+        else:
+            # For continuous actions
+            stats["actions_mean"] = self.actions.mean().item()
+            stats["actions_std"] = self.actions.std().item()
+
+        return stats
