@@ -170,9 +170,59 @@ class PolicyRecord:
 
             except Exception as e:
                 logger.warning(f"Failed to reconstruct using build context: {e}")
-                logger.info("Falling back to source code reconstruction")
+                logger.info("Falling back to legacy reconstruction")
+        else:
+            logger.info("No build context found in checkpoint, using legacy reconstruction")
 
-        # Fallback to source code reconstruction (existing method)
+        # For old checkpoints, try to reconstruct from metadata
+        if "metadata" in checkpoint and "reconstruction_attributes" in checkpoint["metadata"]:
+            try:
+                # Import MettaAgentBuilder here to avoid circular imports
+                from metta.agent.metta_agent import MettaAgentBuilder
+
+                if self._policy_store is None:
+                    raise ValueError("PolicyStore is required for reconstruction")
+
+                builder = MettaAgentBuilder(self._policy_store._cfg)
+
+                # Try to reconstruct as BrainPolicy using reconstruction_attributes
+                env_attrs = checkpoint["metadata"]["reconstruction_attributes"]
+                if env_attrs:
+                    env = self._reconstruct_env(env_attrs)
+                    agent, _ = builder.build_from_brain_policy(env)
+
+                    # Load the state dict
+                    actual_policy = agent.policy if isinstance(agent, MettaAgent) else agent
+                    actual_policy.load_state_dict(checkpoint["model_state_dict"])
+
+                    logger.info("Successfully reconstructed policy using legacy reconstruction_attributes")
+                    return agent
+
+            except Exception as e:
+                logger.warning(f"Failed to reconstruct using legacy attributes: {e}")
+
+        # Try to load the initial checkpoint's build context if this is a later checkpoint
+        if self._try_initial_checkpoint_fallback(checkpoint, path, device):
+            try:
+                agent = self._reconstruct_with_initial_context(checkpoint, path, device)
+
+                # Update our build context from the initial checkpoint
+                # This is important so that subsequent saves will have the build context
+                import os
+
+                checkpoint_dir = os.path.dirname(path)
+                initial_path = os.path.join(checkpoint_dir, "model_0000.pt")
+                initial_checkpoint = torch.load(initial_path, map_location=device, weights_only=False)
+
+                if "build_context" in initial_checkpoint:
+                    self._build_context = BuildContext.from_dict(initial_checkpoint["build_context"])
+                    logger.info("Updated PolicyRecord with build context from initial checkpoint")
+
+                return agent
+            except Exception as e:
+                logger.warning(f"Failed to use initial checkpoint context: {e}")
+
+        # Final fallback to source code reconstruction
         return self._load_from_source_code(checkpoint, device)
 
     def _capture_source_code(self, policy: nn.Module) -> dict:
@@ -273,23 +323,101 @@ class PolicyRecord:
 
     def _load_from_source_code(self, checkpoint: dict, device: str) -> nn.Module:
         """Fallback method to load from source code (existing approach)."""
-        # This is the existing reconstruction method, kept as fallback
+        # If we have source code in the checkpoint, try to reconstruct from that
+        if "source_code" in checkpoint and checkpoint["source_code"]:
+            try:
+                # Try to find a class to reconstruct
+                for class_path, source in checkpoint["source_code"].items():
+                    if "." in class_path:
+                        class_name = class_path.split(".")[-1]
+                        try:
+                            policy_class = self._reconstruct_class_from_source(checkpoint["source_code"], class_name)
+                            # Create a simple instance
+                            policy = policy_class()
+                            policy.load_state_dict(checkpoint["model_state_dict"])
+
+                            # Wrap in MettaAgent
+                            from metta.agent.metta_agent import MettaAgent
+
+                            return MettaAgent(policy)
+                        except Exception as e:
+                            logger.warning(f"Failed to reconstruct {class_name}: {e}")
+                            continue
+            except Exception as e:
+                logger.error(f"Failed to reconstruct from source code: {e}")
+
+        # If all else fails, raise an error with helpful information
+        error_msg = (
+            f"Could not reconstruct policy from checkpoint at '{self._local_path or 'unknown path'}'.\n"
+            "The checkpoint is missing build context and source code reconstruction failed.\n"
+            "This appears to be a checkpoint saved with an older version of the code.\n\n"
+            "To fix this, you can:\n"
+            "1. Use the initial checkpoint (model_0000.pt) which should have build context\n"
+            "2. Re-train from scratch with the updated code\n"
+            "3. Manually reconstruct the policy if you know the exact configuration"
+        )
+        raise ValueError(error_msg)
+
+    def _try_initial_checkpoint_fallback(self, checkpoint: dict, path: str, device: str) -> bool:
+        """Check if we can use the initial checkpoint for reconstruction."""
+        # Check if this is not the initial checkpoint itself
+        if "metadata" in checkpoint and checkpoint["metadata"].get("epoch", 0) > 0:
+            # Try to find the initial checkpoint in the same directory
+            import os
+
+            checkpoint_dir = os.path.dirname(path)
+            initial_path = os.path.join(checkpoint_dir, "model_0000.pt")
+            return os.path.exists(initial_path)
+        return False
+
+    def _reconstruct_with_initial_context(self, checkpoint: dict, path: str, device: str) -> nn.Module:
+        """Reconstruct using the initial checkpoint's build context."""
+        import os
+
+        # Load the initial checkpoint
+        checkpoint_dir = os.path.dirname(path)
+        initial_path = os.path.join(checkpoint_dir, "model_0000.pt")
+
+        logger.info(f"Attempting to use initial checkpoint build context from {initial_path}")
+
+        initial_checkpoint = torch.load(initial_path, map_location=device, weights_only=False)
+
+        if "build_context" not in initial_checkpoint:
+            raise ValueError("Initial checkpoint also missing build context")
+
+        # Use the initial checkpoint's build context
+        build_context = BuildContext.from_dict(initial_checkpoint["build_context"])
+
         # Import MettaAgentBuilder here to avoid circular imports
         from metta.agent.metta_agent import MettaAgentBuilder
 
         if self._policy_store is None:
-            # Create minimal config for fallback loading
-            builder = MettaAgentBuilder({"device": device})
-        else:
-            builder = MettaAgentBuilder(self._policy_store._cfg)
+            raise ValueError("PolicyStore is required for reconstruction")
 
-        try:
-            # Try to build from source file
-            # This will use the source code saved in the checkpoint
-            return builder.build_from_source_file(checkpoint.get("path", ""))
-        except Exception as e:
-            logger.error(f"Failed to reconstruct from source code: {e}")
-            raise
+        builder = MettaAgentBuilder(self._policy_store._cfg)
+
+        # Reconstruct using the build context
+        if build_context.method == "build_from_brain_policy":
+            env = self._reconstruct_env(build_context.env_attributes)
+            agent, _ = builder.build_from_brain_policy(env)
+
+            # Activate actions if available in metadata
+            if "metadata" in checkpoint and "action_names" in checkpoint["metadata"]:
+                action_names = checkpoint["metadata"]["action_names"]
+                # Get max_action_args from env attributes
+                max_action_args = env.max_action_args if hasattr(env, "max_action_args") else [0] * len(action_names)
+
+                logger.info(f"Activating actions: {action_names}")
+                agent.activate_actions(action_names, max_action_args, device)
+
+            # Load the current checkpoint's state dict
+            actual_policy = agent.policy if isinstance(agent, MettaAgent) else agent
+            actual_policy.load_state_dict(checkpoint["model_state_dict"])
+
+            logger.info("Successfully reconstructed using initial checkpoint's build context")
+            return agent
+        else:
+            raise ValueError(f"Unsupported build method for fallback: {build_context.method}")
 
     def key_and_version(self) -> tuple[str, int]:
         """
