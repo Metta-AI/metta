@@ -37,7 +37,8 @@ class EvaluationSmokeTest(SmokeTest):
     def get_command_for_attempt(self, attempt: int) -> list[str]:
         """Get command for a specific attempt."""
         return [
-            "python3",
+            "uv",
+            "run",
             "-m",
             "tools.sim",
             "sim=navigation",
