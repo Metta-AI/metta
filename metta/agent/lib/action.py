@@ -56,7 +56,7 @@ class ActionEmbedding(nn_layer_library.Embedding):
                 self._reserved_action_embeds[action_name] = embedding_index  # update this component's known embeddings
 
         self.active_indices = torch.tensor(
-            [self._reserved_action_embeds[action_name] for action_name in action_names], device=device
+            [self._reserved_action_embeds[action_name] for action_name in action_names], device=device, dtype=torch.long
         )
         self.num_actions = len(self.active_indices)
 

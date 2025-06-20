@@ -29,5 +29,10 @@ class RandomCurriculum(MultiTaskCurriculum):
         logger.debug(f"Task selected: {task.name()}")
         return task
 
+<<<<<<< HEAD
     def _curriculum_from_id(self, id: str) -> Curriculum:
         return curriculum_from_config_path(id, self.env_overrides)
+=======
+    def _curriculum_from_id(self, cfg_path: str) -> Curriculum:
+        return curriculum_from_config_path(cfg_path, self.env_overrides)
+>>>>>>> 9d4fd93da41f0c07511bdd8de1cf6e1220c290b3

@@ -1,6 +1,6 @@
 _target_: mettagrid.curriculum.BucketedCurriculum
 
-env_cfg_template: /env/mettagrid/extended_sequence/backchain2
+env_cfg_template: /env/mettagrid/extended_sequence/backchain3
 
 buckets:
   game.map_builder.room.dir:
