@@ -42,8 +42,8 @@ l2_init_loss_coef: 0
 
 # Prioritized experience replay parameters
 prioritized_experience_replay:
-  prio_alpha: 0.09999999999999998  # Slight prioritization
-  prio_beta0: 0.6414824826502135   # Initial importance sampling correction
+  prio_alpha: 0.0  # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
+  prio_beta0: 0.6  # Initial importance sampling correction
 
 norm_adv: true
 clip_vloss: true
@@ -51,16 +51,15 @@ target_kl: null
 
 # V-trace clipping parameters (for off-policy corrections)
 vtrace:
-  vtrace_rho_clip: 1.0478534705178881  # Slight off-policy correction
-  vtrace_c_clip: 2.8594046341079227     # More aggressive bootstrapping clipping
+  vtrace_rho_clip: 1.0  # Default: on-policy (no off-policy correction)
+  vtrace_c_clip: 1.0    # Default: on-policy bootstrapping
 
 zero_copy: true
 require_contiguous_env_ids: false
 verbose: true
 
-batch_size: 786432
-minibatch_size: 32768
-max_minibatch_size: 32768
+batch_size: 262144
+minibatch_size: 16384
 bptt_horizon: 64
 update_epochs: 1
 

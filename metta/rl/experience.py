@@ -62,19 +62,14 @@ class Experience:
                 f"Please set trainer.batch_size >= {mini_batch_size} in your configuration."
             )
 
-        # Determine tensor device and dtype
-        obs_device = "cpu" if cpu_offload else self.device
-        obs_dtype = torch.float32 if obs_space.dtype == np.float32 else torch.uint8
-        pin = self.device.type == "cuda" and cpu_offload
-
         # Create segmented tensor storage
+        obs_dtype = torch.float32 if obs_space.dtype == np.float32 else torch.uint8
         self.obs = torch.zeros(
             self.segments,
             bptt_horizon,
             *obs_space.shape,
             dtype=obs_dtype,
-            pin_memory=pin,
-            device=obs_device,
+            device=self.device,
         )
 
         # Action tensor with proper dtype
