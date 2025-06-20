@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/mettagrid_deterministic@
   - _self_
 
 game:
