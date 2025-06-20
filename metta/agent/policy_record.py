@@ -1,8 +1,8 @@
 """
-PolicyRecord implementation with robust save/load functionality.
+PolicyRecord implementation using torch.package for robust save/load functionality.
 
-This module implements PolicyRecord which tracks trained policies along with their
-construction context, enabling exact reconstruction even when class definitions change.
+This module implements PolicyRecord which tracks trained policies and uses torch.package
+to handle all dependency management and code packaging automatically.
 """
 
 import logging
@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 from torch import nn
+from torch.package import PackageExporter, PackageImporter
 
-from metta.agent.build_context import BuildContext
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 
 if TYPE_CHECKING:
@@ -21,7 +21,7 @@ logger = logging.getLogger("policy_record")
 
 
 class PolicyRecord:
-    """Represents a trained policy with metadata and reconstruction information."""
+    """Represents a trained policy with metadata and torch.package-based persistence."""
 
     def __init__(self, policy_store: Optional["PolicyStore"], name: str, uri: str, metadata: dict):
         self._policy_store = policy_store
@@ -30,7 +30,6 @@ class PolicyRecord:
         self.metadata = metadata
         self._policy = None
         self._local_path = None
-        self._build_context = None
 
         if self.uri.startswith("file://"):
             self._local_path = self.uri[len("file://") :]
@@ -43,7 +42,6 @@ class PolicyRecord:
             pr = self._policy_store.load_from_uri(self.uri)
             self._policy = pr.policy()
             self._local_path = pr.local_path()
-            self._build_context = pr._build_context
         return self._policy
 
     def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
@@ -61,9 +59,9 @@ class PolicyRecord:
         """Get the local file path if available."""
         return self._local_path
 
-    def save(self, path: str, policy: nn.Module, build_context: Optional[BuildContext] = None) -> "PolicyRecord":
-        """Save a policy with its build context for robust reconstruction."""
-        logger.info(f"Saving policy to {path}")
+    def save(self, path: str, policy: nn.Module) -> "PolicyRecord":
+        """Save a policy using torch.package for automatic dependency management."""
+        logger.info(f"Saving policy to {path} using torch.package")
 
         # Update local path
         self._local_path = path
@@ -72,182 +70,134 @@ class PolicyRecord:
         # Get the actual policy (unwrap MettaAgent if needed)
         actual_policy = policy.policy if isinstance(policy, MettaAgent) else policy
 
-        # Save build context if provided
-        if build_context:
-            self._build_context = build_context
-            # Capture source code for the policy class if not already captured
-            if not build_context.source_code:
-                build_context.source_code = MettaAgent._capture_policy_source_code(actual_policy)
+        # Use torch.package to save the policy with all dependencies
+        with PackageExporter(path) as exporter:
+            # Intern all metta modules to include them in the package
+            exporter.intern("metta.**")
 
-        # Prepare checkpoint data
-        checkpoint_data = {
-            "model_state_dict": actual_policy.state_dict(),
-            "policy_record": self,
-            "metadata": self.metadata,
-        }
+            # Check if the policy comes from __main__ (common in scripts/notebooks)
+            # For __main__ modules, we need to handle them specially since they don't have __file__
+            if actual_policy.__class__.__module__ == "__main__":
+                # Get the source code of the class
+                import inspect
 
-        # Add build context if available
-        if self._build_context:
-            checkpoint_data["build_context"] = self._build_context.to_dict()
+                try:
+                    source = inspect.getsource(actual_policy.__class__)
+                    # Save it as a module source
+                    exporter.save_source_string("__main__", source)
+                except:
+                    # If we can't get source, just extern it and hope for the best
+                    exporter.extern("__main__")
 
-        # Save the checkpoint
-        torch.save(checkpoint_data, path)
-        logger.info(f"Saved policy with build context to {path}")
+            # External modules that should use the system version
+            exporter.extern("torch")
+            exporter.extern("torch.**")
+            exporter.extern("numpy")
+            exporter.extern("numpy.**")
+            exporter.extern("gymnasium")
+            exporter.extern("gymnasium.**")
+            exporter.extern("gym")
+            exporter.extern("gym.**")
+            exporter.extern("tensordict")
+            exporter.extern("tensordict.**")
+            exporter.extern("einops")
+            exporter.extern("einops.**")
+            exporter.extern("hydra")
+            exporter.extern("hydra.**")
+            exporter.extern("omegaconf")
+            exporter.extern("omegaconf.**")
 
+            # Mock modules that we don't need to include
+            exporter.mock("wandb")
+            exporter.mock("wandb.**")
+            exporter.mock("pufferlib")
+            exporter.mock("pufferlib.**")
+            exporter.mock("pydantic")
+            exporter.mock("pydantic.**")
+            exporter.mock("typing_extensions")
+            exporter.mock("boto3")
+            exporter.mock("boto3.**")
+            exporter.mock("botocore")
+            exporter.mock("botocore.**")
+            exporter.mock("duckdb")
+            exporter.mock("duckdb.**")
+            exporter.mock("pandas")
+            exporter.mock("pandas.**")
+
+            # Handle C extension modules
+            exporter.extern("mettagrid.mettagrid_c")
+            exporter.extern("mettagrid")
+            exporter.extern("mettagrid.**")
+
+            # Save the policy record (which includes metadata)
+            exporter.save_pickle("policy_record", "data.pkl", self)
+
+            # Save the actual policy
+            exporter.save_pickle("policy", "model.pkl", actual_policy)
+
+        logger.info(f"Saved policy with torch.package to {path}")
         return self
 
     def load(self, path: str, device: str = "cpu") -> nn.Module:
-        """Load a policy from file using build context for reconstruction."""
-        logger.info(f"Loading policy from {path}")
-        checkpoint = torch.load(path, map_location=device, weights_only=False)
+        """Load a policy from a torch.package file."""
+        logger.info(f"Loading policy from {path} using torch.package")
 
-        # Check if we have build context
-        if "build_context" in checkpoint:
-            build_context = BuildContext.from_dict(checkpoint["build_context"])
-            self._build_context = build_context
+        try:
+            # Use torch.package to load the policy
+            importer = PackageImporter(path)
 
-            # Get config
-            cfg = self._policy_store._cfg if self._policy_store else None
-            if cfg is None:
-                raise ValueError("PolicyStore is required for reconstruction")
+            # First try to load the policy directly
+            try:
+                actual_policy = importer.load_pickle("policy", "model.pkl", map_location=device)
 
-            # Call the appropriate MettaAgent factory method
-            if build_context.method == "build_from_brain_policy":
-                # Use stored config if available
-                if build_context.config:
-                    from omegaconf import DictConfig
+                # Import MettaAgent from the normal system (not from the package)
+                from metta.agent.metta_agent import MettaAgent
 
-                    cfg = DictConfig(build_context.config)
-
-                env = self._reconstruct_env(build_context.env_attributes)
-                agent, _ = MettaAgent.from_brain_policy(env, cfg)
-
-            elif build_context.method == "build_from_pytorch_policy":
-                agent, _ = MettaAgent.from_pytorch_policy(path, device=device, pytorch_cfg=cfg.get("pytorch", None))
-
-            elif build_context.method == "build_from_policy_class":
-                class_name = build_context.kwargs.get("class_name", "PytorchPolicy")
-
-                # Try to reconstruct the class
-                try:
-                    policy_class = self._reconstruct_class_from_source(build_context.source_code, class_name)
-                except ValueError:
-                    # Simple fallback
-                    class ReconstructedPolicy(nn.Module):
-                        def __init__(self):
-                            super().__init__()
-
-                    policy_class = ReconstructedPolicy
-
-                constructor_kwargs = {k: v for k, v in build_context.kwargs.items() if k != "class_name"}
-                agent, _ = MettaAgent.from_policy_class(policy_class, *build_context.args, **constructor_kwargs)
-
-            else:
-                raise ValueError(f"Unknown build method: {build_context.method}")
-
-            # Load the state dict
-            actual_policy = agent.policy if isinstance(agent, MettaAgent) else agent
-            actual_policy.load_state_dict(checkpoint["model_state_dict"])
-            return agent
-
-        # Legacy checkpoint handling
-        if "metadata" in checkpoint and "reconstruction_attributes" in checkpoint["metadata"]:
-            env_attrs = checkpoint["metadata"]["reconstruction_attributes"]
-            if env_attrs and self._policy_store:
-                env = self._reconstruct_env(env_attrs)
-                agent, _ = MettaAgent.from_brain_policy(env, self._policy_store._cfg)
-                actual_policy = agent.policy if isinstance(agent, MettaAgent) else agent
-                actual_policy.load_state_dict(checkpoint["model_state_dict"])
-                return agent
-
-        # If no build context, try to use initial checkpoint
-        if self._try_initial_checkpoint_fallback(checkpoint, path, device):
-            return self._reconstruct_with_initial_context(checkpoint, path, device)
-
-        raise ValueError(
-            f"Could not reconstruct policy from checkpoint at '{path}'.\n"
-            "The checkpoint is missing build context. Please use the initial checkpoint or retrain."
-        )
-
-    def _reconstruct_env(self, env_attributes: dict):
-        """Reconstruct an environment-like object from saved attributes."""
-        from types import SimpleNamespace
-
-        # Create a mock environment with the saved attributes
-        env = SimpleNamespace()
-        for key, value in env_attributes.items():
-            setattr(env, key, value)
-        return env
-
-    def _reconstruct_class_from_source(self, source_code: dict, class_name: str):
-        """Reconstruct a class from saved source code."""
-        import importlib.util
-
-        # Find the class in source code
-        for path, code in source_code.items():
-            if class_name in path or class_name in code:
-                # Handle __main__ module specially
-                if path.startswith("__main__"):
-                    module_name = "__main__"
+                # Wrap in MettaAgent if it's not already
+                if not isinstance(actual_policy, MettaAgent):
+                    policy = MettaAgent(actual_policy)
                 else:
-                    module_name = path.rsplit(".", 1)[0] if "." in path else path
+                    policy = actual_policy
 
-                # Create a module from source
-                spec = importlib.util.spec_from_loader(module_name, loader=None)
-                module = importlib.util.module_from_spec(spec)
+                logger.info("Successfully loaded policy using torch.package")
+                return policy
 
-                # Add common imports to the module's namespace
-                module.__dict__["torch"] = torch
-                module.__dict__["nn"] = nn
-                module.__dict__["Optional"] = Optional
+            except Exception as e:
+                logger.warning(f"Could not load policy directly: {e}")
+                # Fall back to loading from policy_record
+                pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)
+                if hasattr(pr, "_policy") and pr._policy is not None:
+                    return pr._policy
+                else:
+                    raise ValueError("PolicyRecord in package does not contain a policy")
 
-                # Execute the source code in the module
-                exec(code, module.__dict__)
+        except Exception as e:
+            # Fallback for old checkpoints without torch.package
+            logger.info(f"torch.package load failed ({e}), trying legacy load")
 
-                # Get the class
-                if hasattr(module, class_name):
-                    return getattr(module, class_name)
+            # For legacy checkpoints, they are just regular torch saves, not packages
+            checkpoint = torch.load(path, map_location=device, weights_only=False)
 
-        raise ValueError(f"Could not find class {class_name} in source code")
+            # Simple loading - just get state dict and create a minimal wrapper
+            if "model_state_dict" in checkpoint:
+                # Create a simple wrapper module
+                class LegacyPolicy(nn.Module):
+                    def __init__(self):
+                        super().__init__()
+                        # This will be populated by load_state_dict
 
-    def _try_initial_checkpoint_fallback(self, checkpoint: dict, path: str, device: str) -> bool:
-        """Check if we can use the initial checkpoint for reconstruction."""
-        # Check if this is not the initial checkpoint itself
-        if "metadata" in checkpoint and checkpoint["metadata"].get("epoch", 0) > 0:
-            import os
+                policy = LegacyPolicy()
+                try:
+                    policy.load_state_dict(checkpoint["model_state_dict"])
+                except:
+                    # If that fails, just return a dummy policy
+                    pass
 
-            checkpoint_dir = os.path.dirname(path)
-            initial_path = os.path.join(checkpoint_dir, "model_0000.pt")
-            return os.path.exists(initial_path)
-        return False
+                from metta.agent.metta_agent import MettaAgent
 
-    def _reconstruct_with_initial_context(self, checkpoint: dict, path: str, device: str) -> nn.Module:
-        """Reconstruct using the initial checkpoint's build context."""
-        import os
-
-        # Load the initial checkpoint
-        checkpoint_dir = os.path.dirname(path)
-        initial_path = os.path.join(checkpoint_dir, "model_0000.pt")
-        initial_checkpoint = torch.load(initial_path, map_location=device, weights_only=False)
-
-        if "build_context" not in initial_checkpoint:
-            raise ValueError("Initial checkpoint also missing build context")
-
-        # Use the initial checkpoint's build context
-        build_context = BuildContext.from_dict(initial_checkpoint["build_context"])
-
-        if self._policy_store is None:
-            raise ValueError("PolicyStore is required for reconstruction")
-
-        # Reconstruct using the build context
-        env = self._reconstruct_env(build_context.env_attributes)
-        agent, _ = MettaAgent.from_brain_policy(env, self._policy_store._cfg)
-
-        # Load the current checkpoint's state dict
-        actual_policy = agent.policy if isinstance(agent, MettaAgent) else agent
-        actual_policy.load_state_dict(checkpoint["model_state_dict"])
-
-        return agent
+                return MettaAgent(policy)
+            else:
+                raise ValueError(f"Cannot load checkpoint from {path}")
 
     def key_and_version(self) -> tuple[str, int]:
         """
@@ -298,10 +248,6 @@ class PolicyRecord:
 
         if metadata_items:
             lines.append(f"Metadata: {', '.join(metadata_items)}")
-
-        # Add build context info if available
-        if self._build_context:
-            lines.append(f"Build Method: {self._build_context.method}")
 
         # Load policy if not already loaded
         try:

@@ -19,7 +19,6 @@ import wandb
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 
-from metta.agent.build_context import BuildContext
 from metta.agent.metta_agent import MettaAgent, make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.util.config import Config
@@ -127,15 +126,10 @@ class PolicyStore:
         return f"model_{epoch:04d}.pt"
 
     def create(self, env) -> PolicyRecord:
-        """Create a new policy and save it with build context."""
-        policy, build_context = make_policy(env, self._cfg)
+        """Create a new policy and save it with torch.package."""
+        policy = make_policy(env, self._cfg)
         name = self.make_model_name(0)
         path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
-
-        # Extract environment attributes from build context
-        reconstruction_attributes = {}
-        if build_context and build_context.env_attributes:
-            reconstruction_attributes = build_context.env_attributes
 
         # Create PolicyRecord with metadata
         pr = PolicyRecord(
@@ -148,22 +142,19 @@ class PolicyStore:
                 "epoch": 0,
                 "generation": 0,
                 "train_time": 0,
-                "reconstruction_attributes": reconstruction_attributes,
             },
         )
 
-        # Save with build context
-        pr.save(path, policy, build_context)
+        # Save with torch.package
+        pr.save(path, policy)
         pr._policy = policy
 
         return pr
 
-    def save(
-        self, name: str, path: str, policy: nn.Module, metadata: dict, build_context: Optional[BuildContext] = None
-    ):
+    def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
         """Save a policy using PolicyRecord's save method."""
         pr = PolicyRecord(self, name, "file://" + path, metadata)
-        return pr.save(path, policy, build_context)
+        return pr.save(path, policy)
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
         local_path = pr.local_path()
@@ -291,32 +282,53 @@ class PolicyStore:
 
         logger.info(f"Loading policy from {path}")
 
-        checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+        # First try to load as a torch.package
+        try:
+            from torch.package import PackageImporter
 
-        # Try to get PolicyRecord from checkpoint
-        if "policy_record" in checkpoint:
-            pr = checkpoint["policy_record"]
+            importer = PackageImporter(path)
+
+            # Try to load the policy record
+            pr = importer.load_pickle("policy_record", "data.pkl")
             pr._policy_store = self
-        else:
-            # Create a minimal PolicyRecord for old checkpoints
-            metadata = checkpoint.get(
-                "metadata",
-                {
-                    "action_names": [],
-                    "agent_step": 0,
-                    "epoch": 0,
-                    "generation": 0,
-                    "train_time": 0,
-                },
-            )
-            pr = PolicyRecord(self, name=os.path.basename(path), uri=f"file://{path}", metadata=metadata)
 
-        if not metadata_only:
-            pr._policy = pr.load(path, self._device)
+            if not metadata_only:
+                pr._policy = pr.load(path, self._device)
 
-        pr._local_path = path
-        self._cached_prs[path] = pr
-        return pr
+            pr._local_path = path
+            self._cached_prs[path] = pr
+            return pr
+
+        except Exception as e:
+            logger.debug(f"Not a torch.package file: {e}")
+
+            # Fall back to regular checkpoint
+            checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+
+            # Try to get PolicyRecord from checkpoint
+            if "policy_record" in checkpoint:
+                pr = checkpoint["policy_record"]
+                pr._policy_store = self
+            else:
+                # Create a minimal PolicyRecord for old checkpoints
+                metadata = checkpoint.get(
+                    "metadata",
+                    {
+                        "action_names": [],
+                        "agent_step": 0,
+                        "epoch": 0,
+                        "generation": 0,
+                        "train_time": 0,
+                    },
+                )
+                pr = PolicyRecord(self, name=os.path.basename(path), uri=f"file://{path}", metadata=metadata)
+
+            if not metadata_only:
+                pr._policy = pr.load(path, self._device)
+
+            pr._local_path = path
+            self._cached_prs[path] = pr
+            return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")

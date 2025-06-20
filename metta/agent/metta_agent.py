@@ -1,19 +1,16 @@
-import inspect
 import logging
-import sys
 from types import SimpleNamespace
-from typing import Dict, Optional, Tuple, Union
+from typing import Optional, Union
 
 import gymnasium as gym
 import hydra
 import numpy as np
 import torch
 from hydra.utils import instantiate
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
-from metta.agent.build_context import BuildContext
 from metta.agent.policy_state import PolicyState
 from metta.agent.pytorch_policy import PytorchPolicy
 from mettagrid.mettagrid_env import MettaGridEnv
@@ -25,8 +22,7 @@ class MettaAgent(nn.Module):
     """A wrapper for neural network policies that provides a standard interface.
 
     MettaAgent wraps various policy implementations (BrainPolicy, PyTorch policies, etc.)
-    and provides factory methods to create agents from different sources with proper
-    build context tracking for reconstruction.
+    and provides factory methods to create agents from different sources.
     """
 
     def __init__(self, policy: nn.Module):
@@ -35,7 +31,7 @@ class MettaAgent(nn.Module):
 
     # Factory methods (class methods)
     @classmethod
-    def from_brain_policy(cls, env, cfg: DictConfig) -> Tuple["MettaAgent", BuildContext]:
+    def from_brain_policy(cls, env, cfg: DictConfig) -> "MettaAgent":
         """Build a MettaAgent from BrainPolicy configuration.
 
         Args:
@@ -43,7 +39,7 @@ class MettaAgent(nn.Module):
             cfg: Configuration dict containing agent parameters
 
         Returns:
-            Tuple of (MettaAgent, BuildContext) for reconstruction
+            MettaAgent instance
         """
         obs_space = gym.spaces.Dict(
             {
@@ -51,17 +47,6 @@ class MettaAgent(nn.Module):
                 "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
             }
         )
-
-        # Capture environment attributes for reconstruction
-        env_attributes = {
-            "obs_width": getattr(env, "obs_width", None),
-            "obs_height": getattr(env, "obs_height", None),
-            "single_observation_space": getattr(env, "single_observation_space", None),
-            "single_action_space": getattr(env, "single_action_space", None),
-            "feature_normalizations": getattr(env, "feature_normalizations", None),
-            "action_names": getattr(env, "action_names", None),
-            "max_action_args": getattr(env, "max_action_args", None),
-        }
 
         # Create BrainPolicy
         brain = hydra.utils.instantiate(
@@ -76,33 +61,12 @@ class MettaAgent(nn.Module):
             _recursive_=False,
         )
 
-        # Capture component source code
-        source_code = cls._capture_brain_policy_source_code(brain)
-
-        # Capture the full configuration
-        config_dict = OmegaConf.to_container(cfg, resolve=True)
-
-        # Extract component configurations
-        component_configs = {}
-        if hasattr(cfg.agent, "components"):
-            component_configs = OmegaConf.to_container(cfg.agent.components, resolve=True)
-
-        # Create build context
-        build_context = BuildContext(
-            method="build_from_brain_policy",
-            env_attributes=env_attributes,
-            kwargs={"cfg": config_dict},
-            source_code=source_code,
-            config=config_dict,
-            component_configs=component_configs,
-        )
-
-        return cls(brain), build_context
+        return cls(brain)
 
     @classmethod
     def from_pytorch_policy(
         cls, path: str, device: str = "cpu", pytorch_cfg: Optional[DictConfig] = None
-    ) -> Tuple["MettaAgent", BuildContext]:
+    ) -> "MettaAgent":
         """Build a MettaAgent from a PyTorch policy checkpoint.
 
         Args:
@@ -111,21 +75,13 @@ class MettaAgent(nn.Module):
             pytorch_cfg: Optional configuration for the PyTorch policy
 
         Returns:
-            Tuple of (MettaAgent, BuildContext) for reconstruction
+            MettaAgent instance
         """
         policy = cls._build_pytorch_policy(path, device, pytorch_cfg)
-
-        # Create build context
-        build_context = BuildContext(
-            method="build_from_pytorch_policy",
-            args=(path,),
-            kwargs={"device": device, "pytorch": pytorch_cfg},
-        )
-
-        return cls(policy), build_context
+        return cls(policy)
 
     @classmethod
-    def from_policy_class(cls, policy_class, *args, **kwargs) -> Tuple["MettaAgent", BuildContext]:
+    def from_policy_class(cls, policy_class, *args, **kwargs) -> "MettaAgent":
         """Build a MettaAgent from a custom policy class.
 
         Args:
@@ -133,7 +89,7 @@ class MettaAgent(nn.Module):
             *args, **kwargs: Arguments to pass to the policy constructor
 
         Returns:
-            Tuple of (MettaAgent, BuildContext) for reconstruction
+            MettaAgent instance
         """
         policy = policy_class(*args, **kwargs)
 
@@ -142,16 +98,7 @@ class MettaAgent(nn.Module):
             logger.warning(f"Policy {policy_class.__name__} does not inherit from PytorchPolicy. Wrapping it.")
             policy = PytorchPolicy(policy)
 
-        # Create build context with class info
-        build_context = BuildContext(
-            method="build_from_policy_class", args=args, kwargs={**kwargs, "class_name": policy_class.__name__}
-        )
-
-        # Capture source code for the policy class
-        source_code = cls._capture_policy_source_code(policy)
-        build_context.source_code = source_code
-
-        return cls(policy), build_context
+        return cls(policy)
 
     @staticmethod
     def _build_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[DictConfig] = None):
@@ -184,77 +131,6 @@ class MettaAgent(nn.Module):
         wrapped_policy = PytorchPolicy(policy)
         wrapped_policy.hidden_size = hidden_size
         return wrapped_policy.to(device)
-
-    @staticmethod
-    def _capture_brain_policy_source_code(brain) -> Dict[str, str]:
-        """Capture source code for BrainPolicy and all its components."""
-        source_code = {}
-
-        # Capture BrainPolicy source
-        brain_module = sys.modules.get(brain.__class__.__module__)
-        if brain_module and hasattr(brain_module, "__file__") and brain_module.__file__:
-            with open(brain_module.__file__, "r") as f:
-                source_code["metta.agent.brain_policy"] = f.read()
-
-        # Capture component sources
-        if hasattr(brain, "components"):
-            for name, component in brain.components.items():
-                component_class = component.__class__
-                module_name = component_class.__module__
-
-                if module_name in source_code:
-                    continue
-
-                module = sys.modules.get(module_name)
-                if module and hasattr(module, "__file__") and module.__file__:
-                    with open(module.__file__, "r") as f:
-                        source_code[module_name] = f.read()
-
-        # Also capture key dependencies
-        for module_name in [
-            "metta.agent.lib.metta_module",
-            "metta.agent.lib.metta_layer",
-            "metta.agent.util.distribution_utils",
-            "metta.agent.policy_state",
-        ]:
-            if module_name in source_code:
-                continue
-
-            module = sys.modules.get(module_name)
-            if module and hasattr(module, "__file__") and module.__file__:
-                with open(module.__file__, "r") as f:
-                    source_code[module_name] = f.read()
-
-        return source_code
-
-    @staticmethod
-    def _capture_policy_source_code(policy: nn.Module) -> Dict[str, str]:
-        """Capture source code for a policy class and its dependencies."""
-        source_code = {}
-
-        # Handle wrapped policies (e.g., PytorchPolicy wrapping another policy)
-        if isinstance(policy, PytorchPolicy) and hasattr(policy, "policy"):
-            wrapped_source = MettaAgent._capture_policy_source_code(policy.policy)
-            source_code.update(wrapped_source)
-
-        policy_class = policy.__class__
-        module_name = policy_class.__module__
-        class_name = policy_class.__name__
-        full_class_path = f"{module_name}.{class_name}"
-
-        # Save the class source
-        try:
-            source_code[full_class_path] = inspect.getsource(policy_class)
-        except OSError:
-            pass  # Built-in classes won't have source
-
-        # Save the module source if possible
-        module = sys.modules.get(module_name)
-        if module and hasattr(module, "__file__") and module.__file__:
-            with open(module.__file__, "r") as f:
-                source_code[module_name] = f.read()
-
-        return source_code
 
     # Instance methods
     def __getattr__(self, name):
@@ -329,13 +205,13 @@ class MettaAgent(nn.Module):
         return self._delegate_if_exists("compute_weight_metrics", delta) or []
 
 
-def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig) -> Tuple[MettaAgent, BuildContext]:
-    """Create a policy with its build context.
+def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig) -> MettaAgent:
+    """Create a policy.
 
     This is a convenience function for backward compatibility.
 
     Returns:
-        Tuple of (MettaAgent, BuildContext) for reconstruction
+        MettaAgent instance
     """
     return MettaAgent.from_brain_policy(env, cfg)
 
