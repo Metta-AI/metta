@@ -289,7 +289,7 @@ export function updateSelection(object: any, setFollow = false) {
 onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   let event = e as KeyboardEvent
 
-  // Prevent key events if we are focused on an text field.
+  // Prevent keyboard events if we are focused on an text field.
   if (
     document.activeElement instanceof HTMLInputElement ||
     document.activeElement instanceof HTMLTextAreaElement
