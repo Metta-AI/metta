@@ -7,6 +7,7 @@ import { PanelInfo } from './panels.js'
 import { onFrame, updateSelection } from './main.js'
 import { parseHtmlColor, find } from './htmlutils.js'
 import { updateHoverPanel, updateReadout, HoverPanel } from './hoverpanels.js'
+import { search, searchMatch } from './search.js'
 
 /** A flag to prevent multiple calls to requestAnimationFrame. */
 let frameRequested = false
@@ -139,62 +140,66 @@ function drawWalls() {
   }
 }
 
+function drawObject(gridObject: any) {
+  const type: number = getAttr(gridObject, 'type')
+  const typeName: string = state.replay.object_types[type]
+  if (typeName === 'wall') {
+    // Walls are drawn in a different way.
+    return
+  }
+  const x = getAttr(gridObject, 'c')
+  const y = getAttr(gridObject, 'r')
+
+  if (gridObject['agent_id'] !== undefined) {
+    // Respect the orientation of an object, usually an agent.
+    const orientation = getAttr(gridObject, 'agent:orientation')
+    var suffix = ''
+    if (orientation == 0) {
+      suffix = 'n'
+    } else if (orientation == 1) {
+      suffix = 's'
+    } else if (orientation == 2) {
+      suffix = 'w'
+    } else if (orientation == 3) {
+      suffix = 'e'
+    }
+
+    const agent_id = getAttr(gridObject, 'agent_id')
+
+    ctx.drawSprite(
+      'agents/agent.' + suffix + '.png',
+      x * Common.TILE_SIZE,
+      y * Common.TILE_SIZE,
+      colorFromId(agent_id)
+    )
+  } else {
+    // Draw regular objects.
+
+    // Draw the base layer.
+    ctx.drawSprite(state.replay.object_images[type][0], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+
+    // Draw the color layer.
+    var colorIdx = getAttr(gridObject, 'color')
+    if (colorIdx >= 0 && colorIdx < Common.COLORS.length) {
+      ctx.drawSprite(
+        state.replay.object_images[type][2],
+        x * Common.TILE_SIZE,
+        y * Common.TILE_SIZE,
+        Common.COLORS[colorIdx][1]
+      )
+    }
+
+    // Draw the item layer.
+    if (hasInventory(gridObject)) {
+      ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+    }
+  }
+}
+
 /** Draws all objects on the map (that are not walls). */
 function drawObjects() {
   for (const gridObject of state.replay.grid_objects) {
-    const type: number = getAttr(gridObject, 'type')
-    const typeName: string = state.replay.object_types[type]
-    if (typeName === 'wall') {
-      // Walls are drawn in a different way.
-      continue
-    }
-    const x = getAttr(gridObject, 'c')
-    const y = getAttr(gridObject, 'r')
-
-    if (gridObject['agent_id'] !== undefined) {
-      // Respect the orientation of an object, usually an agent.
-      const orientation = getAttr(gridObject, 'agent:orientation')
-      var suffix = ''
-      if (orientation == 0) {
-        suffix = 'n'
-      } else if (orientation == 1) {
-        suffix = 's'
-      } else if (orientation == 2) {
-        suffix = 'w'
-      } else if (orientation == 3) {
-        suffix = 'e'
-      }
-
-      const agent_id = getAttr(gridObject, 'agent_id')
-
-      ctx.drawSprite(
-        'agents/agent.' + suffix + '.png',
-        x * Common.TILE_SIZE,
-        y * Common.TILE_SIZE,
-        colorFromId(agent_id)
-      )
-    } else {
-      // Draw regular objects.
-
-      // Draw the base layer.
-      ctx.drawSprite(state.replay.object_images[type][0], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
-
-      // Draw the color layer.
-      var colorIdx = getAttr(gridObject, 'color')
-      if (colorIdx >= 0 && colorIdx < Common.COLORS.length) {
-        ctx.drawSprite(
-          state.replay.object_images[type][2],
-          x * Common.TILE_SIZE,
-          y * Common.TILE_SIZE,
-          Common.COLORS[colorIdx][1]
-        )
-      }
-
-      // Draw the item layer.
-      if (hasInventory(gridObject)) {
-        ctx.drawSprite(state.replay.object_images[type][1], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
-      }
-    }
+    drawObject(gridObject)
   }
 }
 
@@ -285,7 +290,7 @@ function drawActions() {
 }
 
 /** Draws the object's inventory. */
-function drawInventory() {
+function drawInventory(useSearch = false) {
   if (!state.showResources) {
     return
   }
@@ -309,6 +314,21 @@ function drawInventory() {
       const num = getAttr(gridObject, key)
       if (num !== null && num !== undefined && num > 0) {
         for (let i = 0; i < num; i++) {
+          if (useSearch) {
+            if (!searchMatch(key)) {
+              inventoryX += advanceX
+              continue
+            }
+            // Draw halo behind the icon.
+            ctx.drawSprite(
+              'effects/halo.png',
+              x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE / 2,
+              y * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 16,
+              [1, 1, 1, 1],
+              0.25,
+              0
+            )
+          }
           ctx.drawSprite(
             icon,
             x * Common.TILE_SIZE + inventoryX - Common.TILE_SIZE / 2,
@@ -770,13 +790,46 @@ export function drawMap(panel: PanelInfo) {
   drawWalls()
   drawTrajectory()
   drawObjects()
-  drawSelection()
   drawActions()
   drawInventory()
   drawRewards()
   drawVisibility()
   drawGrid()
   drawThoughtBubbles()
+
+  if (search.active) {
+    // Draw the black overlay over the map.
+    console.log('search.active:', search.active)
+    ctx.drawSolidRect(
+      -Common.TILE_SIZE / 2,
+      -Common.TILE_SIZE / 2,
+      state.replay.map_size[0] * Common.TILE_SIZE,
+      state.replay.map_size[1] * Common.TILE_SIZE,
+      [0, 0, 0, 0.80]
+    )
+    // Draw matching objects on top of the overlay.
+    for (const gridObject of state.replay.grid_objects) {
+      const typeName = state.replay.object_types[getAttr(gridObject, 'type')]
+      let x = getAttr(gridObject, 'c')
+      let y = getAttr(gridObject, 'r')
+      if (searchMatch(typeName)) {
+        // Draw halo behind the object.
+        ctx.drawSprite(
+          'effects/halo.png',
+          x * Common.TILE_SIZE,
+          y * Common.TILE_SIZE,
+          [1, 1, 1, 1],
+          1.5,
+          0
+        )
+        drawObject(gridObject)
+      }
+    }
+
+    drawInventory(true)
+  }
+
+  drawSelection()
 
   if (state.showAttackMode) {
     drawAttackMode()
