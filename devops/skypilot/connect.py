@@ -35,6 +35,7 @@ def main():
     # must match sk_train.yaml
     REGIONS = ["us-east-1", "us-west-2"]
 
+    instance = None
     for region in REGIONS:
         os.environ["AWS_REGION"] = region
         output = subprocess.check_output(
@@ -55,10 +56,10 @@ def main():
             instance = output.strip()
             break
 
-    print(f"Found EC2 instance: {instance}")
-
     if not instance:
         raise ValueError(f"Could not find EC2 instance for job {job_id}")
+
+    print(f"Found EC2 instance: {instance}")
 
     print("Looking up skypilot job...")
     request_id = sky.jobs.queue(refresh=True, skip_finished=True, all_users=True)
