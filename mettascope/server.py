@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import webbrowser
+from pathlib import Path
 
 import hydra
 import numpy as np
@@ -16,6 +17,45 @@ import mettascope.replays as replays
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class SelectiveNoCacheStaticFiles(StaticFiles):
+    """StaticFiles that disables caching for specific file extensions."""
+
+    def __init__(self, *args, no_cache_extensions=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.no_cache_extensions = no_cache_extensions or {".js", ".json"}
+
+    def file_response(
+        self,
+        full_path,
+        stat_result,
+        scope,
+        status_code: int = 200,
+    ):
+        """Override file_response to selectively disable caching."""
+        # Import here to avoid import issues
+        from starlette.datastructures import Headers
+
+        request_headers = Headers(scope=scope)
+        response = FileResponse(full_path, status_code=status_code, stat_result=stat_result)
+
+        # Check if file extension should be excluded from caching
+        file_ext = Path(full_path).suffix.lower()
+        if file_ext in self.no_cache_extensions:
+            # Don't check for cache, always return the file
+            return response
+
+        # Use normal caching behavior for other files
+        if self.is_not_modified(response.headers, request_headers):
+            # Create a simple 304 response
+            from starlette.responses import Response as StarletteResponse
+
+            not_modified_response = StarletteResponse(status_code=304)
+            # Copy relevant headers
+            not_modified_response.headers.update(response.headers)
+            return not_modified_response
+        return response
 
 
 def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
@@ -87,7 +127,11 @@ def make_app(cfg: DictConfig):
 
     # Mount a directory for static files
     app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
-    app.mount("/dist", StaticFiles(directory="mettascope/dist"), name="dist")
+    app.mount(
+        "/dist",
+        SelectiveNoCacheStaticFiles(directory="mettascope/dist", no_cache_extensions={".js", ".json", ".css"}),
+        name="dist",
+    )
     app.mount("/local", StaticFiles(directory="mettascope/local"), name="local")
 
     # Direct favicon.ico to the data/ui dir.
