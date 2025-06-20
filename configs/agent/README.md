@@ -16,7 +16,7 @@ Their differences are in their size and complextiy which affect their speed an s
 
 ### latent_attn_tiny.yaml
 Uses a single learnable token as a query against the entire sequence of encoded observations. It's the fastst to run
-and is robust to changing environments but is not as as expressive as any of the other models including fast.yaml.
+and is robust to changing environments but is not as expressive as any of the other models including fast.yaml.
 
 ### latent_attn_small.yaml
 This is the sweet spot of performance and expressivity. It uses latent attention: a small number of learnable tokens
