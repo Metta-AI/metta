@@ -426,8 +426,7 @@ jobs:
             - If you get "permission denied" for bash commands, report this in your response
             - If MCP tools fail with 404 errors, use the bash git fallback commands
             - Always verify you're on the correct branch before and after making changes
-
-          allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,Read,Write,mcp__github_file_ops__commit_files,mcp__github__update_issue_comment,Bash(git checkout *),Bash(git branch*),Bash(git status),Bash(git add *),Bash(git commit *),Bash(git log*)"
+          allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,Read,Write,mcp__github_file_ops__commit_files,mcp__github__update_issue_comment,Bash(git checkout*),Bash(git branch*),Bash(git status),Bash(git add*),Bash(git commit*),Bash(git log*)"
 
       # FIX: Ensure we're on the correct branch and check for changes
       - name: Fix git state after Claude
