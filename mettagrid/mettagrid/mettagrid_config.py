@@ -146,3 +146,6 @@ class GameConfig(BaseModel):
     actions: ActionsConfig
     objects: ObjectsConfig
     reward_sharing: Optional[RewardSharingConfig] = None
+
+    class Config:
+        extra = "forbid"
