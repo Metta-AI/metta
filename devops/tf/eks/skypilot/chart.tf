@@ -3,6 +3,17 @@ resource "random_password" "skypilot_password" {
   special = false
 }
 
+resource "kubernetes_secret" "skypilot_api_server_credentials" {
+  metadata {
+    name      = "skypilot-basic-auth" # default name in skypilot chart
+    namespace = "skypilot"
+  }
+
+  data = {
+    auth = "skypilot:${bcrypt(random_password.skypilot_password.result)}"
+  }
+}
+
 resource "helm_release" "skypilot" {
   name = "skypilot"
 
@@ -59,13 +70,11 @@ resource "helm_release" "skypilot" {
     {
       name  = "lambdaAiCredentials.lambdaAiSecretName"
       value = kubernetes_secret.lambda_ai_secret.metadata[0].name
-    }
-  ]
+    },
 
-  set_sensitive = [
     {
-      name  = "ingress.authCredentials"
-      value = nonsensitive("skypilot:${bcrypt(random_password.skypilot_password.result)}")
+      name  = "ingress.authSecret"
+      value = kubernetes_secret.skypilot_api_server_credentials.metadata[0].name
     }
   ]
 }
