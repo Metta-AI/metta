@@ -34,28 +34,16 @@ class SelectiveNoCacheStaticFiles(StaticFiles):
         status_code: int = 200,
     ):
         """Override file_response to selectively disable caching."""
-        # Import here to avoid import issues
-        from starlette.datastructures import Headers
-
-        request_headers = Headers(scope=scope)
-        response = FileResponse(full_path, status_code=status_code, stat_result=stat_result)
-
         # Check if file extension should be excluded from caching
         file_ext = Path(full_path).suffix.lower()
         if file_ext in self.no_cache_extensions:
-            # Don't check for cache, always return the file
+            # Don't cache these files - set explicit no-store headers
+            response = FileResponse(full_path, status_code=status_code, stat_result=stat_result)
+            response.headers["Cache-Control"] = "no-store"
             return response
 
-        # Use normal caching behavior for other files
-        if self.is_not_modified(response.headers, request_headers):
-            # Create a simple 304 response
-            from starlette.responses import Response as StarletteResponse
-
-            not_modified_response = StarletteResponse(status_code=304)
-            # Copy relevant headers
-            not_modified_response.headers.update(response.headers)
-            return not_modified_response
-        return response
+        # Use normal caching behavior for other files by delegating to the base class
+        return super().file_response(full_path, stat_result, scope, status_code=status_code)
 
 
 def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
