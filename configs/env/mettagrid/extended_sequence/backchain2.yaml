@@ -46,11 +46,7 @@ game:
       conversion_ticks: 1
       initial_items: 0
     generator.red:
-<<<<<<< HEAD
       cooldown: 6
-=======
-      cooldown: ${sampling:6,20,3}
->>>>>>> 1f98357382264e876ea58be3c26548a246da3b05
       output_battery.red: 1
       max_output: 1
       conversion_ticks: 1

@@ -39,10 +39,6 @@ game:
   objects:
     altar:
       cooldown: 10
-<<<<<<< HEAD
-=======
-      input_battery.red: 3
->>>>>>> 1f98357382264e876ea58be3c26548a246da3b05
       output_heart: 1
       max_output: 1
       conversion_ticks: 1
