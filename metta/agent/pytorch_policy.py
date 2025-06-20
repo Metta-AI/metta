@@ -35,10 +35,11 @@ class PytorchPolicy(nn.Module):
             self._wrapped = True
             # For legacy policies, ensure we expose their hidden_size
             if hasattr(policy, "hidden_size"):
-                self.hidden_size = policy.hidden_size
+                self._wrapped_hidden_size = policy.hidden_size
         else:
             # Subclass usage
             self._wrapped = False
+            self._hidden_size = 256  # Default value
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device):
         """Activate actions for the policy.
@@ -72,8 +73,16 @@ class PytorchPolicy(nn.Module):
     def hidden_size(self):
         """Return the hidden size of the policy."""
         if self._wrapped:
-            return getattr(self.policy, "hidden_size", 256)
+            return getattr(self, "_wrapped_hidden_size", getattr(self.policy, "hidden_size", 256))
         return getattr(self, "_hidden_size", 256)
+
+    @hidden_size.setter
+    def hidden_size(self, value):
+        """Set the hidden size (for backward compatibility)."""
+        if self._wrapped:
+            self._wrapped_hidden_size = value
+        else:
+            self._hidden_size = value
 
     @property
     def core_num_layers(self):

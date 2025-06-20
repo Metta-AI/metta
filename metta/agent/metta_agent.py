@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 import gymnasium as gym
 import hydra
@@ -9,6 +9,7 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
+from metta.agent.build_context import BuildContext
 from metta.agent.policy_state import PolicyState
 from mettagrid.mettagrid_env import MettaGridEnv
 
@@ -19,7 +20,12 @@ class MettaAgentBuilder:
     def __init__(self, cfg):
         self._cfg = cfg
 
-    def build_from_brain_policy(self, env) -> "MettaAgent":
+    def build_from_brain_policy(self, env) -> Tuple["MettaAgent", BuildContext]:
+        """Build a MettaAgent from BrainPolicy configuration.
+
+        Returns:
+            Tuple of (MettaAgent, BuildContext) for reconstruction
+        """
         obs_space = gym.spaces.Dict(
             {
                 "grid_obs": env.single_observation_space,
@@ -27,7 +33,18 @@ class MettaAgentBuilder:
             }
         )
 
-        # Here's where we create a BrainPolicy.
+        # Capture environment attributes for reconstruction
+        env_attributes = {
+            "obs_width": getattr(env, "obs_width", None),
+            "obs_height": getattr(env, "obs_height", None),
+            "single_observation_space": getattr(env, "single_observation_space", None),
+            "single_action_space": getattr(env, "single_action_space", None),
+            "feature_normalizations": getattr(env, "feature_normalizations", None),
+            "action_names": getattr(env, "action_names", None),
+            "max_action_args": getattr(env, "max_action_args", None),
+        }
+
+        # Create BrainPolicy
         brain = hydra.utils.instantiate(
             self._cfg.agent,
             obs_space=obs_space,
@@ -39,27 +56,40 @@ class MettaAgentBuilder:
             _target_="metta.agent.brain_policy.BrainPolicy",
             _recursive_=False,
         )
-        return MettaAgent(brain)
 
-    def build_from_pytorch_policy(self, path) -> "MettaAgent":
+        # Create build context
+        build_context = BuildContext(
+            method="build_from_brain_policy",
+            env_attributes=env_attributes,
+            kwargs={"cfg": self._cfg},  # Store config for reconstruction
+        )
+
+        return MettaAgent(brain), build_context
+
+    def build_from_pytorch_policy(self, path) -> Tuple["MettaAgent", BuildContext]:
         """Build a MettaAgent from a PyTorch policy checkpoint.
 
-        This loads a policy using the build_pytorch_policy function which handles
-        legacy policies and wraps them appropriately.
+        Returns:
+            Tuple of (MettaAgent, BuildContext) for reconstruction
         """
         from metta.agent.policy_store import build_pytorch_policy
 
         policy = build_pytorch_policy(path, self._cfg.device, pytorch=self._cfg.get("pytorch", None))
-        return MettaAgent(policy)
 
-    def build_from_policy_class(self, policy_class, *args, **kwargs) -> "MettaAgent":
+        # Create build context
+        build_context = BuildContext(
+            method="build_from_pytorch_policy",
+            args=(path,),
+            kwargs={"device": self._cfg.device, "pytorch": self._cfg.get("pytorch", None)},
+        )
+
+        return MettaAgent(policy), build_context
+
+    def build_from_policy_class(self, policy_class, *args, **kwargs) -> Tuple["MettaAgent", BuildContext]:
         """Build a MettaAgent from a custom policy class.
 
-        This allows external policies to be directly instantiated and wrapped.
-
-        Args:
-            policy_class: The policy class to instantiate (should inherit from PytorchPolicy)
-            *args, **kwargs: Arguments to pass to the policy constructor
+        Returns:
+            Tuple of (MettaAgent, BuildContext) for reconstruction
         """
         from metta.agent.pytorch_policy import PytorchPolicy
 
@@ -70,48 +100,44 @@ class MettaAgentBuilder:
             logger.warning(f"Policy {policy_class.__name__} does not inherit from PytorchPolicy. Wrapping it.")
             policy = PytorchPolicy(policy)
 
-        return MettaAgent(policy)
+        # Create build context with class info
+        build_context = BuildContext(
+            method="build_from_policy_class", args=args, kwargs={**kwargs, "class_name": policy_class.__name__}
+        )
+
+        return MettaAgent(policy), build_context
 
     def build_from_source_file(self, path: str) -> "MettaAgent":
-        """Build a MettaAgent by reconstructing it from a saved source file."""
-        checkpoint = torch.load(path, map_location=self._cfg.device)
+        """Build a MettaAgent by reconstructing it from a saved source file.
 
-        # Get class path and source code
-        model_class_path = checkpoint.get("model_class_path")
-        source_code = checkpoint.get("source_code", {})
+        This is now deprecated in favor of using PolicyRecord.load() which
+        handles reconstruction via BuildContext.
+        """
+        logger.warning("build_from_source_file is deprecated. Use PolicyRecord.load() instead.")
 
-        if not model_class_path or not source_code:
-            raise ValueError("File does not contain source code for reconstruction")
+        # Import PolicyRecord here to avoid circular imports
+        from metta.agent.policy_record import PolicyRecord
 
-        # Reconstruct the model
-        try:
-            import importlib.util
+        # Create a temporary PolicyRecord to handle loading
+        pr = PolicyRecord(
+            policy_store=None,  # Not needed for loading
+            name="temp",
+            uri=f"file://{path}",
+            metadata={},
+        )
 
-            module_name, class_name = model_class_path.rsplit(".", 1)
+        # Set a minimal policy store config
+        pr._policy_store = type("obj", (object,), {"_cfg": self._cfg})
 
-            # Load the class from the saved source code
-            spec = importlib.util.spec_from_loader(module_name, loader=None)
-            module = importlib.util.module_from_spec(spec)
-
-            # Use the module's source if available, otherwise just the class source
-            module_source = source_code.get(module_name, source_code.get(model_class_path))
-            exec(module_source, module.__dict__)
-
-            model_class = getattr(module, class_name)
-
-            # This assumes a default constructor, may need to pass args
-            model = model_class()
-            model.load_state_dict(checkpoint["model_state_dict"])
-
-            logger.info(f"Reconstructed model from class {model_class_path}")
-            return MettaAgent(model)
-
-        except Exception as e:
-            logger.error(f"Failed to reconstruct model: {e}")
-            raise ValueError(f"Could not reconstruct model from {path}")
+        return pr.load(path, self._cfg.device)
 
 
-def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig) -> "MettaAgent":
+def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig) -> Tuple["MettaAgent", BuildContext]:
+    """Create a policy with its build context.
+
+    Returns:
+        Tuple of (MettaAgent, BuildContext) for reconstruction
+    """
     builder = MettaAgentBuilder(cfg)
     return builder.build_from_brain_policy(env)
 
