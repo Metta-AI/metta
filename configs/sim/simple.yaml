@@ -2,6 +2,4 @@ defaults:
   - sim_single
   - _self_
 
-env: /env/mettagrid/memory/memory_tests/passing_things
-
-#  /env/mettagrid/navigation/training/varied_terrain_maze
+env: /env/mettagrid/memory/evals/hardvery

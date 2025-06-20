@@ -27,13 +27,13 @@ game:
       heart_max: 1000
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
+    num_rooms: ${..num_agents}
     border_width: 6
     room:
       width: ${sampling:15,60,25}
       height: ${sampling:15,60,25}
       border_width: 3
-      agents: ${div:${...num_agents},${..num_rooms}}
+      agents: 1
       dir: ${choose:varied_terrain/sparse_small,varied_terrain/balanced_small,varied_terrain/dense_small,varied_terrain/maze_small}
       objects:
         mine.red: ${sampling:2,10,5}

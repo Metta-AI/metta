@@ -1,0 +1,75 @@
+# MinGrid-Inspired Resource Maze Environment Config
+# Based on MinGrid's maze environments - navigation through maze to collect resources
+
+_target_: mettagrid.mettagrid_env.MettaGridEnv
+
+sampling: 0
+desync_episodes: false
+
+game:
+  num_observation_tokens: 100
+  map_builder:
+    _target_: mettagrid.room.navigation.minigrid_resource_maze.MinigridResourceMaze
+    width: 25
+    height: 25
+    border_width: 1
+    agents: 1
+    maze_complexity: 0.3  # Moderate complexity maze
+    dead_end_probability: 0.2  # Some dead ends for exploration challenge
+    resource_density: 0.08  # Reasonable density of resources in maze
+    team: "agent"
+
+    objects:
+      generator: 6  # Multiple generators scattered through maze
+      altar: 3  # Fewer altars as higher-value targets
+
+  num_agents: 1
+  obs_width: 7
+  obs_height: 7
+  max_steps: 3000  # More steps needed for maze exploration and collection
+
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    default_item_max: 15  # Higher capacity for maze exploration and collection
+    heart_max: 255
+    freeze_duration: 10
+    energy_reward: 0
+    use_cost: 0
+    rewards:
+      heart: 2  # Reward for altar usage
+      ore.red: 0.5  # Small reward for collecting resources
+
+  objects:
+    altar:
+      cooldown: 5  # Moderate cooldown
+      use_cost: 0  # No cost to use altar
+
+    generator:
+      cooldown: 8
+      initial_resources: 25
+      use_cost: 0
+
+    wall: {}
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: false  # Disable attack for pure exploration/collection
+    swap:
+      enabled: false  # Disable swap for simplicity
+    change_color:
+      enabled: false  # Disable color change for simplicity

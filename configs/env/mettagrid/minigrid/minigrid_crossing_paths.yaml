@@ -1,0 +1,74 @@
+# MinGrid-Inspired Crossing Paths Environment Config
+# Based on MinGrid's CrossingEnv - navigation through intersecting corridors
+
+_target_: mettagrid.mettagrid_env.MettaGridEnv
+
+sampling: 0
+desync_episodes: false
+
+game:
+  num_observation_tokens: 100
+  map_builder:
+    _target_: mettagrid.room.navigation.minigrid_crossing_paths.MinigridCrossingPaths
+    width: 25
+    height: 25
+    border_width: 1
+    agents: 1
+    corridor_width: 3  # Width of corridors for navigation
+    num_horizontal_corridors: 3  # Multiple intersecting paths
+    num_vertical_corridors: 3
+    team: "agent"
+
+    objects:
+      altar: 3  # Placed at corridor ends and intersections
+      generator: 4  # Additional resources at strategic points
+
+  num_agents: 1
+  obs_width: 7
+  obs_height: 7
+  max_steps: 2500  # Moderate steps for corridor navigation
+
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    default_item_max: 10
+    heart_max: 255
+    freeze_duration: 10
+    energy_reward: 0
+    use_cost: 0
+    rewards:
+      heart: 2  # Reward for reaching objectives through corridors
+
+  objects:
+    altar:
+      cooldown: 3
+      use_cost: 0
+
+    generator:
+      cooldown: 5
+      initial_resources: 25
+      use_cost: 0
+
+    wall: {}
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: false  # Disable attack for pure navigation
+    swap:
+      enabled: false  # Disable swap for simplicity
+    change_color:
+      enabled: false  # Disable color change for simplicity

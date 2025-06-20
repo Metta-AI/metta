@@ -18,7 +18,7 @@ trainer:
 
 
 
-policy_uri: wandb://run/george.mem_mettascope_pretrained.metta2
+policy_uri: wandb://run/daphnedemekas.nav_memory_sequence.bucketed.06-19.2
 
 # daphne.navigation.fromnumpy.skypilot
 

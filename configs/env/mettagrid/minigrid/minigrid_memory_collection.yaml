@@ -1,0 +1,72 @@
+# MinGrid-Inspired Memory Collection Environment Config
+# Based on MinGrid's MemoryEnv - memory test with corridor navigation and matching
+
+_target_: mettagrid.mettagrid_env.MettaGridEnv
+
+sampling: 0
+desync_episodes: false
+
+game:
+  num_observation_tokens: 100
+  map_builder:
+    _target_: mettagrid.room.navigation.minigrid_memory_collection.MinigridMemoryCollection
+    width: 25
+    height: 17  # Must be odd for proper corridor layout
+    border_width: 1
+    agents: 1
+    random_corridor_length: false  # Fixed corridor like MinGrid
+    team: "agent"
+
+    objects:
+      # Objects will be placed strategically by the environment
+      # Target object in start room, choice objects at end
+
+  num_agents: 1
+  obs_width: 7
+  obs_height: 7
+  max_steps: 2500  # More steps needed for memory task with corridor navigation
+
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    default_item_max: 5
+    heart_max: 255
+    freeze_duration: 10
+    energy_reward: 0
+    use_cost: 0
+    rewards:
+      heart: 10  # Higher reward for successful memory task completion
+
+  objects:
+    altar:
+      cooldown: 0  # No cooldown for immediate reward/feedback
+      use_cost: 0  # No cost to use altar
+
+    generator:
+      cooldown: 0
+      initial_resources: 30
+      use_cost: 0
+
+    wall: {}
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: false  # Disable attack for pure memory/navigation
+    swap:
+      enabled: false  # Disable swap for simplicity
+    change_color:
+      enabled: false  # Disable color change for simplicity

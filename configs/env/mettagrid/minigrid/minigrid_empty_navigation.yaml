@@ -1,0 +1,66 @@
+# MinGrid-Inspired Empty Navigation Environment Config
+# Based on MinGrid's EmptyEnv - simple navigation to reach goal (altar)
+
+_target_: mettagrid.mettagrid_env.MettaGridEnv
+
+sampling: 0
+desync_episodes: false
+
+game:
+  num_observation_tokens: 100
+  map_builder:
+    _target_: mettagrid.room.navigation.minigrid_empty_navigation.MinigridEmptyNavigation
+    width: 15
+    height: 15
+    border_width: 1
+    agents: 1
+    altar_placement: "corner"  # Places altar in corner like MinGrid goal
+    team: "agent"
+
+    objects:
+      altar: 1  # Single goal altar (like MinGrid's single goal)
+
+  num_agents: 1
+  obs_width: 7
+  obs_height: 7
+  max_steps: 1000  # Similar to MinGrid's 4*size^2 formula
+
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    default_item_max: 5
+    heart_max: 255
+    freeze_duration: 10
+    energy_reward: 0
+    use_cost: 0
+    rewards:
+      heart: 1  # Reward for reaching altar (like MinGrid's success reward)
+
+  objects:
+    altar:
+      cooldown: 0  # No cooldown for immediate reward
+      use_cost: 0  # No cost to use altar
+
+    wall: {}
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: false  # Disable attack for pure navigation
+    swap:
+      enabled: false  # Disable swap for simplicity
+    change_color:
+      enabled: false  # Disable color change for simplicity

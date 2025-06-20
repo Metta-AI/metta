@@ -1,0 +1,82 @@
+# MinGrid-Inspired Multi-Room Navigation Environment Config
+# Based on MinGrid's MultiRoomEnv and FourRoomsEnv - navigation between connected rooms
+
+_target_: mettagrid.mettagrid_env.MettaGridEnv
+
+sampling: 0
+desync_episodes: false
+
+game:
+  num_observation_tokens: 100
+  map_builder:
+    _target_: mettagrid.room.navigation.minigrid_multi_room_navigation.MinigridMultiRoomNavigation
+    width: 30
+    height: 30
+    border_width: 1
+    agents: 1
+    num_rooms_x: 3  # 3x3 grid of rooms like classic multi-room setups
+    num_rooms_y: 3
+    room_gap_size: 1  # Small gaps between rooms for navigation
+    min_room_size: 8  # Ensure rooms are reasonably sized
+    team: "agent"
+
+    objects:
+      altar: 4  # Spread across different rooms
+      generator: 5  # Multiple generators in different rooms
+      converter: 2  # Some processing stations
+
+  num_agents: 1
+  obs_width: 7
+  obs_height: 7
+  max_steps: 4000  # More steps needed for multi-room exploration
+
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    default_item_max: 20  # Higher capacity for multi-room collection
+    heart_max: 255
+    freeze_duration: 10
+    energy_reward: 0
+    use_cost: 0
+    rewards:
+      heart: 3  # Higher reward for completing multi-room objectives
+
+  objects:
+    altar:
+      cooldown: 4  # Moderate cooldown
+      use_cost: 0
+
+    generator:
+      cooldown: 6
+      initial_resources: 30
+      use_cost: 0
+
+    converter:
+      cooldown: 8
+      energy_output.r1: 50
+      energy_output.r2: 5
+      energy_output.r3: 1
+
+    wall: {}
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: false  # Disable attack for pure navigation/collection
+    swap:
+      enabled: false  # Disable swap for simplicity
+    change_color:
+      enabled: false  # Disable color change for simplicity

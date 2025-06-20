@@ -1,6 +1,10 @@
 sampling: 0
 desync_episodes: false
+<<<<<<< HEAD
 replay_level_prob: 0.3
+=======
+replay_level_prob: 0.2
+>>>>>>> 6b748604ee54a721996c46c1af2e2aebd972d259
 game:
   num_agents: ???
   obs_width: 11

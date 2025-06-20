@@ -33,12 +33,12 @@ game:
       color: 0
       max_output: 1
       conversion_ticks: 1
-      cooldown: 1000
+      cooldown: 1
       initial_items: 1
 
     generator.red:
       input_ore.red: 1
-      output_battery.red: 1
+      output_battery.red: 3
       color: 0
       max_output: 3
       conversion_ticks: 1

@@ -1,0 +1,73 @@
+# MinGrid-Inspired Altar Fetch Environment Config
+# Based on MinGrid's FetchEnv - multiple objects to collect with specific targets
+
+_target_: mettagrid.mettagrid_env.MettaGridEnv
+
+sampling: 0
+desync_episodes: false
+
+game:
+  num_observation_tokens: 100
+  map_builder:
+    _target_: mettagrid.room.navigation.minigrid_altar_fetch.MinigridAltarFetch
+    width: 20
+    height: 20
+    border_width: 1
+    agents: 1
+    altar_placement: "scattered"  # Scattered like MinGrid's random object placement
+    min_altar_distance: 3  # Ensure altars aren't too close together
+    team: "agent"
+
+    objects:
+      altar: 5  # Multiple altars to collect from (like MinGrid's multiple objects)
+      generator: 2  # Additional resource sources
+
+  num_agents: 1
+  obs_width: 7
+  obs_height: 7
+  max_steps: 2000  # More steps needed for collection task
+
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    default_item_max: 10  # Higher capacity for collecting multiple items
+    heart_max: 255
+    freeze_duration: 10
+    energy_reward: 0
+    use_cost: 0
+    rewards:
+      heart: 1  # Reward per heart collected
+
+  objects:
+    altar:
+      cooldown: 3  # Short cooldown so agent can collect multiple times
+      use_cost: 0  # No cost to use altar
+
+    generator:
+      cooldown: 5
+      initial_resources: 20
+      use_cost: 0
+
+    wall: {}
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: false  # Disable attack for pure collection
+    swap:
+      enabled: false  # Disable swap for simplicity
+    change_color:
+      enabled: false  # Disable color change for simplicity
