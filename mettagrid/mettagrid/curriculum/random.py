@@ -18,7 +18,7 @@ class RandomCurriculum(MultiTaskCurriculum):
 
     def __init__(self, curricula_cfgs: Dict[str, float], env_overrides: DictConfig):
         self.env_overrides = env_overrides
-        curricula = {t: self._curriculum_from_id(t, env_overrides) for t in curricula_cfgs.keys()}
+        curricula = {t: self._curriculum_from_id(t) for t in curricula_cfgs.keys()}
         self._task_weights = curricula_cfgs
         super().__init__(curricula)
 
