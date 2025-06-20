@@ -443,3 +443,11 @@ class SystemMonitor:
             List of metric names
         """
         return list(self._metric_collectors.keys())
+
+    def stats(self) -> dict[str, float]:
+        stats = {}
+        summary = self.get_summary()
+        for metric_name, metric_data in summary["metrics"].items():
+            if metric_data["latest"] is not None:
+                stats[f"monitor/{metric_name}"] = metric_data["latest"]
+        return stats
