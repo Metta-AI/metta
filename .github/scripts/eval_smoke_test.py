@@ -1,182 +1,169 @@
 """
-Run evaluation smoke tests for a W&B policy with benchmarking.
-
-This script runs multiple evaluation attempts, measures performance,
-and checks if the achieved reward meets the minimum threshold.
+Run evaluation smoke tests with reward checking.
 """
 
 import json
 import os
 import sys
 import time
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.benchmark import run_with_benchmark, write_github_output
+from utils.benchmark import run_with_benchmark
+from utils.smoke_test import SmokeTest
 
 
-def run_evaluation_with_benchmark(
-    attempt: int, policy: str, timeout: int = 300
-) -> Tuple[bool, Dict, str, float, float]:
-    """
-    Run a single evaluation attempt with benchmarking.
+class EvaluationSmokeTest(SmokeTest):
+    """Evaluation smoke test with reward checking."""
 
-    Args:
-        attempt: Attempt number (used for run naming)
-        policy: W&B policy identifier
-        timeout: Maximum time to wait for evaluation (seconds)
+    def __init__(self):
+        self.policy = os.environ.get("POLICY", "b.rwalters.0605.nav.pr811.00")
+        self.min_reward = float(os.environ.get("MIN_REWARD", "0.15"))
+        self.max_attempts = int(os.environ.get("MAX_ATTEMPTS", "4"))
+        super().__init__()
 
-    Returns:
-        Tuple of (success, metrics_dict, full_output, duration, peak_memory_mb)
-    """
-    cmd = [
-        "python3",
-        "-m",
-        "tools.sim",
-        "sim=navigation",
-        f"run=navigation_smoke_{attempt}",
-        f"policy_uri=wandb://run/{policy}",
-        "+eval_db_uri=wandb://artifacts/navigation_db",
-        "seed=31415",
-        "torch_deterministic=True",
-        "device=cpu",
-    ]
+    def get_command(self) -> List[str]:
+        # This is overridden in get_command_for_attempt
+        return []
 
-    print(f"\nRunning evaluation attempt {attempt}...")
+    def get_command_for_attempt(self, attempt: int) -> List[str]:
+        """Get command for a specific attempt."""
+        return [
+            "python3",
+            "-m",
+            "tools.sim",
+            "sim=navigation",
+            f"run=navigation_smoke_{attempt}",
+            f"policy_uri=wandb://run/{self.policy}",
+            "+eval_db_uri=wandb://artifacts/navigation_db",
+            "seed=31415",
+            "torch_deterministic=True",
+            "device=cpu",
+        ]
 
-    # Run with benchmarking
-    result = run_with_benchmark(cmd=cmd, name=f"eval_attempt_{attempt}", timeout=timeout)
+    def get_timeout(self) -> int:
+        return int(os.environ.get("EVAL_TIMEOUT", "300"))
 
-    if not result["success"]:
-        print(f"Evaluation failed with exit code: {result['exit_code']}")
-        if result["timeout"]:
-            print("Evaluation timed out")
-        elif result["stderr"]:
-            print("STDERR output:")
-            print(result["stderr"][:1000])
-            if len(result["stderr"]) > 1000:
-                print("... (truncated)")
+    def print_config(self):
+        """Print evaluation-specific configuration."""
+        print(f"Policy: {self.policy}")
+        print(f"Minimum reward: {self.min_reward}")
+        print(f"Max attempts: {self.max_attempts}")
 
-    # Extract metrics from output
-    full_output = result["stdout"] + "\n" + result["stderr"]
-    metrics = extract_metrics_from_output(result["stdout"])  # Use stdout only for JSON
+    def extract_metrics_from_output(self, output: str) -> Dict:
+        """Extract metrics JSON from output using the delimiters."""
+        json_start = output.find("===JSON_OUTPUT_START===")
+        json_end = output.find("===JSON_OUTPUT_END===")
 
-    return (result["success"], metrics, full_output, result["duration"], result["memory_peak_mb"])
+        if json_start != -1 and json_end != -1:
+            json_str = output[json_start + len("===JSON_OUTPUT_START===") : json_end].strip()
+            try:
+                return json.loads(json_str)
+            except json.JSONDecodeError as e:
+                print(f"Failed to parse JSON between markers: {e}")
+                print(f"JSON string: {json_str[:200]}...")
+        else:
+            print("JSON markers not found in output")
+            print("Output preview (first 500 chars):")
+            print(output[:500])
 
+        return {}
 
-def extract_metrics_from_output(output: str) -> Dict:
-    """Extract metrics JSON from output using the delimiters."""
-    # Look for JSON between markers
-    json_start = output.find("===JSON_OUTPUT_START===")
-    json_end = output.find("===JSON_OUTPUT_END===")
-
-    if json_start != -1 and json_end != -1:
-        json_str = output[json_start + len("===JSON_OUTPUT_START===") : json_end].strip()
+    def extract_reward(self, metrics: Dict) -> Optional[float]:
+        """Extract reward value from metrics dictionary."""
         try:
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            print(f"Failed to parse JSON between markers: {e}")
-            print(f"JSON string: {json_str[:200]}...")
-    else:
-        print("JSON markers not found in output")
-        print("Output preview (first 500 chars):")
-        print(output[:500])
+            reward = metrics["policies"][0]["checkpoints"][0]["metrics"]["reward_avg"]
+            return float(reward)
+        except (KeyError, IndexError, TypeError, ValueError) as e:
+            print(f"Failed to extract reward: {e}")
+            if metrics:
+                print(f"Metrics structure: {json.dumps(metrics, indent=2)[:500]}...")
+            return None
 
-    return {}
+    def run_evaluation_attempt(self, attempt: int) -> Tuple[bool, Optional[float], float, float]:
+        """
+        Run a single evaluation attempt.
 
-
-def extract_reward(metrics: Dict) -> Optional[float]:
-    """Extract reward value from metrics dictionary."""
-    try:
-        reward = metrics["policies"][0]["checkpoints"][0]["metrics"]["reward_avg"]
-        return float(reward)
-    except (KeyError, IndexError, TypeError, ValueError) as e:
-        print(f"Failed to extract reward: {e}")
-        if metrics:
-            print(f"Metrics structure: {json.dumps(metrics, indent=2)[:500]}...")
-        return None
-
-
-def main():
-    """Main smoke test runner with benchmarking."""
-    # Get configuration from environment
-    policy = os.environ.get("POLICY", "b.rwalters.0605.nav.pr811.00")
-    min_reward = float(os.environ.get("MIN_REWARD", "0.15"))
-    max_attempts = int(os.environ.get("MAX_ATTEMPTS", "4"))
-
-    print("=" * 60)
-    print("Evaluation Smoke Test Configuration")
-    print("=" * 60)
-    print(f"Policy: {policy}")
-    print(f"Minimum reward: {min_reward}")
-    print(f"Max attempts: {max_attempts}")
-    print("=" * 60)
-
-    # Track overall metrics
-    total_start_time = time.time()
-    all_durations = []
-    all_memories = []
-    successful_attempt = None
-
-    # Run evaluation attempts
-    for attempt in range(1, max_attempts + 1):
+        Returns:
+            Tuple of (success, reward, duration, memory)
+        """
         print(f"\n{'=' * 60}")
-        print(f"Attempt {attempt}/{max_attempts}")
+        print(f"Attempt {attempt}/{self.max_attempts}")
         print(f"{'=' * 60}")
 
-        success, metrics, output, duration, memory = run_evaluation_with_benchmark(attempt, policy)
+        cmd = self.get_command_for_attempt(attempt)
+        print(f"\nRunning evaluation attempt {attempt}...")
 
-        all_durations.append(duration)
-        all_memories.append(memory)
+        result = run_with_benchmark(cmd=cmd, name=f"eval_attempt_{attempt}", timeout=self.timeout)
+
+        success, output = self.process_result(result)
 
         if not success:
             print("Evaluation process failed!")
-            continue
+            return False, None, result["duration"], result["memory_peak_mb"]
 
-        # Extract and check reward
-        reward = extract_reward(metrics)
+        # Extract metrics and reward
+        metrics = self.extract_metrics_from_output(result["stdout"])
+        reward = self.extract_reward(metrics)
 
         if reward is None:
             print("Failed to extract reward from metrics")
-            continue
+            return False, None, result["duration"], result["memory_peak_mb"]
 
         print(f"Achieved reward: {reward}")
 
-        if reward >= min_reward:
-            print(f"✓ SUCCESS: Reward {reward} >= {min_reward}")
-            successful_attempt = attempt
-            break
+        if reward >= self.min_reward:
+            print(f"✓ SUCCESS: Reward {reward} >= {self.min_reward}")
         else:
-            print(f"✗ FAILED: Reward {reward} < {min_reward}")
+            print(f"✗ FAILED: Reward {reward} < {self.min_reward}")
 
-    # Calculate summary statistics
-    total_duration = time.time() - total_start_time
-    avg_duration = sum(all_durations) / len(all_durations) if all_durations else 0
-    max_memory = max(all_memories) if all_memories else 0
+        return True, reward, result["duration"], result["memory_peak_mb"]
 
-    print(f"\n{'=' * 60}")
-    print("Benchmark Summary")
-    print(f"{'=' * 60}")
-    print(f"Total duration: {total_duration:.1f}s")
-    print(f"Average attempt duration: {avg_duration:.1f}s")
-    print(f"Peak memory usage: {max_memory:.1f} MB")
+    def run(self) -> int:
+        """Run evaluation with multiple attempts and reward checking."""
+        self.print_header()
 
-    # Write GitHub Actions outputs
-    outputs = {
-        "duration": f"{total_duration:.1f}",
-        "memory_peak_mb": f"{max_memory:.1f}",
-        "exit_code": "0" if successful_attempt else "1",
-    }
-    write_github_output(outputs)
+        total_start_time = time.time()
+        all_durations = []
+        all_memories = []
+        successful_attempt = None
 
-    if successful_attempt:
-        print(f"\n✓ Smoke test passed on attempt {successful_attempt}")
-        return 0
-    else:
-        print(f"\n✗ All {max_attempts} attempts failed to meet minimum reward {min_reward}")
-        return 1
+        # Run evaluation attempts
+        for attempt in range(1, self.max_attempts + 1):
+            success, reward, duration, memory = self.run_evaluation_attempt(attempt)
+
+            all_durations.append(duration)
+            all_memories.append(memory)
+
+            if success and reward is not None and reward >= self.min_reward:
+                successful_attempt = attempt
+                break
+
+        # Calculate summary statistics
+        total_duration = time.time() - total_start_time
+        avg_duration = sum(all_durations) / len(all_durations) if all_durations else 0
+        max_memory = max(all_memories) if all_memories else 0
+
+        # Print summary
+        print(f"\n{'=' * 60}")
+        print("Benchmark Summary")
+        print(f"{'=' * 60}")
+        print(f"Total duration: {total_duration:.1f}s")
+        print(f"Average attempt duration: {avg_duration:.1f}s")
+        print(f"Peak memory usage: {max_memory:.1f} MB")
+
+        if successful_attempt:
+            print(f"\n✓ Smoke test passed on attempt {successful_attempt}")
+        else:
+            print(f"\n✗ All {self.max_attempts} attempts failed to meet minimum reward {self.min_reward}")
+
+        # Write outputs
+        self.write_outputs(total_duration, max_memory, successful_attempt is not None)
+
+        return 0 if successful_attempt else 1
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    test = EvaluationSmokeTest()
+    sys.exit(test.run())
