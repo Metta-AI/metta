@@ -2,11 +2,12 @@
 # Generate a replay file that can be used in MettaScope to visualize a single run.
 
 import platform
-import webbrowser
+from urllib.parse import quote
 
 import hydra
 from omegaconf import OmegaConf
 
+import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
@@ -14,7 +15,6 @@ from metta.util.config import Config, setup_metta_environment
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
 from metta.util.wandb.wandb_context import WandbContext
-from mettagrid.util.file import http_url
 
 
 # TODO: This job can be replaced with sim now that Simulations create replays
@@ -61,7 +61,12 @@ def main(cfg):
 
         # Only on macos open a browser to the replay
         if platform.system() == "Darwin":
-            webbrowser.open(f"https://metta-ai.github.io/metta/?replayUrl={http_url(replay_url)}")
+            if replay_url.startswith("./train_dir"):
+                local_url = replay_url.replace("./train_dir/", "http://localhost:8000/train_dir/")
+                full_url = f"/?replayUrl={quote(local_url)}"
+
+                # Run a metascope server that serves the replay
+                server.run(cfg, open_url=full_url)
 
 
 if __name__ == "__main__":
