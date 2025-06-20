@@ -3,13 +3,21 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field, RootModel
 
 
-class AgentRewards(BaseModel):
+class BaseModelWithForbidExtra(BaseModel):
+    class Config:
+        extra = "forbid"
+
+
+class AgentRewards(BaseModelWithForbidExtra):
     """Agent reward configuration."""
 
     action_failure_penalty: Optional[float] = None
     ore_red: Optional[float] = Field(default=None, alias="ore.red")
     ore_blue: Optional[float] = Field(default=None, alias="ore.blue")
     ore_green: Optional[float] = Field(default=None, alias="ore.green")
+    ore_red_max: Optional[float] = Field(default=None, alias="ore.red_max")
+    ore_blue_max: Optional[float] = Field(default=None, alias="ore.blue_max")
+    ore_green_max: Optional[float] = Field(default=None, alias="ore.green_max")
     battery_red: Optional[float] = Field(default=None, alias="battery.red")
     battery_blue: Optional[float] = Field(default=None, alias="battery.blue")
     battery_green: Optional[float] = Field(default=None, alias="battery.green")
@@ -26,6 +34,7 @@ class AgentConfig(BaseModel):
     default_item_max: Optional[int] = None
     freeze_duration: Optional[int] = None
     rewards: Optional[AgentRewards] = None
+    heart_max: Optional[int] = None
 
 
 class GroupProps(RootModel[Dict[str, Any]]):
