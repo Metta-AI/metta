@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 from typing import Any, Set
 from uuid import UUID
 
@@ -30,6 +31,7 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.util.heartbeat import record_heartbeat
+from metta.util.system_monitor import SystemMonitor
 from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
@@ -93,6 +95,13 @@ class MettaTrainer:
 
         self.timer = Stopwatch(logger)
         self.timer.start()
+
+        self.system_monitor = SystemMonitor(
+            sampling_interval_sec=1.0,  # Sample every second
+            history_size=100,  # Keep last 100 samples
+            logger=logger,
+            auto_start=True,  # Start monitoring immediately
+        )
 
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
@@ -214,7 +223,7 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-                logger.info(f"MettaTrainer initialization complete on device: {self.device}")
+            logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self) -> None:
         logger.info("Starting training")
@@ -289,6 +298,7 @@ class MettaTrainer:
 
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
+        self.system_monitor.stop()
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
@@ -401,7 +411,8 @@ class MettaTrainer:
                 if state.lstm_h is not None:
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
-                self._sync_device()
+                if str(self.device).startswith("cuda"):
+                    torch.cuda.synchronize()
 
             value = value.flatten()
             # mask already converted to tensor above
@@ -502,7 +513,6 @@ class MettaTrainer:
                 obs = minibatch["obs"]
 
                 lstm_state = PolicyState()
-
                 _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
                     obs, lstm_state, action=minibatch["actions"]
                 )
@@ -510,8 +520,6 @@ class MettaTrainer:
                 new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
                 logratio = new_logprobs - minibatch["logprobs"]
                 importance_sampling_ratio = logratio.exp()
-
-                # Update importance sampling ratios in experience buffer
                 experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
 
                 with torch.no_grad():
@@ -604,7 +612,8 @@ class MettaTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    self._sync_device()
+                    if str(self.device).startswith("cuda"):
+                        torch.cuda.synchronize()
 
                 minibatch_idx += 1
                 # end loop over minibatches
@@ -849,6 +858,7 @@ class MettaTrainer:
                 **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
                 **{f"eval_{k}": v for k, v in self.evals.items()},
+                **{f"monitor/{k}": v for k, v in self.system_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
                 **timing_stats,
@@ -857,11 +867,6 @@ class MettaTrainer:
         )
 
         self.stats.clear()
-
-    def _sync_device(self):
-        """Synchronize CUDA device if applicable."""
-        if self.device.type == "cuda" and torch.cuda.is_available():
-            torch.cuda.synchronize()
 
     def _compute_advantage_vtrace(self, values, rewards, dones, ratio, advantages):
         """Compute advantages with V-trace using configured parameters."""
@@ -890,7 +895,6 @@ class MettaTrainer:
         vtrace_c_clip,
     ):
         """CUDA kernel for puffer advantage computation with proper device context."""
-        from contextlib import nullcontext
 
         # Use CUDA device context for multi-GPU setups, nullcontext otherwise
         context = (
