@@ -11,7 +11,7 @@ import logging
 import pickle
 from contextlib import contextmanager
 from io import BytesIO
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 import boto3
 from botocore.client import BaseClient
@@ -258,7 +258,7 @@ class S3CacheManager:
             return False
 
     @contextmanager
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs) -> Iterator[CacheContext]:
         """
         Context manager for cached computation.
 
