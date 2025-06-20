@@ -19,7 +19,7 @@ from omegaconf.omegaconf import OmegaConf
 from metta.util.config import config_from_path
 
 from mettagrid.curriculum.curriculum import Task
-from mettagrid.curriculum.random import RandomCurriculum
+from mettagrid.curriculum.multi_task import MultiTaskCurriculum
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from mettagrid.mettagrid_env import MettaGridEnv
 
 
-class LearningProgressCurriculum(RandomCurriculum):
+class LearningProgressCurriculum(MultiTaskCurriculum):
     """Curriculum that adaptively samples tasks based on learning progress."""
 
     def __init__(self, tasks: Dict[str, float], env_overrides: DictConfig,
@@ -55,6 +55,29 @@ class LearningProgressCurriculum(RandomCurriculum):
 
         logger.info(f"LearningProgressCurriculum initialized with {search_space_size} tasks")
 
+    def get_task(self) -> Task:
+        """Get a task based on learning progress weights."""
+        # Get current learning progress weights
+        lp_weights, _ = self.lp_tracker.calculate_dist()
+        if lp_weights is not None:
+            # Update weights based on learning progress
+            for i, task_id in enumerate(self._curriculums.keys()):
+                if i < len(lp_weights):
+                    self._task_weights[task_id] = lp_weights[i]
+
+            # Normalize weights
+            self._normalize_weights()
+
+        # Sample task based on current weights
+        task_ids = list(self._curriculums.keys())
+        weights = [self._task_weights[task_id] for task_id in task_ids]
+
+        task_id = random.choices(task_ids, weights=weights)[0]
+        task = self._curriculums[task_id].get_task()
+        task.add_parent(self, task_id)
+        logger.debug(f"Task selected: {task.name()}")
+        return task
+
     def complete_task(self, id: str, score: float):
         """Complete a task and update learning progress tracking."""
         # Convert score to success rate (assuming score is between 0 and 1)
@@ -78,6 +101,8 @@ class LearningProgressCurriculum(RandomCurriculum):
             self._normalize_weights()
 
             logger.debug(f"Updated task weights based on learning progress: {self._task_weights}")
+
+        logger.debug(f"Updated learning progress for task {id} with score {score}")
 
         super().complete_task(id, score)
 
