@@ -65,7 +65,7 @@ class Experience:
         # Determine tensor device and dtype
         obs_device = "cpu" if cpu_offload else self.device
         obs_dtype = torch.float32 if obs_space.dtype == np.float32 else torch.uint8
-        pin = str(self.device).startswith("cuda") and cpu_offload
+        pin = self.device.type == "cuda" and cpu_offload
 
         # Create segmented tensor storage
         self.obs = torch.zeros(

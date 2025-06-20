@@ -2,6 +2,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from contextlib import nullcontext
 from typing import Any, Set
 from uuid import UUID
 
@@ -200,28 +201,22 @@ class MettaTrainer:
         # Automatic Mixed Precision setup
         self.amp_enabled = getattr(trainer_cfg, "amp_enabled", False)
         self.amp_dtype = getattr(trainer_cfg, "amp_dtype", "bfloat16")
+
         if self.amp_enabled:
             if self.amp_dtype not in ("float32", "bfloat16", "float16"):
                 raise ValueError(f"Invalid amp_dtype: {self.amp_dtype}. Use float32, bfloat16, or float16")
 
             # Determine device type for AMP
-            if str(self.device).startswith("cuda"):
-                device_type = "cuda"
-            elif str(self.device).startswith("mps"):
-                device_type = "mps"
-                # MPS only supports float32 and float16
-                if self.amp_dtype == "bfloat16":
-                    logger.warning("MPS does not support bfloat16, falling back to float16")
-                    self.amp_dtype = "float16"
-            else:
-                device_type = "cpu"
+            device_type = str(self.device).split(":")[0]  # Extract device type (cuda, mps, cpu)
+
+            # MPS only supports float32 and float16
+            if device_type == "mps" and self.amp_dtype == "bfloat16":
+                logger.warning("MPS does not support bfloat16, falling back to float16")
+                self.amp_dtype = "float16"
 
             logger.info(f"Automatic Mixed Precision enabled with dtype: {self.amp_dtype} on {device_type}")
             self.amp_context = torch.amp.autocast(device_type=device_type, dtype=getattr(torch, self.amp_dtype))
         else:
-            # Create a no-op context manager
-            from contextlib import nullcontext
-
             self.amp_context = nullcontext()
 
         if wandb_run and self._master:
@@ -439,8 +434,7 @@ class MettaTrainer:
                 if state.lstm_h is not None:
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
-                if str(self.device).startswith("cuda") and torch.cuda.is_available():
-                    torch.cuda.synchronize()
+                self._sync_device()
 
             value = value.flatten()
             # mask already converted to tensor above
@@ -526,17 +520,8 @@ class MettaTrainer:
             for _ in range(experience.num_minibatches):
                 # Compute advantages fresh for each minibatch with current importance sampling ratios
                 advantages = torch.zeros(experience.values.shape, device=self.device)
-
-                advantages = self._compute_advantage(
-                    experience.values,
-                    experience.rewards,
-                    experience.dones,
-                    experience.ratio,
-                    advantages,
-                    trainer_cfg.gamma,
-                    trainer_cfg.gae_lambda,
-                    vtrace_cfg.get("vtrace_rho_clip", 1.0),
-                    vtrace_cfg.get("vtrace_c_clip", 1.0),
+                advantages = self._compute_advantage_vtrace(
+                    experience.values, experience.rewards, experience.dones, experience.ratio, advantages
                 )
 
                 minibatch = experience.sample_minibatch(
@@ -572,16 +557,8 @@ class MettaTrainer:
                 if vtrace_cfg.get("recompute_advantages", True):
                     # Recompute advantages with updated importance sampling ratios
                     adv = torch.zeros_like(adv)
-                    adv = self._compute_advantage(
-                        minibatch["values"],
-                        minibatch["rewards"],
-                        minibatch["dones"],
-                        importance_sampling_ratio,
-                        adv,
-                        trainer_cfg.gamma,
-                        trainer_cfg.gae_lambda,
-                        vtrace_cfg.get("vtrace_rho_clip", 1.0),
-                        vtrace_cfg.get("vtrace_c_clip", 1.0),
+                    adv = self._compute_advantage_vtrace(
+                        minibatch["values"], minibatch["rewards"], minibatch["dones"], importance_sampling_ratio, adv
                     )
 
                 # Normalize advantages with distributed support, then apply prioritized weights
@@ -661,8 +638,7 @@ class MettaTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if str(self.device).startswith("cuda") and torch.cuda.is_available():
-                        torch.cuda.synchronize()
+                    self._sync_device()
 
                 minibatch_idx += 1
                 # end loop over minibatches
@@ -681,16 +657,8 @@ class MettaTrainer:
 
         # Calculate explained variance using the final advantages
         advantages = torch.zeros(experience.values.shape, device=self.device)
-        advantages = self._compute_advantage(
-            experience.values,
-            experience.rewards,
-            experience.dones,
-            experience.ratio,
-            advantages,
-            trainer_cfg.gamma,
-            trainer_cfg.gae_lambda,
-            vtrace_cfg.get("vtrace_rho_clip", 1.0),
-            vtrace_cfg.get("vtrace_c_clip", 1.0),
+        advantages = self._compute_advantage_vtrace(
+            experience.values, experience.rewards, experience.dones, experience.ratio, advantages
         )
         y_pred = experience.values.flatten()
         y_true = advantages.flatten() + experience.values.flatten()
@@ -924,6 +892,31 @@ class MettaTrainer:
 
         self.stats.clear()
 
+    def _get_device_context(self, device):
+        """Get appropriate device context manager."""
+        if device.type == "cuda" and torch.cuda.is_available():
+            return torch.cuda.device(device)
+        return nullcontext()
+
+    def _sync_device(self):
+        """Synchronize CUDA device if applicable."""
+        if self.device.type == "cuda" and torch.cuda.is_available():
+            torch.cuda.synchronize()
+
+    def _compute_advantage_vtrace(self, values, rewards, dones, ratio, advantages):
+        """Compute advantages with V-trace using configured parameters."""
+        return self._compute_advantage(
+            values,
+            rewards,
+            dones,
+            ratio,
+            advantages,
+            self.trainer_cfg.gamma,
+            self.trainer_cfg.gae_lambda,
+            self.trainer_cfg.get("vtrace", {}).get("vtrace_rho_clip", 1.0),
+            self.trainer_cfg.get("vtrace", {}).get("vtrace_c_clip", 1.0),
+        )
+
     def _compute_advantage(
         self,
         values,
@@ -937,23 +930,7 @@ class MettaTrainer:
         vtrace_c_clip,
     ):
         """CUDA kernel for puffer advantage computation with proper device context."""
-        # Only use CUDA device context if we're on CUDA
-        if values.is_cuda and torch.cuda.is_available():
-            # Ensure correct CUDA device context to prevent illegal memory access in multi-GPU setups
-            with torch.cuda.device(values.device):
-                torch.ops.pufferlib.compute_puff_advantage(
-                    values,
-                    rewards,
-                    dones,
-                    importance_sampling_ratio,
-                    advantages,
-                    gamma,
-                    gae_lambda,
-                    vtrace_rho_clip,
-                    vtrace_c_clip,
-                )
-        else:
-            # For CPU, MPS, or other backends, no device context needed
+        with self._get_device_context(values.device):
             torch.ops.pufferlib.compute_puff_advantage(
                 values,
                 rewards,

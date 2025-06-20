@@ -7,12 +7,12 @@ defaults:
 resume: true
 use_e3b: false
 
-total_timesteps: 10_000_000_000
+total_timesteps: 50_000_000_000
 
-clip_coef: 0.4892960366937307
-ent_coef: 0.0021495271282999063
-gae_lambda: 0.9548445797172682
-gamma: 0.9970473490110006
+clip_coef: 0.1
+ent_coef: 0.0021
+gae_lambda: 0.916
+gamma: 0.977
 
 # optimizer:
 #   type: muon
@@ -24,19 +24,19 @@ gamma: 0.9970473490110006
 
 optimizer:
   type: adam
-  beta1: 0.9564306102799757
-  beta2: 0.99999
-  eps: 9.783476537284348e-13
-  learning_rate: 0.0034144261695800942
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-12
+  learning_rate: 0.0004573146765703167
   weight_decay: 0
 
 lr_scheduler:
   enabled: false
   anneal_lr: false
 
-max_grad_norm: 4.131048552978143
-vf_clip_coef: 0.7479924868175252
-vf_coef: 4.596909413885139
+max_grad_norm: 0.5
+vf_clip_coef: 0.1
+vf_coef: 0.44
 l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
 
@@ -71,7 +71,6 @@ profiler_interval_epochs: 10000
 
 forward_pass_minibatch_target_size: 2048
 async_factor: 2
-num_workers: 16
 
 kickstart:
   teacher_uri: null
