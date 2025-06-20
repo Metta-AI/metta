@@ -61,9 +61,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
             "wall": {"type_id": 1},
             "block": {"type_id": 2},
         },
-        "agent": {
-            "inventory_size": 0,
-        },
+        "agent": {},
     }
 
     # Apply config overrides if provided

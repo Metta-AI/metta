@@ -25,7 +25,6 @@ class AgentConfig(BaseModel):
 
     default_item_max: Optional[int] = None
     freeze_duration: Optional[int] = None
-    inventory_size: Optional[int] = None
     rewards: Optional[AgentRewards] = None
 
 
