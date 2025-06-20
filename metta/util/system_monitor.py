@@ -402,7 +402,7 @@ class SystemMonitor:
             self.logger.debug(f"Failed to get memory used for GPU {gpu_idx}: {e}")
             return None
 
-    def _collect_sample(self):
+    def _collect_sample(self) -> None:
         """Collect a single sample of all metrics."""
         timestamp = time.time()
 
@@ -417,7 +417,7 @@ class SystemMonitor:
             except Exception as e:
                 self.logger.warning(f"Failed to collect metric '{name}': {e}")
 
-    def _monitor_loop(self):
+    def _monitor_loop(self) -> None:
         """Main monitoring loop (runs in separate thread)."""
         self.logger.debug("Monitor thread started")
 
@@ -427,7 +427,7 @@ class SystemMonitor:
 
         self.logger.debug("Monitor thread stopped")
 
-    def start(self):
+    def start(self) -> None:
         """Start the monitoring thread."""
         with self._lock:
             if self._thread and self._thread.is_alive():
@@ -439,7 +439,7 @@ class SystemMonitor:
             self._thread.start()
             self.logger.info("System monitoring started")
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the monitoring thread."""
         if not self._thread or not self._thread.is_alive():
             return
@@ -540,7 +540,7 @@ class SystemMonitor:
 
         return summary
 
-    def log_summary(self, level: int = logging.INFO):
+    def log_summary(self, level: int = logging.INFO) -> None:
         """Log a summary of current metrics.
 
         Args:
