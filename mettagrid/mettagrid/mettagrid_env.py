@@ -258,7 +258,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         infos.update(get_completion_rates(self._curriculum))
 
-        stats = self._c_env.get_episode_stats()
         with self.timer("_c_env.get_episode_stats"):
             stats = self._c_env.get_episode_stats()
 
