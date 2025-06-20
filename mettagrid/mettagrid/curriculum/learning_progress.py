@@ -19,7 +19,7 @@ from omegaconf.omegaconf import OmegaConf
 from metta.util.config import config_from_path
 
 from mettagrid.curriculum.curriculum import Task
-from mettagrid.curriculum.multi_task import MultiTaskCurriculum
+from mettagrid.curriculum.random import RandomCurriculum
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from mettagrid.mettagrid_env import MettaGridEnv
 
 
-class LearningProgressCurriculum(MultiTaskCurriculum):
+class LearningProgressCurriculum(RandomCurriculum):
     """Curriculum that adaptively samples tasks based on learning progress."""
 
     def __init__(
@@ -56,10 +56,6 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
             memory=memory,
         )
 
-        # Initialize task weights to uniform distribution
-        self._task_weights = {task_id: 1.0 for task_id in tasks.keys()}
-        self._normalize_weights()
-
         logger.info(f"LearningProgressCurriculum initialized with {search_space_size} tasks")
 
     def get_task(self) -> Task:
@@ -86,66 +82,8 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
             uniform_weight = 1.0 / num_tasks
             self._task_weights = {task_id: uniform_weight for task_id in self._curriculums.keys()}
 
-        # Sample task based on current weights
-        task_ids = list(self._curriculums.keys())
-
-        # Safety check: ensure we have valid task IDs
-        if not task_ids:
-            raise ValueError("No tasks available in curriculum")
-
-        weights = [self._task_weights[task_id] for task_id in task_ids]
-
-        # Handle NaN values in weights
-        weights = [0.0 if np.isnan(w) else w for w in weights]
-
-        # Ensure weights sum to a positive value
-        total_weight = sum(weights)
-        if total_weight <= 0:
-            # If all weights are zero or negative, use uniform distribution
-            logger.warning("All weights are zero or negative, using uniform distribution")
-            weights = [1.0] * len(weights)
-            total_weight = len(weights)
-
-        # Normalize weights to sum to 1
-        weights = [w / total_weight for w in weights]
-
-        # Debug logging
-        logger.debug(f"LearningProgressCurriculum task selection:")
-        logger.debug(f"  Available tasks: {task_ids}")
-        logger.debug(f"  Task weights: {weights}")
-        logger.debug(f"  Total weight: {total_weight}")
-
-        try:
-            task_id = random.choices(task_ids, weights=weights)[0]
-        except (ValueError, IndexError) as e:
-            logger.error(f"Error in random.choices: {e}, falling back to random task")
-            task_id = random.choices(task_ids)[0]
-
-        # Additional debug check
-        if task_id is None:
-            logger.error("Selected task_id is None! Falling back to first task.")
-            task_id = task_ids[0] if task_ids else None
-
-        if task_id is None:
-            raise ValueError("No valid task ID available in curriculum")
-
-        logger.debug(f"  Selected task: {task_id}")
-
-        # Get the actual task from the curriculum
-        if task_id not in self._curriculums:
-            logger.error(f"Task ID {task_id} not found in curriculums: {list(self._curriculums.keys())}")
-            # Fall back to first available task
-            task_id = list(self._curriculums.keys())[0]
-
-        task = self._curriculums[task_id].get_task()
-
-        # Safety check: ensure task is not None
-        if task is None:
-            raise ValueError(f"Curriculum {task_id} returned None task")
-
-        task.add_parent(self, task_id)
-        logger.debug(f"Task selected: {task.name()}")
-        return task
+        # Use parent's sampling logic
+        return super().get_task()
 
     def complete_task(self, id: str, score: float):
         """Complete a task and update learning progress tracking."""
@@ -157,19 +95,6 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
 
         # Collect data for learning progress
         self.lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
-
-        # Update task distribution based on learning progress
-        lp_weights, _ = self.lp_tracker.calculate_dist()
-        if lp_weights is not None:
-            # Update weights based on learning progress
-            for i, task_id in enumerate(self._curriculums.keys()):
-                if i < len(lp_weights):
-                    self._task_weights[task_id] = lp_weights[i]
-
-            # Normalize weights
-            self._normalize_weights()
-
-            logger.debug(f"Updated task weights based on learning progress: {self._task_weights}")
 
         logger.debug(f"Updated learning progress for task {id} with score {score}")
 
