@@ -18,6 +18,7 @@ from typing_extensions import override
 from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid
+from mettagrid.mettagrid_config import GameConfig
 from mettagrid.replay_writer import ReplayWriter
 from mettagrid.stats_writer import StatsWriter
 from mettagrid.util.dict_utils import unroll_nested_dict
@@ -71,7 +72,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
     ):
         self.timer = Stopwatch(logger)
         self.timer.start()
-        self.timer.start("overhead")
+        self.timer.start("thread_idle")
 
         self._render_mode = render_mode
         self._curriculum = curriculum
@@ -132,32 +133,36 @@ class MettaGridEnv(PufferEnv, GymEnv):
             f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        # Convert to container for C++ code with explicit casting to Dict[str, Any]
-        config_dict = cast(Dict[str, Any], OmegaConf.to_container(task.env_cfg()))
+        game_config_dict = OmegaConf.to_container(task.env_cfg().game)
+        # map_builder probably shouldn't be in the game config. For now we deal with this by removing it, so we can
+        # have GameConfig validate strictly. I'm less sure about diversity_bonus, but it's not used in the C++ code.
+        if "map_builder" in game_config_dict:
+            del game_config_dict["map_builder"]
+        if "diversity_bonus" in game_config_dict:
+            del game_config_dict["diversity_bonus"]
+        game_config = GameConfig(**game_config_dict)
 
         # During training, we run a lot of envs in parallel, and it's better if they are not
         # all synced together. The desync_episodes flag is used to desync the episodes.
         # Ideally vecenv would have a way to desync the episodes, but it doesn't.
         if self._num_episodes == 0 and task.env_cfg().desync_episodes:
-            max_steps = int(task.env_cfg().game.max_steps)
-            config_game = cast(Dict[str, Any], config_dict.get("game", {}))
-            config_game["max_steps"] = int(np.random.randint(1, max_steps + 1))
-            config_dict["game"] = config_game
-            logger.info(f"Desync episode with max_steps {config_game['max_steps']}")
+            max_steps = game_config.max_steps
+            game_config.max_steps = int(np.random.randint(1, max_steps + 1))
+            logger.info(f"Desync episode with max_steps {game_config.max_steps}")
 
         self._map_labels = level.labels
 
         # Convert string array to list of strings for C++ compatibility
         # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
         with self.timer("_initialize_c_env.make_c_env"):
-            self._c_env = MettaGrid(config_dict, level.grid.tolist())
+            self._c_env = MettaGrid(game_config.model_dump(by_alias=True, exclude_unset=True), level.grid.tolist())
 
         self._grid_env = self._c_env
 
     @override  # pufferlib.PufferEnv.reset
     @with_instance_timer("reset")
     def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
-        self.timer.stop("overhead")
+        self.timer.stop("thread_idle")
 
         self._task = self._curriculum.get_task()
 
@@ -180,7 +185,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         obs, infos = self._c_env.reset()
         self._should_reset = False
 
-        self.timer.start("overhead")
+        self.timer.start("thread_idle")
         return obs, infos
 
     @override  # pufferlib.PufferEnv.step
@@ -200,7 +205,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             Tuple of (observations, rewards, terminals, truncations, infos)
 
         """
-        self.timer.stop("overhead")
+        self.timer.stop("thread_idle")
 
         # Note: We explicitly allow invalid actions to be used. The environment will
         # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
@@ -209,7 +214,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._c_env.step(actions)
 
         if self._replay_writer and self._episode_id:
-            self._replay_writer.log_step(self._episode_id, actions, self.rewards)
+            with self.timer("_replay_writer.log_step"):
+                self._replay_writer.log_step(self._episode_id, actions, self.rewards)
 
         infos = {}
         if self.terminals.all() or self.truncations.all():
@@ -225,7 +231,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             self._should_reset = True
             self._task.complete(self._c_env.get_episode_rewards().mean())
 
-        self.timer.start("overhead")
+        self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
     @override
@@ -277,6 +283,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
                     "seed": str(self._current_seed),
                     "map_w": str(self.map_width),
                     "map_h": str(self.map_height),
+                    "initial_grid_hash": self.initial_grid_hash,
                 }
 
                 container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
@@ -309,29 +316,29 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self.timer.stop("process_episode_stats")
 
         elapsed_times = self.timer.get_all_elapsed()
-        overhead_time = elapsed_times.pop("overhead", 0)
+        thread_idle_time = elapsed_times.pop("thread_idle", 0)
 
         wall_time = self.timer.get_elapsed()
-        adjusted_wall_time = wall_time - overhead_time
+        adjusted_wall_time = wall_time - thread_idle_time
 
         lap_times = self.timer.lap_all(exclude_global=False)
-        lap_overhead_time = lap_times.pop("overhead", 0)
+        lap_thread_idle_time = lap_times.pop("thread_idle", 0)
         wall_time_for_lap = lap_times.pop("global", 0)
-        adjusted_lap_time = wall_time_for_lap - lap_overhead_time
+        adjusted_lap_time = wall_time_for_lap - lap_thread_idle_time
 
         infos["timing_per_epoch"] = {
             **{
-                f"residual_fraction/{op}": lap_elapsed / adjusted_lap_time if adjusted_lap_time > 0 else 0
+                f"active_frac/{op}": lap_elapsed / adjusted_lap_time if adjusted_lap_time > 0 else 0
                 for op, lap_elapsed in lap_times.items()
             },
-            "fraction/overhead": lap_overhead_time / wall_time_for_lap,
+            "frac/thread_idle": lap_thread_idle_time / wall_time_for_lap,
         }
         infos["timing_cumulative"] = {
             **{
-                f"residual_fraction/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
+                f"active_frac/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
                 for op, elapsed in elapsed_times.items()
             },
-            "fraction/overhead": overhead_time / wall_time,
+            "frac/thread_idle": thread_idle_time / wall_time,
         }
 
         self._episode_id = None
@@ -451,5 +458,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         return self._c_env.inventory_item_names()
 
     @property
-    def config(self) -> dict[str, Any]:
-        return cast(dict[str, Any], OmegaConf.to_container(self._task.env_cfg(), resolve=False))
+    def initial_grid_hash(self) -> int:
+        """Returns the hash of the initial grid configuration."""
+        return self._c_env.initial_grid_hash

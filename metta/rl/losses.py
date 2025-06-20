@@ -18,7 +18,7 @@ class Losses:
         self.explained_variance = 0.0
         self.minibatches_processed = 0
 
-    def to_dict(self) -> dict[str, float]:
+    def stats(self) -> dict[str, float]:
         """Convert losses to dictionary with proper averages"""
         n = max(1, self.minibatches_processed)
 

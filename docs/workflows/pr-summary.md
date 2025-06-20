@@ -44,7 +44,6 @@ This workflow automatically generates weekly summaries of merged pull requests a
 **Files**:
 - `action.yml`: Action metadata and configuration
 - `fetch_pr_digest.py`: Main script (note: file name has underscore, not hyphen)
-- `requirements.txt`: Python dependencies
 
 **Key Features**:
 - **Incremental caching**: Only fetches new PRs since last run
@@ -253,14 +252,12 @@ workflow_dispatch:
 │   │   └── discord_webhook.py
 │   └── pr-digest/
 │       ├── action.yml
-│       ├── fetch_pr_digest.py
-│       └── requirements.txt
+│       └── fetch_pr_digest.py
 ├── docs/
 │   └── workflows/
 │       └── pr-summary.md
 ├── scripts/
-│   ├── generate_pr_summary.py
-│   └── requirements.txt
+│   └── generate_pr_summary.py
 └── workflows/
     └── pr_summary.yml
 ```
