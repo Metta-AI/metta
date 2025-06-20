@@ -466,7 +466,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
 def get_completion_rates(curriculum):
     completion_rates = {}
-    completed_tasks = curriculum.completed_tasks
+    completed_tasks = curriculum.completed_tasks()
     if completed_tasks is not None and len(completed_tasks) > 0:
         for task_id in curriculum._curricula:
             task_completion_rate = completed_tasks.count(task_id) / len(completed_tasks)
