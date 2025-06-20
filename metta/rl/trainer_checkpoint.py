@@ -3,7 +3,6 @@ import os
 import warnings
 from typing import Any, Dict, Optional
 
-import numpy as np
 import torch
 
 logger = logging.getLogger("TrainerCheckpoint")
@@ -52,19 +51,6 @@ class TrainerCheckpoint:
         if not os.path.exists(trainer_path):
             logger.info("No trainer state found. Assuming new run")
             return TrainerCheckpoint(0, 0, None, None)
-
-        # Add gymnasium spaces to safe globals for PyTorch 2.6+
-        import gymnasium.spaces
-
-        torch.serialization.add_safe_globals(
-            [
-                gymnasium.spaces.multi_discrete.MultiDiscrete,
-                gymnasium.spaces.discrete.Discrete,
-                gymnasium.spaces.box.Box,
-                gymnasium.spaces.dict.Dict,
-                np.dtype,
-            ]
-        )
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
