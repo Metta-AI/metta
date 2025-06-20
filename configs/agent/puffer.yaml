@@ -1,4 +1,4 @@
-# PufferLib-style agent with CNN encoding
+# Simplified PufferLib-style agent with CNN encoding
 _target_: metta.agent.metta_agent.MettaAgent
 
 observations:
@@ -17,19 +17,11 @@ components:
     sources:
       null
 
-  # Normalize observations by dividing by max values (matching max_vec from Policy)
-  obs_normalizer:
-    _target_: metta.agent.lib.obs_tokenizers.ObsAttrValNorm
-    sources:
-      - name: _obs_
-    # These values match the max_vec buffer in the original Policy
-    max_vals: [1., 9., 1., 30., 1., 3., 255., 26., 1., 1., 1., 1., 1., 47., 3., 3., 2., 1., 1., 1., 1.]
-
   # CNN path for spatial features
   cnn_conv1:
     _target_: metta.agent.lib.nn_layer_library.Conv2d
     sources:
-      - name: obs_normalizer
+      - name: _obs_
     nn_params:
       out_channels: 128
       kernel_size: 5
@@ -56,38 +48,14 @@ components:
     sources:
       - name: cnn_flatten
     nn_params:
-      out_features: 256
+      out_features: 512
     nonlinearity: nn.ReLU
 
-  # Extract center pixel features (at position 5,5)
-  center_pixel:
-    _target_: metta.agent.lib.merge_layer.CenterPixelLayer
-    sources:
-      - name: obs_normalizer
-
-  # Linear layer for center pixel features (self-encoder path)
-  self_encoder:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: center_pixel
-    nn_params:
-      out_features: 256
-    nonlinearity: nn.ReLU
-
-  # Concatenate CNN and self-encoder features (256 + 256 = 512)
-  concat_features:
-    _target_: metta.agent.lib.merge_layer.ConcatMergeLayer
-    sources:
-      - name: self_encoder
-      - name: cnn_fc
-    merge_op: concat
-    dim: 1
-
-  # LSTM core (matching the Recurrent wrapper)
+  # LSTM core (simplified - using CNN features directly)
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
-      - name: concat_features
+      - name: cnn_fc
     output_size: 512
     nn_params:
       num_layers: 2
@@ -106,7 +74,6 @@ components:
     sources:
       - name: _core_
       - name: _action_embeds_
-    std: 0.01  # Matching the std=0.01 from the original Policy
 
   # Value head
   _value_:
@@ -116,4 +83,3 @@ components:
     nn_params:
       out_features: 1
     nonlinearity: null
-    std: 1.0  # Matching the std=1 from the original Policy
