@@ -360,20 +360,11 @@ class PolicyStore:
 
     def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
         logger.info(f"Saving policy to {path}")
-
-        # Create PolicyRecord with the policy
-        pr = PolicyRecord(self, name, "file://" + path, metadata)
+        pr = PolicyRecord(self, path, "file://" + path, metadata)
         pr._policy = policy
-
-        # Temporarily remove policy_store to avoid circular reference during save
         pr._policy_store = None
-
-        # Simple save - just save the entire PolicyRecord
         torch.save(pr, path)
-
-        # Restore policy_store reference
         pr._policy_store = self
-
         # Don't cache the policy that we just saved,
         # since it might be updated later. We always
         # load the policy from the file when needed.

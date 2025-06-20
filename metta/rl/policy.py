@@ -3,9 +3,8 @@ from types import SimpleNamespace
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig
+from pufferlib.pytorch import sample_logits
 from torch import nn
-
-from metta.agent.pytorch_policy import PytorchPolicy
 
 
 def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
@@ -29,24 +28,23 @@ def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
 
     policy = instantiate(puffer, env=env, policy=None)
     policy.load_state_dict(weights)
-
-    # Wrap with PytorchPolicy for compatibility
-    wrapped_policy = LegacyPytorchPolicy(policy)
-    return wrapped_policy.to(device)
+    policy = PytorchAgent(policy).to(device)
+    return policy
 
 
-class LegacyPytorchPolicy(PytorchPolicy):
-    """Adapter for legacy PyTorch policies that follow the old interface.
+class PytorchAgent(nn.Module):
+    """Adapter to make torch.nn.Module-based policies compatible with MettaAgent interface.
 
-    This specifically handles policies that return (hidden, critic) from forward
-    and need translation to the MettaAgent interface.
+    This adapter wraps policies loaded from checkpoints and translates their
+    outputs to match the expected MettaAgent interface, handling naming
+    differences like critic→value, hidden→logits, etc.
     """
 
     def __init__(self, policy: nn.Module):
-        super().__init__(policy)
-        # Ensure we have access to these properties
-        self._hidden_size = policy.hidden_size
-        self._lstm = policy.lstm  # Point to the actual LSTM module
+        super().__init__()
+        self.policy = policy
+        self.hidden_size = policy.hidden_size
+        self.lstm = policy.lstm  # Point to the actual LSTM module, not the entire policy
 
     def forward(self, obs: torch.Tensor, state, action=None):
         """Translates legacy policy output to MettaAgent interface.
@@ -58,15 +56,9 @@ class LegacyPytorchPolicy(PytorchPolicy):
         hidden, critic = self.policy(obs, state)
 
         # Use pufferlib's sample_logits to handle action sampling
-        from pufferlib.pytorch import sample_logits
-
         action, logprob, logits_entropy = sample_logits(hidden, action)
 
         # Return in MettaAgent format
         # hidden -> log_probs (the raw logits)
         # critic -> value
         return action, logprob, logits_entropy, critic, hidden
-
-
-# Keep PytorchAgent as an alias for backward compatibility
-PytorchAgent = LegacyPytorchPolicy
