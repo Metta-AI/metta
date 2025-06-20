@@ -37,9 +37,8 @@ class EvaluationSmokeTest(SmokeTest):
     def get_command_for_attempt(self, attempt: int) -> list[str]:
         """Get command for a specific attempt."""
         return [
-            "python3",
-            "-m",
-            "tools.sim",
+            sys.executable,
+            "./tools/sim.py",
             "sim=navigation",
             f"run=navigation_smoke_{attempt}",
             f"policy_uri=wandb://run/{self.policy}",

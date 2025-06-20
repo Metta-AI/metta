@@ -22,7 +22,7 @@ class TrainingSmokeTest(SmokeTest):
 
     def get_command(self) -> list[str]:
         return [
-            "python3",
+            sys.executable,
             "./tools/train.py",
             "+hardware=github",
             "wandb=off",

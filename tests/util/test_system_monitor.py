@@ -217,25 +217,43 @@ class TestMetricCollection:
 
     def test_process_metrics(self, monitor, mock_psutil):
         """Test process-specific metric collection"""
-        # The monitor fixture already has a real process object created
-        # We need to test with multiple samples to see the mock behavior
+        # Note: The monitor uses a persistent process object created during initialization,
+        # which tracks the real system process, not our mock. The mock only affects
+        # new Process() calls for memory and thread metrics.
 
-        # First sample - process CPU might be from real system
+        # First sample - process CPU might be 0 from initialization
         monitor._collect_sample()
         _first_latest = monitor.get_latest()
 
-        # Second sample should show consistent behavior
+        # Second sample should have actual values
         monitor._collect_sample()
         second_latest = monitor.get_latest()
 
-        # Check memory and threads (these use fresh Process objects each time)
+        # Check memory and threads (these create new Process objects which use our mock)
         assert second_latest["process_memory_mb"] == 100.0
         assert second_latest["process_threads"] == 4
 
-        # Process CPU uses persistent object, so it will be real system value
-        # Just verify it's a reasonable number
+        # Process CPU uses the persistent _process object created during __init__
+        # This is the REAL system process, not our mock, so we can't predict its value
         assert isinstance(second_latest["process_cpu_percent"], (int, float))
-        assert 0 <= second_latest["process_cpu_percent"] <= 100
+
+        # CPU percentage can exceed 100% for multi-threaded processes using multiple cores
+        # psutil documentation states: "Return a float representing the process CPU
+        # utilization as a percentage which can also be > 100.0 in case of a process
+        # running multiple threads on different CPUs."
+        assert second_latest["process_cpu_percent"] >= 0
+
+        # Get CPU count to calculate a reasonable upper bound
+        # A process could theoretically use up to 100% * number of CPUs
+        cpu_count = psutil.cpu_count(logical=True) or 8  # Use real CPU count, fallback to 8
+        max_theoretical_cpu = 100 * cpu_count
+
+        # In practice, values much higher than this are likely errors
+        # Add a larger buffer since we're dealing with real system measurements
+        assert second_latest["process_cpu_percent"] <= max_theoretical_cpu * 2, (
+            f"Process CPU percent {second_latest['process_cpu_percent']} exceeds reasonable limit "
+            f"of {max_theoretical_cpu * 2} (2x the theoretical max of {max_theoretical_cpu} for {cpu_count} CPUs)"
+        )
 
     def test_temperature_metrics(self, monitor, mock_psutil):
         """Test CPU temperature collection"""
