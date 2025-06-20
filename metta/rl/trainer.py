@@ -197,6 +197,33 @@ class MettaTrainer:
         if checkpoint.agent_step > 0:
             self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
 
+        # Automatic Mixed Precision setup
+        self.amp_enabled = getattr(trainer_cfg, "amp_enabled", False)
+        self.amp_dtype = getattr(trainer_cfg, "amp_dtype", "bfloat16")
+        if self.amp_enabled:
+            if self.amp_dtype not in ("float32", "bfloat16", "float16"):
+                raise ValueError(f"Invalid amp_dtype: {self.amp_dtype}. Use float32, bfloat16, or float16")
+
+            # Determine device type for AMP
+            if str(self.device).startswith("cuda"):
+                device_type = "cuda"
+            elif str(self.device).startswith("mps"):
+                device_type = "mps"
+                # MPS only supports float32 and float16
+                if self.amp_dtype == "bfloat16":
+                    logger.warning("MPS does not support bfloat16, falling back to float16")
+                    self.amp_dtype = "float16"
+            else:
+                device_type = "cpu"
+
+            logger.info(f"Automatic Mixed Precision enabled with dtype: {self.amp_dtype} on {device_type}")
+            self.amp_context = torch.amp.autocast(device_type=device_type, dtype=getattr(torch, self.amp_dtype))
+        else:
+            # Create a no-op context manager
+            from contextlib import nullcontext
+
+            self.amp_context = nullcontext()
+
         if wandb_run and self._master:
             # Define metrics (wandb x-axis values)
             metrics = ["agent_step", "epoch", "total_time", "train_time"]
@@ -217,6 +244,17 @@ class MettaTrainer:
                 logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self) -> None:
+        """
+        Main training loop with improvements from state-of-the-art implementations:
+
+        New features added:
+        - Automatic Mixed Precision (AMP) support - set trainer.amp_enabled=true, trainer.amp_dtype="bfloat16"
+        - Reward clipping - set trainer.clip_rewards=true to clamp rewards to [-1, 1]
+        - Fresh advantage computation per minibatch for better V-trace
+        - In-place value updates during training for improved estimates
+        - Proper CUDA device context handling for distributed training
+        - Optional advantage recomputation - set vtrace.recompute_advantages=false to disable
+        """
         logger.info("Starting training")
         trainer_cfg = self.trainer_cfg
 
@@ -376,7 +414,11 @@ class MettaTrainer:
             d = torch.as_tensor(d).to(device, non_blocking=True)
             t = torch.as_tensor(t).to(device, non_blocking=True)
 
-            with torch.no_grad():
+            # Apply reward clipping if enabled
+            if getattr(trainer_cfg, "clip_rewards", False):
+                r = torch.clamp(r, -1, 1)
+
+            with torch.no_grad(), self.amp_context:
                 state = PolicyState()
 
                 # Use LSTM state access for performance
@@ -397,7 +439,7 @@ class MettaTrainer:
                 if state.lstm_h is not None:
                     lstm_state_to_store = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c}
 
-                if str(self.device).startswith("cuda"):
+                if str(self.device).startswith("cuda") and torch.cuda.is_available():
                     torch.cuda.synchronize()
 
             value = value.flatten()
@@ -476,30 +518,27 @@ class MettaTrainer:
         total_epochs = max(1, trainer_cfg.total_timesteps // trainer_cfg.batch_size)
         anneal_beta = b0 + (1 - b0) * a * self.epoch / total_epochs
 
-        # Compute advantages using puff_advantage
-        advantages = torch.zeros(experience.values.shape, device=self.device)
-
-        # Initial importance sampling ratio is all ones
-        initial_importance_sampling_ratio = torch.ones_like(experience.values)
-
-        advantages = self._compute_advantage(
-            experience.values,
-            experience.rewards,
-            experience.dones,
-            initial_importance_sampling_ratio,
-            advantages,
-            trainer_cfg.gamma,
-            trainer_cfg.gae_lambda,
-            vtrace_cfg.get("vtrace_rho_clip", 1.0),
-            vtrace_cfg.get("vtrace_c_clip", 1.0),
-        )
-
         # Optimizing the policy and value network
         _total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
         minibatch_idx = 0
 
         for _epoch in range(trainer_cfg.update_epochs):
             for _ in range(experience.num_minibatches):
+                # Compute advantages fresh for each minibatch with current importance sampling ratios
+                advantages = torch.zeros(experience.values.shape, device=self.device)
+
+                advantages = self._compute_advantage(
+                    experience.values,
+                    experience.rewards,
+                    experience.dones,
+                    experience.ratio,
+                    advantages,
+                    trainer_cfg.gamma,
+                    trainer_cfg.gae_lambda,
+                    vtrace_cfg.get("vtrace_rho_clip", 1.0),
+                    vtrace_cfg.get("vtrace_c_clip", 1.0),
+                )
+
                 minibatch = experience.sample_minibatch(
                     advantages=advantages,
                     prio_alpha=a,
@@ -511,31 +550,39 @@ class MettaTrainer:
                 obs = minibatch["obs"]
 
                 lstm_state = PolicyState()
-                _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
-                    obs, lstm_state, action=minibatch["actions"]
-                )
+
+                with self.amp_context:
+                    _, new_logprobs, entropy, newvalue, full_logprobs = self.policy(
+                        obs, lstm_state, action=minibatch["actions"]
+                    )
 
                 new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
                 logratio = new_logprobs - minibatch["logprobs"]
                 importance_sampling_ratio = logratio.exp()
+
+                # Update importance sampling ratios in experience buffer
                 experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
 
                 with torch.no_grad():
                     approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
                     clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.clip_coef).float().mean()
 
-                # Re-compute advantages with new ratios (V-trace)
-                adv = self._compute_advantage(
-                    minibatch["values"],
-                    minibatch["rewards"],
-                    minibatch["dones"],
-                    importance_sampling_ratio,
-                    minibatch["advantages"],
-                    trainer_cfg.gamma,
-                    trainer_cfg.gae_lambda,
-                    vtrace_cfg.get("vtrace_rho_clip", 1.0),
-                    vtrace_cfg.get("vtrace_c_clip", 1.0),
-                )
+                # Re-compute advantages with new ratios (V-trace) if ratio changed significantly
+                adv = minibatch["advantages"]
+                if vtrace_cfg.get("recompute_advantages", True):
+                    # Recompute advantages with updated importance sampling ratios
+                    adv = torch.zeros_like(adv)
+                    adv = self._compute_advantage(
+                        minibatch["values"],
+                        minibatch["rewards"],
+                        minibatch["dones"],
+                        importance_sampling_ratio,
+                        adv,
+                        trainer_cfg.gamma,
+                        trainer_cfg.gae_lambda,
+                        vtrace_cfg.get("vtrace_rho_clip", 1.0),
+                        vtrace_cfg.get("vtrace_c_clip", 1.0),
+                    )
 
                 # Normalize advantages with distributed support, then apply prioritized weights
                 adv = self._normalize_advantage_distributed(adv)
@@ -586,8 +633,8 @@ class MettaTrainer:
                     + ks_value_loss
                 )
 
-                # Update values in experience buffer
-                experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))
+                # Update values in experience buffer with new value estimates
+                experience.update_values(minibatch["indices"], newvalue_reshaped)
 
                 if self.losses is None:
                     raise ValueError("self.losses is None")
@@ -614,7 +661,7 @@ class MettaTrainer:
                     if self.cfg.agent.clip_range > 0:
                         self.policy.clip_weights()
 
-                    if str(self.device).startswith("cuda"):
+                    if str(self.device).startswith("cuda") and torch.cuda.is_available():
                         torch.cuda.synchronize()
 
                 minibatch_idx += 1
@@ -632,7 +679,19 @@ class MettaTrainer:
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
-        # Calculate explained variance
+        # Calculate explained variance using the final advantages
+        advantages = torch.zeros(experience.values.shape, device=self.device)
+        advantages = self._compute_advantage(
+            experience.values,
+            experience.rewards,
+            experience.dones,
+            experience.ratio,
+            advantages,
+            trainer_cfg.gamma,
+            trainer_cfg.gae_lambda,
+            vtrace_cfg.get("vtrace_rho_clip", 1.0),
+            vtrace_cfg.get("vtrace_c_clip", 1.0),
+        )
         y_pred = experience.values.flatten()
         y_true = advantages.flatten() + experience.values.flatten()
         var_y = y_true.var()
@@ -877,18 +936,35 @@ class MettaTrainer:
         vtrace_rho_clip,
         vtrace_c_clip,
     ):
-        """CUDA kernel for puffer advantage computation."""
-        torch.ops.pufferlib.compute_puff_advantage(
-            values,
-            rewards,
-            dones,
-            importance_sampling_ratio,
-            advantages,
-            gamma,
-            gae_lambda,
-            vtrace_rho_clip,
-            vtrace_c_clip,
-        )
+        """CUDA kernel for puffer advantage computation with proper device context."""
+        # Only use CUDA device context if we're on CUDA
+        if values.is_cuda and torch.cuda.is_available():
+            # Ensure correct CUDA device context to prevent illegal memory access in multi-GPU setups
+            with torch.cuda.device(values.device):
+                torch.ops.pufferlib.compute_puff_advantage(
+                    values,
+                    rewards,
+                    dones,
+                    importance_sampling_ratio,
+                    advantages,
+                    gamma,
+                    gae_lambda,
+                    vtrace_rho_clip,
+                    vtrace_c_clip,
+                )
+        else:
+            # For CPU, MPS, or other backends, no device context needed
+            torch.ops.pufferlib.compute_puff_advantage(
+                values,
+                rewards,
+                dones,
+                importance_sampling_ratio,
+                advantages,
+                gamma,
+                gae_lambda,
+                vtrace_rho_clip,
+                vtrace_c_clip,
+            )
         return advantages
 
     def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
