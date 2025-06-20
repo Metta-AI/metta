@@ -246,13 +246,6 @@ class BidirectionalLearningProgress:
         else:
             task_dist = subprobs
 
-        # Final normalization
-        sum_dist = np.sum(task_dist)
-        if sum_dist > 0:
-            task_dist = task_dist / sum_dist
-        else:
-            task_dist = np.ones(len(task_dist)) / len(task_dist)
-
         self.task_dist = task_dist.astype(np.float32)
         self._stale_dist = False
 
