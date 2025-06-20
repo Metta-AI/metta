@@ -58,33 +58,6 @@ class LearningProgressCurriculum(RandomCurriculum):
 
         logger.info(f"LearningProgressCurriculum initialized with {search_space_size} tasks")
 
-    def get_task(self) -> Task:
-        """Get a task based on learning progress weights."""
-        # Get current learning progress weights
-        lp_weights, _ = self.lp_tracker.calculate_dist()
-
-        # Debug logging
-        logger.debug(f"LearningProgressCurriculum get_task called")
-        logger.debug(f"  lp_weights: {lp_weights}")
-
-        if lp_weights is not None and len(lp_weights) > 0:
-            # Update weights based on learning progress
-            for i, task_id in enumerate(self._curriculums.keys()):
-                if i < len(lp_weights):
-                    self._task_weights[task_id] = lp_weights[i]
-
-            # Normalize weights
-            self._normalize_weights()
-        else:
-            # If no learning progress data yet, use uniform weights
-            logger.debug("No learning progress data yet, using uniform weights")
-            num_tasks = len(self._curriculums)
-            uniform_weight = 1.0 / num_tasks
-            self._task_weights = {task_id: uniform_weight for task_id in self._curriculums.keys()}
-
-        # Use parent's sampling logic
-        return super().get_task()
-
     def complete_task(self, id: str, score: float):
         """Complete a task and update learning progress tracking."""
         # Convert score to success rate (assuming score is between 0 and 1)
@@ -95,6 +68,18 @@ class LearningProgressCurriculum(RandomCurriculum):
 
         # Collect data for learning progress
         self.lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
+
+        # Update task weights based on learning progress
+        lp_weights, _ = self.lp_tracker.calculate_dist()
+
+        # Update weights based on learning progress
+        for i, task_id in enumerate(self._curriculums.keys()):
+            if i < len(lp_weights):
+                self._task_weights[task_id] = lp_weights[i]
+
+        # Normalize weights
+        self._normalize_weights()
+        logger.debug(f"Updated task weights based on learning progress: {self._task_weights}")
 
         logger.debug(f"Updated learning progress for task {id} with score {score}")
 
