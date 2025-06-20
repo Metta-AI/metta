@@ -54,18 +54,18 @@ resource "helm_release" "skypilot" {
       value = templatefile("${path.module}/skypilot-config.tftpl", {
         jobs_bucket = aws_s3_bucket.skypilot_jobs.bucket
       })
+    },
+
+    {
+      name  = "lambdaAiCredentials.lambdaAiSecretName"
+      value = kubernetes_secret.lambda_ai_secret.metadata[0].name
     }
   ]
 
   set_sensitive = [
     {
-      name  = "lambdaAiCredentials.lambdaAiSecretName"
-      value = kubernetes_secret.lambda_ai_secret.metadata[0].name
-    },
-
-    {
       name  = "ingress.authCredentials"
-      value = sensitive("skypilot:${bcrypt(random_password.skypilot_password.result)}")
+      value = nonsensitive("skypilot:${bcrypt(random_password.skypilot_password.result)}")
     }
   ]
 }
