@@ -51,11 +51,6 @@ runs:
         version: "0.7.3"
         enable-cache: true
 
-    - name: Install dependencies
-      shell: bash
-      run: |
-        uv pip install --system -r ${{ github.action_path }}/requirements.txt
-
     - name: Set cache key
       id: cache-key
       shell: bash
@@ -90,7 +85,7 @@ runs:
         FORCE_REFRESH: ${{ inputs.force-refresh }}
         CACHE_FILE: .pr-digest-cache/{repository}-cache.json
       run: |
-        python ${{ github.action_path }}/fetch_pr_digest.py
+        uv run ${{ github.action_path }}/fetch_pr_digest.py
 
     - name: Save PR cache
       uses: actions/cache/save@v4

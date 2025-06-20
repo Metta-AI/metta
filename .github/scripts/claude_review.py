@@ -1,11 +1,14 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "PyGithub>=2.1.1",
+#   "requests>=2.31.0",
+# ]
+# ///
 """
-Consolidate multiple Claude review artifacts and create a unified GitHub review.
-
-This script:
-1. Downloads artifacts from individual Claude review runs
-2. Consolidates them into a unified review structure
-3. Creates a GitHub PR review with all suggestions as inline comments
+Benchmarking utilities for GitHub Actions workflows.
+Provides memory and time monitoring for subprocess execution.
 """
 
 import json
@@ -14,13 +17,13 @@ import re
 import sys
 import zipfile
 from io import BytesIO
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Tuple
 
 import requests
 from github import Github
 
 
-def download_artifact(token: str, repo: str, artifact_id: int) -> Optional[bytes]:
+def download_artifact(token: str, repo: str, artifact_id: int) -> bytes | None:
     """Download an artifact from GitHub."""
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
     url = f"https://api.github.com/repos/{repo}/actions/artifacts/{artifact_id}/zip"
@@ -33,7 +36,7 @@ def download_artifact(token: str, repo: str, artifact_id: int) -> Optional[bytes
         return None
 
 
-def extract_json_from_artifact(artifact_data: bytes) -> Optional[Dict[str, Any]]:
+def extract_json_from_artifact(artifact_data: bytes) -> dict[str, Any] | None:
     """Extract claude-review-analysis.json from artifact zip."""
     try:
         with zipfile.ZipFile(BytesIO(artifact_data)) as zip_file:
@@ -46,7 +49,7 @@ def extract_json_from_artifact(artifact_data: bytes) -> Optional[Dict[str, Any]]
     return None
 
 
-def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, Any], bool]:
+def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[dict[str, Any], bool]:
     """Consolidate all review artifacts into a single structure."""
     # Initialize consolidated review
     consolidated = {
@@ -163,7 +166,7 @@ def consolidate_reviews(token: str, repo: str, run_id: int) -> Tuple[Dict[str, A
     return consolidated, has_any_issues
 
 
-def build_future_suggestions_comment(suggestions_for_future: List[Dict[str, Any]]) -> str:
+def build_future_suggestions_comment(suggestions_for_future: list[dict[str, Any]]) -> str:
     """Build a separate comment for suggestions on unchanged code."""
     sections = []
 
@@ -241,7 +244,7 @@ def build_future_suggestions_comment(suggestions_for_future: List[Dict[str, Any]
     return "\n".join(sections)
 
 
-def create_review_comment(suggestion: Dict[str, Any]) -> Dict[str, Any]:
+def create_review_comment(suggestion: dict[str, Any]) -> dict[str, Any]:
     """Create a review comment from a suggestion."""
     comment = {
         "path": suggestion["file"],
@@ -262,7 +265,7 @@ def create_review_comment(suggestion: Dict[str, Any]) -> Dict[str, Any]:
     return comment
 
 
-def build_review_body(analysis: Dict[str, Any], skipped_suggestions: List[str]) -> str:
+def build_review_body(analysis: dict[str, Any], skipped_suggestions: list[str]) -> str:
     """Build the review body markdown."""
     sections = []
 
@@ -319,7 +322,7 @@ def build_review_body(analysis: Dict[str, Any], skipped_suggestions: List[str]) 
     return "\n".join(sections)
 
 
-def create_unified_review(token: str, repo: str, pr_number: int, analysis: Dict[str, Any]) -> None:
+def create_unified_review(token: str, repo: str, pr_number: int, analysis: dict[str, Any]) -> None:
     """Create a unified GitHub review from the consolidated analysis."""
     # Connect to GitHub
     g = Github(token)

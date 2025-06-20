@@ -1,4 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = []
+# ///
 """
 PR Assignment Script
 Assigns users, reviewers, and labels to pull requests based on configuration.
@@ -199,19 +203,20 @@ def ensure_version_labels_exist(repo: str) -> None:
 
 def main():
     """Main function to process PR assignments."""
-    if len(sys.argv) < 10:
-        print("Error: Not enough arguments provided")
-        sys.exit(1)
+    # Get arguments from environment variables instead of sys.argv
+    pr_number = os.environ.get("PR_NUMBER", "")
+    possible_assignees = os.environ.get("POSSIBLE_ASSIGNEES", "")
+    possible_reviewers = os.environ.get("POSSIBLE_REVIEWERS", "")
+    forced_assignees = os.environ.get("FORCED_ASSIGNEES", "")
+    forced_reviewers = os.environ.get("FORCED_REVIEWERS", "")
+    forced_labels = os.environ.get("FORCED_LABELS", "")
+    clear_existing_assignees = os.environ.get("CLEAR_EXISTING_ASSIGNEES", "false")
+    clear_existing_reviewers = os.environ.get("CLEAR_EXISTING_REVIEWERS", "false")
+    clear_existing_labels = os.environ.get("CLEAR_EXISTING_LABELS", "false")
 
-    pr_number = sys.argv[1]
-    possible_assignees = sys.argv[2]
-    possible_reviewers = sys.argv[3]
-    forced_assignees = sys.argv[4]
-    forced_reviewers = sys.argv[5]
-    forced_labels = sys.argv[6]
-    clear_existing_assignees = sys.argv[7]
-    clear_existing_reviewers = sys.argv[8]
-    clear_existing_labels = sys.argv[9]
+    if not pr_number:
+        print("Error: PR_NUMBER environment variable not set")
+        sys.exit(1)
 
     repo = os.environ.get("GITHUB_REPOSITORY", "")
 
