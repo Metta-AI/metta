@@ -833,7 +833,7 @@ class MettaTrainer:
         for category, score in category_scores_map.items():
             overview[f"{category}_score"] = score
 
-        losses = self.losses.to_dict()
+        losses = self.losses.stats()
 
         # don't plot losses that are unused
         if self.trainer_cfg.l2_reg_loss_coef == 0:
@@ -843,8 +843,6 @@ class MettaTrainer:
         if not self.kickstarter.enabled:
             losses.pop("ks_action_loss")
             losses.pop("ks_value_loss")
-
-        experience = self.experience.to_dict()
 
         parameters = {
             "learning_rate": self.optimizer.param_groups[0]["lr"],
@@ -856,7 +854,7 @@ class MettaTrainer:
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
                 **{f"losses/{k}": v for k, v in losses.items()},
-                **{f"experience/{k}": v for k, v in experience.items()},
+                **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
                 **{f"eval_{k}": v for k, v in self.evals.items()},
                 **environment_stats,
