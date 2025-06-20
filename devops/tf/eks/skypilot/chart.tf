@@ -29,8 +29,6 @@ resource "helm_release" "skypilot" {
   namespace        = "skypilot"
   create_namespace = true
 
-  force_update = true
-
   set = [
     {
       name  = "ingress-nginx.controller.service.annotations.service\\.beta\\.kubernetes\\.io/aws-load-balancer-scheme"
