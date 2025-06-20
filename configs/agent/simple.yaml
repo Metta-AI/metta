@@ -1,4 +1,9 @@
 # see reference_design.yaml for explanation of components
+
+# This is a CNN-based model that takes environment tokens and converts them into a box with channels, width, and
+# height, and then passes it to a CNN encoder stack. It is not robust to changing observation features. For that,
+# use the attention-based models.
+
 _target_: metta.agent.metta_agent.MettaAgent
 
 observations:
@@ -13,40 +18,56 @@ components:
   #necessary input_source: _obs_
 
   _obs_:
-    _target_: metta.agent.lib.obs_tokenizers.ObsTokenPadStrip
+    _target_: metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper
     sources:
       null
 
   obs_normalizer:
-    _target_: metta.agent.lib.obs_tokenizers.ObsAttrValNorm
+    _target_: metta.agent.lib.observation_normalizer.ObservationNormalizer
     sources:
       - name: _obs_
 
-  obs_fourier:
-    _target_: metta.agent.lib.obs_tokenizers.ObsAttrEmbedFourier
-    attr_embed_dim: 10
-    num_freqs: 4
+  cnn1:
+    _target_: metta.agent.lib.nn_layer_library.Conv2d
     sources:
       - name: obs_normalizer
+    nn_params:
+      out_channels: 64
+      kernel_size: 5
+      stride: 3
 
-  obs_cross_attn:
-    _target_: metta.agent.lib.obs_enc.ObsLatentAttn
-    out_dim: 128
-    use_mask: true
-    num_layers: 2
-    num_heads: 4
-    num_query_tokens: 1
-    use_cls_token: true
-    query_token_dim: 32
-    qk_dim: 32
-    mlp_out_hidden_dim: 256
+  cnn2:
+    _target_: metta.agent.lib.nn_layer_library.Conv2d
     sources:
-      - name: obs_fourier
+      - name: cnn1
+    nn_params:
+      out_channels: 64
+      kernel_size: 3
+      stride: 1
+
+  obs_flattener:
+    _target_: metta.agent.lib.nn_layer_library.Flatten
+    sources:
+      - name: cnn2
+
+  fc1:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: obs_flattener
+    nn_params:
+      out_features: 128
+
+  encoded_obs:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: fc1
+    nn_params:
+      out_features: 128
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
-      - name: obs_cross_attn
+      - name: encoded_obs
     output_size: 128
     nn_params:
       num_layers: 2
