@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from omegaconf import DictConfig
 
@@ -13,6 +13,9 @@ class Curriculum:
     def complete_task(self, id: str, score: float):
         # logger.info(f"Task completed: {id} -> {score:.5f}")
         pass
+
+    def completed_tasks(self) -> List[str]:
+        return self.completed_tasks
 
 
 class Task:
