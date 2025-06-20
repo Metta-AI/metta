@@ -1,6 +1,7 @@
 resources:
   cloud: aws
   any_of:
+    # us-east-1
     - region: us-east-1
       use_spot: true
       accelerators: "L4:1"
@@ -11,6 +12,7 @@ resources:
       accelerators: "L4:1"
     - region: us-east-1
       accelerators: "A10G:1"
+    # us-west-2
     - region: us-west-2
       use_spot: true
       accelerators: "L4:1"
