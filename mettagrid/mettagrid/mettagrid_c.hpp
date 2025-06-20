@@ -74,7 +74,6 @@ public:
 
 private:
   // Member variables
-  py::dict _cfg;
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;
