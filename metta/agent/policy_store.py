@@ -15,12 +15,10 @@ import os
 import pickle
 import random
 import sys
-from types import SimpleNamespace
 from typing import List, Optional, Union
 
 import torch
 import wandb
-from hydra.utils import instantiate
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 
@@ -31,41 +29,6 @@ from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger("policy_store")
-
-
-def build_pytorch_policy(path: str, device: str = "cpu", pytorch: DictConfig = None):
-    """Build a policy from a PyTorch checkpoint.
-
-    This function creates a policy from PyTorch checkpoint weights by instantiating
-    it with the proper configuration and wrapping it for use with MettaAgent.
-    """
-    weights = torch.load(path, map_location=device, weights_only=True)
-
-    try:
-        num_actions, hidden_size = weights["policy.actor.0.weight"].shape
-        num_action_args, _ = weights["policy.actor.1.weight"].shape
-        _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
-    except Exception as e:
-        print(f"Failed automatic parse from weights: {e}")
-        # TODO -- fix all magic numbers
-        num_actions, num_action_args = 9, 10
-        _, obs_channels = 128, 34
-
-    # Create environment namespace
-    env = SimpleNamespace(
-        single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
-        single_observation_space=SimpleNamespace(shape=tuple(torch.tensor([obs_channels, 11, 11]).tolist())),
-    )
-
-    policy = instantiate(pytorch, env=env, policy=None)
-    policy.load_state_dict(weights)
-
-    # Use PytorchPolicy from pytorch_policy.py to wrap the loaded policy
-    from metta.agent.pytorch_policy import PytorchPolicy
-
-    wrapped_policy = PytorchPolicy(policy)
-    wrapped_policy.hidden_size = hidden_size
-    return wrapped_policy.to(device)
 
 
 class PolicySelectorConfig(Config):
@@ -95,7 +58,7 @@ class PolicyStore:
     ) -> List[PolicyRecord]:
         if not isinstance(policy, str):
             policy = policy.uri
-        return self._policy_records(policy, selector_type, n=n, metric=metric)
+        return self._policy_records(policy, selector_type=selector_type, n=n, metric=metric)
 
     def _policy_records(self, uri, selector_type="top", n=1, metric: str = "score"):
         version = None
@@ -394,9 +357,9 @@ class PolicyStore:
         except Exception as e:
             logger.debug(f"Not a JIT model ({e}), trying as regular PyTorch checkpoint")
 
-        # Fall back to regular PyTorch checkpoint loading using build_pytorch_policy
+        # Fall back to regular PyTorch checkpoint loading
         try:
-            policy = build_pytorch_policy(path, self._device, pytorch=self._cfg.get("pytorch"))
+            policy = MettaAgent._build_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
             pr = PolicyRecord(self, name, "pytorch://" + name, default_metadata)
             pr._policy = MettaAgent(policy)
             return pr

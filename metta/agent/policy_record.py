@@ -5,7 +5,6 @@ This module implements PolicyRecord which tracks trained policies along with the
 construction context, enabling exact reconstruction even when class definitions change.
 """
 
-import inspect
 import logging
 import sys
 from typing import TYPE_CHECKING, Optional, Union
@@ -79,7 +78,7 @@ class PolicyRecord:
             self._build_context = build_context
             # Capture source code for the policy class if not already captured
             if not build_context.source_code:
-                build_context.source_code = self._capture_source_code(actual_policy)
+                build_context.source_code = MettaAgent._capture_policy_source_code(actual_policy)
 
         # Prepare checkpoint data
         checkpoint_data = {
@@ -127,15 +126,12 @@ class PolicyRecord:
 
             # Try standard reconstruction
             try:
-                # Import MettaAgentBuilder here to avoid circular imports
-                from metta.agent.metta_agent import MettaAgentBuilder
-
-                # Need the policy store's config for the builder
+                # Need the policy store's config
                 if self._policy_store is None:
                     raise ValueError("PolicyStore is required for reconstruction")
-                builder = MettaAgentBuilder(self._policy_store._cfg)
+                cfg = self._policy_store._cfg
 
-                # Call the appropriate builder method
+                # Call the appropriate MettaAgent factory method
                 if build_context.method == "build_from_brain_policy":
                     # For BrainPolicy, we need to reconstruct from config
                     # First, try to use the stored configuration
@@ -146,21 +142,17 @@ class PolicyRecord:
                         # Use the stored config
                         cfg = DictConfig(build_context.config)
 
-                        # Create a new builder with this config
-                        builder._cfg = cfg
-
                         # Reconstruct environment from saved attributes
                         env = self._reconstruct_env(build_context.env_attributes)
-                        agent, _ = builder.build_from_brain_policy(env)
+                        agent, _ = MettaAgent.from_brain_policy(env, cfg)
                     else:
                         # Fallback to old method if no config stored
                         env = self._reconstruct_env(build_context.env_attributes)
-                        agent, _ = builder.build_from_brain_policy(env)
+                        agent, _ = MettaAgent.from_brain_policy(env, cfg)
 
                 elif build_context.method == "build_from_pytorch_policy":
-                    # For pytorch policies, we need to save and reload the checkpoint
-                    # This is a bit circular, but necessary for the current architecture
-                    agent, _ = builder.build_from_pytorch_policy(path)
+                    # For pytorch policies, we use the checkpoint path
+                    agent, _ = MettaAgent.from_pytorch_policy(path, device=device, pytorch_cfg=cfg.get("pytorch", None))
 
                 elif build_context.method == "build_from_policy_class":
                     # Reconstruct the class from source code
@@ -188,7 +180,7 @@ class PolicyRecord:
                     # Build the agent with the reconstructed class
                     # Remove 'class_name' from kwargs as it's not a constructor argument
                     constructor_kwargs = {k: v for k, v in build_context.kwargs.items() if k != "class_name"}
-                    agent, _ = builder.build_from_policy_class(policy_class, *build_context.args, **constructor_kwargs)
+                    agent, _ = MettaAgent.from_policy_class(policy_class, *build_context.args, **constructor_kwargs)
 
                 else:
                     raise ValueError(f"Unknown build method: {build_context.method}")
@@ -211,19 +203,14 @@ class PolicyRecord:
         # For old checkpoints, try to reconstruct from metadata
         if "metadata" in checkpoint and "reconstruction_attributes" in checkpoint["metadata"]:
             try:
-                # Import MettaAgentBuilder here to avoid circular imports
-                from metta.agent.metta_agent import MettaAgentBuilder
-
                 if self._policy_store is None:
                     raise ValueError("PolicyStore is required for reconstruction")
-
-                builder = MettaAgentBuilder(self._policy_store._cfg)
 
                 # Try to reconstruct as BrainPolicy using reconstruction_attributes
                 env_attrs = checkpoint["metadata"]["reconstruction_attributes"]
                 if env_attrs:
                     env = self._reconstruct_env(env_attrs)
-                    agent, _ = builder.build_from_brain_policy(env)
+                    agent, _ = MettaAgent.from_brain_policy(env, self._policy_store._cfg)
 
                     # Load the state dict
                     actual_policy = agent.policy if isinstance(agent, MettaAgent) else agent
@@ -258,61 +245,6 @@ class PolicyRecord:
 
         # Final fallback to source code reconstruction
         return self._load_from_source_code(checkpoint, device)
-
-    def _capture_source_code(self, policy: nn.Module) -> dict:
-        """Capture source code for a policy class and its dependencies."""
-        source_code = {}
-        try:
-            # Handle wrapped policies (e.g., PytorchPolicy wrapping another policy)
-            from metta.agent.pytorch_policy import PytorchPolicy
-
-            if isinstance(policy, PytorchPolicy) and hasattr(policy, "policy"):
-                # Capture source for the wrapped policy too
-                wrapped_source = self._capture_source_code(policy.policy)
-                source_code.update(wrapped_source)
-
-            policy_class = policy.__class__
-            module_name = policy_class.__module__
-            class_name = policy_class.__name__
-            full_class_path = f"{module_name}.{class_name}"
-
-            # Save the class source
-            try:
-                source_code[full_class_path] = inspect.getsource(policy_class)
-            except OSError:
-                # If we can't get the source (e.g., built-in classes), skip
-                logger.warning(f"Could not get source for class {full_class_path}")
-
-            # Save the module source if possible
-            module = sys.modules.get(module_name)
-            if module and hasattr(module, "__file__") and module.__file__:
-                try:
-                    with open(module.__file__, "r") as f:
-                        source_code[module_name] = f.read()
-                except Exception:
-                    # For __main__ module or modules without files, try to capture from source
-                    if module_name == "__main__":
-                        # Try to capture the entire __main__ module source
-                        try:
-                            import __main__
-
-                            # Get all classes and functions defined in __main__
-                            main_source = []
-                            for name, obj in vars(__main__).items():
-                                if inspect.isclass(obj) or inspect.isfunction(obj):
-                                    try:
-                                        main_source.append(inspect.getsource(obj))
-                                    except:
-                                        pass
-                            if main_source:
-                                source_code[module_name] = "\n\n".join(main_source)
-                        except:
-                            pass
-
-        except Exception as e:
-            logger.warning(f"Could not capture source code: {e}")
-
-        return source_code
 
     def _reconstruct_env(self, env_attributes: dict):
         """Reconstruct an environment-like object from saved attributes."""
@@ -360,7 +292,6 @@ class PolicyRecord:
     ) -> nn.Module:
         """Reconstruct BrainPolicy from saved source code and configuration."""
         import importlib.util
-        import sys
 
         # Save current modules to restore later
         saved_modules = {}
@@ -585,18 +516,13 @@ class PolicyRecord:
         # Use the initial checkpoint's build context
         build_context = BuildContext.from_dict(initial_checkpoint["build_context"])
 
-        # Import MettaAgentBuilder here to avoid circular imports
-        from metta.agent.metta_agent import MettaAgentBuilder
-
         if self._policy_store is None:
             raise ValueError("PolicyStore is required for reconstruction")
-
-        builder = MettaAgentBuilder(self._policy_store._cfg)
 
         # Reconstruct using the build context
         if build_context.method == "build_from_brain_policy":
             env = self._reconstruct_env(build_context.env_attributes)
-            agent, _ = builder.build_from_brain_policy(env)
+            agent, _ = MettaAgent.from_brain_policy(env, self._policy_store._cfg)
 
             # Activate actions if available in metadata
             if "metadata" in checkpoint and "action_names" in checkpoint["metadata"]:
@@ -622,9 +548,6 @@ class PolicyRecord:
 
         # Try to load the model state dict directly into current code
         try:
-            # Import MettaAgentBuilder here to avoid circular imports
-            from metta.agent.metta_agent import MettaAgentBuilder
-
             if self._policy_store is None:
                 raise ValueError("PolicyStore is required for reconstruction")
 
@@ -672,8 +595,7 @@ class PolicyRecord:
                         }
                     )
 
-                builder = MettaAgentBuilder(cfg)
-                agent, _ = builder.build_from_brain_policy(env)
+                agent, _ = MettaAgent.from_brain_policy(env, cfg)
 
                 # Try to load the state dict
                 actual_policy = agent.policy if hasattr(agent, "policy") else agent
