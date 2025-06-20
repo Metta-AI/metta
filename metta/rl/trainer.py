@@ -31,6 +31,7 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.util.heartbeat import record_heartbeat
+from metta.util.system_monitor import SystemMonitor
 from metta.util.wandb.wandb_context import WandbRun
 from mettagrid.curriculum import curriculum_from_config_path
 from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
@@ -94,6 +95,13 @@ class MettaTrainer:
 
         self.timer = Stopwatch(logger)
         self.timer.start()
+
+        self.system_monitor = SystemMonitor(
+            sampling_interval_sec=1.0,  # Sample every second
+            history_size=100,  # Keep last 100 samples
+            logger=logger,
+            auto_start=True,  # Start monitoring immediately
+        )
 
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
@@ -290,6 +298,7 @@ class MettaTrainer:
 
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
+        self.system_monitor.stop()
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
@@ -833,7 +842,7 @@ class MettaTrainer:
         for category, score in category_scores_map.items():
             overview[f"{category}_score"] = score
 
-        losses = self.losses.to_dict()
+        losses = self.losses.stats()
 
         # don't plot losses that are unused
         if self.trainer_cfg.l2_reg_loss_coef == 0:
@@ -843,8 +852,6 @@ class MettaTrainer:
         if not self.kickstarter.enabled:
             losses.pop("ks_action_loss")
             losses.pop("ks_value_loss")
-
-        experience = self.experience.to_dict()
 
         parameters = {
             "learning_rate": self.optimizer.param_groups[0]["lr"],
@@ -856,9 +863,10 @@ class MettaTrainer:
             {
                 **{f"overview/{k}": v for k, v in overview.items()},
                 **{f"losses/{k}": v for k, v in losses.items()},
-                **{f"experience/{k}": v for k, v in experience.items()},
+                **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
                 **{f"eval_{k}": v for k, v in self.evals.items()},
+                **{f"monitor/{k}": v for k, v in self.system_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
                 **timing_stats,
