@@ -38,6 +38,7 @@ class SmokeTest(ABC):
         self.print_config()
         print("=" * 60)
 
+    @abstractmethod
     def print_config(self):
         """Override to print additional configuration."""
         pass
@@ -52,14 +53,16 @@ class SmokeTest(ABC):
         Returns:
             Tuple of (success, full_output)
         """
+        MAX_STDERR_CHARS = 20000
+
         if not result["success"]:
             print(f"{self.test_name.title()} failed with exit code: {result['exit_code']}")
             if result["timeout"]:
                 print(f"{self.test_name.title()} timed out")
             elif result["stderr"]:
                 print("STDERR output:")
-                print(result["stderr"][:1000])
-                if len(result["stderr"]) > 1000:
+                print(result["stderr"][:MAX_STDERR_CHARS])
+                if len(result["stderr"]) > MAX_STDERR_CHARS:
                     print("... (truncated)")
 
         full_output = result["stdout"] + "\n" + result["stderr"]
