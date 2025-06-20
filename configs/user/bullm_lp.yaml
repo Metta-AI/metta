@@ -13,21 +13,21 @@ run_dir: ${data_dir}/${run}
 
 trainer:
   curriculum: env/mettagrid/curriculum/learningprogress_navigation
-  total_timesteps: 1_000_000
-  gamma: 0.99
-  gae_lambda: 0.95
-  vf_coef: 0.5
-  ent_coef: 0.01
-  batch_size: 512
-  minibatch_size: 256
-  bptt_horizon: 8
-  learning_rate: 3e-4
-  evaluate_interval: 100
+  #total_timesteps: 1000000
+  #gamma: 0.99
+  #gae_lambda: 0.95
+  #vf_coef: 0.5
+  #ent_coef: 0.01
+  #batch_size: 512
+  #minibatch_size: 256
+  #bptt_horizon: 8
+  #learning_rate: 3e-4
+  #evaluate_interval: 100
   num_workers: 4
 
 wandb:
-  enabled: True
+  enabled: false
   project: metta
   entity: metta-research
   name: ${run}
-  tags: ["msb_nav_lp"]
+  tags: ["msb_nav_lp_comparionsion"]
