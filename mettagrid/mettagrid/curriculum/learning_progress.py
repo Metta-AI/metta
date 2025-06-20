@@ -68,9 +68,6 @@ class LearningProgressCurriculum(RandomCurriculum):
 
         # Normalize weights
         self._normalize_weights()
-        logger.debug(f"Updated task weights based on learning progress: {self._task_weights}")
-
-        logger.debug(f"Updated learning progress for task {id} with score {score}")
 
         super().complete_task(id, score)
 
@@ -295,7 +292,6 @@ class BidirectionalLearningProgress:
 
     def calculate_dist(self):
         if all([v < self.sample_threshold for k, v in self.counter.items()]) and self.random_baseline is not None:
-            logger.debug(f"Using existing task_dist: {self.task_dist}")
             # Ensure we have valid task_dist and sample_levels
             if self.task_dist is None or len(self.task_dist) == 0:
                 self.task_dist = np.ones(self.num_tasks) / self.num_tasks
@@ -313,8 +309,6 @@ class BidirectionalLearningProgress:
         if tasks is None or len(tasks) == 0:
             tasks = np.arange(self.num_tasks).astype(np.int32)
 
-        logger.debug(f"Calculated new task_dist: {dist}")
-        logger.debug(f"Sample levels: {tasks}")
         return dist, tasks
 
     def reset_outcomes(self):
