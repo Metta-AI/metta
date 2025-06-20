@@ -19,7 +19,7 @@ class RandomCurriculum(MultiTaskCurriculum):
     def __init__(self, curricula_cfgs: Dict[str, float], env_overrides: DictConfig):
         curricula = {t: self._curriculum_from_id(t, env_overrides) for t in curricula_cfgs.keys()}
         self._task_weights = curricula_cfgs
-        super().__init__(curricula, env_overrides)
+        super().__init__(curricula)
 
     def get_task(self) -> Task:
         task_id = random.choices(list(self._curricula.keys()), weights=list(self._task_weights.values()))[0]
