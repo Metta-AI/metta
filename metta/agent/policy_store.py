@@ -15,19 +15,57 @@ import os
 import random
 import sys
 import warnings
+from types import SimpleNamespace
 from typing import List, Optional, Union
 
 import torch
 import wandb
+from hydra.utils import instantiate
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 
 from metta.agent.brain_policy import BrainPolicy
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, load_policy, make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.agent.policy_store import MettaAgentBuilder
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger("policy_store")
+
+
+def build_pytorch_policy(path: str, device: str = "cpu", pytorch: DictConfig = None):
+    """Build a policy from a PyTorch checkpoint.
+
+    This function creates a policy from PyTorch checkpoint weights by instantiating
+    it with the proper configuration and wrapping it for use with MettaAgent.
+    """
+    weights = torch.load(path, map_location=device, weights_only=True)
+
+    try:
+        num_actions, hidden_size = weights["policy.actor.0.weight"].shape
+        num_action_args, _ = weights["policy.actor.1.weight"].shape
+        _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
+    except Exception as e:
+        print(f"Failed automatic parse from weights: {e}")
+        # TODO -- fix all magic numbers
+        num_actions, num_action_args = 9, 10
+        _, obs_channels = 128, 34
+
+    # Create environment namespace
+    env = SimpleNamespace(
+        single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
+        single_observation_space=SimpleNamespace(shape=tuple(torch.tensor([obs_channels, 11, 11]).tolist())),
+    )
+
+    policy = instantiate(pytorch, env=env, policy=None)
+    policy.load_state_dict(weights)
+
+    # Use PytorchPolicy from pytorch_policy.py to wrap the loaded policy
+    from metta.agent.pytorch_policy import PytorchPolicy
+
+    wrapped_policy = PytorchPolicy(policy)
+    wrapped_policy.hidden_size = hidden_size
+    return wrapped_policy.to(device)
 
 
 class PolicySelectorConfig(Config):
@@ -358,17 +396,43 @@ class PolicyStore:
         return pr
 
     def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
+        """Save a policy with its source code for robust reconstruction."""
         logger.info(f"Saving policy to {path}")
-        pr = PolicyRecord(self, path, "file://" + path, metadata)
-        pr._policy = policy
-        pr._policy_store = None
-        torch.save(pr, path)
-        pr._policy_store = self
-        # Don't cache the policy that we just saved,
-        # since it might be updated later. We always
-        # load the policy from the file when needed.
-        pr._policy = None
-        self._cached_prs[path] = pr
+
+        pr = PolicyRecord(self, name, "file://" + path, metadata)
+        actual_policy = policy.policy if isinstance(policy, MettaAgent) else policy
+
+        # Get source code for the policy class
+        source_code = {}
+        model_class_path = None
+        try:
+            import inspect
+
+            policy_class = actual_policy.__class__
+            module_name = policy_class.__module__
+            model_class_path = f"{module_name}.{policy_class.__name__}"
+
+            # Save the source of the class and its module
+            source_code[model_class_path] = inspect.getsource(policy_class)
+            module = sys.modules.get(module_name)
+            if module and hasattr(module, "__file__") and module.__file__:
+                with open(module.__file__, "r") as f:
+                    source_code[module_name] = f.read()
+        except Exception as e:
+            logger.warning(f"Could not save source code: {e}")
+
+        # Save state dict, class path, and source code
+        torch.save(
+            {
+                "model_state_dict": actual_policy.state_dict(),
+                "model_class_path": model_class_path,
+                "source_code": source_code,
+                "policy_record": pr,
+            },
+            path,
+        )
+
+        logger.info(f"Saved policy with source code to {path}")
         return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
@@ -507,51 +571,71 @@ class PolicyStore:
                     modules_queue.append(submodule_name)
 
     def _load_from_pytorch(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        policy = load_policy(path, self._device, puffer=self._cfg.puffer)
+        """Load a policy from a PyTorch checkpoint or JIT model."""
         name = os.path.basename(path)
-        pr = PolicyRecord(
-            self,
-            name,
-            "pytorch://" + name,
-            {
-                "action_names": [],
-                "agent_step": 0,
-                "epoch": 0,
-                "generation": 0,
-                "train_time": 0,
-            },
-        )
-        pr._policy = MettaAgent(policy)
-        return pr
+
+        # Common metadata for pytorch loads
+        default_metadata = {
+            "action_names": [],
+            "agent_step": 0,
+            "epoch": 0,
+            "generation": 0,
+            "train_time": 0,
+        }
+
+        # First try to load as a JIT model
+        try:
+            jit_model = torch.jit.load(path, map_location=self._device)
+            logger.info(f"Successfully loaded as JIT model from {path}")
+
+            pr = PolicyRecord(self, name, "pytorch://" + name, default_metadata)
+            pr._policy = MettaAgent(jit_model)
+            return pr
+        except Exception as e:
+            logger.debug(f"Not a JIT model ({e}), trying as regular PyTorch checkpoint")
+
+        # Fall back to regular PyTorch checkpoint loading using load_policy
+        try:
+            policy = build_pytorch_policy(path, self._device, pytorch=self._cfg.get("pytorch"))
+            pr = PolicyRecord(self, name, "pytorch://" + name, default_metadata)
+            pr._policy = MettaAgent(policy)
+            return pr
+        except Exception as e:
+            logger.error(f"Failed to load policy from {path}: {e}")
+            raise
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        """Load a policy from a file using standard PyTorch deserialization."""
         if path in self._cached_prs:
             if metadata_only or self._cached_prs[path]._policy is not None:
                 return self._cached_prs[path]
+
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
+
         logger.info(f"Loading policy from {path}")
 
         self._make_codebase_backwards_compatible()
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
 
-        # Simple load - just load the PolicyRecord object
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
 
-            pr = torch.load(
-                path,
-                map_location=self._device,
-                weights_only=False,
-            )
-            pr._policy_store = self
-            pr._local_path = path
-            self._cached_prs[path] = pr
-            if metadata_only:
-                pr._policy = None
-                pr._local_path = None
-            return pr
+            # Load the PolicyRecord
+            pr = torch.load(path, map_location=self._device, weights_only=False)
+
+        pr._policy_store = self
+        pr._local_path = path
+
+        # Cache it
+        self._cached_prs[path] = pr
+
+        if metadata_only:
+            pr._policy = None
+            pr._local_path = None
+
+        return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")

@@ -1,12 +1,10 @@
 import logging
-from types import SimpleNamespace
 from typing import Optional
 
 import gymnasium as gym
 import hydra
 import numpy as np
 import torch
-from hydra.utils import instantiate
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
@@ -15,41 +13,6 @@ from metta.agent.policy_state import PolicyState
 from mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
-
-
-def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
-    """Load a policy from a PyTorch checkpoint.
-
-    This function handles legacy policies and wraps them appropriately
-    for use with MettaAgent.
-    """
-    weights = torch.load(path, map_location=device, weights_only=True)
-
-    try:
-        num_actions, hidden_size = weights["policy.actor.0.weight"].shape
-        num_action_args, _ = weights["policy.actor.1.weight"].shape
-        _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
-    except Exception as e:
-        print(f"Failed automatic parse from weights: {e}")
-        # TODO -- fix all magic numbers
-        num_actions, num_action_args = 9, 10
-        _, obs_channels = 128, 34
-
-    # Create environment namespace
-    env = SimpleNamespace(
-        single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
-        single_observation_space=SimpleNamespace(shape=tuple(torch.tensor([obs_channels, 11, 11]).tolist())),
-    )
-
-    policy = instantiate(puffer, env=env, policy=None)
-    policy.load_state_dict(weights)
-
-    # Use PytorchPolicy from pytorch_policy.py to wrap the loaded policy
-    from metta.agent.pytorch_policy import PytorchPolicy
-
-    wrapped_policy = PytorchPolicy(policy)
-    wrapped_policy.hidden_size = hidden_size
-    return wrapped_policy.to(device)
 
 
 class MettaAgentBuilder:
@@ -81,10 +44,12 @@ class MettaAgentBuilder:
     def build_from_pytorch_policy(self, path) -> "MettaAgent":
         """Build a MettaAgent from a PyTorch policy checkpoint.
 
-        This loads a policy using the load_policy function which handles
+        This loads a policy using the build_pytorch_policy function which handles
         legacy policies and wraps them appropriately.
         """
-        policy = load_policy(path, self._cfg.device, puffer=self._cfg.puffer)
+        from metta.agent.policy_store import build_pytorch_policy
+
+        policy = build_pytorch_policy(path, self._cfg.device, pytorch=self._cfg.get("pytorch", None))
         return MettaAgent(policy)
 
     def build_from_policy_class(self, policy_class, *args, **kwargs) -> "MettaAgent":
@@ -107,19 +72,43 @@ class MettaAgentBuilder:
 
         return MettaAgent(policy)
 
-    def load_from_disk(self, path) -> "MettaAgent":
-        """Load a model from disk, supporting torch.jit models."""
+    def build_from_source_file(self, path: str) -> "MettaAgent":
+        """Build a MettaAgent by reconstructing it from a saved source file."""
+        checkpoint = torch.load(path, map_location=self._cfg.device)
+
+        # Get class path and source code
+        model_class_path = checkpoint.get("model_class_path")
+        source_code = checkpoint.get("source_code", {})
+
+        if not model_class_path or not source_code:
+            raise ValueError("File does not contain source code for reconstruction")
+
+        # Reconstruct the model
         try:
-            # Try loading as torch.jit model first
-            model = torch.jit.load(path, map_location=self._cfg.device)
-            logger.info(f"Successfully loaded torch.jit model from {path}")
+            import importlib.util
+
+            module_name, class_name = model_class_path.rsplit(".", 1)
+
+            # Load the class from the saved source code
+            spec = importlib.util.spec_from_loader(module_name, loader=None)
+            module = importlib.util.module_from_spec(spec)
+
+            # Use the module's source if available, otherwise just the class source
+            module_source = source_code.get(module_name, source_code.get(model_class_path))
+            exec(module_source, module.__dict__)
+
+            model_class = getattr(module, class_name)
+
+            # This assumes a default constructor, may need to pass args
+            model = model_class()
+            model.load_state_dict(checkpoint["model_state_dict"])
+
+            logger.info(f"Reconstructed model from class {model_class_path}")
             return MettaAgent(model)
+
         except Exception as e:
-            logger.debug(f"Not a torch.jit model ({e}), falling back to PolicyStore")
-            # Fall back to PolicyStore loading for regular checkpoints
-            raise NotImplementedError(
-                "Loading non-jit models should go through PolicyStore. Use PolicyStore.load_from_uri instead."
-            )
+            logger.error(f"Failed to reconstruct model: {e}")
+            raise ValueError(f"Could not reconstruct model from {path}")
 
 
 def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig) -> "MettaAgent":
@@ -177,112 +166,44 @@ class MettaAgent(nn.Module):
         return sum(p.numel() for p in self.policy.parameters())
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """
-        Convert (action_type, action_param) pairs to discrete action indices
-        using precomputed offsets.
-
-        Args:
-            flattened_action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
-
-        Returns:
-            action_logit_indices: Tensor of shape [B*T] containing flattened action indices
-        """
-        # Delegate to the wrapped policy
+        """Convert (action_type, action_param) pairs to discrete action indices."""
         return self.policy._convert_action_to_logit_index(flattened_action)
 
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
-        """
-        Convert logit indices back to action pairs using tensor indexing.
-
-        Args:
-            action_logit_index: Tensor of shape [B*T] containing flattened action indices
-
-        Returns:
-            action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
-        """
-        # Delegate to the wrapped policy
+        """Convert logit indices back to action pairs."""
         return self.policy._convert_logit_index_to_action(action_logit_index)
 
     def _apply_to_components(self, method_name, *args, **kwargs) -> list[torch.Tensor]:
-        """
-        Apply a method to all components, collecting and returning the results.
+        """Apply a method to all components."""
+        return getattr(self.policy, "_apply_to_components", lambda *a, **k: [])(method_name, *args, **kwargs)
 
-        Args:
-            method_name: Name of the method to call on each component
-            *args, **kwargs: Arguments to pass to the method
+    def _delegate_if_exists(self, method_name, *args, **kwargs):
+        """Helper to delegate method calls to wrapped policy if the method exists."""
+        if hasattr(self.policy, method_name):
+            return getattr(self.policy, method_name)(*args, **kwargs)
 
-        Returns:
-            list: Results from calling the method on each component
-
-        Raises:
-            AttributeError: If any component doesn't have the requested method
-            TypeError: If a component's method is not callable
-            AssertionError: If no components are available
-        """
-        # Delegate to the wrapped policy if it has this method
-        if hasattr(self.policy, "_apply_to_components"):
-            return self.policy._apply_to_components(method_name, *args, **kwargs)
-
-        # Otherwise, for non-BrainPolicy policies, return empty list
-        return []
+    def _get_loss_or_zero(self, loss_name: str) -> torch.Tensor:
+        """Helper to get a loss value from the policy or return zero tensor."""
+        if hasattr(self.policy, loss_name):
+            return getattr(self.policy, loss_name)()
+        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
 
     def l2_reg_loss(self) -> torch.Tensor:
-        """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
-        it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
-        """
-        if hasattr(self.policy, "l2_reg_loss"):
-            return self.policy.l2_reg_loss()
-        else:
-            return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
+        """L2 regularization loss."""
+        return self._get_loss_or_zero("l2_reg_loss")
 
     def l2_init_loss(self) -> torch.Tensor:
-        """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
-        it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.
-        """
-        if hasattr(self.policy, "l2_init_loss"):
-            return self.policy.l2_init_loss()
-        else:
-            return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
+        """L2 initialization loss."""
+        return self._get_loss_or_zero("l2_init_loss")
 
     def update_l2_init_weight_copy(self):
-        """Update interval set by l2_init_weight_update_interval. 0 means no updating."""
-        if hasattr(self.policy, "update_l2_init_weight_copy"):
-            self.policy.update_l2_init_weight_copy()
+        """Update interval set by l2_init_weight_update_interval."""
+        self._delegate_if_exists("update_l2_init_weight_copy")
 
     def clip_weights(self):
-        """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value
-        effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global
-        loss value or 0 to turn it off."""
-        if hasattr(self.policy, "clip_weights"):
-            self.policy.clip_weights()
+        """Weight clipping."""
+        self._delegate_if_exists("clip_weights")
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics for all components that have weights enabled for analysis.
-        Returns a list of metric dictionaries, one per component. Set analyze_weights to True in the config to turn it
-        on for a given component."""
-        if hasattr(self.policy, "compute_weight_metrics"):
-            return self.policy.compute_weight_metrics(delta)
-        return []
-
-    def save_jit(self, path: str, example_input=None):
-        """Save the model as torch.jit for version-independent loading.
-
-        Args:
-            path: Path to save the jit model
-            example_input: Optional example input for tracing. If not provided,
-                          will use scripting instead of tracing.
-        """
-        try:
-            if example_input is not None:
-                # Use tracing with example input
-                traced = torch.jit.trace(self.policy, example_input)
-                torch.jit.save(traced, path)
-                logger.info(f"Saved traced torch.jit model to {path}")
-            else:
-                # Use scripting
-                scripted = torch.jit.script(self.policy)
-                torch.jit.save(scripted, path)
-                logger.info(f"Saved scripted torch.jit model to {path}")
-        except Exception as e:
-            logger.error(f"Failed to save as torch.jit: {e}")
-            raise
+        """Compute weight metrics for all components."""
+        return self._delegate_if_exists("compute_weight_metrics", delta) or []
