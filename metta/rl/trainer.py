@@ -2,7 +2,6 @@ import logging
 import os
 import time
 from collections import defaultdict
-from contextlib import nullcontext
 from typing import Any, Set
 from uuid import UUID
 
@@ -215,7 +214,7 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        logger.info(f"MettaTrainer initialization complete on device: {self.device}")
+                logger.info(f"MettaTrainer initialization complete on device: {self.device}")
 
     def train(self) -> None:
         logger.info("Starting training")
@@ -878,31 +877,18 @@ class MettaTrainer:
         vtrace_rho_clip,
         vtrace_c_clip,
     ):
-        """CUDA kernel for puffer advantage with automatic CPU fallback."""
-
-        # Get correct device for this process
-        device = torch.device(self.device) if isinstance(self.device, str) else self.device
-
-        # Move tensors to device and compute advantage
-        tensors = [values, rewards, dones, importance_sampling_ratio, advantages]
-        tensors = [t.to(device) for t in tensors]
-        values, rewards, dones, importance_sampling_ratio, advantages = tensors
-
-        # Create context manager that only applies CUDA device context if needed
-        device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
-        with device_context:
-            torch.ops.pufferlib.compute_puff_advantage(
-                values,
-                rewards,
-                dones,
-                importance_sampling_ratio,
-                advantages,
-                gamma,
-                gae_lambda,
-                vtrace_rho_clip,
-                vtrace_c_clip,
-            )
-
+        """CUDA kernel for puffer advantage computation."""
+        torch.ops.pufferlib.compute_puff_advantage(
+            values,
+            rewards,
+            dones,
+            importance_sampling_ratio,
+            advantages,
+            gamma,
+            gae_lambda,
+            vtrace_rho_clip,
+            vtrace_c_clip,
+        )
         return advantages
 
     def _normalize_advantage_distributed(self, adv: torch.Tensor) -> torch.Tensor:
