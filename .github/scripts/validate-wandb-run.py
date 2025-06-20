@@ -13,7 +13,7 @@ import sys
 import wandb
 
 
-def main():
+def main() -> None:
     """Check if a W&B run exists for the given policy."""
     # Get environment variables
     api_key = os.environ.get("WANDB_API_KEY")

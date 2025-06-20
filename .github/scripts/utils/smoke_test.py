@@ -15,7 +15,7 @@ from .benchmark import run_with_benchmark, write_github_output
 class SmokeTest(ABC):
     """Base class for all smoke tests."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.test_name = self.__class__.__name__.replace("SmokeTest", "").lower()
         self.timeout = self.get_timeout()
 
@@ -29,7 +29,7 @@ class SmokeTest(ABC):
         """Return the timeout for this test in seconds."""
         pass
 
-    def print_header(self):
+    def print_header(self) -> None:
         """Print the test header."""
         print("=" * 60)
         print(f"{self.test_name.title()} Smoke Test")
@@ -78,13 +78,12 @@ class SmokeTest(ABC):
         cmd = self.get_command()
         print(f"\nRunning {self.test_name}...")
 
-        # Run with benchmarking
         result = run_with_benchmark(cmd=cmd, name=self.test_name, timeout=self.timeout)
 
         success, full_output = self.process_result(result)
         return success, full_output, result["duration"], result["memory_peak_mb"]
 
-    def print_summary(self, total_duration: float, test_duration: float, memory: float, success: bool):
+    def print_summary(self, total_duration: float, test_duration: float, memory: float, success: bool) -> None:
         """Print the benchmark summary."""
         print(f"\n{'=' * 60}")
         print("Benchmark Summary")
@@ -94,7 +93,7 @@ class SmokeTest(ABC):
         print(f"Peak memory usage: {memory:.1f} MB")
         print(f"Exit status: {'SUCCESS' if success else 'FAILED'}")
 
-    def write_outputs(self, total_duration: float, memory: float, success: bool, **extra_outputs):
+    def write_outputs(self, total_duration: float, memory: float, success: bool, **extra_outputs) -> None:
         """Write GitHub Actions outputs."""
         outputs = {
             "duration": f"{total_duration:.1f}",
