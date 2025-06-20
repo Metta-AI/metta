@@ -72,6 +72,19 @@ class LearningProgressCurriculum(MultiTaskCurriculum):
         task_ids = list(self._curriculums.keys())
         weights = [self._task_weights[task_id] for task_id in task_ids]
 
+        # Handle NaN values in weights
+        weights = [0.0 if np.isnan(w) else w for w in weights]
+
+        # Ensure weights sum to a positive value
+        total_weight = sum(weights)
+        if total_weight <= 0:
+            # If all weights are zero or negative, use uniform distribution
+            weights = [1.0] * len(weights)
+            total_weight = len(weights)
+
+        # Normalize weights to sum to 1
+        weights = [w / total_weight for w in weights]
+
         task_id = random.choices(task_ids, weights=weights)[0]
         task = self._curriculums[task_id].get_task()
         task.add_parent(self, task_id)
@@ -164,15 +177,24 @@ class BidirectionalLearningProgess:
 
     def _update(self):
         task_success_rates = np.array([np.mean(self.outcomes[i]) for i in range(self.num_tasks)])
+        # Handle NaN values in task success rates
+        task_success_rates = np.nan_to_num(task_success_rates, nan=0.0)
         update_mask = self.update_mask
 
         if self.random_baseline is None:
             self.random_baseline = np.minimum(task_success_rates, 0.75)
             self.task_rates = task_success_rates
 
+        # Handle division by zero and NaN in normalization
+        denominator = (1.0 - self.random_baseline[update_mask])
+        denominator = np.where(denominator <= 0, 1.0, denominator)  # Avoid division by zero
+
         normalized_task_success_rates = np.maximum(
             task_success_rates[update_mask] - self.random_baseline[update_mask],
-            np.zeros(task_success_rates[update_mask].shape)) / (1.0 - self.random_baseline[update_mask])
+            np.zeros(task_success_rates[update_mask].shape)) / denominator
+
+        # Handle NaN values in normalized rates
+        normalized_task_success_rates = np.nan_to_num(normalized_task_success_rates, nan=0.0)
 
         if self._p_fast is None:
             self._p_fast = normalized_task_success_rates[update_mask]
@@ -182,6 +204,11 @@ class BidirectionalLearningProgess:
             self._p_fast[update_mask] = (normalized_task_success_rates * self.ema_alpha) + (self._p_fast[update_mask] * (1.0 - self.ema_alpha))
             self._p_slow[update_mask] = (self._p_fast[update_mask] * self.ema_alpha) + (self._p_slow[update_mask] * (1.0 - self.ema_alpha))
             self._p_true[update_mask] = (task_success_rates[update_mask] * self.ema_alpha) + (self._p_true[update_mask] * (1.0 - self.ema_alpha))
+
+        # Handle NaN values in EMA updates
+        self._p_fast = np.nan_to_num(self._p_fast, nan=0.0)
+        self._p_slow = np.nan_to_num(self._p_slow, nan=0.0)
+        self._p_true = np.nan_to_num(self._p_true, nan=0.0)
 
         self.task_rates[update_mask] = task_success_rates[update_mask]
         self._stale_dist = True
@@ -210,9 +237,19 @@ class BidirectionalLearningProgess:
         return abs(fast - slow)
 
     def _reweight(self, p: np.ndarray) -> float:
+        # Handle NaN values in input
+        p = np.nan_to_num(p, nan=0.0)
+
         numerator = p * (1.0 - self.progress_smoothing)
         denominator = p + self.progress_smoothing * (1.0 - 2.0 * p)
-        return numerator / denominator
+
+        # Handle division by zero
+        denominator = np.where(denominator <= 0, 1.0, denominator)
+        result = numerator / denominator
+
+        # Handle NaN values in result
+        result = np.nan_to_num(result, nan=0.0)
+        return result
 
     def _sigmoid(self, x: np.ndarray):
         return 1 / (1 + np.exp(-x))
@@ -220,24 +257,63 @@ class BidirectionalLearningProgess:
     def _sample_distribution(self):
         task_dist = np.ones(self.num_tasks) / self.num_tasks
         learning_progress = self._learning_progress()
+
+        # Handle NaN values in learning progress
+        learning_progress = np.nan_to_num(learning_progress, nan=0.0)
+
         posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0 or self._p_true[i] > 0]
         any_progress = len(posidxs) > 0
         subprobs = learning_progress[posidxs] if any_progress else learning_progress
+
+        # Handle NaN values in subprobs
+        subprobs = np.nan_to_num(subprobs, nan=0.0)
+
         std = np.std(subprobs)
-        subprobs = (subprobs - np.mean(subprobs)) / (std if std else 1)
+        if std > 0:
+            subprobs = (subprobs - np.mean(subprobs)) / std
+        else:
+            # If all values are the same, keep them as is
+            subprobs = subprobs - np.mean(subprobs)
+
+        # Handle NaN values after normalization
+        subprobs = np.nan_to_num(subprobs, nan=0.0)
+
         subprobs = self._sigmoid(subprobs)
-        subprobs = subprobs / np.sum(subprobs)
+
+        # Handle NaN values after sigmoid
+        subprobs = np.nan_to_num(subprobs, nan=0.0)
+
+        # Normalize to sum to 1, handling zero sum case
+        sum_probs = np.sum(subprobs)
+        if sum_probs > 0:
+            subprobs = subprobs / sum_probs
+        else:
+            # If all probabilities are zero, use uniform distribution
+            subprobs = np.ones_like(subprobs) / len(subprobs)
+
         if any_progress:
             task_dist = np.zeros(len(learning_progress))
             task_dist[posidxs] = subprobs
         else:
             task_dist = subprobs
+
+        # Final NaN check and normalization
+        task_dist = np.nan_to_num(task_dist, nan=1.0/len(task_dist))
+        sum_dist = np.sum(task_dist)
+        if sum_dist > 0:
+            task_dist = task_dist / sum_dist
+        else:
+            task_dist = np.ones(len(task_dist)) / len(task_dist)
+
         self.task_dist = task_dist.astype(np.float32)
         self._stale_dist = False
+
         out_vec = [np.mean(self.outcomes[i]) for i in range(self.num_tasks)]
+        out_vec = [0.0 if np.isnan(x) else x for x in out_vec]  # Handle NaN in outcomes
         self.num_nans.append(sum(np.isnan(out_vec)))
-        self.task_success_rate = np.nan_to_num(out_vec)
+        self.task_success_rate = np.array(out_vec)
         self.mean_samples_per_eval.append(np.mean([len(self.outcomes[i]) for i in range(self.num_tasks)]))
+
         for i in range(self.num_tasks):
             self.outcomes[i] = self.outcomes[i][-self.memory:]
         self.collecting = True
