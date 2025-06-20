@@ -517,7 +517,7 @@ class MettaTrainer:
                 )
 
                 new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
-                logratio = new_logprobs.detach() - minibatch["logprobs"]
+                logratio = new_logprobs - minibatch["logprobs"]
                 importance_sampling_ratio = logratio.exp()
                 experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
 
