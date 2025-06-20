@@ -9,8 +9,6 @@ on:
     types: [submitted]
   discussion_comment:
     types: [created]
-  commit_comment:
-    types: [created]
 
 permissions:
   contents: write
@@ -532,6 +530,9 @@ jobs:
                 ? `${latestCommit.substring(0, 47)}...`
                 : latestCommit;
 
+              // Use context.payload to safely access the comment body
+              const commentBody = context.payload.comment?.body || 'No description provided';
+
               // Create the PR targeting the original branch
               const prResponse = await github.rest.pulls.create({
                 owner: context.repo.owner,
@@ -543,7 +544,7 @@ jobs:
                   "🤖 **Automated PR created by Claude**",
                   "",
                   "**Original request:**",
-                  "> ${{ github.event.comment.body }}",
+                  ...commentBody.split('\n').map(line => '> ' + line.trim()),
                   "",
                   "**Context:** This PR addresses the request from " + contextInfo,
                   "**Target:** This PR will merge into " + targetBranch + (targetBranch === 'main' ? '' : ' (not main)'),
