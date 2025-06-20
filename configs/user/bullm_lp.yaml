@@ -24,7 +24,7 @@ trainer:
   #bptt_horizon: 8
   #learning_rate: 3e-4
   #evaluate_interval: 100
-  #num_workers: 4
+  num_workers: 4
 
 wandb:
   enabled: true
