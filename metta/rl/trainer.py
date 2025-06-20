@@ -681,11 +681,6 @@ class MettaTrainer:
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
-        # Get build context from initial policy record if available
-        build_context = None
-        if hasattr(self._initial_pr, "_build_context"):
-            build_context = self._initial_pr._build_context
-
         self.last_pr = self.policy_store.save(
             name,
             os.path.join(self.trainer_cfg.checkpoint_dir, name),
@@ -701,7 +696,6 @@ class MettaTrainer:
                 "score": overall_score,
                 "eval_scores": category_scores_map,
             },
-            build_context=build_context,
         )
 
         # this is hacky, but otherwise the initial_pr points

@@ -59,6 +59,31 @@ class PolicyRecord:
         """Get the local file path if available."""
         return self._local_path
 
+    def _clean_metadata_for_packaging(self, metadata: dict) -> dict:
+        """Clean metadata to remove any objects that can't be packaged."""
+        import copy
+
+        def clean_value(v):
+            # Check if it's a wandb object
+            if hasattr(v, "__module__") and v.__module__ and "wandb" in v.__module__:
+                return None  # Remove wandb objects
+            elif isinstance(v, dict):
+                return {k: clean_value(val) for k, val in v.items() if clean_value(val) is not None}
+            elif isinstance(v, list):
+                return [clean_value(item) for item in v if clean_value(item) is not None]
+            elif isinstance(v, (str, int, float, bool, type(None))):
+                return v
+            elif hasattr(v, "__dict__"):
+                # For other objects, try to convert to a simple representation
+                try:
+                    return str(v)
+                except:
+                    return None
+            else:
+                return v
+
+        return clean_value(copy.deepcopy(metadata))
+
     def save(self, path: str, policy: nn.Module) -> "PolicyRecord":
         """Save a policy using torch.package for automatic dependency management."""
         logger.info(f"Saving policy to {path} using torch.package")
@@ -70,72 +95,112 @@ class PolicyRecord:
         # Get the actual policy (unwrap MettaAgent if needed)
         actual_policy = policy.policy if isinstance(policy, MettaAgent) else policy
 
-        # Use torch.package to save the policy with all dependencies
-        with PackageExporter(path) as exporter:
-            # Intern all metta modules to include them in the package
-            exporter.intern("metta.**")
+        try:
+            # Use torch.package to save the policy with all dependencies
+            with PackageExporter(path, debug=False) as exporter:
+                # Intern all metta modules to include them in the package
+                exporter.intern("metta.**")
 
-            # Check if the policy comes from __main__ (common in scripts/notebooks)
-            # For __main__ modules, we need to handle them specially since they don't have __file__
-            if actual_policy.__class__.__module__ == "__main__":
-                # Get the source code of the class
-                import inspect
+                # Check if the policy comes from __main__ (common in scripts/notebooks)
+                # For __main__ modules, we need to handle them specially since they don't have __file__
+                if actual_policy.__class__.__module__ == "__main__":
+                    # Get the source code of the class
+                    import inspect
 
-                try:
-                    source = inspect.getsource(actual_policy.__class__)
-                    # Save it as a module source
-                    exporter.save_source_string("__main__", source)
-                except:
-                    # If we can't get source, just extern it and hope for the best
-                    exporter.extern("__main__")
+                    try:
+                        source = inspect.getsource(actual_policy.__class__)
+                        # Prepend necessary imports to the source
+                        full_source = "import torch\nimport torch.nn as nn\n\n" + source
+                        # Save it as a module source
+                        exporter.save_source_string("__main__", full_source)
+                    except:
+                        # If we can't get source, just extern it and hope for the best
+                        exporter.extern("__main__")
 
-            # External modules that should use the system version
-            exporter.extern("torch")
-            exporter.extern("torch.**")
-            exporter.extern("numpy")
-            exporter.extern("numpy.**")
-            exporter.extern("gymnasium")
-            exporter.extern("gymnasium.**")
-            exporter.extern("gym")
-            exporter.extern("gym.**")
-            exporter.extern("tensordict")
-            exporter.extern("tensordict.**")
-            exporter.extern("einops")
-            exporter.extern("einops.**")
-            exporter.extern("hydra")
-            exporter.extern("hydra.**")
-            exporter.extern("omegaconf")
-            exporter.extern("omegaconf.**")
+                # External modules that should use the system version
+                exporter.extern("torch")
+                exporter.extern("torch.**")
+                exporter.extern("numpy")
+                exporter.extern("numpy.**")
+                exporter.extern("scipy")
+                exporter.extern("scipy.**")
+                exporter.extern("sklearn")
+                exporter.extern("sklearn.**")
+                exporter.extern("matplotlib")
+                exporter.extern("matplotlib.**")
+                exporter.extern("gymnasium")
+                exporter.extern("gymnasium.**")
+                exporter.extern("gym")
+                exporter.extern("gym.**")
+                exporter.extern("tensordict")
+                exporter.extern("tensordict.**")
+                exporter.extern("einops")
+                exporter.extern("einops.**")
+                exporter.extern("hydra")
+                exporter.extern("hydra.**")
+                exporter.extern("omegaconf")
+                exporter.extern("omegaconf.**")
+                exporter.extern("torch_scatter")
+                exporter.extern("torch_geometric")
+                exporter.extern("torch_sparse")
 
-            # Mock modules that we don't need to include
-            exporter.mock("wandb")
-            exporter.mock("wandb.**")
-            exporter.mock("pufferlib")
-            exporter.mock("pufferlib.**")
-            exporter.mock("pydantic")
-            exporter.mock("pydantic.**")
-            exporter.mock("typing_extensions")
-            exporter.mock("boto3")
-            exporter.mock("boto3.**")
-            exporter.mock("botocore")
-            exporter.mock("botocore.**")
-            exporter.mock("duckdb")
-            exporter.mock("duckdb.**")
-            exporter.mock("pandas")
-            exporter.mock("pandas.**")
+                # Mock ALL wandb modules more comprehensively
+                exporter.mock("wandb")
+                exporter.mock("wandb.**")
+                exporter.mock("wandb.*")
+                exporter.mock("wandb.sdk")
+                exporter.mock("wandb.sdk.**")
+                exporter.mock("wandb.sdk.wandb_run")
 
-            # Handle C extension modules
-            exporter.extern("mettagrid.mettagrid_c")
-            exporter.extern("mettagrid")
-            exporter.extern("mettagrid.**")
+                # Mock other modules
+                exporter.mock("pufferlib")
+                exporter.mock("pufferlib.**")
+                exporter.mock("pydantic")
+                exporter.mock("pydantic.**")
+                exporter.mock("typing_extensions")
+                exporter.mock("boto3")
+                exporter.mock("boto3.**")
+                exporter.mock("botocore")
+                exporter.mock("botocore.**")
+                exporter.mock("duckdb")
+                exporter.mock("duckdb.**")
+                exporter.mock("pandas")
+                exporter.mock("pandas.**")
+                exporter.mock("seaborn")
+                exporter.mock("plotly")
 
-            # Save the policy record (which includes metadata)
-            exporter.save_pickle("policy_record", "data.pkl", self)
+                # Handle C extension modules
+                exporter.extern("mettagrid.mettagrid_c")
+                exporter.extern("mettagrid")
+                exporter.extern("mettagrid.**")
 
-            # Save the actual policy
-            exporter.save_pickle("policy", "model.pkl", actual_policy)
+                # Create a clean copy of metadata without wandb references
+                clean_metadata = self._clean_metadata_for_packaging(self.metadata)
 
-        logger.info(f"Saved policy with torch.package to {path}")
+                # Save a minimal PolicyRecord with clean metadata
+                minimal_pr = PolicyRecord(None, self.name, self.uri, clean_metadata)
+                exporter.save_pickle("policy_record", "data.pkl", minimal_pr)
+
+                # Save the actual policy
+                exporter.save_pickle("policy", "model.pkl", actual_policy)
+
+            logger.info(f"Saved policy with torch.package to {path}")
+
+        except Exception as e:
+            logger.warning(f"torch.package save failed: {e}")
+            logger.info("Falling back to regular torch.save")
+
+            # Fallback to regular torch save
+            checkpoint = {
+                "model_state_dict": actual_policy.state_dict(),
+                "metadata": self._clean_metadata_for_packaging(self.metadata),
+                "policy_record": PolicyRecord(
+                    None, self.name, self.uri, self._clean_metadata_for_packaging(self.metadata)
+                ),
+            }
+            torch.save(checkpoint, path)
+            logger.info(f"Saved policy with regular torch.save to {path}")
+
         return self
 
     def load(self, path: str, device: str = "cpu") -> nn.Module:
