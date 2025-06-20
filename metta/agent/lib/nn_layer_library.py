@@ -29,6 +29,7 @@ class ResidualBlock(nn.Module):
     """
     This class cannot be used as a layer in MettaAgent. It is a helper class for ResNetMLP.
     """
+
     def __init__(self, hidden_size: int):
         super().__init__()
         self.block = nn.Sequential(
@@ -54,12 +55,14 @@ class Swift(nn.Module):
     """
     This class cannot be used as a layer in MettaAgent. It is a helper class for ResidualBlock.
     """
+
     def __init__(self):
         super().__init__()
         self.beta = nn.Parameter(torch.tensor(1.0))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * torch.sigmoid(self.beta * x)
+
 
 class ResNetMLP(LayerBase):
     """
