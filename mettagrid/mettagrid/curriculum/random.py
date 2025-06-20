@@ -17,16 +17,16 @@ class RandomCurriculum(MultiTaskCurriculum):
     """Curriculum that samples from multiple environment types with fixed weights."""
 
     def __init__(self, curricula_cfgs: Dict[str, float], env_overrides: DictConfig):
-        curricula = self.load_curricula(curricula_cfgs, env_overrides)
+        curricula = {t: self._curriculum_from_id(t, env_overrides) for t in curricula_cfgs.keys()}
+        self._task_weights = curricula_cfgs
         super().__init__(curricula, env_overrides)
 
     def get_task(self) -> Task:
-        task_id = random.choices(list(self._curriculums.keys()), weights=list(self._task_weights.values()))[0]
-        task = self._curriculums[task_id].get_task()
+        task_id = random.choices(list(self._curricula.keys()), weights=list(self._task_weights.values()))[0]
+        task = self._curricula[task_id].get_task()
         task.add_parent(self, task_id)
         logger.debug(f"Task selected: {task.name()}")
         return task
 
-    def load_curricula(self, curricula_cfgs: Dict[str, float], env_overrides: DictConfig) -> Dict[str, Curriculum]:
-        self._task_weights = curricula_cfgs
-        return {t: curriculum_from_config_path(t, env_overrides) for t in curricula_cfgs.keys()}
+    def _curriculum_from_id(cfg_path: str, env_overrides: DictConfig) -> Curriculum:
+        return curriculum_from_config_path(cfg_path, env_overrides)

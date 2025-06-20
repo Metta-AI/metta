@@ -32,6 +32,6 @@ class LowRewardCurriculum(RandomCurriculum):
         )
         self._reward_maxes[id] = max(self._reward_maxes[id], score)
         self._task_weights = {
-            t: 1e-6 + self._reward_maxes[t] / (self._reward_averages[t] + 1e-6) for t in self._curriculums.keys()
+            t: 1e-6 + self._reward_maxes[t] / (self._reward_averages[t] + 1e-6) for t in self._curricula.keys()
         }
         super().complete_task(id, score)
