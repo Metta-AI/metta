@@ -97,6 +97,7 @@ def test_tensors_have_dtype():
         ".pytest_cache",
         "node_modules",
         "wandb",  # Exclude wandb logs as they might contain generated code
+        "tests",  # Exclude test files as they don't require explicit dtype
     }
 
     py_files = collect_py_files(root, exclude_dirs)

@@ -436,7 +436,7 @@ class MettaAgent(nn.Module):
         if len(component_loss_tensors) > 0:
             return torch.sum(torch.stack(component_loss_tensors))
         else:
-            return torch.tensor(0.0, device=self.device)
+            return torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
@@ -446,7 +446,7 @@ class MettaAgent(nn.Module):
         if len(component_loss_tensors) > 0:
             return torch.sum(torch.stack(component_loss_tensors))
         else:
-            return torch.tensor(0.0, device=self.device)
+            return torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
     def update_l2_init_weight_copy(self):
         """Update interval set by l2_init_weight_update_interval. 0 means no updating."""
