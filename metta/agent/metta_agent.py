@@ -203,33 +203,30 @@ class MettaAgent(nn.Module):
         """Apply a method to all components."""
         return getattr(self.policy, "_apply_to_components", lambda *a, **k: [])(method_name, *args, **kwargs)
 
-    def _delegate_if_exists(self, method_name, *args, **kwargs):
-        """Helper to delegate method calls to wrapped policy if the method exists."""
-        if hasattr(self.policy, method_name):
-            return getattr(self.policy, method_name)(*args, **kwargs)
-
-    def _get_loss_or_zero(self, loss_name: str) -> torch.Tensor:
-        """Helper to get a loss value from the policy or return zero tensor."""
-        if hasattr(self.policy, loss_name):
-            return getattr(self.policy, loss_name)()
-        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
-
     def l2_reg_loss(self) -> torch.Tensor:
         """L2 regularization loss."""
-        return self._get_loss_or_zero("l2_reg_loss")
+        if hasattr(self.policy, "l2_reg_loss"):
+            return self.policy.l2_reg_loss()
+        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
 
     def l2_init_loss(self) -> torch.Tensor:
         """L2 initialization loss."""
-        return self._get_loss_or_zero("l2_init_loss")
+        if hasattr(self.policy, "l2_init_loss"):
+            return self.policy.l2_init_loss()
+        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
 
     def update_l2_init_weight_copy(self):
         """Update interval set by l2_init_weight_update_interval."""
-        self._delegate_if_exists("update_l2_init_weight_copy")
+        if hasattr(self.policy, "update_l2_init_weight_copy"):
+            self.policy.update_l2_init_weight_copy()
 
     def clip_weights(self):
         """Weight clipping."""
-        self._delegate_if_exists("clip_weights")
+        if hasattr(self.policy, "clip_weights"):
+            self.policy.clip_weights()
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for all components."""
-        return self._delegate_if_exists("compute_weight_metrics", delta) or []
+        if hasattr(self.policy, "compute_weight_metrics"):
+            return self.policy.compute_weight_metrics(delta)
+        return []
