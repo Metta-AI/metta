@@ -14,7 +14,7 @@ defaults:
 
 trainer:
   curriculum: /env/mettagrid/curriculum/navigation
-  evaluate_interval: 0
+  evaluate_interval: 10
 
 policy_uri: wandb://run/dd_navigation_curriculum
 

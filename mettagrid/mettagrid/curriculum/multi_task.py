@@ -1,5 +1,5 @@
 import logging
-from typing import Dict
+from typing import Dict, List
 
 from mettagrid.curriculum.curriculum import Curriculum
 
@@ -28,3 +28,6 @@ class MultiTaskCurriculum(Curriculum):
             self._completed_tasks.pop(0)
         self._completed_tasks.append(id)
         super().complete_task(id, score)
+
+    def completed_tasks(self) -> List[str]:
+        return self._completed_tasks
