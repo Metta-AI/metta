@@ -83,8 +83,7 @@ class LearningProgressCurriculum(RandomCurriculum):
     def get_stats(self) -> Dict[str, float]:
         """Get learning progress statistics for logging."""
         stats = {}
-        if hasattr(self.lp_tracker, "add_stats"):
-            self.lp_tracker.add_stats(stats)
+        self.lp_tracker.add_stats(stats)
         return stats
 
 
