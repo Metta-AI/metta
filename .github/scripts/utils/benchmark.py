@@ -18,7 +18,7 @@ import psutil
 class ProcessMonitor:
     """Monitor process memory usage and execution time."""
 
-    def __init__(self, process: subprocess.Popen):
+    def __init__(self, process: subprocess.Popen) -> None:
         self.process = process
         self.peak_memory_mb = 0
         self.start_time = time.time()
@@ -26,7 +26,7 @@ class ProcessMonitor:
         self._stop_monitoring = threading.Event()
         self._memory_samples = []
 
-    def start(self):
+    def start(self) -> None:
         """Start monitoring memory usage in a separate thread."""
 
         def monitor():
@@ -99,12 +99,10 @@ def run_with_benchmark(
     print(f"Starting benchmark for: {name}")
 
     try:
-        # Start the process
         process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=shell, env=env, cwd=cwd
         )
 
-        # Start monitoring
         monitor = ProcessMonitor(process)
         monitor.start()
 
@@ -120,7 +118,6 @@ def run_with_benchmark(
             timed_out = True
             print(f"Process timed out after {timeout}s")
 
-        # Stop monitoring and get metrics
         duration, peak_memory = monitor.stop()
 
         print(f"{name} completed in {duration:.1f}s")
@@ -149,7 +146,7 @@ def run_with_benchmark(
         }
 
 
-def write_github_output(outputs: dict[str, str]):
+def write_github_output(outputs: dict[str, str]) -> None:
     """Write multiple outputs for GitHub Actions."""
     if "GITHUB_OUTPUT" in os.environ:
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
