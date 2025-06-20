@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run
 
 import argparse
+import os
 import shlex
 import subprocess
 
@@ -30,21 +31,29 @@ def main():
     job_id = args.job_id
 
     print("Looking up EC2 instance...")
-    instance = subprocess.check_output(
-        [
-            "aws",
-            "ec2",
-            "describe-instances",
-            "--filters",
-            f"Name=tag:Name,Values=*-{job_id}-*",
-            "--query",
-            "Reservations[0].Instances[0].PrivateDnsName",
-            "--output",
-            "text",
-        ],
-        text=True,
-    )
-    instance = instance.strip()
+
+    # must match sk_train.yaml
+    REGIONS = ["us-east-1", "us-west-2"]
+
+    for region in REGIONS:
+        os.environ["AWS_REGION"] = region
+        instance = subprocess.check_output(
+            [
+                "aws",
+                "ec2",
+                "describe-instances",
+                "--filters",
+                f"Name=tag:Name,Values=*-{job_id}-*",
+                "--query",
+                "Reservations[0].Instances[0].PublicDnsName",
+                "--output",
+                "text",
+            ],
+            text=True,
+        )
+        if instance is None:
+            raise ValueError(f"Could not find EC2 instance for job {job_id}")
+        instance = instance.strip()
 
     print("Looking up skypilot job...")
     request_id = sky.jobs.queue(refresh=True, skip_finished=True, all_users=True)
