@@ -3,6 +3,28 @@
 // Original: https://github.com/wangyi-fudan/wyhash
 // License: Public Domain (Unlicense)
 
+/*
+ * Why wyhash instead of std::hash?
+ * 
+ * This implementation uses wyhash rather than std::hash for several critical reasons:
+ *
+ * 1. DETERMINISM: std::hash is explicitly NOT guaranteed to produce consistent 
+ *    results across different platforms, compilers, or even program runs. For ML 
+ *    research reproducibility, we need identical hashes for the same grid layouts 
+ *    across all systems.
+ *
+ * 2. PERFORMANCE: wyhash is 2-3x faster than most std::hash implementations while 
+ *    maintaining excellent statistical properties and collision resistance.
+ *
+ * 3. QUALITY: Superior avalanche effect and uniform distribution compared to 
+ *    typical std::hash<std::string> implementations, reducing hash collisions 
+ *    between different map configurations.
+ *
+ * 4. CROSS-PLATFORM CONSISTENCY: Essential for distributed training, debugging, 
+ *    and analytics where grid fingerprints must be identical across different 
+ *    machines and environments.
+ */
+
 #ifndef METTAGRID_METTAGRID_HASH_HPP_
 #define METTAGRID_METTAGRID_HASH_HPP_
 
