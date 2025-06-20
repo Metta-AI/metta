@@ -7,7 +7,7 @@ defaults:
 resume: true
 use_e3b: false
 
-total_timesteps: 150_000_000
+total_timesteps: 10_000_000_000
 
 clip_coef: 0.4892960366937307
 ent_coef: 0.0021495271282999063
