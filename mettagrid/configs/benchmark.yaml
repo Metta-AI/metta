@@ -18,6 +18,7 @@ game:
       width: 25
       height: 25
       border_width: 0
+      seed: 42
 
       agents: 6
 

@@ -1,3 +1,11 @@
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "requests>=2.31.0",
+# ]
+# ///
+
 import os
 import sys
 
@@ -16,7 +24,8 @@ def update_pr_description(repo, pr_number, task_url, token):
     if response.status_code != 200:
         print(f"GitHub API Error: {response.status_code} - {response.text}")
         sys.exit(1)
-    current_body = response.json().get("body", "")
+    # The body can be None -- we want to treat that as an empty string
+    current_body = response.json().get("body") or ""
 
     # Update the description
     new_body = current_body
