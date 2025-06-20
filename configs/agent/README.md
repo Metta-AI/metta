@@ -15,7 +15,7 @@ which are multi-headed.
 Their differences are in their size and complextiy which affect their speed an sample-efficiency.
 
 ### latent_attn_tiny.yaml
-Uses a single learnable token as a query against the entire sequence of encoded observations. It's the fastst to run
+Uses a single learnable token as a query against the entire sequence of encoded observations. It's the fastest to run
 and is robust to changing environments but is not as expressive as any of the other models including fast.yaml.
 
 ### latent_attn_small.yaml
