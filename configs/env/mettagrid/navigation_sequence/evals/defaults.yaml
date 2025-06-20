@@ -14,7 +14,7 @@ game:
     rewards:
       heart: 1.0
       ore.red: 0
-      battery: 0
+      battery.red: 0
     default_item_max: 100
     freeze_duration: 0
 
@@ -32,12 +32,12 @@ game:
       color: 0
       max_output: 1
       conversion_ticks: 1
-      cooldown: 10
+      cooldown: 1
       initial_items: 1
 
     generator.red:
       input_ore.red: 1
-      output_battery: 3
+      output_battery.red: 3
       color: 0
       max_output: 3
       conversion_ticks: 1

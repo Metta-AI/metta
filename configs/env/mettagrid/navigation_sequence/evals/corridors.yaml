@@ -3,6 +3,6 @@ defaults:
   - _self_
 
 game:
-  max_steps: 600
+  max_steps: 400
   map_builder:
     uri: "configs/env/mettagrid/maps/navigation_sequence/corridors.map"
