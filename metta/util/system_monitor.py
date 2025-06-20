@@ -4,7 +4,7 @@ import time
 from collections import deque
 from contextlib import contextmanager
 from threading import Lock, Thread
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Tuple
 
 import psutil
 import torch
@@ -22,7 +22,7 @@ class SystemMonitor:
         self,
         sampling_interval_sec: float = 1.0,
         history_size: int = 100,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
         auto_start: bool = True,
     ):
         """Initialize the machine monitor.
@@ -43,14 +43,14 @@ class SystemMonitor:
         self._process.cpu_percent()
 
         # Thread control
-        self._thread: Optional[Thread] = None
+        self._thread: Thread | None = None
         self._stop_flag = False
         self._lock = Lock()
 
         # Metric storage
-        self._metrics: Dict[str, deque] = {}
-        self._latest: Dict[str, Any] = {}
-        self._metric_collectors: Dict[str, Callable[[], Any]] = {}
+        self._metrics: dict[str, deque] = {}
+        self._latest: dict[str, Any] = {}
+        self._metric_collectors: dict[str, Callable[[], Any]] = {}
 
         # Initialize default metrics
         self._initialize_default_metrics()
@@ -160,7 +160,7 @@ class SystemMonitor:
         # Check for container environment variables
         return any(var in os.environ for var in ["KUBERNETES_SERVICE_HOST", "DOCKER_CONTAINER", "container"])
 
-    def _get_cpu_temperature(self) -> Optional[float]:
+    def _get_cpu_temperature(self) -> float | None:
         """Get CPU temperature if available (cross-platform)."""
         try:
             sensors_temperatures = getattr(psutil, "sensors_temperatures", None)
@@ -174,12 +174,21 @@ class SystemMonitor:
             # Try common sensor names across platforms
             for name in ["coretemp", "cpu_thermal", "cpu-thermal", "k10temp", "zenpower"]:
                 if name in temps and temps[name]:
-                    return temps[name][0].current
+                    temp = temps[name][0].current
+                    # Validate temperature is in reasonable range
+                    if temp is not None and 20 <= temp <= 120:
+                        return temp
+                    elif temp is not None:
+                        self.logger.debug(f"Ignoring invalid temperature {temp}°C from {name}")
 
-            # Fallback: return first available temperature
-            for entries in temps.values():
+            # Fallback: return first available temperature that's valid
+            for sensor_name, entries in temps.values():
                 if entries:
-                    return entries[0].current
+                    temp = entries[0].current
+                    if temp is not None and 20 <= temp <= 120:
+                        return temp
+                    elif temp is not None:
+                        self.logger.debug(f"Ignoring invalid temperature {temp}°C from {sensor_name}")
 
         except (AttributeError, OSError, IOError) as e:
             # AttributeError: In case the sensor object doesn't have expected attributes
@@ -362,7 +371,7 @@ class SystemMonitor:
         """Check if monitoring is active."""
         return self._thread is not None and self._thread.is_alive()
 
-    def get_latest(self, metric: Optional[str] = None) -> Any:
+    def get_latest(self, metric: str | None = None) -> Any:
         """Get the most recent value(s).
 
         Args:
@@ -376,7 +385,7 @@ class SystemMonitor:
                 return self._latest.get(metric)
             return self._latest.copy()
 
-    def get_history(self, metric: str) -> List[Tuple[float, Any]]:
+    def get_history(self, metric: str) -> list[Tuple[float, Any]]:
         """Get historical values for a metric.
 
         Args:
@@ -391,7 +400,7 @@ class SystemMonitor:
             return list(self._metrics[metric])
 
     @contextmanager
-    def monitor_context(self, tag: Optional[str] = None):
+    def monitor_context(self, tag: str | None = None):
         """Context manager for monitoring a code block.
 
         Records metrics before and after the block execution.
@@ -415,7 +424,7 @@ class SystemMonitor:
 
         self.log_summary()
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get comprehensive summary of all metrics.
 
         Returns:
@@ -473,7 +482,7 @@ class SystemMonitor:
 
             self.logger.log(level, "  " + " ".join(parts))
 
-    def get_available_metrics(self) -> List[str]:
+    def get_available_metrics(self) -> list[str]:
         """Get list of all available metrics.
 
         Returns:
