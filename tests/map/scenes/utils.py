@@ -5,9 +5,12 @@ from metta.map.scene import Scene
 from metta.map.types import ChildrenAction, MapGrid
 from metta.map.utils.ascii_grid import add_pretty_border, char_grid_to_lines
 from metta.map.utils.storable_map import grid_to_lines
+from metta.util.config import Config
 
 
-def render_scene(cls: type[Scene], params: dict, shape: tuple[int, int], children: list[ChildrenAction] | None = None):
+def render_scene(
+    cls: type[Scene], params: dict | Config, shape: tuple[int, int], children: list[ChildrenAction] | None = None
+):
     grid = np.full(shape, "empty", dtype="<U50")
     scene = cls(grid=grid, params=params, children=children or [])
     scene.render_with_children()

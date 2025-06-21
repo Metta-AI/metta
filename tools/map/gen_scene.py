@@ -37,7 +37,7 @@ def make_map(cfg_path: str, width: int, height: int, overrides: DictConfig | Non
         }
     )
 
-    return map_builder_cfg_to_storable_map(mapgen_cfg, recursive=False)
+    return map_builder_cfg_to_storable_map(mapgen_cfg)
 
 
 def main():
