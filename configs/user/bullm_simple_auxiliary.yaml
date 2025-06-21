@@ -3,8 +3,8 @@
 seed: null
 
 defaults:
-  - override /trainer: simple_with_auxiliary
-  - /sim/all@evals  # Use navigation-only evaluation suite
+  - /sim/all@evals  # Use all evaluation suite
+  - /trainer: simple_with_auxiliary
   - _self_
 
 run_id: 1
