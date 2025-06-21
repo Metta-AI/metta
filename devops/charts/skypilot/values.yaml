@@ -1,0 +1,23 @@
+skypilot:
+  apiService:
+    config: |
+      jobs:
+        bucket: s3://skypilot-jobs/
+  awsCredentials:
+    enabled: true
+  ingress:
+    # created by terraform
+    authSecret: skypilot-basic-auth
+    certManager:
+      clusterIssuer: letsencrypt
+      enabled: true
+    host: skypilot-api.softmax-research.net
+  ingress-nginx:
+    controller:
+      service:
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+  lambdaAiCredentials:
+    enabled: true
+    # created by terraform
+    lambdaAiSecretName: lambda-ai-credentials

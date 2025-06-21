@@ -1,0 +1,12 @@
+apiVersion: v2
+name: metta-skypilot
+version: "0.1.0"
+dependencies:
+- name: skypilot
+  version: "0.0.6"
+  repository: file://../_fork/skypilot
+# helm can't process recursive dependencies, so this is copy-pasted from the fork
+- name: ingress-nginx
+  version: 4.11.3
+  repository: https://kubernetes.github.io/ingress-nginx
+  condition: ingress-nginx.enabled
