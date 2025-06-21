@@ -11,7 +11,7 @@ run: ${oc.env:USER}.simple_auxiliary.${run_id}
 
 # Training configuration
 trainer:
-  total_timesteps: 10_000_000  # Start with a smaller number for testing
+  total_timesteps: 10_000_000_000_000  # Start with a smaller number for testing
   num_workers: 4  # Adjust based on your hardware
 
   # Auxiliary loss coefficients - you can adjust these
