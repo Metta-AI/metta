@@ -18,8 +18,6 @@ def assert_shape(tensor: torch.Tensor, expected_shape: Tuple[Union[int, str], ..
 
     Examples:
         if __debug__:
-            assert_shape(x, ("B", 3, "H", "W"), 'features')
-        if __debug__:
             assert_shape(logits, ("B", "T", 10000), 'logits')
 
     Raises:

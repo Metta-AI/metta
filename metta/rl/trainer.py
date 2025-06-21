@@ -263,7 +263,7 @@ class MettaTrainer:
 
             logger.info(
                 f"Epoch {self.epoch} - "
-                f"{steps_per_sec:.0f} steps/sec "
+                f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
             record_heartbeat()
@@ -378,7 +378,7 @@ class MettaTrainer:
             # Convert mask to tensor once
             mask = torch.as_tensor(mask)
             num_steps = int(mask.sum().item())
-            self.agent_step += num_steps * self._world_size
+            self.agent_step += num_steps
 
             # Convert to tensors once
             o = torch.as_tensor(o).to(device, non_blocking=True)
@@ -662,9 +662,7 @@ class MettaTrainer:
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
             epoch=self.epoch,
-            total_agent_step=self.agent_step * torch.distributed.get_world_size()
-            if torch.distributed.is_initialized()
-            else self.agent_step,
+            total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
             extra_args=extra_args,
         )
@@ -788,12 +786,9 @@ class MettaTrainer:
         lap_times = self.timer.lap_all(self.agent_step, exclude_global=False)
         wall_time_for_lap = lap_times.pop("global", 0)
 
-        # Approximate total values by multiplying by world size
-        total_agent_steps = self.agent_step * self._world_size
-
         # X-axis values for wandb
         metric_stats = {
-            "metric/agent_step": total_agent_steps,
+            "metric/agent_step": self.agent_step * self._world_size,
             "metric/epoch": self.epoch,
             "metric/total_time": wall_time,
             "metric/train_time": train_time,
@@ -804,6 +799,9 @@ class MettaTrainer:
             epoch_steps = self.agent_step
         epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+
+        epoch_steps_per_second *= self._world_size
+        steps_per_second *= self._world_size
 
         timing_stats = {
             **{
