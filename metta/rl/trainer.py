@@ -1174,17 +1174,15 @@ class MettaTrainer:
             state = PolicyState()
             # Use the policy's forward method to get proper representations
             try:
-                # Create a temporary TensorDict for the forward pass
-                # Keep the original observation shape for proper processing
-                td = {"x": obs, "state": None}
-                self.policy.forward(td)
+                # Reshape observations to (B*T, ...) for the policy forward pass
+                obs_flat = obs.view(B * T, -1)
 
-                # Try to get representations from the core component
-                if "_core_" in td:
-                    representations = td["_core_"]  # Shape: (B*T, hidden_size)
-                else:
-                    # If no core component, try to get from the final output
-                    representations = td.get("_output_", torch.zeros(B * T, 128, device=self.device))
+                # Call the policy's forward method with proper parameters
+                # The policy expects (obs, state, action=None)
+                action_out, logprob, entropy, value, hidden = self.policy.forward(obs_flat, state)
+
+                # Use the hidden representations for contrastive learning
+                representations = hidden  # Shape: (B*T, hidden_size)
 
             except Exception as e:
                 # If any error occurs, return zero loss
@@ -1192,9 +1190,7 @@ class MettaTrainer:
                 return torch.tensor(0.0, device=self.device)
 
         # Ensure representations have the right shape
-        if representations.dim() == 3:  # (B, T, hidden_size)
-            representations = representations.view(B * T, -1)
-        elif representations.dim() != 2:
+        if representations.dim() != 2:
             logger.warning(f"Unexpected representation shape: {representations.shape}")
             return torch.tensor(0.0, device=self.device)
 
