@@ -75,9 +75,7 @@ class LearningProgressCurriculum(RandomCurriculum):
 
     def stats(self) -> Dict[str, float]:
         """Get learning progress statistics for logging."""
-        stats = {}
-        self._lp_tracker.add_stats(stats)
-        return stats
+        return self._lp_tracker.add_stats()
 
 
 class BidirectionalLearningProgress:
@@ -98,17 +96,17 @@ class BidirectionalLearningProgress:
         assert isinstance(search_space, Discrete), (
             f"search_space must be a Discrete space or int, got {type(search_space)}"
         )
-        self.search_space = search_space
-        self.num_tasks = max_num_levels = search_space.n
-        self.ema_alpha = ema_timescale  # Fixed: use ema_timescale as ema_alpha
+        self._search_space = search_space
+        self._num_tasks = max_num_levels = search_space.n
+        self._ema_timescale = ema_timescale
         self.progress_smoothing = progress_smoothing
         self.num_active_tasks = int(num_active_tasks)
-        self.rand_task_rate = rand_task_rate
-        self.sample_threshold = sample_threshold
-        self.memory = int(memory)
-        self.outcomes = {}
+        self._rand_task_rate = rand_task_rate
+        self._sample_threshold = sample_threshold
+        self._memory = int(memory)
+        self._outcomes = {}
         for i in range(max_num_levels):
-            self.outcomes[i] = []
+            self._outcomes[i] = []
         self._p_fast = None
         self._p_slow = None
         self._p_true = None
@@ -116,65 +114,69 @@ class BidirectionalLearningProgress:
         self._task_success_rate = np.zeros(max_num_levels)
         self._mean_samples_per_eval = []
         self._num_nans = []
-        self.update_mask = np.ones(max_num_levels).astype(bool)
-        self.sample_levels = np.arange(max_num_levels).astype(np.int32)
-        self.counter = {i: 0 for i in self.sample_levels}
+        self._update_mask = np.ones(max_num_levels).astype(bool)
+        self._sample_levels = np.arange(max_num_levels).astype(np.int32)
+        self._counter = {i: 0 for i in self._sample_levels}
+        self._task_dist = None
+        self._stale_dist = True
 
-    def add_stats(self, info: Dict[str, float]) -> None:
-        """Add learning progress statistics to the info dictionary."""
-        info["lp/num_active_tasks"] = len(self.sample_levels)
-        info["lp/mean_sample_prob"] = np.mean(self.task_dist)
-        info["lp/num_zeros_lp_dist"] = np.sum(self.task_dist == 0)
-        info["lp/task_1_success_rate"] = self._task_success_rate[0]
-        info[f"lp/task_{self.num_tasks // 2}_success_rate"] = self._task_success_rate[self.num_tasks // 2]
-        info["lp/last_task_success_rate"] = self._task_success_rate[-1]
-        info["lp/task_success_rate"] = np.mean(self._task_success_rate)
-        info["lp/mean_evals_per_task"] = self._mean_samples_per_eval[-1]
-        info["lp/num_nan_tasks"] = self._num_nans[-1]
+    def add_stats(self) -> Dict[str, float]:
+        """Return learning progress statistics for logging."""
+        stats = {}
+        stats["lp/num_active_tasks"] = len(self._sample_levels)
+        stats["lp/mean_sample_prob"] = np.mean(self._task_dist)
+        stats["lp/num_zeros_lp_dist"] = np.sum(self._task_dist == 0)
+        stats["lp/task_1_success_rate"] = self._task_success_rate[0]
+        stats[f"lp/task_{self._num_tasks // 2}_success_rate"] = self._task_success_rate[self._num_tasks // 2]
+        stats["lp/last_task_success_rate"] = self._task_success_rate[-1]
+        stats["lp/task_success_rate"] = np.mean(self._task_success_rate)
+        stats["lp/mean_evals_per_task"] = self._mean_samples_per_eval[-1]
+        stats["lp/num_nan_tasks"] = self._num_nans[-1]
+        return stats
 
     def _update(self):
         """Update learning progress tracking with current task success rates."""
-        task_success_rates = np.array([np.mean(self.outcomes[i]) for i in range(self.num_tasks)])
+        task_success_rates = np.array([np.mean(self._outcomes[i]) for i in range(self._num_tasks)])
         # Handle NaN values in task success rates (empty lists)
         task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
-        update_mask = self.update_mask
 
         if self._random_baseline is None:
             self._random_baseline = np.minimum(task_success_rates, RANDOM_BASELINE_CAP)
 
         # Handle division by zero in normalization
-        denominator = 1.0 - self._random_baseline[update_mask]
+        denominator = 1.0 - self._random_baseline[self._update_mask]
         denominator = np.where(denominator <= 0, 1.0, denominator)
 
         normalized_task_success_rates = (
             np.maximum(
-                task_success_rates[update_mask] - self._random_baseline[update_mask],
-                np.zeros(task_success_rates[update_mask].shape),
+                task_success_rates[self._update_mask] - self._random_baseline[self._update_mask],
+                np.zeros(task_success_rates[self._update_mask].shape),
             )
             / denominator
         )
 
         if self._p_fast is None:
-            self._p_fast = normalized_task_success_rates[update_mask]
-            self._p_slow = normalized_task_success_rates[update_mask]
-            self._p_true = task_success_rates[update_mask]
+            self._p_fast = normalized_task_success_rates[self._update_mask]
+            self._p_slow = normalized_task_success_rates[self._update_mask]
+            self._p_true = task_success_rates[self._update_mask]
         else:
-            self._p_fast[update_mask] = (normalized_task_success_rates * self.ema_alpha) + (
-                self._p_fast[update_mask] * (1.0 - self.ema_alpha)
+            self._p_fast[self._update_mask] = (normalized_task_success_rates * self._ema_timescale) + (
+                self._p_fast[self._update_mask] * (1.0 - self._ema_timescale)
             )
-            self._p_slow[update_mask] = (self._p_fast[update_mask] * self.ema_alpha) + (
-                self._p_slow[update_mask] * (1.0 - self.ema_alpha)
+            self._p_slow[self._update_mask] = (self._p_fast[self._update_mask] * self._ema_timescale) + (
+                self._p_slow[self._update_mask] * (1.0 - self._ema_timescale)
             )
-            self._p_true[update_mask] = (task_success_rates[update_mask] * self.ema_alpha) + (
-                self._p_true[update_mask] * (1.0 - self.ema_alpha)
+            self._p_true[self._update_mask] = (task_success_rates[self._update_mask] * self._ema_timescale) + (
+                self._p_true[self._update_mask] * (1.0 - self._ema_timescale)
             )
 
         self._stale_dist = True
-        self.task_dist = None
+        self._task_dist = None
 
         return task_success_rates
 
     def collect_data(self, infos):
+        """Collect task outcome data for learning progress tracking."""
         if not bool(infos):
             return
 
@@ -182,9 +184,9 @@ class BidirectionalLearningProgress:
             if "tasks" in k:
                 task_id = int(k.split("/")[1])
                 for res in v:
-                    self.outcomes[task_id].append(res)
-                    if task_id in self.sample_levels:
-                        self.counter[task_id] += 1
+                    self._outcomes[task_id].append(res)
+                    if task_id in self._sample_levels:
+                        self._counter[task_id] += 1
 
     def _learning_progress(self, reweight: bool = True) -> np.ndarray:
         """Calculate learning progress as the difference between fast and slow moving averages."""
@@ -208,7 +210,7 @@ class BidirectionalLearningProgress:
         return 1 / (1 + np.exp(-x))
 
     def _sample_distribution(self):
-        task_dist = np.ones(self.num_tasks) / self.num_tasks
+        task_dist = np.ones(self._num_tasks) / self._num_tasks
         learning_progress = self._learning_progress()
 
         posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0 or self._p_true[i] > 0]
@@ -238,61 +240,62 @@ class BidirectionalLearningProgress:
         else:
             task_dist = subprobs
 
-        self.task_dist = task_dist.astype(np.float32)
+        self._task_dist = task_dist.astype(np.float32)
         self._stale_dist = False
 
-        out_vec = [np.mean(self.outcomes[i]) for i in range(self.num_tasks)]
+        out_vec = [np.mean(self._outcomes[i]) for i in range(self._num_tasks)]
         out_vec = [DEFAULT_SUCCESS_RATE if np.isnan(x) else x for x in out_vec]  # Handle NaN in outcomes
         self._num_nans.append(sum(np.isnan(out_vec)))
         self._task_success_rate = np.array(out_vec)
-        self._mean_samples_per_eval.append(np.mean([len(self.outcomes[i]) for i in range(self.num_tasks)]))
+        self._mean_samples_per_eval.append(np.mean([len(self._outcomes[i]) for i in range(self._num_tasks)]))
 
-        for i in range(self.num_tasks):
-            self.outcomes[i] = self.outcomes[i][-self.memory :]
-        return self.task_dist
+        for i in range(self._num_tasks):
+            self._outcomes[i] = self._outcomes[i][-self._memory :]
+        return self._task_dist
 
     def _sample_tasks(self):
+        """Sample active tasks based on current task distribution."""
         sample_levels = []
-        self.update_mask = np.zeros(self.num_tasks).astype(bool)
+        self._update_mask = np.zeros(self._num_tasks).astype(bool)
 
         # Ensure task_dist is valid
-        if self.task_dist is None or len(self.task_dist) == 0:
+        if self._task_dist is None or len(self._task_dist) == 0:
             # Use uniform distribution if task_dist is not available
-            task_dist = np.ones(self.num_tasks) / self.num_tasks
+            task_dist = np.ones(self._num_tasks) / self._num_tasks
         else:
-            task_dist = self.task_dist.copy()
+            task_dist = self._task_dist.copy()
 
         # Ensure task_dist sums to 1
         sum_dist = np.sum(task_dist)
         if sum_dist <= 0:
-            task_dist = np.ones(self.num_tasks) / self.num_tasks
+            task_dist = np.ones(self._num_tasks) / self._num_tasks
         else:
             task_dist = task_dist / sum_dist
 
         for _i in range(self.num_active_tasks):
-            if np.random.rand() < self.rand_task_rate:
-                level = np.random.choice(range(self.num_tasks))
+            if np.random.rand() < self._rand_task_rate:
+                level = np.random.choice(range(self._num_tasks))
             else:
                 try:
-                    level = np.random.choice(range(self.num_tasks), p=task_dist)
+                    level = np.random.choice(range(self._num_tasks), p=task_dist)
                 except ValueError as e:
                     logger.warning(f"Error in np.random.choice: {e}, using uniform distribution")
-                    level = np.random.choice(range(self.num_tasks))
+                    level = np.random.choice(range(self._num_tasks))
             sample_levels.append(level)
-            self.update_mask[level] = True
-        self.sample_levels = np.array(sample_levels).astype(np.int32)
-        self.counter = {i: 0 for i in self.sample_levels}
-        return self.sample_levels
+            self._update_mask[level] = True
+        self._sample_levels = np.array(sample_levels).astype(np.int32)
+        self._counter = {i: 0 for i in self._sample_levels}
+        return self._sample_levels
 
     def calculate_dist(self) -> Tuple[np.ndarray, np.ndarray]:
         """Calculate task distribution and sample levels based on learning progress."""
-        if all([v < self.sample_threshold for k, v in self.counter.items()]) and self._random_baseline is not None:
+        if all([v < self._sample_threshold for k, v in self._counter.items()]) and self._random_baseline is not None:
             # Ensure we have valid task_dist and sample_levels
-            if self.task_dist is None or len(self.task_dist) == 0:
-                self.task_dist = np.ones(self.num_tasks) / self.num_tasks
-            if self.sample_levels is None or len(self.sample_levels) == 0:
-                self.sample_levels = np.arange(self.num_tasks).astype(np.int32)
-            return self.task_dist, self.sample_levels
+            if self._task_dist is None or len(self._task_dist) == 0:
+                self._task_dist = np.ones(self._num_tasks) / self._num_tasks
+            if self._sample_levels is None or len(self._sample_levels) == 0:
+                self._sample_levels = np.arange(self._num_tasks).astype(np.int32)
+            return self._task_dist, self._sample_levels
 
         self._task_success_rate = self._update()
         task_dist = self._sample_distribution()
