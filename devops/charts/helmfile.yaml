@@ -3,6 +3,8 @@ repositories:
   url: https://kubernetes-sigs.github.io/external-dns/
 - name: cert-manager
   url: https://charts.jetstack.io
+- name: nginx-ingress
+  url: https://kubernetes.github.io/ingress-nginx
 
 releases:
 ########## Core infrastructure ##########

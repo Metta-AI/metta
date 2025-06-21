@@ -20,12 +20,6 @@ spec:
           envFrom:
           - secretRef:
               name: {{ .Values.backend.secret_name }}
-          env:
-          - name: HOST
-            value: "0.0.0.0"
-          - name: PORT
-            value: "8000"
-          command: ["uv", "run", "-m", "metta.app.server"]
           resources:
             requests:
               memory: "1Gi"
