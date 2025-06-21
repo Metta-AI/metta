@@ -40,6 +40,13 @@ vf_coef: 0.44
 l2_reg_loss_coef: 0
 l2_init_loss_coef: 0
 
+# Auxiliary losses for representation learning
+# Set to 0 to disable, >0 to enable with specified coefficient
+sensory_decoder_coef: 0.0  # Sensory reconstruction loss coefficient
+latent_decoder_coef: 0.0   # Latent prediction loss coefficient
+node_perturbation_coef: 0.0  # Node perturbation loss coefficient
+contrastive_coef: 0.0      # Contrastive learning loss coefficient
+
 # Prioritized experience replay parameters
 prioritized_experience_replay:
   prio_alpha: 0.0  # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
