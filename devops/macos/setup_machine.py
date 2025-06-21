@@ -28,9 +28,9 @@ def install_homebrew():
         print("Homebrew is already installed")
 
 
-def run_brew_bundle(force=False, no_fail=False):
+def run_brew_bundle(name="Brewfile", force=False, no_fail=False):
     """Run brew bundle with the Brewfile."""
-    brewfile_path = Path(__file__).parent / "Brewfile"
+    brewfile_path = Path(__file__).parent / name
     if not brewfile_path.exists():
         print(f"Error: Brewfile not found at {brewfile_path}")
         sys.exit(1)
@@ -64,10 +64,13 @@ def main():
     parser = argparse.ArgumentParser(description="Setup developer machine with Homebrew and required packages")
     parser.add_argument("--brew-force", action="store_true", help="Let Homebrew take over existing installations")
     parser.add_argument("--brew-no-fail", action="store_true", help="Skip packages that are already installed")
+    parser.add_argument("--devops", action="store_true", help="Install devops tools")
     args = parser.parse_args()
 
     install_homebrew()
     run_brew_bundle(force=args.brew_force, no_fail=args.brew_no_fail)
+    if args.devops:
+        run_brew_bundle(name="Brewfile.devops", force=args.brew_force, no_fail=args.brew_no_fail)
     install_skypilot()
 
     print("Machine setup complete!")

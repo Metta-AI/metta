@@ -28,11 +28,14 @@ def is_connected(grid: MapGrid):
     """Check if all empty cells in the grid are connected."""
     height, width = grid.shape
 
+    def is_empty(cell: str) -> bool:
+        return cell == "empty" or cell.startswith("agent")
+
     # Find all empty cells
     empty_cells = set()
     for r in range(height):
         for c in range(width):
-            if grid[r, c] == "empty":
+            if is_empty(grid[r, c]):
                 empty_cells.add((r, c))
 
     if not empty_cells:
@@ -52,7 +55,7 @@ def is_connected(grid: MapGrid):
             nr, nc = r + dr, c + dc
 
             # Check bounds and if it's an empty cell we haven't visited
-            if 0 <= nr < height and 0 <= nc < width and (nr, nc) not in visited and grid[nr, nc] == "empty":
+            if 0 <= nr < height and 0 <= nc < width and (nr, nc) not in visited and is_empty(grid[nr, nc]):
                 visited.add((nr, nc))
                 queue.append((nr, nc))
 
