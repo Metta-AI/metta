@@ -4,7 +4,7 @@ seed: null
 
 defaults:
   - /sim/all@evals  # Use all evaluation suite
-  - /trainer: simple_with_auxiliary
+  - override /trainer: simple_with_auxiliary
   - _self_
 
 run_id: 1
