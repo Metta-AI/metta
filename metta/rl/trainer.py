@@ -1178,14 +1178,15 @@ class MettaTrainer:
         with torch.no_grad():
             state = PolicyState()
             # Use the core component to get representations
-            core_component = self.policy.components.get("_core_")
-            if core_component is None:
+            try:
+                core_component = self.policy.components["_core_"]
+                # Create a temporary TensorDict for the forward pass
+                td = {"x": obs_flat, "state": None}
+                core_component.forward(td)
+                representations = td["_core_"]  # Shape: (B*T, hidden_size)
+            except KeyError:
+                # Core component doesn't exist, return zero loss
                 return torch.tensor(0.0, device=self.device)
-
-            # Create a temporary TensorDict for the forward pass
-            td = {"x": obs_flat, "state": None}
-            core_component.forward(td)
-            representations = td["_core_"]  # Shape: (B*T, hidden_size)
 
         # Compute similarity matrix between all pairs
         # Normalize representations for cosine similarity
