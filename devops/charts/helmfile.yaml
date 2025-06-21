@@ -3,6 +3,8 @@ repositories:
   url: https://kubernetes-sigs.github.io/external-dns/
 - name: cert-manager
   url: https://charts.jetstack.io
+- name: nginx-ingress
+  url: https://kubernetes.github.io/ingress-nginx
 
 releases:
 ########## Core infrastructure ##########
@@ -54,3 +56,9 @@ releases:
       enabled: true
       # created by terraform
       lambdaAiSecretName: lambda-ai-credentials
+
+########## Observatory ##########
+- name: observatory
+  chart: ./observatory
+  version: 0.1.0
+  namespace: observatory
