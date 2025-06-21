@@ -1,5 +1,5 @@
 defaults:
-  - sim_suite
+  - simulation_base
   - _self_
 
 name: navsequence

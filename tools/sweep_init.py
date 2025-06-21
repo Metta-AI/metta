@@ -12,7 +12,7 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 
 import wandb_carbs
 from metta.rl.carbs.metta_carbs import MettaCarbs, carbs_params_from_cfg
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.types.simulation_config import SimulationSuiteConfig
 from metta.util.config import config_from_path
 from metta.util.lock import run_once
 from metta.util.logging import setup_mettagrid_logger

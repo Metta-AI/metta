@@ -13,6 +13,7 @@ from torch.distributed.elastic.multiprocessing.errors import record
 from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyStore
 from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.types.simulation_config import SimulationSuiteConfig
 from metta.util.config import Config, setup_metta_environment
 from metta.util.heartbeat import record_heartbeat
 from metta.util.logging import setup_mettagrid_logger

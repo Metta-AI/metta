@@ -28,8 +28,8 @@ from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
+from metta.sim.types.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.util.heartbeat import record_heartbeat
 from metta.util.system_monitor import SystemMonitor
 from metta.util.wandb.wandb_context import WandbRun

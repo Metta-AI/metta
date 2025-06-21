@@ -1,5 +1,5 @@
 defaults:
-  - sim_suite
+  - simulation_base
   - _self_
 
 name: sweep_eval
@@ -9,4 +9,4 @@ simulations:
     env: env/mettagrid/navigation/evals/emptyspace_withinsight
   simple:
     env: env/mettagrid/simple
-# selector_type: "latest"
+

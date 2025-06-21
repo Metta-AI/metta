@@ -167,6 +167,7 @@
     "stdexcept",
     "stdlib",
     "STREQUAL",
+    "subconfig",
     "sympy",
     "tablefmt",
     "tailnet",

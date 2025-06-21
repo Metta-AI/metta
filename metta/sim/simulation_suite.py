@@ -7,7 +7,6 @@ import torch
 from app_backend.stats_client import StatsClient
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
-from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
