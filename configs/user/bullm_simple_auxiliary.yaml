@@ -4,6 +4,7 @@ seed: null
 
 defaults:
   - override /trainer: simple_with_auxiliary
+  - /sim/all@evals  # Use navigation-only evaluation suite
   - _self_
 
 run_id: 1
