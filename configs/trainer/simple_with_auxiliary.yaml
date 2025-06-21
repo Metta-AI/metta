@@ -1,0 +1,37 @@
+# Simple environment training with auxiliary losses for representation learning
+# This extends the simple.yaml configuration with auxiliary loss coefficients
+
+_target_: metta.rl.trainer.MettaTrainer
+
+defaults:
+  - simple
+  - _self_
+
+# Override agent to use the one with auxiliary decoders
+agent: fast_with_auxiliary
+
+# Auxiliary losses for representation learning
+# Set to 0 to disable, >0 to enable with specified coefficient
+sensory_decoder_coef: 0.1      # Sensory reconstruction loss coefficient
+latent_decoder_coef: 0.1       # Latent prediction loss coefficient
+node_perturbation_coef: 0.01   # Node perturbation loss coefficient
+contrastive_coef: 0.1          # Contrastive learning loss coefficient
+
+# Environment configuration
+curriculum: /env/mettagrid/curriculum/simple
+
+# Training parameters (inherited from simple.yaml)
+ent_coef: 0.00209
+gae_lambda: 0.818
+gamma: 0.986
+learning_rate: 0.00141
+vf_coef: 0.480
+
+batch_size: 524288
+minibatch_size: 8192
+bptt_horizon: 64
+
+# Evaluation and checkpointing
+evaluate_interval: 300
+checkpoint_interval: 60
+wandb_checkpoint_interval: 300
