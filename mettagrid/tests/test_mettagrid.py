@@ -49,9 +49,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
             "wall": {"type_id": 1},
             "block": {"type_id": 2},
         },
-        "agent": {
-            "inventory_size": 0,
-        },
+        "agent": {},
     }
 
     return MettaGrid(game_config, game_map.tolist())
