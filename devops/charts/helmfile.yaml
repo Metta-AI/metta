@@ -5,6 +5,7 @@ repositories:
   url: https://charts.jetstack.io
 
 releases:
+########## Core infrastructure ##########
 - name: external-dns
   chart: external-dns/external-dns
   version: 1.17.0
@@ -15,6 +16,7 @@ releases:
         value: us-east-1
     serviceAccount:
       annotations:
+        # created by terraform
         eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/external-dns
 
 - name: cert-manager
@@ -23,3 +25,32 @@ releases:
   namespace: cert-manager
   values:
   - installCRDs: true
+
+########## Skypilot ##########
+- name: skypilot
+  chart: ./skypilot
+  version: 0.0.6
+  namespace: skypilot
+  values:
+  - apiService:
+      config: |
+        jobs:
+          bucket: s3://skypilot-jobs/
+    awsCredentials:
+      enabled: true
+    ingress:
+      # created by terraform
+      authSecret: skypilot-basic-auth
+      certManager:
+        clusterIssuer: letsencrypt
+        enabled: true
+      host: skypilot-api.softmax-research.net
+    ingress-nginx:
+      controller:
+        service:
+          annotations:
+            service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    lambdaAiCredentials:
+      enabled: true
+      # created by terraform
+      lambdaAiSecretName: lambda-ai-credentials

@@ -1,9 +1,6 @@
 dependencies:
-- name: skypilot
-  repository: file://../fork/skypilot
-  version: 0.0.6
 - name: ingress-nginx
   repository: https://kubernetes.github.io/ingress-nginx
   version: 4.11.3
-digest: sha256:82a1fcb78a97f46ba11a167f48b37d02f495439c9aba1c89b733f1dd01b40e21
-generated: "2025-06-20T22:10:06.648739-03:00"
+digest: sha256:b8a1d7ce0c002bf7b1b31c5a55e5d9a05b4de11638998e871abb336954c3901b
+generated: "2025-06-21T00:33:28.675847-03:00"
