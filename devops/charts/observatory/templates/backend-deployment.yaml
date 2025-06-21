@@ -19,7 +19,7 @@ spec:
           imagePullPolicy: Always
           envFrom:
           - secretRef:
-              name: {{ .Release.Name }}-env
+              name: {{ .Values.backend.secret_name }}
           env:
           - name: HOST
             value: "0.0.0.0"

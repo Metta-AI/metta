@@ -54,3 +54,9 @@ releases:
       enabled: true
       # created by terraform
       lambdaAiSecretName: lambda-ai-credentials
+
+########## Observatory ##########
+- name: observatory
+  chart: ./observatory
+  version: 0.1.0
+  namespace: observatory
