@@ -1,0 +1,25 @@
+repositories:
+- name: external-dns
+  url: https://kubernetes-sigs.github.io/external-dns/
+- name: cert-manager
+  url: https://charts.jetstack.io
+
+releases:
+- name: external-dns
+  chart: external-dns/external-dns
+  version: 1.17.0
+  namespace: external-dns
+  values:
+  - env:
+      - name: AWS_DEFAULT_REGION
+        value: us-east-1
+    serviceAccount:
+      annotations:
+        eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/external-dns
+
+- name: cert-manager
+  chart: ./cert-manager
+  version: v1.18.1
+  namespace: cert-manager
+  values:
+  - installCRDs: true
