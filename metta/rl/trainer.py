@@ -594,31 +594,42 @@ class MettaTrainer:
 
                 # Sensory decoder loss
                 if hasattr(trainer_cfg, "sensory_decoder_coef") and trainer_cfg.sensory_decoder_coef > 0:
-                    sensory_decoder = self.policy.components.get("sensory_decoder")
-                    if sensory_decoder is not None and hasattr(sensory_decoder, "compute_auxiliary_loss"):
-                        # Get original sensory inputs (flattened observations)
-                        original_sensory = obs.view(obs.shape[0], -1)
-                        sensory_decoder_loss = trainer_cfg.sensory_decoder_coef * sensory_decoder.compute_auxiliary_loss(
-                            td, original_sensory
-                        )
+                    try:
+                        sensory_decoder = self.policy.components["sensory_decoder"]
+                        if hasattr(sensory_decoder, "compute_auxiliary_loss"):
+                            # Get original sensory inputs (flattened observations)
+                            original_sensory = obs.view(obs.shape[0], -1)
+                            sensory_decoder_loss = trainer_cfg.sensory_decoder_coef * sensory_decoder.compute_auxiliary_loss(
+                                td, original_sensory
+                            )
+                    except KeyError:
+                        # Component doesn't exist, skip this loss
+                        pass
 
                 # Latent decoder loss
                 if hasattr(trainer_cfg, "latent_decoder_coef") and trainer_cfg.latent_decoder_coef > 0:
-                    latent_decoder = self.policy.components.get("latent_decoder")
-                    if latent_decoder is not None and hasattr(latent_decoder, "compute_auxiliary_loss"):
-                        # Get next latent state (shifted by 1 timestep)
-                        if obs.shape[1] > 1:  # Only if we have multiple timesteps
-                            next_obs = obs[:, 1:, ...].contiguous()
-                            next_state = PolicyState()
-                            # Forward pass to get next latent state
-                            next_td = {"x": next_obs.view(-1, *next_obs.shape[2:]), "state": None}
-                            core_component = self.policy.components.get("_core_")
-                            if core_component is not None:
-                                core_component.forward(next_td)
-                                next_latent = next_td["_core_"]
-                                latent_decoder_loss = trainer_cfg.latent_decoder_coef * latent_decoder.compute_auxiliary_loss(
-                                    td, next_latent
-                                )
+                    try:
+                        latent_decoder = self.policy.components["latent_decoder"]
+                        if hasattr(latent_decoder, "compute_auxiliary_loss"):
+                            # Get next latent state (shifted by 1 timestep)
+                            if obs.shape[1] > 1:  # Only if we have multiple timesteps
+                                next_obs = obs[:, 1:, ...].contiguous()
+                                next_state = PolicyState()
+                                # Forward pass to get next latent state
+                                next_td = {"x": next_obs.view(-1, *next_obs.shape[2:]), "state": None}
+                                try:
+                                    core_component = self.policy.components["_core_"]
+                                    core_component.forward(next_td)
+                                    next_latent = next_td["_core_"]
+                                    latent_decoder_loss = trainer_cfg.latent_decoder_coef * latent_decoder.compute_auxiliary_loss(
+                                        td, next_latent
+                                    )
+                                except KeyError:
+                                    # Core component doesn't exist, skip this loss
+                                    pass
+                    except KeyError:
+                        # Component doesn't exist, skip this loss
+                        pass
 
                 # Node perturbation loss
                 if hasattr(trainer_cfg, "node_perturbation_coef") and trainer_cfg.node_perturbation_coef > 0:
