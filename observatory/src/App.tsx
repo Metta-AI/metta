@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ServerRepo, Repo } from "./repo";
 import { Dashboard } from "./Dashboard";
+import { config } from "./config";
 
 function App() {
   // Data loading state
@@ -21,10 +22,8 @@ function App() {
 
   useEffect(() => {
     const initializeRepo = async () => {
+      const serverUrl = config.apiBaseUrl;
       try {
-        // Get server URL from environment or use default
-        const serverUrl =
-          import.meta.env.VITE_SERVER_URL || "http://localhost:8000";
         const repo = new ServerRepo(serverUrl);
 
         // Test the connection by calling getSuites
@@ -36,9 +35,7 @@ function App() {
           type: "default",
           error: `Failed to connect to server: ${
             err.message
-          }. Make sure the server is running at ${
-            import.meta.env.VITE_SERVER_URL || "http://localhost:8000"
-          }`,
+          }. Make sure the server is running at ${serverUrl}`,
         });
       }
     };
