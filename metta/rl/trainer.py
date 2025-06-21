@@ -1174,8 +1174,9 @@ class MettaTrainer:
             state = PolicyState()
             # Use the policy's forward method to get proper representations
             try:
-                # Reshape observations to (B*T, ...) for the policy forward pass
-                obs_flat = obs.view(B * T, -1)
+                # Reshape observations to (B*T, ...) while preserving spatial structure
+                # Similar to how it's done in the latent decoder loss
+                obs_flat = obs.view(-1, *obs.shape[2:])
 
                 # Call the policy's forward method with proper parameters
                 # The policy expects (obs, state, action=None)
