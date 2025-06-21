@@ -3,11 +3,13 @@ image:
   name: metta
   tag: latest
 
-db_uri: ""
+host: api.observatory.softmax-research.net
 
-host: ""
+backend:
+  # created by terraform
+  secret_name: observatory-backend-env
 
-cert_manager_issuer: "letsencrypt"
+cert_manager_issuer: letsencrypt
 
 oauth2_proxy:
   email_domains:
