@@ -1,6 +1,6 @@
 image:
   registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
-  name: metta
+  name: metta-app-backend
   tag: latest
 
 host: api.observatory.softmax-research.net

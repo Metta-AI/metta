@@ -22,6 +22,11 @@ spec:
         {{- range .Values.oauth2_proxy.email_domains | required "oauth2_proxy.email_domains is required" }}
         - --email-domain={{ . }}
         {{- end }}
+        # useful while debugging
+        - --standard-logging=true
+        - --auth-logging=true
+        - --request-logging=true
+        - --show-debug-on-error=true
         envFrom:
         - secretRef:
             name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
