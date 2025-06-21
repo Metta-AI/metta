@@ -15,6 +15,12 @@ class Losses:
         self.ks_value_loss_sum = 0.0
         self.importance_sum = 0.0
 
+        # Auxiliary losses for representation learning
+        self.sensory_decoder_loss_sum = 0.0
+        self.latent_decoder_loss_sum = 0.0
+        self.node_perturbation_loss_sum = 0.0
+        self.contrastive_loss_sum = 0.0
+
         self.explained_variance = 0.0
         self.minibatches_processed = 0
 
@@ -33,5 +39,10 @@ class Losses:
             "ks_action_loss": self.ks_action_loss_sum / n,
             "ks_value_loss": self.ks_value_loss_sum / n,
             "importance": self.importance_sum / n,
+            # Auxiliary losses
+            "sensory_decoder_loss": self.sensory_decoder_loss_sum / n,
+            "latent_decoder_loss": self.latent_decoder_loss_sum / n,
+            "node_perturbation_loss": self.node_perturbation_loss_sum / n,
+            "contrastive_loss": self.contrastive_loss_sum / n,
             "explained_variance": self.explained_variance,
         }

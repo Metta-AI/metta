@@ -586,6 +586,52 @@ class MettaTrainer:
                 if trainer_cfg.l2_init_loss_coef > 0:
                     l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
+                # Compute auxiliary losses for representation learning
+                sensory_decoder_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+                latent_decoder_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+                node_perturbation_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+                contrastive_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+
+                # Sensory decoder loss
+                if hasattr(trainer_cfg, "sensory_decoder_coef") and trainer_cfg.sensory_decoder_coef > 0:
+                    sensory_decoder = self.policy.components.get("sensory_decoder")
+                    if sensory_decoder is not None and hasattr(sensory_decoder, "compute_auxiliary_loss"):
+                        # Get original sensory inputs (flattened observations)
+                        original_sensory = obs.view(obs.shape[0], -1)
+                        sensory_decoder_loss = trainer_cfg.sensory_decoder_coef * sensory_decoder.compute_auxiliary_loss(
+                            td, original_sensory
+                        )
+
+                # Latent decoder loss
+                if hasattr(trainer_cfg, "latent_decoder_coef") and trainer_cfg.latent_decoder_coef > 0:
+                    latent_decoder = self.policy.components.get("latent_decoder")
+                    if latent_decoder is not None and hasattr(latent_decoder, "compute_auxiliary_loss"):
+                        # Get next latent state (shifted by 1 timestep)
+                        if obs.shape[1] > 1:  # Only if we have multiple timesteps
+                            next_obs = obs[:, 1:, ...].contiguous()
+                            next_state = PolicyState()
+                            # Forward pass to get next latent state
+                            next_td = {"x": next_obs.view(-1, *next_obs.shape[2:]), "state": None}
+                            core_component = self.policy.components.get("_core_")
+                            if core_component is not None:
+                                core_component.forward(next_td)
+                                next_latent = next_td["_core_"]
+                                latent_decoder_loss = trainer_cfg.latent_decoder_coef * latent_decoder.compute_auxiliary_loss(
+                                    td, next_latent
+                                )
+
+                # Node perturbation loss
+                if hasattr(trainer_cfg, "node_perturbation_coef") and trainer_cfg.node_perturbation_coef > 0:
+                    node_perturbation_loss = trainer_cfg.node_perturbation_coef * self._compute_node_perturbation_loss(
+                        adv, minibatch["rewards"], minibatch["values"]
+                    )
+
+                # Contrastive loss
+                if hasattr(trainer_cfg, "contrastive_coef") and trainer_cfg.contrastive_coef > 0:
+                    contrastive_loss = trainer_cfg.contrastive_coef * self._compute_contrastive_loss(
+                        obs, minibatch["actions"], minibatch["rewards"]
+                    )
+
                 loss = (
                     pg_loss
                     - trainer_cfg.ent_coef * entropy_loss
@@ -594,6 +640,10 @@ class MettaTrainer:
                     + l2_init_loss
                     + ks_action_loss
                     + ks_value_loss
+                    + sensory_decoder_loss
+                    + latent_decoder_loss
+                    + node_perturbation_loss
+                    + contrastive_loss
                 )
 
                 # Update values in experience buffer
@@ -613,6 +663,11 @@ class MettaTrainer:
                 self.losses.ks_action_loss_sum += ks_action_loss.item()
                 self.losses.ks_value_loss_sum += ks_value_loss.item()
                 self.losses.importance_sum += importance_sampling_ratio.mean().item()
+                # Auxiliary losses
+                self.losses.sensory_decoder_loss_sum += sensory_decoder_loss.item()
+                self.losses.latent_decoder_loss_sum += latent_decoder_loss.item()
+                self.losses.node_perturbation_loss_sum += node_perturbation_loss.item()
+                self.losses.contrastive_loss_sum += contrastive_loss.item()
                 self.losses.minibatches_processed += 1
 
                 self.optimizer.zero_grad()
@@ -1056,6 +1111,103 @@ class MettaTrainer:
             time.sleep(5)
 
         raise RuntimeError("Failed to load policy after 10 attempts")
+
+    def _compute_node_perturbation_loss(
+        self, advantages: torch.Tensor, rewards: torch.Tensor, values: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute node perturbation loss: GAE * (r_i - r̄_i)².
+
+        This loss encourages the agent to learn representations that are robust
+        to reward perturbations by penalizing large deviations from the mean reward.
+
+        Args:
+            advantages: GAE advantages
+            rewards: Rewards from experience
+            values: Value estimates
+
+        Returns:
+            Node perturbation loss
+        """
+        # Compute mean reward across the batch
+        mean_reward = rewards.mean()
+
+        # Compute reward deviations: (r_i - r̄_i)²
+        reward_deviations = (rewards - mean_reward) ** 2
+
+        # Node perturbation loss: GAE * (r_i - r̄_i)²
+        node_perturbation_loss = (advantages * reward_deviations).mean()
+
+        return node_perturbation_loss
+
+    def _compute_contrastive_loss(
+        self, obs: torch.Tensor, actions: torch.Tensor, rewards: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute contrastive loss across time sequences.
+
+        This loss encourages representations of similar states/actions to be close
+        and different states/actions to be far apart in the latent space.
+
+        Args:
+            obs: Observations across time (B, T, ...)
+            actions: Actions across time (B, T, 2)
+            rewards: Rewards for positive/negative pair identification
+
+        Returns:
+            Contrastive loss
+        """
+        B, T = obs.shape[:2]
+
+        # Reshape to (B*T, ...) for processing
+        obs_flat = obs.view(B * T, -1)
+        actions_flat = actions.view(B * T, -1)
+        rewards_flat = rewards.view(B * T)
+
+        # Get representations from the core network
+        # We need to run a forward pass to get the representations
+        with torch.no_grad():
+            state = PolicyState()
+            # Use the core component to get representations
+            core_component = self.policy.components.get("_core_")
+            if core_component is None:
+                return torch.tensor(0.0, device=self.device)
+
+            # Create a temporary TensorDict for the forward pass
+            td = {"x": obs_flat, "state": None}
+            core_component.forward(td)
+            representations = td["_core_"]  # Shape: (B*T, hidden_size)
+
+        # Compute similarity matrix between all pairs
+        # Normalize representations for cosine similarity
+        representations_norm = torch.nn.functional.normalize(representations, dim=1)
+        similarity_matrix = torch.mm(representations_norm, representations_norm.t())
+
+        # Create positive pairs: states with similar rewards (within threshold)
+        reward_threshold = 0.1
+        reward_diff = torch.abs(rewards_flat.unsqueeze(1) - rewards_flat.unsqueeze(0))
+        positive_mask = (reward_diff < reward_threshold).float()
+
+        # Create negative pairs: states with different rewards
+        negative_mask = (reward_diff > reward_threshold).float()
+
+        # Remove self-similarity
+        positive_mask.fill_diagonal_(0)
+        negative_mask.fill_diagonal_(0)
+
+        # Compute contrastive loss
+        temperature = 0.1
+        exp_sim = torch.exp(similarity_matrix / temperature)
+
+        # Positive pairs should have high similarity
+        positive_loss = -torch.log(exp_sim + 1e-8) * positive_mask
+        positive_loss = positive_loss.sum() / (positive_mask.sum() + 1e-8)
+
+        # Negative pairs should have low similarity
+        negative_loss = torch.log(exp_sim + 1e-8) * negative_mask
+        negative_loss = negative_loss.sum() / (negative_mask.sum() + 1e-8)
+
+        contrastive_loss = positive_loss + negative_loss
+
+        return contrastive_loss
 
 
 class AbortingTrainer(MettaTrainer):
