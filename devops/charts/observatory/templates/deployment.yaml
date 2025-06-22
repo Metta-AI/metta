@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-frontend
+  name: {{ .Release.Name }}
 spec:
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-frontend
+      app: {{ .Release.Name }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-frontend
+        app: {{ .Release.Name }}
     spec:
       imagePullSecrets:
       - name: dockerconfig
       containers:
         - name: server
-          image: "{{ .Values.frontend.image.registry }}/{{ .Values.frontend.image.name }}:{{ required "tag is required" .Values.frontend.image.tag }}"
+          image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
           imagePullPolicy: Always
           resources:
             requests:
@@ -32,15 +32,3 @@ spec:
             httpGet:
               path: /
               port: 80
----
-
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ $.Release.Name }}-frontend
-spec:
-  selector:
-    app: {{ $.Release.Name }}-frontend
-  ports:
-    - port: 80
-      targetPort: 80
