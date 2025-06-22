@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from omegaconf import OmegaConf
+
 if TYPE_CHECKING:
     from mettagrid.mettagrid_env import MettaGridEnv
 
@@ -97,8 +99,9 @@ class EpisodeReplay:
             for key, changes in list(grid_object.items()):
                 if isinstance(changes, list) and len(changes) == 1:
                     grid_object[key] = changes[0][1]
-        # Store the env config.
-        self.replay_data["config"] = self.env.config
+
+        self.replay_data["config"] = OmegaConf.to_container(self.env._task.env_cfg(), resolve=True)
+
         return self.replay_data
 
     def write_replay(self, path: str):

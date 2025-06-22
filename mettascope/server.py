@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import webbrowser
+from pathlib import Path
 
 import hydra
 import numpy as np
@@ -16,6 +17,33 @@ import mettascope.replays as replays
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+class SelectiveNoCacheStaticFiles(StaticFiles):
+    """StaticFiles that disables caching for specific file extensions."""
+
+    def __init__(self, *args, no_cache_extensions=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.no_cache_extensions = no_cache_extensions or {".js", ".json"}
+
+    def file_response(
+        self,
+        full_path,
+        stat_result,
+        scope,
+        status_code: int = 200,
+    ):
+        """Override file_response to selectively disable caching."""
+        # Check if file extension should be excluded from caching
+        file_ext = Path(full_path).suffix.lower()
+        if file_ext in self.no_cache_extensions:
+            # Don't cache these files - set explicit no-store headers
+            response = FileResponse(full_path, status_code=status_code, stat_result=stat_result)
+            response.headers["Cache-Control"] = "no-store"
+            return response
+
+        # Use normal caching behavior for other files by delegating to the base class
+        return super().file_response(full_path, stat_result, scope, status_code=status_code)
 
 
 def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
@@ -87,7 +115,11 @@ def make_app(cfg: DictConfig):
 
     # Mount a directory for static files
     app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
-    app.mount("/dist", StaticFiles(directory="mettascope/dist"), name="dist")
+    app.mount(
+        "/dist",
+        SelectiveNoCacheStaticFiles(directory="mettascope/dist", no_cache_extensions={".js", ".json", ".css"}),
+        name="dist",
+    )
     app.mount("/local", StaticFiles(directory="mettascope/local"), name="local")
 
     # Direct favicon.ico to the data/ui dir.

@@ -437,7 +437,6 @@ jobs:
             - Always verify you're on the correct branch before and after making changes
           allowed_tools: "Edit,Replace,View,GlobTool,GrepTool,Read,Write,mcp__github_file_ops__commit_files,mcp__github__update_issue_comment,Bash(git checkout*),Bash(git branch*),Bash(git status),Bash(git add*),Bash(git commit*),Bash(git log*)"
 
-      # FIX: Ensure we're on the correct branch and check for changes
       - name: Fix git state after Claude
         if: steps.check_action.outputs.action == 'create_pr' && steps.claude_pr.outcome == 'success'
         id: fix_git_state
@@ -452,6 +451,21 @@ jobs:
             echo "⚠️ Not on expected branch, switching to ${{ steps.branches.outputs.new_branch }}"
             git checkout ${{ steps.branches.outputs.new_branch }}
           fi
+
+          # Clean up any debug/output files that shouldn't be committed
+          echo "=== CLEANING UP EXTRA FILES ==="
+
+          # Remove common debug/output files if they exist
+          for file in output.txt output.log debug.txt claude-debug.txt .claude-session*; do
+            if [ -f "$file" ]; then
+              echo "Removing debug file: $file"
+              rm -f "$file"
+            fi
+          done
+
+          # Check git status to see what files were added/modified
+          echo "=== GIT STATUS AFTER CLEANUP ==="
+          git status --short
 
           # Check for uncommitted changes
           if ! git diff --quiet || ! git diff --cached --quiet; then

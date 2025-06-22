@@ -57,6 +57,12 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5):
     return MettaGrid(game_config, game_map.tolist())
 
 
+def test_grid_hash():
+    """Test grid object representation and properties."""
+    c_env = create_minimal_mettagrid_c_env()
+    assert c_env.initial_grid_hash == 8082132383455666218
+
+
 def test_truncation_at_max_steps():
     """Test that environments properly truncate at max_steps."""
     max_steps = 5

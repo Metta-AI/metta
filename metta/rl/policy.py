@@ -23,7 +23,9 @@ def load_policy(path: str, device: str = "cpu", puffer: DictConfig = None):
     # Create environment namespace
     env = SimpleNamespace(
         single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
-        single_observation_space=SimpleNamespace(shape=tuple(torch.tensor([obs_channels, 11, 11]).tolist())),
+        single_observation_space=SimpleNamespace(
+            shape=tuple(torch.tensor([obs_channels, 11, 11], dtype=torch.long).tolist())
+        ),
     )
 
     policy = instantiate(puffer, env=env, policy=None)

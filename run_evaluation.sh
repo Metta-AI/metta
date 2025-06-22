@@ -8,7 +8,6 @@ POLICIES=(
   "b.daphne.object_use_multienv2:v41"
   "daphne_objectuse_bigandsmall:v22"
   "mrazo_object-use_allobs_large-multienv_v01"
-
   "daphne_objectuse_allobjs_multienv:v94"
   "b.daphne.object_use_multienv2:v65"
   "training_regular_envset_nb:v76"
@@ -27,7 +26,6 @@ POLICIES=(
   "b.daphne.regular_envset"
   "training_regular_envset_nb"
   "training_uniform_envset_nb"
-
 )
 
 for i in "${!POLICIES[@]}"; do
