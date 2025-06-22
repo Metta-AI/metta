@@ -79,7 +79,7 @@ components:
     _target_: metta.agent.lib.sensory_decoder.SensoryDecoder
     sources:
       - name: _core_
-    output_size: 128  # Should match the flattened observation size
+    output_size: 128  # Should match the fc1 output size (128) - the flattened observation representation
     decoder_hidden_dim: 256
 
   latent_decoder:
@@ -95,28 +95,34 @@ components:
       - name: core_relu
     nn_params:
       out_features: 1024
-
-  critic_2:
-    _target_: metta.agent.lib.nn_layer_library.Linear
-    sources:
-      - name: critic_1
-    nn_params:
-      out_features: 1024
+    nonlinearity: nn.Tanh
+    effective_rank: true
 
   _value_:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: critic_2
+      - name: critic_1
     nn_params:
       out_features: 1
+    nonlinearity: null
 
-  _action_embeds_:
-    _target_: metta.agent.lib.action_embeds.ActionEmbeds
-    sources:
-      null
-
-  _action_:
-    _target_: metta.agent.lib.actor.MettaActorBig
+  actor_1:
+    _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
       - name: core_relu
+    nn_params:
+      out_features: 512
+
+  _action_embeds_:
+    _target_: metta.agent.lib.action.ActionEmbedding
+    sources:
+      null
+    nn_params:
+      num_embeddings: 100
+      embedding_dim: 16
+
+  _action_:
+    _target_: metta.agent.lib.actor.MettaActorSingleHead
+    sources:
+      - name: actor_1
       - name: _action_embeds_
