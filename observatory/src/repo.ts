@@ -1,4 +1,3 @@
-
 export type HeatmapCell = {
   evalName: string;
   replayUrl: string | null;
@@ -20,6 +19,26 @@ export type HeatmapData = {
   evalMaxScores: Record<string, number>;
 }
 
+export type TokenInfo = {
+  id: string;
+  name: string;
+  created_at: string;
+  expiration_time: string;
+  last_used_at: string | null;
+}
+
+export type TokenCreate = {
+  name: string;
+}
+
+export type TokenResponse = {
+  token: string;
+}
+
+export type TokenListResponse = {
+  tokens: TokenInfo[];
+}
+
 /**
  * Interface for data fetching.
  *
@@ -32,6 +51,11 @@ export interface Repo {
   getGroupIds(suite: string): Promise<string[]>;
 
   getHeatmapData(metric: string, suite: string, groupMetric: GroupHeatmapMetric): Promise<HeatmapData>;
+
+  // Token management methods
+  createToken(tokenData: TokenCreate): Promise<TokenResponse>;
+  listTokens(): Promise<TokenListResponse>;
+  deleteToken(tokenId: string): Promise<void>;
 }
 
 export class ServerRepo implements Repo {
@@ -60,6 +84,15 @@ export class ServerRepo implements Repo {
     return response.json();
   }
 
+  private async apiCallDelete(endpoint: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+    }
+  }
+
   async getSuites(): Promise<string[]> {
     return this.apiCall<string[]>("/dashboard/suites");
   }
@@ -79,6 +112,19 @@ export class ServerRepo implements Repo {
       { group_metric: groupMetric }
     );
     return apiData;
+  }
+
+  // Token management methods
+  async createToken(tokenData: TokenCreate): Promise<TokenResponse> {
+    return this.apiCallWithBody<TokenResponse>("/tokens", tokenData);
+  }
+
+  async listTokens(): Promise<TokenListResponse> {
+    return this.apiCall<TokenListResponse>("/tokens");
+  }
+
+  async deleteToken(tokenId: string): Promise<void> {
+    return this.apiCallDelete(`/tokens/${tokenId}`);
   }
 }
 

@@ -1,7 +1,60 @@
 import { useEffect, useState } from "react";
 import { ServerRepo, Repo } from "./repo";
 import { Dashboard } from "./Dashboard";
+import { TokenManager } from "./TokenManager";
 import { config } from "./config";
+
+// CSS for navigation
+const NAV_CSS = `
+.nav-container {
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+  padding: 0 20px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.1);
+}
+
+.nav-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-brand {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  text-decoration: none;
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 0;
+}
+
+.nav-tab {
+  padding: 15px 20px;
+  text-decoration: none;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.nav-tab:hover {
+  color: #333;
+  background: #f8f9fa;
+}
+
+.nav-tab.active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+}
+
+.page-container {
+  padding-top: 0;
+}
+`;
 
 function App() {
   // Data loading state
@@ -19,6 +72,7 @@ function App() {
   type State = DefaultState | LoadingState | RepoState;
 
   const [state, setState] = useState<State>({ type: "loading" });
+  const [currentPage, setCurrentPage] = useState<"dashboard" | "tokens">("dashboard");
 
   useEffect(() => {
     const initializeRepo = async () => {
@@ -122,7 +176,42 @@ function App() {
   }
 
   if (state.type === "repo") {
-    return <Dashboard repo={state.repo} />;
+    return (
+      <div style={{ fontFamily: "Arial, sans-serif", margin: 0 }}>
+        <style>{NAV_CSS}</style>
+        <nav className="nav-container">
+          <div className="nav-content">
+            <a href="#" className="nav-brand" onClick={(e) => { e.preventDefault(); setCurrentPage("dashboard"); }}>
+              Policy Evaluation Dashboard
+            </a>
+            <div className="nav-tabs">
+              <a
+                href="#"
+                className={`nav-tab ${currentPage === "dashboard" ? "active" : ""}`}
+                onClick={(e) => { e.preventDefault(); setCurrentPage("dashboard"); }}
+              >
+                Dashboard
+              </a>
+              <a
+                href="#"
+                className={`nav-tab ${currentPage === "tokens" ? "active" : ""}`}
+                onClick={(e) => { e.preventDefault(); setCurrentPage("tokens"); }}
+              >
+                Token Management
+              </a>
+            </div>
+          </div>
+        </nav>
+
+        <div className="page-container">
+          {currentPage === "dashboard" ? (
+            <Dashboard repo={state.repo} />
+          ) : (
+            <TokenManager repo={state.repo} />
+          )}
+        </div>
+      </div>
+    );
   }
 
   return null;

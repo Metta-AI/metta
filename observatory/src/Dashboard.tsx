@@ -171,10 +171,9 @@ export function Dashboard({ repo }: DashboardProps) {
   return (
     <div
       style={{
-        fontFamily: "Arial, sans-serif",
-        margin: 0,
         padding: "20px",
         background: "#f8f9fa",
+        minHeight: "calc(100vh - 60px)",
       }}
     >
       <style>{DASHBOARD_CSS}</style>
@@ -188,17 +187,6 @@ export function Dashboard({ repo }: DashboardProps) {
           boxShadow: "0 2px 4px rgba(0,0,0,.1)",
         }}
       >
-        <h1
-          style={{
-            color: "#333",
-            borderBottom: "1px solid #ddd",
-            paddingBottom: "10px",
-            marginBottom: "20px",
-          }}
-        >
-          Policy Evaluation Dashboard
-        </h1>
-
         <div className="suite-tabs">
           <div
             style={{ fontSize: "18px", marginTop: "5px", marginRight: "10px" }}
