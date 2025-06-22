@@ -92,4 +92,4 @@ spec:
   tls:
   - hosts:
     - {{ .Values.api_host | required "host is required" }}
-    secretName: {{ .Release.Name }}-tls
+    secretName: {{ .Release.Name }}-api-tls

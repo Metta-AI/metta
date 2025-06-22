@@ -18,7 +18,7 @@ frontend:
   image:
     registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
     name: metta-app-frontend
-    tag: sha-adc0f67
+    tag: sha-d566545
 
 
 cert_manager_issuer: letsencrypt
