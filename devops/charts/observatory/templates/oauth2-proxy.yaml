@@ -19,6 +19,8 @@ spec:
         args:
         - --upstream=file:///dev/null
         - --http-address=0.0.0.0:4180
+        - --reverse-proxy=true
+        - --set-xauthrequest=true
         {{- range .Values.oauth2_proxy.email_domains | required "oauth2_proxy.email_domains is required" }}
         - --email-domain={{ . }}
         {{- end }}

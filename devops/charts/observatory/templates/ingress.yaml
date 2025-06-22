@@ -30,6 +30,8 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/auth-url: "https://$host/oauth2/auth"
     nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
+    nginx.ingress.kubernetes.io/auth-response-headers: |
+      X-Auth-Request-User, X-Auth-Request-Email
     cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
     # needed for /api rewrites
     nginx.ingress.kubernetes.io/use-regex: "true"
@@ -50,8 +52,8 @@ spec:
             port:
               number: 8000
       # / –> frontend
-      - path: /
-        pathType: Prefix
+      - path: /()(.*)
+        pathType: ImplementationSpecific
         backend:
           service:
             name: "{{ .Release.Name }}-frontend"
@@ -60,4 +62,34 @@ spec:
   tls:
   - hosts:
     - {{ .Values.host | required "host is required" }}
+    secretName: {{ .Release.Name }}-tls
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-api
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Auth-Request-Email   "";
+      proxy_set_header X-Auth-Request-User    "";
+
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: "{{ .Values.api_host | required "api_host is required" }}"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: "{{ .Release.Name }}-backend"
+            port:
+              number: 8000
+  tls:
+  - hosts:
+    - {{ .Values.api_host | required "host is required" }}
     secretName: {{ .Release.Name }}-tls

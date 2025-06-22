@@ -1,10 +1,16 @@
+# this host is protected by oauth2-proxy
+# api will be mounted under /api
 host: observatory.softmax-research.net
+
+# this host is exposed without oauth2-proxy, for scripts that authenticate with API tokens
+# api will be mounted under /
+api_host: api.observatory.softmax-research.net
 
 backend:
   image:
     registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
     name: metta-app-backend
-    tag: latest
+    tag: sha-d566545
   # created by terraform
   secret_name: observatory-backend-env
 

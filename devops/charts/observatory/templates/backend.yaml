@@ -29,13 +29,13 @@ spec:
             - containerPort: 8000
           livenessProbe:
             httpGet:
-              path: /dashboard/suites # TODO: change to /health
+              path: /whoami
               port: 8000
             timeoutSeconds: 30
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /dashboard/suites
+              path: /whoami
               port: 8000
             timeoutSeconds: 3
             periodSeconds: 1
