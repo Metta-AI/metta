@@ -5,6 +5,8 @@ repositories:
   url: https://charts.jetstack.io
 - name: ingress-nginx
   url: https://kubernetes.github.io/ingress-nginx
+- name: metrics-server
+  url: https://kubernetes-sigs.github.io/metrics-server/
 
 releases:
 ########## Core infrastructure ##########
@@ -62,6 +64,11 @@ releases:
               default upgrade;
               ''      close;
           }
+
+- name: metrics-server
+  chart: metrics-server/metrics-server
+  version: 3.12.2
+  namespace: metrics-server
 
 ########## Skypilot ##########
 - name: skypilot
