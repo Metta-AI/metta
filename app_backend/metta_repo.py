@@ -1,4 +1,7 @@
+import hashlib
+import secrets
 import uuid
+from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 from psycopg import Connection
@@ -68,6 +71,24 @@ MIGRATIONS = [
                 value REAL,
                 PRIMARY KEY (episode_id, agent_id, metric)
             )""",
+        ],
+    ),
+    SqlMigration(
+        version=1,
+        description="Add machine tokens table",
+        sql_statements=[
+            """CREATE TABLE machine_tokens (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                token_hash TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                expiration_time TIMESTAMP NOT NULL,
+                last_used_at TIMESTAMP,
+                UNIQUE (user_id, name)
+            )""",
+            """CREATE INDEX idx_machine_tokens_user_id ON machine_tokens(user_id)""",
+            """CREATE INDEX idx_machine_tokens_token_hash ON machine_tokens(token_hash)""",
         ],
     ),
 ]
@@ -256,3 +277,86 @@ class MettaRepo:
                 (suite,),
             )
             return [row[0] for row in result]
+
+    def _hash_token(self, token: str) -> str:
+        """Hash a token for secure storage."""
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    def create_machine_token(self, user_id: str, name: str, expiration_days: int = 365) -> str:
+        """Create a new machine token for a user."""
+        # Generate a secure random token
+        token = secrets.token_urlsafe(32)
+        token_hash = self._hash_token(token)
+
+        # Set expiration time
+        expiration_time = datetime.now() + timedelta(days=expiration_days)
+
+        with self.connect() as con:
+            con.execute(
+                """
+                INSERT INTO machine_tokens (user_id, name, token_hash, expiration_time)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (user_id, name, token_hash, expiration_time),
+            )
+
+        return token
+
+    def list_machine_tokens(self, user_id: str) -> List[Dict[str, Any]]:
+        """List all machine tokens for a user."""
+        with self.connect() as con:
+            result = con.execute(
+                """
+                SELECT id, name, created_at, expiration_time, last_used_at
+                FROM machine_tokens
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                """,
+                (user_id,),
+            )
+            return [
+                {
+                    "id": str(row[0]),
+                    "name": row[1],
+                    "created_at": row[2],
+                    "expiration_time": row[3],
+                    "last_used_at": row[4],
+                }
+                for row in result
+            ]
+
+    def delete_machine_token(self, user_id: str, token_id: str) -> bool:
+        """Delete a machine token."""
+        try:
+            token_uuid = uuid.UUID(token_id)
+        except ValueError:
+            return False
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                DELETE FROM machine_tokens
+                WHERE id = %s AND user_id = %s
+                """,
+                (token_uuid, user_id),
+            )
+            return result.rowcount > 0
+
+    def validate_machine_token(self, token: str) -> str | None:
+        """Validate a machine token and return the user_id if valid."""
+        token_hash = self._hash_token(token)
+
+        with self.connect() as con:
+            result = con.execute(
+                """
+                UPDATE machine_tokens
+                SET last_used_at = CURRENT_TIMESTAMP
+                WHERE token_hash = %s AND expiration_time > CURRENT_TIMESTAMP
+                RETURNING user_id
+                """,
+                (token_hash,),
+            ).fetchone()
+
+            if result:
+                return result[0]
+            return None

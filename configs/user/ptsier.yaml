@@ -5,11 +5,8 @@ defaults:
   - _self_
 
 run: pasha_sim
-policy_uri: wandb://run/daphne.regularnav.main:v2
+policy_uri: wandb://run/daphne.nav_memory_sequence.baseline.06-20
 
 stats_server_uri: http://localhost:8000
 stats_user: ptsier
-
-sim_job:
-  stats_db_uri: postgres://postgres:password@127.0.0.1/postgres
 

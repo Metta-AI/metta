@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from psycopg import Connection
 from psycopg.rows import class_row
 from psycopg.sql import SQL
 from pydantic import BaseModel
 
+from app_backend.auth import create_user_or_token_dependency
 from app_backend.metta_repo import MettaRepo
 
 
@@ -83,16 +84,19 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     """Create a dashboard router with the given StatsRepo instance."""
     router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+    # Create the user-or-token authentication dependency
+    user_or_token = Depends(create_user_or_token_dependency(metta_repo))
+
     @router.get("/suites")
-    async def get_suites() -> List[str]:
+    async def get_suites(user: str = user_or_token) -> List[str]:
         return metta_repo.get_suites()
 
     @router.get("/suites/{suite}/metrics")
-    async def get_metrics(suite: str) -> List[str]:
+    async def get_metrics(suite: str, user: str = user_or_token) -> List[str]:
         return metta_repo.get_metrics(suite)
 
     @router.get("/suites/{suite}/group-ids")
-    async def get_group_ids(suite: str) -> List[str]:
+    async def get_group_ids(suite: str, user: str = user_or_token) -> List[str]:
         return metta_repo.get_group_ids(suite)
 
     @router.post("/suites/{suite}/metrics/{metric}/heatmap")
@@ -100,6 +104,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         suite: str,
         metric: str,
         group_metric: GroupHeatmapMetric,
+        user: str = user_or_token,
     ) -> HeatmapData:
         """Get heatmap data for a given suite, metric, and group metric."""
         with metta_repo.connect() as con:
