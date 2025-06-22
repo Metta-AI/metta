@@ -35,23 +35,23 @@ class ResidualBlock(nn.Module):
         self.block = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
             nn.LayerNorm(hidden_size),
-            Swift(),
+            Swish(),
             nn.Linear(hidden_size, hidden_size),
             nn.LayerNorm(hidden_size),
-            Swift(),
+            Swish(),
             nn.Linear(hidden_size, hidden_size),
             nn.LayerNorm(hidden_size),
-            Swift(),
+            Swish(),
             nn.Linear(hidden_size, hidden_size),
             nn.LayerNorm(hidden_size),
-            Swift(),
+            Swish(),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x + self.block(x)
 
 
-class Swift(nn.Module):
+class Swish(nn.Module):
     """
     This class cannot be used as a layer in MettaAgent. It is a helper class for ResidualBlock.
     """
