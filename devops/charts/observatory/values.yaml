@@ -1,13 +1,19 @@
-image:
-  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
-  name: metta-app-backend
-  tag: latest
-
-host: api.observatory.softmax-research.net
+host: observatory.softmax-research.net
 
 backend:
+  image:
+    registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+    name: metta-app-backend
+    tag: latest
   # created by terraform
   secret_name: observatory-backend-env
+
+frontend:
+  image:
+    registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+    name: metta-app-frontend
+    tag: sha-adc0f67
+
 
 cert_manager_issuer: letsencrypt
 
