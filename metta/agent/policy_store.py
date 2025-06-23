@@ -18,19 +18,14 @@ import gymnasium as gym
 import hydra
 import numpy as np
 import wandb
+
+# Import wandb types directly to avoid pydantic dependency
+import wandb.sdk.wandb_run
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.package import PackageExporter, PackageImporter
 
 from metta.rl.policy import load_pytorch_policy
-
-# Import wandb types directly to avoid pydantic dependency
-try:
-    import wandb.sdk.wandb_run
-
-    WandbRun = wandb.sdk.wandb_run.Run
-except ImportError:
-    WandbRun = None
 
 logger = logging.getLogger("policy_store")
 
@@ -57,8 +52,6 @@ class PolicyRecord:
 
     def policy(self) -> nn.Module:
         if self._policy is None:
-            if self._policy_store is None:
-                raise ValueError("PolicyStore is required to load policy")
             pr = self._policy_store.load_from_uri(self.uri)
             self._policy = pr.policy()
             self._local_path = pr.local_path()
@@ -323,7 +316,7 @@ class PolicyRecord:
 
 
 class PolicyStore:
-    def __init__(self, cfg: ListConfig | DictConfig, wandb_run: Optional["WandbRun"]):
+    def __init__(self, cfg: ListConfig | DictConfig, wandb_run):
         self._cfg = cfg
         self._device = cfg.device
         self._wandb_run = wandb_run
