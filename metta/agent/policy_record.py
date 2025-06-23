@@ -15,13 +15,11 @@ while the trainer handles the constraint that packaged models can't be re-packag
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 import torch
 from torch import nn
 from torch.package import PackageExporter, PackageImporter
-
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 
 if TYPE_CHECKING:
     from metta.agent.policy_store import PolicyStore
@@ -52,25 +50,6 @@ class PolicyRecord:
             self._policy = pr.policy()
             self._local_path = pr.local_path()
         return self._policy
-
-    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
-        """Get the policy as a MettaAgent or DistributedMettaAgent.
-
-        Since all policies are now MettaAgent instances (unified class),
-        this method simply returns the policy.
-        """
-        policy = self.policy()
-
-        # Use duck typing instead of isinstance to handle torch.package loaded classes
-        required_attrs = ["activate_actions", "forward", "is_pytorch_policy"]
-        for attr in required_attrs:
-            if not hasattr(policy, attr):
-                raise TypeError(
-                    f"Expected MettaAgent interface, "
-                    f"but policy is missing attribute '{attr}'. Got {type(policy).__name__}"
-                )
-
-        return policy
 
     def num_params(self) -> int:
         """Get the number of trainable parameters."""
@@ -315,8 +294,9 @@ class PolicyRecord:
 
             # Add module structure (simplified version)
             lines.append("\nKey Modules:")
-            if hasattr(policy, "components") and hasattr(policy, "is_pytorch_policy") and not policy.is_pytorch_policy:
-                # Component-based policy
+            # Check if it's a component-based policy by looking for components attribute
+            if hasattr(policy, "components"):
+                # Component-based policy (MettaAgent)
                 for name, module in policy.components.items():
                     if name and "." not in name:  # Top-level modules only
                         module_type = module.__class__.__name__
@@ -324,7 +304,7 @@ class PolicyRecord:
                         if param_count > 0:
                             lines.append(f"  {name}: {module_type} ({param_count:,} params)")
             else:
-                # PyTorch policy or other
+                # PyTorch policy or other without components
                 for name, module in policy.named_modules():
                     if name and "." not in name:  # Top-level modules only
                         module_type = module.__class__.__name__

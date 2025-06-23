@@ -24,10 +24,8 @@ from einops import rearrange
 from omegaconf import OmegaConf
 
 from app_backend.stats_client import StatsClient
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.rl.policy import PytorchAgent
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -120,15 +118,24 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._policy_pr.policy_as_metta_agent()
-        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), metta_agent
-        metta_agent.activate_actions(action_names, max_args, self._device)
+        policy = self._policy_pr.policy()
+        # Ensure policy has required interface
+        if not hasattr(policy, "activate_actions"):
+            raise AttributeError(
+                f"Policy is missing required method 'activate_actions'. "
+                f"Expected a MettaAgent-like object but got {type(policy).__name__}"
+            )
+        policy.activate_actions(action_names, max_args, self._device)
 
         if self._npc_pr is not None:
-            npc_agent: MettaAgent | DistributedMettaAgent = self._npc_pr.policy_as_metta_agent()
-            assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent)), npc_agent
+            npc_policy = self._npc_pr.policy()
+            if not hasattr(npc_policy, "activate_actions"):
+                raise AttributeError(
+                    f"NPC policy is missing required method 'activate_actions'. "
+                    f"Expected a MettaAgent-like object but got {type(npc_policy).__name__}"
+                )
             try:
-                npc_agent.activate_actions(action_names, max_args, self._device)
+                npc_policy.activate_actions(action_names, max_args, self._device)
             except Exception as e:
                 logger.error(f"Error activating NPC actions: {e}")
                 raise SimulationCompatibilityError(
