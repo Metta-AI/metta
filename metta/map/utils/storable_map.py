@@ -8,11 +8,10 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import TypedDict
 
-import mettagrid.util.file
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import grid_to_lines, lines_to_grid
 from metta.map.utils.s3utils import list_objects
-from mettagrid.util import file as file_utils
+from metta.mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
 
@@ -174,12 +173,12 @@ class StorableMapIndex:
 
     def _save(self):
         index_uri = f"{self.dir}/index.json"
-        mettagrid.util.file.write_data(index_uri, json.dumps(self.index_data), content_type="text/plain")
+        file_utils.write_data(index_uri, json.dumps(self.index_data), content_type="text/plain")
 
     @staticmethod
     def load(dir: str):
         """Load an index from `dir`."""
-        index_content = mettagrid.util.file.read(f"{dir}/index.json")
+        index_content = file_utils.read(f"{dir}/index.json")
         index_data = json.loads(index_content.decode("utf-8"))
         index = StorableMapIndex(dir=dir, index_data=index_data)
         return index

@@ -5,11 +5,11 @@ import pufferlib
 import pufferlib.vector
 from pydantic import validate_call
 
+from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.replay_writer import ReplayWriter
+from metta.mettagrid.stats_writer import StatsWriter
 from metta.util.resolvers import register_resolvers
-from mettagrid.curriculum import Curriculum
-from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.replay_writer import ReplayWriter
-from mettagrid.stats_writer import StatsWriter
 
 logger = logging.getLogger("vecenv")
 
