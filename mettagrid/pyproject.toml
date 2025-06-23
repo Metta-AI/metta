@@ -90,6 +90,3 @@ pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef
 
 [tool.coverage.run]
 source = ["metta.mettagrid"]
-
-[tool.ruff]
-src = ["src", "tests"]

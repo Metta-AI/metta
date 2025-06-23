@@ -238,9 +238,7 @@ class TestStopwatch:
         time.sleep(0.1)
 
         # Estimate at 25% completion
-        remaining_seconds, remaining_str = stopwatch.estimate_remaining(
-            25, 100, "estimate_test"
-        )
+        remaining_seconds, remaining_str = stopwatch.estimate_remaining(25, 100, "estimate_test")
 
         # Should be about 0.3 seconds (0.1 elapsed for 25 steps, so 0.3 for remaining 75)
         assert 0.25 < remaining_seconds < 0.35
@@ -396,28 +394,18 @@ class TestStopwatch:
         time.sleep(0.1)  # 0.2, 0.2, 0.3
 
         lap_times = stopwatch.lap_all(1000)
-        assert 0.2 - tol < lap_times["A"] < 0.2 + tol, (
-            f"Timer A lap time was {lap_times['A']}"
-        )
-        assert 0.2 - tol < lap_times["B"] < 0.2 + tol, (
-            f"Timer B lap time was {lap_times['B']}"
-        )
-        assert 0.3 - tol < lap_times["C"] < 0.3 + tol, (
-            f"Timer C lap time was {lap_times['C']}"
-        )
+        assert 0.2 - tol < lap_times["A"] < 0.2 + tol, f"Timer A lap time was {lap_times['A']}"
+        assert 0.2 - tol < lap_times["B"] < 0.2 + tol, f"Timer B lap time was {lap_times['B']}"
+        assert 0.3 - tol < lap_times["C"] < 0.3 + tol, f"Timer C lap time was {lap_times['C']}"
 
         time.sleep(0.1)  # 0.3, 0.2, 0.4
         stopwatch.stop("A")
         time.sleep(0.1)  # 0.3, 0.2, 0.5
 
         lap_times_2 = stopwatch.lap_all(2000)
-        assert 0.1 - tol < lap_times_2["A"] < 0.1 + tol, (
-            f"Timer A 2nd lap time was {lap_times_2['A']}"
-        )
+        assert 0.1 - tol < lap_times_2["A"] < 0.1 + tol, f"Timer A 2nd lap time was {lap_times_2['A']}"
         assert lap_times_2["B"] < tol, f"Timer B 2nd lap time was {lap_times_2['B']}"
-        assert 0.2 - tol < lap_times_2["C"] < 0.2 + tol, (
-            f"Timer C 2nd lap time was {lap_times_2['C']}"
-        )
+        assert 0.2 - tol < lap_times_2["C"] < 0.2 + tol, f"Timer C 2nd lap time was {lap_times_2['C']}"
 
         stopwatch.start("A")
         time.sleep(0.1)  # 0.4, 0.2, 0.6
@@ -426,13 +414,9 @@ class TestStopwatch:
         time.sleep(0.1)  # 0.4, 0.2, 0.6
 
         lap_times_3 = stopwatch.lap_all(3000)
-        assert 0.1 - tol < lap_times_3["A"] < 0.1 + tol, (
-            f"Timer A 3rd lap time was {lap_times_3['A']}"
-        )
+        assert 0.1 - tol < lap_times_3["A"] < 0.1 + tol, f"Timer A 3rd lap time was {lap_times_3['A']}"
         assert lap_times_3["B"] < tol, f"Timer B 3rd lap time was {lap_times_3['B']}"
-        assert 0.1 - tol < lap_times_3["C"] < 0.1 + tol, (
-            f"Timer C 3rd lap time was {lap_times_3['C']}"
-        )
+        assert 0.1 - tol < lap_times_3["C"] < 0.1 + tol, f"Timer C 3rd lap time was {lap_times_3['C']}"
 
         # Expected checkpoints
         expected_checkpoints = {
@@ -443,9 +427,7 @@ class TestStopwatch:
 
         for name, expected_times in expected_checkpoints.items():
             timer = stopwatch._get_timer(name)
-            checkpoints = sorted(
-                timer.checkpoints.items(), key=lambda x: x[1]["elapsed_time"]
-            )
+            checkpoints = sorted(timer.checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
 
             assert len(checkpoints) == len(expected_times), (
                 f"Timer {name}: expected {len(expected_times)} checkpoints, got {len(checkpoints)}"
@@ -483,15 +465,11 @@ class TestStopwatch:
 
         # This should return 100 (steps from 0 to first checkpoint)
         # But currently returns None due to the bug
-        assert first_lap_steps == 100, (
-            f"Expected 100 steps for first lap, got {first_lap_steps}"
-        )
+        assert first_lap_steps == 100, f"Expected 100 steps for first lap, got {first_lap_steps}"
 
         # Also test with default parameter (last lap)
         last_lap_steps = stopwatch.get_lap_steps(name="test_timer")
-        assert last_lap_steps == 100, (
-            f"Expected 100 steps for last lap, got {last_lap_steps}"
-        )
+        assert last_lap_steps == 100, f"Expected 100 steps for last lap, got {last_lap_steps}"
 
         # Add second checkpoint
         time.sleep(0.1)
@@ -499,20 +477,14 @@ class TestStopwatch:
 
         # Now test both laps
         first_lap_steps = stopwatch.get_lap_steps(1, "test_timer")
-        assert first_lap_steps == 100, (
-            f"Expected 100 steps for first lap, got {first_lap_steps}"
-        )
+        assert first_lap_steps == 100, f"Expected 100 steps for first lap, got {first_lap_steps}"
 
         second_lap_steps = stopwatch.get_lap_steps(2, "test_timer")
-        assert second_lap_steps == 150, (
-            f"Expected 150 steps for second lap (250-100), got {second_lap_steps}"
-        )
+        assert second_lap_steps == 150, f"Expected 150 steps for second lap (250-100), got {second_lap_steps}"
 
         # Test with negative index
         last_lap_steps = stopwatch.get_lap_steps(-1, "test_timer")
-        assert last_lap_steps == 150, (
-            f"Expected 150 steps for last lap, got {last_lap_steps}"
-        )
+        assert last_lap_steps == 150, f"Expected 150 steps for last lap, got {last_lap_steps}"
 
         stopwatch.stop("test_timer")
 
@@ -580,9 +552,7 @@ class TestStopwatchIntegration:
         assert len(checkpoints) == 3
 
         # Extract checkpoint data for verification
-        checkpoint_list = sorted(
-            checkpoints.items(), key=lambda x: x[1]["elapsed_time"]
-        )
+        checkpoint_list = sorted(checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
         assert checkpoint_list[0][1]["steps"] == 100  # First checkpoint at 100 steps
         assert checkpoint_list[1][1]["steps"] == 300  # Second checkpoint at 300 steps
         assert checkpoint_list[2][1]["steps"] == 600  # Third checkpoint at 600 steps
@@ -611,11 +581,7 @@ class TestStopwatchIntegration:
         # Verify timing relationships
         all_elapsed = sw.get_all_elapsed(exclude_global=False)  # Include global timer
         total_time = all_elapsed["global"]  # total timer
-        component_sum = (
-            all_elapsed["load_data"]
-            + all_elapsed["process_data"]
-            + all_elapsed["save_results"]
-        )
+        component_sum = all_elapsed["load_data"] + all_elapsed["process_data"] + all_elapsed["save_results"]
 
         # Total should be approximately the sum of components
         assert total_time == pytest.approx(component_sum, rel=0.1)
@@ -654,9 +620,7 @@ class TestStopwatchIntegration:
             assert any("operation2" in msg for msg in operation_logs)
 
             # Check progress logs
-            progress_logs = [
-                r.message for r in info_records if "Batch Processing" in r.message
-            ]
+            progress_logs = [r.message for r in info_records if "Batch Processing" in r.message]
             assert len(progress_logs) == 3
             assert any("33/100" in msg for msg in progress_logs)
             assert any("66/100" in msg for msg in progress_logs)
@@ -740,16 +704,11 @@ class TestStopwatchIntegration:
         # Test function metadata preservation
         assert test_obj.external_timed_method.__name__ == "external_timed_method"
         assert test_obj.external_timed_method.__doc__ is not None
-        assert (
-            "Method timed with external timer."
-            in test_obj.external_timed_method.__doc__
-        )
+        assert "Method timed with external timer." in test_obj.external_timed_method.__doc__
 
         assert test_obj.instance_timed_method.__name__ == "instance_timed_method"
         assert test_obj.instance_timed_method.__doc__ is not None
-        assert (
-            "Method timed with instance timer" in test_obj.instance_timed_method.__doc__
-        )
+        assert "Method timed with instance timer" in test_obj.instance_timed_method.__doc__
 
         # Test exception handling for both decorators
         @with_timer(sw, "exception_timer")
@@ -777,15 +736,11 @@ class TestStopwatchIntegration:
         with pytest.raises(RuntimeError, match="Instance exception"):
             exception_obj.failing_instance_method()
 
-        instance_exception_elapsed = exception_obj.timer.get_elapsed(
-            "exception_instance_timer"
-        )
+        instance_exception_elapsed = exception_obj.timer.get_elapsed("exception_instance_timer")
         assert 0.015 < instance_exception_elapsed < 0.03
 
         # Test error case: with_instance_timer on non-instance method
-        with pytest.raises(
-            ValueError, match="with_instance_timer can only be used on instance methods"
-        ):
+        with pytest.raises(ValueError, match="with_instance_timer can only be used on instance methods"):
 
             @with_instance_timer("standalone_timer")
             def standalone_function():
@@ -812,9 +767,7 @@ class TestStopwatchIntegration:
         # Test custom timer attribute name that doesn't exist
         class CustomTimerClass:
             def __init__(self):
-                self.timer = (
-                    Stopwatch()
-                )  # Has 'timer' but decorator looks for 'custom_timer'
+                self.timer = Stopwatch()  # Has 'timer' but decorator looks for 'custom_timer'
 
             @with_instance_timer("test_timer", timer_attr="custom_timer")
             def method_with_missing_custom_attr(self):

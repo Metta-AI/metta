@@ -18,6 +18,4 @@ def cd_repo_root():
             return
 
     # If we get here, no .git directory was found
-    raise SystemExit(
-        "Repository root not found - no .git directory in current path or parent directories"
-    )
+    raise SystemExit("Repository root not found - no .git directory in current path or parent directories")

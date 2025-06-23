@@ -33,6 +33,3 @@ pythonpath = ["src"]
 
 [tool.coverage.run]
 source = ["metta.common"]
-
-[tool.ruff]
-src = ["src", "tests"]
