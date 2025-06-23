@@ -1,4 +1,4 @@
-_target_: mettagrid.curriculum.StagedProgressiveCurriculum
+_target_: metta.mettagrid.curriculum.StagedProgressiveCurriculum
 
 # Multi-stage training configuration
 # This replaces the need for separate training runs by automatically transitioning
@@ -22,8 +22,8 @@ stages:
 
 # Transition configuration
 transition_criteria: "time"  # "performance" or "time"
-performance_threshold: 0.8 
-time_threshold_steps: 10000  
+performance_threshold: 0.8
+time_threshold_steps: 10000
 transition_smoothing: 0.1  # Smoothing factor for performance tracking
 
 # Environment overrides applied to all stages
