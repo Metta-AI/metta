@@ -134,13 +134,15 @@ class MettaTrainer:
         actions_names = metta_grid_env.action_names
         actions_max_params = metta_grid_env.max_action_args
 
-        self.policy.activate_actions(actions_names, actions_max_params, self.device)
+        # Initialize policy with environment features and actions
+        features = metta_grid_env.get_observation_features()
+        self.policy.initialize_to_environment(features, actions_names, actions_max_params, self.device)
 
         if trainer_cfg.compile:
             logger.info("Compiling policy")
             self.policy = torch.compile(self.policy, mode=trainer_cfg.compile_mode)
 
-        self.kickstarter = Kickstarter(cfg, policy_store, actions_names, actions_max_params)
+        self.kickstarter = Kickstarter(cfg, policy_store, features, actions_names, actions_max_params)
 
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
@@ -709,7 +711,10 @@ class MettaTrainer:
         if hasattr(policy_to_save, "__class__") and policy_to_save.__class__.__module__.startswith("<torch_package"):
             logger.info("Creating fresh instance for torch.package loaded model")
             fresh_policy = self.policy_store.create(metta_grid_env).policy()
-            fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+            features = metta_grid_env.get_observation_features()
+            fresh_policy.initialize_to_environment(
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self.device
+            )
             fresh_policy.load_state_dict(policy_to_save.state_dict(), strict=False)
             policy_to_save = fresh_policy
 

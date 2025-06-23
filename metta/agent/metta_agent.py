@@ -57,6 +57,11 @@ class DistributedMettaAgent(DistributedDataParallel):
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
         return self.module.activate_actions(action_names, action_max_params, device)
 
+    def initialize_to_environment(
+        self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device: torch.device
+    ) -> None:
+        return self.module.initialize_to_environment(features, action_names, action_max_params, device)
+
 
 class MettaAgent(nn.Module):
     def __init__(
@@ -128,6 +133,9 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
+        # Initialize feature embedding maps
+        self.feature_name_to_embedding: dict[str, torch.Tensor] = {}
+
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
         It must always have a "name" and that name should be the same as the relevant key in self.components.
@@ -147,9 +155,55 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Run this at the beginning of training."""
+    def initialize_to_environment(
+        self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device
+    ):
+        """
+        Initialize the policy to the current environment's features and actions.
+        This should be called exactly once per time the policy is "brought out of storage".
 
+        Args:
+            features: Dictionary mapping feature names to their properties:
+                {
+                    feature_name: {
+                        "id": byte,  # The feature_id to use during this run
+                        "type": "scalar" | "categorical",
+                        "normalization": float (optional, only for scalar features)
+                    }
+                }
+            action_names: List of action names
+            action_max_params: List of maximum parameters for each action
+            device: Device to place tensors on
+        """
+        self._initialize_observations(features, device)
+        self._initialize_actions(action_names, action_max_params, device)
+
+    def _initialize_observations(self, features: dict[str, dict], device):
+        """
+        Initialize observation features by creating embeddings and mapping them to feature IDs.
+
+        Args:
+            features: Dictionary mapping feature names to their properties
+            device: Device to place tensors on
+        """
+        # TODO: This will be extended in future to handle feature embeddings
+        # For now, store the feature information for potential future use
+        self.active_features = features
+        self.device = device
+
+        # Create feature_id to feature_name mapping for quick lookup
+        self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
+
+        # Store type and normalization information
+        self.feature_types = {props["id"]: props["type"] for props in features.values()}
+        self.feature_normalizations = {
+            props["id"]: props.get("normalization", 1.0) for props in features.values() if props["type"] == "scalar"
+        }
+
+        logger.info(f"Initialized observations with {len(features)} features")
+
+    def _initialize_actions(self, action_names: list[str], action_max_params: list[int], device):
+        """Initialize action configuration. Renamed from activate_actions."""
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
         self.device = device
@@ -176,7 +230,35 @@ class MettaAgent(nn.Module):
                 action_index.append([action_type_idx, j])
 
         self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
-        logger.info(f"Agent actions activated with: {self.active_actions}")
+        logger.info(f"Agent actions initialized with: {self.active_actions}")
+
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
+        """Legacy method for backward compatibility. Use initialize_to_environment instead."""
+        logger.warning("activate_actions is deprecated. Use initialize_to_environment instead.")
+        self._initialize_actions(action_names, action_max_params, device)
+
+    def get_feature_embeddings_for_checkpoint(self) -> dict[str, torch.Tensor]:
+        """
+        Get feature embeddings to include in checkpoint metadata.
+        This reads from the current embedding tensors and maps them back to feature names.
+
+        Returns:
+            Dictionary mapping feature names to their current embedding tensors
+        """
+        # TODO: This will be implemented when we add actual feature embeddings
+        # For now, return the stored embeddings if any
+        return self.feature_name_to_embedding.copy()
+
+    def restore_feature_embeddings_from_checkpoint(self, embeddings: dict[str, torch.Tensor]):
+        """
+        Restore feature embeddings from checkpoint metadata.
+
+        Args:
+            embeddings: Dictionary mapping feature names to embedding tensors
+        """
+        # TODO: This will be implemented when we add actual feature embeddings
+        # For now, just store them
+        self.feature_name_to_embedding = embeddings.copy()
 
     @property
     def lstm(self):

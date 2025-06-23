@@ -203,6 +203,13 @@ class PolicyRecord:
         self._local_path = path
         self.uri = "file://" + path
 
+        # Get feature embeddings if the policy supports them
+        feature_embeddings = {}
+        if hasattr(policy, "get_feature_embeddings_for_checkpoint"):
+            feature_embeddings = policy.get_feature_embeddings_for_checkpoint()
+            if feature_embeddings:
+                logger.info(f"Saving {len(feature_embeddings)} feature embeddings to checkpoint")
+
         try:
             with PackageExporter(path, debug=False) as exporter:
                 # Extern metta.util.config first since it depends on pydantic
@@ -254,6 +261,10 @@ class PolicyRecord:
                 exporter.extern("sys")
 
                 clean_metadata = self._clean_metadata_for_packaging(self.metadata)
+                # Add feature embeddings to metadata
+                if feature_embeddings:
+                    clean_metadata["feature_embeddings"] = feature_embeddings
+
                 exporter.save_pickle(
                     "policy_record", "data.pkl", PolicyRecord(None, self.name, self.uri, clean_metadata)
                 )
@@ -270,7 +281,20 @@ class PolicyRecord:
         try:
             importer = PackageImporter(path)
             try:
-                return importer.load_pickle("policy", "model.pkl", map_location=device)
+                policy = importer.load_pickle("policy", "model.pkl", map_location=device)
+
+                # Load PolicyRecord to get metadata with potential feature embeddings
+                try:
+                    pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)
+                    if hasattr(pr, "metadata") and "feature_embeddings" in pr.metadata:
+                        feature_embeddings = pr.metadata["feature_embeddings"]
+                        if hasattr(policy, "restore_feature_embeddings_from_checkpoint"):
+                            policy.restore_feature_embeddings_from_checkpoint(feature_embeddings)
+                            logger.info(f"Restored {len(feature_embeddings)} feature embeddings from checkpoint")
+                except Exception as e:
+                    logger.debug(f"Could not restore feature embeddings: {e}")
+
+                return policy
             except Exception as e:
                 logger.warning(f"Could not load policy directly: {e}")
                 pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)

@@ -7,7 +7,7 @@ from metta.agent.policy_state import PolicyState
 
 
 class Kickstarter:
-    def __init__(self, cfg, policy_store, action_names, action_max_params):
+    def __init__(self, cfg, policy_store, features, action_names, action_max_params):
         """
         Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher policies.
         This is done by adding a loss term that encourages the student's output (action logits and value) to match the
@@ -47,6 +47,7 @@ class Kickstarter:
         self.compile_mode: str = cfg.trainer.compile_mode
         self.policy_store = policy_store
         self.kickstart_steps: int = cfg.trainer.kickstart.kickstart_steps
+        self.features: dict[str, dict] = features
         self.action_names: list[str] = action_names
         self.action_max_params: list[int] = action_max_params
         self.anneal_factor = 1.0
@@ -67,7 +68,16 @@ class Kickstarter:
             policy = policy_record.policy()
             policy.action_loss_coef = teacher_cfg["action_loss_coef"]
             policy.value_loss_coef = teacher_cfg["value_loss_coef"]
-            policy.activate_actions(self.action_names, self.action_max_params, self.device)
+            if hasattr(policy, "initialize_to_environment"):
+                policy.initialize_to_environment(self.features, self.action_names, self.action_max_params, self.device)
+            elif hasattr(policy, "activate_actions"):
+                # Fallback for backward compatibility
+                policy.activate_actions(self.action_names, self.action_max_params, self.device)
+            else:
+                raise AttributeError(
+                    f"Teacher policy is missing required method 'initialize_to_environment' or 'activate_actions'. "
+                    f"Expected a MettaAgent-like object but got {type(policy).__name__}"
+                )
             if self.compile:
                 policy = torch.compile(policy, mode=self.compile_mode)
             self.teachers.append(policy)

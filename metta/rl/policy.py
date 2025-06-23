@@ -74,8 +74,20 @@ class PytorchAgent(nn.Module):
         action, logprob, logits_entropy = sample_logits(hidden, action)
         return action, logprob, logits_entropy, critic, hidden
 
+    def initialize_to_environment(
+        self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device
+    ):
+        """Initialize to environment - forward to wrapped policy if it has this method."""
+        if hasattr(self.policy, "initialize_to_environment"):
+            self.policy.initialize_to_environment(features, action_names, action_max_params, device)
+        elif hasattr(self.policy, "activate_actions"):
+            # Fallback for backward compatibility
+            self.policy.activate_actions(action_names, action_max_params, device)
+        self.device = device
+
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Forward to wrapped policy if it has this method."""
+        """Legacy method for backward compatibility. Use initialize_to_environment instead."""
+        logger.warning("activate_actions is deprecated. Use initialize_to_environment instead.")
         if hasattr(self.policy, "activate_actions"):
             self.policy.activate_actions(action_names, action_max_params, device)
         self.device = device

@@ -163,8 +163,71 @@ def metta_agent_with_actions(create_metta_agent):
     agent, _, _ = create_metta_agent
     action_names = ["action0", "action1", "action2"]
     action_max_params = [1, 2, 0]
-    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+        "agent:group": {"id": 2, "type": "categorical"},
+    }
+
+    # Use new interface
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
     return agent
+
+
+def test_initialize_to_environment(create_metta_agent):
+    """Test the new initialize_to_environment interface."""
+    agent, _, _ = create_metta_agent
+
+    # Create test features dictionary
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+        "agent:group": {"id": 2, "type": "categorical"},
+        "inv:ore_red": {"id": 12, "type": "scalar", "normalization": 100.0},
+    }
+
+    action_names = ["move", "attack", "interact"]
+    action_max_params = [3, 1, 2]
+
+    # Call initialize_to_environment
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
+
+    # Check that features were stored
+    assert hasattr(agent, "active_features")
+    assert agent.active_features == features
+
+    # Check feature mappings were created
+    assert hasattr(agent, "feature_id_to_name")
+    assert agent.feature_id_to_name[0] == "type_id"
+    assert agent.feature_id_to_name[1] == "hp"
+    assert agent.feature_id_to_name[12] == "inv:ore_red"
+
+    # Check feature types and normalizations
+    assert agent.feature_types[0] == "categorical"
+    assert agent.feature_types[1] == "scalar"
+    assert agent.feature_normalizations[1] == 30.0
+    assert agent.feature_normalizations[12] == 100.0
+
+    # Check that actions were also initialized (via _initialize_actions)
+    assert agent.action_names == action_names
+    assert agent.action_max_params == action_max_params
+    assert hasattr(agent, "action_index_tensor")
+
+
+def test_backward_compatibility_activate_actions(create_metta_agent):
+    """Test that the deprecated activate_actions still works for backward compatibility."""
+    agent, _, _ = create_metta_agent
+    action_names = ["action0", "action1", "action2"]
+    action_max_params = [1, 2, 0]
+
+    # Should still work but show warning
+    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Check that actions were initialized
+    assert agent.action_names == action_names
+    assert agent.action_max_params == action_max_params
 
 
 def test_clip_weights_calls_components(create_metta_agent):
@@ -348,7 +411,14 @@ def test_convert_action_to_logit_index(create_metta_agent):
     # Setup testing environment with controlled action space
     action_names = ["action0", "action1", "action2"]
     action_max_params = [1, 2, 0]  # action0: [0,1], action1: [0,1,2], action2: [0]
-    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+    }
+
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Test single actions
     # action (0,0) should map to logit index 0
@@ -388,7 +458,14 @@ def test_convert_logit_index_to_action(create_metta_agent):
     # Setup testing environment
     action_names = ["action0", "action1", "action2"]
     action_max_params = [1, 2, 0]  # action0: [0,1], action1: [0,1,2], action2: [0]
-    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+    }
+
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Test single conversions
     # logit index 0 should map to action (0,0)
@@ -419,7 +496,14 @@ def test_bidirectional_action_conversion(create_metta_agent):
     # Setup testing environment
     action_names = ["action0", "action1", "action2"]
     action_max_params = [1, 2, 0]  # action0: [0,1], action1: [0,1,2], action2: [0]
-    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+    }
+
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Create a test set of all possible actions
     original_actions = torch.tensor(
@@ -451,7 +535,13 @@ def test_action_conversion_edge_cases(create_metta_agent):
     # Setup with empty action space
     action_names = []
     action_max_params = []
-    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+    }
+
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Test with empty tensor - should raise a ValueError about invalid size
     empty_actions = torch.zeros((0, 2), dtype=torch.long, device="cpu")
@@ -463,7 +553,7 @@ def test_action_conversion_edge_cases(create_metta_agent):
     # Setup with single action type that has many parameters
     action_names = ["action0"]
     action_max_params = [9]  # action0: [0,1,2,3,4,5,6,7,8,9]
-    agent.activate_actions(action_names, action_max_params, "cpu")
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Test high parameter values
     action = torch.tensor([[0, 9]], dtype=torch.long, device="cpu")  # highest valid param
@@ -490,7 +580,14 @@ def test_action_use(create_metta_agent):
     # Set up action space
     action_names = ["action0", "action1", "action2"]
     action_max_params = [1, 2, 0]
-    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+    }
+
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     # Verify the agent correctly stored the list internally
     assert isinstance(agent.action_max_params, list)
@@ -651,7 +748,14 @@ def test_distribution_utils_compatibility(create_metta_agent):
     # Set up action space
     action_names = ["action0", "action1"]
     action_max_params = [2, 1]  # action0: [0,1,2], action1: [0,1]
-    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+    }
+
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     num_total_actions = sum([param + 1 for param in action_max_params])
     batch_size = 4
@@ -686,7 +790,14 @@ def test_forward_training_integration(create_metta_agent):
     # Set up action space
     action_names = ["move", "use_item"]
     action_max_params = [2, 3]  # move: [0,1,2], use_item: [0,1,2,3]
-    agent.activate_actions(action_names, action_max_params, "cpu")
+
+    # Create simple test features
+    features = {
+        "type_id": {"id": 0, "type": "categorical"},
+        "hp": {"id": 1, "type": "scalar", "normalization": 30.0},
+    }
+
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
     B, T = 2, 3
     num_total_actions = sum([param + 1 for param in action_max_params])  # 3 + 4 = 7

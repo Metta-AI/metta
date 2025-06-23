@@ -30,7 +30,6 @@ from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.rl.policy import PytorchAgent
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -115,32 +114,45 @@ class Simulation:
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
 
-        # Let every policy know the active action-set of this env.
+        # Get environment features and actions
+        features = metta_grid_env.get_observation_features()
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
         policy = self._policy_pr.policy()
-        # Ensure policy has required interface
-        if not hasattr(policy, "activate_actions"):
+        # Initialize policy with environment
+        if hasattr(policy, "initialize_to_environment"):
+            policy.initialize_to_environment(features, action_names, max_args, self._device)
+        elif hasattr(policy, "activate_actions"):
+            # Fallback for backward compatibility
+            logger.warning(f"Policy {type(policy).__name__} using deprecated activate_actions interface")
+            policy.activate_actions(action_names, max_args, self._device)
+        else:
             raise AttributeError(
-                f"Policy is missing required method 'activate_actions'. "
+                f"Policy is missing required method 'initialize_to_environment' or 'activate_actions'. "
                 f"Expected a MettaAgent-like object but got {type(policy).__name__}"
             )
-        policy.activate_actions(action_names, max_args, self._device)
 
         if self._npc_pr is not None:
             npc_policy = self._npc_pr.policy()
-            if not hasattr(npc_policy, "activate_actions"):
+            if hasattr(npc_policy, "initialize_to_environment"):
+                npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
+            elif hasattr(npc_policy, "activate_actions"):
+                # Fallback for backward compatibility
+                logger.warning(f"NPC policy {type(npc_policy).__name__} using deprecated activate_actions interface")
+                npc_policy.activate_actions(action_names, max_args, self._device)
+            else:
                 raise AttributeError(
-                    f"NPC policy is missing required method 'activate_actions'. "
+                    f"NPC policy is missing required method 'initialize_to_environment' or 'activate_actions'. "
                     f"Expected a MettaAgent-like object but got {type(npc_policy).__name__}"
                 )
             try:
-                npc_policy.activate_actions(action_names, max_args, self._device)
+                # Already initialized above, no need to call again
+                pass
             except Exception as e:
-                logger.error(f"Error activating NPC actions: {e}")
+                logger.error(f"Error initializing NPC policy: {e}")
                 raise SimulationCompatibilityError(
-                    f"[{self._name}] Error activating NPC actions for {self._npc_pr.name}: {e}"
+                    f"[{self._name}] Error initializing NPC policy {self._npc_pr.name}: {e}"
                 ) from e
 
         # ---------------- agent-index bookkeeping ---------------------- #

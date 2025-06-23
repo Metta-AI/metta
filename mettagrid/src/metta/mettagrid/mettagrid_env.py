@@ -403,6 +403,75 @@ class MettaGridEnv(PufferEnv, GymEnv):
     def feature_normalizations(self) -> dict[int, float]:
         return self._c_env.feature_normalizations()
 
+    def get_observation_features(self) -> dict[str, dict]:
+        """
+        Build the features dictionary for initialize_to_environment.
+
+        Returns:
+            Dictionary mapping feature names to their properties
+        """
+        # These are the feature names from the C++ code
+        # TODO: This should ideally come from the C++ environment directly
+        feature_names = [
+            "type_id",
+            "agent:group",
+            "hp",
+            "agent:frozen",
+            "agent:orientation",
+            "agent:color",
+            "converting",
+            "swappable",
+            "episode_completion_pct",
+            "last_action",
+            "last_action_arg",
+            "last_reward",
+            # Inventory items
+            "inv:ore_red",
+            "inv:ore_blue",
+            "inv:ore_green",
+            "inv:battery_red",
+            "inv:battery_blue",
+            "inv:battery_green",
+            "inv:heart",
+            "inv:laser",
+            "inv:armor",
+            "inv:blueprint",
+        ]
+
+        normalizations = self.feature_normalizations()
+        features = {}
+
+        # Categorical features (discrete values with semantic meaning)
+        categorical_features = {
+            "type_id",
+            "agent:group",
+            "agent:frozen",
+            "agent:orientation",
+            "converting",
+            "swappable",
+            "last_action",
+            "last_action_arg",
+        }
+
+        for feature_id, feature_name in enumerate(feature_names):
+            if feature_id >= len(feature_names):
+                break
+
+            feature_type = "categorical" if feature_name in categorical_features else "scalar"
+
+            feature_dict = {
+                "id": feature_id,
+                "type": feature_type,
+            }
+
+            # Add normalization for scalar features
+            if feature_type == "scalar" and feature_id in normalizations:
+                feature_dict["normalization"] = normalizations[feature_id]
+
+            features[feature_name] = feature_dict
+
+        return features
+
     @property
     def global_features(self):
         return []
