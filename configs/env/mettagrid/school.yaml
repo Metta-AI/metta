@@ -25,7 +25,7 @@ game:
         agents: 1
         objects:
           altar: 1
-          generator: 3
+          generator.red: 3
           converter: 1
           wall: ${..width}
 
@@ -37,7 +37,7 @@ game:
         agents: 3
         objects:
           altar: 1
-          generator: 3
+          generator.red: 3
           converter: 2
           wall: ${..width}
 
@@ -49,7 +49,7 @@ game:
         agents: 2
         objects:
           altar: 1
-          generator: 1
+          generator.red: 1
           converter: 1
           wall: ${..width}
 
@@ -63,7 +63,7 @@ game:
           prey: 3
         objects:
           altar: 1
-          generator: 1
+          generator.red: 1
           converter: 1
           wall: ${..width}
 
@@ -88,7 +88,7 @@ game:
             height: ${sampling:5,20,10}
             agents: 1
             objects:
-              generator: 1
+              generator.red: 1
               converter: 1
               wall: ${..width}
           - _target_: mettagrid.room.random.Random
