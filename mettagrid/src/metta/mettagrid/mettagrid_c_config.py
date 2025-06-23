@@ -82,11 +82,11 @@ class ConverterConfig_cpp(BaseModelWithForbidExtra):
     output_items: Dict[str, int]
 
     # Converter properties
-    max_output: int
-    conversion_ticks: int
-    cooldown: int
-    initial_items: int
-    color: Optional[int] = None
+    max_output: int = Field(ge=0)
+    conversion_ticks: int = Field(ge=0)
+    cooldown: int = Field(ge=0)
+    initial_items: int = Field(ge=0)
+    color: Optional[int] = Field(default=None, ge=0, le=255)
 
 
 class ObjectsConfig_cpp(BaseModelWithForbidExtra):
@@ -123,13 +123,13 @@ class RewardSharingConfig_cpp(BaseModelWithForbidExtra):
 class GameConfig_cpp(BaseModelWithForbidExtra):
     """Game configuration."""
 
-    num_agents: int
-    max_steps: int
-    obs_width: int
-    obs_height: int
-    num_observation_tokens: int
+    num_agents: int = Field(ge=1)
+    max_steps: int = Field(ge=1)
+    obs_width: int = Field(ge=1)
+    obs_height: int = Field(ge=1)
+    num_observation_tokens: int = Field(ge=1)
     agent: AgentConfig_cpp
-    groups: Dict[str, GroupConfig_cpp]
+    groups: Dict[str, GroupConfig_cpp] = Field(min_length=1)
     actions: ActionsConfig_cpp
     objects: ObjectsConfig_cpp
     reward_sharing: Optional[RewardSharingConfig_cpp] = None
