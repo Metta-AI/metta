@@ -79,8 +79,8 @@ for dep in \
   "pufferlib" \
   "carbs" \
   "metta.rl.fast_gae" \
-  "mettagrid.mettagrid_env" \
-  "mettagrid.mettagrid_c" \
+  "metta.mettagrid.mettagrid_env" \
+  "metta.mettagrid.mettagrid_c" \
   "wandb_carbs"; do
   uv run python -c "import $dep; print('✅ Found {} at {}'.format('$dep', $dep.__file__))" || {
     echo "❌ Failed to import $dep"

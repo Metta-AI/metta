@@ -20,6 +20,6 @@ renderer_job:
 
   # Default to tiny_two_altars, but easily overridable for other debug maps
   environment:
-    _target_: mettagrid.room.ascii.Ascii
+    _target_: metta.mettagrid.room.ascii.Ascii
     uri: "configs/env/mettagrid/maps/debug/tiny_two_altars.map"
     border_width: 0
