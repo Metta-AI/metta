@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import random
+
 import wandb
 
 from mettagrid.curriculum.curriculum import Task

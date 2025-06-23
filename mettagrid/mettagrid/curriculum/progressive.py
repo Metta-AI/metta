@@ -4,8 +4,8 @@ import copy
 import logging
 from typing import Optional
 
-from omegaconf import DictConfig, OmegaConf
 import wandb
+from omegaconf import DictConfig, OmegaConf
 
 from .curriculum import Task
 from .sampling import SamplingCurriculum
