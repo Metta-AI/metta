@@ -4,8 +4,7 @@ from pydantic import BaseModel, Field, RootModel
 
 
 class BaseModelWithForbidExtra(BaseModel):
-    class Config:
-        extra = "forbid"
+    model_config = dict(extra="forbid")
 
 
 class AgentRewards(BaseModelWithForbidExtra):
@@ -94,6 +93,8 @@ class ConverterConfig(BaseModelWithForbidExtra):
     input_battery_blue: Optional[int] = Field(default=None, alias="input_battery.blue")
     input_battery_green: Optional[int] = Field(default=None, alias="input_battery.green")
     input_heart: Optional[int] = Field(default=None, alias="input_heart")
+    input_armor: Optional[int] = Field(default=None, alias="input_armor")
+    input_laser: Optional[int] = Field(default=None, alias="input_laser")
     input_blueprint: Optional[int] = Field(default=None, alias="input_blueprint")
 
     # Output items (e.g., "output_ore.red": 1)
