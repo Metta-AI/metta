@@ -204,22 +204,41 @@ class PolicyRecord:
 
         try:
             with PackageExporter(path, debug=False) as exporter:
-                # Extern metta.util.config first since it depends on pydantic
-                exporter.extern("metta.util.config")
+                # Define module lists for cleaner organization
+                PYDANTIC_DEPS = [
+                    "metta.util.config",
+                    "metta.rl.vecenv",
+                    "metta.eval.dashboard_data",
+                    "metta.sim.simulation_config",
+                    "metta.mettagrid.**",
+                ]
 
-                # Intern all metta modules to include them in the package
-                exporter.intern("metta.**")
+                C_EXTENSIONS = [
+                    "metta.mettagrid.mettagrid_c",
+                    "mettagrid",
+                    "mettagrid.**",
+                ]
 
-                if policy.__class__.__module__ == "__main__":
-                    import inspect
+                INTERN_MODULES = [
+                    "metta.agent.**",
+                    "metta.rl.policy",
+                    "metta.rl.experience",
+                    "metta.rl.carbs",
+                    "metta.rl.fast_gae",
+                    "metta.rl.trainer",
+                    "metta.util.omegaconf",
+                    "metta.util.runtime_configuration",
+                    "metta.util.logger",
+                    "metta.util.decorators",
+                    "metta.util.resolvers",
+                    "metta.map.**",
+                    "metta.eval.analysis",
+                    "metta.eval.analysis_config",
+                    "metta.sim.simulation",
+                    "metta.sim.map_preview",
+                ]
 
-                    try:
-                        source = inspect.getsource(policy.__class__)
-                        exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
-                    except Exception:
-                        exporter.extern("__main__")
-
-                for module in [
+                EXTERN_PACKAGES = [
                     "torch",
                     "numpy",
                     "scipy",
@@ -231,26 +250,62 @@ class PolicyRecord:
                     "einops",
                     "hydra",
                     "omegaconf",
-                ]:
+                    "torch_scatter",
+                    "torch_geometric",
+                    "torch_sparse",
+                    "sys",
+                ]
+
+                MOCK_PACKAGES = [
+                    "wandb",
+                    "pufferlib",
+                    "pydantic",
+                    "boto3",
+                    "botocore",
+                    "duckdb",
+                    "pandas",
+                    "typing_extensions",
+                    "seaborn",
+                    "plotly",
+                ]
+
+                # Apply extern rules
+                for module in PYDANTIC_DEPS + C_EXTENSIONS:
                     exporter.extern(module)
-                    exporter.extern(f"{module}.**")
-                for module in ["torch_scatter", "torch_geometric", "torch_sparse"]:
-                    exporter.extern(module)
 
-                for pattern in ["wandb", "wandb.**", "wandb.*", "wandb.sdk", "wandb.sdk.**", "wandb.sdk.wandb_run"]:
-                    exporter.mock(pattern)
+                # Apply intern rules
+                for module in INTERN_MODULES:
+                    exporter.intern(module)
 
-                for module in ["pufferlib", "pydantic", "boto3", "botocore", "duckdb", "pandas"]:
-                    exporter.mock(module)
-                    exporter.mock(f"{module}.**")
-                exporter.mock("typing_extensions")
-                exporter.mock("seaborn")
-                exporter.mock("plotly")
+                # Handle __main__ module and test modules
+                policy_module = policy.__class__.__module__
+                if policy_module == "__main__":
+                    import inspect
 
-                exporter.extern("mettagrid.mettagrid_c")
-                exporter.extern("mettagrid")
-                exporter.extern("mettagrid.**")
-                exporter.extern("sys")
+                    try:
+                        source = inspect.getsource(policy.__class__)
+                        exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
+                    except Exception:
+                        exporter.extern("__main__")
+                elif policy_module and (policy_module.startswith("test") or "test" in policy_module):
+                    # Handle test modules by externing them
+                    exporter.extern(policy_module)
+
+                # Extern standard packages
+                for pkg in EXTERN_PACKAGES:
+                    exporter.extern(pkg)
+                    if pkg not in ["sys", "torch_scatter", "torch_geometric", "torch_sparse"]:
+                        exporter.extern(f"{pkg}.**")
+
+                # Mock packages we don't want to include
+                for pkg in MOCK_PACKAGES:
+                    exporter.mock(pkg)
+                    if pkg == "wandb":
+                        # Special handling for wandb patterns
+                        for pattern in ["wandb.*", "wandb.sdk", "wandb.sdk.**", "wandb.sdk.wandb_run"]:
+                            exporter.mock(pattern)
+                    elif pkg not in ["typing_extensions", "seaborn", "plotly"]:
+                        exporter.mock(f"{pkg}.**")
 
                 clean_metadata = self._clean_metadata_for_packaging(self.metadata)
                 exporter.save_pickle(
