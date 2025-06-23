@@ -21,9 +21,9 @@ stages:
     weight: 1.0
 
 # Transition configuration
-transition_criteria: "performance"  # "performance" or "time"
-performance_threshold: 0.8  # Transition when performance reaches 80%
-time_threshold_steps: 100000  # Alternative: transition after 100k steps
+transition_criteria: "time"  # "performance" or "time"
+performance_threshold: 0.8 
+time_threshold_steps: 10000  
 transition_smoothing: 0.1  # Smoothing factor for performance tracking
 
 # Environment overrides applied to all stages
