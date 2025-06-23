@@ -18,7 +18,6 @@ import warnings
 from typing import List, Optional, Union
 
 import gymnasium as gym
-import hydra
 import numpy as np
 import torch
 import wandb
@@ -27,6 +26,7 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.package import PackageExporter, PackageImporter
 
+from metta.agent.metta_agent import make_policy
 from metta.rl.policy import load_pytorch_policy
 
 logger = logging.getLogger("policy_store")
@@ -444,17 +444,7 @@ class PolicyStore:
             }
         )
 
-        policy = hydra.utils.instantiate(
-            self._cfg.agent,
-            obs_space=obs_space,
-            obs_width=env.obs_width,
-            obs_height=env.obs_height,
-            action_space=env.single_action_space,
-            feature_normalizations=env.feature_normalizations,
-            device=self._cfg.device,
-            _target_="metta.agent.metta_agent.MettaAgent",
-            _recursive_=False,
-        )
+        policy = make_policy(env, self._cfg)
 
         name = self.make_model_name(0)
         path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
@@ -710,17 +700,23 @@ class PolicyStore:
             )
 
             try:
-                policy = hydra.utils.instantiate(
-                    self._cfg.agent,
-                    obs_space=obs_space,
-                    obs_width=obs_shape[1],
-                    obs_height=obs_shape[2],
-                    action_space=gym.spaces.MultiDiscrete(checkpoint.get("action_space_nvec", [9, 10])),
+                # Create a mock environment object with the required attributes
+                class MockEnv:
+                    def __init__(self, obs_shape, action_space_nvec, feature_normalizations):
+                        self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+                        self.obs_width = obs_shape[1]
+                        self.obs_height = obs_shape[2]
+                        self.single_action_space = gym.spaces.MultiDiscrete(action_space_nvec)
+                        self.feature_normalizations = feature_normalizations
+                        self.global_features = []
+
+                mock_env = MockEnv(
+                    obs_shape=obs_shape,
+                    action_space_nvec=checkpoint.get("action_space_nvec", [9, 10]),
                     feature_normalizations=checkpoint.get("feature_normalizations", {}),
-                    device=self._device,
-                    _target_="metta.agent.metta_agent.MettaAgent",
-                    _recursive_=False,
                 )
+
+                policy = make_policy(mock_env, self._cfg)
 
                 if "model_state_dict" in checkpoint:
                     policy.load_state_dict(checkpoint["model_state_dict"])
