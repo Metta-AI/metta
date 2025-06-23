@@ -7,7 +7,7 @@ from omegaconf.omegaconf import OmegaConf
 
 import mettascope.server
 from metta.map.utils.storable_map import StorableMap, grid_to_lines
-from metta.mettagrid.curriculum import SingleTaskCurriculum
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.sim.map_preview import write_local_map_preview

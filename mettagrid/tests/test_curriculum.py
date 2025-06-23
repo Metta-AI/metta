@@ -3,8 +3,10 @@ import random
 import pytest
 from omegaconf import OmegaConf
 
-from metta.mettagrid.curriculum import LowRewardCurriculum, RandomCurriculum, SingleTaskCurriculum
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum.low_reward import LowRewardCurriculum
 from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum
+from metta.mettagrid.curriculum.random import RandomCurriculum
 from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 
 

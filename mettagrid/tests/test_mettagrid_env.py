@@ -3,7 +3,7 @@ from omegaconf import OmegaConf
 from omegaconf.errors import ConfigAttributeError
 from pydantic import ValidationError
 
-from metta.mettagrid.curriculum import SingleTaskCurriculum
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
