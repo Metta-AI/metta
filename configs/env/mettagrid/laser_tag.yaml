@@ -76,6 +76,6 @@ game:
 
   groups:
     team_1:
-      group_reward_pct: ${...group_reward_pct}
+      props: {}
     team_2:
-      group_reward_pct: ${...group_reward_pct}
+      props: {}
