@@ -163,17 +163,6 @@ class MettaTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-
-        # Use duck typing instead of isinstance to handle torch.package loaded classes
-        # Check that the policy has the expected MettaAgent interface
-        required_attrs = ["activate_actions", "forward", "is_pytorch_policy"]
-        for attr in required_attrs:
-            if not hasattr(self.metta_agent, attr):
-                raise AttributeError(
-                    f"Policy is missing required attribute '{attr}'. "
-                    f"Expected a MettaAgent-like object but got {type(self.metta_agent).__name__}"
-                )
-
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
