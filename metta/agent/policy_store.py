@@ -22,7 +22,8 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.package import PackageExporter, PackageImporter
 
-from metta.rl.policy import load_pytorch_policy
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
+from metta.rl.policy import PytorchAgent, load_pytorch_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
@@ -46,19 +47,19 @@ class PolicyRecord:
         if self.uri.startswith("file://"):
             self._local_path = self.uri[len("file://") :]
 
-    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent, PytorchAgent]:
-        """Get the policy as a MettaAgent or DistributedMettaAgent."""
-        policy = self.policy()
-        if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PytorchAgent)):
-            raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
-        return policy
-
     def policy(self) -> nn.Module:
         if self._policy is None:
             pr = self._policy_store.load_from_uri(self.uri)
             self._policy = pr.policy()
             self._local_path = pr.local_path()
         return self._policy
+
+    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent, PytorchAgent]:
+        """Get the policy as a MettaAgent or DistributedMettaAgent."""
+        policy = self.policy()
+        if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PytorchAgent)):
+            raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
+        return policy
 
     def num_params(self) -> int:
         return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
@@ -67,7 +68,7 @@ class PolicyRecord:
         return self._local_path
 
     def __repr__(self):
-        """Generate a detailed representation of the PolicyRecord with weight shapes."""
+        """Generate a detailed representation of the PolicyRecord."""
         # Basic policy record info
         lines = [f"PolicyRecord(name={self.name}, uri={self.uri})"]
 
@@ -77,6 +78,35 @@ class PolicyRecord:
         for k in important_keys:
             if k in self.metadata:
                 metadata_items.append(f"{k}={self.metadata[k]}")
+
+        if metadata_items:
+            lines.append(f"Metadata: {', '.join(metadata_items)}")
+
+        # Load policy if not already loaded
+        try:
+            policy = self.policy()
+
+            # Add total parameter count
+            total_params = sum(p.numel() for p in policy.parameters())
+            trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
+            lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
+
+            # Add module structure (simplified version)
+            lines.append("\nKey Modules:")
+            # Check if it's a component-based policy by looking for components attribute
+            items = policy.components.items() if hasattr(policy, "components") else policy.named_modules()
+            # Component-based policy (MettaAgent)
+            for name, module in items:
+                if name and "." not in name:  # Top-level modules only
+                    module_type = module.__class__.__name__
+                    param_count = sum(p.numel() for p in module.parameters())
+                    if param_count > 0:
+                        lines.append(f"  {name}: {module_type} ({param_count:,} params)")
+
+        except Exception as e:
+            lines.append(f"Error loading policy: {str(e)}")
+
+        return "\n".join(lines)
 
     def _clean_metadata_for_packaging(self, metadata: dict) -> dict:
         """Clean metadata to remove any objects that can't be packaged."""
@@ -271,61 +301,10 @@ class PolicyRecord:
         return key, version
 
     def key(self) -> str:
-        """Get the policy key (name without version)."""
         return self.key_and_version()[0]
 
     def version(self) -> int:
-        """Get the policy version number."""
         return self.key_and_version()[1]
-
-    def __repr__(self):
-        """Generate a detailed representation of the PolicyRecord."""
-        # Basic policy record info
-        lines = [f"PolicyRecord(name={self.name}, uri={self.uri})"]
-
-        # Add key metadata if available
-        important_keys = ["epoch", "agent_step", "generation", "score"]
-        metadata_items = []
-        for k in important_keys:
-            if k in self.metadata:
-                metadata_items.append(f"{k}={self.metadata[k]}")
-
-        if metadata_items:
-            lines.append(f"Metadata: {', '.join(metadata_items)}")
-
-        # Load policy if not already loaded
-        try:
-            policy = self.policy()
-
-            # Add total parameter count
-            total_params = sum(p.numel() for p in policy.parameters())
-            trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
-            lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
-
-            # Add module structure (simplified version)
-            lines.append("\nKey Modules:")
-            # Check if it's a component-based policy by looking for components attribute
-            if hasattr(policy, "components"):
-                # Component-based policy (MettaAgent)
-                for name, module in policy.components.items():
-                    if name and "." not in name:  # Top-level modules only
-                        module_type = module.__class__.__name__
-                        param_count = sum(p.numel() for p in module.parameters())
-                        if param_count > 0:
-                            lines.append(f"  {name}: {module_type} ({param_count:,} params)")
-            else:
-                # PyTorch policy or other without components
-                for name, module in policy.named_modules():
-                    if name and "." not in name:  # Top-level modules only
-                        module_type = module.__class__.__name__
-                        param_count = sum(p.numel() for p in module.parameters())
-                        if param_count > 0:
-                            lines.append(f"  {name}: {module_type} ({param_count:,} params)")
-
-        except Exception as e:
-            lines.append(f"Error loading policy: {str(e)}")
-
-        return "\n".join(lines)
 
 
 class PolicyStore:
@@ -378,24 +357,35 @@ class PolicyStore:
         logger.info(f"Found {len(prs)} policies at {uri}")
 
         if selector_type == "all":
+            logger.info(f"Returning all {len(prs)} policies")
             return prs
         elif selector_type == "latest":
-            return [prs[0]]
+            selected = [prs[0]]
+            logger.info(f"Selected latest policy: {selected[0].name}")
+            return selected
         elif selector_type == "rand":
-            return [random.choice(prs)]
+            selected = [random.choice(prs)]
+            logger.info(f"Selected random policy: {selected[0].name}")
+            return selected
         elif selector_type == "top":
-            # Try to find metric in metadata
             if (
                 "eval_scores" in prs[0].metadata
                 and prs[0].metadata["eval_scores"] is not None
                 and metric in prs[0].metadata["eval_scores"]
             ):
+                # Metric is in eval_scores
+                logger.info(f"Found metric '{metric}' in metadata['eval_scores']")
                 policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric, None) for p in prs}
             elif metric in prs[0].metadata:
                 policy_scores = {p: p.metadata.get(metric, None) for p in prs}
             else:
-                logger.warning(f"Metric '{metric}' not found, returning latest policy")
-                return [prs[0]]
+                # Metric not found anywhere
+                logger.warning(
+                    f"Metric '{metric}' not found in policy metadata or eval_scores, returning latest policy"
+                )
+                selected = [prs[0]]
+                logger.info(f"Selected latest policy (due to missing metric): {selected[0].name}")
+                return selected
 
             policies_with_scores = [p for p, s in policy_scores.items() if s is not None]
 
