@@ -19,8 +19,6 @@ import hydra
 import numpy as np
 import torch
 import wandb
-
-# Import wandb types directly to avoid pydantic dependency
 import wandb.sdk.wandb_run
 from omegaconf import DictConfig, ListConfig
 from torch import nn
@@ -71,7 +69,7 @@ class PolicyRecord:
         return self._local_path
 
     def __repr__(self):
-        """Generate a detailed representation of the PolicyRecord."""
+        """Generate a detailed representation of the PolicyRecord with weight shapes.."""
         # Basic policy record info
         lines = [f"PolicyRecord(name={self.name}, uri={self.uri})"]
 
@@ -86,29 +84,92 @@ class PolicyRecord:
             lines.append(f"Metadata: {', '.join(metadata_items)}")
 
         # Load policy if not already loaded
-        try:
-            policy = self.policy()
+        policy = None
+        if self._policy is None:
+            try:
+                policy = self.policy()
+            except Exception as e:
+                lines.append(f"Error loading policy: {str(e)}")
+                return "\n".join(lines)
+        else:
+            policy = self._policy
 
-            # Add total parameter count
-            total_params = sum(p.numel() for p in policy.parameters())
-            trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
-            lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
+        # Add total parameter count
+        total_params = sum(p.numel() for p in policy.parameters())
+        trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
+        lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
 
-            # Add module structure (simplified version)
-            lines.append("\nKey Modules:")
-            # Check if it's a component-based policy by looking for components attribute
-            items = policy.components.items() if hasattr(policy, "components") else policy.named_modules()
-            # Component-based policy (MettaAgent)
-            for name, module in items:
-                if name and "." not in name:  # Top-level modules only
-                    module_type = module.__class__.__name__
-                    param_count = sum(p.numel() for p in module.parameters())
-                    if param_count > 0:
-                        lines.append(f"  {name}: {module_type} ({param_count:,} params)")
+        # Add module structure with detailed weight shapes
+        lines.append("\nModule Structure with Weight Shapes:")
 
-        except Exception as e:
-            lines.append(f"Error loading policy: {str(e)}")
+        for name, module in policy.named_modules():
+            # Skip top-level module
+            if name == "":
+                continue
 
+            # Create indentation based on module hierarchy
+            indent = "  " * name.count(".")
+
+            # Get module type
+            module_type = module.__class__.__name__
+
+            # Start building the module info line
+            module_info = f"{indent}{name}: {module_type}"
+
+            # Get parameters for this module (non-recursive)
+            params = list(module.named_parameters(recurse=False))
+
+            # Add detailed parameter information
+            if params:
+                # For common layer types, add specialized shape information
+                if isinstance(module, torch.nn.Conv2d):
+                    weight = next((p for name, p in params if name == "weight"), None)
+                    if weight is not None:
+                        out_channels, in_channels, kernel_h, kernel_w = weight.shape
+                        module_info += " ["
+                        module_info += f"out_channels={out_channels}, "
+                        module_info += f"in_channels={in_channels}, "
+                        module_info += f"kernel=({kernel_h}, {kernel_w})"
+                        module_info += "]"
+
+                elif isinstance(module, torch.nn.Linear):
+                    weight = next((p for name, p in params if name == "weight"), None)
+                    if weight is not None:
+                        out_features, in_features = weight.shape
+                        module_info += f" [in_features={in_features}, out_features={out_features}]"
+
+                elif isinstance(module, torch.nn.LSTM):
+                    module_info += " ["
+                    module_info += f"input_size={module.input_size}, "
+                    module_info += f"hidden_size={module.hidden_size}, "
+                    module_info += f"num_layers={module.num_layers}"
+                    module_info += "]"
+
+                elif isinstance(module, torch.nn.Embedding):
+                    weight = next((p for name, p in params if name == "weight"), None)
+                    if weight is not None:
+                        num_embeddings, embedding_dim = weight.shape
+                        module_info += f" [num_embeddings={num_embeddings}, embedding_dim={embedding_dim}]"
+
+                # Add all parameter shapes
+                param_shapes = []
+                for param_name, param in params:
+                    param_shapes.append(f"{param_name}={list(param.shape)}")
+
+                if param_shapes and not any(
+                    x in module_info for x in ["out_channels", "in_features", "hidden_size", "num_embeddings"]
+                ):
+                    module_info += f" ({', '.join(param_shapes)})"
+
+            # Add formatted module info to output
+            lines.append(module_info)
+
+        # Add section for buffer shapes (non-parameter tensors like running_mean in BatchNorm)
+        buffers = list(policy.named_buffers())
+        if buffers:
+            lines.append("\nBuffer Shapes:")
+            for name, buffer in buffers:
+                lines.append(f"  {name}: {list(buffer.shape)}")
         return "\n".join(lines)
 
     def _clean_metadata_for_packaging(self, metadata: dict) -> dict:
