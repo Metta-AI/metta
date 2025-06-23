@@ -13,11 +13,11 @@ def colorize(text, color):
 
 
 def red(text):
-    return colorize(text, Fore:red)
+    return colorize(text, Fore.RED)
 
 
 def green(text):
-    return colorize(text, Fore:green)
+    return colorize(text, Fore.GREEN)
 
 
 def yellow(text):
@@ -29,7 +29,7 @@ def cyan(text):
 
 
 def blue(text):
-    return colorize(text, Fore:blue)
+    return colorize(text, Fore.BLUE)
 
 
 def bold(text):
