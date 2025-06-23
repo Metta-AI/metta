@@ -6,10 +6,7 @@ Common utilities shared across metta packages.
 
 ```bash
 # Install using uv
-uv pip install -e .
-
-# Install with dev dependencies
-uv pip install -e ".[dev]"
+uv sync --inexact
 ```
 
 ## Development
@@ -22,8 +19,8 @@ uv run pytest
 uv run pytest --cov=metta.common --cov-report=term-missing
 
 # Run linting
-uv run ruff check .
+uv run ruff check --fix .
 
-# Run type checking
-uv run pyright
+# Run formatting
+uv run ruff format .
 ```

@@ -59,8 +59,5 @@ unfixable = []
 
 # For more configuration options, see: https://docs.astral.sh/ruff/configuration/
 
-[lint.flake8-tidy-imports.banned-api]
-"mettagrid.mettagrid".msg = "Import mettagrid instead of mettagrid.mettagrid"
-
 [lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
