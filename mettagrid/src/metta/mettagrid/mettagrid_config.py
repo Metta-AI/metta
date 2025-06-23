@@ -10,7 +10,7 @@ class BaseModelWithForbidExtra(BaseModel):
 class AgentRewards(BaseModelWithForbidExtra):
     """Agent reward configuration."""
 
-    action_failure_penalty: Optional[float] = None
+    action_failure_penalty: Optional[float] = Field(default=None, ge=0)
     ore_red: Optional[float] = Field(default=None, alias="ore.red")
     ore_blue: Optional[float] = Field(default=None, alias="ore.blue")
     ore_green: Optional[float] = Field(default=None, alias="ore.green")
@@ -30,8 +30,8 @@ class AgentRewards(BaseModelWithForbidExtra):
 class AgentConfig(BaseModelWithForbidExtra):
     """Agent configuration."""
 
-    default_item_max: Optional[int] = None
-    freeze_duration: Optional[int] = None
+    default_item_max: Optional[int] = Field(default=None, ge=0)
+    freeze_duration: Optional[int] = Field(default=None, ge=0)
     rewards: Optional[AgentRewards] = None
     ore_red_max: Optional[int] = Field(default=None, alias="ore.red_max")
     ore_blue_max: Optional[int] = Field(default=None, alias="ore.blue_max")
@@ -52,8 +52,10 @@ class GroupConfig(BaseModelWithForbidExtra):
     """Group configuration."""
 
     id: int
-    sprite: Optional[int] = None
-    group_reward_pct: Optional[float] = None
+    sprite: Optional[int] = Field(default=None)
+    # Values outside of 0 and 1 are probably mistakes, and are probably
+    # unstable. If you want to use values outside this range, please update this comment!
+    group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
     props: Optional[GroupProps] = None
 
 
@@ -86,35 +88,36 @@ class ConverterConfig(BaseModelWithForbidExtra):
     """Converter configuration for objects that convert items."""
 
     # Input items (e.g., "input_ore.red": 3)
-    input_ore_red: Optional[int] = Field(default=None, alias="input_ore.red")
-    input_ore_blue: Optional[int] = Field(default=None, alias="input_ore.blue")
-    input_ore_green: Optional[int] = Field(default=None, alias="input_ore.green")
-    input_battery_red: Optional[int] = Field(default=None, alias="input_battery.red")
-    input_battery_blue: Optional[int] = Field(default=None, alias="input_battery.blue")
-    input_battery_green: Optional[int] = Field(default=None, alias="input_battery.green")
-    input_heart: Optional[int] = Field(default=None, alias="input_heart")
-    input_armor: Optional[int] = Field(default=None, alias="input_armor")
-    input_laser: Optional[int] = Field(default=None, alias="input_laser")
-    input_blueprint: Optional[int] = Field(default=None, alias="input_blueprint")
+    input_ore_red: Optional[int] = Field(default=None, alias="input_ore.red", ge=0, le=255)
+    input_ore_blue: Optional[int] = Field(default=None, alias="input_ore.blue", ge=0, le=255)
+    input_ore_green: Optional[int] = Field(default=None, alias="input_ore.green", ge=0, le=255)
+    input_battery_red: Optional[int] = Field(default=None, alias="input_battery.red", ge=0, le=255)
+    input_battery_blue: Optional[int] = Field(default=None, alias="input_battery.blue", ge=0, le=255)
+    input_battery_green: Optional[int] = Field(default=None, alias="input_battery.green", ge=0, le=255)
+    input_heart: Optional[int] = Field(default=None, alias="input_heart", ge=0, le=255)
+    input_armor: Optional[int] = Field(default=None, alias="input_armor", ge=0, le=255)
+    input_laser: Optional[int] = Field(default=None, alias="input_laser", ge=0, le=255)
+    input_blueprint: Optional[int] = Field(default=None, alias="input_blueprint", ge=0, le=255)
 
     # Output items (e.g., "output_ore.red": 1)
-    output_ore_red: Optional[int] = Field(default=None, alias="output_ore.red")
-    output_ore_blue: Optional[int] = Field(default=None, alias="output_ore.blue")
-    output_ore_green: Optional[int] = Field(default=None, alias="output_ore.green")
-    output_battery_red: Optional[int] = Field(default=None, alias="output_battery.red")
-    output_battery_blue: Optional[int] = Field(default=None, alias="output_battery.blue")
-    output_battery_green: Optional[int] = Field(default=None, alias="output_battery.green")
-    output_heart: Optional[int] = Field(default=None, alias="output_heart")
-    output_armor: Optional[int] = Field(default=None, alias="output_armor")
-    output_laser: Optional[int] = Field(default=None, alias="output_laser")
-    output_blueprint: Optional[int] = Field(default=None, alias="output_blueprint")
+    output_ore_red: Optional[int] = Field(default=None, alias="output_ore.red", ge=0, le=255)
+    output_ore_blue: Optional[int] = Field(default=None, alias="output_ore.blue", ge=0, le=255)
+    output_ore_green: Optional[int] = Field(default=None, alias="output_ore.green", ge=0, le=255)
+    output_battery_red: Optional[int] = Field(default=None, alias="output_battery.red", ge=0, le=255)
+    output_battery_blue: Optional[int] = Field(default=None, alias="output_battery.blue", ge=0, le=255)
+    output_battery_green: Optional[int] = Field(default=None, alias="output_battery.green", ge=0, le=255)
+    output_heart: Optional[int] = Field(default=None, alias="output_heart", ge=0, le=255)
+    output_armor: Optional[int] = Field(default=None, alias="output_armor", ge=0, le=255)
+    output_laser: Optional[int] = Field(default=None, alias="output_laser", ge=0, le=255)
+    output_blueprint: Optional[int] = Field(default=None, alias="output_blueprint", ge=0, le=255)
 
     # Converter properties
-    max_output: int
-    conversion_ticks: int
-    cooldown: int
-    initial_items: int
-    color: Optional[int] = None
+    # zero is valid, since it means "don't make any new items"
+    max_output: int = Field(ge=0)
+    conversion_ticks: int = Field(ge=0)
+    cooldown: int = Field(ge=0)
+    initial_items: int = Field(ge=0)
+    color: Optional[int] = Field(default=None, ge=0, le=255)
 
 
 class ObjectsConfig(BaseModelWithForbidExtra):
@@ -151,13 +154,14 @@ class RewardSharingConfig(BaseModelWithForbidExtra):
 class GameConfig(BaseModelWithForbidExtra):
     """Game configuration."""
 
-    num_agents: int
-    max_steps: int
-    obs_width: int
-    obs_height: int
-    num_observation_tokens: int
+    num_agents: int = Field(ge=1)
+    max_steps: int = Field(ge=1)
+    obs_width: int = Field(ge=1)
+    obs_height: int = Field(ge=1)
+    num_observation_tokens: int = Field(ge=1)
     agent: AgentConfig
-    groups: Dict[str, GroupConfig]
+    # Every agent must be in a group, so we need at least one group
+    groups: Dict[str, GroupConfig] = Field(min_length=1)
     actions: ActionsConfig
     objects: ObjectsConfig
     reward_sharing: Optional[RewardSharingConfig] = None
