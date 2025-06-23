@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 
 # Direct imports - no configs needed
-from metta.agents import SimpleCNNAgent
+from metta.agent import SimpleCNNAgent
 from metta.env.factory import create_env
 from metta.sim.registry import SimulationSpec
 from metta.train.minimal import Metta

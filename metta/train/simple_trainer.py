@@ -6,7 +6,7 @@ from typing import Optional
 import torch
 import torch.distributed as dist
 
-from metta.agents import BaseAgent, create_agent
+from metta.agent import BaseAgent, create_agent
 from metta.rl.trainer import MettaTrainer
 from metta.train.config import TrainingConfig
 from metta.util.wandb.wandb_context import WandbContext

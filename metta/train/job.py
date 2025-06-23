@@ -3,8 +3,8 @@
 from dataclasses import dataclass
 from typing import Optional, Union
 
+from metta.agent import BaseAgent, create_agent
 from metta.agent.policy_store import PolicyStore
-from metta.agents import BaseAgent, create_agent
 from metta.env.factory import create_env
 from metta.rl.trainer import MettaTrainer
 from metta.runtime import RuntimeConfig, get_runtime

@@ -1,4 +1,4 @@
-"""Simple CNN-based agent implementation."""
+"""Large CNN-based agent implementation."""
 
 from typing import Tuple
 
@@ -6,17 +6,17 @@ import gymnasium as gym
 import torch
 import torch.nn as nn
 
-from metta.agent.lib.action import ActionEmbedding
-from metta.agent.lib.actor import MettaActorSingleHead
-from metta.agent.lib.lstm import LSTM
-from metta.agent.lib.observation_normalizer import ObservationNormalizer
+from metta.agent.components.action import ActionEmbedding
+from metta.agent.components.actor import MettaActorSingleHead
+from metta.agent.components.lstm import LSTM
+from metta.agent.components.observation_normalizer import ObservationNormalizer
 from metta.agent.policy_state import PolicyState
 
 from .base_agent import BaseAgent
 
 
-class SimpleCNNAgent(BaseAgent):
-    """Simple CNN-based agent with 2 convolutional layers."""
+class LargeCNNAgent(BaseAgent):
+    """Larger CNN-based agent with 3 convolutional layers and more capacity."""
 
     def __init__(
         self,
@@ -26,7 +26,7 @@ class SimpleCNNAgent(BaseAgent):
         obs_height: int,
         feature_normalizations: dict,
         device: str = "cuda",
-        hidden_size: int = 128,
+        hidden_size: int = 512,
         lstm_layers: int = 2,
     ):
         super().__init__(obs_space, action_space, hidden_size, lstm_layers, device)
@@ -46,37 +46,37 @@ class SimpleCNNAgent(BaseAgent):
             input_shape=obs_shape, feature_normalizations=feature_normalizations
         )
 
-        # CNN layers
-        self.cnn1 = nn.Conv2d(obs_shape[-1], 64, kernel_size=5, stride=3)
+        # Deeper CNN layers
+        self.cnn1 = nn.Conv2d(obs_shape[-1], 128, kernel_size=5, stride=2)
         self.relu1 = nn.ReLU()
 
-        self.cnn2 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
+        self.cnn2 = nn.Conv2d(128, 128, kernel_size=3, stride=2)
         self.relu2 = nn.ReLU()
+
+        self.cnn3 = nn.Conv2d(128, 128, kernel_size=3, stride=1)
+        self.relu3 = nn.ReLU()
 
         # Calculate flattened size after convolutions
         dummy_input = torch.zeros(1, obs_shape[-1], obs_height, obs_width)
-        dummy_output = self.cnn2(self.cnn1(dummy_input))
+        dummy_output = self.cnn3(self.cnn2(self.cnn1(dummy_input)))
         flattened_size = dummy_output.numel() // dummy_output.shape[0]
 
-        # Fully connected layers
-        self.fc1 = nn.Linear(flattened_size, 128)
-        self.relu3 = nn.ReLU()
-
-        self.encoded_obs = nn.Linear(128, hidden_size)
-        self.relu4 = nn.ReLU()
+        # Fully connected layer
+        self.fc1 = nn.Linear(flattened_size, hidden_size)
+        self.fc_relu = nn.ReLU()
 
         # LSTM core
         self.lstm = LSTM(input_size=hidden_size, hidden_size=hidden_size, num_layers=lstm_layers)
 
-        self.core_relu = nn.ReLU()
+        # No activation after LSTM for large model
 
         # Critic head
-        self.critic_1 = nn.Linear(hidden_size, 1024)
+        self.critic_1 = nn.Linear(hidden_size, 2048)
         self.critic_activation = nn.Tanh()
-        self.value_head = nn.Linear(1024, 1)
+        self.value_head = nn.Linear(2048, 1)
 
         # Actor head
-        self.actor_1 = nn.Linear(hidden_size, 512)
+        self.actor_1 = nn.Linear(hidden_size, 1024)
         self.actor_relu = nn.ReLU()
 
         # Action embedding and actor head will be initialized when actions are activated
@@ -91,13 +91,13 @@ class SimpleCNNAgent(BaseAgent):
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
 
-        # Initialize action embedding
-        self.action_embedding = ActionEmbedding(num_embeddings=len(full_action_names), embedding_dim=16)
+        # Initialize action embedding with larger dimension
+        self.action_embedding = ActionEmbedding(num_embeddings=len(full_action_names), embedding_dim=32)
         self.action_embedding.activate_actions(full_action_names, self.device)
 
         # Initialize actor head
         self.actor_head = MettaActorSingleHead(
-            input_size=512, action_embedding_size=16, num_actions=len(full_action_names)
+            input_size=1024, action_embedding_size=32, num_actions=len(full_action_names)
         )
 
     def compute_outputs(
@@ -121,13 +121,13 @@ class SimpleCNNAgent(BaseAgent):
         # CNN layers
         x = self.relu1(self.cnn1(x))
         x = self.relu2(self.cnn2(x))
+        x = self.relu3(self.cnn3(x))
 
         # Flatten
         x = x.view(x.size(0), -1)
 
-        # Fully connected layers
-        x = self.relu3(self.fc1(x))
-        x = self.relu4(self.encoded_obs(x))
+        # Fully connected layer
+        x = self.fc_relu(self.fc1(x))
 
         # LSTM
         if need_reshape:
@@ -143,8 +143,6 @@ class SimpleCNNAgent(BaseAgent):
         # Flatten back if needed
         if need_reshape:
             x = x.view(B * T, -1)
-
-        x = self.core_relu(x)
 
         # Value head
         value = self.value_head(self.critic_activation(self.critic_1(x)))

@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Optional
 
 import torch
 
-from metta.agents import BaseAgent
+from metta.agent import BaseAgent
 from metta.env.factory import create_env
 from metta.runtime import RuntimeConfig
 
@@ -164,7 +164,7 @@ def train(
 
     Example:
         from metta import train
-        from metta.agents import SimpleCNNAgent
+        from metta.agent import SimpleCNNAgent
 
         agent = SimpleCNNAgent(...)
         trained_agent = train(agent, timesteps=5_000_000)

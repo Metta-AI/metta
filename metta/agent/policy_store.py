@@ -22,7 +22,7 @@ import wandb
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, make_policy
+from metta.agent import DistributedMettaAgent, MettaAgent, make_policy
 from metta.rl.policy import PytorchAgent, load_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun

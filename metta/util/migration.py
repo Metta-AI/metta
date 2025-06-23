@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
-from metta.agents import list_agents
+from metta.agent import list_agents
 from metta.train.config import AgentConfig, OptimizerConfig, TrainerConfig, TrainingConfig
 
 
@@ -154,7 +154,7 @@ def suggest_agent_migration(hydra_agent_config: Dict[str, Any]) -> str:
     code = f"""
 # Suggested migration to new architecture:
 
-from metta.agents import {suggested_agent.replace("_", " ").title().replace(" ", "")}Agent
+from metta.agent import {suggested_agent.replace("_", " ").title().replace(" ", "")}Agent
 
 agent = create_agent(
     agent_name="{suggested_agent}",

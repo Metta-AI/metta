@@ -2,7 +2,7 @@ import torch
 from einops import repeat
 from tensordict import TensorDict
 
-import metta.agent.lib.nn_layer_library as nn_layer_library
+import metta.agent.components.nn_layer_library as nn_layer_library
 
 
 class ActionEmbedding(nn_layer_library.Embedding):

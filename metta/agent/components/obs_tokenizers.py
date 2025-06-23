@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from tensordict import TensorDict
 
-from metta.agent.lib.nn_layer_library import LayerBase
+from metta.agent.components.nn_layer_library import LayerBase
 
 
 class ObsTokenPadStrip(LayerBase):

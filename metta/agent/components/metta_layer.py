@@ -3,7 +3,7 @@ import torch
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.util.weights_analysis import analyze_weights
+from metta.agent.utils.weights_analysis import analyze_weights
 
 
 class LayerBase(nn.Module):

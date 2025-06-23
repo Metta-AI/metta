@@ -1,4 +1,4 @@
-"""Self-attention based agent implementation."""
+"""Simple CNN-based agent implementation."""
 
 from typing import Tuple
 
@@ -6,31 +6,17 @@ import gymnasium as gym
 import torch
 import torch.nn as nn
 
-from metta.agent.lib.action import ActionEmbedding
-from metta.agent.lib.actor import MettaActorSingleHead
-from metta.agent.lib.lstm import LSTM
-from metta.agent.lib.observation_normalizer import ObservationNormalizer
+from metta.agent.components.action import ActionEmbedding
+from metta.agent.components.actor import MettaActorSingleHead
+from metta.agent.components.lstm import LSTM
+from metta.agent.components.observation_normalizer import ObservationNormalizer
 from metta.agent.policy_state import PolicyState
 
 from .base_agent import BaseAgent
 
 
-class SelfAttentionLayer(nn.Module):
-    """Self-attention layer for spatial feature processing."""
-
-    def __init__(self, embed_dim: int, num_heads: int = 8):
-        super().__init__()
-        self.attention = nn.MultiheadAttention(embed_dim=embed_dim, num_heads=num_heads, batch_first=True)
-        self.norm = nn.LayerNorm(embed_dim)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x shape: (batch, seq_len, embed_dim)
-        attended, _ = self.attention(x, x, x)
-        return self.norm(x + attended)
-
-
-class AttentionAgent(BaseAgent):
-    """Agent with self-attention layers for spatial reasoning."""
+class SimpleCNNAgent(BaseAgent):
+    """Simple CNN-based agent with 2 convolutional layers."""
 
     def __init__(
         self,
@@ -40,9 +26,8 @@ class AttentionAgent(BaseAgent):
         obs_height: int,
         feature_normalizations: dict,
         device: str = "cuda",
-        hidden_size: int = 256,
+        hidden_size: int = 128,
         lstm_layers: int = 2,
-        num_attention_heads: int = 8,
     ):
         super().__init__(obs_space, action_space, hidden_size, lstm_layers, device)
 
@@ -61,32 +46,33 @@ class AttentionAgent(BaseAgent):
             input_shape=obs_shape, feature_normalizations=feature_normalizations
         )
 
-        # CNN backbone
-        self.cnn1 = nn.Conv2d(obs_shape[-1], 64, kernel_size=5, stride=2)
+        # CNN layers
+        self.cnn1 = nn.Conv2d(obs_shape[-1], 64, kernel_size=5, stride=3)
         self.relu1 = nn.ReLU()
 
-        self.cnn2 = nn.Conv2d(64, 128, kernel_size=3, stride=2)
+        self.cnn2 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
         self.relu2 = nn.ReLU()
 
-        # Calculate spatial dimensions after convolutions
+        # Calculate flattened size after convolutions
         dummy_input = torch.zeros(1, obs_shape[-1], obs_height, obs_width)
         dummy_output = self.cnn2(self.cnn1(dummy_input))
-        _, C, H, W = dummy_output.shape
-        self.spatial_size = H * W
-        self.feature_dim = C
+        flattened_size = dummy_output.numel() // dummy_output.shape[0]
 
-        # Self-attention layers
-        self.spatial_attention = SelfAttentionLayer(embed_dim=self.feature_dim, num_heads=num_attention_heads)
+        # Fully connected layers
+        self.fc1 = nn.Linear(flattened_size, 128)
+        self.relu3 = nn.ReLU()
 
-        # Global average pooling
-        self.global_pool = nn.AdaptiveAvgPool1d(1)
+        self.encoded_obs = nn.Linear(128, hidden_size)
+        self.relu4 = nn.ReLU()
 
         # LSTM core
-        self.lstm = LSTM(input_size=self.feature_dim, hidden_size=hidden_size, num_layers=lstm_layers)
+        self.lstm = LSTM(input_size=hidden_size, hidden_size=hidden_size, num_layers=lstm_layers)
+
+        self.core_relu = nn.ReLU()
 
         # Critic head
         self.critic_1 = nn.Linear(hidden_size, 1024)
-        self.critic_relu = nn.ReLU()
+        self.critic_activation = nn.Tanh()
         self.value_head = nn.Linear(1024, 1)
 
         # Actor head
@@ -106,12 +92,12 @@ class AttentionAgent(BaseAgent):
                 full_action_names.append(f"{action_name}_{i}")
 
         # Initialize action embedding
-        self.action_embedding = ActionEmbedding(num_embeddings=len(full_action_names), embedding_dim=32)
+        self.action_embedding = ActionEmbedding(num_embeddings=len(full_action_names), embedding_dim=16)
         self.action_embedding.activate_actions(full_action_names, self.device)
 
         # Initialize actor head
         self.actor_head = MettaActorSingleHead(
-            input_size=512, action_embedding_size=32, num_actions=len(full_action_names)
+            input_size=512, action_embedding_size=16, num_actions=len(full_action_names)
         )
 
     def compute_outputs(
@@ -125,7 +111,6 @@ class AttentionAgent(BaseAgent):
             need_reshape = True
         else:  # (BT, H, W, C) - inference
             need_reshape = False
-            B_T = x.shape[0]
 
         # Reshape to (BT, C, H, W) for CNN
         x = x.permute(0, 3, 1, 2).float()
@@ -133,19 +118,16 @@ class AttentionAgent(BaseAgent):
         # Normalize observations
         x = self.obs_normalizer(x)
 
-        # CNN backbone
+        # CNN layers
         x = self.relu1(self.cnn1(x))
         x = self.relu2(self.cnn2(x))
 
-        # Reshape for self-attention: (BT, C, H, W) -> (BT, H*W, C)
-        x = x.view(x.size(0), self.feature_dim, -1).transpose(1, 2)
+        # Flatten
+        x = x.view(x.size(0), -1)
 
-        # Apply self-attention
-        x = self.spatial_attention(x)
-
-        # Global pooling: (BT, H*W, C) -> (BT, C)
-        x = x.transpose(1, 2)  # (BT, C, H*W)
-        x = self.global_pool(x).squeeze(-1)  # (BT, C)
+        # Fully connected layers
+        x = self.relu3(self.fc1(x))
+        x = self.relu4(self.encoded_obs(x))
 
         # LSTM
         if need_reshape:
@@ -162,8 +144,10 @@ class AttentionAgent(BaseAgent):
         if need_reshape:
             x = x.view(B * T, -1)
 
+        x = self.core_relu(x)
+
         # Value head
-        value = self.value_head(self.critic_relu(self.critic_1(x)))
+        value = self.value_head(self.critic_activation(self.critic_1(x)))
 
         # Actor head
         actor_features = self.actor_relu(self.actor_1(x))

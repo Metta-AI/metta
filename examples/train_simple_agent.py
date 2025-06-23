@@ -3,7 +3,7 @@
 
 import torch
 
-from metta.agents import LargeCNNAgent, SimpleCNNAgent, create_agent
+from metta.agent import LargeCNNAgent, SimpleCNNAgent, create_agent
 from metta.train.config import AgentConfig, TrainerConfig, TrainingConfig
 from metta.train.simple_trainer import train_agent
 from mettagrid import MettaGridEnv
@@ -120,8 +120,8 @@ def custom_agent_architecture():
     """Example of creating a custom agent architecture."""
     import torch.nn as nn
 
-    from metta.agent.lib.observation_normalizer import ObservationNormalizer
-    from metta.agents import BaseAgent, register_agent
+    from metta.agent import BaseAgent, register_agent
+    from metta.agent.components.observation_normalizer import ObservationNormalizer
 
     class CustomAgent(BaseAgent):
         """Custom agent with residual connections."""

@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 
 from metta.agent.policy_state import PolicyState
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+from metta.agent.utils.distribution_utils import evaluate_actions, sample_actions
 
 
 class BaseAgent(nn.Module):

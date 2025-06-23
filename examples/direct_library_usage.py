@@ -23,7 +23,7 @@ def example_minimal():
 # Example 2: Custom agent and environment
 def example_custom_agent_env():
     """Create custom agent and environment without configs."""
-    from metta.agents import SimpleCNNAgent
+    from metta.agent import SimpleCNNAgent
     from metta.env.factory import create_env_from_preset
     from metta.runtime import configure
 
@@ -78,7 +78,7 @@ def example_job_builder():
 # Example 4: Direct component composition
 def example_direct_composition():
     """Compose training components directly."""
-    from metta.agents import create_agent
+    from metta.agent import create_agent
     from metta.env.factory import create_vectorized_env
     from metta.runtime import RuntimeConfig
     from metta.train.config import AgentConfig, TrainerConfig, TrainingConfig
@@ -174,7 +174,7 @@ def example_custom_simulations():
 # Example 6: Standalone evaluation
 def example_standalone_eval():
     """Run evaluation without training."""
-    from metta.agents import create_agent
+    from metta.agent import create_agent
     from metta.env.factory import create_env
     from metta.sim.simulation import Simulation
     from metta.sim.simulation_config import SingleEnvSimulationConfig
@@ -213,7 +213,7 @@ def example_standalone_eval():
 # Example 7: Training with custom loop
 def example_custom_training_loop():
     """Implement custom training loop for maximum control."""
-    from metta.agents import SimpleCNNAgent
+    from metta.agent import SimpleCNNAgent
     from metta.env.factory import create_vectorized_env
     from metta.runtime import configure
 
@@ -263,7 +263,7 @@ def example_integration():
     """Show how to integrate with existing PyTorch code."""
     import torch.nn as nn
 
-    from metta.agents import BaseAgent, register_agent
+    from metta.agent import BaseAgent, register_agent
 
     # Existing PyTorch model
     class MyExistingModel(nn.Module):

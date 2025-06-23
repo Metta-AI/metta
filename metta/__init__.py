@@ -2,7 +2,7 @@
 
 # Core runtime configuration
 # Agent classes and factory
-from .agents import (
+from .agent import (
     AttentionAgent,
     BaseAgent,
     LargeCNNAgent,

@@ -6,9 +6,9 @@ import gymnasium as gym
 import torch
 import torch.nn as nn
 
-from metta.agent.lib.action import ActionEmbedding
-from metta.agent.lib.lstm import LSTM
-from metta.agent.lib.observation_normalizer import ObservationNormalizer
+from metta.agent.components.action import ActionEmbedding
+from metta.agent.components.lstm import LSTM
+from metta.agent.components.observation_normalizer import ObservationNormalizer
 from metta.agent.policy_state import PolicyState
 
 from .base_agent import BaseAgent
