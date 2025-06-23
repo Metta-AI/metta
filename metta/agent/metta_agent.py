@@ -97,8 +97,6 @@ class MettaAgent(nn.Module):
             "obs_shape": obs_shape,
             "hidden_size": self.hidden_size,
             "core_num_layers": self.core_num_layers,
-            "obs_space": obs_space,
-            "device": device,
         }
 
         logging.info(f"agent_attributes: {self.agent_attributes}")
