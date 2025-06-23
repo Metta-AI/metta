@@ -927,7 +927,7 @@ class MettaTrainer:
 
             # Combine statistics for single all_reduce
             stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
-            torch.distributed.all_reduce(stats, op=torch.distributed:reduceOp.SUM)
+            torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
 
             # Extract global statistics
             global_sum, global_sq_sum, global_count = stats[0], stats[1], stats[2]
