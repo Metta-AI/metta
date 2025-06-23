@@ -6,22 +6,16 @@ const BACKGROUND_COLOR = "#cfa970";
 
 export async function drawGrid({
   grid,
-  canvas,
+  context: ctx,
   drawer,
-  cellSize,
-  // selectedCell,
 }: {
   grid: MettaGrid;
-  canvas: HTMLCanvasElement;
+  context: CanvasRenderingContext2D;
   drawer: Drawer;
-  cellSize: number;
 }) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
-  // Clear canvas
+  // Clear drawing area
   ctx.fillStyle = BACKGROUND_COLOR;
-  ctx.fillRect(0, 0, cellSize * grid.width, cellSize * grid.height);
+  ctx.fillRect(0, 0, grid.width, grid.height);
 
   // Draw grid lines
   ctx.strokeStyle = "#aaa";
@@ -30,27 +24,21 @@ export async function drawGrid({
   // Draw vertical grid lines
   for (let x = 0; x <= grid.width; x++) {
     ctx.beginPath();
-    ctx.moveTo(x * cellSize, 0);
-    ctx.lineTo(x * cellSize, canvas.height);
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, grid.height);
     ctx.stroke();
   }
 
   // Draw horizontal grid lines
   for (let y = 0; y <= grid.height; y++) {
     ctx.beginPath();
-    ctx.moveTo(0, y * cellSize);
-    ctx.lineTo(canvas.width, y * cellSize);
+    ctx.moveTo(0, y);
+    ctx.lineTo(grid.width, y);
     ctx.stroke();
   }
 
   // Draw the map
   for (const object of grid.objects) {
-    drawer.drawObject(
-      object,
-      ctx,
-      object.c * cellSize,
-      object.r * cellSize,
-      cellSize
-    );
+    drawer.drawObject(object, ctx, object.c, object.r, 1);
   }
 }
