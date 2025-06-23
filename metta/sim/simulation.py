@@ -27,6 +27,7 @@ from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
+from metta.rl.policy import PytorchAgent
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -119,26 +120,13 @@ class Simulation:
         action_names = metta_grid_env.action_names
         max_args = metta_grid_env.max_action_args
 
-        metta_agent: MettaAgent | DistributedMettaAgent = self._policy_pr.policy_as_metta_agent()
-        # Use duck typing to check MettaAgent interface
-        required_attrs = ["activate_actions", "forward", "is_pytorch_policy"]
-        for attr in required_attrs:
-            if not hasattr(metta_agent, attr):
-                raise AttributeError(
-                    f"Policy is missing required attribute '{attr}'. "
-                    f"Expected a MettaAgent-like object but got {type(metta_agent).__name__}"
-                )
+        metta_agent: MettaAgent | DistributedMettaAgent | PytorchAgent = self._policy_pr.policy_as_metta_agent()
+        assert isinstance(metta_agent, (MettaAgent, DistributedMettaAgent, PytorchAgent)), metta_agent
         metta_agent.activate_actions(action_names, max_args, self._device)
 
         if self._npc_pr is not None:
             npc_agent: MettaAgent | DistributedMettaAgent = self._npc_pr.policy_as_metta_agent()
-            # Use duck typing to check MettaAgent interface for NPC agent
-            for attr in required_attrs:
-                if not hasattr(npc_agent, attr):
-                    raise AttributeError(
-                        f"NPC policy is missing required attribute '{attr}'. "
-                        f"Expected a MettaAgent-like object but got {type(npc_agent).__name__}"
-                    )
+            assert isinstance(npc_agent, (MettaAgent, DistributedMettaAgent)), npc_agent
             try:
                 npc_agent.activate_actions(action_names, max_args, self._device)
             except Exception as e:
@@ -158,7 +146,7 @@ class Simulation:
         self._npc_idxs = (
             idx_matrix[:, self._policy_agents_per_env :].reshape(-1)
             if self._npc_agents_per_env
-            else torch.tensor([], device=self._device)
+            else torch.tensor([], device=self._device, dtype=torch.long)
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
