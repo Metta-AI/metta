@@ -36,6 +36,7 @@ class BrainPolicy(nn.Module):
 
         logger.info(f"obs_space: {obs_space} ")
 
+        self.layerlayer = nn.LayerNorm(100)
         self.hidden_size = cfg.components._core_.output_size
         self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
@@ -98,8 +99,7 @@ class BrainPolicy(nn.Module):
         # recursively setup all source components
         if component._sources is not None:
             for source in component._sources:
-                print(f"setting up source {source}")
-                print(f"with name {source['name']}")
+                print(f"setting up source {source} with name {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
         # setup the current component and pass in the source components
