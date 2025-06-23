@@ -26,12 +26,16 @@ game:
       heart: 1
       heart_max: 1000
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
     border_width: 6
     room:
+<<<<<<< HEAD:configs/env/mettagrid/navseq_basic/training/mem_defaults.yaml
       width: ${sampling:15,60,25}
       height: ${sampling:15,60,25}
+=======
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+>>>>>>> 801c2a630a5a83bbb815805edbebda9d1a4dd849:configs/env/mettagrid/navigation_sequence/experiments/mem_defaults.yaml
       border_width: 3
       agents: 1
       dir: ${choose:varied_terrain/sparse_small,varied_terrain/balanced_small,varied_terrain/dense_small,varied_terrain/maze_small}

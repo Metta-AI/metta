@@ -1,18 +1,27 @@
 resources:
+  cloud: aws
   any_of:
-    - cloud: aws
-      region: us-east-1
+    # us-east-1
+    - region: us-east-1
       use_spot: true
-      accelerators: "L4:4"
-    - cloud: aws
-      region: us-east-1
-      use_spot: false
-      accelerators: "A10G:1"
-    - cloud: aws
-      region: us-east-1
       accelerators: "L4:1"
-    - cloud: aws
-      region: us-east-1
+    - region: us-east-1
+      use_spot: true
+      accelerators: "A10G:1"
+    - region: us-east-1
+      accelerators: "L4:1"
+    - region: us-east-1
+      accelerators: "A10G:1"
+    # us-west-2
+    - region: us-west-2
+      use_spot: true
+      accelerators: "L4:1"
+    - region: us-west-2
+      use_spot: true
+      accelerators: "A10G:1"
+    - region: us-west-2
+      accelerators: "L4:1"
+    - region: us-west-2
       accelerators: "A10G:1"
   cpus: 8+
   image_id: docker:metta:latest

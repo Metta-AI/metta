@@ -1,4 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "google-generativeai>=0.3.0",
+#   "requests>=2.31.0",
+# ]
+# ///
 
 import json
 import logging
@@ -11,7 +18,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
 
 import google.generativeai as genai
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
@@ -33,7 +39,7 @@ class PRSummary:
     merged_at: str
     html_url: str
     summary: str
-    key_changes: List[str]
+    key_changes: list[str]
     developer_impact: str
     technical_notes: str
     impact_level: str  # "minor", "moderate", "major"
@@ -86,7 +92,7 @@ class GeminiAIClient:
             time.sleep(self.rate_limit_delay - elapsed)
         self.last_request_time = time.time()
 
-    def generate_with_retry(self, prompt: str, phase: str = "phase1") -> Optional[str]:
+    def generate_with_retry(self, prompt: str, phase: str = "phase1") -> str | None:
         """Generate content with retry logic."""
         model = self._get_model(phase)
 
@@ -242,7 +248,7 @@ class PRSummaryGenerator:
         except Exception as e:
             logging.error(f"Error saving cache: {e}")
 
-    def generate_single_pr_summary(self, pr_data: dict) -> Optional[dict]:
+    def generate_single_pr_summary(self, pr_data: dict) -> dict | None:
         """Generate comprehensive summary for a single PR."""
         pr_number = pr_data["number"]
 
@@ -425,7 +431,7 @@ Maximum 500 words total. Be comprehensive within this limit."""
 
         return str(artifact_path)
 
-    def process_prs_with_cache(self, prs: list, use_parallel: bool = True, max_workers: int = 5) -> List[PRSummary]:
+    def process_prs_with_cache(self, prs: list, use_parallel: bool = True, max_workers: int = 5) -> list[PRSummary]:
         """Process PRs with caching and optional concurrency."""
 
         # Load cache
@@ -516,7 +522,7 @@ Maximum 500 words total. Be comprehensive within this limit."""
 
         return results
 
-    def generate_collection_summary(self, pr_summaries: List[PRSummary], date_range: str, repository: str) -> str:
+    def generate_collection_summary(self, pr_summaries: list[PRSummary], date_range: str, repository: str) -> str:
         """Generate collection summary and shout outs using Gemini 2.5 Pro."""
 
         context = self._prepare_collection_context(pr_summaries, date_range, repository)
@@ -586,7 +592,7 @@ include brief descriptions and PR links]
 
         return ai_response
 
-    def _prepare_collection_context(self, pr_summaries: List[PRSummary], date_range: str, repository: str) -> str:
+    def _prepare_collection_context(self, pr_summaries: list[PRSummary], date_range: str, repository: str) -> str:
         """Prepare comprehensive context for collection summary."""
 
         stats = {"total_prs": len(pr_summaries), "by_category": {}, "by_impact": {}, "by_author": {}}
@@ -628,7 +634,7 @@ include brief descriptions and PR links]
 
 
 def create_discord_summary(
-    pr_summaries: List[PRSummary], collection_summary: str, date_range: str, github_run_url: str
+    pr_summaries: list[PRSummary], collection_summary: str, date_range: str, github_run_url: str
 ) -> str:
     """Create Discord-formatted summary with enhanced formatting and shout outs."""
 

@@ -1,9 +1,17 @@
-_target_: mettagrid.curriculum.LowRewardCurriculum
+_target_: metta.mettagrid.curriculum.low_reward.LowRewardCurriculum
 
 tasks:
   /env/mettagrid/navigation/training/terrain_from_numpy: 1
   /env/mettagrid/navigation/training/cylinder_world: 1
   /env/mettagrid/navigation/training/varied_terrain_balanced: 1
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
+<<<<<<< HEAD
   /env/mettagrid/navigation/training/varied_terrain_maze: 1
   /env/mettagrid/navigation/training/varied_terrain_sparse: 1
+=======
+
+env_overrides:
+
+  game:
+    num_agents: 12
+>>>>>>> 801c2a630a5a83bbb815805edbebda9d1a4dd849

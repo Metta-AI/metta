@@ -60,7 +60,7 @@ function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/te
 
     add_executable(${output_name} ${src} $<TARGET_OBJECTS:mettagrid_obj>)
 
-    target_include_directories(${output_name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/mettagrid" ${NUMPY_INCLUDE_DIR})
+    target_include_directories(${output_name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid" ${NUMPY_INCLUDE_DIR})
 
     target_link_libraries(${output_name} PRIVATE ${LINK_LIBS})
 
@@ -68,7 +68,7 @@ function(mettagrid_add_tests GLOB_PATTERN # e.g. "${CMAKE_CURRENT_SOURCE_DIR}/te
 
     if(TEST_TYPE STREQUAL "test")
       add_test(NAME ${output_name} COMMAND ${output_name} --gtest_color=yes)
-      set_tests_properties(${output_name} PROPERTIES 
+      set_tests_properties(${output_name} PROPERTIES
         ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES}"
         LABELS "test")
     elseif(TEST_TYPE STREQUAL "benchmark")
@@ -91,9 +91,9 @@ if(result)
 endif()
 message(\"================================================================================\\n\")
 ")
-      
+
       add_test(NAME ${output_name} COMMAND ${CMAKE_COMMAND} -P ${wrapper_script})
-      set_tests_properties(${output_name} PROPERTIES 
+      set_tests_properties(${output_name} PROPERTIES
         ENVIRONMENT "PYTHONHOME=${PYTHONHOME};PYTHONPATH=${PYTHON_SITE_PACKAGES}"
         LABELS "benchmark"
         TIMEOUT 300)

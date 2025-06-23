@@ -9,7 +9,7 @@ game:
     rewards:
       heart: 0.333
   map_builder:
-    _target_: mettagrid.room.ascii.Ascii
+    _target_: metta.mettagrid.room.ascii.Ascii
     border_width: 1
   objects:
     altar:

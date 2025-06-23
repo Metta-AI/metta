@@ -81,7 +81,7 @@ class Policy(nn.Module):
         # TODO - fix magic numbers!
         # fmt: off
         max_vec = torch.tensor([  1.,   9.,   1.,  30.,   1.,   3., 255.,  26.,   1.,   1.,   1.,   1.,
-                1.,  47.,   3.,   3.,   2.,   1.,   1.,   1.,   1.])[None, :, None, None]
+                1.,  47.,   3.,   3.,   2.,   1.,   1.,   1.,   1.], dtype=torch.float32)[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
         # fmt: on
 

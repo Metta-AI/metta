@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import (
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_env import (
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.util.actions import (
+from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,
     move,
@@ -41,7 +41,7 @@ def base_config():
         },
         "groups": {"red": {"id": 0, "props": {}}},
         "objects": {"wall": {"type_id": 1}, "altar": {"type_id": 4}},
-        "agent": {"inventory_size": 10},
+        "agent": {},
     }
 
 

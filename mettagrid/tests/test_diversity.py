@@ -1,6 +1,6 @@
 import numpy as np
 
-from mettagrid.util.diversity import calculate_diversity_bonus
+from metta.mettagrid.util.diversity import calculate_diversity_bonus
 
 
 def test_calculate_diversity_bonus_simple_case():

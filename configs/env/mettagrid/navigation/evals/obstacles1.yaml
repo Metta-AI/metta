@@ -5,4 +5,17 @@ defaults:
 game:
   max_steps: 100
   map_builder:
+<<<<<<< HEAD
     uri: "configs/env/mettagrid/maps/navigation/obstacles1.map"
+=======
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: 1
+    room:
+      _target_: metta.mettagrid.room.ascii.Ascii
+      border_width: 1
+      uri: "configs/env/mettagrid/maps/navigation/obstacles1.map"
+
+  objects:
+    altar:
+      cooldown: 255
+>>>>>>> 801c2a630a5a83bbb815805edbebda9d1a4dd849

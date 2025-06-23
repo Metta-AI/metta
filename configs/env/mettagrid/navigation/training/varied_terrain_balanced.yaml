@@ -7,12 +7,12 @@ sampling: 1
 game:
   num_agents: 4
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
     border_width: 6
 
     room:
-      _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
       border_width: 3
       agents: 1
       dir: ${choose:varied_terrain/balanced_large,varied_terrain/balanced_medium,varied_terrain/balanced_small}

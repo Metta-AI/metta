@@ -12,7 +12,8 @@ resolution-markers = [
 members = [
     "metta",
     "metta-app-backend",
-    "mettagrid",
+    "metta-common",
+    "metta-mettagrid",
     "wandb-carbs",
 ]
 
@@ -764,7 +765,8 @@ dependencies = [
     { name = "imageio" },
     { name = "jmespath" },
     { name = "matplotlib" },
-    { name = "mettagrid" },
+    { name = "metta-common" },
+    { name = "metta-mettagrid" },
     { name = "numpy" },
     { name = "omegaconf" },
     { name = "pandas" },
@@ -821,7 +823,8 @@ requires-dist = [
     { name = "imageio", specifier = ">=2.37.0" },
     { name = "jmespath", specifier = ">=1.0.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
-    { name = "mettagrid", editable = "mettagrid" },
+    { name = "metta-common", editable = "common" },
+    { name = "metta-mettagrid", editable = "mettagrid" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "omegaconf", specifier = ">=2.4.0.dev3" },
     { name = "pandas", specifier = ">=2.3.0" },
@@ -880,7 +883,28 @@ requires-dist = [
 ]
 
 [[package]]
-name = "mettagrid"
+name = "metta-common"
+version = "0.1.0"
+source = { editable = "common" }
+dependencies = [
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-benchmark" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pyright", specifier = ">=1.1.401" },
+    { name = "pytest", specifier = ">=8.3.3" },
+    { name = "pytest-benchmark", specifier = ">=5.1.0" },
+    { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "ruff", specifier = ">=0.11.13" },
+]
+
+[[package]]
+name = "metta-mettagrid"
 version = "0.1.6"
 source = { editable = "mettagrid" }
 dependencies = [

@@ -8,8 +8,13 @@ game:
     rewards:
       heart: 0.333
   map_builder:
+<<<<<<< HEAD
     _target_: mettagrid.room.ascii.Ascii
     uri: "configs/env/mettagrid/maps/memory/evals/hard.map"
+=======
+    _target_: metta.mettagrid.room.ascii.Ascii
+    uri: "configs/env/mettagrid/maps/memory/hard.map"
+>>>>>>> 801c2a630a5a83bbb815805edbebda9d1a4dd849
   objects:
     altar:
       initial_items: 1

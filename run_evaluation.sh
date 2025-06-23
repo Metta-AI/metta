@@ -4,6 +4,30 @@ set -e
 
 # Define the list of policy URIs to evaluate on a normal run.
 POLICIES=(
+  "b.daphne.object_use_multienv_pretrained:v98"
+  "b.daphne.object_use_multienv2:v41"
+  "daphne_objectuse_bigandsmall:v22"
+  "mrazo_object-use_allobs_large-multienv_v01"
+  "daphne_objectuse_allobjs_multienv:v94"
+  "b.daphne.object_use_multienv2:v65"
+  "training_regular_envset_nb:v76"
+  "daphne_objectuse_bigandsmall:v67"
+  "navigation_training:v35"
+  "training_regular_envset"
+  "training_prioritized_envset"
+  "b.daphne.navigation_prioritized_envset"
+  "b.daphne.navigation_regular_envset"
+  "b.daphne.objectuse_prioritized_envset"
+  "b.daphne.objectuse_regular_envset"
+  "b.daphne.prioritized_envset"
+  "b.daphne.uniform_envset_nb"
+  "b.daphne.regular_envset_nb"
+  "b.daphne.prioritized_envset_nb"
+  "b.daphne.regular_envset"
+  "training_regular_envset_nb"
+  "training_uniform_envset_nb"
+)
+
     # "dd.2objectuse_curriculum"
     # "dd_navigation_curriculum"
     # "dd_navsequence_memory_pretrained"
@@ -57,8 +81,6 @@ POLICIES=(
     "georgedeane.mem_mettascope_georgenew"
     "george.extendedsequence.sky2"
     "georgedeane.mem_mettascope_george_init2"
-
-
 
 
 
