@@ -23,7 +23,7 @@ stages:
 # Transition configuration
 transition_criteria: "time"  # "performance" or "time"
 performance_threshold: 0.8
-time_threshold_steps: 1000000
+time_threshold_steps: 100000000
 transition_smoothing: 0.1  # Smoothing factor for performance tracking
 
 # Environment overrides applied to all stages
