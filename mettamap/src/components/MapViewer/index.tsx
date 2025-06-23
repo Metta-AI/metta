@@ -24,6 +24,34 @@ function useDrawer(): Drawer | undefined {
   return drawer;
 }
 
+function useCallOnWindowResize(callback: () => void) {
+  useEffect(() => {
+    window.addEventListener("resize", callback);
+    return () => window.removeEventListener("resize", callback);
+  }, [callback]);
+}
+
+const DebugInfo: FC<{ canvas: HTMLCanvasElement | null }> = ({ canvas }) => {
+  if (!canvas) return null;
+
+  const round = (x: number) => Math.round(x * 100) / 100;
+
+  return (
+    <div className="absolute right-0 bottom-0 z-10 text-xs">
+      <div>
+        Canvas size: {canvas.width}x{canvas.height}
+      </div>
+      <div>
+        Client size: {canvas.clientWidth}x{canvas.clientHeight}
+      </div>
+      <div>
+        Bounding rect: {round(canvas.getBoundingClientRect().width)}x
+        {round(canvas.getBoundingClientRect().height)}
+      </div>
+    </div>
+  );
+};
+
 const Overlay: FC<{
   cellSize: number;
   hoveredCell?: Cell;
@@ -81,7 +109,8 @@ export const MapViewer: FC<Props> = ({
 
   const [hoveredCell, setHoveredCell] = useState<Cell | undefined>();
 
-  const measureCellSize = useCallback(() => {
+  // measure cell size and set canvas dimensions
+  useEffect(() => {
     if (!canvasRef.current || !containerRef.current) return;
 
     const containerWidth = containerRef.current.clientWidth;
@@ -102,27 +131,18 @@ export const MapViewer: FC<Props> = ({
     canvasRef.current.height = grid.height * cellSize;
   }, [grid]);
 
-  useEffect(() => {
-    measureCellSize();
-  }, [measureCellSize]);
-
   const draw = useCallback(() => {
     if (!drawer || !canvasRef.current || !cellSize) return;
 
     drawGrid({
       grid,
       canvas: canvasRef.current,
-      drawer: drawer,
+      drawer,
       cellSize,
     });
   }, [drawer, grid, cellSize]);
 
-  // Handle window resize
-  useEffect(() => {
-    // TODO - avoid rendering? (doesn't work yet)
-    window.addEventListener("resize", draw);
-    return () => window.removeEventListener("resize", draw);
-  }, [draw]);
+  useCallOnWindowResize(draw);
 
   // TODO - avoid rendering if not visible
   useEffect(draw, [draw]);
@@ -188,8 +208,11 @@ export const MapViewer: FC<Props> = ({
         setZoom(1);
         setPan({ x: 0, y: 0 });
       }}
-      className="flex h-full w-full cursor-grab items-start justify-center overflow-hidden bg-gray-100"
+      // Container takes all available space.
+      // Note that the canvas proportions don't have to match the container.
+      className="relative flex h-full w-full cursor-grab items-start justify-center overflow-hidden bg-gray-100"
     >
+      <DebugInfo canvas={canvasRef.current} />
       <div className="relative max-h-full max-w-full" style={{ transform }}>
         <canvas
           ref={canvasRef}
@@ -201,15 +224,15 @@ export const MapViewer: FC<Props> = ({
           onClick={onMouseClick}
           className="h-full max-h-full w-full max-w-full"
         />
-        <div className="pointer-events-none absolute inset-0 z-10">
-          {canvasRef.current && (
+        {canvasRef.current && (
+          <div className="pointer-events-none absolute inset-0 z-10">
             <Overlay
               cellSize={canvasRef.current?.clientWidth / grid.width}
               hoveredCell={hoveredCell}
               selectedCell={selectedCell}
             />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
