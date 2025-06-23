@@ -11,13 +11,15 @@ from __future__ import annotations
 import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Tuple, Union
 
 import duckdb
 
-from metta.agent.policy_store import PolicyRecord
 from mettagrid.episode_stats_db import EpisodeStatsDB
 from mettagrid.util.file import exists, local_copy, write_file
+
+if TYPE_CHECKING:
+    from metta.agent.policy_store import PolicyRecord
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #
@@ -80,11 +82,11 @@ class SimulationStatsDB(EpisodeStatsDB):
     def from_shards_and_context(
         sim_id: str,
         dir_with_shards: Union[str, Path],
-        agent_map: Dict[int, PolicyRecord],
+        agent_map: Dict[int, "PolicyRecord"],
         sim_name: str,
         sim_suite: str,
         env: str,
-        policy_record: PolicyRecord,
+        policy_record: "PolicyRecord",
     ) -> "SimulationStatsDB":
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"

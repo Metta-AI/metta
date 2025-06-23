@@ -3,7 +3,7 @@ import os
 import time
 from collections import defaultdict
 from contextlib import nullcontext
-from typing import Any, Set
+from typing import TYPE_CHECKING, Any, Set
 from uuid import UUID
 
 import einops
@@ -17,7 +17,6 @@ from omegaconf import DictConfig, ListConfig
 from app_backend.stats_client import StatsClient
 from metta.agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
-from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.utils.debug import assert_shape
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.experience import Experience
@@ -38,6 +37,9 @@ from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
 from mettagrid.util.dict_utils import unroll_nested_dict
 from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
+if TYPE_CHECKING:
+    from metta.agent.policy_store import PolicyRecord, PolicyStore
+
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
 except ImportError:
@@ -54,12 +56,12 @@ local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
-class MettaTrainer:
+class LegacyMettaTrainer:
     def __init__(
         self,
         cfg: DictConfig | ListConfig,
         wandb_run: WandbRun | None,
-        policy_store: PolicyStore,
+        policy_store: "PolicyStore",
         sim_suite_config: SimulationSuiteConfig,
         stats_client: StatsClient | None,
         **kwargs: Any,
@@ -668,7 +670,7 @@ class MettaTrainer:
         )
         checkpoint.save(self.cfg.run_dir)
 
-    def _checkpoint_policy(self) -> PolicyRecord | None:
+    def _checkpoint_policy(self) -> "PolicyRecord | None":
         if not self._master:
             return
 
@@ -1058,7 +1060,7 @@ class MettaTrainer:
         raise RuntimeError("Failed to load policy after 10 attempts")
 
 
-class AbortingTrainer(MettaTrainer):
+class AbortingTrainer(LegacyMettaTrainer):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
@@ -1074,3 +1076,481 @@ class AbortingTrainer(MettaTrainer):
         self.wandb_run.config.update(
             {"trainer.total_timesteps": self.trainer_cfg.total_timesteps}, allow_val_change=True
         )
+
+
+class MettaTrainer:
+    """Refactored modular trainer using composable components.
+
+    This trainer orchestrates separate components for rollout collection,
+    optimization, evaluation, checkpointing, and logging.
+    """
+
+    def __init__(
+        self,
+        cfg: DictConfig | ListConfig,
+        wandb_run: WandbRun | None,
+        policy_store: "PolicyStore",
+        sim_suite_config: SimulationSuiteConfig,
+        stats_client: StatsClient | None,
+        **kwargs: Any,
+    ):
+        """Initialize the modular trainer.
+
+        Args:
+            cfg: Configuration
+            wandb_run: Optional wandb run
+            policy_store: Policy storage
+            sim_suite_config: Simulation configuration
+            stats_client: Optional stats client
+        """
+        self.cfg = cfg
+        self.trainer_cfg = cfg.trainer
+        self.wandb_run = wandb_run
+        self.device = torch.device(cfg.device) if isinstance(cfg.device, str) else cfg.device
+
+        # Distributed training setup
+        self._master = True
+        self._world_size = 1
+        if torch.distributed.is_initialized():
+            self._master = int(os.environ["RANK"]) == 0
+            self._world_size = torch.distributed.get_world_size()
+
+        # Import components locally to avoid circular imports
+        from metta.rl.checkpointer import AutoCheckpointer
+        from metta.rl.collectors import RolloutCollector
+        from metta.rl.evaluator import PolicyEvaluator
+        from metta.rl.optimizers import PPOOptimizer
+        from metta.rl.stats_logger import StatsLogger
+
+        # Initialize components
+        self.timer = Stopwatch(logger)
+        self.timer.start()
+
+        self.system_monitor = SystemMonitor(
+            sampling_interval_sec=1.0,
+            history_size=100,
+            logger=logger,
+            auto_start=True,
+        )
+
+        # Create environment
+        self._setup_environment()
+
+        # Load checkpoint and policy
+        self.checkpointer = AutoCheckpointer(
+            checkpoint_dir=self.trainer_cfg.checkpoint_dir,
+            policy_store=policy_store,
+            wandb_run=wandb_run,
+            is_master=self._master,
+            checkpoint_interval=self.trainer_cfg.checkpoint_interval,
+            wandb_interval=self.trainer_cfg.wandb_checkpoint_interval,
+        )
+
+        checkpoint = self.checkpointer.load_trainer_state(cfg.run_dir)
+        initial_policy_uri = (
+            getattr(self.trainer_cfg.initial_policy, "uri", None)
+            if hasattr(self.trainer_cfg, "initial_policy")
+            else None
+        )
+
+        policy_record = self.checkpointer.load_policy(
+            checkpoint,
+            self.vecenv.driver_env,
+            initial_policy_uri=initial_policy_uri,
+        )
+
+        self.policy_record = policy_record
+        self.policy = policy_record.policy().to(self.device)
+        self.uncompiled_policy = self.policy
+
+        # Activate actions
+        env = self.vecenv.driver_env
+        self.policy.activate_actions(env.action_names, env.max_action_args, self.device)
+
+        # Compile policy if requested
+        if self.trainer_cfg.compile:
+            logger.info("Compiling policy")
+            self.policy = torch.compile(self.policy, mode=self.trainer_cfg.compile_mode)
+
+        # Setup distributed training
+        if torch.distributed.is_initialized():
+            from metta.agent import DistributedMettaAgent
+
+            self._original_policy = self.policy
+            self.policy = DistributedMettaAgent(self.policy, self.device)
+
+        # Create experience buffer
+        self._make_experience_buffer()
+
+        # Initialize training state
+        self.agent_step = checkpoint.agent_step
+        self.epoch = checkpoint.epoch
+        self._initial_pr = policy_record
+        self.last_pr = policy_record
+
+        # Setup optimizer
+        self._setup_optimizer(checkpoint)
+
+        # Create training components
+        self.collector = RolloutCollector(
+            vecenv=self.vecenv,
+            policy=self.policy,
+            experience_buffer=self.experience,
+            device=self.device,
+        )
+
+        self.ppo_optimizer = PPOOptimizer(
+            policy=self.policy,
+            optimizer=self.optimizer,
+            device=self.device,
+            # PPO hyperparameters
+            clip_coef=self.trainer_cfg.clip_coef,
+            vf_coef=self.trainer_cfg.vf_coef,
+            ent_coef=self.trainer_cfg.ent_coef,
+            max_grad_norm=self.trainer_cfg.max_grad_norm,
+            gamma=self.trainer_cfg.gamma,
+            gae_lambda=self.trainer_cfg.gae_lambda,
+            norm_adv=self.trainer_cfg.get("norm_adv", True),
+            clip_vloss=self.trainer_cfg.clip_vloss,
+            vf_clip_coef=self.trainer_cfg.get("vf_clip_coef", 0.1),
+            target_kl=self.trainer_cfg.target_kl,
+            # Regularization
+            l2_reg_loss_coef=self.trainer_cfg.l2_reg_loss_coef,
+            l2_init_loss_coef=self.trainer_cfg.l2_init_loss_coef,
+            # V-trace
+            vtrace_rho_clip=self.trainer_cfg.get("vtrace", {}).get("vtrace_rho_clip", 1.0),
+            vtrace_c_clip=self.trainer_cfg.get("vtrace", {}).get("vtrace_c_clip", 1.0),
+        )
+
+        self.evaluator = PolicyEvaluator(
+            sim_suite_config=sim_suite_config,
+            policy_store=policy_store,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
+            stats_client=stats_client,
+        )
+
+        self.stats_logger = StatsLogger(
+            wandb_run=wandb_run,
+            is_master=self._master,
+            world_size=self._world_size,
+        )
+
+        # Setup kickstarter if needed
+        self.kickstarter = Kickstarter(cfg, policy_store, env.action_names, env.max_action_args)
+
+        # Stats tracking
+        self.evals = {}
+        self._stats_run_id = None
+        self._stats_epoch_start = self.epoch
+
+        if stats_client and self._master:
+            name = wandb_run.name if wandb_run and wandb_run.name else "unknown"
+            url = wandb_run.url if wandb_run else None
+            self._stats_run_id = stats_client.create_training_run(name=name, attributes={}, url=url).id
+
+        logger.info(f"MettaTrainer initialization complete on device: {self.device}")
+
+    def train(self) -> None:
+        """Run the training loop."""
+        logger.info("Starting training")
+
+        while self.agent_step < self.trainer_cfg.total_timesteps:
+            steps_before = self.agent_step
+
+            # Collect rollouts
+            with self.timer("_rollout"):
+                stats, steps_collected = self.collector.collect()
+                self.stats_logger.add_stats(stats)
+
+            # Update policy
+            with self.timer("_train"):
+                loss_stats = self.ppo_optimizer.update(
+                    experience=self.experience,
+                    update_epochs=self.trainer_cfg.update_epochs,
+                    kickstarter=self.kickstarter if self.kickstarter.enabled else None,
+                    prioritized_replay_alpha=self.trainer_cfg.get("prioritized_experience_replay", {}).get(
+                        "prio_alpha", 0.0
+                    ),
+                    prioritized_replay_beta=self._get_annealed_beta(),
+                )
+
+            # Update agent step count
+            self.agent_step = self.collector.agent_steps
+
+            # Process stats and log
+            with self.timer("_process_stats"):
+                self.stats_logger.process_and_log(
+                    agent_step=self.agent_step,
+                    epoch=self.epoch,
+                    timer=self.timer,
+                    losses=self.ppo_optimizer.losses,
+                    experience=self.experience,
+                    policy=self.policy,
+                    system_monitor=self.system_monitor,
+                    evals=self.evals,
+                    trainer_config=self.trainer_cfg,
+                    analyze_weights_interval=self.cfg.agent.analyze_weights_interval,
+                )
+
+            # Log timing info
+            self._log_epoch_timing(steps_before)
+
+            # Checkpointing
+            if self.checkpointer.should_checkpoint(self.epoch):
+                self._checkpoint()
+
+            # Evaluation
+            if self.trainer_cfg.evaluate_interval != 0 and self.epoch % self.trainer_cfg.evaluate_interval == 0:
+                self._evaluate()
+
+            # WandB save
+            if self.checkpointer.should_save_to_wandb(self.epoch):
+                self.checkpointer.save_to_wandb(self.last_pr)
+
+            # Update learning rate
+            if self.lr_scheduler is not None:
+                self.lr_scheduler.step()
+
+            # Update l2 init weights
+            if (
+                self.cfg.agent.l2_init_weight_update_interval != 0
+                and self.epoch % self.cfg.agent.l2_init_weight_update_interval == 0
+            ):
+                self.policy.update_l2_init_weight_copy()
+
+            # Generate replay
+            if self.trainer_cfg.replay_interval != 0 and self.epoch % self.trainer_cfg.replay_interval == 0:
+                self._generate_replay()
+
+            self.epoch += 1
+
+        # Training complete
+        logger.info("Training complete!")
+        self._checkpoint()
+        self.checkpointer.save_to_wandb(self.last_pr)
+        self.system_monitor.stop()
+
+    def _setup_environment(self):
+        """Setup the vectorized environment."""
+        # Import locally to avoid circular imports
+        from metta.rl.vecenv import make_vecenv
+        from mettagrid.curriculum import curriculum_from_config_path
+
+        curriculum_config = self.trainer_cfg.get("curriculum", self.trainer_cfg.get("env", {}))
+        env_overrides = DictConfig({"env_overrides": self.trainer_cfg.env_overrides})
+        self._curriculum = curriculum_from_config_path(curriculum_config, env_overrides)
+
+        # Calculate batch sizes
+        num_agents = self._curriculum.get_task().env_cfg().game.num_agents
+        target_batch_size = self.trainer_cfg.forward_pass_minibatch_target_size // num_agents
+        if target_batch_size < 2:
+            target_batch_size = 2
+
+        batch_size = (target_batch_size // self.trainer_cfg.num_workers) * self.trainer_cfg.num_workers
+        batch_size = batch_size // self._world_size
+        num_envs = batch_size * self.trainer_cfg.async_factor
+
+        logger.info(f"forward_pass_batch_size: {batch_size}, num_envs: {num_envs}")
+
+        self.vecenv = make_vecenv(
+            self._curriculum,
+            self.cfg.vectorization,
+            num_envs=num_envs,
+            batch_size=batch_size,
+            num_workers=self.trainer_cfg.num_workers,
+            zero_copy=self.trainer_cfg.zero_copy,
+        )
+
+        # Seed environments
+        seed = self.cfg.seed if self.cfg.seed is not None else np.random.randint(0, 1000000)
+        rank = int(os.environ.get("RANK", 0))
+        self.vecenv.async_reset(seed + rank)
+
+    def _setup_optimizer(self, checkpoint):
+        """Setup the optimizer and learning rate scheduler."""
+        # Create optimizer
+        optimizer_type = getattr(self.trainer_cfg.optimizer, "type", "adam")
+        assert optimizer_type in ("adam", "muon"), f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}"
+
+        if optimizer_type == "adam":
+            opt_cls = torch.optim.Adam
+        else:
+            from heavyball import ForeachMuon
+
+            opt_cls = ForeachMuon
+
+        self.optimizer = opt_cls(
+            self.policy.parameters(),
+            lr=self.trainer_cfg.optimizer.learning_rate,
+            betas=(self.trainer_cfg.optimizer.beta1, self.trainer_cfg.optimizer.beta2),
+            eps=self.trainer_cfg.optimizer.eps,
+            weight_decay=self.trainer_cfg.optimizer.weight_decay,
+        )
+
+        # Load optimizer state
+        if checkpoint.agent_step > 0:
+            self.optimizer.load_state_dict(checkpoint.optimizer_state_dict)
+
+        # Setup learning rate scheduler
+        self.lr_scheduler = None
+        if hasattr(self.trainer_cfg, "lr_scheduler") and getattr(self.trainer_cfg.lr_scheduler, "enabled", False):
+            self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                self.optimizer, T_max=self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size
+            )
+
+    def _make_experience_buffer(self):
+        """Create the experience buffer."""
+        trainer_cfg = self.trainer_cfg
+
+        # Calculate batch sizes
+        batch_size = trainer_cfg.batch_size // self._world_size
+        minibatch_size = trainer_cfg.minibatch_size // self._world_size
+
+        # Get LSTM parameters
+        hidden_size = getattr(self.policy, "hidden_size", 256)
+        num_lstm_layers = 2
+
+        if hasattr(self.policy, "components") and "_core_" in self.policy.components:
+            lstm_module = self.policy.components["_core_"]
+            if hasattr(lstm_module, "_net") and hasattr(lstm_module._net, "num_layers"):
+                num_lstm_layers = lstm_module._net.num_layers
+
+        # Create experience buffer
+        self.experience = Experience(
+            total_agents=self.vecenv.num_agents,
+            batch_size=batch_size,
+            bptt_horizon=trainer_cfg.bptt_horizon,
+            minibatch_size=minibatch_size,
+            max_minibatch_size=trainer_cfg.get("max_minibatch_size", minibatch_size),
+            obs_space=self.vecenv.single_observation_space,
+            atn_space=self.vecenv.single_action_space,
+            device=self.device,
+            hidden_size=hidden_size,
+            cpu_offload=trainer_cfg.cpu_offload,
+            num_lstm_layers=num_lstm_layers,
+            agents_per_batch=getattr(self.vecenv, "agents_per_batch", None),
+        )
+
+    def _get_annealed_beta(self):
+        """Get annealed beta for prioritized experience replay."""
+        prio_cfg = self.trainer_cfg.get("prioritized_experience_replay", {})
+        b0 = prio_cfg.get("prio_beta0", 0.6)
+        a = prio_cfg.get("prio_alpha", 0.0)
+        total_epochs = max(1, self.trainer_cfg.total_timesteps // self.trainer_cfg.batch_size)
+        return b0 + (1 - b0) * a * self.epoch / total_epochs
+
+    def _log_epoch_timing(self, steps_before):
+        """Log timing information for the epoch."""
+        rollout_time = self.timer.get_last_elapsed("_rollout")
+        train_time = self.timer.get_last_elapsed("_train")
+        stats_time = self.timer.get_last_elapsed("_process_stats")
+        steps_calculated = self.agent_step - steps_before
+
+        total_time = train_time + rollout_time + stats_time
+        steps_per_sec = steps_calculated / total_time if total_time > 0 else 0
+
+        train_pct = (train_time / total_time) * 100 if total_time > 0 else 0
+        rollout_pct = (rollout_time / total_time) * 100 if total_time > 0 else 0
+        stats_pct = (stats_time / total_time) * 100 if total_time > 0 else 0
+
+        logger.info(
+            f"Epoch {self.epoch} - "
+            f"{steps_per_sec * self._world_size:.0f} steps/sec "
+            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
+        )
+        record_heartbeat()
+
+    def _checkpoint(self):
+        """Save checkpoint."""
+        # Save policy
+        training_time = self.timer.get_elapsed("_rollout") + self.timer.get_elapsed("_train")
+        category_scores = {k.split("/")[0]: v for k, v in self.evals.items() if k.endswith("/score")}
+        overall_score = sum(category_scores.values()) / len(category_scores) if category_scores else 0
+
+        metadata = {
+            "run": self.cfg.run,
+            "train_time": training_time,
+            "score": overall_score,
+            "eval_scores": category_scores,
+        }
+
+        self.last_pr = self.checkpointer.save_policy(
+            policy=self.uncompiled_policy,
+            epoch=self.epoch,
+            agent_step=self.agent_step,
+            env=self.vecenv.driver_env,
+            metadata=metadata,
+            initial_pr=self._initial_pr,
+        )
+
+        # Save trainer state
+        extra_args = {}
+        if self.kickstarter.enabled and self.kickstarter.teacher_uri is not None:
+            extra_args["teacher_pr_uri"] = self.kickstarter.teacher_uri
+
+        self.checkpointer.save_trainer_state(
+            run_dir=self.cfg.run_dir,
+            agent_step=self.agent_step,
+            epoch=self.epoch,
+            optimizer_state_dict=self.optimizer.state_dict(),
+            world_size=self._world_size,
+            extra_args=extra_args,
+        )
+
+    def _evaluate(self):
+        """Run policy evaluation."""
+        if not self._master:
+            return
+
+        self.evals = self.evaluator.evaluate(
+            policy_record=self.last_pr,
+            stats_run_id=self._stats_run_id,
+            stats_epoch_start=self._stats_epoch_start,
+            stats_epoch_end=self.epoch,
+        )
+        self._stats_epoch_start = self.epoch + 1
+
+    def _generate_replay(self):
+        """Generate and upload replay."""
+        if not self._master:
+            return
+
+        from metta.sim.simulation import Simulation
+        from metta.sim.simulation_config import SingleEnvSimulationConfig
+
+        replay_sim_config = SingleEnvSimulationConfig(
+            env="/env/mettagrid/mettagrid",
+            num_episodes=1,
+            env_overrides=self._curriculum.get_task().env_cfg(),
+        )
+
+        replay_simulator = Simulation(
+            name=f"replay_{self.epoch}",
+            config=replay_sim_config,
+            policy_pr=self.last_pr,
+            policy_store=self.checkpointer.policy_store,
+            device=self.device,
+            vectorization=self.cfg.vectorization,
+            replay_dir=self.trainer_cfg.replay_dir,
+        )
+        results = replay_simulator.simulate()
+
+        if self.wandb_run is not None:
+            replay_urls = results.stats_db.get_replay_urls(
+                policy_key=self.last_pr.key(), policy_version=self.last_pr.version()
+            )
+            if len(replay_urls) > 0:
+                self.stats_logger.log_replay_url(self.epoch, replay_urls[0])
+
+    def close(self):
+        """Clean up resources."""
+        self.vecenv.close()
+
+    def initial_pr_uri(self) -> str:
+        """Get initial policy URI."""
+        return self._initial_pr.uri
+
+    def last_pr_uri(self) -> str:
+        """Get last policy URI."""
+        return self.last_pr.uri

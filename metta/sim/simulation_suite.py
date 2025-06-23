@@ -1,14 +1,17 @@
 import logging
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
 
 from app_backend.stats_client import StatsClient
-from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
+
+if TYPE_CHECKING:
+    from metta.agent.policy_store import PolicyRecord, PolicyStore
 
 
 class SimulationSuite:
@@ -20,8 +23,8 @@ class SimulationSuite:
     def __init__(
         self,
         config: SimulationSuiteConfig,
-        policy_pr: PolicyRecord,
-        policy_store: PolicyStore,
+        policy_pr: "PolicyRecord",
+        policy_store: "PolicyStore",
         device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
