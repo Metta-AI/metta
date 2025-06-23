@@ -13,7 +13,6 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from torch import nn
 
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
@@ -678,28 +677,6 @@ class MettaTrainer:
         )
         checkpoint.save(self.cfg.run_dir)
 
-    def _prepare_policy_for_save(self, policy: nn.Module, metta_grid_env: MettaGridEnv) -> nn.Module:
-        """Prepare a policy for saving, handling torch.package loaded models."""
-
-        # Check if this is from torch.package
-        def is_from_torch_package(obj):
-            return hasattr(obj, "__class__") and obj.__class__.__module__.startswith("<torch_package")
-
-        # If it's from torch.package, we need to create a fresh instance
-        if is_from_torch_package(policy):
-            logger.info("Creating fresh instance for torch.package loaded model")
-
-            # Create fresh model and activate actions
-            fresh_policy = self.policy_store.create(metta_grid_env).policy()
-            fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
-
-            # Copy state_dict with strict=False to handle architecture changes
-            fresh_policy.load_state_dict(policy.state_dict(), strict=False)
-
-            return fresh_policy
-
-        return policy
-
     def _checkpoint_policy(self) -> PolicyRecord | None:
         if not self._master:
             return
@@ -720,8 +697,14 @@ class MettaTrainer:
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
-        # Prepare policy for saving (handles torch.package loaded models)
-        policy_to_save = self._prepare_policy_for_save(self.uncompiled_policy, metta_grid_env)
+        # Handle torch.package loaded models
+        policy_to_save = self.uncompiled_policy
+        if hasattr(policy_to_save, "__class__") and policy_to_save.__class__.__module__.startswith("<torch_package"):
+            logger.info("Creating fresh instance for torch.package loaded model")
+            fresh_policy = self.policy_store.create(metta_grid_env).policy()
+            fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+            fresh_policy.load_state_dict(policy_to_save.state_dict(), strict=False)
+            policy_to_save = fresh_policy
 
         self.last_pr = self.policy_store.save(
             name,
