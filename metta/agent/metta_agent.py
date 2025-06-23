@@ -17,23 +17,12 @@ from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
+from mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env, cfg: Union[DictConfig, ListConfig]) -> "MettaAgent":
-    """Create a MettaAgent policy from environment and configuration.
-
-    Here's where we create MettaAgent. We're including the term MettaAgent here for better
-    searchability. Otherwise you might only find yaml files.
-
-    Args:
-        env: The environment with observation/action space information
-        cfg: Configuration dict containing agent parameters
-
-    Returns:
-        MettaAgent instance
-    """
+def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig):
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
@@ -41,6 +30,8 @@ def make_policy(env, cfg: Union[DictConfig, ListConfig]) -> "MettaAgent":
         }
     )
 
+    # Here's where we create MettaAgent. We're including the term MettaAgent here for better
+    # searchability. Otherwise you might only find yaml files.
     return hydra.utils.instantiate(
         cfg.agent,
         obs_space=obs_space,
@@ -48,15 +39,13 @@ def make_policy(env, cfg: Union[DictConfig, ListConfig]) -> "MettaAgent":
         obs_height=env.obs_height,
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
+        global_features=env.global_features,
         device=cfg.device,
-        _target_="metta.agent.metta_agent.MettaAgent",
         _recursive_=False,
     )
 
 
 class DistributedMettaAgent(DistributedDataParallel):
-    """A distributed wrapper for MettaAgent that preserves the MettaAgent interface."""
-
     def __init__(self, agent, device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
         agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
@@ -146,11 +135,6 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
-    @property
-    def is_pytorch_policy(self):
-        """Always False for component-based MettaAgent."""
-        return False
-
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
         It must always have a "name" and that name should be the same as the relevant key in self.components.
@@ -159,7 +143,7 @@ class MettaAgent(nn.Module):
         # recursively setup all source components
         if component._sources is not None:
             for source in component._sources:
-                print(f"setting up source {source} with name {source['name']}")
+                logger.info(f"setting up {component._name} with source {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
         # setup the current component and pass in the source components
@@ -207,17 +191,54 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
+    def forward_inference(
+        self, value: torch.Tensor, logits: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Forward pass for inference mode - samples new actions based on the policy.
+
+        Args:
+            value: Value estimate tensor, shape (BT, 1)
+            logits: Action logits tensor, shape (BT, A)
+
+        Returns:
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Sampled action, shape (BT, 2)
+            - action_log_prob: Log probability of the sampled action, shape (BT,)
+            - entropy: Entropy of the action distribution, shape (BT,)
+            - value: Value estimate, shape (BT, 1)
+            - log_probs: Log-softmax of logits, shape (BT, A)
+        """
+        if __debug__:
+            assert_shape(value, ("BT", 1), "inference_value")
+            assert_shape(logits, ("BT", "A"), "inference_logits")
+
+        # Sample actions
+        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
+
+        if __debug__:
+            assert_shape(action_logit_index, ("BT",), "action_logit_index")
+            assert_shape(action_log_prob, ("BT",), "action_log_prob")
+            assert_shape(entropy, ("BT",), "entropy")
+            assert_shape(log_probs, ("BT", "A"), "log_probs")
+
+        # Convert logit index to action
+        action = self._convert_logit_index_to_action(action_logit_index)
+
+        if __debug__:
+            assert_shape(action, ("BT", 2), "inference_output_action")
+
+        return action, action_log_prob, entropy, value, log_probs
+
     def forward(
         self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass of the MettaAgent - delegates to appropriate specialized method.
-
         Args:
             x: Input observation tensor
             state: Policy state containing LSTM hidden and cell states
             action: Optional action tensor for BPTT
-
         Returns:
             Tuple of (action, action_log_prob, entropy, value, log_probs)
         """
@@ -263,45 +284,6 @@ class MettaAgent(nn.Module):
             return self.forward_inference(value, logits)
         else:
             return self.forward_training(value, logits, action)
-
-    def forward_inference(
-        self, value: torch.Tensor, logits: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Forward pass for inference mode - samples new actions based on the policy.
-
-        Args:
-            value: Value estimate tensor, shape (BT, 1)
-            logits: Action logits tensor, shape (BT, A)
-
-        Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
-            - action: Sampled action, shape (BT, 2)
-            - action_log_prob: Log probability of the sampled action, shape (BT,)
-            - entropy: Entropy of the action distribution, shape (BT,)
-            - value: Value estimate, shape (BT, 1)
-            - log_probs: Log-softmax of logits, shape (BT, A)
-        """
-        if __debug__:
-            assert_shape(value, ("BT", 1), "inference_value")
-            assert_shape(logits, ("BT", "A"), "inference_logits")
-
-        # Sample actions
-        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
-
-        if __debug__:
-            assert_shape(action_logit_index, ("BT",), "action_logit_index")
-            assert_shape(action_log_prob, ("BT",), "action_log_prob")
-            assert_shape(entropy, ("BT",), "entropy")
-            assert_shape(log_probs, ("BT", "A"), "log_probs")
-
-        # Convert logit index to action
-        action = self._convert_logit_index_to_action(action_logit_index)
-
-        if __debug__:
-            assert_shape(action, ("BT", 2), "inference_output_action")
-
-        return action, action_log_prob, entropy, value, log_probs
 
     def forward_training(
         self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor
