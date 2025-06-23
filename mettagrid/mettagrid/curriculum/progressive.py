@@ -5,6 +5,7 @@ import logging
 from typing import Optional
 
 from omegaconf import DictConfig, OmegaConf
+import wandb
 
 from .curriculum import Task
 from .sampling import SamplingCurriculum
@@ -23,6 +24,10 @@ class ProgressiveCurriculum(SamplingCurriculum):
         cfg.game.map.width = self._width
         cfg.game.map.height = self._height
         OmegaConf.resolve(cfg)
+        # Log probability for the single task (always 1.0)
+        if wandb.run is not None:
+            task_id = f"sample({self._cfg_template.sampling})"
+            wandb.run.log({"curriculum/task_probs": {task_id: 1.0}}, commit=False)
         return Task(f"sample({self._cfg_template.sampling})", self, cfg)
 
     def complete_task(self, id: str, score: float):
