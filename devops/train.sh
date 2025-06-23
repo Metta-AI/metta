@@ -21,7 +21,15 @@ if [ -z "$NUM_CPUS" ]; then
   NUM_CPUS=$((NUM_CPUS / 2))
 fi
 
-NUM_GPUS=${NUM_GPUS:-1}
+# Auto-detect GPUs if not set
+if [ -z "$NUM_GPUS" ]; then
+  if command -v nvidia-smi &> /dev/null; then
+    NUM_GPUS=$(nvidia-smi --list-gpus | wc -l)
+  else
+    NUM_GPUS=1
+  fi
+fi
+
 NUM_NODES=${NUM_NODES:-1}
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-12345}

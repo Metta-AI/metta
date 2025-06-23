@@ -71,20 +71,16 @@ profiler_interval_epochs: 10000
 forward_pass_minibatch_target_size: 2048
 async_factor: 2
 
-stats:
-  overview:
-    episode/reward.mean: episode_reward
-  step: train/agent_step
-
 kickstart:
   teacher_uri: null
   action_loss_coef: 1
   value_loss_coef: 1
-  kickstart_steps: 50_000_000
+  anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
+  kickstart_steps: 1_000_000_000
   additional_teachers:
-    # - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v100
-    #   action_loss_coef: 1
-    #   value_loss_coef: 1
+    # - teacher_uri: wandb://run/m_alexv_ks_dr_lam_001:v22
+    #   action_loss_coef: 0.5
+    #   value_loss_coef: 0.6
     #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
     #    action_loss_coef: 1
     #    value_loss_coef: 1

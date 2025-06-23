@@ -7,9 +7,9 @@
 
 #include "grid_object.hpp"
 
-using std::vector;
-using std::unique_ptr;
 using std::max;
+using std::unique_ptr;
+using std::vector;
 typedef vector<vector<vector<GridObjectId>>> GridType;
 
 class Grid {
@@ -106,23 +106,6 @@ public:
       return nullptr;
     }
     return object(grid[loc.r][loc.c][loc.layer]);
-  }
-
-  inline GridObject* object_at(const GridLocation& loc, TypeId type_id) {
-    GridObject* obj = object_at(loc);
-    if (obj != NULL && obj->_type_id == type_id) {
-      return obj;
-    }
-    return nullptr;
-  }
-
-  inline GridObject* object_at(GridCoord r, GridCoord c, TypeId type_id) {
-    GridObject* obj = object_at(GridLocation(r, c), this->layer_for_type_id[type_id]);
-    if (obj->_type_id != type_id) {
-      return nullptr;
-    }
-
-    return obj;
   }
 
   inline const GridLocation location(GridObjectId id) {

@@ -12,7 +12,8 @@
       "files": ["*.yml", "*.yaml"],
       "options": {
         "parser": "yaml",
-        "printWidth": 100
+        "printWidth": 100,
+        "singleQuote": false
       }
     },
     {

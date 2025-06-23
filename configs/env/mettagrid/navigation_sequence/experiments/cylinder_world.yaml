@@ -22,7 +22,7 @@ game:
       heart_max: 1000
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
+    num_rooms: ${..num_agents}
     border_width: 6
     room:
       _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy

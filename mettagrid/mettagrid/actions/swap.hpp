@@ -7,6 +7,7 @@
 #include "grid.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "types.hpp"
 
 class Swap : public ActionHandler {
 public:

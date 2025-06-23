@@ -1,28 +1,23 @@
 name: "Claude Review: Orchestrator"
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       pr_number:
-        description: "Pull Request number to review"
         required: true
         type: string
       run_readme:
-        description: "Run README accuracy review"
         required: false
         type: boolean
         default: true
       run_comments:
-        description: "Run code comments review"
         required: false
         type: boolean
         default: true
       run_types:
-        description: "Run type annotations review"
         required: false
         type: boolean
         default: true
       run_einops:
-        description: "Run einops optimization review"
         required: false
         type: boolean
         default: true
@@ -73,7 +68,7 @@ jobs:
     needs: validate-pr
     if: inputs.run_types
     secrets: inherit
-    uses: ./.github/workflows/claude-review-typing.yml
+    uses: ./.github/workflows/claude-review-types.yml
     with:
       pr_number: ${{ needs.validate-pr.outputs.pr_number }}
 
@@ -108,18 +103,13 @@ jobs:
           version: "0.7.3"
           enable-cache: true
 
-      - name: Install dependencies
-        shell: bash
-        run: |
-          uv pip install --system -r .github/scripts/requirements-claude-review.txt
-
       - name: Consolidate Reviews and Create GitHub Review
         id: consolidate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ needs.validate-pr.outputs.pr_number }}
         run: |
-          python .github/scripts/claude_review.py
+          uv run .github/scripts/claude_review.py
 
       - name: Summary
         if: always()

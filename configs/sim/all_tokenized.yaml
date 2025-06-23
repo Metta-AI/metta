@@ -158,7 +158,3 @@ simulations:
     env: env/mettagrid/memory/evals/tease_small
   memory/you_shall_not_pass:
     env: env/mettagrid/memory/evals/you_shall_not_pass
-
-env_overrides:
-  game:
-    use_observation_tokens: true

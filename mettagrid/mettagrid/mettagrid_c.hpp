@@ -72,9 +72,10 @@ public:
                              const py::dict& group_cfg_py,
                              const py::dict& agent_cfg_py);
 
+  uint64_t initial_grid_hash;
+
 private:
   // Member variables
-  py::dict _cfg;
   std::map<unsigned int, float> _group_reward_pct;
   std::map<unsigned int, unsigned int> _group_sizes;
   std::unique_ptr<Grid> _grid;
@@ -89,7 +90,6 @@ private:
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
 
-  bool _use_observation_tokens;
   unsigned int _num_observation_tokens;
 
   // TODO: currently these are owned and destroyed by the grid, but we should
@@ -119,6 +119,8 @@ private:
                             ActionArg action_arg);
   void _compute_observations(py::array_t<ActionType, py::array::c_style> actions);
   void _step(py::array_t<ActionType, py::array::c_style> actions);
+
+  void _handle_invalid_action(size_t agent_idx, const std::string& stat, ActionType type, ActionArg arg);
 };
 
 #endif  // METTAGRID_METTAGRID_METTAGRID_C_HPP_

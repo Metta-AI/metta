@@ -2,7 +2,7 @@
  * A grid of booleans.
  * This is much faster than using a 2D array of booleans or hash tables.
  * It uses a 1D array of uint8 booleans, and the index is computed as y * width + x.
-*/
+ */
 export class Grid {
   private width: number
   private height: number

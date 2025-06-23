@@ -66,21 +66,7 @@ public:
     this->location = loc;
   }
 
-  void init(TypeId type_id, GridCoord r, GridCoord c) {
-    init(type_id, GridLocation(r, c, 0));
-  }
-
-  void init(TypeId type_id, GridCoord r, GridCoord c, Layer layer) {
-    init(type_id, GridLocation(r, c, layer));
-  }
-
   virtual std::vector<PartialObservationToken> obs_features() const = 0;
-
-  /**
-   * Grid-based observations. This is an older style than tokens, and
-   * should be deprecated soon.
-   */
-  virtual void obs(ObsType* obs) const = 0;
 };
 
 #endif  // METTAGRID_METTAGRID_GRID_OBJECT_HPP_

@@ -166,31 +166,6 @@ public:
     }
     return features;
   }
-
-  void obs(ObsType* obs) const override {
-    const auto offsets = Converter::offsets();
-    size_t offset_idx = 0;
-    obs[offsets[offset_idx++]] = _type_id;
-    obs[offsets[offset_idx++]] = this->color;
-    obs[offsets[offset_idx++]] = this->converting || this->cooling_down;
-    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      obs[offsets[offset_idx++]] = this->inventory[i];
-    }
-  }
-
-  static std::vector<uint8_t> offsets() {
-    std::vector<uint8_t> ids;
-    // We use the same feature names for all converters, since this compresses
-    // the observation space. At the moment we don't expose the recipe, since
-    // we expect converters to be hard coded.
-    ids.push_back(ObservationFeature::TypeId);
-    ids.push_back(ObservationFeature::Color);
-    ids.push_back(ObservationFeature::ConvertingOrCoolingDown);
-    for (unsigned int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      ids.push_back(static_cast<uint8_t>(InventoryFeatureOffset + i));
-    }
-    return ids;
-  }
 };
 
 #endif  // METTAGRID_METTAGRID_OBJECTS_CONVERTER_HPP_

@@ -23,10 +23,10 @@ import torch
 from einops import rearrange
 from omegaconf import OmegaConf
 
+from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
-from metta.app.stats_client import StatsClient
 from metta.rl.policy import PytorchAgent
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
@@ -146,7 +146,7 @@ class Simulation:
         self._npc_idxs = (
             idx_matrix[:, self._policy_agents_per_env :].reshape(-1)
             if self._npc_agents_per_env
-            else torch.tensor([], device=self._device)
+            else torch.tensor([], device=self._device, dtype=torch.long)
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 

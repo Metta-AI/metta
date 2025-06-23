@@ -6,6 +6,7 @@ sampling: 1
 
 game:
   num_agents: 4
+  max_steps: 200
   agent:
     ore.red_max: 1
     ore.blue_max: 1
@@ -26,13 +27,13 @@ game:
 
   map_builder:
     _target_: mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
+    num_rooms: ${..num_agents}
     border_width: 6
 
     room:
       _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
-      width: ${sampling:12,25,15}
-      height: ${sampling:12,25,15}
+      width: ${sampling:12,20,15}
+      height: ${sampling:12,20,15}
       border_width: ${sampling:1,6,3}
       agents: 1
       style: all-sparse
@@ -48,7 +49,7 @@ game:
   objects:
     altar:
       cooldown: 10
-      input_battery.red: 0
+      input_battery.red: 3
       output_heart: 1
       max_output: 1
       conversion_ticks: 1

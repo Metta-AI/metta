@@ -178,7 +178,6 @@ jobs:
 
   smoke-test:
     name: "Smoke Tests"
-    # temporarily disabled
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     needs: [graphite-ci-optimizer, setup-checks]
@@ -201,44 +200,15 @@ jobs:
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
           mkdir -p train_dir
-          source .github/scripts/benchmark.sh
-          benchmark "train" "./tools/train.py +hardware=github wandb=off"
+          uv run .github/scripts/train_smoke_test.py
           ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
       - name: Save training benchmark
         uses: ./.github/actions/save-benchmarks
         with:
           name: train_smoke_test
-          metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_usage }}}'
+          metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_peak_mb }}}'
           filename: smoke_test_train_benchmark_results.json
-
-      - name: Upload training benchmark file
-        uses: actions/upload-artifact@v4
-        with:
-          name: train-benchmark-results
-          path: |
-            smoke_test_train_benchmark_results.json
-          retention-days: 1
-          if-no-files-found: warn
-
-      - name: Upload training output
-        uses: actions/upload-artifact@v4
-        with:
-          name: train-output
-          path: train_dir/
-          retention-days: 1
-          if-no-files-found: error
-
-      - name: Download training output
-        uses: actions/download-artifact@v4
-        with:
-          name: train-output
-          path: train_dir/
-
-      - name: Verify training artifacts
-        run: |
-          ls -la train_dir/
-          ls -la $CHECKPOINT_PATH || echo "Checkpoint directory not found!"
 
       - name: Replay smoke test
         id: replay
@@ -247,47 +217,23 @@ jobs:
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
         run: |
-          source .github/scripts/benchmark.sh
-          benchmark "replay" "./tools/replay.py +hardware=github wandb=off"
+          uv run .github/scripts/replay_smoke_test.py
 
       - name: Save replay benchmark
         uses: ./.github/actions/save-benchmarks
         with:
           name: replay_smoke_test
-          metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_usage }}}'
+          metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_peak_mb }}}'
           filename: smoke_test_replay_benchmark_results.json
-
-      - name: Upload replay benchmark file
-        uses: actions/upload-artifact@v4
-        with:
-          name: replay-benchmark-results
-          path: |
-            smoke_test_replay_benchmark_results.json
-          retention-days: 1
-          if-no-files-found: warn
 
       - name: Check evals smoke test policy availability
         id: check_evals_policy
         continue-on-error: true
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
         run: |
-          EVAL_SMOKE_TEST_POLICY="b.rwalters.0605.nav.pr811.00"
-          echo "policy=$EVAL_SMOKE_TEST_POLICY" >> "$GITHUB_OUTPUT"
-
-          echo "Checking WANDB for metta-research/metta/runs/$EVAL_SMOKE_TEST_POLICY"
-
-          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: Bearer $WANDB_API_KEY" \
-            "https://api.wandb.ai/runs/metta-research/metta/$EVAL_SMOKE_TEST_POLICY")
-
-          echo "WANDB run check returned HTTP $STATUS_CODE"
-
-          if [ "$STATUS_CODE" = "200" ]; then
-            echo "result=success" >> "$GITHUB_OUTPUT"
-          else
-            echo "result=skipped" >> "$GITHUB_OUTPUT"
-          fi
+          uv run .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
 
       - name: Run evals smoke test
         id: eval_smoke_test
@@ -296,75 +242,28 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
-          EVAL_SMOKE_TEST_POLICY: ${{ steps.check_evals_policy.outputs.policy }}
-        # We retry evals a few times because they're not deterministic (despite our best efforts)
-        # Our smoke tests should pass at least 90% of the time if they're working, so this should have
-        # a spurious failure rate of less than 0.01%. We assume that spurious successes should be
-        # extremely rare.
+          POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
+          MIN_REWARD: ${{ vars.EVAL_SMOKE_TEST_MIN_REWARD }}
+          MAX_ATTEMPTS: ${{ vars.EVAL_SMOKE_TEST_MAX_ATTEMPTS }}
         run: |
-          source .github/scripts/benchmark.sh
-
-          # Smoke test configuration
-          SMOKE_TEST_MIN_REWARD=0.15
-          MAX_ATTEMPTS=4
-
-          # Create a wrapper script for the eval command
-          cat > run_eval_smoke_test.sh << 'EOF'
-          #!/bin/bash
-          python3 -m tools.sim \
-              sim=navigation \
-              run=navigation_smoke_$1 \
-              policy_uri=wandb://run/$2 \
-              +eval_db_uri=wandb://artifacts/navigation_db \
-              seed=31415 \
-              torch_deterministic=True \
-              device=cpu
-          EOF
-          chmod +x run_eval_smoke_test.sh
-
-          for i in $(seq 1 $MAX_ATTEMPTS); do
-            echo "Running smoke test attempt $i/$MAX_ATTEMPTS..."
-
-            # Run with benchmark and capture output
-            FULL_OUTPUT=$(benchmark "evals_try$i" "./run_eval_smoke_test.sh $i $EVAL_SMOKE_TEST_POLICY" 2>&1)
-
-            # Extract JSON output
-            JSON_OUTPUT=$(echo "$FULL_OUTPUT" | sed -n '/===JSON_OUTPUT_START===/,/===JSON_OUTPUT_END===/p' | sed '1d;$d')
-
-            # Extract reward value
-            REWARD=$(echo "$JSON_OUTPUT" | jq -r '.policies[0].checkpoints[0].metrics.reward_avg // "ERROR"' 2>/dev/null)
-
-            echo "JSON output:"
-            echo "$JSON_OUTPUT"
-            echo "Achieved reward: $REWARD"
-
-            # Check if reward meets threshold
-            if [ "$REWARD" != "ERROR" ] && python3 -c "exit(0 if float('$REWARD') >= $SMOKE_TEST_MIN_REWARD else 1)" 2>/dev/null; then
-              echo "✓ Smoke test passed"
-              exit 0
-            fi
-
-            echo "✗ Attempt $i failed"
-          done
-
-          echo "✗ All attempts failed"
-          exit 1
+          uv run .github/scripts/eval_smoke_test.py
 
       - name: Save evals benchmark
-        id: save_evals_benchmark
         if: steps.eval_smoke_test.conclusion == 'success'
         uses: ./.github/actions/save-benchmarks
         with:
           name: evals_smoke_test
-          metrics: '{"duration": ${{ steps.eval_smoke_test.outputs.duration }}, "memory_usage": ${{ steps.eval_smoke_test.outputs.memory_usage }}}'
+          metrics: '{"duration": ${{ steps.eval_smoke_test.outputs.duration }}, "memory_usage": ${{ steps.eval_smoke_test.outputs.memory_peak_mb }}}'
           filename: smoke_test_evals_benchmark_results.json
 
-      - name: Upload evals benchmark file
-        if: steps.eval_smoke_test.conclusion == 'success'
+      - name: Upload all benchmark files
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: evals-benchmark-results
+          name: smoke-test-benchmark-results
           path: |
+            smoke_test_train_benchmark_results.json
+            smoke_test_replay_benchmark_results.json
             smoke_test_evals_benchmark_results.json
           retention-days: 1
           if-no-files-found: warn

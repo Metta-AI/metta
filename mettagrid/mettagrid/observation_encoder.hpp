@@ -42,10 +42,6 @@ public:
     return append_tokens_if_room_available(tokens, obj->obs_features(), location);
   }
 
-  void encode(const GridObject* obj, ObsType* obs) {
-    obj->obs(obs);
-  }
-
   const std::map<uint8_t, float>& feature_normalizations() const {
     return _feature_normalizations;
   }

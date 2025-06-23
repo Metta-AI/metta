@@ -82,27 +82,23 @@ class DistributedMettaAgent(DistributedDataParallel):
 
     def l2_reg_loss(self):
         """Access l2_reg_loss from the wrapped module."""
-        return self.module.l2_reg_loss() if hasattr(self.module, "l2_reg_loss") else torch.tensor(0.0)
+        return self.module.l2_reg_loss()
 
     def l2_init_loss(self):
         """Access l2_init_loss from the wrapped module."""
-        return self.module.l2_init_loss() if hasattr(self.module, "l2_init_loss") else torch.tensor(0.0)
+        return self.module.l2_init_loss()
 
     def update_l2_init_weight_copy(self):
         """Access update_l2_init_weight_copy from the wrapped module."""
-        if hasattr(self.module, "update_l2_init_weight_copy"):
-            self.module.update_l2_init_weight_copy()
+        self.module.update_l2_init_weight_copy()
 
     def clip_weights(self):
         """Access clip_weights from the wrapped module."""
-        if hasattr(self.module, "clip_weights"):
-            self.module.clip_weights()
+        self.module.clip_weights()
 
     def compute_weight_metrics(self, delta: float = 0.01):
         """Access compute_weight_metrics from the wrapped module."""
-        if hasattr(self.module, "compute_weight_metrics"):
-            return self.module.compute_weight_metrics(delta)
-        return []
+        return self.module.compute_weight_metrics(delta)
 
 
 # Keep the old MettaAgent class for backward compatibility, but deprecate it

@@ -6,6 +6,7 @@
 #include "action_handler.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "types.hpp"
 
 class Move : public ActionHandler {
 public:

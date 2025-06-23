@@ -1,4 +1,3 @@
-
 /**
  * Vec2f class - Represents a 2D vector with x and y components.
  */
@@ -12,10 +11,18 @@ class Vec2f {
     this.data[1] = y
   }
 
-  x(): number { return this.data[0] }
-  y(): number { return this.data[1] }
-  setX(x: number) { this.data[0] = x }
-  setY(y: number) { this.data[1] = y }
+  x(): number {
+    return this.data[0]
+  }
+  y(): number {
+    return this.data[1]
+  }
+  setX(x: number) {
+    this.data[0] = x
+  }
+  setY(y: number) {
+    this.data[1] = y
+  }
 
   /** Returns a new vector that is the sum of this vector and v. */
   add(v: Vec2f): Vec2f {
@@ -59,14 +66,18 @@ class Vec2f {
 class Mat3f {
   public data: Float32Array
 
-  constructor(a: number, b: number, c: number,
-    d: number, e: number, f: number,
-    g: number, h: number, i: number) {
+  constructor(a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) {
     // Use Float32Array as backing storage for better performance
     this.data = new Float32Array(9)
-    this.data[0] = a; this.data[1] = b; this.data[2] = c
-    this.data[3] = d; this.data[4] = e; this.data[5] = f
-    this.data[6] = g; this.data[7] = h; this.data[8] = i
+    this.data[0] = a
+    this.data[1] = b
+    this.data[2] = c
+    this.data[3] = d
+    this.data[4] = e
+    this.data[5] = f
+    this.data[6] = g
+    this.data[7] = h
+    this.data[8] = i
   }
 
   /** Row-column access - get element at row r, column c (both 0-based) */
@@ -132,11 +143,12 @@ class Mat3f {
 
   /** Returns a new matrix that is the inverse of this matrix. */
   inverse(): Mat3f {
-    const det = this.get(0, 0) * (this.get(1, 1) * this.get(2, 2) - this.get(1, 2) * this.get(2, 1)) -
+    const det =
+      this.get(0, 0) * (this.get(1, 1) * this.get(2, 2) - this.get(1, 2) * this.get(2, 1)) -
       this.get(0, 1) * (this.get(1, 0) * this.get(2, 2) - this.get(1, 2) * this.get(2, 0)) +
       this.get(0, 2) * (this.get(1, 0) * this.get(2, 1) - this.get(1, 1) * this.get(2, 0))
     if (det == 0) {
-      throw new Error("Matrix is not invertible")
+      throw new Error('Matrix is not invertible')
     }
     return new Mat3f(
       (this.get(1, 1) * this.get(2, 2) - this.get(1, 2) * this.get(2, 1)) / det,

@@ -31,7 +31,7 @@ def create_metta_agent():
         "observations": {"obs_key": "grid_obs"},
         "components": {
             "_obs_": {
-                "_target_": "metta.agent.lib.obs_shaper.ObsShaper",
+                "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
                 "sources": None,
             },
             "obs_normalizer": {
@@ -140,10 +140,10 @@ def create_metta_agent():
             self.action_to_idx = {name: i for i, name in enumerate(action_names)}
 
         def l2_reg_loss(self):
-            return torch.tensor(0.0)
+            return torch.tensor(0.0, dtype=torch.float32)
 
         def l2_init_loss(self):
-            return torch.tensor(0.0)
+            return torch.tensor(0.0, dtype=torch.float32)
 
         def forward(self, x):
             return x
@@ -241,8 +241,8 @@ def test_l2_reg_loss_sums_component_losses(create_metta_agent):
     agent, comp1, comp2 = create_metta_agent
 
     # Add l2_reg_loss method to test components with predictable return values
-    comp1.l2_reg_loss = lambda: torch.tensor(0.5)
-    comp2.l2_reg_loss = lambda: torch.tensor(1.5)
+    comp1.l2_reg_loss = lambda: torch.tensor(0.5, dtype=torch.float32)
+    comp2.l2_reg_loss = lambda: torch.tensor(1.5, dtype=torch.float32)
 
     # Call the method being tested
     result = agent.l2_reg_loss()
@@ -268,8 +268,8 @@ def test_l2_reg_loss_raises_attribute_error(create_metta_agent):
             return x
 
     # First make sure existing components have the method
-    comp1.l2_reg_loss = lambda: torch.tensor(0.5)
-    comp2.l2_reg_loss = lambda: torch.tensor(1.5)
+    comp1.l2_reg_loss = lambda: torch.tensor(0.5, dtype=torch.float32)
+    comp2.l2_reg_loss = lambda: torch.tensor(1.5, dtype=torch.float32)
 
     # Replace one of the existing components with our incomplete one
     agent.components["_core_"] = IncompleteComponent()
@@ -288,8 +288,8 @@ def test_l2_reg_loss_raises_error_for_different_shapes(create_metta_agent):
     agent, comp1, comp2 = create_metta_agent
 
     # Set up components to return tensors with different shapes
-    comp1.l2_reg_loss = lambda: torch.tensor(0.25) * torch.ones(2)  # tensor with shape [2]
-    comp2.l2_reg_loss = lambda: torch.tensor(0.5)  # scalar tensor
+    comp1.l2_reg_loss = lambda: torch.tensor(0.25, dtype=torch.float32) * torch.ones(2)  # tensor with shape [2]
+    comp2.l2_reg_loss = lambda: torch.tensor(0.5, dtype=torch.float32)  # scalar tensor
 
     # Verify that a RuntimeError is raised due to different tensor shapes
     with pytest.raises(RuntimeError) as excinfo:
@@ -303,8 +303,8 @@ def test_l2_init_loss_raises_error_for_different_shapes(create_metta_agent):
     agent, comp1, comp2 = create_metta_agent
 
     # Set up components to return tensors with different shapes
-    comp1.l2_init_loss = lambda: torch.tensor([0.3, 0.2])  # tensor with shape [2]
-    comp2.l2_init_loss = lambda: torch.tensor(0.5)  # scalar tensor
+    comp1.l2_init_loss = lambda: torch.tensor([0.3, 0.2], dtype=torch.float32)  # tensor with shape [2]
+    comp2.l2_init_loss = lambda: torch.tensor(0.5, dtype=torch.float32)  # scalar tensor
 
     # Verify that a RuntimeError is raised due to different tensor shapes
     with pytest.raises(RuntimeError) as excinfo:
@@ -352,34 +352,34 @@ def test_convert_action_to_logit_index(create_metta_agent):
 
     # Test single actions
     # action (0,0) should map to logit index 0
-    action = torch.tensor([[0, 0]])
+    action = torch.tensor([[0, 0]], dtype=torch.long, device="cpu")
     result = agent._convert_action_to_logit_index(action)
     assert result.item() == 0
 
     # action (0,1) should map to logit index 1
-    action = torch.tensor([[0, 1]])
+    action = torch.tensor([[0, 1]], dtype=torch.long, device="cpu")
     result = agent._convert_action_to_logit_index(action)
     assert result.item() == 1
 
     # action (1,0) should map to logit index 2
-    action = torch.tensor([[1, 0]])
+    action = torch.tensor([[1, 0]], dtype=torch.long, device="cpu")
     result = agent._convert_action_to_logit_index(action)
     assert result.item() == 2
 
     # action (1,2) should map to logit index 4
-    action = torch.tensor([[1, 2]])
+    action = torch.tensor([[1, 2]], dtype=torch.long, device="cpu")
     result = agent._convert_action_to_logit_index(action)
     assert result.item() == 4
 
     # action (2,0) should map to logit index 5
-    action = torch.tensor([[2, 0]])
+    action = torch.tensor([[2, 0]], dtype=torch.long, device="cpu")
     result = agent._convert_action_to_logit_index(action)
     assert result.item() == 5
 
     # Test batch conversion
-    actions = torch.tensor([[0, 0], [1, 2], [2, 0]])
+    actions = torch.tensor([[0, 0], [1, 2], [2, 0]], dtype=torch.long, device="cpu")
     result = agent._convert_action_to_logit_index(actions)
-    assert torch.all(result.flatten() == torch.tensor([0, 4, 5]))
+    assert torch.all(result.flatten() == torch.tensor([0, 4, 5], dtype=torch.long, device="cpu"))
 
 
 def test_convert_logit_index_to_action(create_metta_agent):
@@ -392,24 +392,24 @@ def test_convert_logit_index_to_action(create_metta_agent):
 
     # Test single conversions
     # logit index 0 should map to action (0,0)
-    logit_indices = torch.tensor([0])
+    logit_indices = torch.tensor([0], dtype=torch.long, device="cpu")
     result = agent._convert_logit_index_to_action(logit_indices)
-    assert torch.all(result == torch.tensor([0, 0]))
+    assert torch.all(result == torch.tensor([0, 0], dtype=torch.long, device="cpu"))
 
     # logit index 1 should map to action (0,1)
-    logit_indices = torch.tensor([1])
+    logit_indices = torch.tensor([1], dtype=torch.long, device="cpu")
     result = agent._convert_logit_index_to_action(logit_indices)
-    assert torch.all(result == torch.tensor([0, 1]))
+    assert torch.all(result == torch.tensor([0, 1], dtype=torch.long, device="cpu"))
 
     # logit index 4 should map to action (1,2)
-    logit_indices = torch.tensor([4])
+    logit_indices = torch.tensor([4], dtype=torch.long, device="cpu")
     result = agent._convert_logit_index_to_action(logit_indices)
-    assert torch.all(result == torch.tensor([1, 2]))
+    assert torch.all(result == torch.tensor([1, 2], dtype=torch.long, device="cpu"))
 
     # Test batch conversion
-    logit_indices = torch.tensor([0, 4, 5])
+    logit_indices = torch.tensor([0, 4, 5], dtype=torch.long, device="cpu")
     result = agent._convert_logit_index_to_action(logit_indices)
-    expected = torch.tensor([[0, 0], [1, 2], [2, 0]])
+    expected = torch.tensor([[0, 0], [1, 2], [2, 0]], dtype=torch.long, device="cpu")
     assert torch.all(result == expected)
 
 
@@ -430,7 +430,9 @@ def test_bidirectional_action_conversion(create_metta_agent):
             [1, 1],
             [1, 2],  # action1 with params 0,1,2
             [2, 0],  # action2 with param 0
-        ]
+        ],
+        dtype=torch.long,
+        device="cpu",
     )
 
     # Convert to logit indices
@@ -452,7 +454,7 @@ def test_action_conversion_edge_cases(create_metta_agent):
     agent.activate_actions(action_names, action_max_params, "cpu")
 
     # Test with empty tensor - should raise a ValueError about invalid size
-    empty_actions = torch.zeros((0, 2), dtype=torch.long)
+    empty_actions = torch.zeros((0, 2), dtype=torch.long, device="cpu")
     with pytest.raises(
         ValueError, match=r"'flattened_action' dimension 0 \('BT'\) has invalid size 0, expected a positive value"
     ):
@@ -464,22 +466,22 @@ def test_action_conversion_edge_cases(create_metta_agent):
     agent.activate_actions(action_names, action_max_params, "cpu")
 
     # Test high parameter values
-    action = torch.tensor([[0, 9]])  # highest valid param
+    action = torch.tensor([[0, 9]], dtype=torch.long, device="cpu")  # highest valid param
     result = agent._convert_action_to_logit_index(action)
     assert result.item() == 9
 
     # Convert back
-    logit_indices = torch.tensor([9])
+    logit_indices = torch.tensor([9], dtype=torch.long, device="cpu")
 
     result = agent._convert_logit_index_to_action(logit_indices)
-    assert torch.all(result == torch.tensor([0, 9]))
+    assert torch.all(result == torch.tensor([0, 9], dtype=torch.long, device="cpu"))
 
 
 def test_convert_logit_index_to_action_invalid(metta_agent_with_actions):
     agent = metta_agent_with_actions
     invalid_index = agent.action_index_tensor.shape[0]
     with pytest.raises((IndexError, RuntimeError)):
-        agent._convert_logit_index_to_action(torch.tensor([invalid_index]))
+        agent._convert_logit_index_to_action(torch.tensor([invalid_index], dtype=torch.long, device="cpu"))
 
 
 def test_action_use(create_metta_agent):
@@ -508,6 +510,7 @@ def test_action_use(create_metta_agent):
             [1, 2],  # action1 with params 0, 1, 2
             [2, 0],  # action2 with param 0
         ],
+        dtype=torch.long,
         device="cpu",
     )
     assert torch.all(agent.action_index_tensor == expected_action_index)
@@ -521,10 +524,11 @@ def test_action_use(create_metta_agent):
             [1, 2],  # should map to index 4
             [2, 0],  # should map to index 5
         ],
+        dtype=torch.long,
         device="cpu",
     )
 
-    expected_indices = torch.tensor([0, 1, 2, 4, 5], device="cpu")
+    expected_indices = torch.tensor([0, 1, 2, 4, 5], dtype=torch.long, device="cpu")
     action_logit_indices = agent._convert_action_to_logit_index(actions)
     assert torch.all(action_logit_indices == expected_indices)
 
@@ -575,10 +579,11 @@ def test_action_use(create_metta_agent):
             [2, 0],  # should map to index 5
             [0, 0],  # should map to index 0
         ],
+        dtype=torch.long,
         device="cpu",
     )
 
-    expected_indices2 = torch.tensor([3, 5, 0], device="cpu")
+    expected_indices2 = torch.tensor([3, 5, 0], dtype=torch.long, device="cpu")
     batch_logit_indices = agent._convert_action_to_logit_index(test_actions2)
     assert torch.all(batch_logit_indices == expected_indices2)
 
@@ -610,7 +615,7 @@ def test_action_use(create_metta_agent):
     # 2. Pass to sample_actions or evaluate_actions
     # 3. Convert sampled indices back to actions
 
-    test_actions3 = torch.tensor([[0, 0], [1, 1]], device="cpu")
+    test_actions3 = torch.tensor([[0, 0], [1, 1]], dtype=torch.long, device="cpu")
     logit_indices = agent._convert_action_to_logit_index(test_actions3)
 
     # Create logits for deterministic sampling
@@ -695,7 +700,9 @@ def test_forward_training_integration(create_metta_agent):
         [
             [[0, 1], [1, 2], [0, 0]],  # batch 1
             [[1, 0], [1, 3], [0, 1]],  # batch 2
-        ]
+        ],
+        dtype=torch.long,
+        device="cpu",
     )
 
     # Call forward_training

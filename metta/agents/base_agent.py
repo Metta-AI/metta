@@ -148,3 +148,55 @@ class BaseAgent(nn.Module):
     def total_params(self):
         """Total number of parameters in the agent."""
         return sum(p.numel() for p in self.parameters())
+
+    @property
+    def lstm(self):
+        """Access the LSTM module if it exists."""
+        return getattr(self, "lstm", None)
+
+    def l2_reg_loss(self) -> torch.Tensor:
+        """Compute L2 regularization loss.
+
+        Can be overridden by subclasses to provide custom regularization.
+
+        Returns:
+            torch.Tensor: L2 regularization loss (default: 0.0)
+        """
+        return torch.tensor(0.0, device=self.device, dtype=torch.float32)
+
+    def l2_init_loss(self) -> torch.Tensor:
+        """Compute L2 initialization loss.
+
+        Can be overridden by subclasses to provide custom regularization.
+
+        Returns:
+            torch.Tensor: L2 initialization loss (default: 0.0)
+        """
+        return torch.tensor(0.0, device=self.device, dtype=torch.float32)
+
+    def update_l2_init_weight_copy(self):
+        """Update the L2 initialization weight copy.
+
+        Can be overridden by subclasses if they maintain initial weight copies.
+        """
+        pass
+
+    def clip_weights(self):
+        """Clip weights to prevent exploding gradients.
+
+        Can be overridden by subclasses to implement weight clipping.
+        """
+        pass
+
+    def compute_weight_metrics(self, delta: float = 0.01):
+        """Compute metrics about the weights.
+
+        Can be overridden by subclasses to provide weight analysis.
+
+        Args:
+            delta: Small constant used in metric calculations
+
+        Returns:
+            List of weight metric dictionaries (default: empty list)
+        """
+        return []

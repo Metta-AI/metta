@@ -126,34 +126,6 @@ public:
     return features;
   }
 
-  virtual void obs(ObsType* obs) const override {
-    const auto offsets = Agent::offsets();
-    size_t offset_idx = 0;
-    obs[offsets[offset_idx++]] = _type_id;
-    obs[offsets[offset_idx++]] = group;
-    obs[offsets[offset_idx++]] = frozen;
-    obs[offsets[offset_idx++]] = orientation;
-    obs[offsets[offset_idx++]] = color;
-
-    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      obs[offsets[offset_idx++]] = inventory[i];
-    }
-  }
-
-  static std::vector<uint8_t> offsets() {
-    std::vector<uint8_t> names;
-    names.push_back(ObservationFeature::TypeId);
-    names.push_back(ObservationFeature::Group);
-    names.push_back(ObservationFeature::Frozen);
-    names.push_back(ObservationFeature::Orientation);
-    names.push_back(ObservationFeature::Color);
-
-    for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      names.push_back(static_cast<uint8_t>(InventoryFeatureOffset + i));
-    }
-    return names;
-  }
-
 private:
   std::vector<unsigned char> max_items_per_type;
 };

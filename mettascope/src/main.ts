@@ -7,7 +7,7 @@ import { drawTrace } from './traces.js'
 import { drawMiniMap } from './minimap.js'
 import { processActions, initActionButtons } from './actions.js'
 import { initAgentTable, updateAgentTable } from './agentpanel.js'
-import { localStorageSetNumber, onEvent, find } from './htmlutils.js'
+import { localStorageSetNumber, onEvent, initHighDpiMode } from './htmlutils.js'
 import { updateReadout, hideHoverPanel } from './hoverpanels.js'
 import { initObjectMenu } from './objmenu.js'
 import { drawTimeline, initTimeline, updateTimeline, onScrubberChange } from './timeline.js'
@@ -64,7 +64,7 @@ export function onResize() {
   ui.agentPanel.width = screenWidth
   ui.agentPanel.height = ui.agentPanelSplit * screenHeight
 
-  html.actionButtons.style.top = (ui.tracePanel.y - 148) + 'px'
+  html.actionButtons.style.top = ui.tracePanel.y - 148 + 'px'
 
   ui.mapPanel.updateDiv()
   ui.miniMapPanel.updateDiv()
@@ -80,19 +80,19 @@ export function onResize() {
 }
 
 /** Handles mouse down events. */
-onEvent("mousedown", "body", () => {
+onEvent('mousedown', 'body', () => {
   ui.lastMousePos = ui.mousePos
   ui.mouseDownPos = ui.mousePos
   ui.mouseClick = true
 
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
-    ui.dragging = "trace-panel"
+    ui.dragging = 'trace-panel'
   } else {
     ui.mouseDown = true
   }
 
   if (Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD) {
-    ui.dragging = "agent-panel"
+    ui.dragging = 'agent-panel'
   } else {
     ui.mouseDown = true
   }
@@ -101,10 +101,10 @@ onEvent("mousedown", "body", () => {
 })
 
 /** Handles mouse up events. */
-onEvent("mouseup", "body", () => {
+onEvent('mouseup', 'body', () => {
   ui.mouseUp = true
   ui.mouseDown = false
-  ui.dragging = ""
+  ui.dragging = ''
   ui.dragHtml = null
   ui.dragOffset = new Vec2f(0, 0)
   ui.mainScrubberDown = false
@@ -119,59 +119,60 @@ onEvent("mouseup", "body", () => {
 })
 
 /** Handles mouse move events. */
-onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
+onEvent('mousemove', 'body', (target: HTMLElement, e: Event) => {
   let event = e as MouseEvent
   ui.mousePos = new Vec2f(event.clientX, event.clientY)
   var target = event.target as HTMLElement
-  while (target.id === "" && target.parentElement != null) {
+  while (target.id === '' && target.parentElement != null) {
     target = target.parentElement as HTMLElement
   }
   ui.mouseTargets = []
   let p = event.target as HTMLElement
   while (p != null) {
-    if (p.id !== "") {
-      ui.mouseTargets.push("#" + p.id)
+    if (p.id !== '') {
+      ui.mouseTargets.push('#' + p.id)
     }
     for (const className of p.classList) {
-      ui.mouseTargets.push("." + className)
+      ui.mouseTargets.push('.' + className)
     }
     p = p.parentElement as HTMLElement
   }
 
   // If the mouse is close to a panel's edge, change the cursor.
-  document.body.style.cursor = "default"
+  document.body.style.cursor = 'default'
   if (Math.abs(ui.mousePos.y() - ui.tracePanel.y) < Common.SPLIT_DRAG_THRESHOLD) {
-    document.body.style.cursor = "ns-resize"
+    document.body.style.cursor = 'ns-resize'
   }
-  if (state.showAgentPanel &&
+  if (
+    state.showAgentPanel &&
     Math.abs(ui.mousePos.y() - (ui.agentPanel.y + ui.agentPanel.height)) < Common.SPLIT_DRAG_THRESHOLD
   ) {
-    document.body.style.cursor = "ns-resize"
+    document.body.style.cursor = 'ns-resize'
   }
 
   // Drag the trace panel up or down.
-  if (ui.dragging == "trace-panel") {
+  if (ui.dragging == 'trace-panel') {
     ui.traceSplit = ui.mousePos.y() / window.innerHeight
-    localStorageSetNumber("traceSplit", ui.traceSplit)
+    localStorageSetNumber('traceSplit', ui.traceSplit)
     onResize()
   }
 
-  if (ui.dragging == "agent-panel") {
+  if (ui.dragging == 'agent-panel') {
     ui.agentPanelSplit = (ui.mousePos.y() - ui.agentPanel.y) / window.innerHeight
-    localStorageSetNumber("agentPanelSplit", ui.agentPanelSplit)
+    localStorageSetNumber('agentPanelSplit', ui.agentPanelSplit)
     onResize()
   }
 
   if (ui.dragHtml != null) {
-    ui.dragHtml.style.left = (ui.mousePos.x() - ui.dragOffset.x()) + "px"
-    ui.dragHtml.style.top = (ui.mousePos.y() - ui.dragOffset.y()) + "px"
+    ui.dragHtml.style.left = ui.mousePos.x() - ui.dragOffset.x() + 'px'
+    ui.dragHtml.style.top = ui.mousePos.y() - ui.dragOffset.y() + 'px'
   }
 
   if (ui.mainScrubberDown) {
     onScrubberChange(event)
   }
 
-  if (!ui.mouseTargets.includes("#worldmap-panel") && !ui.mouseTargets.includes(".hover-panel")) {
+  if (!ui.mouseTargets.includes('#worldmap-panel') && !ui.mouseTargets.includes('.hover-panel')) {
     hideHoverPanel()
   }
 
@@ -179,17 +180,17 @@ onEvent("mousemove", "body", (target: HTMLElement, e: Event) => {
 })
 
 /** Handles dragging draggable elements. */
-onEvent("mousedown", ".draggable", (target: HTMLElement, e: Event) => {
+onEvent('mousedown', '.draggable', (target: HTMLElement, e: Event) => {
   let event = e as MouseEvent
   ui.dragHtml = target
   let rect = target.getBoundingClientRect()
   ui.dragOffset = new Vec2f(event.clientX - rect.left, event.clientY - rect.top)
-  ui.dragging = "draggable"
+  ui.dragging = 'draggable'
   requestFrame()
 })
 
 /** Handles scroll events. */
-onEvent("wheel", "body", (target: HTMLElement, e: Event) => {
+onEvent('wheel', 'body', (target: HTMLElement, e: Event) => {
   let event = e as WheelEvent
   ui.scrollDelta = event.deltaY
   // Prevent pinch-to-zoom.
@@ -266,7 +267,7 @@ export function updateStep(newStep: number, skipScrubberUpdate = false) {
 
   // Update the scrubber value (unless told to skip).
   if (!skipScrubberUpdate) {
-    console.info("Scrubber value:", state.step)
+    console.info('Scrubber value:', state.step)
     updateTimeline()
   }
   updateAgentTable()
@@ -279,36 +280,45 @@ export function updateSelection(object: any, setFollow = false) {
   if (setFollow) {
     setFollowSelection(true)
   }
-  console.info("Selected object:", state.selectedGridObject)
+  console.info('Selected object:', state.selectedGridObject)
   updateAgentTable()
   requestFrame()
 }
 
 /** Handles key down events. */
-onEvent("keydown", "body", (target: HTMLElement, e: Event) => {
+onEvent('keydown', 'body', (target: HTMLElement, e: Event) => {
   let event = e as KeyboardEvent
-  if (event.key == "Escape") {
+
+  // Prevent keyboard events if we are focused on an text field.
+  if (
+    document.activeElement instanceof HTMLInputElement ||
+    document.activeElement instanceof HTMLTextAreaElement
+  ) {
+    return
+  }
+
+  if (event.key == 'Escape') {
     updateSelection(null)
     setFollowSelection(false)
   }
   // '[' and ']' scrub forward and backward.
-  if (event.key == "[") {
+  if (event.key == '[') {
     setIsPlaying(false)
     updateStep(Math.max(state.step - 1, 0))
   }
-  if (event.key == "]") {
+  if (event.key == ']') {
     setIsPlaying(false)
     updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
   }
   // '<' and '>' control the playback speed.
-  if (event.key == ",") {
+  if (event.key == ',') {
     state.playbackSpeed = Math.max(state.playbackSpeed * 0.9, 0.01)
   }
-  if (event.key == ".") {
+  if (event.key == '.') {
     state.playbackSpeed = Math.min(state.playbackSpeed * 1.1, 1000)
   }
   // The space bar presses the play button.
-  if (event.key == " ") {
+  if (event.key == ' ') {
     setIsPlaying(!state.isPlaying)
   }
 
@@ -332,40 +342,40 @@ export function onFrame() {
   ui.mapPanel.updatePanAndZoom()
   ui.tracePanel.updatePanAndZoom()
 
-  ctx.useMesh("map")
+  ctx.useMesh('map')
   drawMap(ui.mapPanel)
 
   if (state.showMiniMap) {
-    ui.miniMapPanel.div.classList.remove("hidden")
-    ctx.useMesh("mini-map")
+    ui.miniMapPanel.div.classList.remove('hidden')
+    ctx.useMesh('mini-map')
     drawMiniMap(ui.miniMapPanel)
   } else {
-    ui.miniMapPanel.div.classList.add("hidden")
+    ui.miniMapPanel.div.classList.add('hidden')
   }
 
-  ctx.useMesh("trace")
+  ctx.useMesh('trace')
   drawTrace(ui.tracePanel)
 
-  ctx.useMesh("timeline")
+  ctx.useMesh('timeline')
   drawTimeline(ui.timelinePanel)
 
   if (state.showInfo) {
-    ui.infoPanel.div.classList.remove("hidden")
+    ui.infoPanel.div.classList.remove('hidden')
     updateReadout()
   } else {
-    ui.infoPanel.div.classList.add("hidden")
+    ui.infoPanel.div.classList.add('hidden')
   }
 
   if (state.showControls) {
-    html.actionButtons.classList.remove("hidden")
+    html.actionButtons.classList.remove('hidden')
   } else {
-    html.actionButtons.classList.add("hidden")
+    html.actionButtons.classList.add('hidden')
   }
 
   if (state.showAgentPanel) {
-    ui.agentPanel.div.classList.remove("hidden")
+    ui.agentPanel.div.classList.remove('hidden')
   } else {
-    ui.agentPanel.div.classList.add("hidden")
+    ui.agentPanel.div.classList.add('hidden')
   }
 
   ctx.flush()
@@ -379,7 +389,7 @@ export function onFrame() {
       const nextStep = (state.step + Math.floor(state.partialStep)) % state.replay.max_steps
       state.partialStep -= Math.floor(state.partialStep)
       if (state.ws !== null) {
-        state.ws.send(JSON.stringify({ type: "advance" }))
+        state.ws.send(JSON.stringify({ type: 'advance' }))
       } else {
         updateStep(nextStep)
       }
@@ -411,69 +421,59 @@ function handleDrop(event: DragEvent) {
 
 /** Parses URL parameters and modifies the map and trace panels accordingly. */
 async function parseUrlParams() {
-
   const urlParams = new URLSearchParams(window.location.search)
 
   // Load the replay.
   const replayUrl = urlParams.get('replayUrl')
   const wsUrl = urlParams.get('wsUrl')
   if (replayUrl) {
-    console.info("Loading replay from URL: ", replayUrl)
+    console.info('Loading replay from URL: ', replayUrl)
     await fetchReplay(replayUrl)
     focusFullMap(ui.mapPanel)
   } else if (wsUrl) {
-    Common.showModal(
-      "info",
-      "Connecting to a websocket",
-      "Please wait a few seconds for the environment to load."
-    )
+    Common.showModal('info', 'Connecting to a websocket', 'Please wait a few seconds for the environment to load.')
     initWebSocket(wsUrl)
   } else {
-    Common.showModal(
-      "info",
-      "Welcome to MettaScope",
-      "Please drop a replay file here to see the replay."
-    )
+    Common.showModal('info', 'Welcome to MettaScope', 'Please drop a replay file here to see the replay.')
   }
 
   if (state.replay !== null) {
     // Set the current step.
     if (urlParams.get('step') !== null) {
-      const initialStep = parseInt(urlParams.get('step') || "0")
-      console.info("Step via query parameter:", initialStep)
+      const initialStep = parseInt(urlParams.get('step') || '0')
+      console.info('Step via query parameter:', initialStep)
       updateStep(initialStep, false)
     }
 
     // Set the playing state.
     if (urlParams.get('play') !== null) {
-      setIsPlaying(urlParams.get('play') === "true")
-      console.info("Playing state via query parameter:", state.isPlaying)
+      setIsPlaying(urlParams.get('play') === 'true')
+      console.info('Playing state via query parameter:', state.isPlaying)
     }
 
     // Set the selected object.
     if (urlParams.get('selectedObjectId') !== null) {
-      const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || "-1") - 1
+      const selectedObjectId = parseInt(urlParams.get('selectedObjectId') || '-1') - 1
       if (selectedObjectId >= 0 && selectedObjectId < state.replay.grid_objects.length) {
         updateSelection(state.replay.grid_objects[selectedObjectId], true)
         ui.mapPanel.zoomLevel = Common.DEFAULT_ZOOM_LEVEL
         ui.tracePanel.zoomLevel = Common.DEFAULT_TRACE_ZOOM_LEVEL
-        console.info("Selected object via query parameter:", state.selectedGridObject)
+        console.info('Selected object via query parameter:', state.selectedGridObject)
       } else {
-        console.warn("Invalid selectedObjectId:", selectedObjectId)
+        console.warn('Invalid selectedObjectId:', selectedObjectId)
       }
     }
   }
 
   // Set the map pan and zoom.
   if (urlParams.get('mapPanX') !== null && urlParams.get('mapPanY') !== null) {
-    const mapPanX = parseInt(urlParams.get('mapPanX') || "0")
-    const mapPanY = parseInt(urlParams.get('mapPanY') || "0")
+    const mapPanX = parseInt(urlParams.get('mapPanX') || '0')
+    const mapPanY = parseInt(urlParams.get('mapPanY') || '0')
     ui.mapPanel.panPos = new Vec2f(mapPanX, mapPanY)
   }
   if (urlParams.get('mapZoom') !== null) {
-    ui.mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || "1")
+    ui.mapPanel.zoomLevel = parseFloat(urlParams.get('mapZoom') || '1')
   }
-
 
   requestFrame()
 }
@@ -483,16 +483,16 @@ function onShareButtonClick() {
   // Copy the current URL to the clipboard.
   navigator.clipboard.writeText(window.location.href)
   // Show a toast notification.
-  Common.showToast("URL copied to clipboard")
+  Common.showToast('URL copied to clipboard')
 }
 
 /** Sets the playing state and updates the play button icon. */
 function setIsPlaying(isPlaying: boolean) {
   state.isPlaying = isPlaying
   if (state.isPlaying) {
-    html.playButton.setAttribute("src", "data/ui/pause.png")
+    html.playButton.setAttribute('src', 'data/ui/pause.png')
   } else {
-    html.playButton.setAttribute("src", "data/ui/play.png")
+    html.playButton.setAttribute('src', 'data/ui/play.png')
   }
   requestFrame()
 }
@@ -500,9 +500,9 @@ function setIsPlaying(isPlaying: boolean) {
 /** Toggles the opacity of a button. */
 function toggleOpacity(button: HTMLImageElement, show: boolean) {
   if (show) {
-    button.style.opacity = "1"
+    button.style.opacity = '1'
   } else {
-    button.style.opacity = "0.2"
+    button.style.opacity = '0.2'
   }
 }
 
@@ -524,19 +524,19 @@ meta.name = 'viewport'
 meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'
 document.head.appendChild(meta)
 
-html.modal.classList.add("hidden")
-html.toast.classList.add("hiding")
-html.actionButtons.classList.add("hidden")
-ui.infoPanel.div.classList.add("hidden")
-ui.agentPanel.div.classList.add("hidden")
+html.modal.classList.add('hidden')
+html.toast.classList.add('hiding')
+html.actionButtons.classList.add('hidden')
+ui.infoPanel.div.classList.add('hidden')
+ui.agentPanel.div.classList.add('hidden')
 
 // Each panel has a div we use for event handling.
 // But rendering happens below on the global canvas.
 // We make the divs transparent to see through them.
-ui.mapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)"
-ui.tracePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)"
-ui.miniMapPanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)"
-ui.timelinePanel.div.style.backgroundColor = "rgba(0, 0, 0, 0.0)"
+ui.mapPanel.div.style.backgroundColor = 'rgba(0, 0, 0, 0.0)'
+ui.tracePanel.div.style.backgroundColor = 'rgba(0, 0, 0, 0.0)'
+ui.miniMapPanel.div.style.backgroundColor = 'rgba(0, 0, 0, 0.0)'
+ui.timelinePanel.div.style.backgroundColor = 'rgba(0, 0, 0, 0.0)'
 
 // Add an event listener to resize the canvas when the window is resized.
 window.addEventListener('resize', onResize)
@@ -546,159 +546,158 @@ window.addEventListener('dragover', preventDefaults, false)
 window.addEventListener('drop', handleDrop, false)
 
 // Header area
-onEvent("click", "#share-button", () => {
+onEvent('click', '#share-button', () => {
   onShareButtonClick()
 })
-onEvent("click", "#help-button", () => {
-  window.open("https://github.com/Metta-AI/metta/blob/main/mettascope/README.md", "_blank")
+onEvent('click', '#help-button', () => {
+  window.open('https://github.com/Metta-AI/metta/blob/main/mettascope/README.md', '_blank')
 })
 
-onEvent("click", "#rewind-to-start", () => {
+onEvent('click', '#rewind-to-start', () => {
   setIsPlaying(false)
   updateStep(0)
 })
-onEvent("click", "#step-back", () => {
+onEvent('click', '#step-back', () => {
   setIsPlaying(false)
   updateStep(Math.max(state.step - 1, 0))
 })
-onEvent("click", "#play", () => {
+onEvent('click', '#play', () => {
   setIsPlaying(!state.isPlaying)
 })
-onEvent("click", "#step-forward", () => {
+onEvent('click', '#step-forward', () => {
   setIsPlaying(false)
   if (state.ws !== null) {
-    state.ws.send(JSON.stringify({ type: "advance" }))
+    state.ws.send(JSON.stringify({ type: 'advance' }))
   } else {
     updateStep(Math.min(state.step + 1, state.replay.max_steps - 1))
   }
 })
-onEvent("click", "#rewind-to-end", () => {
+onEvent('click', '#rewind-to-end', () => {
   setIsPlaying(false)
   updateStep(state.replay.max_steps - 1)
 })
 
 // Speed buttons
 for (let i = 0; i < html.speedButtons.length; i++) {
-  html.speedButtons[i].addEventListener('click',
-    () => setPlaybackSpeed(Common.SPEEDS[i])
-  )
+  html.speedButtons[i].addEventListener('click', () => setPlaybackSpeed(Common.SPEEDS[i]))
 }
 
-onEvent("click", "#resources-toggle", () => {
+onEvent('click', '#resources-toggle', () => {
   state.showResources = !state.showResources
-  localStorage.setItem("showResources", state.showResources.toString())
+  localStorage.setItem('showResources', state.showResources.toString())
   toggleOpacity(html.resourcesToggle, state.showResources)
   requestFrame()
 })
-if (localStorage.hasOwnProperty("showResources")) {
-  state.showResources = localStorage.getItem("showResources") === "true"
+if (localStorage.hasOwnProperty('showResources')) {
+  state.showResources = localStorage.getItem('showResources') === 'true'
 }
 toggleOpacity(html.resourcesToggle, state.showResources)
 
 // Toggle follow selection state.
-onEvent("click", "#focus-toggle", () => {
+onEvent('click', '#focus-toggle', () => {
   setFollowSelection(!state.followSelection)
 })
 toggleOpacity(html.focusToggle, state.followSelection)
 
-onEvent("click", "#grid-toggle", () => {
+onEvent('click', '#grid-toggle', () => {
   state.showGrid = !state.showGrid
-  localStorage.setItem("showGrid", state.showGrid.toString())
+  localStorage.setItem('showGrid', state.showGrid.toString())
   toggleOpacity(html.gridToggle, state.showGrid)
   requestFrame()
 })
-if (localStorage.hasOwnProperty("showGrid")) {
-  state.showGrid = localStorage.getItem("showGrid") === "true"
+if (localStorage.hasOwnProperty('showGrid')) {
+  state.showGrid = localStorage.getItem('showGrid') === 'true'
 }
 toggleOpacity(html.gridToggle, state.showGrid)
 
-onEvent("click", "#visual-range-toggle", () => {
+onEvent('click', '#visual-range-toggle', () => {
   state.showVisualRanges = !state.showVisualRanges
-  localStorage.setItem("showVisualRanges", state.showVisualRanges.toString())
+  localStorage.setItem('showVisualRanges', state.showVisualRanges.toString())
   toggleOpacity(html.visualRangeToggle, state.showVisualRanges)
   requestFrame()
 })
-if (localStorage.hasOwnProperty("showVisualRanges")) {
-  state.showVisualRanges = localStorage.getItem("showVisualRanges") === "true"
+if (localStorage.hasOwnProperty('showVisualRanges')) {
+  state.showVisualRanges = localStorage.getItem('showVisualRanges') === 'true'
 }
 toggleOpacity(html.visualRangeToggle, state.showVisualRanges)
 
-onEvent("click", "#fog-of-war-toggle", () => {
+onEvent('click', '#fog-of-war-toggle', () => {
   state.showFogOfWar = !state.showFogOfWar
-  localStorage.setItem("showFogOfWar", state.showFogOfWar.toString())
+  localStorage.setItem('showFogOfWar', state.showFogOfWar.toString())
   toggleOpacity(html.fogOfWarToggle, state.showFogOfWar)
   requestFrame()
 })
-if (localStorage.hasOwnProperty("showFogOfWar")) {
-  state.showFogOfWar = localStorage.getItem("showFogOfWar") === "true"
+if (localStorage.hasOwnProperty('showFogOfWar')) {
+  state.showFogOfWar = localStorage.getItem('showFogOfWar') === 'true'
 }
 toggleOpacity(html.fogOfWarToggle, state.showFogOfWar)
 
-onEvent("click", "#minimap-toggle", () => {
+onEvent('click', '#minimap-toggle', () => {
   state.showMiniMap = !state.showMiniMap
-  localStorage.setItem("showMiniMap", state.showMiniMap.toString())
+  localStorage.setItem('showMiniMap', state.showMiniMap.toString())
   toggleOpacity(html.minimapToggle, state.showMiniMap)
   requestFrame()
 })
-if (localStorage.hasOwnProperty("showMiniMap")) {
-  state.showMiniMap = localStorage.getItem("showMiniMap") === "true"
+if (localStorage.hasOwnProperty('showMiniMap')) {
+  state.showMiniMap = localStorage.getItem('showMiniMap') === 'true'
 }
 toggleOpacity(html.minimapToggle, state.showMiniMap)
 
-onEvent("click", "#controls-toggle", () => {
+onEvent('click', '#controls-toggle', () => {
   state.showControls = !state.showControls
-  localStorage.setItem("showControls", state.showControls.toString())
+  localStorage.setItem('showControls', state.showControls.toString())
   toggleOpacity(html.controlsToggle, state.showControls)
   requestFrame()
 })
-if (localStorage.hasOwnProperty("showControls")) {
-  state.showControls = localStorage.getItem("showControls") === "true"
+if (localStorage.hasOwnProperty('showControls')) {
+  state.showControls = localStorage.getItem('showControls') === 'true'
 }
 toggleOpacity(html.controlsToggle, state.showControls)
 
-onEvent("click", "#info-toggle", () => {
+onEvent('click', '#info-toggle', () => {
   state.showInfo = !state.showInfo
-  localStorage.setItem("showInfo", state.showInfo.toString())
+  localStorage.setItem('showInfo', state.showInfo.toString())
   toggleOpacity(html.infoToggle, state.showInfo)
   requestFrame()
 })
-if (localStorage.hasOwnProperty("showInfo")) {
-  state.showInfo = localStorage.getItem("showInfo") === "true"
+if (localStorage.hasOwnProperty('showInfo')) {
+  state.showInfo = localStorage.getItem('showInfo') === 'true'
 }
 toggleOpacity(html.infoToggle, state.showInfo)
 
-onEvent("click", "#agent-panel-toggle", () => {
+onEvent('click', '#agent-panel-toggle', () => {
   state.showAgentPanel = !state.showAgentPanel
-  localStorage.setItem("showAgentPanel", state.showAgentPanel.toString())
+  localStorage.setItem('showAgentPanel', state.showAgentPanel.toString())
   toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
   requestFrame()
 })
-if (localStorage.hasOwnProperty("showAgentPanel")) {
-  state.showAgentPanel = localStorage.getItem("showAgentPanel") === "true"
+if (localStorage.hasOwnProperty('showAgentPanel')) {
+  state.showAgentPanel = localStorage.getItem('showAgentPanel') === 'true'
 }
 toggleOpacity(html.agentPanelToggle, state.showAgentPanel)
 
+initHighDpiMode()
 initActionButtons()
 initAgentTable()
 initObjectMenu()
 initTimeline()
 
 window.addEventListener('load', async () => {
+
   // Use a local atlas texture.
   const atlasImageUrl = 'dist/atlas.png'
   const atlasJsonUrl = 'dist/atlas.json'
 
   const success = await ctx.init(atlasJsonUrl, atlasImageUrl)
   if (!success) {
-    Common.showModal(
-      "error",
-      "Initialization failed",
-      "Please check the console for more information."
-    )
+    Common.showModal('error', 'Initialization failed', 'Please check the console for more information.')
     return
   } else {
-    console.info("Context3d initialized successfully.")
+    console.info('Context3d initialized successfully.')
   }
+
+  // Match the DPI scale between the HTML and the GPU.
+  ui.dpr = ctx.dpr
 
   await parseUrlParams()
   setPlaybackSpeed(0.1)

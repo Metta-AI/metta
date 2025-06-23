@@ -102,7 +102,7 @@ class TestStopwatch:
         time.sleep(0.1)
 
         # Record anonymous checkpoint
-        stopwatch.checkpoint(200, timer_name="test_timer")
+        stopwatch.checkpoint(200, name="test_timer")
 
         stopwatch.stop("test_timer")
 
@@ -153,26 +153,26 @@ class TestStopwatch:
     def test_reset_functionality(self, stopwatch):
         """Test resetting timers."""
         # Start and stop a timer
-        stopwatch.start("reset_test")
+        stopwatch.start("A")
         time.sleep(0.1)
-        stopwatch.stop("reset_test")
+        stopwatch.stop("A")
 
         # Check it has elapsed time
-        assert stopwatch.get_elapsed("reset_test") > 0
+        assert stopwatch.get_elapsed("A") > 0
 
         # Reset specific timer
-        stopwatch.reset("reset_test")
-        assert stopwatch.get_elapsed("reset_test") == 0
+        stopwatch.reset("A")
+        assert stopwatch.get_elapsed("A") == 0
 
         # Test reset_all
-        stopwatch.start("timer1")
-        stopwatch.start("timer2")
+        stopwatch.start("B")
+        stopwatch.start("C")
         time.sleep(0.1)
-        stopwatch.stop("timer1")
-        stopwatch.stop("timer2")
+        stopwatch.stop("B")
+        stopwatch.stop("C")
 
         stopwatch.reset_all()
-        assert len(stopwatch._timers) == 1  # Only global timer
+        assert len(stopwatch._timers) == 4  # 3 + global; reset zeroes all timers
         assert stopwatch.GLOBAL_TIMER_NAME in stopwatch._timers
 
     def test_get_last_elapsed(self, stopwatch):
@@ -377,6 +377,116 @@ class TestStopwatch:
         timer2.references.append({"filename": "same.py", "lineno": 10})
         timer2.references.append({"filename": "same.py", "lineno": 20})
         assert stopwatch.get_filename("samefile_test") == "same.py"
+
+    def test_lap_all_with_running_and_stopped_timers(self, stopwatch):
+        tol = 0.03
+
+        stopwatch.start("A")
+        stopwatch.start("B")
+        stopwatch.start("C")
+        time.sleep(0.1)  # 0.1, 0.1, 0.1
+
+        stopwatch.stop("A")
+        time.sleep(0.1)  # 0.1, 0.2, 0.2
+
+        stopwatch.stop("B")
+        stopwatch.start("A")
+        time.sleep(0.1)  # 0.2, 0.2, 0.3
+
+        lap_times = stopwatch.lap_all(1000)
+        assert 0.2 - tol < lap_times["A"] < 0.2 + tol, f"Timer A lap time was {lap_times['A']}"
+        assert 0.2 - tol < lap_times["B"] < 0.2 + tol, f"Timer B lap time was {lap_times['B']}"
+        assert 0.3 - tol < lap_times["C"] < 0.3 + tol, f"Timer C lap time was {lap_times['C']}"
+
+        time.sleep(0.1)  # 0.3, 0.2, 0.4
+        stopwatch.stop("A")
+        time.sleep(0.1)  # 0.3, 0.2, 0.5
+
+        lap_times_2 = stopwatch.lap_all(2000)
+        assert 0.1 - tol < lap_times_2["A"] < 0.1 + tol, f"Timer A 2nd lap time was {lap_times_2['A']}"
+        assert lap_times_2["B"] < tol, f"Timer B 2nd lap time was {lap_times_2['B']}"
+        assert 0.2 - tol < lap_times_2["C"] < 0.2 + tol, f"Timer C 2nd lap time was {lap_times_2['C']}"
+
+        stopwatch.start("A")
+        time.sleep(0.1)  # 0.4, 0.2, 0.6
+        stopwatch.stop("A")
+        stopwatch.stop("C")
+        time.sleep(0.1)  # 0.4, 0.2, 0.6
+
+        lap_times_3 = stopwatch.lap_all(3000)
+        assert 0.1 - tol < lap_times_3["A"] < 0.1 + tol, f"Timer A 3rd lap time was {lap_times_3['A']}"
+        assert lap_times_3["B"] < tol, f"Timer B 3rd lap time was {lap_times_3['B']}"
+        assert 0.1 - tol < lap_times_3["C"] < 0.1 + tol, f"Timer C 3rd lap time was {lap_times_3['C']}"
+
+        # Expected checkpoints
+        expected_checkpoints = {
+            "A": [0.2, 0.3, 0.4],
+            "B": [0.2, 0.2, 0.2],
+            "C": [0.3, 0.5, 0.6],
+        }
+
+        for name, expected_times in expected_checkpoints.items():
+            timer = stopwatch._get_timer(name)
+            checkpoints = sorted(timer.checkpoints.items(), key=lambda x: x[1]["elapsed_time"])
+
+            assert len(checkpoints) == len(expected_times), (
+                f"Timer {name}: expected {len(expected_times)} checkpoints, got {len(checkpoints)}"
+            )
+
+            for i, (_, checkpoint_data) in enumerate(checkpoints):
+                actual_time = checkpoint_data["elapsed_time"]
+                expected_time = expected_times[i]
+                assert abs(actual_time - expected_time) < tol, (
+                    f"Timer {name} checkpoint {i}: expected {expected_time}, got {actual_time}\n"
+                    f"All checkpoints: {checkpoints}"
+                )
+
+            if checkpoints:
+                first_checkpoint_time = checkpoints[0][1]["elapsed_time"]
+                first_lap_time = lap_times[name]
+                assert abs(first_checkpoint_time - first_lap_time) < tol, (
+                    f"Timer {name}: checkpoint time {first_checkpoint_time} != lap time {first_lap_time}"
+                )
+
+    def test_get_lap_steps_first_lap(self, stopwatch):
+        """Test that get_lap_steps correctly handles the first lap.
+
+        Currently, get_lap_steps returns None when there's only one checkpoint,
+        but it should return the steps for the first lap (from start to first checkpoint).
+        """
+        stopwatch.start("test_timer")
+        time.sleep(0.1)
+
+        # Record first checkpoint at 100 steps
+        stopwatch.checkpoint(100, name="test_timer")
+
+        # Try to get the first lap steps
+        first_lap_steps = stopwatch.get_lap_steps(1, "test_timer")
+
+        # This should return 100 (steps from 0 to first checkpoint)
+        # But currently returns None due to the bug
+        assert first_lap_steps == 100, f"Expected 100 steps for first lap, got {first_lap_steps}"
+
+        # Also test with default parameter (last lap)
+        last_lap_steps = stopwatch.get_lap_steps(name="test_timer")
+        assert last_lap_steps == 100, f"Expected 100 steps for last lap, got {last_lap_steps}"
+
+        # Add second checkpoint
+        time.sleep(0.1)
+        stopwatch.checkpoint(250, name="test_timer")
+
+        # Now test both laps
+        first_lap_steps = stopwatch.get_lap_steps(1, "test_timer")
+        assert first_lap_steps == 100, f"Expected 100 steps for first lap, got {first_lap_steps}"
+
+        second_lap_steps = stopwatch.get_lap_steps(2, "test_timer")
+        assert second_lap_steps == 150, f"Expected 150 steps for second lap (250-100), got {second_lap_steps}"
+
+        # Test with negative index
+        last_lap_steps = stopwatch.get_lap_steps(-1, "test_timer")
+        assert last_lap_steps == 150, f"Expected 150 steps for last lap, got {last_lap_steps}"
+
+        stopwatch.stop("test_timer")
 
 
 class TestStopwatchIntegration:

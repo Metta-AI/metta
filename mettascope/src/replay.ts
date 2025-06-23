@@ -47,39 +47,38 @@ async function decompressStream(stream: ReadableStream<Uint8Array>): Promise<str
 
 /** Loads the replay from a URL. */
 export async function fetchReplay(replayUrl: string) {
-
   // If it's an S3 URL, we can convert it to an HTTP URL.
-  const s3Prefix = "s3://softmax-public/"
+  const s3Prefix = 's3://softmax-public/'
   let httpUrl = replayUrl
   if (replayUrl.startsWith(s3Prefix)) {
-    const httpPrefix = "https://softmax-public.s3.us-east-1.amazonaws.com/"
+    const httpPrefix = 'https://softmax-public.s3.us-east-1.amazonaws.com/'
     httpUrl = httpPrefix + replayUrl.slice(s3Prefix.length)
-    console.info("Converted S3 url to http url: ", httpUrl)
+    console.info('Converted S3 url to http url: ', httpUrl)
   }
 
   try {
     const response = await fetch(httpUrl)
     if (!response.ok) {
-      throw new Error("Network response was not ok")
+      throw new Error('Network response was not ok')
     }
     if (response.body === null) {
-      throw new Error("Response body is null")
+      throw new Error('Response body is null')
     }
     // Check the Content-Type header.
     const contentType = response.headers.get('Content-Type')
-    console.info("Content-Type: ", contentType)
-    if (contentType === "application/json") {
+    console.info('Content-Type: ', contentType)
+    if (contentType === 'application/json') {
       let replayData = await response.text()
       loadReplayText(replayUrl, replayData)
-    } else if (contentType === "application/x-compress" || contentType === "application/octet-stream") {
+    } else if (contentType === 'application/x-compress' || contentType === 'application/octet-stream') {
       // This is compressed JSON.
       const decompressedData = await decompressStream(response.body)
       loadReplayText(replayUrl, decompressedData)
     } else {
-      throw new Error("Unsupported content type: " + contentType)
+      throw new Error('Unsupported content type: ' + contentType)
     }
   } catch (error) {
-    Common.showModal("error", "Error fetching replay", "Message: " + error)
+    Common.showModal('error', 'Error fetching replay', 'Message: ' + error)
   }
 }
 
@@ -87,16 +86,16 @@ export async function fetchReplay(replayUrl: string) {
 export async function readFile(file: File) {
   try {
     const contentType = file.type
-    console.info("Content-Type: ", contentType)
-    if (contentType === "application/json") {
+    console.info('Content-Type: ', contentType)
+    if (contentType === 'application/json') {
       loadReplayText(file.name, await file.text())
-    } else if (contentType === "application/x-compress" || contentType === "application/octet-stream") {
+    } else if (contentType === 'application/x-compress' || contentType === 'application/octet-stream') {
       // This is compressed JSON.
       const decompressedData = await decompressStream(file.stream())
       loadReplayText(file.name, decompressedData)
     }
   } catch (error) {
-    Common.showModal("error", "Error reading file", "Message: " + error)
+    Common.showModal('error', 'Error reading file', 'Message: ' + error)
   }
 }
 
@@ -143,12 +142,12 @@ function fixReplay() {
   // Create action image mappings for faster access.
   state.replay.action_images = []
   for (const actionName of state.replay.action_names) {
-    let path = "trace/" + actionName + ".png"
+    let path = 'trace/' + actionName + '.png'
     if (ctx.hasImage(path)) {
       state.replay.action_images.push(path)
     } else {
-      console.warn("Action not supported: ", path)
-      state.replay.action_images.push("trace/unknown.png")
+      console.warn('Action not supported: ', path)
+      state.replay.action_images.push('trace/unknown.png')
     }
   }
 
@@ -166,15 +165,15 @@ function fixReplay() {
   state.replay.object_images = []
   for (let i = 0; i < state.replay.object_types.length; i++) {
     const typeName = state.replay.object_types[i]
-    var image = "objects/" + typeName + ".png"
-    var imageItem = "objects/" + typeName + ".item.png"
-    var imageColor = "objects/" + typeName + ".color.png"
+    var image = 'objects/' + typeName + '.png'
+    var imageItem = 'objects/' + typeName + '.item.png'
+    var imageColor = 'objects/' + typeName + '.color.png'
     if (!ctx.hasImage(image)) {
-      console.warn("Object not supported: ", typeName)
+      console.warn('Object not supported: ', typeName)
       // Use the "unknown" image.
-      image = "objects/unknown.png"
-      imageItem = "objects/unknown.item.png"
-      imageColor = "objects/unknown.color.png"
+      image = 'objects/unknown.png'
+      imageItem = 'objects/unknown.item.png'
+      imageColor = 'objects/unknown.color.png'
     }
     state.replay.object_images.push([image, imageItem, imageColor])
   }
@@ -186,29 +185,29 @@ function fixReplay() {
   // Example: "inv:cat_food.red" -> ["resources/unknown.png", [1, 0, 0, 1]]
   state.replay.resource_inventory = new Map()
   for (const key of state.replay.all_keys) {
-    if (key.startsWith("inv:") || key.startsWith("agent:inv:")) {
+    if (key.startsWith('inv:') || key.startsWith('agent:inv:')) {
       var type: string = key
-      type = removePrefix(type, "inv:")
-      type = removePrefix(type, "agent:inv:")
+      type = removePrefix(type, 'inv:')
+      type = removePrefix(type, 'agent:inv:')
       var color = [1, 1, 1, 1] // Default to white.
       for (const [colorName, colorValue] of Common.COLORS) {
         if (type.endsWith(colorName)) {
-          if (ctx.hasImage("resources/" + type + ".png")) {
+          if (ctx.hasImage('resources/' + type + '.png')) {
             // Use the resource.color.png with a white color.
             break
           } else {
             // Use the resource.png with a specific color.
-            type = removeSuffix(type, "." + colorName)
+            type = removeSuffix(type, '.' + colorName)
             color = colorValue as number[]
-            if (!ctx.hasImage("resources/" + type + ".png")) {
+            if (!ctx.hasImage('resources/' + type + '.png')) {
               // Use the unknown.png with a specific color.
-              console.warn("Resource not supported: ", type)
-              type = "unknown"
+              console.warn('Resource not supported: ', type)
+              type = 'unknown'
             }
           }
         }
       }
-      image = "resources/" + type + ".png"
+      image = 'resources/' + type + '.png'
       state.replay.resource_inventory.set(key, [image, color])
     }
   }
@@ -218,21 +217,20 @@ function fixReplay() {
   state.replay.map_size[0] = 1
   state.replay.map_size[1] = 1
   for (const gridObject of state.replay.grid_objects) {
-    let x = getAttr(gridObject, "c") + 1
-    let y = getAttr(gridObject, "r") + 1
+    let x = getAttr(gridObject, 'c') + 1
+    let y = getAttr(gridObject, 'r') + 1
     state.replay.map_size[0] = Math.max(state.replay.map_size[0], x)
     state.replay.map_size[1] = Math.max(state.replay.map_size[1], y)
   }
   if (oldMapSize[0] != state.replay.map_size[0] || oldMapSize[1] != state.replay.map_size[1]) {
     // The map size changed, so update the map.
-    console.info("Map size changed to: ", state.replay.map_size[0], "x", state.replay.map_size[1])
+    console.info('Map size changed to: ', state.replay.map_size[0], 'x', state.replay.map_size[1])
     focusFullMap(ui.mapPanel)
     // Force a resize to update the minimap panel.
     onResize()
   }
 
-  console.info("replay: ", state.replay)
-
+  console.info('replay: ', state.replay)
 }
 
 /** Loads a replay from a JSON object. */
@@ -253,7 +251,7 @@ async function loadReplayJson(url: string, replayData: any) {
   for (let i = 0; i < state.replay.num_agents; i++) {
     state.replay.agents.push({})
     for (const gridObject of state.replay.grid_objects) {
-      if (gridObject["agent_id"] == i) {
+      if (gridObject['agent_id'] == i) {
         state.replay.agents[i] = gridObject
       }
     }
@@ -264,7 +262,7 @@ async function loadReplayJson(url: string, replayData: any) {
   if (state.replay.file_name) {
     html.fileName.textContent = state.replay.file_name
   } else {
-    html.fileName.textContent = url.split("/").pop() || "unknown"
+    html.fileName.textContent = url.split('/').pop() || 'unknown'
   }
 
   Common.closeModal()
@@ -283,7 +281,6 @@ export function loadReplayStep(replayStep: any) {
 
   state.replay.max_steps = Math.max(state.replay.max_steps, step + 1)
 
-
   for (const gridObject of replayStep.grid_objects) {
     // Grid objects are 1-indexed.
     const index = gridObject.id - 1
@@ -294,21 +291,27 @@ export function loadReplayStep(replayStep: any) {
         state.replay.grid_objects.push({})
       }
       // Ensure that the key exists.
-      if (state.replay.grid_objects[index][key] === undefined) {
+      if (state.replay.grid_objects[index][key] === undefined || state.replay.grid_objects[index][key] === null) {
         state.replay.grid_objects[index][key] = []
         while (state.replay.grid_objects[index][key].length <= step) {
           state.replay.grid_objects[index][key].push(null)
         }
       }
+
       state.replay.grid_objects[index][key][step] = value
 
-
-      if (key == "agent_id") {
+      if (key == 'agent_id') {
         // Update the agent.
         while (state.replay.agents.length <= value) {
           state.replay.agents.push({})
         }
         state.replay.agents[value] = state.replay.grid_objects[index]
+      }
+    }
+    // Make sure that the keys that don't exist in the update are set to null too.
+    for (const key in state.replay.grid_objects[index]) {
+      if (gridObject[key] === undefined) {
+        state.replay.grid_objects[index][key][step] = null
       }
     }
   }
@@ -325,58 +328,51 @@ export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl)
   state.ws.onmessage = (event) => {
     const data = JSON.parse(event.data)
-    console.info("Received message: ", data.type)
-    if (data.type === "replay") {
+    console.info('Received message: ', data.type)
+    if (data.type === 'replay') {
       loadReplayJson(wsUrl, data.replay)
       Common.closeModal()
-      html.actionButtons.classList.remove("hidden")
-    } else if (data.type === "replay_step") {
+      html.actionButtons.classList.remove('hidden')
+    } else if (data.type === 'replay_step') {
       loadReplayStep(data.replay_step)
-    } else if (data.type === "message") {
-      console.info("Received message: ", data.message)
-    } else if (data.type === "memory_copied") {
+    } else if (data.type === 'message') {
+      console.info('Received message: ', data.message)
+    } else if (data.type === 'memory_copied') {
       navigator.clipboard.writeText(JSON.stringify(data.memory))
     }
   }
   state.ws.onopen = () => {
-    Common.showModal("info",
-      "Starting environment",
-      "Please wait while live environment is starting..."
-    )
+    Common.showModal('info', 'Starting environment', 'Please wait while live environment is starting...')
   }
   state.ws.onclose = () => {
-    Common.showModal("error",
-      "WebSocket closed",
-      "Please check your connection and refresh this page."
-    )
+    Common.showModal('error', 'WebSocket closed', 'Please check your connection and refresh this page.')
   }
   state.ws.onerror = (event) => {
-    Common.showModal("error",
-      "WebSocket error",
-      "Websocket error: " + event
-    )
+    Common.showModal('error', 'WebSocket error', 'Websocket error: ' + event)
   }
 }
 
 /** Sends an action to the server. */
 export function sendAction(actionName: string, actionParam: number) {
   if (state.ws === null) {
-    console.error("WebSocket is not connected")
+    console.error('WebSocket is not connected')
     return
   }
-  const agentId = getAttr(state.selectedGridObject, "agent_id")
+  const agentId = getAttr(state.selectedGridObject, 'agent_id')
   if (agentId != null) {
     const actionId = state.replay.action_names.indexOf(actionName)
     if (actionId == -1) {
-      console.error("Action not found: ", actionName)
+      console.error('Action not found: ', actionName)
       return
     }
-    state.ws.send(JSON.stringify({
-      type: "action",
-      agent_id: agentId,
-      action: [actionId, actionParam]
-    }))
+    state.ws.send(
+      JSON.stringify({
+        type: 'action',
+        agent_id: agentId,
+        action: [actionId, actionParam],
+      })
+    )
   } else {
-    console.error("No selected grid object")
+    console.error('No selected grid object')
   }
 }

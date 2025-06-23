@@ -8,6 +8,7 @@
     "autogroup",
     "autostop",
     "autostops",
+    "autouse",
     "bencherdev",
     "bint",
     "Bloomin",
@@ -35,6 +36,7 @@
     "convchain",
     "cooldown",
     "copyto",
+    "coretemp",
     "cpdef",
     "cppclass",
     "cpplint",
@@ -57,6 +59,7 @@
     "deque",
     "devel",
     "distutils",
+    "dockerenv",
     "dones",
     "dtype",
     "elif",
@@ -86,8 +89,10 @@
     "keepdim",
     "kickstarter",
     "Kruskal",
+    "kubepods",
     "lasery",
     "letsencrypt",
+    "levelname",
     "lexsort",
     "libc",
     "libcpp",
@@ -111,6 +116,7 @@
     "minibatches",
     "minigrid",
     "MINISCOPE",
+    "multifile",
     "multinomial",
     "mxgmn",
     "NCCL",
@@ -185,9 +191,17 @@
     "vloss",
     "wandb",
     "Werror",
+    "wyhash",
+    "wymix",
+    "wymum",
     "xlarge",
-    "yrange"
+    "yrange",
+    "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }
