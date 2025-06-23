@@ -660,6 +660,37 @@ def create_discord_summary(
     return "\n".join(lines)
 
 
+def save_pr_summary_file(pr_summary: PRSummary) -> str:
+    """Save individual PR summary as a simple text file."""
+    filename = f"pr_{pr_summary.pr_number}.txt"
+
+    content = f"""
+PR #{pr_summary.pr_number}: {pr_summary.title}
+Author: {pr_summary.author}
+Merged: {pr_summary.merged_at}
+Category: {pr_summary.category.title()}
+Impact: {pr_summary.impact_level.title()}
+GitHub: {pr_summary.html_url}
+
+SUMMARY
+{pr_summary.summary}
+
+KEY CHANGES
+{chr(10).join(f"• {change}" for change in pr_summary.key_changes)}
+
+DEVELOPER IMPACT
+{pr_summary.developer_impact}
+
+TECHNICAL NOTES
+{pr_summary.technical_notes}
+"""
+
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    return filename
+
+
 def main():
     """Main entry point."""
 
@@ -704,6 +735,12 @@ def main():
         print("No summaries generated")
         sys.exit(1)
 
+    # Save individual PR summary files
+    print("Saving individual PR summaries...")
+    for pr_summary in pr_summaries:
+        filename = save_pr_summary_file(pr_summary)
+        logging.info(f"Saved {filename}")
+
     # Generate collection summary and shout outs
     print("Generating collection summary and shout outs...")
     collection_summary = generator.generate_collection_summary(pr_summaries, date_range, repository)
@@ -715,7 +752,7 @@ def main():
     with open("pr_summary_output.txt", "w") as f:
         f.write(discord_summary)
 
-    # Save structured data (only one JSON file)
+    # Save structured data
     with open("pr_summary_data.json", "w") as f:
         json.dump([asdict(pr) for pr in pr_summaries], f, indent=2)
 
@@ -727,8 +764,10 @@ def main():
             f.write("data-file=pr_summary_data.json\n")
             f.write(f"individual-summaries={len(pr_summaries)}\n")
 
-    print(f"✅ Generated {len(pr_summaries)} comprehensive summaries with caching and concurrency")
-    print(f"📁 Artifacts saved to: {generator.output_dir}")
+    print(f"✅ Generated {len(pr_summaries)} comprehensive summaries")
+    print(f"📄 Saved {len(pr_summaries)} individual PR files (pr_XXXX.txt)")
+    print("📊 Discord summary: pr_summary_output.txt")
+    print("📋 Structured data: pr_summary_data.json")
 
 
 if __name__ == "__main__":
