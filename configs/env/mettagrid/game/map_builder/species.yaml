@@ -1,9 +1,9 @@
-_target_: mettagrid.room.multi_room.MultiRoom
+_target_: metta.mettagrid.room.multi_room.MultiRoom
 num_rooms: ${div:${..num_agents},5}
 border_width: 6
 
 room:
-  _target_: mettagrid.room.random.Random
+  _target_: metta.mettagrid.room.random.Random
   width: ${sampling:10,100,25}
   height: ${sampling:10,100,25}
   border_width: 0
