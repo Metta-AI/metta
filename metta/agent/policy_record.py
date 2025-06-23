@@ -54,15 +54,19 @@ class PolicyRecord:
         return self._policy
 
     def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
-        """Get the policy as a MettaAgent or DistributedMettaAgent."""
+        """Get the policy as a MettaAgent or DistributedMettaAgent.
+
+        Since all policies are now MettaAgent instances (unified class),
+        this method simply returns the policy.
+        """
         policy = self.policy()
 
         # Use duck typing instead of isinstance to handle torch.package loaded classes
-        required_attrs = ["components", "activate_actions", "policy"]
+        required_attrs = ["activate_actions", "forward", "is_pytorch_policy"]
         for attr in required_attrs:
             if not hasattr(policy, attr):
                 raise TypeError(
-                    f"Expected MettaAgent or DistributedMettaAgent interface, "
+                    f"Expected MettaAgent interface, "
                     f"but policy is missing attribute '{attr}'. Got {type(policy).__name__}"
                 )
 
@@ -109,16 +113,8 @@ class PolicyRecord:
         self._local_path = path
         self.uri = "file://" + path
 
-        # Get the actual policy (unwrap MettaAgent if needed)
-        # Check for .policy attribute instead of isinstance to handle torch.package loaded classes
-        if (
-            hasattr(policy, "policy")
-            and hasattr(policy.__class__, "__name__")
-            and "MettaAgent" in policy.__class__.__name__
-        ):
-            actual_policy = policy.policy
-        else:
-            actual_policy = policy
+        # Use the policy directly (no unwrapping needed since MettaAgent is now the actual policy)
+        actual_policy = policy
 
         try:
             # Use torch.package to save the policy with all dependencies
@@ -235,17 +231,7 @@ class PolicyRecord:
 
             # First try to load the policy directly
             try:
-                actual_policy = importer.load_pickle("policy", "model.pkl", map_location=device)
-
-                # Import MettaAgent from the normal system (not from the package)
-                from metta.agent.metta_agent import MettaAgent
-
-                # Wrap in MettaAgent if it's not already
-                if not isinstance(actual_policy, MettaAgent):
-                    policy = MettaAgent(actual_policy)
-                else:
-                    policy = actual_policy
-
+                policy = importer.load_pickle("policy", "model.pkl", map_location=device)
                 logger.info("Successfully loaded policy using torch.package")
                 return policy
 
@@ -329,12 +315,22 @@ class PolicyRecord:
 
             # Add module structure (simplified version)
             lines.append("\nKey Modules:")
-            for name, module in policy.named_modules():
-                if name and "." not in name:  # Top-level modules only
-                    module_type = module.__class__.__name__
-                    param_count = sum(p.numel() for p in module.parameters())
-                    if param_count > 0:
-                        lines.append(f"  {name}: {module_type} ({param_count:,} params)")
+            if hasattr(policy, "components") and hasattr(policy, "is_pytorch_policy") and not policy.is_pytorch_policy:
+                # Component-based policy
+                for name, module in policy.components.items():
+                    if name and "." not in name:  # Top-level modules only
+                        module_type = module.__class__.__name__
+                        param_count = sum(p.numel() for p in module.parameters())
+                        if param_count > 0:
+                            lines.append(f"  {name}: {module_type} ({param_count:,} params)")
+            else:
+                # PyTorch policy or other
+                for name, module in policy.named_modules():
+                    if name and "." not in name:  # Top-level modules only
+                        module_type = module.__class__.__name__
+                        param_count = sum(p.numel() for p in module.parameters())
+                        if param_count > 0:
+                            lines.append(f"  {name}: {module_type} ({param_count:,} params)")
 
         except Exception as e:
             lines.append(f"Error loading policy: {str(e)}")

@@ -120,23 +120,23 @@ class Simulation:
         max_args = metta_grid_env.max_action_args
 
         metta_agent: MettaAgent | DistributedMettaAgent = self._policy_pr.policy_as_metta_agent()
-        # Use duck typing instead of isinstance to handle torch.package loaded classes
-        required_attrs = ["components", "activate_actions", "policy"]
+        # Use duck typing to check MettaAgent interface
+        required_attrs = ["activate_actions", "forward", "is_pytorch_policy"]
         for attr in required_attrs:
             if not hasattr(metta_agent, attr):
-                raise AssertionError(
-                    f"Policy agent is missing required attribute '{attr}'. "
+                raise AttributeError(
+                    f"Policy is missing required attribute '{attr}'. "
                     f"Expected a MettaAgent-like object but got {type(metta_agent).__name__}"
                 )
         metta_agent.activate_actions(action_names, max_args, self._device)
 
         if self._npc_pr is not None:
             npc_agent: MettaAgent | DistributedMettaAgent = self._npc_pr.policy_as_metta_agent()
-            # Use duck typing for NPC agent as well
+            # Use duck typing to check MettaAgent interface for NPC agent
             for attr in required_attrs:
                 if not hasattr(npc_agent, attr):
-                    raise AssertionError(
-                        f"NPC agent is missing required attribute '{attr}'. "
+                    raise AttributeError(
+                        f"NPC policy is missing required attribute '{attr}'. "
                         f"Expected a MettaAgent-like object but got {type(npc_agent).__name__}"
                     )
             try:

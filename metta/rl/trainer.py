@@ -166,7 +166,7 @@ class MettaTrainer:
 
         # Use duck typing instead of isinstance to handle torch.package loaded classes
         # Check that the policy has the expected MettaAgent interface
-        required_attrs = ["components", "activate_actions", "policy"]
+        required_attrs = ["activate_actions", "forward", "is_pytorch_policy"]
         for attr in required_attrs:
             if not hasattr(self.metta_agent, attr):
                 raise AttributeError(
