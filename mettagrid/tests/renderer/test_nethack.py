@@ -259,7 +259,7 @@ class TestRendererIntegration:
         # Override map builder to ensure agent count matches
         cfg.game.map_builder = OmegaConf.create(
             {
-                "_target_": "mettagrid.room.random.Random",
+                "_target_": "metta.mettagrid.room.random.Random",
                 "width": 5,
                 "height": 5,
                 "agents": 1,
@@ -300,7 +300,7 @@ class TestRendererIntegration:
         # Override map builder to ensure agent count matches
         cfg.game.map_builder = OmegaConf.create(
             {
-                "_target_": "mettagrid.room.random.Random",
+                "_target_": "metta.mettagrid.room.random.Random",
                 "width": 5,
                 "height": 5,
                 "agents": 1,
