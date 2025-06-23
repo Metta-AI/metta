@@ -133,12 +133,12 @@ class ObjectsConfig(BaseModelWithForbidExtra):
     """Objects configuration."""
 
     altar: Optional[ConverterConfig] = None
-    mine_red: Optional[ConverterConfig] = Field(default=None, alias="mine.red")
-    mine_blue: Optional[ConverterConfig] = Field(default=None, alias="mine.blue")
-    mine_green: Optional[ConverterConfig] = Field(default=None, alias="mine.green")
-    generator_red: Optional[ConverterConfig] = Field(default=None, alias="generator.red")
-    generator_blue: Optional[ConverterConfig] = Field(default=None, alias="generator.blue")
-    generator_green: Optional[ConverterConfig] = Field(default=None, alias="generator.green")
+    mine_red: Optional[ConverterConfig] = Field(default=None, alias="mine_red")
+    mine_blue: Optional[ConverterConfig] = Field(default=None, alias="mine_blue")
+    mine_green: Optional[ConverterConfig] = Field(default=None, alias="mine_green")
+    generator_red: Optional[ConverterConfig] = Field(default=None, alias="generator_red")
+    generator_blue: Optional[ConverterConfig] = Field(default=None, alias="generator_blue")
+    generator_green: Optional[ConverterConfig] = Field(default=None, alias="generator_green")
     armory: Optional[ConverterConfig] = None
     lasery: Optional[ConverterConfig] = None
     lab: Optional[ConverterConfig] = None

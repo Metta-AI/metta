@@ -41,7 +41,7 @@ game:
             params:
               objects:
                 altar: 1
-                mine.red: 10
+                mine_red: 10
         - where:
             tags:
               - room_0_2

@@ -1,0 +1,29 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template: /env/mettagrid/navigation_sequence/experiments/sequence_defaults
+
+buckets:
+  game.map_builder.room.dir:
+    values:
+      [
+        "varied_terrain/cylinder-world_small",
+        "varied_terrain/sparse_medium",
+        "varied_terrain/balanced_medium",
+        "varied_terrain/dense_medium",
+        "varied_terrain/maze_medium",
+        "varied_terrain/cylinder-world_medium",
+        "varied_terrain/sparse_large",
+        "varied_terrain/balanced_large",
+        "varied_terrain/dense_large",
+        "varied_terrain/maze_large",
+        "varied_terrain/cylinder-world_large",
+      ]
+
+  game.map_builder.room.objects.mine.red:
+    range: [3, 25]
+    bins: 2
+  game.map_builder.room.objects.generator_red:
+    range: [3, 25]
+    bins: 2
+  game.objects.generator_red.initial_items:
+    values: [0, 1]

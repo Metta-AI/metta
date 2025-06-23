@@ -24,12 +24,12 @@ game:
     agents: 32
     objects: ???
   objects:
-      altar:
-        input_battery: 1
-        initial_items: ${choose:0,0,0,1}
-        cooldown: ${sampling:5, 20, 10}
-      generator.red:
-        initial_items: ${choose:0,0,0,1}
-        cooldown: ${sampling:5, 20, 10}
-      mine.red:
-        cooldown: ${sampling:15, 50, 10}
+    altar:
+      input_battery: 1
+      initial_items: ${choose:0,0,0,1}
+      cooldown: ${sampling:5, 20, 10}
+    generator_red:
+      initial_items: ${choose:0,0,0,1}
+      cooldown: ${sampling:5, 20, 10}
+    mine_red:
+      cooldown: ${sampling:15, 50, 10}

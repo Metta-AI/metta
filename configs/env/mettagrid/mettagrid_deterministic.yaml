@@ -1,54 +1,34 @@
-# This is a modified `sample.yaml` config with sampling removed, for benchmark_env_perf.py script.
-report_stats_interval: 100
-
 sampling: 0
 desync_episodes: false
-
+replay_level_prob: 0.2
 game:
-  num_agents: 24
-  num_observation_tokens: 100
-
-  map_builder:
-    _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: 4
-    border_width: 6
-
-    room:
-      _target_: metta.mettagrid.room.random.Random
-      width: 25
-      height: 25
-      border_width: 0
-      seed: 42
-
-      agents: 6
-
-      objects:
-        mine: 10
-        generator: 2
-        altar: 1
-        armory: 1
-        lasery: 1
-        lab: 1
-        factory: 1
-        temple: 1
-
-        block: 20
-        wall: 20
-
+  num_agents: ???
   obs_width: 11
   obs_height: 11
+  num_observation_tokens: 200
   max_steps: 1000
+
+  diversity_bonus:
+    enabled: false
+    similarity_coef: 0.5 # Coefficient for within-group similarity
+    diversity_coef: 0.5 # Coefficient for between-group diversity
 
   agent:
     default_item_max: 50
+    # the agent should be able to pick up as many hearts as they want, even if
+    # "normal" item limits are lower
+    heart_max: 255
     freeze_duration: 10
-
     rewards:
       # action_failure_penalty: 0.00001
       action_failure_penalty: 0
+
       ore.red: 0.005
       ore.blue: 0.005
       ore.green: 0.005
+      ore.red_max: 4
+      ore.blue_max: 4
+      ore.green_max: 4
       battery.red: 0.01
       battery.blue: 0.01
       battery.green: 0.01
@@ -98,11 +78,6 @@ game:
       sprite: 6
       props: {}
 
-  diversity_bonus:
-    enabled: false
-    similarity_coef: 0.5
-    diversity_coef: 0.5
-
   objects:
     altar:
       input_battery.red: 3
@@ -112,7 +87,7 @@ game:
       cooldown: 10
       initial_items: 1
 
-    mine_red:
+    mine.red:
       output_ore.red: 1
       color: 0
       max_output: 5
@@ -120,7 +95,7 @@ game:
       cooldown: 50
       initial_items: 1
 
-    mine_blue:
+    mine.blue:
       color: 1
       output_ore.blue: 1
       max_output: 5
@@ -128,7 +103,7 @@ game:
       cooldown: 50
       initial_items: 1
 
-    mine_green:
+    mine.green:
       output_ore.green: 1
       color: 2
       max_output: 5
