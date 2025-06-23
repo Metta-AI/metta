@@ -17,6 +17,7 @@ from typing import List, Optional, Union
 import gymnasium as gym
 import hydra
 import numpy as np
+import torch
 import wandb
 
 # Import wandb types directly to avoid pydantic dependency
@@ -623,6 +624,12 @@ class PolicyStore:
 
         except Exception as e:
             logger.debug(f"Not a torch.package file: {e}")
+
+            # Fallback for old checkpoints (pre-torch.package)
+            if "PytorchStreamReader failed locating file .data/extern_modules" in str(e):
+                logger.info("Detected old checkpoint format, loading as regular PyTorch checkpoint")
+                return self._load_legacy_checkpoint(path, metadata_only)
+
             raise ValueError(f"Failed to load policy from {path}: {e}")
 
     def _load_wandb_artifact(self, qualified_name: str):
@@ -639,4 +646,92 @@ class PolicyStore:
 
         pr = self._load_from_file(os.path.join(artifact_path, "model.pt"))
         pr.metadata.update(artifact.metadata)
+        return pr
+
+    def _load_legacy_checkpoint(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        """Load a legacy checkpoint (pre-torch.package format)."""
+        logger.info(f"Loading legacy checkpoint from {path}")
+
+        name = os.path.basename(path)
+
+        # Load the checkpoint
+        checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+
+        # Check if checkpoint is already a PolicyRecord
+        if isinstance(checkpoint, PolicyRecord):
+            logger.info("Checkpoint contains a pickled PolicyRecord")
+            pr = checkpoint
+            pr._policy_store = self
+            pr._local_path = path
+
+            # The policy might still be None, so we need to ensure it's loaded
+            if pr._policy is None and not metadata_only:
+                raise ValueError("Legacy PolicyRecord has no policy attached")
+
+            self._cached_prs[path] = pr
+            return pr
+
+        # Otherwise, assume it's a state dict or checkpoint dict
+        if not isinstance(checkpoint, dict):
+            raise ValueError(f"Unexpected checkpoint format: {type(checkpoint)}")
+
+        # Extract metadata from checkpoint if available
+        metadata = {
+            "action_names": checkpoint.get("action_names", []),
+            "agent_step": checkpoint.get("agent_step", 0),
+            "epoch": checkpoint.get("epoch", 0),
+            "generation": checkpoint.get("generation", 0),
+            "train_time": checkpoint.get("train_time", 0),
+        }
+
+        # Create PolicyRecord
+        pr = PolicyRecord(self, name, f"file://{path}", metadata)
+        pr._local_path = path
+
+        if not metadata_only:
+            # Extract model configuration from checkpoint if available
+            obs_shape = checkpoint.get("obs_shape", [34, 11, 11])  # Default shape
+            action_space_nvec = checkpoint.get("action_space_nvec", [9, 10])  # Default action space
+
+            # Create observation and action spaces
+            obs_space = gym.spaces.Dict(
+                {
+                    "grid_obs": gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
+                    "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
+                }
+            )
+
+            action_space = gym.spaces.MultiDiscrete(action_space_nvec)
+
+            # Create MettaAgent
+            try:
+                policy = hydra.utils.instantiate(
+                    self._cfg.agent,
+                    obs_space=obs_space,
+                    obs_width=obs_shape[1],
+                    obs_height=obs_shape[2],
+                    action_space=action_space,
+                    feature_normalizations=checkpoint.get("feature_normalizations", {}),
+                    device=self._device,
+                    _target_="metta.agent.metta_agent.MettaAgent",
+                    _recursive_=False,
+                )
+
+                # Load the state dict
+                if "model_state_dict" in checkpoint:
+                    policy.load_state_dict(checkpoint["model_state_dict"])
+                elif "state_dict" in checkpoint:
+                    policy.load_state_dict(checkpoint["state_dict"])
+                else:
+                    # Try to load the checkpoint directly as state dict
+                    policy.load_state_dict(checkpoint)
+
+                pr._policy = policy
+                logger.info("Successfully loaded legacy checkpoint as MettaAgent")
+
+            except Exception as e:
+                logger.error(f"Failed to create MettaAgent from legacy checkpoint: {e}")
+                raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}")
+
+        self._cached_prs[path] = pr
         return pr
