@@ -1,0 +1,43 @@
+# @package __global__
+
+seed: null
+
+defaults:
+  - /sim/all@evals  # Use all evaluation suite
+  - override /trainer: ants
+  - _self_
+
+run_id: 1
+run: ${oc.env:USER}.simple_auxiliary.${run_id}
+
+# Training configuration
+trainer:
+  total_timesteps: 10_000_000_000_000  # Start with a smaller number for testing
+  num_workers: 4  # Adjust based on your hardware
+
+  # Auxiliary loss coefficients - you can adjust these
+  sensory_decoder_coef: 0.1
+  latent_decoder_coef: 0.1
+  node_perturbation_coef: 0.01
+  contrastive_coef: 0.1
+
+# Policy storage
+policy_uri: pytorch://${run_dir}/checkpoints/policy.pt
+npc_policy_uri: null
+
+# Evaluation configuration
+eval:
+  policy_uri: ${..policy_uri}
+  npc_policy_uri: ${..npc_policy_uri}
+  env: /env/mettagrid/simple
+  num_episodes: 10
+  max_time_s: 300
+
+# Wandb configuration
+wandb:
+  enabled: true
+  project: metta-auxiliary
+  name: ${run}
+
+# Run directory
+run_dir: ${data_dir}/${run}
