@@ -109,24 +109,27 @@ class DoxascopeLogger:
 
 
 def preprocess_doxascope_data(
-    raw_data_dir: Path, preprocessed_dir: Path, output_filename: str = "training_data.npz"
+    json_files: list,
+    preprocessed_dir: Path,
+    output_filename: str = "training_data.npz",
+    num_future_timesteps: int = 1,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
     """
     Preprocess all doxascope JSON files to create training data.
 
     Args:
-        raw_data_dir: Directory containing the raw JSON log files
+        json_files: List of JSON log files to process
         preprocessed_dir: Directory where the output NPZ file will be saved
         output_filename: Name of the output NPZ file
+        num_future_timesteps: The number of future steps to predict
 
     Returns:
         Tuple of (X, y) arrays where X is memory vectors and y is movement classes
     """
     output_file = preprocessed_dir / output_filename
-    json_files = list(raw_data_dir.glob("doxascope_data_*.json"))
 
     if not json_files:
-        logger.warning(f"No JSON files found in {raw_data_dir}")
+        logger.warning("No JSON files provided for preprocessing")
         return None, None
 
     memory_vectors = []
@@ -134,17 +137,6 @@ def preprocess_doxascope_data(
     expected_dim = None
 
     logger.info(f"Processing {len(json_files)} files...")
-
-    # Load existing data if it exists
-    if output_file.exists():
-        try:
-            existing_data = np.load(output_file)
-            memory_vectors.extend(existing_data["X"])
-            movements.extend(existing_data["y"])
-            expected_dim = memory_vectors[0].shape[0] if memory_vectors else None
-            logger.info(f"Loaded {len(memory_vectors)} existing samples with dimension {expected_dim}")
-        except Exception as e:
-            logger.warning(f"Failed to load existing data: {e}")
 
     # Process new files
     for json_file in json_files:
@@ -179,53 +171,60 @@ def preprocess_doxascope_data(
                         break
 
             # Create training pairs from consecutive timesteps
-            for i in range(len(trajectory) - 1):
-                current_memory, current_pos = trajectory[i]
-                _, next_pos = trajectory[i + 1]
+            for i in range(len(trajectory) - num_future_timesteps):
+                current_memory, start_pos = trajectory[i]
+                future_movements = []
 
-                # Calculate relative movement
-                dr = next_pos[0] - current_pos[0]  # row delta
-                dc = next_pos[1] - current_pos[1]  # col delta
+                # Previous position starts as the agent's current position at time `i`
+                prev_pos = start_pos
 
-                # Convert to movement class
-                if dr == 0 and dc == 0:
-                    movement = 0  # stay
-                elif dr == -1 and dc == 0:
-                    movement = 1  # up
-                elif dr == 1 and dc == 0:
-                    movement = 2  # down
-                elif dr == 0 and dc == -1:
-                    movement = 3  # left
-                elif dr == 0 and dc == 1:
-                    movement = 4  # right
-                else:
-                    continue  # skip multi-step movements
+                # Look ahead k steps
+                for k in range(1, num_future_timesteps + 1):
+                    _, next_pos = trajectory[i + k]
+
+                    # Calculate relative movement from the PREVIOUS step
+                    dr = next_pos[0] - prev_pos[0]  # row delta
+                    dc = next_pos[1] - prev_pos[1]  # col delta
+
+                    # Update previous position for the next iteration
+                    prev_pos = next_pos
+
+                    # Convert to movement class
+                    if dr == 0 and dc == 0:
+                        movement = 0  # stay
+                    elif dr == -1 and dc == 0:
+                        movement = 1  # up
+                    elif dr == 1 and dc == 0:
+                        movement = 2  # down
+                    elif dr == 0 and dc == -1:
+                        movement = 3  # left
+                    elif dr == 0 and dc == 1:
+                        movement = 4  # right
+                    else:
+                        # This case can happen if the agent teleports or moves > 1 cell
+                        logger.warning(f"Unexpected movement: dr={dr}, dc={dc}. Defaulting to 'stay'.")
+                        movement = 0  # default to 'stay'
+                    future_movements.append(movement)
 
                 memory_vectors.append(current_memory)
-                movements.append(movement)
+                movements.append(future_movements)
 
     if not memory_vectors:
         logger.warning("No training data created")
         return None, None
 
-    # Convert to arrays and save
     try:
-        X = np.array(memory_vectors)
-        y = np.array(movements)
+        X = np.array(memory_vectors, dtype=np.float32)
+        y = np.array(movements, dtype=np.int64)
 
-        logger.info(f"Created {len(X)} total training samples")
-        logger.info(f"Memory vector shape: {X.shape}")
-        logger.info(f"Movement distribution: {np.bincount(y)}")
-
+        preprocessed_dir.mkdir(parents=True, exist_ok=True)
         np.savez_compressed(output_file, X=X, y=y)
-        logger.info(f"Saved to {output_file}")
-
+        logger.info(f"Successfully saved {len(X)} samples to {output_file}")
         return X, y
     except ValueError as e:
-        logger.error(f"Failed to create arrays: {e}")
-        # If we failed to create arrays, try to identify the problematic vectors
+        logger.error(f"Failed to create arrays: {e}. The requested array has an inhomogeneous shape.")
+        # Log detected shapes for debugging
         if memory_vectors:
-            dims = [v.shape[0] for v in memory_vectors]
-            unique_dims = set(dims)
-            logger.error(f"Found memory vectors with dimensions: {unique_dims}")
+            dims = {mv.shape[0] for mv in memory_vectors if hasattr(mv, "shape")}
+            logger.error(f"Found memory vectors with dimensions: {dims}")
         return None, None

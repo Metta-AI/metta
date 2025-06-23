@@ -8,48 +8,43 @@ Simple script to train the doxascope neural network on LSTM memory vectors.
 import sys
 from pathlib import Path
 
-from .doxascope_data import preprocess_doxascope_data
 from .doxascope_network import train_doxascope
 
 
 def main():
-    """Main function to run the training script."""
-    # Check for policy name argument
+    """Main CLI entrypoint."""
     if len(sys.argv) < 2:
-        print("❌ Error: Please provide a policy name as an argument.")
-        print("   Usage: python -m doxascope.doxascope_train <policy_name>")
+        print("Usage: python -m doxascope.doxascope_train <policy_name> [num_future_timesteps]")
         sys.exit(1)
 
     policy_name = sys.argv[1]
-
-    # Define paths
-    project_root = Path.cwd()
-    data_dir = project_root / "doxascope/data"
-    raw_data_dir = data_dir / "raw_data" / policy_name
-    results_dir = data_dir / "results" / policy_name
-    results_dir.mkdir(parents=True, exist_ok=True)
+    num_future_timesteps = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 
     print(f"Using policy: {policy_name}")
-    print("Preprocessing Doxascope Data")
-    print("=" * 50)
-    preprocess_doxascope_data(raw_data_dir=raw_data_dir, preprocessed_dir=results_dir)
-    print("Training Doxascope Neural Network")
-    print("=" * 50)
+    if num_future_timesteps > 1:
+        print(f"Predicting {num_future_timesteps} steps into the future.")
 
-    # Define path for the training data file
-    preprocessed_data_path = results_dir / "training_data.npz"
+    # Define paths
+    raw_data_dir = Path(f"doxascope/data/raw_data/{policy_name}")
+    results_dir = Path(f"doxascope/data/results/{policy_name}")
+    results_dir.mkdir(parents=True, exist_ok=True)
 
-    # Train the network
-    trainer, test_accuracy = train_doxascope(data_path=preprocessed_data_path, output_dir=results_dir)
+    # Preprocess data, then train the network
+    trainer, test_accuracy = train_doxascope(
+        raw_data_dir=raw_data_dir,
+        output_dir=results_dir,
+        num_future_timesteps=num_future_timesteps,
+    )
 
     if trainer is None:
-        print("❌ Training script failed. Exiting.")
-        sys.exit(1)
+        print("❌ Training failed.")
+        return
 
+    print("\n" + "=" * 50)
+    print("📊 Check the generated plots for detailed analysis:")
+    for plot_path in results_dir.glob("*.png"):
+        print(f"   - {plot_path}")
     print("=" * 50)
-    print("\n📊 Check the generated plots for detailed analysis:")
-    print(f"   - {results_dir / 'training_curves.png'}")
-    print(f"   - {results_dir / 'confusion_matrix.png'}")
 
 
 if __name__ == "__main__":

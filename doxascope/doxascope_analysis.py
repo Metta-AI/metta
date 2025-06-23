@@ -21,7 +21,7 @@ from .doxascope_network import DoxascopeDataset, DoxascopeNet
 
 def inspect_data(policy_name: str):
     """Loads and analyzes the preprocessed NPZ data."""
-    results_dir = Path(f"../data/results/{policy_name}")
+    results_dir = Path(f"doxascope/data/results/{policy_name}")
     data_path = results_dir / "training_data.npz"
 
     if not data_path.exists():
@@ -95,7 +95,7 @@ def plot_data_inspection(X, y, movement_names, output_dir: Path):
 
 def analyze_memory_encoding(policy_name: str):
     """Analyze how well memory vectors encode spatial-temporal information."""
-    results_dir = Path(f"../data/results/{policy_name}")
+    results_dir = Path(f"doxascope/data/results/{policy_name}")
     if not results_dir.exists():
         print(f"❌ Error: Results directory not found for policy '{policy_name}' at {results_dir}")
         print("👉 Please run the training script first: ")
@@ -245,7 +245,7 @@ def analyze_pca_components(X, y, movement_names):
 def create_additional_visualizations(policy_name: str):
     """Create additional visualizations for deeper analysis."""
 
-    output_dir = Path(f"../data/results/{policy_name}")
+    output_dir = Path(f"doxascope/data/results/{policy_name}")
 
     # 1. Memory magnitude by movement type
     # 2. Activation patterns
