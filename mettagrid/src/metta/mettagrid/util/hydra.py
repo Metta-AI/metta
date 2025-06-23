@@ -1,8 +1,11 @@
+import os
 from pathlib import Path
 from typing import Optional, cast
 
 import hydra
 from omegaconf import DictConfig, ListConfig, OmegaConf
+
+from metta.common.fs import cd_repo_root
 
 
 def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConfig] = None) -> DictConfig | ListConfig:
@@ -45,15 +48,26 @@ def get_test_basic_cfg() -> DictConfig:
 
 
 def get_cfg(config_name: str) -> DictConfig:
-    # Get the directory containing the current file
-    config_dir = Path(__file__).parent
+    # Save current directory to restore later if needed
+    original_cwd = Path.cwd()
 
-    # Navigate up two levels to the package root (repo root / mettagrid)
-    package_root = config_dir.parent.parent
+    try:
+        # Change to repository root
+        cd_repo_root()
 
-    # Create paths to the specific directories
-    mettagrid_configs_root = package_root / "configs"
+        # Now we can use a consistent path from repo root
+        mettagrid_configs_root = Path("mettagrid/configs")
 
-    cfg = OmegaConf.load(f"{mettagrid_configs_root}/{config_name}.yaml")
-    assert isinstance(cfg, DictConfig), f"Config {config_name} did not load into a DictConfig"
-    return cfg
+        config_path = mettagrid_configs_root / f"{config_name}.yaml"
+
+        if not config_path.exists():
+            raise FileNotFoundError(f"Config file not found: {config_path}")
+
+        cfg = OmegaConf.load(config_path)
+        assert isinstance(cfg, DictConfig), f"Config {config_name} did not load into a DictConfig"
+
+        return cfg
+
+    finally:
+        # Optionally restore original directory
+        os.chdir(original_cwd)

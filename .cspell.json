@@ -68,6 +68,7 @@
     "endfunction",
     "errc",
     "evals",
+    "excinfo",
     "FINDPYTHON",
     "finfo",
     "fvisibility",
