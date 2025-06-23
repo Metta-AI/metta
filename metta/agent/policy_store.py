@@ -437,15 +437,7 @@ class PolicyStore:
         return f"model_{epoch:04d}.pt"
 
     def create(self, env) -> PolicyRecord:
-        obs_space = gym.spaces.Dict(
-            {
-                "grid_obs": env.single_observation_space,
-                "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
-            }
-        )
-
         policy = make_policy(env, self._cfg)
-
         name = self.make_model_name(0)
         path = os.path.join(self._cfg.trainer.checkpoint_dir, name)
         pr = PolicyRecord(
@@ -692,12 +684,6 @@ class PolicyStore:
 
         if not metadata_only:
             obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
-            obs_space = gym.spaces.Dict(
-                {
-                    "grid_obs": gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
-                    "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
-                }
-            )
 
             try:
                 # Create a mock environment object with the required attributes
