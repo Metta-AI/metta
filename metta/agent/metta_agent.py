@@ -1,16 +1,19 @@
 import logging
+from types import SimpleNamespace
 from typing import Optional, Union
 
 import gymnasium as gym
 import hydra
 import numpy as np
 import torch
+from hydra.utils import instantiate
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pufferlib.pytorch import sample_logits
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 
 from metta.agent.policy_state import PolicyState
+from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
@@ -18,50 +21,95 @@ from metta.util.omegaconf import convert_to_dict
 logger = logging.getLogger("metta_agent")
 
 
-class MettaAgent(nn.Module):
-    """Unified neural network policy class that handles both component-based and PyTorch policies.
+class PytorchAgent(nn.Module):
+    """Adapter to make torch.nn.Module-based policies compatible with MettaAgent interface.
 
-    This class can operate in two modes:
-    1. Component mode: Complex policy built from modular components (former ComponentPolicy)
-    2. PyTorch mode: Wrapper for external PyTorch policies (former PytorchPolicy)
+    This adapter wraps policies loaded from checkpoints and translates their
+    outputs to match the expected MettaAgent interface, handling naming
+    differences like critic→value, hidden→logits, etc.
     """
+
+    def __init__(self, policy: nn.Module):
+        super().__init__()
+        self.policy = policy
+        self.hidden_size = getattr(policy, "hidden_size", 256)
+        self.lstm = getattr(policy, "lstm", None)  # Point to the actual LSTM module if it exists
+        self.components = nn.ModuleDict()  # Empty for compatibility
+
+    @property
+    def is_pytorch_policy(self):
+        """Always True for PytorchAgent."""
+        return True
+
+    def forward(self, obs: torch.Tensor, state: PolicyState, action=None):
+        """Uses variable names from LSTMWrapper. Translating for Metta:
+        critic -> value
+        logprob -> logprob_act
+        hidden -> logits then, after sample_logits(), log_sftmx_logits
+        """
+        result = self.policy(obs, state, action)
+
+        # Handle different return formats from PyTorch policies
+        if len(result) == 2 and result[0].dim() >= 2:
+            # Legacy format: (hidden, critic)
+            hidden, critic = result
+            action, logprob, logits_entropy = sample_logits(hidden, action)
+            return action, logprob, logits_entropy, critic, hidden
+        elif len(result) == 5:
+            # Already in correct format
+            return result
+        else:
+            raise ValueError(f"Unexpected return format from policy: {len(result)} values")
+
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
+        """Forward to wrapped policy if it has this method."""
+        if hasattr(self.policy, "activate_actions"):
+            self.policy.activate_actions(action_names, action_max_params, device)
+        self.device = device
+
+    def l2_reg_loss(self) -> torch.Tensor:
+        """L2 regularization loss."""
+        if hasattr(self.policy, "l2_reg_loss"):
+            return self.policy.l2_reg_loss()
+        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
+
+    def l2_init_loss(self) -> torch.Tensor:
+        """L2 initialization loss."""
+        if hasattr(self.policy, "l2_init_loss"):
+            return self.policy.l2_init_loss()
+        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
+
+    def update_l2_init_weight_copy(self):
+        """Update L2 initialization weight copy."""
+        if hasattr(self.policy, "update_l2_init_weight_copy"):
+            self.policy.update_l2_init_weight_copy()
+
+    def clip_weights(self):
+        """Clip weights."""
+        if hasattr(self.policy, "clip_weights"):
+            self.policy.clip_weights()
+
+    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
+        """Compute weight metrics for analysis."""
+        if hasattr(self.policy, "compute_weight_metrics"):
+            return self.policy.compute_weight_metrics(delta)
+        return []
+
+
+class MettaAgent(nn.Module):
+    """Component-based neural network policy for MettaGrid environments."""
 
     def __init__(
         self,
-        # For component mode
-        obs_space: Optional[Union[gym.spaces.Space, gym.spaces.Dict]] = None,
-        obs_width: Optional[int] = None,
-        obs_height: Optional[int] = None,
-        action_space: Optional[gym.spaces.Space] = None,
-        feature_normalizations: Optional[list[float]] = None,
-        device: Optional[str] = None,
-        # For pytorch mode
-        wrapped_policy: Optional[nn.Module] = None,
+        obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
+        obs_width: int,
+        obs_height: int,
+        action_space: gym.spaces.Space,
+        feature_normalizations: dict[int, float],
+        device: str,
         **cfg,
     ):
         super().__init__()
-
-        # Determine mode based on arguments
-        if wrapped_policy is not None:
-            # PyTorch policy mode - wrap an external policy
-            self._init_pytorch_policy(wrapped_policy)
-        else:
-            # Component policy mode - build from components
-            self._init_component_policy(
-                obs_space, obs_width, obs_height, action_space, feature_normalizations, device, **cfg
-            )
-
-    def _init_pytorch_policy(self, wrapped_policy: nn.Module):
-        """Initialize as a wrapper for an external PyTorch policy."""
-        self.policy = wrapped_policy
-        self._policy_hidden_size = getattr(wrapped_policy, "hidden_size", 256)
-        self.clip_range = 0  # No clipping for PyTorch policies
-        self.components = nn.ModuleDict()  # Empty for PyTorch policies
-
-    def _init_component_policy(
-        self, obs_space, obs_width, obs_height, action_space, feature_normalizations, device, **cfg
-    ):
-        """Initialize as a component-based policy."""
         # Note that this doesn't instantiate the components -- that will happen later once
         # we've built up the right parameters for them.
         cfg = OmegaConf.create(cfg)
@@ -122,6 +170,11 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
+    @property
+    def is_pytorch_policy(self):
+        """Always False for component-based MettaAgent."""
+        return False
+
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
         It must always have a "name" and that name should be the same as the relevant key in self.components.
@@ -143,23 +196,13 @@ class MettaAgent(nn.Module):
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Run this at the beginning of training."""
+
         assert isinstance(action_max_params, list), "action_max_params must be a list"
 
         self.device = device
         self.action_max_params = action_max_params
         self.action_names = action_names
 
-        # For wrapped policies, delegate if they have this method
-        wrapped_policy = getattr(self, "policy", None)
-        if wrapped_policy and hasattr(wrapped_policy, "activate_actions"):
-            wrapped_policy.activate_actions(action_names, action_max_params, device)
-
-        # If no components, we're done
-        if not hasattr(self, "components") or len(self.components) == 0:
-            logger.info("MettaAgent actions activated")
-            return
-
-        # Component policy mode continues with full setup
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
         # Precompute cumulative sums for faster conversion
@@ -169,9 +212,7 @@ class MettaAgent(nn.Module):
         for action_name, max_param in self.active_actions:
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
-
-        if "_action_embeds_" in self.components:
-            self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
+        self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
 
         # Create action_index tensor
         action_index = []
@@ -180,112 +221,110 @@ class MettaAgent(nn.Module):
                 action_index.append([action_type_idx, j])
 
         self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
-        logger.info(f"MettaAgent (Component mode) actions activated with: {self.active_actions}")
+        logger.info(f"Agent actions activated with: {self.active_actions}")
 
     @property
     def lstm(self):
-        """Return the LSTM module if available."""
-        # Check wrapped policy first
-        if hasattr(self, "policy") and hasattr(self.policy, "lstm"):
-            return self.policy.lstm
-        # Then check components
-        if hasattr(self, "components") and "_core_" in self.components:
-            return self.components["_core_"]._net
-        return None
-
-    @property
-    def is_pytorch_policy(self):
-        """Check if this is a PyTorch policy (has a wrapped policy)."""
-        return hasattr(self, "policy")
+        return self.components["_core_"]._net
 
     @property
     def total_params(self):
-        return sum(p.numel() for p in self.parameters())
+        return self._total_params
 
-    @property
-    def hidden_size(self):
-        """Return the hidden size of the policy."""
-        # For wrapped policies
-        if hasattr(self, "_policy_hidden_size"):
-            return self._policy_hidden_size
-        # For component policies
-        return getattr(self, "hidden_size", 256)
+    def forward_inference(
+        self, value: torch.Tensor, logits: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Forward pass for inference mode - samples new actions based on the policy.
 
-    @hidden_size.setter
-    def hidden_size(self, value):
-        """Set the hidden size (for backward compatibility with PyTorch policies)."""
-        if hasattr(self, "policy"):
-            self._policy_hidden_size = value
+        Args:
+            value: Value estimate tensor, shape (BT, 1)
+            logits: Action logits tensor, shape (BT, A)
 
-    @property
-    def core_num_layers(self):
-        """Return the number of LSTM layers."""
-        # Check wrapped policy first
-        if hasattr(self, "policy"):
-            if hasattr(self.policy, "lstm") and hasattr(self.policy.lstm, "num_layers"):
-                return self.policy.lstm.num_layers
-            if hasattr(self.policy, "core_num_layers"):
-                return self.policy.core_num_layers
-        # For component policies
-        return getattr(self, "core_num_layers", 2)
+        Returns:
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Sampled action, shape (BT, 2)
+            - action_log_prob: Log probability of the sampled action, shape (BT,)
+            - entropy: Entropy of the action distribution, shape (BT,)
+            - value: Value estimate, shape (BT, 1)
+            - log_probs: Log-softmax of logits, shape (BT, A)
+        """
+        if __debug__:
+            assert_shape(value, ("BT", 1), "inference_value")
+            assert_shape(logits, ("BT", "A"), "inference_logits")
+
+        # Sample actions
+        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
+
+        if __debug__:
+            assert_shape(action_logit_index, ("BT",), "action_logit_index")
+            assert_shape(action_log_prob, ("BT",), "action_log_prob")
+            assert_shape(entropy, ("BT",), "entropy")
+            assert_shape(log_probs, ("BT", "A"), "log_probs")
+
+        # Convert logit index to action
+        action = self._convert_logit_index_to_action(action_logit_index)
+
+        if __debug__:
+            assert_shape(action, ("BT", 2), "inference_output_action")
+
+        return action, action_log_prob, entropy, value, log_probs
+
+    def forward_training(
+        self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Forward pass for training mode - evaluates the policy on provided actions.
+
+        Args:
+            value: Value estimate tensor, shape (BT, 1)
+            logits: Action logits tensor, shape (BT, A)
+            action: Action tensor for evaluation, shape (B, T, 2)
+
+        Returns:
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+            - action: Same as input action, shape (B, T, 2)
+            - action_log_prob: Log probability of the provided action, shape (BT,)
+            - entropy: Entropy of the action distribution, shape (BT,)
+            - value: Value estimate, shape (BT, 1)
+            - log_probs: Log-softmax of logits, shape (BT, A)
+        """
+        if __debug__:
+            assert_shape(value, ("BT", 1), "training_value")
+            assert_shape(logits, ("BT", "A"), "training_logits")
+            assert_shape(action, ("B", "T", 2), "training_input_action")
+
+        B, T, A = action.shape
+        flattened_action = action.view(B * T, A)
+        action_logit_index = self._convert_action_to_logit_index(flattened_action)
+
+        if __debug__:
+            assert_shape(action_logit_index, ("BT",), "converted_action_logit_index")
+
+        action_log_prob, entropy, log_probs = evaluate_actions(logits, action_logit_index)
+
+        if __debug__:
+            assert_shape(action_log_prob, ("BT",), "training_action_log_prob")
+            assert_shape(entropy, ("BT",), "training_entropy")
+            assert_shape(log_probs, ("BT", "A"), "training_log_probs")
+            assert_shape(action, ("B", "T", 2), "training_output_action")
+
+        return action, action_log_prob, entropy, value, log_probs
 
     def forward(
         self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Forward pass - delegates to appropriate method based on available attributes."""
-        # If we have a wrapped policy, use PyTorch forward
-        if hasattr(self, "policy"):
-            return self._forward_pytorch(x, state, action)
-        # Otherwise use component forward
-        else:
-            return self._forward_component(x, state, action)
+        """
+        Forward pass of the MettaAgent - delegates to appropriate specialized method.
 
-    def _forward_pytorch(
-        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Forward pass for wrapped PyTorch policies."""
-        # Get the raw output from the wrapped policy
-        result = self.policy(x, state, action)
+        Args:
+            x: Input observation tensor
+            state: Policy state containing LSTM hidden and cell states
+            action: Optional action tensor for BPTT
 
-        # Check if it's a legacy policy that returns (hidden, critic)
-        if len(result) == 2 and result[0].dim() >= 2:
-            # Legacy policy interface: (hidden, critic) -> (action, logprob, entropy, value, logits)
-            hidden, critic = result
-
-            # Use pufferlib's sample_logits to handle action sampling
-            action_result, logprob, logits_entropy = sample_logits(hidden, action)
-
-            # Return in MettaAgent format
-            # hidden -> log_probs (the raw logits)
-            # critic -> value
-            return action_result, logprob, logits_entropy, critic, hidden
-
-        # Check if it's a policy that returns the full 5-tuple
-        elif len(result) == 5:
-            return result
-
-        # Handle other policies that might return (logits, value)
-        elif len(result) == 2:
-            logits, value = result
-            if action is None:
-                # Inference mode
-                action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
-                # Assume action is already in the correct format
-                action = action_logit_index.unsqueeze(-1).repeat(1, 2)  # Dummy expansion
-            else:
-                # Training mode - need to evaluate given actions
-                # This is a simplified version - real implementation would need proper action conversion
-                action_log_prob, entropy, log_probs = evaluate_actions(logits, action[:, 0])
-
-            return action, action_log_prob, entropy, value, log_probs
-
-        else:
-            raise ValueError(f"Wrapped policy returned unexpected number of values: {len(result)}")
-
-    def _forward_component(
-        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Forward pass for component-based policies."""
+        Returns:
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+        """
         # Initialize dictionary for TensorDict
         td = {"x": x, "state": None}
 
@@ -301,9 +340,23 @@ class MettaAgent(nn.Module):
         self.components["_value_"](td)
         value = td["_value_"]
 
+        # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
+        # This design supports potential future extensions like distributional value functions
+        # or multi-head value networks which would require more than a scalar per state
+        if __debug__:
+            assert_shape(value, ("BT", 1), "value")
+
         # Forward pass through action network
         self.components["_action_"](td)
         logits = td["_action_"]
+
+        if __debug__:
+            # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
+            assert_shape(logits, ("BT", "A"), "logits")
+
+        # NOTE: Both value and logits always have shape (BT, *) regardless of input mode:
+        # - Training input: (B, T, *obs_shape) gets internally reshaped to (BT, *) by LSTM
+        # - Inference input: (BT, *obs_shape) stays as (BT, *)
 
         # Update LSTM states
         split_size = self.core_num_layers
@@ -311,46 +364,24 @@ class MettaAgent(nn.Module):
         state.lstm_c = td["state"][split_size:]
 
         if action is None:
-            return self._forward_inference(value, logits)
+            return self.forward_inference(value, logits)
         else:
-            return self._forward_training(value, logits, action)
-
-    def _forward_inference(
-        self, value: torch.Tensor, logits: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Forward pass for inference mode - samples new actions based on the policy."""
-        # Sample actions
-        action_logit_index, action_log_prob, entropy, log_probs = sample_actions(logits)
-
-        # Convert logit index to action
-        action = self._convert_logit_index_to_action(action_logit_index)
-
-        return action, action_log_prob, entropy, value, log_probs
-
-    def _forward_training(
-        self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Forward pass for training mode - evaluates the policy on provided actions."""
-        B, T, A = action.shape
-        flattened_action = action.view(B * T, A)
-        action_logit_index = self._convert_action_to_logit_index(flattened_action)
-
-        action_log_prob, entropy, log_probs = evaluate_actions(logits, action_logit_index)
-
-        return action, action_log_prob, entropy, value, log_probs
+            return self.forward_training(value, logits, action)
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """Convert (action_type, action_param) pairs to discrete action indices."""
-        # Check wrapped policy first
-        policy = getattr(self, "policy", None)
-        if policy and hasattr(policy, "_convert_action_to_logit_index"):
-            return policy._convert_action_to_logit_index(flattened_action)
+        """
+        Convert (action_type, action_param) pairs to discrete action indices
+        using precomputed offsets.
 
-        # Default implementation for policies without this method
-        if not hasattr(self, "cum_action_max_params"):
-            return flattened_action[:, 0]  # Just return action type
+        Args:
+            flattened_action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
 
-        # Component policy implementation
+        Returns:
+            action_logit_indices: Tensor of shape [B*T] containing flattened action indices
+        """
+        if __debug__:
+            assert_shape(flattened_action, ("BT", 2), "flattened_action")
+
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
 
@@ -358,32 +389,53 @@ class MettaAgent(nn.Module):
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
         action_logit_indices = action_type_numbers + cumulative_sum + action_params
 
+        if __debug__:
+            assert_shape(action_logit_indices, ("BT",), "action_logit_indices")
+
         return action_logit_indices
 
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
-        """Convert logit indices back to action pairs."""
-        # Check wrapped policy first
-        policy = getattr(self, "policy", None)
-        if policy and hasattr(policy, "_convert_logit_index_to_action"):
-            return policy._convert_logit_index_to_action(action_logit_index)
+        """
+        Convert logit indices back to action pairs using tensor indexing.
 
-        # Default implementation for policies without this method
-        if not hasattr(self, "action_index_tensor"):
-            return action_logit_index.unsqueeze(-1).repeat(1, 2)  # Dummy expansion
+        Args:
+            action_logit_index: Tensor of shape [B*T] containing flattened action indices
 
-        # Component policy implementation
+        Returns:
+            action: Tensor of shape [B*T, 2] containing (action_type, action_param) pairs
+        """
+        if __debug__:
+            assert_shape(action_logit_index, ("BT",), "action_logit_index")
+
         action = self.action_index_tensor[action_logit_index]
+
+        if __debug__:
+            assert_shape(action, ("BT", 2), "actions")
+
         return action
 
     def _apply_to_components(self, method_name, *args, **kwargs) -> list[torch.Tensor]:
-        """Apply a method to all components."""
-        if not hasattr(self, "components") or len(self.components) == 0:
-            return []
+        """
+        Apply a method to all components, collecting and returning the results.
+
+        Args:
+            method_name: Name of the method to call on each component
+            *args, **kwargs: Arguments to pass to the method
+
+        Returns:
+            list: Results from calling the method on each component
+
+        Raises:
+            AttributeError: If any component doesn't have the requested method
+            TypeError: If a component's method is not callable
+            AssertionError: If no components are available
+        """
+        assert len(self.components) != 0, "No components available to apply method"
 
         results = []
         for name, component in self.components.items():
             if not hasattr(component, method_name):
-                continue  # Skip components that don't have this method
+                raise AttributeError(f"Component '{name}' does not have method '{method_name}'")
 
             method = getattr(component, method_name)
             if not callable(method):
@@ -396,85 +448,61 @@ class MettaAgent(nn.Module):
         return results
 
     def l2_reg_loss(self) -> torch.Tensor:
-        """L2 regularization loss."""
-        # Try delegating to wrapped policy first
-        policy = getattr(self, "policy", None)
-        if policy and hasattr(policy, "l2_reg_loss"):
-            return policy.l2_reg_loss()
-
-        # Apply to components
+        """L2 regularization loss is on by default although setting l2_norm_coeff to 0 effectively turns it off. Adjust
+        it by setting l2_norm_scale in your component config to a multiple of the global loss value or 0 to turn it off.
+        """
         component_loss_tensors = self._apply_to_components("l2_reg_loss")
         if len(component_loss_tensors) > 0:
             return torch.sum(torch.stack(component_loss_tensors))
-
-        # Default to zero
-        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
+        else:
+            return torch.tensor(0.0, device=self.device)
 
     def l2_init_loss(self) -> torch.Tensor:
-        """L2 initialization loss."""
-        # Try delegating to wrapped policy first
-        policy = getattr(self, "policy", None)
-        if policy and hasattr(policy, "l2_init_loss"):
-            return policy.l2_init_loss()
-
-        # Apply to components
+        """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
+        it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.
+        """
         component_loss_tensors = self._apply_to_components("l2_init_loss")
         if len(component_loss_tensors) > 0:
             return torch.sum(torch.stack(component_loss_tensors))
-
-        # Default to zero
-        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
+        else:
+            return torch.tensor(0.0, device=self.device)
 
     def update_l2_init_weight_copy(self):
-        """Update L2 initialization weight copy."""
-        # Try delegating to wrapped policy first
-        policy = getattr(self, "policy", None)
-        if policy and hasattr(policy, "update_l2_init_weight_copy"):
-            policy.update_l2_init_weight_copy()
-            return
-
-        # Apply to components
+        """Update interval set by l2_init_weight_update_interval. 0 means no updating."""
         self._apply_to_components("update_l2_init_weight_copy")
 
     def clip_weights(self):
-        """Clip weights based on clip_range."""
-        # Try delegating to wrapped policy first
-        policy = getattr(self, "policy", None)
-        if policy and hasattr(policy, "clip_weights"):
-            policy.clip_weights()
-            return
-
-        # Only clip if clip_range is positive
-        if getattr(self, "clip_range", 0) > 0:
+        """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value
+        effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global
+        loss value or 0 to turn it off."""
+        if self.clip_range > 0:
             self._apply_to_components("clip_weights")
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics for analysis."""
-        # Try delegating to wrapped policy first
-        policy = getattr(self, "policy", None)
-        if policy and hasattr(policy, "compute_weight_metrics"):
-            return policy.compute_weight_metrics(delta)
-
-        # Apply to components
-        if not hasattr(self, "components"):
-            return []
-
+        """Compute weight metrics for all components that have weights enabled for analysis.
+        Returns a list of metric dictionaries, one per component. Set analyze_weights to True in the config to turn it
+        on for a given component."""
         results = {}
         for name, component in self.components.items():
-            if not hasattr(component, "compute_weight_metrics"):
-                continue  # Skip components that don't have this method
+            method_name = "compute_weight_metrics"
+            if not hasattr(component, method_name):
+                continue  # Skip components that don't have this method instead of raising an error
 
-            method = component.compute_weight_metrics
-            if callable(method):
-                results[name] = method(delta)
+            method = getattr(component, method_name)
+            assert callable(method), f"Component '{name}' has {method_name} attribute but it's not callable"
 
-        return [metrics for metrics in results.values() if metrics is not None]
+            results[name] = method(delta)
+
+        metrics_list = [metrics for metrics in results.values() if metrics is not None]
+        return metrics_list
 
 
 class DistributedMettaAgent(DistributedDataParallel):
     """A distributed wrapper for MettaAgent that preserves the MettaAgent interface."""
 
     def __init__(self, agent, device):
+        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
         super().__init__(agent, device_ids=[device], output_device=device)
 
     def __getattr__(self, name):
@@ -487,18 +515,19 @@ class DistributedMettaAgent(DistributedDataParallel):
         return self.module.activate_actions(action_names, action_max_params, device)
 
 
-# Factory methods for backward compatibility
+# Factory functions
 def make_policy(env, cfg: Union[DictConfig, ListConfig]) -> MettaAgent:
     """Create a MettaAgent policy from environment and configuration.
 
-    This is a convenience function for backward compatibility.
+    Here's where we create MettaAgent. We're including the term MettaAgent here for better
+    searchability. Otherwise you might only find yaml files.
 
     Args:
         env: The environment with observation/action space information
         cfg: Configuration dict containing agent parameters
 
     Returns:
-        MettaAgent instance in component mode
+        MettaAgent instance
     """
     obs_space = gym.spaces.Dict(
         {
@@ -507,7 +536,6 @@ def make_policy(env, cfg: Union[DictConfig, ListConfig]) -> MettaAgent:
         }
     )
 
-    # Create MettaAgent in component mode
     return hydra.utils.instantiate(
         cfg.agent,
         obs_space=obs_space,
@@ -521,16 +549,39 @@ def make_policy(env, cfg: Union[DictConfig, ListConfig]) -> MettaAgent:
     )
 
 
-def make_distributed_agent(agent: Union[MettaAgent, nn.Module], device: torch.device) -> DistributedMettaAgent:
-    """Create a distributed version of an agent for multi-GPU training.
+def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig = None) -> PytorchAgent:
+    """Load a PyTorch policy from checkpoint and wrap it in PytorchAgent.
 
     Args:
-        agent: The agent to distribute
-        device: The device to use
+        path: Path to the checkpoint file
+        device: Device to load the policy on
+        pytorch_cfg: Configuration for the PyTorch policy
 
     Returns:
-        A DistributedDataParallel wrapper around the agent
+        PytorchAgent wrapping the loaded policy
     """
-    logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-    agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-    return DistributedMettaAgent(agent, device)
+    weights = torch.load(path, map_location=device, weights_only=True)
+
+    try:
+        num_actions, hidden_size = weights["policy.actor.0.weight"].shape
+        num_action_args, _ = weights["policy.actor.1.weight"].shape
+        _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
+    except Exception as e:
+        logger.warning(f"Failed automatic parse from weights: {e}")
+        # TODO -- fix all magic numbers
+        num_actions, num_action_args = 9, 10
+        _, obs_channels = 128, 34
+
+    # Create environment namespace
+    env = SimpleNamespace(
+        single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
+        single_observation_space=SimpleNamespace(shape=tuple(torch.tensor([obs_channels, 11, 11]).tolist())),
+    )
+
+    policy = instantiate(pytorch_cfg, env=env, policy=None)
+    policy.load_state_dict(weights)
+
+    # Set hidden_size on the loaded policy for PytorchAgent to pick up
+    policy.hidden_size = hidden_size
+
+    return PytorchAgent(policy).to(device)

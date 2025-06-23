@@ -12,7 +12,6 @@ The PolicyStore is used by the training system to manage opponent policies and c
 import logging
 import os
 import random
-from types import SimpleNamespace
 from typing import List, Optional, Union
 
 import gymnasium as gym
@@ -20,11 +19,10 @@ import hydra
 import numpy as np
 import torch
 import wandb
-from hydra.utils import instantiate
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 
-from metta.agent.metta_agent import MettaAgent
+from metta.agent.metta_agent import PytorchAgent, load_pytorch_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
@@ -287,43 +285,15 @@ class PolicyStore:
         try:
             jit_model = torch.jit.load(path, map_location=self._device)
             pr = PolicyRecord(self, name, "pytorch://" + name, default_metadata)
-            # Create MettaAgent in PyTorch mode
-            pr._policy = MettaAgent(wrapped_policy=jit_model)
+            # Wrap JIT model in PytorchAgent
+            pr._policy = PytorchAgent(jit_model)
             return pr
         except Exception:
             # Fall back to regular PyTorch checkpoint loading
-            policy = self._build_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
+            policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
             pr = PolicyRecord(self, name, "pytorch://" + name, default_metadata)
             pr._policy = policy
             return pr
-
-    def _build_pytorch_policy(self, path: str, device: str = "cpu", pytorch_cfg: Optional[DictConfig] = None):
-        """Build a policy from a PyTorch checkpoint."""
-        weights = torch.load(path, map_location=device, weights_only=True)
-
-        try:
-            num_actions, hidden_size = weights["policy.actor.0.weight"].shape
-            num_action_args, _ = weights["policy.actor.1.weight"].shape
-            _, obs_channels, _, _ = weights["policy.network.0.weight"].shape
-        except Exception as e:
-            logger.warning(f"Failed automatic parse from weights: {e}")
-            # TODO -- fix all magic numbers
-            num_actions, num_action_args = 9, 10
-            _, obs_channels = 128, 34
-
-        # Create environment namespace
-        env = SimpleNamespace(
-            single_action_space=SimpleNamespace(nvec=[num_actions, num_action_args]),
-            single_observation_space=SimpleNamespace(shape=tuple(torch.tensor([obs_channels, 11, 11]).tolist())),
-        )
-
-        policy = instantiate(pytorch_cfg, env=env, policy=None)
-        policy.load_state_dict(weights)
-
-        # Create MettaAgent in PyTorch mode
-        wrapped_agent = MettaAgent(wrapped_policy=policy)
-        wrapped_agent.hidden_size = hidden_size
-        return wrapped_agent.to(device)
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a policy from a file using PolicyRecord's load method."""

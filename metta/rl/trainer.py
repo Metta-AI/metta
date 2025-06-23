@@ -696,23 +696,29 @@ class MettaTrainer:
         def is_from_torch_package(obj):
             return hasattr(obj, "__class__") and obj.__class__.__module__.startswith("<torch_package")
 
-        # Check both wrapper and inner policy
-        if not (is_from_torch_package(policy) or (hasattr(policy, "policy") and is_from_torch_package(policy.policy))):
-            return policy  # Not from torch.package, use as-is
+        # For PytorchAgent, we can't re-save torch.package loaded models
+        if hasattr(policy, "is_pytorch_policy") and policy.is_pytorch_policy:
+            if hasattr(policy, "policy") and is_from_torch_package(policy.policy):
+                raise ValueError(
+                    "Cannot re-save PyTorch policies loaded from torch.package. "
+                    "Please load from the original checkpoint instead."
+                )
+            return policy
 
-        logger.info("Creating fresh instance for torch.package loaded model")
+        # For MettaAgent, check if it's from torch.package
+        if is_from_torch_package(policy):
+            logger.info("Creating fresh instance for torch.package loaded model")
 
-        # Create fresh model and activate actions
-        fresh_policy = self.policy_store.create(metta_grid_env).policy()
-        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+            # Create fresh model and activate actions
+            fresh_policy = self.policy_store.create(metta_grid_env).policy()
+            fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
 
-        # Copy state_dict with strict=False to handle architecture changes
-        if hasattr(policy, "policy") and hasattr(fresh_policy, "policy"):
-            fresh_policy.policy.load_state_dict(policy.policy.state_dict(), strict=False)
-        else:
+            # Copy state_dict with strict=False to handle architecture changes
             fresh_policy.load_state_dict(policy.state_dict(), strict=False)
 
-        return fresh_policy
+            return fresh_policy
+
+        return policy
 
     def _checkpoint_policy(self) -> PolicyRecord | None:
         if not self._master:
