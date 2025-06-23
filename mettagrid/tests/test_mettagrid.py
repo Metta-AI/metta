@@ -1,7 +1,7 @@
 import numpy as np
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import dtype_actions
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_env import dtype_actions
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3

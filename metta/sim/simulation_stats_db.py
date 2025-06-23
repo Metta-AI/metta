@@ -16,8 +16,8 @@ from typing import Dict, List, Tuple, Union
 import duckdb
 
 from metta.agent.policy_store import PolicyRecord
-from mettagrid.episode_stats_db import EpisodeStatsDB
-from mettagrid.util.file import exists, local_copy, write_file
+from metta.mettagrid.episode_stats_db import EpisodeStatsDB
+from metta.mettagrid.util.file import exists, local_copy, write_file
 
 # ------------------------------------------------------------------ #
 #   Tables & indexes                                                 #

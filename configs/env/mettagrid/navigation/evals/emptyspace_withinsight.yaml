@@ -5,7 +5,7 @@ defaults:
 game:
   max_steps: 45
   map_builder:
-    _target_: mettagrid.room.mean_distance.MeanDistance
+    _target_: metta.mettagrid.room.mean_distance.MeanDistance
     width: 12
     height: 12
     mean_distance: 10

@@ -1,4 +1,4 @@
-_target_: mettagrid.curriculum.LowRewardCurriculum
+_target_: metta.mettagrid.curriculum.low_reward.LowRewardCurriculum
 
 tasks:
   /env/mettagrid/navigation_sequence/experiments/mem_balanced: 1

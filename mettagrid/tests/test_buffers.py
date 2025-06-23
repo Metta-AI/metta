@@ -1,8 +1,14 @@
 import numpy as np
 import pytest
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import dtype_actions, dtype_observations, dtype_rewards, dtype_terminals, dtype_truncations
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_env import (
+    dtype_actions,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
+)
 
 NUM_AGENTS = 2
 OBS_HEIGHT = 3

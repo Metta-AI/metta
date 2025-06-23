@@ -6,7 +6,7 @@ desync_episodes: false
 game:
   num_observation_tokens: 100
   map_builder:
-    _target_: mettagrid.room.random.Random
+    _target_: metta.mettagrid.room.random.Random
     width: 25
     height: 25
     border_width: 0
