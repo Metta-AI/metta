@@ -9,9 +9,12 @@ It provides functionality to:
 The PolicyStore is used by the training system to manage opponent policies and checkpoints.
 """
 
+import collections
 import logging
 import os
 import random
+import sys
+import warnings
 from typing import List, Optional, Union
 
 import gymnasium as gym
@@ -187,7 +190,7 @@ class PolicyRecord:
             elif hasattr(v, "__dict__"):
                 try:
                     return str(v)
-                except:
+                except Exception:
                     return None
             else:
                 return v
@@ -213,7 +216,7 @@ class PolicyRecord:
                     try:
                         source = inspect.getsource(policy.__class__)
                         exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
-                    except:
+                    except Exception:
                         exporter.extern("__main__")
 
                 for module in [
@@ -247,6 +250,7 @@ class PolicyRecord:
                 exporter.extern("mettagrid.mettagrid_c")
                 exporter.extern("mettagrid")
                 exporter.extern("mettagrid.**")
+                exporter.extern("sys")
 
                 clean_metadata = self._clean_metadata_for_packaging(self.metadata)
                 exporter.save_pickle(
@@ -271,10 +275,10 @@ class PolicyRecord:
                 pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)
                 if hasattr(pr, "_policy") and pr._policy is not None:
                     return pr._policy
-                raise ValueError("PolicyRecord in package does not contain a policy")
+                raise ValueError("PolicyRecord in package does not contain a policy") from e
         except Exception as e:
             logger.info(f"Not a torch.package file ({e})")
-            raise ValueError(f"Cannot load policy from {path}: This file is not a valid torch.package file.")
+            raise ValueError(f"Cannot load policy from {path}: This file is not a valid torch.package file.") from e
 
     def key_and_version(self) -> tuple[str, int]:
         """
@@ -356,9 +360,11 @@ class PolicyStore:
 
         if len(prs) == 0:
             raise ValueError(f"No policies found at {uri}")
+
         logger.info(f"Found {len(prs)} policies at {uri}")
 
         if selector_type == "all":
+            logger.info(f"Returning all {len(prs)} policies")
             return prs
         elif selector_type == "latest":
             selected = [prs[0]]
@@ -391,8 +397,6 @@ class PolicyStore:
                 return selected
 
             policies_with_scores = [p for p, s in policy_scores.items() if s is not None]
-            if len(policies_with_scores) < len(prs) * 0.8:
-                return [prs[0]]
 
             # If more than 20% of the policies have no score, return the latest policy
             if len(policies_with_scores) < len(prs) * 0.8:
@@ -561,6 +565,52 @@ class PolicyStore:
 
         raise ValueError(f"Invalid URI: {uri}")
 
+    def _make_codebase_backwards_compatible(self):
+        """
+        torch.load expects the codebase to be in the same structure as when the model was saved.
+        We can use this function to alias old layout structures. For now we are supporting:
+        - agent --> metta.agent
+        """
+
+        # Memoize
+        if getattr(self, "_made_codebase_backwards_compatible", False):
+            return
+        self._made_codebase_backwards_compatible = True
+
+        # Handle agent --> metta.agent
+        sys.modules["agent"] = sys.modules["metta.agent"]
+        modules_queue = collections.deque(["metta.agent"])
+
+        processed = set()
+        while modules_queue:
+            module_name = modules_queue.popleft()
+            if module_name in processed:
+                continue
+            processed.add(module_name)
+
+            if module_name not in sys.modules:
+                continue
+            module = sys.modules[module_name]
+            old_name = module_name.replace("metta.agent", "agent")
+            sys.modules[old_name] = module
+
+            # Find all submodules
+            for attr_name in dir(module):
+                try:
+                    attr = getattr(module, attr_name)
+                except (ImportError, AttributeError):
+                    continue
+                if hasattr(attr, "__module__"):
+                    attr_module = getattr(attr, "__module__", None)
+
+                    # If it's a module and part of metta.agent, queue it
+                    if attr_module and attr_module.startswith("metta.agent"):
+                        modules_queue.append(attr_module)
+
+                submodule_name = f"{module_name}.{attr_name}"
+                if submodule_name in sys.modules:
+                    modules_queue.append(submodule_name)
+
     def _load_from_pytorch(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         name = os.path.basename(path)
         pr = PolicyRecord(
@@ -580,6 +630,13 @@ class PolicyStore:
             path = os.path.join(path, os.listdir(path)[-1])
 
         logger.info(f"Loading policy from {path}")
+
+        self._make_codebase_backwards_compatible()
+
+        assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+
         try:
             importer = PackageImporter(path)
             pr = importer.load_pickle("policy_record", "data.pkl")
@@ -594,7 +651,7 @@ class PolicyStore:
             if "PytorchStreamReader failed locating file .data/extern_modules" in str(e):
                 logger.info("Detected old checkpoint format, loading as regular PyTorch checkpoint")
                 return self._load_legacy_checkpoint(path, metadata_only)
-            raise ValueError(f"Failed to load policy from {path}: {e}")
+            raise ValueError(f"Failed to load policy from {path}: {e}") from e
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")
@@ -676,7 +733,7 @@ class PolicyStore:
                 logger.info("Successfully loaded legacy checkpoint as MettaAgent")
             except Exception as e:
                 logger.error(f"Failed to create MettaAgent from legacy checkpoint: {e}")
-                raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}")
+                raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}") from e
 
         self._cached_prs[path] = pr
         return pr
