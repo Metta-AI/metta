@@ -18,8 +18,10 @@ class RandomCurriculum(MultiTaskCurriculum):
         task = self._curriculums[task_id].get_task()
         task.add_parent(self, task_id)
         logger.debug(f"Task selected: {task.name()}")
-        # Minimal WandB logging for curriculum task selection
+        # Log sampling probabilities for each task to WandB
         if wandb.run is not None:
-            wandb.run.log({"curriculum/task_id": task_id}, commit=False)
-            wandb.run.log({"curriculum/task_weights": dict(self._task_weights)}, commit=False)
+            total_weight = sum(self._task_weights.values())
+            if total_weight > 0:
+                task_probs = {k: v / total_weight for k, v in self._task_weights.items()}
+                wandb.run.log({"curriculum/task_probs": task_probs}, commit=False)
         return task
