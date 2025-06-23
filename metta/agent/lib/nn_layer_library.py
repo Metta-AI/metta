@@ -40,6 +40,13 @@ class Linear(ParamLayer):
         )
         return nn.Linear(self._in_tensor_shapes[0][0], **self._nn_params)
 
+    def _forward(self, td: TensorDict):
+        x = td[self._sources[0]["name"]]
+        if self._name == "critic_1" and td.get("value_only_training", False):
+            x.detach()
+        td[self._name] = self._net(x)
+        return td
+
 
 class ReLU(LayerBase):
     """

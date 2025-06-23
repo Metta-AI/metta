@@ -75,7 +75,10 @@ kickstart:
   teacher_uri: null
   action_loss_coef: 0.5
   value_loss_coef: 0.5
-  anneal_ratio: 0.6 # ratio of kickstart_steps to anneal to 0 coef
+  value_only_training_start: 700_000_000 #700_000_000
+  value_only_training_end: 750_000_000 #750_000_000
+  value_only_training_enabled: true
+  anneal_ratio: 0.0 # ratio of kickstart_steps to anneal to 0 coef
   kickstart_steps: 700_000_000
   additional_teachers:
     - teacher_uri: wandb://run/m_alexv_ks_dr_lam_001:v22

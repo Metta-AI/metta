@@ -500,6 +500,17 @@ class MettaTrainer:
         minibatch_idx = 0
 
         for _epoch in range(trainer_cfg.update_epochs):
+            # Check for value-only training phase
+            value_training_cfg = trainer_cfg.get("kickstart")
+            in_value_phase = False
+            if value_training_cfg and value_training_cfg.get("value_only_training_enabled", False):
+                start = value_training_cfg.get("value_only_training_start", -1)
+                end = value_training_cfg.get("value_only_training_end", -1)
+                if start != -1 and end != -1 and start <= self.agent_step < end:
+                    in_value_phase = True
+
+            self.policy.set_value_only_training(in_value_phase)
+
             for _ in range(experience.num_minibatches):
                 minibatch = experience.sample_minibatch(
                     advantages=advantages,
@@ -586,6 +597,9 @@ class MettaTrainer:
                     + ks_action_loss
                     + ks_value_loss
                 )
+
+                if in_value_phase:
+                    loss = v_loss * trainer_cfg.vf_coef
 
                 # Update values in experience buffer
                 experience.update_values(minibatch["indices"], newvalue.view(minibatch["values"].shape))

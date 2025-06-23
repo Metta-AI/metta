@@ -128,6 +128,11 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
+        self.value_only_training = False
+
+    def set_value_only_training(self, mode: bool):
+        self.value_only_training = mode
+
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
         It must always have a "name" and that name should be the same as the relevant key in self.components.
@@ -305,7 +310,10 @@ class MettaAgent(nn.Module):
                 # assert_shape(action, (B, T, 2), "training_input_action")
 
         # Initialize dictionary for TensorDict
-        td = {"x": x, "state": None}
+        if hasattr(self, "value_only_training"):
+            td = {"x": x, "state": None, "value_only_training": self.value_only_training}
+        else:
+            td = {"x": x, "state": None}
 
         # Safely handle LSTM state
         if state.lstm_h is not None and state.lstm_c is not None:
