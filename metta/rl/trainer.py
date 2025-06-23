@@ -351,9 +351,7 @@ class MettaTrainer:
             self.evals[f"{category}/{sim_short_name}"] = score
 
     def _on_train_step(self):
-        # Update step count for staged progressive curriculum
-        if hasattr(self._curriculum, 'update_step_count'):
-            self._curriculum.update_step_count(self.agent_step * self._world_size)
+        pass
 
     @with_instance_timer("_rollout")
     def _rollout(self):
