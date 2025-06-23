@@ -1,12 +1,7 @@
 import logging
 from typing import Dict, List
 
-<<<<<<< HEAD:mettagrid/mettagrid/curriculum/multi_task.py
-from mettagrid.curriculum.curriculum import Curriculum
-=======
 from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
->>>>>>> 785b3ad4173cc4604c075c3dfa7b1541f0d07e16:mettagrid/src/metta/mettagrid/curriculum/multi_task.py
 
 logger = logging.getLogger(__name__)
 

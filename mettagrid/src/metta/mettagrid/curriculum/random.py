@@ -4,16 +4,11 @@ import logging
 import random
 from typing import Dict
 
-<<<<<<< HEAD:mettagrid/mettagrid/curriculum/random.py
 from omegaconf import DictConfig
 
-from mettagrid.curriculum.curriculum import Curriculum, Task
-from mettagrid.curriculum.multi_task import MultiTaskCurriculum
-from mettagrid.curriculum.util import curriculum_from_config_path
-=======
-from metta.mettagrid.curriculum.core import Task
+from metta.mettagrid.curriculum.core import Curriculum, Task
 from metta.mettagrid.curriculum.multi_task import MultiTaskCurriculum
->>>>>>> 785b3ad4173cc4604c075c3dfa7b1541f0d07e16:mettagrid/src/metta/mettagrid/curriculum/random.py
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 
 logger = logging.getLogger(__name__)
 

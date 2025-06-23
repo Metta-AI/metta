@@ -27,7 +27,7 @@ game:
     border_width: 6
 
     room:
-      _target_: mettagrid.room.random.Random
+      _target_: metta.mettagrid.room.random.Random
       width: 30
       height: 30
       border_width: 3

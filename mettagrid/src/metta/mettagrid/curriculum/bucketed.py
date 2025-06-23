@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Tuple
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
 
-from mettagrid.curriculum.core import Curriculum
-from mettagrid.curriculum.sampling import SampledTaskCurriculum
-from mettagrid.curriculum.util import config_from_path
+from metta.mettagrid.curriculum.core import Curriculum
+from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
+from metta.mettagrid.curriculum.util import config_from_path
 
 from .low_reward import LowRewardCurriculum
 
