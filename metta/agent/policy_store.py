@@ -173,6 +173,7 @@ class PolicyRecord:
             lines.append("\nBuffer Shapes:")
             for name, buffer in buffers:
                 lines.append(f"  {name}: {list(buffer.shape)}")
+
         return "\n".join(lines)
 
     def _clean_metadata_for_packaging(self, metadata: dict) -> dict:
@@ -492,7 +493,7 @@ class PolicyStore:
         if path.endswith(".pt"):
             paths.append(path)
         else:
-            paths = [os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")]
+            paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
         return [self._load_from_file(path, metadata_only=True) for path in paths]
 
     def _prs_from_wandb_artifact(self, uri: str, version: Optional[str] = None) -> List[PolicyRecord]:
@@ -550,10 +551,10 @@ class PolicyStore:
     def _make_codebase_backwards_compatible(self):
         """
         torch.load expects the codebase to be in the same structure as when the model was saved.
+
         We can use this function to alias old layout structures. For now we are supporting:
         - agent --> metta.agent
         """
-
         # Memoize
         if getattr(self, "_made_codebase_backwards_compatible", False):
             return
@@ -610,7 +611,6 @@ class PolicyStore:
 
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
-
         logger.info(f"Loading policy from {path}")
 
         self._make_codebase_backwards_compatible()
