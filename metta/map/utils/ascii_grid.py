@@ -1,7 +1,7 @@
 import numpy as np
 
 from metta.map.types import MapGrid
-from mettagrid.char_encoder import char_to_grid_object, grid_object_to_char
+from metta.mettagrid.char_encoder import char_to_grid_object, grid_object_to_char
 
 
 def add_pretty_border(lines: list[str]) -> list[str]:

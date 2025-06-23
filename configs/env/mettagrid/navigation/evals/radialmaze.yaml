@@ -6,7 +6,7 @@ game:
   max_steps: 200
 
   map_builder:
-    _target_: mettagrid.room.cognitive_evals.radial_maze.RadialMaze
+    _target_: metta.mettagrid.room.cognitive_evals.radial_maze.RadialMaze
     width: 20
     height: 20
     radial_params:
