@@ -1,9 +1,9 @@
-_target_: mettagrid.room.multi_room.MultiRoom
+_target_: metta.mettagrid.room.multi_room.MultiRoom
 num_rooms: ${div:${..num_agents},6}
 border_width: 6
 
 room:
-  _target_: mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+  _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
   border_width: 0
 
   agents: 6

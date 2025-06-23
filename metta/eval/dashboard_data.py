@@ -5,9 +5,9 @@ from typing import Dict, List
 
 from pydantic import BaseModel
 
+from metta.mettagrid.util.file import write_data
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.util.config import Config
-from mettagrid.util.file import write_data
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
     db.con.execute(
         """
       CREATE VIEW IF NOT EXISTS episode_info AS (
-          SELECT 
+          SELECT
             e.id as episode_id,
             s.name as eval_name,
             s.suite,
@@ -49,7 +49,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
             s.policy_key || ':v' || s.policy_version AS policy_uri,
             e.created_at,
             e.replay_url,
-          FROM simulations s 
+          FROM simulations s
           JOIN episodes e ON e.simulation_id = s.id)
       """
     )
@@ -58,7 +58,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
         """
       CREATE VIEW IF NOT EXISTS episode_metrics AS (
         WITH agent_metrics_with_groups AS (
-            SELECT 
+            SELECT
                 am.episode_id,
                 am.agent_id,
                 ag.group_id,
@@ -67,7 +67,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
             FROM agent_metrics am
             JOIN agent_groups ag ON am.episode_id = ag.episode_id AND am.agent_id = ag.agent_id
         )
-        SELECT 
+        SELECT
             episode_id,
             group_id,
             metric,
@@ -81,7 +81,7 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
     # Returns (policy_uri, eval_name, suite, group_id, num_agents, replay_url)
     eval_info_rows = db.con.execute(
         """
-        SELECT e.policy_uri, e.eval_name, e.suite, ag.group_id, COUNT(*) as num_agents, 
+        SELECT e.policy_uri, e.eval_name, e.suite, ag.group_id, COUNT(*) as num_agents,
           ANY_VALUE(e.replay_url) as replay_url
         FROM episode_info e
         JOIN agent_groups ag ON e.episode_id = ag.episode_id
@@ -93,14 +93,14 @@ def get_policy_eval_metrics(db: SimulationStatsDB) -> List[PolicyEval]:
     metric_rows = db.con.execute(
         """
       SELECT
-        e.policy_uri, 
+        e.policy_uri,
         e.eval_name,
         m.group_id,
         m.metric,
         SUM(m.value) as value
-      FROM episode_metrics m 
-      JOIN episode_info e 
-      ON m.episode_id = e.episode_id 
+      FROM episode_metrics m
+      JOIN episode_info e
+      ON m.episode_id = e.episode_id
       GROUP BY e.policy_uri, e.eval_name, m.group_id, m.metric
     """
     ).fetchall()

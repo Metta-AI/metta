@@ -12,9 +12,9 @@ import hydra
 from omegaconf import DictConfig
 
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.mettagrid.util.file import local_copy
 from metta.util.logging import setup_mettagrid_logger
 from metta.util.runtime_configuration import setup_mettagrid_environment
-from mettagrid.util.file import local_copy
 
 
 def launch_duckdb_cli(file_path):

@@ -152,13 +152,15 @@ class SystemMonitor:
         # Check cgroup for docker/kubernetes
         # Note: /proc/1/cgroup only exists on Linux systems
         try:
-            with open("/proc/1/cgroup", "r") as f:
-                if any("docker" in line or "kubepods" in line for line in f):
-                    return True
+            # We have a blanket catch below, so this isn't strictly necessary; but it makes things
+            # less disruptive if you're debugging and running with "break on all raised exceptions".
+            if os.path.exists("/proc/1/cgroup"):
+                with open("/proc/1/cgroup", "r") as f:
+                    if any("docker" in line or "kubepods" in line for line in f):
+                        return True
         except Exception:
             # Catch all exceptions to ensure this doesn't crash on any platform
-            # This includes FileNotFoundError (file doesn't exist on macOS/Windows),
-            # PermissionError (no permission), and any other OS-specific errors
+            # This includes PermissionError (no permission) and any other OS-specific errors
             pass
 
         # Check for container environment variables
