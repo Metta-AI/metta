@@ -23,8 +23,14 @@ class AgentRewards(BaseModelWithForbidExtra):
     battery_red_max: Optional[float] = Field(default=None, alias="battery.red_max")
     battery_blue_max: Optional[float] = Field(default=None, alias="battery.blue_max")
     battery_green_max: Optional[float] = Field(default=None, alias="battery.green_max")
-    heart: Optional[float] = None
-    heart_max: Optional[float] = None
+    heart: Optional[float] = Field(default=None)
+    heart_max: Optional[float] = Field(default=None)
+    armor: Optional[float] = Field(default=None)
+    armor_max: Optional[float] = Field(default=None)
+    laser: Optional[float] = Field(default=None)
+    laser_max: Optional[float] = Field(default=None)
+    blueprint: Optional[float] = Field(default=None)
+    blueprint_max: Optional[float] = Field(default=None)
 
 
 class AgentConfig(BaseModelWithForbidExtra):
@@ -39,7 +45,10 @@ class AgentConfig(BaseModelWithForbidExtra):
     battery_red_max: Optional[int] = Field(default=None, alias="battery.red_max")
     battery_blue_max: Optional[int] = Field(default=None, alias="battery.blue_max")
     battery_green_max: Optional[int] = Field(default=None, alias="battery.green_max")
-    heart_max: Optional[int] = None
+    heart_max: Optional[int] = Field(default=None)
+    armor_max: Optional[int] = Field(default=None)
+    laser_max: Optional[int] = Field(default=None)
+    blueprint_max: Optional[int] = Field(default=None)
 
 
 class GroupProps(RootModel[Dict[str, Any]]):
