@@ -7,31 +7,29 @@ from mettagrid.mettagrid_config import GameConfig as GameConfig_py
 
 
 class BaseModelWithForbidExtra(BaseModel):
-    class Config:
-        extra = "forbid"
+    model_config = dict(extra="forbid")
 
 
 class InventoryItemReward_cpp(BaseModelWithForbidExtra):
     """Reward configuration for an inventory item."""
 
-    reward: float
+    reward: float = Field(ge=0)
     # the maximum number of items that can be collected for this reward
-    max_reward: int
+    max_reward: int = Field(ge=0)
 
 
 class AgentRewards_cpp(BaseModelWithForbidExtra):
     """Agent reward configuration."""
 
-    action_failure_penalty: Optional[float] = None
+    action_failure_penalty: Optional[float] = Field(default=None, ge=0)
     inventory_item_rewards: Dict[str, InventoryItemReward_cpp]
 
 
 class AgentConfig_cpp(BaseModelWithForbidExtra):
     """Agent configuration."""
 
-    default_item_max: int
-    freeze_duration: int
-    inventory_size: int
+    default_item_max: int = Field(ge=0)
+    freeze_duration: int = Field(ge=0)
     group_id: int
     rewards: AgentRewards_cpp
 
@@ -46,8 +44,8 @@ class GroupConfig_cpp(BaseModelWithForbidExtra):
     """Group configuration."""
 
     id: int
-    sprite: Optional[int] = None
-    group_reward_pct: Optional[float] = None
+    sprite: Optional[int] = Field(default=None)
+    group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
 
 
 class ActionConfig_cpp(BaseModelWithForbidExtra):
