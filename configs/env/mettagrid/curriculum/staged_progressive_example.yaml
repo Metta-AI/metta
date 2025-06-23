@@ -1,0 +1,32 @@
+_target_: mettagrid.curriculum.StagedProgressiveCurriculum
+
+# Multi-stage training configuration
+# This replaces the need for separate training runs by automatically transitioning
+# between different curriculum stages based on performance or time thresholds
+
+stages:
+  # Stage 1: Navigation training
+  - curriculum: /env/mettagrid/curriculum/navigation
+    name: "navigation_training"
+    weight: 1.0
+  
+  # Stage 2: Navigation sequence training  
+  - curriculum: /env/mettagrid/curriculum/navsequence/nav_backchain
+    name: "navigation_sequence"
+    weight: 1.0
+  
+  # Stage 3: Simple tasks
+  - curriculum: /env/mettagrid/curriculum/simple
+    name: "simple_tasks"
+    weight: 1.0
+
+# Transition configuration
+transition_criteria: "performance"  # "performance" or "time"
+performance_threshold: 0.8  # Transition when performance reaches 80%
+time_threshold_steps: 100000  # Alternative: transition after 100k steps
+transition_smoothing: 0.1  # Smoothing factor for performance tracking
+
+# Environment overrides applied to all stages
+env_overrides:
+  game:
+    num_agents: 24 
