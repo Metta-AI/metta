@@ -54,5 +54,4 @@ game:
         border_width: 0
 
         objects:
-          converter: ${sampling:1,15,5}
           wall: ${sampling:10,60,10}
