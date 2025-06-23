@@ -6,10 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "metta-common"
 version = "0.1.0"
 description = "Common utilities for metta packages"
-readme = "README.md"
+authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]
 requires-python = "==3.11.7"
-license = { text = "MIT" }
-authors = [{ name = "Your Name", email = "your.email@example.com" }]
+license = "MIT"
+readme = "README.md"
+urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/mettagrid" }
 dependencies = [
   "pytest>=8.3.3",
   "pytest-cov>=6.1.1",
@@ -23,6 +24,7 @@ where = ["src"]
 include = ["metta.common"]
 
 [tool.setuptools.package-data]
+"metta" = ["__init__.py"]
 "metta.common" = ["py.typed"]
 
 [tool.pytest.ini_options]

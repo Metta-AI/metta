@@ -74,7 +74,7 @@ python_classes = ["Test*"]
 cache-keys = [
     { file = "pyproject.toml" },
     { file = "CMakeLists.txt" },
-    { file = "mettagrid/**/*.{cpp,hpp}" },
+    { file = "src/**/*.{cpp,hpp}" },
 ]
 
 [tool.setuptools.packages.find]
@@ -82,6 +82,7 @@ where = ["src"]
 include = ["metta.mettagrid"]
 
 [tool.setuptools.package-data]
+"metta" = ["__init__.py"]
 "metta.mettagrid" = ["py.typed"]
 
 [tool.uv.sources]
