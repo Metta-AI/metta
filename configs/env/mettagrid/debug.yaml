@@ -28,6 +28,6 @@ game:
       enabled: false
 
   map_builder:
-    _target_: mettagrid.room.ascii.Ascii
+    _target_: metta.mettagrid.room.ascii.Ascii
     uri: ${oc.env:DEBUG_MAP_URI,"configs/env/mettagrid/maps/debug/tiny_two_altars.map"}
     border_width: 0

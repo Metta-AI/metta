@@ -1,4 +1,4 @@
-_target_: mettagrid.curriculum.RandomCurriculum
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 #use this environment pretrained on a policy that is the best at navigation sequence already
 #gd_backchain_mem_pretained:v18

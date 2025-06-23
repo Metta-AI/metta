@@ -5,12 +5,12 @@ defaults:
 game:
   num_agents: 24
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${div:${..num_agents},6}
     border_width: 1
 
     room:
-      _target_: mettagrid.room.random.Random
+      _target_: metta.mettagrid.room.random.Random
       width: ${sampling:10,100,17}
       height: ${sampling:10,100,17}
       border_width: 0

@@ -1,0 +1,49 @@
+name: "Claude Review: Types"
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+
+jobs:
+  review:
+    uses: ./.github/workflows/claude-review-base.yml
+    secrets: inherit
+    with:
+      review_name: "Type Annotations"
+      review_type: "types"
+      file_pattern: "\\.py$"
+      setup_python: true
+      tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(.github/scripts/claude_tools/type_check.py analyze),Bash(.github/scripts/claude_tools/type_check.py check)"
+      pr_number: ${{ inputs.pr_number }}
+      prompt: |
+        Review the Python code in this PR for MISSING type annotations that would provide real value.
+
+        You have access to a type checking tool at .github/scripts/claude_tools/type_check.py:
+        - To analyze a file for missing annotations: .github/scripts/claude_tools/type_check.py analyze <file.py>
+        - To run comprehensive checks: .github/scripts/claude_tools/type_check.py check <file.py>
+
+        The tool will return JSON with only high-value missing annotations, already filtered according to these rules:
+        - Always reports missing parameter types
+        - Only reports missing return types for public APIs and complex functions
+        - Skips private methods, properties, and trivial functions
+
+        **WORKFLOW**:
+        1. First, get the list of changed Python files using: git diff HEAD~1 --name-only | grep '\.py$'
+        2. For each changed file, run: .github/scripts/claude_tools/type_check.py analyze <file>
+        3. Review the JSON output from the tool
+        4. If the tool reports missing annotations, create review suggestions
+        5. If no missing annotations are found across all files, respond with "No issues found."
+
+        **CRITICAL**:
+        - Only create suggestions for issues reported by the tool
+        - Do not invent or assume missing annotations - rely on the tool's analysis
+        - If the tool reports no issues, do not create a review
+
+        When creating suggestions, use modern Python syntax:
+        - Use `list[str]` not `List[str]` (Python 3.9+)
+        - Use `type | None` not `Optional[type]` (Python 3.10+)
+        - Use `dict[str, int]` not `Dict[str, int]`
+
+        Focus on making the code better, not achieving 100% coverage.

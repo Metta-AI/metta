@@ -19,7 +19,11 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
+from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -30,11 +34,8 @@ from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.util.heartbeat import record_heartbeat
+from metta.util.system_monitor import SystemMonitor
 from metta.util.wandb.wandb_context import WandbRun
-from mettagrid.curriculum import curriculum_from_config_path
-from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from mettagrid.util.dict_utils import unroll_nested_dict
-from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
@@ -93,6 +94,13 @@ class MettaTrainer:
 
         self.timer = Stopwatch(logger)
         self.timer.start()
+
+        self.system_monitor = SystemMonitor(
+            sampling_interval_sec=1.0,  # Sample every second
+            history_size=100,  # Keep last 100 samples
+            logger=logger,
+            auto_start=True,  # Start monitoring immediately
+        )
 
         curriculum_config = trainer_cfg.get("curriculum", trainer_cfg.get("env", {}))
         env_overrides = DictConfig({"env_overrides": trainer_cfg.env_overrides})
@@ -270,7 +278,7 @@ class MettaTrainer:
 
             logger.info(
                 f"Epoch {self.epoch} - "
-                f"{steps_per_sec:.0f} steps/sec "
+                f"{steps_per_sec * self._world_size:.0f} steps/sec "
                 f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
             )
             record_heartbeat()
@@ -305,6 +313,7 @@ class MettaTrainer:
 
         self._checkpoint_trainer()
         self._save_policy_to_wandb()
+        self.system_monitor.stop()
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
@@ -384,7 +393,7 @@ class MettaTrainer:
             # Convert mask to tensor once
             mask = torch.as_tensor(mask)
             num_steps = int(mask.sum().item())
-            self.agent_step += num_steps * self._world_size
+            self.agent_step += num_steps
 
             # Convert to tensors once
             o = torch.as_tensor(o).to(device, non_blocking=True)
@@ -532,7 +541,7 @@ class MettaTrainer:
                 )
 
                 new_logprobs = new_logprobs.reshape(minibatch["logprobs"].shape)
-                logratio = new_logprobs.detach() - minibatch["logprobs"]
+                logratio = new_logprobs - minibatch["logprobs"]
                 importance_sampling_ratio = logratio.exp()
                 experience.update_ratio(minibatch["indices"], importance_sampling_ratio)
 
@@ -584,11 +593,11 @@ class MettaTrainer:
                     self.agent_step, full_logprobs, newvalue, obs, teacher_lstm_state=[]
                 )
 
-                l2_reg_loss = torch.tensor(0.0, device=self.device)
+                l2_reg_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                 if trainer_cfg.l2_reg_loss_coef > 0:
                     l2_reg_loss = trainer_cfg.l2_reg_loss_coef * self.policy.l2_reg_loss().to(self.device)
 
-                l2_init_loss = torch.tensor(0.0, device=self.device)
+                l2_init_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
                 if trainer_cfg.l2_init_loss_coef > 0:
                     l2_init_loss = trainer_cfg.l2_init_loss_coef * self.policy.l2_init_loss().to(self.device)
 
@@ -668,9 +677,7 @@ class MettaTrainer:
         checkpoint = TrainerCheckpoint(
             agent_step=self.agent_step,
             epoch=self.epoch,
-            total_agent_step=self.agent_step * torch.distributed.get_world_size()
-            if torch.distributed.is_initialized()
-            else self.agent_step,
+            total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
             policy_path=pr.uri if pr else None,
             extra_args=extra_args,
@@ -804,12 +811,9 @@ class MettaTrainer:
         lap_times = self.timer.lap_all(self.agent_step, exclude_global=False)
         wall_time_for_lap = lap_times.pop("global", 0)
 
-        # Approximate total values by multiplying by world size
-        total_agent_steps = self.agent_step * self._world_size
-
         # X-axis values for wandb
         metric_stats = {
-            "metric/agent_step": total_agent_steps,
+            "metric/agent_step": self.agent_step * self._world_size,
             "metric/epoch": self.epoch,
             "metric/total_time": wall_time,
             "metric/train_time": train_time,
@@ -820,6 +824,9 @@ class MettaTrainer:
             epoch_steps = self.agent_step
         epoch_steps_per_second = epoch_steps / wall_time_for_lap if wall_time_for_lap > 0 else 0
         steps_per_second = self.timer.get_rate(self.agent_step) if wall_time > 0 else 0
+
+        epoch_steps_per_second *= self._world_size
+        steps_per_second *= self._world_size
 
         timing_stats = {
             **{
@@ -882,6 +889,7 @@ class MettaTrainer:
                 **{f"experience/{k}": v for k, v in self.experience.stats().items()},
                 **{f"parameters/{k}": v for k, v in parameters.items()},
                 **{f"eval_{k}": v for k, v in self.evals.items()},
+                **{f"monitor/{k}": v for k, v in self.system_monitor.stats().items()},
                 **environment_stats,
                 **weight_stats,
                 **timing_stats,

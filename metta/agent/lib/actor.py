@@ -40,8 +40,10 @@ class MettaActorBig(LayerBase):
         self.embed_dim = self._in_tensor_shapes[1][1]  # input_2 dim (_action_embeds_)
 
         # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
-        self.W = nn.Parameter(torch.Tensor(self.bilinear_output_dim, self.hidden, self.embed_dim))
-        self.bias = nn.Parameter(torch.Tensor(self.bilinear_output_dim))
+        self.W = nn.Parameter(
+            torch.Tensor(self.bilinear_output_dim, self.hidden, self.embed_dim).to(dtype=torch.float32)
+        )
+        self.bias = nn.Parameter(torch.Tensor(self.bilinear_output_dim).to(dtype=torch.float32))
         self._init_weights()
 
         self._relu = nn.ReLU()
@@ -118,8 +120,8 @@ class MettaActorSingleHead(LayerBase):
         self.embed_dim = self._in_tensor_shapes[1][1]  # input_2 dim (_action_embeds_)
 
         # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
-        self.W = nn.Parameter(torch.Tensor(1, self.hidden, self.embed_dim))
-        self.bias = nn.Parameter(torch.Tensor(1))
+        self.W = nn.Parameter(torch.Tensor(1, self.hidden, self.embed_dim).to(dtype=torch.float32))
+        self.bias = nn.Parameter(torch.Tensor(1).to(dtype=torch.float32))
         self._tanh = nn.Tanh()
         self._init_weights()
 

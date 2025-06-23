@@ -24,7 +24,8 @@ dependencies = [
   "imageio>=2.37.0",
   "jmespath>=1.0.1",
   "matplotlib>=3.10.3",
-  "mettagrid",
+  "metta-mettagrid",
+  "metta-common",
   "numpy>=2.2.6",
   "omegaconf>=2.4.0.dev3",
   "pandas>=2.3.0",
@@ -70,7 +71,7 @@ mapgen = "tools.map.gen:main"
 mapgen-scene = "tools.map.gen_scene:main"
 
 [tool.coverage.run]
-source = ["mettagrid", "metta"]
+source = ["metta", "metta.mettagrid", "metta.common"]
 
 [tool.scikit-build.cmake.define]
 CMAKE_BUILD_TYPE = "Release"
@@ -81,6 +82,7 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 
 [tool.uv]
 cache-keys = [
@@ -91,14 +93,15 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "wandb_carbs", "app_backend"]
+members = ["mettagrid", "wandb_carbs", "app_backend", "common"]
 
 [tool.uv.sources]
 pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
 carbs = { git = "https://github.com/imbue-ai/carbs.git" }
 wandb_carbs = { workspace = true }
-mettagrid = { workspace = true }
 app_backend = { workspace = true }
+metta-mettagrid = { workspace = true }
+metta-common = { workspace = true }
 
 [tool.pyright]
 # Suppress warnings on editable C++ sources, see https://github.com/Metta-AI/metta/pull/852

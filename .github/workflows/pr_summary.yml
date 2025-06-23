@@ -77,8 +77,7 @@ jobs:
           DAYS_TO_SCAN: ${{ steps.set-days.outputs.days }}
           FORCE_REFRESH: ${{ inputs.force_refresh || 'false' }}
         run: |
-          uv pip install --system -r .github/scripts/requirements-pr-summary.txt
-          python .github/scripts/generate_pr_summary.py
+          uv run .github/scripts/generate_pr_summary.py
 
       - name: Display Summary (Debug)
         run: |

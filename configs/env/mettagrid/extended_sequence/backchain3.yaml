@@ -26,12 +26,12 @@ game:
       heart_max: 1000
 
   map_builder:
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: ${..num_agents}
     border_width: 6
 
     room:
-      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
       width: ${sampling:12,20,15}
       height: ${sampling:12,20,15}
       border_width: ${sampling:1,6,3}

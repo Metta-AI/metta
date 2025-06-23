@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      imagePullSecrets:
+      - name: dockerconfig
+      containers:
+        - name: server
+          image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+          imagePullPolicy: Always
+          envFrom:
+          - secretRef:
+              name: {{ .Values.secret_name }}
+          resources:
+            requests:
+              memory: "1Gi"
+            limits:
+              memory: "4Gi"
+          ports:
+            - containerPort: 8000
+          livenessProbe:
+            httpGet:
+              path: /whoami
+              port: 8000
+            timeoutSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /whoami
+              port: 8000
+            timeoutSeconds: 3
+            periodSeconds: 1

@@ -10,8 +10,8 @@ import hydra
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-from mettagrid.curriculum import SingleTaskCurriculum
-from mettagrid.mettagrid_env import (
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_env import (
     MettaGridEnv,
     dtype_actions,
     dtype_observations,
@@ -19,8 +19,8 @@ from mettagrid.mettagrid_env import (
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.util.actions import generate_valid_random_actions
-from mettagrid.util.hydra import get_cfg
+from metta.mettagrid.util.actions import generate_valid_random_actions
+from metta.mettagrid.util.hydra import get_cfg
 
 
 class Policy(Protocol):
