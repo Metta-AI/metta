@@ -4,7 +4,7 @@
 _target_: metta.rl.trainer.MettaTrainer
 
 defaults:
-  - simple
+  - ants
   - _self_
 
 # Override agent to use the one with auxiliary decoders
