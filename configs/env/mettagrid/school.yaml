@@ -13,12 +13,12 @@ game:
       props: {}
 
   map_builder:
-    _target_: mettagrid.room.room_list.RoomList
+    _target_: metta.mettagrid.room.room_list.RoomList
     border_width: 2
 
     rooms:
       # single agent small room
-      - _target_: mettagrid.room.random.Random
+      - _target_: metta.mettagrid.room.random.Random
         border_width: 2
         width: ${sampling:5,20,10}
         height: ${sampling:5,20,10}
@@ -30,7 +30,7 @@ game:
           wall: ${..width}
 
       # multi agent small room
-      - _target_: mettagrid.room.random.Random
+      - _target_: metta.mettagrid.room.random.Random
         border_width: 2
         width: ${sampling:5,20,10}
         height: ${sampling:5,20,10}
@@ -42,7 +42,7 @@ game:
           wall: ${..width}
 
       # 2 agent scarce room
-      - _target_: mettagrid.room.random.Random
+      - _target_: metta.mettagrid.room.random.Random
         border_width: 2
         width: ${sampling:5,20,10}
         height: ${sampling:5,20,10}
@@ -54,7 +54,7 @@ game:
           wall: ${..width}
 
       # predator and prey room
-      - _target_: mettagrid.room.random.Random
+      - _target_: metta.mettagrid.room.random.Random
         border_width: 2
         width: ${sampling:5,20,10}
         height: ${sampling:5,20,10}
@@ -68,7 +68,7 @@ game:
           wall: ${..width}
 
       # maze
-      # - _target_: mettagrid.room.maze.Maze
+      # - _target_: metta.mettagrid.room.maze.Maze
       #   border_width: 2
       #   width: ${make_odd:${sampling:10,40,21}}
       #   height: ${make_odd:${sampling:10,40,21}}
@@ -79,10 +79,10 @@ game:
       #   branching: ${sampling:0.1,0.95,0.7}
 
       # break room
-      - _target_: mettagrid.room.room_list.RoomList
+      - _target_: metta.mettagrid.room.room_list.RoomList
         border_width: 2
         rooms:
-          - _target_: mettagrid.room.random.Random
+          - _target_: metta.mettagrid.room.random.Random
             border_width: 0
             width: ${sampling:5,20,10}
             height: ${sampling:5,20,10}
@@ -91,7 +91,7 @@ game:
               generator: 1
               converter: 1
               wall: ${..width}
-          - _target_: mettagrid.room.random.Random
+          - _target_: metta.mettagrid.room.random.Random
             border_width: 1
             width: ${sampling:5,20,10}
             height: ${sampling:5,20,10}

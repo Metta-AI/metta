@@ -173,12 +173,12 @@ class StorableMapIndex:
 
     def _save(self):
         index_uri = f"{self.dir}/index.json"
-        mettagrid.util.file.write_data(index_uri, json.dumps(self.index_data), content_type="text/plain")
+        file_utils.write_data(index_uri, json.dumps(self.index_data), content_type="text/plain")
 
     @staticmethod
     def load(dir: str):
         """Load an index from `dir`."""
-        index_content = mettagrid.util.file.read(f"{dir}/index.json")
+        index_content = file_utils.read(f"{dir}/index.json")
         index_data = json.loads(index_content.decode("utf-8"))
         index = StorableMapIndex(dir=dir, index_data=index_data)
         return index
