@@ -19,7 +19,8 @@ export async function drawGrid({
 
   // Draw grid lines
   ctx.strokeStyle = "#aaa";
-  ctx.lineWidth = 0.5;
+  ctx.lineCap = "square";
+  ctx.lineWidth = 0.02;
 
   // Draw vertical grid lines
   for (let x = 0; x <= grid.width; x++) {

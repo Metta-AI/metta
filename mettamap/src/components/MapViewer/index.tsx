@@ -102,6 +102,8 @@ export const MapViewer: FC<Props> = ({
       zoomSensitivity: 0.007,
     });
 
+  console.log("pan", pan, "zoom", zoom);
+
   const drawer = useDrawer();
 
   const [hoveredCell, setHoveredCell] = useState<Cell | undefined>();
@@ -141,8 +143,8 @@ export const MapViewer: FC<Props> = ({
     // Apply translation before scaling so that the pan values are not affected by the zoom factor.
     // This keeps the point under the cursor fixed while zooming.
     return new DOMMatrixReadOnly()
-      .translate(pan.x * dpr, pan.y * dpr)
       .scale(zoom)
+      .translate(-pan.x * dpr, -pan.y * dpr)
       .scale(scale);
   }, [zoom, pan, scale, dpr]);
 
