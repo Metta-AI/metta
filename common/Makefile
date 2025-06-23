@@ -1,6 +1,4 @@
-## Add `common/Makefile`:
 
-```makefile
 .PHONY: help install test lint clean
 
 help:
@@ -30,3 +28,4 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 	rm -rf .coverage htmlcov .pytest_cache .ruff_cache
+
