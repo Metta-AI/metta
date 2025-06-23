@@ -1,0 +1,59 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+sampling: 1
+
+game:
+  num_agents: 4
+  agent:
+    default_item_max: 100
+
+    rewards:
+      # action_failure_penalty: 0.00001
+      action_failure_penalty: 0
+      ore.red: ${sampling:0.005,0.1, 0.01}
+      battery.red: ${sampling:0.01,1, 0.1}
+      battery.red_max: 5
+      laser: ${sampling:0.01,1, 0.1}
+      armor: ${sampling:0.01,1, 0.1}
+      blueprint: ${sampling:0.01,1, 0.1}
+      heart: 1
+      heart_max: 1000
+  map_builder:
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+
+    border_width: 6
+
+    room:
+      _target_: mettagrid.room.navigation.varied_terrain.VariedTerrain
+      width: ${sampling:20,50,30}
+      height: ${sampling:20,50,30}
+      border_width: ${sampling:1,6,3}
+      agents: 1
+      style: all-sparse # ${choose:"all-sparse","balanced","dense","maze"}
+      objects:
+        mine: ${sampling:1,5,3}
+        generator: ${sampling:1,5,3}
+        altar: ${sampling:1,5,1}
+        armory: ${sampling:1,5,1}
+        lasery: ${sampling:1,5,1}
+        lab: ${sampling:1,5,1}
+        factory: ${sampling:1,5,1}
+        temple: ${sampling:1,5,1}
+
+        block: ${sampling:0,20,20}
+        wall: ${sampling:0,20,20}
+
+  objects:
+    altar:
+      initial_items: ${choose:0,1}
+      cooldown: ${sampling:1, 20, 10}
+
+    generator.red:
+      initial_items: ${choose:0,1}
+      cooldown: ${sampling:5, 20, 10}
+
+    mine.red:
+      cooldown: ${sampling:15, 50, 10}

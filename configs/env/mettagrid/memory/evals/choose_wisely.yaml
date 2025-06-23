@@ -1,0 +1,7 @@
+defaults:
+  - /env/mettagrid/memory/evals/defaults@
+
+game:
+  max_steps: 210
+  map_builder:
+    uri: "configs/env/mettagrid/maps/memory/choose_wisely.map"

@@ -1,0 +1,28 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - agent: fast
+  - sim: sweep_eval
+  - trainer: puffer
+  - _self_
+
+cmd: sweep
+sweep_name: ???
+sweep_params: "sweep/full"
+sweep_params_override: {}
+sweep: ???
+
+metric: reward
+num_random_samples: 10
+
+trainer:
+  evaluate_interval: 300
+
+sim:
+  num_episodes: 5
+
+sweep_job:
+  evals: ${sim}
+
+sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
+runs_dir: "${.sweep_dir}/runs"

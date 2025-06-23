@@ -1,0 +1,426 @@
+name: "Test and Benchmark"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'merge_group' && github.event.merge_group.head_ref || github.ref }}
+  cancel-in-progress: true
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  push:
+    branches: [main]
+  merge_group:
+    types: [checks_requested]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_lint:
+        description: "Run lint checks"
+        type: boolean
+        default: true
+      run_test:
+        description: "Run tests"
+        type: boolean
+        default: true
+      run_benchmark:
+        description: "Run benchmarks (requires tests)"
+        type: boolean
+        default: true
+
+# Set default permissions
+permissions:
+  checks: write
+  pull-requests: write
+
+env:
+  HYDRA_FULL_ERROR: 1
+  VENV_PATH: .venv
+
+jobs:
+  # check if CI should run based on Graphite's stack position
+  graphite-ci-optimizer:
+    name: "Graphite CI Optimizer"
+    if: |
+      github.event.pull_request.draft == false ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.graphite_ci.outputs.skip }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Graphite CI Optimizer
+        id: graphite_ci
+        uses: withgraphite/graphite-ci-action@main
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          graphite_token: ${{ secrets.GRAPHITE_TOKEN }}
+
+  # check if any source code files have changed
+  setup-checks:
+    name: "Set up for source code checks"
+    needs: graphite-ci-optimizer
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (github.event.pull_request.draft == false ||
+       github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
+       github.event_name == 'merge_group')
+    runs-on: ubuntu-latest
+    outputs:
+      has_relevant_changes: ${{ steps.check_py_files.outputs.has_relevant_changes }}
+      run_lint: ${{ steps.determine_tasks.outputs.run_lint }}
+      run_test: ${{ steps.determine_tasks.outputs.run_test }}
+      run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for file changes
+        id: check_py_files
+        uses: ./.github/actions/file-changes
+        with:
+          patterns: "**/*.py,**/*.pyx,**/*.pxd,**/*.cpp,**/*.hpp"
+          specific_files: "uv.lock"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine which tasks to run
+        id: determine_tasks
+        run: |
+          # Default behavior based on event type and file changes
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Use workflow dispatch inputs for manual runs
+            RUN_LINT="${{ github.event.inputs.run_lint }}"
+            RUN_TEST="${{ github.event.inputs.run_test }}"
+            RUN_BENCHMARK="${{ github.event.inputs.run_benchmark }}"
+          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_py_files.outputs.has_relevant_changes }}" == "false" ]]; then
+            # Skip everything for PRs with no relevant changes
+            RUN_LINT="false"
+            RUN_TEST="false"
+            RUN_BENCHMARK="false"
+            echo "::notice title=Skipping Tasks::Skipping all tasks because no relevant files have changed"
+          else
+            # Default to running everything for other events or when changes exist
+            RUN_LINT="true"
+            RUN_TEST="true"
+            RUN_BENCHMARK="true"
+          fi
+
+          # Output the decisions
+          echo "run_lint=${RUN_LINT}" >> $GITHUB_OUTPUT
+          echo "run_test=${RUN_TEST}" >> $GITHUB_OUTPUT
+          echo "run_benchmark=${RUN_BENCHMARK}" >> $GITHUB_OUTPUT
+
+          echo "run lint? ${RUN_LINT}"
+          echo "run test? ${RUN_TEST}"
+          echo "run benchmark? ${RUN_BENCHMARK}"
+
+  lint:
+    name: "Lint"
+    needs: [graphite-ci-optimizer, setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_lint == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python and uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Run Ruff linter
+        run: |
+          ruff format --check .
+
+      - name: Run Ruff formatting
+        run: |
+          ruff check --exit-non-zero-on-fix .
+
+      - name: Install C++ linter
+        run: |
+          sudo apt-get install -y clang-format
+      - name: Run cpplint
+        run: ./mettagrid/tests/cpplint.sh
+
+  test:
+    name: "Tests"
+    needs: [graphite-ci-optimizer, setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_test == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Run Pytest on core tests
+        run: |
+          pytest --maxfail=1 --disable-warnings -q
+
+      - name: Run Pytest on MettaGrid tests
+        working-directory: mettagrid
+        run: |
+          pytest --maxfail=1 --disable-warnings -q
+
+      - name: Run MettaGrid C++ tests
+        run: |
+          source .venv/bin/activate
+          cd mettagrid
+          cmake --preset debug
+          cmake --build build-debug
+          ctest --test-dir build-debug -L test
+
+  smoke-test:
+    name: "Smoke Tests"
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
+    needs: [graphite-ci-optimizer, setup-checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Training smoke test
+        id: train
+        env:
+          WANDB_API_KEY: set_but_not_used
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          mkdir -p train_dir
+          uv run .github/scripts/train_smoke_test.py
+          ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
+
+      - name: Save training benchmark
+        uses: ./.github/actions/save-benchmarks
+        with:
+          name: train_smoke_test
+          metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_peak_mb }}}'
+          filename: smoke_test_train_benchmark_results.json
+
+      - name: Replay smoke test
+        id: replay
+        env:
+          WANDB_API_KEY: set_but_not_used
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+        run: |
+          uv run .github/scripts/replay_smoke_test.py
+
+      - name: Save replay benchmark
+        uses: ./.github/actions/save-benchmarks
+        with:
+          name: replay_smoke_test
+          metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_peak_mb }}}'
+          filename: smoke_test_replay_benchmark_results.json
+
+      - name: Check evals smoke test policy availability
+        id: check_evals_policy
+        continue-on-error: true
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
+        run: |
+          uv run .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
+
+      - name: Run evals smoke test
+        id: eval_smoke_test
+        if: steps.check_evals_policy.outputs.result == 'success'
+        env:
+          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+          AWS_ACCESS_KEY_ID: set_but_not_used
+          AWS_SECRET_ACCESS_KEY: set_but_not_used
+          POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
+          MIN_REWARD: ${{ vars.EVAL_SMOKE_TEST_MIN_REWARD }}
+          MAX_ATTEMPTS: ${{ vars.EVAL_SMOKE_TEST_MAX_ATTEMPTS }}
+        run: |
+          uv run .github/scripts/eval_smoke_test.py
+
+      - name: Save evals benchmark
+        if: steps.eval_smoke_test.conclusion == 'success'
+        uses: ./.github/actions/save-benchmarks
+        with:
+          name: evals_smoke_test
+          metrics: '{"duration": ${{ steps.eval_smoke_test.outputs.duration }}, "memory_usage": ${{ steps.eval_smoke_test.outputs.memory_peak_mb }}}'
+          filename: smoke_test_evals_benchmark_results.json
+
+      - name: Upload all benchmark files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-benchmark-results
+          path: |
+            smoke_test_train_benchmark_results.json
+            smoke_test_replay_benchmark_results.json
+            smoke_test_evals_benchmark_results.json
+          retention-days: 1
+          if-no-files-found: warn
+
+  python-benchmark:
+    name: "Python Benchmarks"
+    needs: [graphite-ci-optimizer, setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_benchmark == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Run Python benchmarks
+        env:
+          PYTHONOPTIMIZE: 1 # Disable __debug__ blocks and asserts for accurate benchmarks
+        run: |
+          # Main benchmarks
+          pytest --benchmark-only --benchmark-json=main_benchmark_results.json
+
+          # Mettagrid benchmarks
+          cd mettagrid
+          pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
+
+      - name: Upload Python benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-benchmark-results
+          path: |
+            main_benchmark_results.json
+            mettagrid_benchmark_results.json
+          retention-days: 1
+
+  cpp-benchmark:
+    name: "C++ Benchmarks"
+    needs: [graphite-ci-optimizer, setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.run_benchmark == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+
+      - name: Build and run C++ benchmarks
+        run: |
+          source .venv/bin/activate
+          cd mettagrid
+          cmake --preset release
+          cmake --build build-release
+
+          mkdir -p benchmark_output
+          for f in build-release/benchmarks/*_benchmark; do
+            "$f" --benchmark_format=json > benchmark_output/$(basename $f).json
+          done
+
+      - name: Upload C++ benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cpp-benchmark-results
+          path: mettagrid/benchmark_output/*.json
+          retention-days: 1
+
+  upload-benchmarks:
+    name: "Upload Benchmarks"
+    needs: [python-benchmark, cpp-benchmark, setup-checks]
+    if: |
+      (needs.setup-checks.outputs.run_benchmark == 'true') &&
+      (always() && (needs.python-benchmark.result == 'success' || needs.cpp-benchmark.result == 'success'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Python benchmark results
+        uses: actions/download-artifact@v4
+        with:
+          name: python-benchmark-results
+          path: ./benchmarks/
+        continue-on-error: true
+
+      - name: Download C++ benchmark results
+        uses: actions/download-artifact@v4
+        with:
+          name: cpp-benchmark-results
+          path: ./benchmarks/
+        continue-on-error: true
+
+      - name: Debug downloaded artifacts
+        shell: bash
+        run: |
+          echo "=== Checking downloaded artifacts ==="
+          ls -la ./benchmarks/ || echo "No benchmarks directory"
+
+          echo "=== Python benchmark files content ==="
+          for file in ./benchmarks/main_benchmark_results.json ./benchmarks/mettagrid_benchmark_results.json; do
+            if [ -f "$file" ]; then
+              echo "--- $file ---"
+              echo "File size: $(wc -c < "$file") bytes"
+              head -20 "$file" || echo "Could not read $file"
+            else
+              echo "$file not found"
+            fi
+          done
+
+      - name: Combine all benchmark results
+        uses: ./.github/actions/combine-all-benchmarks
+        with:
+          python_files: "./benchmarks/main_benchmark_results.json,./benchmarks/mettagrid_benchmark_results.json"
+          cpp_files: "./benchmarks/*.json"
+          output_file: "unified_benchmark_results.json"
+
+      - name: Validate generated BMF files
+        shell: bash
+        run: |
+          echo "=== Validating generated BMF files ==="
+
+          if [ -f "unified_benchmark_results.json" ]; then
+            if jq empty unified_benchmark_results.json; then
+              echo "✅ unified_benchmark_results.json is valid JSON"
+              echo "File size: $(wc -c < unified_benchmark_results.json) bytes"
+              echo "Number of benchmarks: $(jq 'length' unified_benchmark_results.json)"
+              echo "Sample benchmark names:"
+              jq -r 'keys[0:3][]' unified_benchmark_results.json || echo "No benchmarks found"
+            else
+              echo "❌ unified_benchmark_results.json is invalid JSON"
+              exit 1
+            fi
+          else
+            echo "❌ unified_benchmark_results.json not found"
+            exit 1
+          fi
+
+      - name: Check for significant performance changes
+        uses: ./.github/actions/call-bencher-api
+        with:
+          bencher_token: ${{ secrets.BENCHER_API_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          benchmark_file: "unified_benchmark_results.json"
+        continue-on-error: true
+
+      - name: Upload benchmark artifacts for debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-benchmark-results
+          path: |
+            unified_benchmark_results.json
+          retention-days: 7

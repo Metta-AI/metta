@@ -1,0 +1,22 @@
+# @package __global__
+
+#POLICIES TO EVALUATE
+
+#b.daphne.navigation_varied_obstacle_shapes_pretrained.r.1
+#b.daphne.navigation_varied_obstacle_shapes.r.0
+#navigation_poisson_sparser.r.2
+#navigation_infinite_cooldown_sparser_pretrained.r.0
+#navigation_infinite_cooldown_sparser.r.0
+#navigation_poisson_sparser_pretrained.r.6
+
+defaults:
+  - _self_
+
+trainer:
+  curriculum: /env/mettagrid/curriculum/navigation
+
+policy_uri: wandb://run/dd_navigation_curriculum
+
+run_id: 6
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints

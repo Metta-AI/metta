@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/multiagent/training/varied_terrain@
+  - _self_
+
+game:
+  map_builder:
+    room:
+      style: dense

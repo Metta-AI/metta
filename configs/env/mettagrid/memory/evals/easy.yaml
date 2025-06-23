@@ -1,0 +1,14 @@
+defaults:
+  - /env/mettagrid/memory/evals/defaults@
+
+game:
+  num_agents: 2
+  max_steps: 42
+  agent:
+    rewards:
+      heart: 0.333
+  map_builder:
+     uri: "configs/env/mettagrid/maps/memory/easy.map"
+  objects:
+    altar:
+      initial_items: 1

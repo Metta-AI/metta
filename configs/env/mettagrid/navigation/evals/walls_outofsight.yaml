@@ -1,0 +1,16 @@
+defaults:
+  - /env/mettagrid/navigation/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 120
+  map_builder:
+    _target_: mettagrid.room.mean_distance.MeanDistance
+    width: 25
+    height: 25
+    mean_distance: 15
+    border_width: 3
+    agents: 1
+    objects:
+      altar: 3
+      wall: 12

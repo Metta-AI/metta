@@ -1,0 +1,16 @@
+defaults:
+  - /env/mettagrid/navigation/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 200
+
+  map_builder:
+    _target_: mettagrid.room.cognitive_evals.radial_maze.RadialMaze
+    width: 20
+    height: 20
+    radial_params:
+      num_arms: 4
+      arm_length: 8
+      center_radius: 3
+    onlyhearts: true

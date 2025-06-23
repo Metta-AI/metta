@@ -1,0 +1,222 @@
+name: "Run Unified Bencher Analysis"
+description: "Run Bencher analysis"
+inputs:
+  bencher_token:
+    description: "Bencher API token"
+    required: true
+  github_token:
+    description: "GitHub token"
+    required: true
+  benchmark_file:
+    description: "Unified benchmark results file (BMF format)"
+    required: true
+  project_id:
+    description: "Bencher project ID"
+    default: "metta"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Bencher CLI
+      uses: bencherdev/bencher@main
+
+    - name: Install jq
+      shell: bash
+      run: sudo apt-get install -y jq
+
+    - name: Check main branch status
+      id: check-main
+      shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+      run: |
+        # Run the command and capture output
+        if bencher branch view ${{ inputs.project_id }} main --token "$BENCHER_API_TOKEN" > /tmp/branch_output.json 2>/dev/null; then
+          echo "Branch info retrieved, checking for benchmark data..."
+          
+          # Debug: show what we got
+          echo "Branch data:"
+          cat /tmp/branch_output.json | jq '.'
+          
+          # Check if branch has valid benchmark data
+          if jq -e '.head != null' /tmp/branch_output.json > /dev/null; then
+            # The key check: try to list reports on the main branch
+            # This will fail if there's no actual benchmark data
+            if bencher report list ${{ inputs.project_id }} \
+                --branch main \
+                --token "$BENCHER_API_TOKEN" > /tmp/reports.json 2>/dev/null; then
+              
+              # Check if we actually have reports
+              report_count=$(jq 'length' /tmp/reports.json)
+              if [ "$report_count" -gt 0 ]; then
+                echo "main_exists=true" >> $GITHUB_OUTPUT
+                echo "main_has_data=true" >> $GITHUB_OUTPUT
+                echo "✅ Main branch exists and has $report_count benchmark reports"
+              else
+                echo "main_exists=true" >> $GITHUB_OUTPUT
+                echo "main_has_data=false" >> $GITHUB_OUTPUT
+                echo "⚠️ Main branch exists but has no benchmark reports yet"
+              fi
+            else
+              echo "main_exists=true" >> $GITHUB_OUTPUT
+              echo "main_has_data=false" >> $GITHUB_OUTPUT
+              echo "⚠️ Main branch exists but cannot list reports (no data yet)"
+            fi
+          else
+            echo "main_exists=true" >> $GITHUB_OUTPUT
+            echo "main_has_data=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Main branch exists but has no head (no data yet)"
+          fi
+        else
+          echo "main_exists=false" >> $GITHUB_OUTPUT
+          echo "main_has_data=false" >> $GITHUB_OUTPUT
+          echo "⚠️ Main branch does not exist"
+        fi
+
+    - name: Upload baseline (main branch)
+      if: github.ref == 'refs/heads/main'
+      shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        if [ -f "${{ inputs.benchmark_file }}" ] && [ -s "${{ inputs.benchmark_file }}" ]; then
+          
+          # Core throughput KPIs (higher is better - alert only on regressions)
+          declare -A THROUGHPUT_METRICS=(
+            ["agent_rate"]="Main agent performance KPI"
+            ["env_rate"]="Main environment performance KPI"
+          )
+          
+          for metric in "${!THROUGHPUT_METRICS[@]}"; do
+            echo "Setting regression threshold for ${THROUGHPUT_METRICS[$metric]}: $metric"
+            echo "Will alert if performance drops by more than 20%"
+            bencher run \
+              --project ${{ inputs.project_id }} \
+              --token "$BENCHER_API_TOKEN" \
+              --branch main \
+              --threshold-measure "$metric" \
+              --threshold-test percentage \
+              --threshold-max-sample-size 2 \
+              --threshold-lower-boundary 0.20 \
+              --testbed ubuntu-latest \
+              --adapter json \
+              --github-actions "$GITHUB_TOKEN" \
+              --file "${{ inputs.benchmark_file }}" || echo "⚠️  Could not set threshold for $metric"
+          done
+          
+          echo "✅ Regression thresholds configured (20% performance drop triggers alert)"
+        else
+          echo "⚠️ No benchmark file found: ${{ inputs.benchmark_file }}"
+        fi
+
+    # PR: First check for improvements (informational only)
+    - name: Check for performance improvements in KPIs
+      if: |
+        github.event_name == 'pull_request' &&
+        !github.event.pull_request.head.repo.fork &&
+        steps.check-main.outputs.main_exists == 'true' &&
+        steps.check-main.outputs.main_has_data == 'true'
+      shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        echo "📊 Checking for performance improvements (informational only)..."
+        echo "- agent_rate: Checking for >20% improvements" 
+        echo "- env_rate: Checking for >20% improvements"
+
+        if [ -f "${{ inputs.benchmark_file }}" ]; then
+          # Create a temporary branch name for improvement detection
+          IMPROVEMENT_BRANCH="${GITHUB_HEAD_REF}-improvements"
+          
+          # Run without --err to just report improvements
+          bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$IMPROVEMENT_BRANCH" \
+            --start-point main \
+            --start-point-reset \
+            --threshold-measure "agent_rate" \
+            --threshold-measure "env_rate" \
+            --threshold-test percentage \
+            --threshold-max-sample-size 2 \
+            --threshold-upper-boundary 0.20 \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.benchmark_file }}" || echo "📈 Performance improvements detected!"
+            
+          echo "✅ Improvement check completed"
+        else
+          echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
+        fi
+
+    # PR: Then check for regressions (fail on detection)
+    - name: Check for performance regressions in KPIs
+      if: |
+        github.event_name == 'pull_request' &&
+        !github.event.pull_request.head.repo.fork &&
+        steps.check-main.outputs.main_exists == 'true' &&
+        steps.check-main.outputs.main_has_data == 'true'
+      shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        echo "🚨 Checking for performance regressions (will fail if detected)..."
+        echo "- agent_rate: Will fail if >20% slower than baseline" 
+        echo "- env_rate: Will fail if >20% slower than baseline"
+
+        if [ -f "${{ inputs.benchmark_file }}" ]; then
+          # This run will fail the CI if regressions are detected
+          bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --start-point main \
+            --start-point-reset \
+            --start-point-clone-thresholds \
+            --err \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.benchmark_file }}"
+            
+          echo "✅ No performance regressions detected in KPIs"
+        else
+          echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
+          exit 1
+        fi
+
+    # PR: Upload data without comparison if main has no data
+    - name: Upload PR data without comparison (main has no data)
+      if: |
+        github.event_name == 'pull_request' &&
+        !github.event.pull_request.head.repo.fork &&
+        (steps.check-main.outputs.main_exists == 'false' || steps.check-main.outputs.main_has_data == 'false')
+      shell: bash
+      env:
+        BENCHER_API_TOKEN: ${{ inputs.bencher_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        echo "⚠️ Uploading PR benchmark data without comparison"
+        echo "Main branch has no benchmark data yet - this is normal for the first PR."
+        echo "Once this PR merges, future PRs will have baseline data for comparison."
+
+        if [ -f "${{ inputs.benchmark_file }}" ]; then
+          # Just upload the data without threshold checks
+          bencher run \
+            --project ${{ inputs.project_id }} \
+            --token "$BENCHER_API_TOKEN" \
+            --branch "$GITHUB_HEAD_REF" \
+            --testbed ubuntu-latest \
+            --adapter json \
+            --github-actions "$GITHUB_TOKEN" \
+            --file "${{ inputs.benchmark_file }}"
+            
+          echo "✅ PR benchmark data uploaded successfully"
+        else
+          echo "⚠️  No benchmark file found: ${{ inputs.benchmark_file }}"
+          exit 1
+        fi

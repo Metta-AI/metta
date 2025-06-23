@@ -1,0 +1,75 @@
+_target_: mettagrid.mettagrid_env.MettaGridEnv
+
+sampling: 0
+desync_episodes: false
+
+game:
+  num_observation_tokens: 100
+  map_builder:
+    _target_: mettagrid.room.random.Random
+    width: 25
+    height: 25
+    border_width: 0
+    agents: 5
+    seed: 42
+
+    objects:
+      altar: 1
+      converter: 3
+      generator: 15
+      wall: 40
+
+  num_agents: 5
+  obs_width: 11
+  obs_height: 11
+  max_steps: 5000
+
+  groups:
+    agent:
+      id: 0
+      sprite: 0
+      props: {}
+
+  agent:
+    default_item_max: 5
+    heart_max: 255
+    freeze_duration: 10
+    rewards:
+      heart: 1
+
+  objects:
+    altar:
+      cooldown: 2
+      max_output: 100
+      conversion_ticks: 1
+      initial_items: 100
+
+    converter:
+      cooldown: 2
+
+    generator.red:
+      cooldown: 5
+      max_output: 100
+      conversion_ticks: 1
+      initial_items: 30
+
+    wall: {}
+
+
+  actions:
+    noop:
+      enabled: true
+    move:
+      enabled: true
+    rotate:
+      enabled: true
+    put_items:
+      enabled: true
+    get_items:
+      enabled: true
+    attack:
+      enabled: true
+    swap:
+      enabled: true
+    change_color:
+      enabled: true

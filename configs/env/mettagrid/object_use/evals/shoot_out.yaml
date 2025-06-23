@@ -1,0 +1,20 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1
+  max_steps: 400
+  agent:
+    rewards:
+      heart: 1
+  objects:
+    altar:
+      cooldown: 255
+
+    lasery:
+      initial_items: 20
+  map_builder:
+    _target_: mettagrid.room.ascii.Ascii
+    border_width: 1
+    uri: "configs/env/mettagrid/maps/object_use/shoot_out.map"

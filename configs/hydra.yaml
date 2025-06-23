@@ -1,0 +1,6 @@
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  job_logging:
+    root:
+      handlers: [console, file]

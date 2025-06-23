@@ -1,0 +1,5 @@
+tap "spacelift-io/spacelift"
+brew "kubernetes-cli"
+brew "helm"
+brew "helmfile"
+brew "spacectl"

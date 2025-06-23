@@ -1,0 +1,63 @@
+name: "PR Assignment Action"
+description: "Assign and request reviews for PRs based on configurable rules"
+inputs:
+  pr-number:
+    description: "PR number to process"
+    required: true
+  possible-assignees:
+    description: "Comma-separated list of users to randomly select assignees from"
+    required: false
+    default: ""
+  possible-reviewers:
+    description: "Comma-separated list of users to randomly select reviewers from"
+    required: false
+    default: ""
+  forced-assignees:
+    description: "Comma-separated list of users who will always be assigned"
+    required: false
+    default: ""
+  forced-reviewers:
+    description: "Comma-separated list of users who will always be requested as reviewers"
+    required: false
+    default: ""
+  forced-labels:
+    description: "Comma-separated list of labels that will replace any labels currently set on the PR"
+    required: false
+    default: ""
+  clear-existing-assignees:
+    description: "Whether to clear existing assignees before adding new ones (true/false)"
+    required: false
+    default: "false"
+  clear-existing-reviewers:
+    description: "Whether to clear existing review requests before adding new ones (true/false)"
+    required: false
+    default: "false"
+  clear-existing-labels:
+    description: "Whether to clear existing labels before adding new ones (true/false)"
+    required: false
+    default: "false"
+runs:
+  using: "composite"
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
+
+    - name: Assign and request reviews for PR
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        POSSIBLE_ASSIGNEES: ${{ inputs.possible-assignees }}
+        POSSIBLE_REVIEWERS: ${{ inputs.possible-reviewers }}
+        FORCED_ASSIGNEES: ${{ inputs.forced-assignees }}
+        FORCED_REVIEWERS: ${{ inputs.forced-reviewers }}
+        FORCED_LABELS: ${{ inputs.forced-labels }}
+        CLEAR_EXISTING_ASSIGNEES: ${{ inputs.clear-existing-assignees }}
+        CLEAR_EXISTING_REVIEWERS: ${{ inputs.clear-existing-reviewers }}
+        CLEAR_EXISTING_LABELS: ${{ inputs.clear-existing-labels }}
+      run: |
+        uv run ${{ github.action_path }}/pr_assignment.py

@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/memory/evals/defaults@
+
+game:
+  max_steps: 110
+  agent:
+    rewards:
+      heart: 1
+  map_builder:
+    uri: "configs/env/mettagrid/maps/memory/little_landmark_easy.map"

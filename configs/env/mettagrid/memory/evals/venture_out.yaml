@@ -1,0 +1,7 @@
+defaults:
+  - /env/mettagrid/memory/evals/defaults@
+
+game:
+  max_steps: 375
+  map_builder:
+    uri: "configs/env/mettagrid/maps/memory/venture_out.map"

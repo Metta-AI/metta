@@ -1,0 +1,23 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+IndentWidth: 2
+ColumnLimit: 120
+AccessModifierOffset: -2
+AllowShortFunctionsOnASingleLine: Empty
+# Changed from Stroustrup to Attach as per request
+BreakBeforeBraces: Attach
+DerivePointerAlignment: false
+PointerAlignment: Left
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignTrailingComments: true
+# For function parameters wrapping
+AllowAllParametersOfDeclarationOnNextLine: false
+BinPackParameters: false
+# For enums - one value per line when they don't fit
+AllowShortEnumsOnASingleLine: false
+# For vector constants and similar - one per line when they don't fit
+BinPackArguments: false
+IncludeBlocks: Regroup

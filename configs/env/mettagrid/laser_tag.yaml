@@ -1,0 +1,81 @@
+defaults:
+  - mettagrid
+  - _self_
+
+game:
+  group_reward_pct: 0
+  num_agents: 36
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+
+    width: ${sampling:20,50,25}
+    height: ${sampling:20,50,25}
+
+    border_width: 6
+
+    root:
+      type: metta.map.scenes.room_grid.RoomGrid
+
+      params:
+        rows: 1
+        columns: 3
+        border_width: 0
+
+      children:
+        - where:
+            tags:
+              - room_0_0
+          scene:
+            type: metta.map.scenes.random.Random
+            params:
+              objects:
+                lasery: 4
+                armory: 4
+              agents:
+                team_1: 18
+        - where:
+            tags:
+              - room_0_1
+          scene:
+            type: metta.map.scenes.random.Random
+            params:
+              objects:
+                altar: 1
+                mine.red: 10
+        - where:
+            tags:
+              - room_0_2
+          scene:
+            type: metta.map.scenes.random.Random
+            params:
+              objects:
+                lasery: 4
+                armory: 4
+              agents:
+                team_2: 18
+
+  agent:
+    default_item_max: ${sampling:1,10,5}
+    rewards:
+      heart: 1
+
+  objects:
+    altar:
+      initial_items: 1
+
+    lasery:
+      input_ore.red: 0
+      input_battery: 0
+      cooldown: ${sampling:1,10,5}
+      initial_items: 5
+
+    armory:
+      input_ore.red: 0
+      initial_items: 5
+      cooldown: ${sampling:1,10,5}
+
+  groups:
+    team_1:
+      group_reward_pct: ${...group_reward_pct}
+    team_2:
+      group_reward_pct: ${...group_reward_pct}

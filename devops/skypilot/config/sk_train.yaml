@@ -1,0 +1,79 @@
+resources:
+  cloud: aws
+  any_of:
+    # us-east-1
+    - region: us-east-1
+      use_spot: true
+      accelerators: "L4:1"
+    - region: us-east-1
+      use_spot: true
+      accelerators: "A10G:1"
+    - region: us-east-1
+      accelerators: "L4:1"
+    - region: us-east-1
+      accelerators: "A10G:1"
+    # us-west-2
+    - region: us-west-2
+      use_spot: true
+      accelerators: "L4:1"
+    - region: us-west-2
+      use_spot: true
+      accelerators: "A10G:1"
+    - region: us-west-2
+      accelerators: "L4:1"
+    - region: us-west-2
+      accelerators: "A10G:1"
+  cpus: 8+
+  image_id: docker:metta:latest
+
+setup: |
+  cd /workspace/metta
+  git fetch
+  git checkout $METTA_GIT_REF
+
+  uv sync
+
+  mkdir -p $WANDB_DIR
+
+run: |
+  cd /workspace/metta
+  source ./devops/setup.env
+
+  export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
+  export NUM_NODES=$SKYPILOT_NUM_NODES
+  export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
+  export MASTER_PORT=8008
+  export NODE_INDEX=$SKYPILOT_NODE_RANK
+  export NCCL_SHM_DISABLE=1
+
+  ./devops/$METTA_CMD.sh \
+    run=$METTA_RUN_ID \
+    $METTA_CMD_ARGS
+
+file_mounts:
+  # Wandb Credentials
+  ~/.netrc: ~/.netrc
+
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT_CACHED
+
+  /mnt/s3/train_dir:
+    name: softmax-train-dir
+    store: s3
+    mode: MOUNT_CACHED
+
+envs:
+  METTA_RUN_ID: ""
+  METTA_CMD: train
+  METTA_CMD_ARGS: ""
+  METTA_GIT_REF: main
+  WANDB_DIR: ./wandb
+
+  # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
+  DATA_DIR: /mnt/s3/train_dir
+
+  # username and password are acquired automatically by our api-server patch, see skypilot-chart/files/ecr.patch
+  SKYPILOT_DOCKER_USERNAME: ""
+  SKYPILOT_DOCKER_PASSWORD: ""
+  SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com

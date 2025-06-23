@@ -1,0 +1,5 @@
+# @package __global__
+
+# For backward compatibility, loading mac_serial.yaml
+defaults:
+  - mac_serial

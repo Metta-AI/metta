@@ -1,0 +1,83 @@
+# @package __global__
+
+defaults:
+  - /sim/all@sim_job.simulation_suite
+  - _self_
+
+trainer:
+  # env: /env/mettagrid/multienv_mettagrid
+  curriculum: /env/mettagrid/curriculum/all
+
+  env_overrides:
+    sampling: 0.7
+    game:
+      max_steps: 13
+
+  evaluate_interval: 200
+  # optimizer:
+  #   type: muon
+
+  # optimizer:
+  #   type: muon
+  # env_overrides:
+  #   sampling: 0.7
+  #   game:
+  #     num_agents: 36
+  #     max_steps: 1000
+
+# policy: wandb://run/b.daveey.train.maze.sm.dr.warm.0
+# baselines: wandb://run/b.daveey.train.maze.sm.11x11.0
+
+# policy_uri: wandb://run/b.daveey.t.1.bl
+# policy_uri: wandb://run/b.daveey.t.16.dr0
+
+# policy_uri: wandb://run/b.daveey.dr9.muon.latest
+# policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
+# policy_uri: pytorch:///tmp/puffer_metta.pt
+# policy_uri: pytorch:///tmp/puffer_metta.pt
+policy_uri: wandb://run/daveey.lasertag.r5.2x4:v12
+# policy_uri: pytorch://${data_dir}/puffer/puffer_metta.pt
+
+npc_policy_uri: ${policy_uri}
+# npc_policy_uri: ${trained_policy_uri}
+
+eval_db_uri: ${run_dir}/eval_stats
+
+analyzer:
+  policy_uri: ${..policy_uri}
+  view_type: latest
+  analysis:
+    metrics:
+      - metric: episode_reward
+      - metric: "heart.get"
+
+replay_job:
+  sim:
+    env: /env/mettagrid/laser_tag
+    env_overrides:
+      sampling: 1
+      game:
+        max_steps: 300
+        group_reward_pct: 0.5
+
+sim_job:
+  # policy_agents_pct: 1
+
+  # env: /env/mettagrid/reward_dr
+  # env_overrides:
+  #   # sampling: 0.7
+  #   game:
+  #     num_agents: 16
+  #     max_steps: 1000
+  #     map_builder:
+  #       room:
+  #         agents: 4
+  #       num_rooms: 4
+
+run_id: 24
+run: ${oc.env:USER}.local.${run_id}
+trained_policy_uri: ${run_dir}/checkpoints
+
+sweep_params: "sweep/fast"
+sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
+seed: null

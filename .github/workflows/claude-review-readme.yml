@@ -1,0 +1,50 @@
+name: "Claude Review: README"
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+
+jobs:
+  review:
+    uses: ./.github/workflows/claude-review-base.yml
+    secrets: inherit
+    with:
+      review_name: "README Accuracy"
+      review_type: "readme"
+      tools: "Edit,Replace,Bash(git diff HEAD~1),Bash(find . -name README.md)"
+      pr_number: ${{ inputs.pr_number }}
+      prompt: |
+        Review the diff for this pull request and compare it to all README.md files in the repository.
+
+        **CRITICAL INSTRUCTIONS**:
+        1. ONLY report issues if you find README content that is now INCORRECT due to the changes
+        2. If all READMEs remain accurate after these changes, respond with "No issues found."
+        3. DO NOT suggest adding new documentation - only flag outdated/incorrect content
+        4. DO NOT create suggestions for:
+           - Missing documentation that wasn't there before
+           - Improvements to existing correct documentation
+           - Additional examples or clarifications
+           - Style or formatting changes
+
+        **Only flag these specific types of issues**:
+        - Commands or CLI usage that no longer work after this PR
+        - Installation instructions that are now incorrect
+        - Dependencies that were removed but still documented
+        - Configuration options that no longer exist
+        - API endpoints or functions that were removed/renamed
+        - File paths that no longer exist
+        - Import statements that would now fail
+        - Default values that have changed
+        - Examples that would throw errors
+
+        **Review Process**:
+        1. Examine the code changes in the PR diff
+        2. Find all README.md files in the repository
+        3. For each README, check if any content is now WRONG (not just incomplete)
+        4. Only create suggestions for content that needs to be FIXED to remain accurate
+
+        Remember: The goal is to catch documentation that would mislead users or cause errors,
+        not to improve documentation coverage. If the READMEs are still technically correct
+        (even if incomplete), then report "No issues found."

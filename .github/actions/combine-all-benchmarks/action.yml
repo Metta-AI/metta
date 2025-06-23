@@ -1,0 +1,30 @@
+name: "Combine All Benchmark Results"
+description: "Combine Python and C++ benchmark results into unified bencher BMF format"
+inputs:
+  python_files:
+    description: "Comma-separated Python benchmark files"
+    required: true
+  cpp_files:
+    description: "Glob pattern for C++ benchmark files"
+    required: true
+  output_file:
+    description: "Unified output file (BMF format)"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
+
+    - name: Combine all benchmarks into BMF format
+      shell: bash
+      env:
+        PYTHON_FILES: ${{ inputs.python_files }}
+        CPP_FILES: ${{ inputs.cpp_files }}
+        OUTPUT_FILE: ${{ inputs.output_file }}
+      run: |
+        uv run ${{ github.action_path }}/combine_all_benchmarks.py

@@ -1,0 +1,35 @@
+name: "Save Benchmarks"
+description: "Save key/value benchmark data to a file compatible with Bencher"
+inputs:
+  name:
+    description: "Name of the benchmark"
+    required: true
+  metrics:
+    description: "JSON object with metrics (key/value pairs)"
+    required: true
+  filename:
+    description: "Output filename for benchmark results"
+    required: false
+    default: "benchmark_results.json"
+  group:
+    description: "Group name for the benchmark"
+    required: false
+    default: "default"
+runs:
+  using: "composite"
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "0.7.3"
+        enable-cache: true
+
+    - name: Save benchmark data
+      shell: bash
+      env:
+        BENCHMARK_NAME: ${{ inputs.name }}
+        BENCHMARK_METRICS: ${{ inputs.metrics }}
+        BENCHMARK_FILENAME: ${{ inputs.filename }}
+        BENCHMARK_GROUP: ${{ inputs.group }}
+      run: |
+        uv run ${{ github.action_path }}/save_benchmarks.py

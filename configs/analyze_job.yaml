@@ -1,0 +1,13 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - _self_
+
+eval_db_uri: ???
+policy_uri: ???
+
+analysis:
+  eval_db_uri: ${eval_db_uri}
+  policy_uri: ${policy_uri}
+
+cmd: analyze 

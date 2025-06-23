@@ -1,0 +1,66 @@
+name: "Claude Review: Einops"
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: string
+
+jobs:
+  review:
+    uses: ./.github/workflows/claude-review-base.yml
+    secrets: inherit
+    with:
+      review_name: "Einops Suggestions"
+      review_type: "einops"
+      file_pattern: "\\.py$"
+      tools: "Edit,Replace,Bash(git diff HEAD~1)"
+      pr_number: ${{ inputs.pr_number }}
+      prompt: |
+        Review the Python diff for PyTorch tensor operations that could be significantly improved
+        with einops.rearrange.
+
+        **CRITICAL INSTRUCTIONS**:
+        1. If you find NO tensor operations that would clearly benefit from einops:
+           - Simply respond with "No issues found."
+           - DO NOT create any review
+        2. ONLY create a review if einops would provide substantial improvements
+        3. Do not suggest einops for simple, already-clear operations
+
+        **When to suggest einops.rearrange**:
+        - Multiple chained tensor operations that obscure the transformation intent
+        - Complex permutations where dimension meanings are unclear
+        - Reshape operations where the semantic meaning isn't obvious
+        - Cases where dimension names would significantly clarify the transformation
+        - Operations that are error-prone due to hardcoded dimension indices
+
+        **When NOT to suggest einops**:
+        - Simple, clear operations like single transpose or reshape calls
+        - When the existing code is already readable and the intent is clear
+        - When einops wouldn't add meaningful clarity
+        - For operations where performance is critical and einops might add overhead
+        - When the codebase doesn't already use einops (don't introduce new dependencies)
+
+        **Good candidates for einops**:
+        ```python
+        # Complex and unclear:
+        x = x.permute(0, 2, 1).reshape(batch_size, -1)
+        # Clear with einops:
+        x = rearrange(x, 'b h w -> b (w h)')
+
+        # Multiple operations:
+        x = x.transpose(1, 2).contiguous().view(b, -1, c)
+        # Single einops call:
+        x = rearrange(x, 'b h w c -> b (h w) c')
+        ```
+
+        **Poor candidates for einops**:
+        ```python
+        # Already clear:
+        x = x.transpose(0, 1)  # Don't suggest einops for this
+        x = x.reshape(-1, d)   # Simple and obvious
+        ```
+
+        Only create suggestions for transformations where einops would make the code
+        substantially more readable and maintainable. The goal is quality over quantity -
+        better to suggest nothing than to suggest marginal improvements.

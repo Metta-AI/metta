@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/navigation/evals/defaults@
+  - _self_
+
+game:
+  max_steps: 450
+  map_builder:
+    uri: "configs/env/mettagrid/maps/navigation/corridors.map"

@@ -1,0 +1,13 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1 #how many agents are in the map x2
+  max_steps: ???
+  agent:
+    rewards:
+      heart: 0.333
+  map_builder:
+    _target_: mettagrid.room.ascii.Ascii
+    border_width: 1

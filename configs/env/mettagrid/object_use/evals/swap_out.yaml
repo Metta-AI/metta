@@ -1,0 +1,14 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1
+  max_steps: 150
+  agent:
+    rewards:
+      heart: 1
+  map_builder:
+    _target_: mettagrid.room.ascii.Ascii
+    border_width: 1
+    uri: "configs/env/mettagrid/maps/object_use/swap_out.map"

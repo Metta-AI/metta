@@ -1,0 +1,18 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 4
+  max_steps: 1500
+  map_builder:
+    _target_: mettagrid.room.multi_room.MultiRoom
+    num_rooms: ${..num_agents}
+    border_width: 6
+    room:
+      agents: 1
+      border_width: 2
+  objects:
+    altar:
+      cooldown: 1000
+      initial_items: 1

@@ -1,0 +1,13 @@
+defaults:
+  - /env/mettagrid/object_use/evals/defaults@
+  - _self_
+
+game:
+  num_agents: 1
+  max_steps: 80
+  agent:
+    rewards:
+      heart: 1
+  map_builder:
+    objects:
+      temple: 1
