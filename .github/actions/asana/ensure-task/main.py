@@ -7,10 +7,81 @@
 # ///
 
 import os
+import re
 import sys
 from typing import Generator
 
 import requests
+
+
+def extract_asana_urls_from_description(description: str) -> list[str]:
+    """Extract Asana task URLs from the description text."""
+    if not description:
+        return []
+
+    # Pattern to match Asana task URLs in the format used by update-pr-description
+    # Matches: [Asana Task](https://app.asana.com/0/123456789/123456789)
+    asana_pattern = r"\[Asana Task\]\((https://app\.asana\.com/\d+/\d+/\d+(?:\?[^\s\)]*)?)\)"
+
+    urls = re.findall(asana_pattern, description)
+    return urls
+
+
+def validate_asana_task_url(
+    task_url: str, project_id: str, github_url: str, github_url_field_id: str, asana_token: str
+) -> dict | None:
+    """Validate that an Asana task URL exists, belongs to the specified project, and has the expected GitHub URL."""
+    # Extract task GID from URL
+    # URL format: https://app.asana.com/0/123456789/123456789
+    match = re.search(r"https://app\.asana\.com/\d+/\d+/(\d+)", task_url)
+    if not match:
+        print(f"Invalid Asana task URL format: {task_url}")
+        return None
+
+    task_gid = match.group(1)
+
+    # Fetch task details from Asana API
+    url = f"https://app.asana.com/api/1.0/tasks/{task_gid}"
+    headers = {
+        "Authorization": f"Bearer {asana_token}",
+        "Content-Type": "application/json",
+    }
+    params = {
+        "opt_fields": "permalink_url,custom_fields,name,notes,modified_at,completed,assignee.email,followers.email,projects.gid",
+    }
+
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=30)
+        if response.status_code != 200:
+            print(f"Asana API Error validating task {task_url}: {response.status_code} - {response.text}")
+            return None
+
+        task_data = response.json()["data"]
+
+        # Check if task belongs to the specified project
+        task_projects = [project["gid"] for project in task_data.get("projects", [])]
+        if project_id not in task_projects:
+            print(f"Task {task_url} does not belong to project {project_id}")
+            return None
+
+        # Check if the GitHub URL custom field matches the expected GitHub URL
+        custom_fields = task_data.get("custom_fields", [])
+        task_github_url = None
+        for field in custom_fields:
+            if field.get("gid") == github_url_field_id:
+                task_github_url = field.get("text_value")
+                break
+
+        if task_github_url != github_url:
+            print(f"Task {task_url} has GitHub URL '{task_github_url}' but expected '{github_url}'")
+            return None
+
+        print(f"Validated Asana task: {task_url}")
+        return task_data
+
+    except Exception as e:
+        print(f"Error validating Asana task {task_url}: {e}")
+        return None
 
 
 def search_asana_tasks(
@@ -163,7 +234,14 @@ def create_asana_task(
 
 
 def update_asana_task(
-    task_gid: str, title: str, description: str, completed: bool, assignee: str | None, asana_token: str
+    task_gid: str,
+    title: str,
+    description: str,
+    completed: bool,
+    assignee: str | None,
+    asana_token: str,
+    github_url: str | None = None,
+    github_url_field_id: str | None = None,
 ):
     """Update an existing Asana task with new title and description."""
     url = f"https://app.asana.com/api/1.0/tasks/{task_gid}"
@@ -178,6 +256,10 @@ def update_asana_task(
     if assignee:
         payload["data"]["assignee"] = assignee
 
+    # Add the GitHub URL custom field if provided
+    if github_url and github_url_field_id:
+        payload["data"]["custom_fields"] = {github_url_field_id: github_url}
+
     print(f"Updating task {task_gid} with payload: {payload}")
 
     response = requests.put(url, json=payload, headers=headers, timeout=30)
@@ -185,6 +267,61 @@ def update_asana_task(
         print(f"Successfully updated task {task_gid}")
     else:
         print(f"Asana API Error updating task: {response.status_code} - {response.text}")
+
+
+def update_task_if_needed(
+    task_data: dict,
+    title: str,
+    description: str,
+    task_completed: bool,
+    asana_assignee: str | None,
+    asana_token: str,
+    github_url: str | None = None,
+    github_url_field_id: str | None = None,
+) -> None:
+    """Update a task if its current data differs from the provided data."""
+    current_title = task_data.get("name") or ""
+    current_notes = task_data.get("notes") or ""
+    current_completed = task_data.get("completed") or False
+    current_assignee = (task_data.get("assignee") or {}).get("email") or ""
+
+    # Update title and description if needed
+    if (
+        current_title != title
+        or current_notes != description
+        or current_completed != task_completed
+        or current_assignee != asana_assignee
+    ):
+        print("Task needs updates")
+        update_asana_task(
+            task_data["gid"],
+            title,
+            description,
+            task_completed,
+            asana_assignee,
+            asana_token,
+            github_url,
+            github_url_field_id,
+        )
+
+
+def find_and_validate_task(
+    project_id: str,
+    github_url: str,
+    github_url_field_id: str,
+    asana_token: str,
+    workspace_id: str | None = None,
+) -> dict | None:
+    """Find a task that matches the project and GitHub URL requirements."""
+    # First try to find by searching Asana tasks with the GitHub URL
+    if workspace_id:
+        existing_task = search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id, asana_token)
+        if existing_task:
+            print(f"Found existing Asana task via search: {existing_task['permalink_url']}")
+            return existing_task
+
+    print("No existing task found with matching GitHub URL")
+    return None
 
 
 def ensure_asana_task_exists(
@@ -200,36 +337,43 @@ def ensure_asana_task_exists(
     asana_token: str,
 ) -> str:
     """Ensure an Asana task exists with the given GitHub URL. Return existing or create new."""
-    # First, search for existing task with this GitHub URL
-    existing_task = search_asana_tasks(github_url, project_id, workspace_id, github_url_field_id, asana_token)
+
+    existing_task = None
+
+    # First, check if there are existing Asana URLs in the description. Doing this (vs using Asana search)
+    # avoids a race condition in Asana search indexing, and makes duplicate tasks less likely.
+    existing_asana_urls = extract_asana_urls_from_description(description)
+    if existing_asana_urls:
+        print(f"Found {len(existing_asana_urls)} Asana URLs in description: {existing_asana_urls}")
+
+        # Validate each URL to see if it's a valid task in our project
+        for asana_url in existing_asana_urls:
+            validated_task = validate_asana_task_url(
+                asana_url, project_id, github_url, github_url_field_id, asana_token
+            )
+            if validated_task:
+                print(f"Using existing Asana task from description: {asana_url}")
+                existing_task = validated_task
+                break
+
+        print("None of the existing Asana URLs in description are valid for this project")
+
+    # If no valid existing URLs found in description, search for existing task with this GitHub URL. If we need
+    # to do this, the github description probably became malformed.
+    if not existing_task:
+        existing_task = find_and_validate_task(project_id, github_url, github_url_field_id, asana_token, workspace_id)
+
     if existing_task:
-        print(f"Found existing Asana task: {existing_task['permalink_url']}")
-
-        # Check if the task needs updates using the data from search
-        if existing_task:
-            current_title = existing_task.get("name") or ""
-            current_notes = existing_task.get("notes") or ""
-            current_completed = existing_task.get("completed") or False
-            current_assignee = (existing_task.get("assignee") or {}).get("email") or ""
-            # TODO: update followers -- probably only add.
-
-            # Update title and description if needed
-            if (
-                current_title != title
-                or current_notes != description
-                or current_completed != task_completed
-                or current_assignee != asana_assignee
-            ):
-                print("Task needs updates")
-                update_asana_task(
-                    existing_task["gid"],
-                    title,
-                    description,
-                    task_completed,
-                    asana_assignee,
-                    asana_token,
-                )
-
+        update_task_if_needed(
+            existing_task,
+            title,
+            description,
+            task_completed,
+            asana_assignee,
+            asana_token,
+            github_url,
+            github_url_field_id,
+        )
         return existing_task["permalink_url"]
 
     # If no existing task found, create a new one
