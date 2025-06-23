@@ -277,14 +277,31 @@ class PolicyRecord:
             raise ValueError(f"Cannot load policy from {path}: This file is not a valid torch.package file.")
 
     def key_and_version(self) -> tuple[str, int]:
+        """
+        Extract the policy key and version from the URI.
+        TODO: store these on the metadata for new policies,
+        eventually read them from the metadata instead of parsing the URI.
+        Returns:
+            tuple: (policy_key, version)
+                - policy_key is the clean name without path or version
+                - version is the numeric version or 0 if not present
+        """
+        # Get the last part after splitting by slash
         base_name = self.uri.split("/")[-1]
+
+        # Check if it has a version number in format ":vNUM"
         if ":" in base_name and ":v" in base_name:
             parts = base_name.split(":v")
             try:
-                return parts[0], int(parts[1])
+                version = int(parts[1])
             except ValueError:
-                return parts[0], 0
-        return base_name, 0
+                version = 0
+        else:
+            # No version, use the whole thing as key and version = 0
+            key = base_name
+            version = 0
+
+        return key, version
 
     def key(self) -> str:
         return self.key_and_version()[0]
@@ -323,50 +340,92 @@ class PolicyStore:
             if ":" in wandb_uri:
                 wandb_uri, version = wandb_uri.split(":")
             if wandb_uri.startswith("run/"):
-                prs = self._prs_from_wandb_run(wandb_uri[4:], version)
+                run_id = wandb_uri[len("run/") :]
+                prs = self._prs_from_wandb_run(run_id, version)
             elif wandb_uri.startswith("sweep/"):
-                prs = self._prs_from_wandb_sweep(wandb_uri[6:], version)
+                sweep_name = wandb_uri[len("sweep/") :]
+                prs = self._prs_from_wandb_sweep(sweep_name, version)
             else:
                 prs = self._prs_from_wandb_artifact(wandb_uri, version)
         elif uri.startswith("file://"):
-            prs = self._prs_from_path(uri[7:])
+            prs = self._prs_from_path(uri[len("file://") :])
         elif uri.startswith("pytorch://"):
-            prs = self._prs_from_pytorch(uri[10:])
+            prs = self._prs_from_pytorch(uri[len("pytorch://") :])
         else:
             prs = self._prs_from_path(uri)
 
-        if not prs:
+        if len(prs) == 0:
             raise ValueError(f"No policies found at {uri}")
         logger.info(f"Found {len(prs)} policies at {uri}")
 
         if selector_type == "all":
             return prs
         elif selector_type == "latest":
-            return [prs[0]]
+            selected = [prs[0]]
+            logger.info(f"Selected latest policy: {selected[0].name}")
+            return selected
         elif selector_type == "rand":
-            return [random.choice(prs)]
+            selected = [random.choice(prs)]
+            logger.info(f"Selected random policy: {selected[0].name}")
+            return selected
         elif selector_type == "top":
             if (
                 "eval_scores" in prs[0].metadata
-                and prs[0].metadata["eval_scores"]
+                and prs[0].metadata["eval_scores"] is not None
                 and metric in prs[0].metadata["eval_scores"]
             ):
-                policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric) for p in prs}
+                # Metric is in eval_scores
+                logger.info(f"Found metric '{metric}' in metadata['eval_scores']")
+                policy_scores = {p: p.metadata.get("eval_scores", {}).get(metric, None) for p in prs}
             elif metric in prs[0].metadata:
-                policy_scores = {p: p.metadata.get(metric) for p in prs}
+                # Metric is directly in metadata
+                logger.info(f"Found metric '{metric}' directly in metadata")
+                policy_scores = {p: p.metadata.get(metric, None) for p in prs}
             else:
+                # Metric not found anywhere
                 logger.warning(
                     f"Metric '{metric}' not found in policy metadata or eval_scores, returning latest policy"
                 )
-                return [prs[0]]
+                selected = [prs[0]]
+                logger.info(f"Selected latest policy (due to missing metric): {selected[0].name}")
+                return selected
 
             policies_with_scores = [p for p, s in policy_scores.items() if s is not None]
             if len(policies_with_scores) < len(prs) * 0.8:
                 return [prs[0]]
 
-            top = sorted(policies_with_scores, key=lambda p: policy_scores[p])[-n:]
-            logger.info(f"Selected {len(top)} top policies by {metric}")
-            return top
+            # If more than 20% of the policies have no score, return the latest policy
+            if len(policies_with_scores) < len(prs) * 0.8:
+                logger.warning("Too many invalid scores, returning latest policy")
+                selected = [prs[0]]  # return latest if metric not found
+                logger.info(f"Selected latest policy (due to too many invalid scores): {selected[0].name}")
+                return selected
+
+            # Sort by metric score (assuming higher is better)
+            def get_policy_score(policy: PolicyRecord) -> float:  # Explicitly return a comparable type
+                score = policy_scores.get(policy)
+                if score is None:
+                    return float("-inf")  # Or another appropriate default
+                return score
+
+            top = sorted(policies_with_scores, key=get_policy_score)[-n:]
+
+            if len(top) < n:
+                logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")
+
+            logger.info(f"Top {len(top)} policies by {metric}:")
+            logger.info(f"{'Policy':<40} | {metric:<20}")
+            logger.info("-" * 62)
+            for pr in top:
+                score = policy_scores[pr]
+                logger.info(f"{pr.name:<40} | {score:<20.4f}")
+
+            selected = top[-n:]
+            logger.info(f"Selected {len(selected)} top policies by {metric}")
+            for i, pr in enumerate(selected):
+                logger.info(f"  {i + 1}. {pr.name} (score: {policy_scores[pr]:.4f})")
+
+            return selected
         else:
             raise ValueError(f"Invalid selector type {selector_type}")
 
@@ -442,8 +501,10 @@ class PolicyStore:
         self._wandb_run.log_artifact(artifact)
 
     def _prs_from_path(self, path: str) -> List[PolicyRecord]:
+        paths = []
+
         if path.endswith(".pt"):
-            paths = [path]
+            paths.append(path)
         else:
             paths = [os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")]
         return [self._load_from_file(path, metadata_only=True) for path in paths]
@@ -490,13 +551,14 @@ class PolicyStore:
 
     def load_from_uri(self, uri: str) -> PolicyRecord:
         if uri.startswith("wandb://"):
-            return self._load_wandb_artifact(uri[8:])
+            return self._load_wandb_artifact(uri[len("wandb://") :])
         if uri.startswith("file://"):
-            return self._load_from_file(uri[7:])
+            return self._load_from_file(uri[len("file://") :])
         if uri.startswith("pytorch://"):
-            return self._load_from_pytorch(uri[10:])
+            return self._load_from_pytorch(uri[len("pytorch://") :])
         if "://" not in uri:
             return self._load_from_file(uri)
+
         raise ValueError(f"Invalid URI: {uri}")
 
     def _load_from_pytorch(self, path: str, metadata_only: bool = False) -> PolicyRecord:
@@ -536,10 +598,16 @@ class PolicyStore:
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")
+
         artifact = wandb.Api().artifact(qualified_name)
+
         artifact_path = os.path.join(self._cfg.data_dir, "artifacts", artifact.name)
+
         if not os.path.exists(artifact_path):
             artifact.download(root=artifact_path)
+
+        logger.info(f"Downloaded artifact {artifact.name} to {artifact_path}")
+
         pr = self._load_from_file(os.path.join(artifact_path, "model.pt"))
         pr.metadata.update(artifact.metadata)
         return pr
