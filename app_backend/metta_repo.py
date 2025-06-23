@@ -91,6 +91,13 @@ MIGRATIONS = [
             """CREATE INDEX idx_machine_tokens_token_hash ON machine_tokens(token_hash)""",
         ],
     ),
+    SqlMigration(
+        version=2,
+        description="Make training run names unique",
+        sql_statements=[
+            """ALTER TABLE training_runs ADD CONSTRAINT training_runs_name_unique UNIQUE (user_id, name)""",
+        ],
+    ),
 ]
 
 
@@ -119,16 +126,26 @@ class MettaRepo:
     def create_training_run(self, name: str, user_id: str, attributes: Dict[str, str], url: str | None) -> uuid.UUID:
         status = "running"
         with self.connect() as con:
+            # Try to insert a new training run, but if it already exists, return the existing ID
             result = con.execute(
                 """
                 INSERT INTO training_runs (name, user_id, attributes, status, url)
                 VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, name) DO NOTHING
                 RETURNING id
                 """,
                 (name, user_id, Jsonb(attributes), status, url),
             ).fetchone()
             if result is None:
-                raise RuntimeError("Failed to insert training run")
+                # If no result, the run already exists, so fetch its ID
+                result = con.execute(
+                    """
+                    SELECT id FROM training_runs WHERE user_id = %s AND name = %s
+                    """,
+                    (user_id, name),
+                ).fetchone()
+                if result is None:
+                    raise RuntimeError("Failed to find existing training run")
             return result[0]
 
     def create_epoch(
