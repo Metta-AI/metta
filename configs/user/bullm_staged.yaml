@@ -18,8 +18,8 @@ run_dir: ${data_dir}/${run}
 trainer:
   # Use the new staged progressive curriculum
   curriculum: env/mettagrid/curriculum/staged_progressive
-  evaluate_interval: 100
-  total_timesteps: 2000000  # Longer training to allow for stage transitions
+  evaluate_interval: 1000
+  total_timesteps: 200000000  # Longer training to allow for stage transitions
   num_workers: 4
 
 # WandB configuration
@@ -34,4 +34,4 @@ wandb:
 # 1. Start with navigation training
 # 2. Transition to navigation sequence when performance reaches 80%
 # 3. Transition to simple tasks when performance reaches 80%
-# 4. Log all stage transitions and performance metrics to WandB 
+# 4. Log all stage transitions and performance metrics to WandB
