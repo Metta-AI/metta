@@ -46,7 +46,7 @@ class TrainerCheckpoint:
         logger.info(f"Loading trainer state from {trainer_path}")
         if not os.path.exists(trainer_path):
             logger.info("No trainer state found. Assuming new run")
-            return TrainerCheckpoint(0, 0, None, None, None)
+            return TrainerCheckpoint(0, 0, None, None, None, None)
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)

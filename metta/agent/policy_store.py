@@ -10,6 +10,7 @@ The PolicyStore is used by the training system to manage opponent policies and c
 """
 
 import collections
+import copy
 import logging
 import os
 import random
@@ -177,8 +178,6 @@ class PolicyRecord:
         return "\n".join(lines)
 
     def _clean_metadata_for_packaging(self, metadata: dict) -> dict:
-        import copy
-
         def clean_value(v):
             if hasattr(v, "__module__") and v.__module__ and "wandb" in v.__module__:
                 return None
