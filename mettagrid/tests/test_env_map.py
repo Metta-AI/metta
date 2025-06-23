@@ -1,9 +1,9 @@
 from omegaconf import OmegaConf
 
 import mettagrid.room.random
-from mettagrid.curriculum import SingleTaskCurriculum
-from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.util.hydra import get_cfg
+from metta.mettagrid.curriculum import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.util.hydra import get_cfg
 
 
 def test_env_map():

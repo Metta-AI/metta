@@ -3,9 +3,9 @@ import random
 import pytest
 from omegaconf import OmegaConf
 
-from mettagrid.curriculum import LowRewardCurriculum, RandomCurriculum, SingleTaskCurriculum
-from mettagrid.curriculum.progressive import ProgressiveCurriculum
-from mettagrid.curriculum.sampling import SamplingCurriculum
+from metta.mettagrid.curriculum import LowRewardCurriculum, RandomCurriculum, SingleTaskCurriculum
+from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum
+from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 
 
 @pytest.fixture

@@ -4,10 +4,10 @@ import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
-from mettagrid.curriculum import SingleTaskCurriculum
-from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.util.actions import generate_valid_random_actions
-from mettagrid.util.hydra import get_cfg
+from metta.mettagrid.curriculum import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.util.actions import generate_valid_random_actions
+from metta.mettagrid.util.hydra import get_cfg
 
 
 @pytest.fixture

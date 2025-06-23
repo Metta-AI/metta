@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metta-common"
+version = "0.1.0"
+description = "Common utilities for metta packages"
+readme = "README.md"
+requires-python = "==3.11.7"
+license = { text = "MIT" }
+authors = [{ name = "Your Name", email = "your.email@example.com" }]
+dependencies = [
+  "pytest>=8.3.3",
+  "pytest-cov>=6.1.1",
+  "pytest-benchmark>=5.1.0",
+  "ruff>=0.11.13",
+  "pyright>=1.1.401",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["metta.common"]
+
+[tool.setuptools.package-data]
+"metta.common" = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["metta.common"]
+
+[tool.ruff]
+src = ["src", "tests"]

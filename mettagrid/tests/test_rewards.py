@@ -1,14 +1,14 @@
 import numpy as np
 
-from mettagrid.mettagrid_c import MettaGrid
-from mettagrid.mettagrid_env import (
+from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_env import (
     dtype_actions,
     dtype_observations,
     dtype_rewards,
     dtype_terminals,
     dtype_truncations,
 )
-from mettagrid.util.actions import (
+from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,
     move,

@@ -12,7 +12,7 @@ import mettagrid.util.file
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import grid_to_lines, lines_to_grid
 from metta.map.utils.s3utils import list_objects
-from mettagrid.util import file as file_utils
+from metta.mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
 

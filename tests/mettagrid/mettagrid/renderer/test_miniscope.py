@@ -11,7 +11,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from mettagrid.renderer.miniscope import MiniscopeRenderer
+from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
 
 
 @contextmanager

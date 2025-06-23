@@ -19,7 +19,11 @@ from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyRecord, PolicyStore
 from metta.agent.util.debug import assert_shape
+from metta.common.stopwatch import Stopwatch, with_instance_timer
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.mettagrid.curriculum import curriculum_from_config_path
+from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
@@ -33,10 +37,6 @@ from metta.sim.simulation_suite import SimulationSuite
 from metta.util.heartbeat import record_heartbeat
 from metta.util.system_monitor import SystemMonitor
 from metta.util.wandb.wandb_context import WandbRun
-from mettagrid.curriculum import curriculum_from_config_path
-from mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
-from mettagrid.util.dict_utils import unroll_nested_dict
-from mettagrid.util.stopwatch import Stopwatch, with_instance_timer
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
