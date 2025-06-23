@@ -33,11 +33,11 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
     game_map[:, 0] = "wall"
     game_map[:, -1] = "wall"
     # Place first agent in upper left
-    game_map[1, 1] = "agent.red"
+    game_map[1, 1] = "agent:red"
     # Place second agent in middle
     mid_y = height // 2
     mid_x = width // 2
-    game_map[mid_y, mid_x] = "agent.red"
+    game_map[mid_y, mid_x] = "agent:red"
 
     game_config = {
         "max_steps": max_steps,

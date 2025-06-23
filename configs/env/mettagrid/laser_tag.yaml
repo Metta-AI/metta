@@ -41,7 +41,7 @@ game:
             params:
               objects:
                 altar: 1
-                mine.red: 10
+                mine:red: 10
         - where:
             tags:
               - room_0_2
@@ -64,13 +64,13 @@ game:
       initial_items: 1
 
     lasery:
-      input_ore.red: 0
+      input_ore:red: 0
       input_battery: 0
       cooldown: ${sampling:1,10,5}
       initial_items: 5
 
     armory:
-      input_ore.red: 0
+      input_ore:red: 0
       initial_items: 5
       cooldown: ${sampling:1,10,5}
 

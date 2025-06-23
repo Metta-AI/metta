@@ -7,9 +7,9 @@ game:
   agent:
     rewards:
       armor: 1
-      ore.red: 0
+      ore:red: 0
   objects:
-    mine.red:
+    mine:red:
       initial_items: 3
       output_ore: 3
       cooldown: 255

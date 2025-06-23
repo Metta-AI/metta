@@ -12,14 +12,14 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "block": ["s"],
     # mines
     "mine": ["m"],
-    "mine.red": ["r"],
-    "mine.blue": ["b"],
-    "mine.green": ["g"],
+    "mine:red": ["r"],
+    "mine:blue": ["b"],
+    "mine:green": ["g"],
     # generators
     "generator": ["n"],
-    "generator.red": ["R"],
-    "generator.blue": ["B"],
-    "generator.green": ["G"],
+    "generator:red": ["R"],
+    "generator:blue": ["B"],
+    "generator:green": ["G"],
     # other objects
     "altar": ["_", "a"],
     "armory": ["o"],

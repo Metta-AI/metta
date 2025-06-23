@@ -36,8 +36,8 @@ protected:
   std::map<std::string, float> create_test_rewards() {
     std::map<std::string, float> rewards;
     rewards["heart"] = 1.0f;
-    rewards["ore.red"] = 0.125f;
-    rewards["ore.green"] = 0.5f;
+    rewards["ore:red"] = 0.125f;
+    rewards["ore:green"] = 0.5f;
     return rewards;
   }
 };
@@ -224,8 +224,8 @@ TEST_F(MettaGridCppTest, PutRecipeItems) {
 
   // Create a generator that takes red ore and outputs batteries
   ObjectConfig generator_cfg;
-  generator_cfg["input_ore.red"] = 1;
-  generator_cfg["output_battery.red"] = 1;
+  generator_cfg["input_ore:red"] = 1;
+  generator_cfg["output_battery:red"] = 1;
   // Set the max_output to 0 so it won't consume things we put in it.
   generator_cfg["max_output"] = 0;
   generator_cfg["conversion_ticks"] = 1;
@@ -279,8 +279,8 @@ TEST_F(MettaGridCppTest, GetOutput) {
 
   // Create a generator with initial output
   ObjectConfig generator_cfg;
-  generator_cfg["input_ore.red"] = 1;
-  generator_cfg["output_battery.red"] = 1;
+  generator_cfg["input_ore:red"] = 1;
+  generator_cfg["output_battery:red"] = 1;
   // Set the max_output to 0 so it won't consume things we put in it.
   generator_cfg["max_output"] = 1;
   generator_cfg["conversion_ticks"] = 1;
@@ -365,7 +365,7 @@ TEST_F(MettaGridCppTest, WallCreation) {
 
 TEST_F(MettaGridCppTest, ConverterCreation) {
   ObjectConfig converter_cfg;
-  converter_cfg["input_ore.red"] = 2;
+  converter_cfg["input_ore:red"] = 2;
   converter_cfg["output_battery"] = 1;
   converter_cfg["conversion_ticks"] = 5;
   converter_cfg["cooldown"] = 10;

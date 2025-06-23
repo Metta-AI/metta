@@ -52,8 +52,8 @@ class Boxy(Room):
         self._occ = np.zeros((self._h, self._w), dtype=bool)
 
         # Parameters from YAML (with sensible fallbacks)
-        mine_total = self._to_int(self._objects_cfg.get("mine.red", 30), 30)
-        generator_total = self._to_int(self._objects_cfg.get("generator.red", 30), 30)
+        mine_total = self._to_int(self._objects_cfg.get("mine:red", 30), 30)
+        generator_total = self._to_int(self._objects_cfg.get("generator:red", 30), 30)
 
         # Determine number of boxes (and therefore altars)
         altar_cfg = self._objects_cfg.get("altar", None)
@@ -112,7 +112,7 @@ class Boxy(Room):
 
             placed_boxes += 1
 
-        # ---- scatter mines and generator.reds outside boxes ----
+        # ---- scatter mines and generator:reds outside boxes ----
         interior_set = set(interior_coords)
         outer_coords = [
             (r, c)
@@ -123,10 +123,10 @@ class Boxy(Room):
         self._rng.shuffle(outer_coords)
 
         for r, c in outer_coords[:mine_total]:
-            grid[r, c] = "mine.red"
+            grid[r, c] = "mine:red"
             self._occ[r, c] = True
         for r, c in outer_coords[mine_total : mine_total + generator_total]:
-            grid[r, c] = "generator.red"
+            grid[r, c] = "generator:red"
             self._occ[r, c] = True
 
         # ---- place agents ----

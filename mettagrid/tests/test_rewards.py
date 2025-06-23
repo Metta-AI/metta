@@ -28,7 +28,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
     # Create a simple map with agent, altar, and walls
     game_map = [
         ["wall", "wall", "wall", "wall", "wall", "wall"],
-        ["wall", "agent.red", "empty", "altar", "empty", "wall"],
+        ["wall", "agent:red", "empty", "altar", "empty", "wall"],
         ["wall", "empty", "empty", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
@@ -81,7 +81,7 @@ def create_reward_test_env(max_steps=10, width=5, height=5, num_agents=NUM_AGENT
 
     # Place agents
     for i in range(num_agents):
-        game_map[1, i + 1] = "agent.red"
+        game_map[1, i + 1] = "agent:red"
 
     game_config = {
         "max_steps": max_steps,

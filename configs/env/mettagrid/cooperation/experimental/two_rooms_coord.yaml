@@ -6,9 +6,8 @@ defaults:
 sampling: 1
 
 game:
-
   agent:
-    ore.red_max: 1
+    ore:red_max: 1
     battery_max: 1
     heart_max: 1000
 
@@ -17,7 +16,6 @@ game:
   map_builder:
     _target_: metta.mettagrid.room.room_list.RoomList
     border_width: 6
-
 
     rooms:
       - _target_: metta.mettagrid.room.cooperation.two_rooms_coord.TwoRoomsCoord
@@ -64,12 +62,12 @@ game:
       max_output: 10
       conversion_ticks: 1
       initial_items: 0
-    generator.red:
+    generator:red:
       cooldown: 1
       max_output: 10
       conversion_ticks: 1
       initial_items: 0
-    mine.red:
+    mine:red:
       cooldown: 1
       max_output: 10
       conversion_ticks: 1

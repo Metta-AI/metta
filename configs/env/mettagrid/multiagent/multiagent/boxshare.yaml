@@ -10,5 +10,5 @@ game:
     height: ${sampling:40,60,45}
     objects:
       altar: ${sampling:7,14,10}
-      mine.red: ${sampling:7,14,10}
-      generator.red: ${sampling:8,16,12}
+      mine:red: ${sampling:7,14,10}
+      generator:red: ${sampling:8,16,12}

@@ -154,12 +154,12 @@ TEST_F(StatsTrackerTest, NoEnvironmentNoTiming) {
 
 // Test complex stat keys
 TEST_F(StatsTrackerTest, ComplexStatKeys) {
-  stats.incr("action.attack.agent.red_team.blue_team");
+  stats.incr("action.attack.agent:red_team:blue_team");
   stats.add("inventory.armor.gained", 5);
   stats.set("status.health.current", 85.5f);
 
   auto result = stats.to_dict();
-  EXPECT_FLOAT_EQ(1.0f, result["action.attack.agent.red_team.blue_team"]);
+  EXPECT_FLOAT_EQ(1.0f, result["action.attack.agent:red_team:blue_team"]);
   EXPECT_FLOAT_EQ(5.0f, result["inventory.armor.gained"]);
   EXPECT_FLOAT_EQ(85.5f, result["status.health.current"]);
 }

@@ -39,8 +39,8 @@ module "eks" {
     enabled    = true
     node_pools = ["general-purpose"]
   }
-  
-  # https://www.reddit.com/r/Terraform/comments/znomk4/ebs_csi_driver_entirely_from_terraform_on_aws_eks/
+
+  # https://www:reddit.com/r/Terraform/comments/znomk4/ebs_csi_driver_entirely_from_terraform_on_aws_eks/
   cluster_addons = {
     aws-ebs-csi-driver = {
       most_recent = true

@@ -59,22 +59,22 @@ class BoxShare(Room):
                     self._occ[r, c] = True
                     wall_coords.append((r, c))
         # ---- replace some walls with generators ----
-        gen_count = self._to_int(self._objects_cfg.get("generator.red", 8), 8)
+        gen_count = self._to_int(self._objects_cfg.get("generator:red", 8), 8)
         self._rng.shuffle(wall_coords)
         for r, c in wall_coords[:gen_count]:
-            grid[r, c] = "generator.red"
+            grid[r, c] = "generator:red"
         # mark as occupied already
 
         # ---- place mines inside ----
         in_coords = [(r, c) for r in range(top + 1, top + box_h - 1) for c in range(left + 1, left + box_w - 1)]
         self._rng.shuffle(in_coords)
-        mine_count = self._to_int(self._objects_cfg.get("mine.red", 7), 7)
+        mine_count = self._to_int(self._objects_cfg.get("mine:red", 7), 7)
         placed = 0
         for r, c in in_coords:
             if placed >= mine_count:
                 break
             if grid[r, c] == "empty":
-                grid[r, c] = "mine.red"
+                grid[r, c] = "mine:red"
                 self._occ[r, c] = True
                 placed += 1
 

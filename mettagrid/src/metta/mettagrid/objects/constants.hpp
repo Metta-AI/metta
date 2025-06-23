@@ -80,7 +80,7 @@ constexpr std::array<const char*, ObjectTypeCount> ObjectTypeNamesArray = {
 const std::vector<std::string> ObjectTypeNames(ObjectTypeNamesArray.begin(), ObjectTypeNamesArray.end());
 
 enum InventoryItem {
-  // These are "ore.red", etc everywhere else. They're differently named here because
+  // These are "ore:red", etc everywhere else. They're differently named here because
   // of enum naming limitations.
   ore_red = 0,
   ore_blue = 1,
@@ -95,12 +95,12 @@ enum InventoryItem {
   InventoryItemCount
 };
 
-constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {{"ore.red",
-                                                                                  "ore.blue",
-                                                                                  "ore.green",
-                                                                                  "battery.red",
-                                                                                  "battery.blue",
-                                                                                  "battery.green",
+constexpr std::array<const char*, InventoryItemCount> InventoryItemNamesArray = {{"ore:red",
+                                                                                  "ore:blue",
+                                                                                  "ore:green",
+                                                                                  "battery:red",
+                                                                                  "battery:blue",
+                                                                                  "battery:green",
                                                                                   "heart",
                                                                                   "armor",
                                                                                   "laser",

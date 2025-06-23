@@ -51,7 +51,7 @@ def movement_game_map():
     return [
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
         ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
-        ["wall", "empty", "empty", "agent.red", "empty", "empty", "wall"],  # Agent in center
+        ["wall", "empty", "empty", "agent:red", "empty", "empty", "wall"],  # Agent in center
         ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
     ]
@@ -63,7 +63,7 @@ def small_movement_game_map():
     return [
         ["wall", "wall", "wall", "wall", "wall"],
         ["wall", "empty", "empty", "empty", "wall"],
-        ["wall", "empty", "agent.red", "empty", "wall"],
+        ["wall", "empty", "agent:red", "empty", "wall"],
         ["wall", "empty", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall"],
     ]
@@ -74,7 +74,7 @@ def blocked_game_map():
     """Game map where agent is completely surrounded by walls."""
     return [
         ["wall", "wall", "wall"],
-        ["wall", "agent.red", "wall"],
+        ["wall", "agent:red", "wall"],
         ["wall", "wall", "wall"],
     ]
 
@@ -205,7 +205,7 @@ def corridor_game_map():
     """Game map with a corridor for walking tests."""
     return [
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
-        ["wall", "agent.red", "empty", "empty", "empty", "empty", "wall"],
+        ["wall", "agent:red", "empty", "empty", "empty", "empty", "wall"],
         ["wall", "empty", "empty", "altar", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
     ]

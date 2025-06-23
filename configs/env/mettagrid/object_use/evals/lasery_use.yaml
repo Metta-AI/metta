@@ -7,14 +7,14 @@ game:
   agent:
     rewards:
       laser: 1
-      ore.red: 0
-      battery.red: 0
+      ore:red: 0
+      battery:red: 0
   objects:
-    generator.red:
+    generator:red:
       initial_items: 2
-      output_battery.red: 2
+      output_battery:red: 2
       cooldown: 255
-    mine.red:
+    mine:red:
       cooldown: 255
     lasery:
       initial_items: 0
