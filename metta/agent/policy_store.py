@@ -667,54 +667,42 @@ class PolicyStore:
         if not isinstance(checkpoint, dict):
             raise ValueError(f"Unexpected checkpoint format: {type(checkpoint)}")
 
-        name = os.path.basename(path)
+        # Create PolicyRecord with metadata
         pr = PolicyRecord(
             self,
-            name,
+            os.path.basename(path),
             f"file://{path}",
             {
-                "action_names": checkpoint.get("action_names", []),
-                "agent_step": checkpoint.get("agent_step", 0),
-                "epoch": checkpoint.get("epoch", 0),
-                "generation": checkpoint.get("generation", 0),
-                "train_time": checkpoint.get("train_time", 0),
+                k: checkpoint.get(k, 0 if k != "action_names" else [])
+                for k in ["action_names", "agent_step", "epoch", "generation", "train_time"]
             },
         )
         pr._local_path = path
 
         if not metadata_only:
-            obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
-
             try:
-                # Create a mock environment object with the required attributes
-                class MockEnv:
-                    def __init__(self, obs_shape, action_space_nvec, feature_normalizations):
-                        self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
-                        self.obs_width = obs_shape[1]
-                        self.obs_height = obs_shape[2]
-                        self.single_action_space = gym.spaces.MultiDiscrete(action_space_nvec)
-                        self.feature_normalizations = feature_normalizations
-                        self.global_features = []
+                from types import SimpleNamespace
 
-                mock_env = MockEnv(
-                    obs_shape=obs_shape,
-                    action_space_nvec=checkpoint.get("action_space_nvec", [9, 10]),
+                # Create mock environment
+                obs_shape = checkpoint.get("obs_shape", [34, 11, 11])
+                env = SimpleNamespace(
+                    single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
+                    obs_width=obs_shape[1],
+                    obs_height=obs_shape[2],
+                    single_action_space=gym.spaces.MultiDiscrete(checkpoint.get("action_space_nvec", [9, 10])),
                     feature_normalizations=checkpoint.get("feature_normalizations", {}),
+                    global_features=[],
                 )
 
-                policy = make_policy(mock_env, self._cfg)
+                policy = make_policy(env, self._cfg)
 
-                if "model_state_dict" in checkpoint:
-                    policy.load_state_dict(checkpoint["model_state_dict"])
-                elif "state_dict" in checkpoint:
-                    policy.load_state_dict(checkpoint["state_dict"])
-                else:
-                    policy.load_state_dict(checkpoint)
+                # Load state dict
+                state_key = next((k for k in ["model_state_dict", "state_dict"] if k in checkpoint), None)
+                policy.load_state_dict(checkpoint.get(state_key, checkpoint))
 
                 pr._policy = policy
                 logger.info("Successfully loaded legacy checkpoint as MettaAgent")
             except Exception as e:
-                logger.error(f"Failed to create MettaAgent from legacy checkpoint: {e}")
                 raise ValueError(f"Cannot load legacy checkpoint as MettaAgent: {e}") from e
 
         self._cached_prs[path] = pr
