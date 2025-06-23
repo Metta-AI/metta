@@ -17,12 +17,17 @@ on:
         description: "PR number (if applicable, leave empty otherwise)"
         required: false
         type: string
+      num_gpus:
+        description: "Number of GPUs to request (e.g., 1, 4). If empty, defaults to SkyPilot task definition (usually 1)."
+        required: false
+        type: string
   push:
     branches: [main]
 
 env:
   TRAINER_ENV: ${{ github.event.inputs.trainer_env || 'env/mettagrid/simple' }}
   TIMEOUT_HOURS: ${{ github.event.inputs.timeout_hours || 1 }}
+  NUM_GPUS: ${{ github.event.inputs.num_gpus || '' }}
 
 jobs:
   launch-batch-job:
@@ -90,8 +95,13 @@ jobs:
 
       - name: Launch SkyPilot training job
         run: |
+          GPU_ARG=""
+          if [ -n "$NUM_GPUS" ]; then
+            GPU_ARG="--gpus=$NUM_GPUS"
+          fi
           ./devops/skypilot/launch.py \
             --timeout-hours=$TIMEOUT_HOURS \
+            $GPU_ARG \
             train \
             run=${{ steps.generate_run_name.outputs.run_name }} \
             trainer.curriculum=$TRAINER_ENV
