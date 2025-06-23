@@ -78,7 +78,7 @@ class TestRendererJob:
     def test_miniscope_renderer_imports(self):
         """Test that MiniscopeRenderer can be imported and initialized."""
         try:
-            from mettagrid.renderer.miniscope import MiniscopeRenderer
+            from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
 
             # Test basic initialization
             object_type_names = ["agent", "wall", "altar", "mine", "generator"]

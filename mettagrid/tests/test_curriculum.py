@@ -3,9 +3,11 @@ import random
 import pytest
 from omegaconf import OmegaConf
 
-from mettagrid.curriculum import LowRewardCurriculum, RandomCurriculum, SingleTaskCurriculum
-from mettagrid.curriculum.progressive import ProgressiveCurriculum
-from mettagrid.curriculum.sampling import SamplingCurriculum
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.curriculum.low_reward import LowRewardCurriculum
+from metta.mettagrid.curriculum.progressive import ProgressiveCurriculum
+from metta.mettagrid.curriculum.random import RandomCurriculum
+from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 
 
 @pytest.fixture
@@ -58,7 +60,9 @@ def test_low_reward_curriculum_updates(monkeypatch, env_cfg):
 
 
 def test_sampling_curriculum(monkeypatch, env_cfg):
-    monkeypatch.setattr("mettagrid.curriculum.sampling.config_from_path", lambda path, env_overrides=None: env_cfg)
+    monkeypatch.setattr(
+        "metta.mettagrid.curriculum.sampling.config_from_path", lambda path, env_overrides=None: env_cfg
+    )
 
     curr = SamplingCurriculum("dummy")
     t1 = curr.get_task()
@@ -71,7 +75,9 @@ def test_sampling_curriculum(monkeypatch, env_cfg):
 
 
 def test_progressive_curriculum(monkeypatch, env_cfg):
-    monkeypatch.setattr("mettagrid.curriculum.sampling.config_from_path", lambda path, env_overrides=None: env_cfg)
+    monkeypatch.setattr(
+        "metta.mettagrid.curriculum.sampling.config_from_path", lambda path, env_overrides=None: env_cfg
+    )
 
     curr = ProgressiveCurriculum("dummy")
     t1 = curr.get_task()

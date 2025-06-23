@@ -9,10 +9,10 @@ game:
       heart: 0.333
   map_builder:
 
-    _target_: mettagrid.room.multi_room.MultiRoom
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: 4
     room:
-      _target_: mettagrid.room.ascii.Ascii
+      _target_: metta.mettagrid.room.ascii.Ascii
       border_width: 1
       uri: "configs/env/mettagrid/maps/memory_training/hard.map"
 

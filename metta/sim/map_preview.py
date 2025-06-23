@@ -9,8 +9,8 @@ import wandb
 from omegaconf import DictConfig
 from wandb.sdk import wandb_run
 
-from mettagrid.mettagrid_env import MettaGridEnv
-from mettagrid.util.file import write_file
+from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid.util.file import write_file
 
 logger = logging.getLogger(__name__)
 
