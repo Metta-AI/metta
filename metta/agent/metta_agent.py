@@ -21,7 +21,7 @@ logger = logging.getLogger("metta_agent")
 class MettaAgent(nn.Module):
     """A wrapper for neural network policies that provides a standard interface.
 
-    MettaAgent wraps various policy implementations (BrainPolicy, PyTorch policies, etc.)
+    MettaAgent wraps various policy implementations (ComponentPolicy, PyTorch policies, etc.)
     and provides factory methods to create agents from different sources.
     """
 
@@ -31,8 +31,8 @@ class MettaAgent(nn.Module):
 
     # Factory methods (class methods)
     @classmethod
-    def from_brain_policy(cls, env, cfg: DictConfig) -> "MettaAgent":
-        """Build a MettaAgent from BrainPolicy configuration.
+    def from_component_policy(cls, env, cfg: DictConfig) -> "MettaAgent":
+        """Build a MettaAgent from ComponentPolicy configuration.
 
         Args:
             env: The environment with observation/action space information
@@ -48,7 +48,7 @@ class MettaAgent(nn.Module):
             }
         )
 
-        # Create BrainPolicy
+        # Create ComponentPolicy
         brain = hydra.utils.instantiate(
             cfg.agent,
             obs_space=obs_space,
@@ -57,11 +57,14 @@ class MettaAgent(nn.Module):
             action_space=env.single_action_space,
             feature_normalizations=env.feature_normalizations,
             device=cfg.device,
-            _target_="metta.agent.brain_policy.BrainPolicy",
+            _target_="metta.agent.component_policy.ComponentPolicy",
             _recursive_=False,
         )
 
         return cls(brain)
+
+    # Backward compatibility alias
+    from_brain_policy = from_component_policy
 
     @classmethod
     def from_pytorch_policy(
@@ -213,7 +216,7 @@ def make_policy(env: MettaGridEnv, cfg: ListConfig | DictConfig) -> MettaAgent:
     Returns:
         MettaAgent instance
     """
-    return MettaAgent.from_brain_policy(env, cfg)
+    return MettaAgent.from_component_policy(env, cfg)
 
 
 def make_distributed_agent(agent: Union[MettaAgent, nn.Module], device: torch.device) -> DistributedDataParallel:

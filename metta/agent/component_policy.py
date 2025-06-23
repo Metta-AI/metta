@@ -13,10 +13,10 @@ from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.util.omegaconf import convert_to_dict
 
-logger = logging.getLogger("brain_policy")
+logger = logging.getLogger("component_policy")
 
 
-class BrainPolicy(nn.Module):
+class ComponentPolicy(nn.Module):
     """The component-based policy model with complex initialization from YAML."""
 
     def __init__(
@@ -36,7 +36,6 @@ class BrainPolicy(nn.Module):
 
         logger.info(f"obs_space: {obs_space} ")
 
-        self.layerlayer = nn.LayerNorm(100)
         self.hidden_size = cfg.components._core_.output_size
         self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range
@@ -71,7 +70,7 @@ class BrainPolicy(nn.Module):
             # Convert key to string to ensure compatibility
             component_name = str(component_key)
             component_cfgs[component_key]["name"] = component_name
-            logger.info(f"calling hydra instantiate from BrainPolicy __init__ for {component_name}")
+            logger.info(f"calling hydra instantiate from ComponentPolicy __init__ for {component_name}")
             component = hydra.utils.instantiate(component_cfgs[component_key], **self.agent_attributes)
             self.components[component_name] = component
 
@@ -83,13 +82,13 @@ class BrainPolicy(nn.Module):
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
                 raise RuntimeError(
-                    f"Component {name} in BrainPolicy was never setup. It might not be accessible by other components."
+                    f"Component {name} in ComponentPolicy was never setup. It might not be accessible by other components."
                 )
 
         self.components = self.components.to(device)
 
         self._total_params = sum(p.numel() for p in self.parameters())
-        logger.info(f"Total number of parameters in BrainPolicy: {self._total_params:,}. Setup complete.")
+        logger.info(f"Total number of parameters in ComponentPolicy: {self._total_params:,}. Setup complete.")
 
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
@@ -231,7 +230,7 @@ class BrainPolicy(nn.Module):
         self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Forward pass of the BrainPolicy - delegates to appropriate specialized method.
+        Forward pass of the ComponentPolicy - delegates to appropriate specialized method.
 
         Args:
             x: Input observation tensor
