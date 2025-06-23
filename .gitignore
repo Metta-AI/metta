@@ -41,3 +41,5 @@ observatory/node_modules/
 observatory/.vite/
 
 wandb
+
+/devops/charts/**/charts
