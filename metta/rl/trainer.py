@@ -117,6 +117,13 @@ class MettaTrainer:
         os.makedirs(trainer_cfg.checkpoint_dir, exist_ok=True)
 
         checkpoint = TrainerCheckpoint.load(cfg.run_dir)
+
+        self.agent_step: int = checkpoint.agent_step if checkpoint else 0
+        self.epoch: int = checkpoint.epoch if checkpoint else 0
+        if checkpoint.stopwatch_state is not None:
+            self.timer.load_state(checkpoint.stopwatch_state, resume_running=True)
+            logger.info("Restored timer state from checkpoint")
+
         policy_record = self._load_policy(checkpoint, policy_store, metta_grid_env)
 
         assert policy_record is not None, "No policy found"
@@ -149,9 +156,6 @@ class MettaTrainer:
             self.policy = DistributedMettaAgent(self.policy, self.device)
 
         self._make_experience_buffer()
-
-        self.agent_step: int = checkpoint.agent_step
-        self.epoch = checkpoint.epoch
 
         self._stats_epoch_start = self.epoch
         self._stats_epoch_id: UUID | None = None
@@ -664,6 +668,7 @@ class MettaTrainer:
             epoch=self.epoch,
             total_agent_step=self.agent_step * self._world_size,
             optimizer_state_dict=self.optimizer.state_dict(),
+            stopwatch_state=self.timer.save_state(),
             extra_args=extra_args,
         )
         checkpoint.save(self.cfg.run_dir)

@@ -169,6 +169,7 @@
     "stdexcept",
     "stdlib",
     "STREQUAL",
+    "subpackages",
     "sympy",
     "tablefmt",
     "tailnet",

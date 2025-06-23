@@ -47,7 +47,9 @@ def validate_asana_task_url(
         "Content-Type": "application/json",
     }
     params = {
-        "opt_fields": "permalink_url,custom_fields,name,notes,modified_at,completed,assignee.email,followers.email,projects.gid",
+        "opt_fields": (
+            "permalink_url,custom_fields,name,notes,modified_at,completed,assignee.email,followers.email,projects.gid"
+        ),
     }
 
     try:
