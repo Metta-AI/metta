@@ -11,8 +11,8 @@ stages:
     weight: 1.0
 
   # Stage 2: Navigation sequence training
-  - curriculum: /env/mettagrid/curriculum/navsequence/nav_backchain
-    name: "navigation_sequence"
+  - curriculum: /env/mettagrid/curriculum/memory
+    name: "memory"
     weight: 1.0
 
   # Stage 3: Simple tasks
