@@ -1,5 +1,5 @@
 import copy
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel, Field, RootModel
 
@@ -10,43 +10,18 @@ class BaseModelWithForbidExtra(BaseModel):
     model_config = dict(extra="forbid")
 
 
-class InventoryItemReward_cpp(BaseModelWithForbidExtra):
-    """Reward configuration for an inventory item."""
-
-    reward: float = Field(ge=0)
-    # the maximum number of items that can be collected for this reward
-    max_reward: int = Field(ge=0)
-
-
-class AgentRewards_cpp(BaseModelWithForbidExtra):
-    """Agent reward configuration."""
-
-    action_failure_penalty: Optional[float] = Field(default=None, ge=0)
-    inventory_item_rewards: Dict[str, InventoryItemReward_cpp]
-
-
-class AgentConfig_cpp(BaseModelWithForbidExtra):
-    """Agent configuration."""
+class AgentGroupConfig_cpp(BaseModelWithForbidExtra):
+    """Agent group configuration."""
 
     default_item_max: int = Field(ge=0)
     freeze_duration: int = Field(ge=0)
+    action_failure_penalty: float = Field(default=0, ge=0)
+    max_items_per_type: Dict[str, int] = Field(default_factory=dict)
+    resource_rewards: Dict[str, float] = Field(default_factory=dict)
+    resource_reward_max: Dict[str, float] = Field(default_factory=dict)
+    group_name: str
     group_id: int
-    item_max: Dict[str, int] = Field(default_factory=dict)
-    rewards: AgentRewards_cpp
-
-
-class GroupProps_cpp(RootModel[Dict[str, Any]]):
-    """Group properties configuration."""
-
-    pass
-
-
-class GroupConfig_cpp(BaseModelWithForbidExtra):
-    """Group configuration."""
-
-    id: int
-    sprite: Optional[int] = Field(default=None)
-    group_reward_pct: Optional[float] = Field(default=None, ge=0, le=1)
+    group_reward_pct: float = Field(ge=0, le=1)
 
 
 class ActionConfig_cpp(BaseModelWithForbidExtra):
@@ -77,10 +52,32 @@ class WallConfig_cpp(BaseModelWithForbidExtra):
 class ConverterConfig_cpp(BaseModelWithForbidExtra):
     """Converter configuration for objects that convert items."""
 
-    input_items: Dict[str, int]
-    output_items: Dict[str, int]
+    # Input items (e.g., "input_ore.red": 3)
+    input_ore_red: Optional[int] = Field(default=None, alias="input_ore.red", ge=0, le=255)
+    input_ore_blue: Optional[int] = Field(default=None, alias="input_ore.blue", ge=0, le=255)
+    input_ore_green: Optional[int] = Field(default=None, alias="input_ore.green", ge=0, le=255)
+    input_battery_red: Optional[int] = Field(default=None, alias="input_battery.red", ge=0, le=255)
+    input_battery_blue: Optional[int] = Field(default=None, alias="input_battery.blue", ge=0, le=255)
+    input_battery_green: Optional[int] = Field(default=None, alias="input_battery.green", ge=0, le=255)
+    input_heart: Optional[int] = Field(default=None, alias="input_heart", ge=0, le=255)
+    input_armor: Optional[int] = Field(default=None, alias="input_armor", ge=0, le=255)
+    input_laser: Optional[int] = Field(default=None, alias="input_laser", ge=0, le=255)
+    input_blueprint: Optional[int] = Field(default=None, alias="input_blueprint", ge=0, le=255)
+
+    # Output items (e.g., "output_ore.red": 1)
+    output_ore_red: Optional[int] = Field(default=None, alias="output_ore.red", ge=0, le=255)
+    output_ore_blue: Optional[int] = Field(default=None, alias="output_ore.blue", ge=0, le=255)
+    output_ore_green: Optional[int] = Field(default=None, alias="output_ore.green", ge=0, le=255)
+    output_battery_red: Optional[int] = Field(default=None, alias="output_battery.red", ge=0, le=255)
+    output_battery_blue: Optional[int] = Field(default=None, alias="output_battery.blue", ge=0, le=255)
+    output_battery_green: Optional[int] = Field(default=None, alias="output_battery.green", ge=0, le=255)
+    output_heart: Optional[int] = Field(default=None, alias="output_heart", ge=0, le=255)
+    output_armor: Optional[int] = Field(default=None, alias="output_armor", ge=0, le=255)
+    output_laser: Optional[int] = Field(default=None, alias="output_laser", ge=0, le=255)
+    output_blueprint: Optional[int] = Field(default=None, alias="output_blueprint", ge=0, le=255)
 
     # Converter properties
+    # zero is valid, since it means "don't make any new items"
     max_output: int = Field(ge=0)
     conversion_ticks: int = Field(ge=0)
     cooldown: int = Field(ge=0)
@@ -127,48 +124,10 @@ class GameConfig_cpp(BaseModelWithForbidExtra):
     obs_width: int = Field(ge=1)
     obs_height: int = Field(ge=1)
     num_observation_tokens: int = Field(ge=1)
-    agent_groups: Dict[str, AgentConfig_cpp] = Field(min_length=1)
+    agent_groups: Dict[str, AgentGroupConfig_cpp] = Field(min_length=1)
     actions: ActionsConfig_cpp
     objects: ObjectsConfig_cpp
     reward_sharing: Optional[RewardSharingConfig_cpp] = None
-
-
-def agent_rewards_dict_from_flat_dict(flat_rewards_dict: Dict[str, float]) -> Dict[str, float]:
-    """Converts from a dictionary like
-      {
-        "action_failure_penalty": 0,
-        "ore.red": 0.005,
-        "ore.red_max": 4,
-        "battery.red": 0.01,
-        "battery.red_max": 5
-      }
-    to a dictionary like
-      {
-        "action_failure_penalty": 0,
-        "ore.red": {
-          "reward": 0.005,
-          "max_reward": 4,
-        },
-        "battery.red": {
-          "reward": 0.01,
-          "max_reward": 5,
-        }
-      }
-    """
-
-    result = {
-        "inventory_item_rewards": {},
-    }
-    for k, v in flat_rewards_dict.items():
-        if k == "action_failure_penalty":
-            result["action_failure_penalty"] = v
-        elif k.endswith("_max"):
-            inventory_item_name = k.replace("_max", "")
-            result["inventory_item_rewards"].setdefault(inventory_item_name, {})["max_reward"] = v
-        else:
-            result["inventory_item_rewards"].setdefault(k, {})["reward"] = v
-
-    return result
 
 
 def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
@@ -182,26 +141,30 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
     # Group information is more specific than the defaults, so it should override
     for group_name, group_config in mettagrid_config.groups.items():
         group_config_dict = group_config.model_dump(by_alias=True, exclude_unset=True)
-        agent_group_config = copy.deepcopy(agent_default_config_dict)
+        merged_config = copy.deepcopy(agent_default_config_dict)
         # update, but in a nested way
         for key, value in group_config_dict.get("props", {}).items():
             if isinstance(value, dict):
                 # At the time of writing, this should only be the rewards field
-                agent_group_config[key] = value
+                merged_config[key] = value
             else:
-                agent_group_config[key] = value
+                merged_config[key] = value
 
-        # We've now merged in the group. Next, convert this merged config into the format expected by the C++ code.
-        agent_group_config["group_id"] = group_config.id
-        agent_group_config["rewards"] = agent_rewards_dict_from_flat_dict(agent_group_config["rewards"])
-        item_maxes = dict(
-            (k, v) for k, v in agent_group_config.items() if k.endswith("_max") and k != "default_item_max"
-        )
-        for k in item_maxes:
-            del agent_group_config[k]
-        agent_group_config["item_max"] = item_maxes
+        agent_group_config = {
+            "default_item_max": merged_config.get("default_item_max", 0),
+            "freeze_duration": merged_config.get("freeze_duration", 0),
+            "group_id": group_config.id,
+            "group_name": group_name,
+            "action_failure_penalty": merged_config.get("rewards", {}).get("action_failure_penalty", 0),
+            "max_items_per_type": dict(
+                (k, v) for k, v in merged_config.items() if k.endswith("_max") and k != "default_item_max"
+            ),
+            "resource_rewards": dict((k, v) for k, v in merged_config["rewards"].items() if not k.endswith("_max")),
+            "resource_reward_max": dict((k, v) for k, v in merged_config["rewards"].items() if k.endswith("_max")),
+            "group_reward_pct": group_config.group_reward_pct or 0,
+        }
 
-        agent_group_configs["agent." + group_name] = AgentConfig_cpp(**agent_group_config)
+        agent_group_configs["agent." + group_name] = AgentGroupConfig_cpp(**agent_group_config)
 
     game_config = mettagrid_config.model_dump(by_alias=True, exclude_unset=True)
     game_config["agent_groups"] = agent_group_configs

@@ -29,40 +29,37 @@ public:
 
   Agent(GridCoord r,
         GridCoord c,
+        unsigned char default_item_max,
+        unsigned char freeze_duration,
+        float action_failure_penalty,
+        std::map<std::string, unsigned int> max_items_per_type_,
+        std::map<std::string, float> resource_rewards_,
+        std::map<std::string, float> resource_reward_max_,
         std::string group_name,
-        unsigned char group_id,
-        ObjectConfig cfg,
-        // Configuration -- rewards that the agent will get for certain
-        // actions or inventory changes.
-        std::map<std::string, float> rewards) {
+        unsigned char group_id)
+      : freeze_duration(freeze_duration),
+        action_failure_penalty(action_failure_penalty),
+        group(group_id),
+        group_name(group_name),
+        color(0),
+        current_resource_reward(0) {
     GridObject::init(ObjectType::AgentT, GridLocation(r, c, GridLayer::Agent_Layer));
 
-    this->group_name = group_name;
-    this->group = group_id;
     this->frozen = 0;
-    this->freeze_duration = cfg["freeze_duration"];
     this->orientation = 0;
     this->inventory.resize(InventoryItem::InventoryItemCount);
-    unsigned char default_item_max = cfg["default_item_max"];
     this->max_items_per_type.resize(InventoryItem::InventoryItemCount);
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      if (cfg.find(InventoryItemNames[i] + "_max") != cfg.end()) {
-        this->max_items_per_type[i] = cfg[InventoryItemNames[i] + "_max"];
-      } else {
-        this->max_items_per_type[i] = default_item_max;
-      }
+      this->max_items_per_type[i] = max_items_per_type_[InventoryItemNames[i]];
     }
     this->resource_rewards.resize(InventoryItem::InventoryItemCount);
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      this->resource_rewards[i] = rewards[InventoryItemNames[i]];
+      this->resource_rewards[i] = resource_rewards_[InventoryItemNames[i]];
     }
     this->resource_reward_max.resize(InventoryItem::InventoryItemCount);
     for (int i = 0; i < InventoryItem::InventoryItemCount; i++) {
-      this->resource_reward_max[i] = rewards[InventoryItemNames[i] + "_max"];
+      this->resource_reward_max[i] = resource_reward_max_[InventoryItemNames[i]];
     }
-    this->action_failure_penalty = rewards["action_failure_penalty"];
-    this->color = 0;
-    this->current_resource_reward = 0;
     this->reward = nullptr;
   }
 
