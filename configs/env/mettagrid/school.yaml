@@ -26,7 +26,6 @@ game:
         objects:
           altar: 1
           generator: 3
-          converter: 1
           wall: ${..width}
 
       # multi agent small room
@@ -38,7 +37,6 @@ game:
         objects:
           altar: 1
           generator: 3
-          converter: 2
           wall: ${..width}
 
       # 2 agent scarce room
@@ -50,7 +48,6 @@ game:
         objects:
           altar: 1
           generator: 1
-          converter: 1
           wall: ${..width}
 
       # predator and prey room
@@ -64,7 +61,6 @@ game:
         objects:
           altar: 1
           generator: 1
-          converter: 1
           wall: ${..width}
 
       # maze
@@ -89,7 +85,6 @@ game:
             agents: 1
             objects:
               generator: 1
-              converter: 1
               wall: ${..width}
           - _target_: mettagrid.room.random.Random
             border_width: 1
