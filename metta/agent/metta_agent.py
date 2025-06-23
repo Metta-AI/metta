@@ -347,47 +347,6 @@ class MettaAgent(nn.Module):
         else:
             return self.forward_training(value, logits, action)
 
-    def forward_training(
-        self, value: torch.Tensor, logits: torch.Tensor, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Forward pass for training mode - evaluates the policy on provided actions.
-
-        Args:
-            value: Value estimate tensor, shape (BT, 1)
-            logits: Action logits tensor, shape (BT, A)
-            action: Action tensor for evaluation, shape (B, T, 2)
-
-        Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
-            - action: Same as input action, shape (B, T, 2)
-            - action_log_prob: Log probability of the provided action, shape (BT,)
-            - entropy: Entropy of the action distribution, shape (BT,)
-            - value: Value estimate, shape (BT, 1)
-            - log_probs: Log-softmax of logits, shape (BT, A)
-        """
-        if __debug__:
-            assert_shape(value, ("BT", 1), "training_value")
-            assert_shape(logits, ("BT", "A"), "training_logits")
-            assert_shape(action, ("B", "T", 2), "training_input_action")
-
-        B, T, A = action.shape
-        flattened_action = action.view(B * T, A)
-        action_logit_index = self._convert_action_to_logit_index(flattened_action)
-
-        if __debug__:
-            assert_shape(action_logit_index, ("BT",), "converted_action_logit_index")
-
-        action_log_prob, entropy, log_probs = evaluate_actions(logits, action_logit_index)
-
-        if __debug__:
-            assert_shape(action_log_prob, ("BT",), "training_action_log_prob")
-            assert_shape(entropy, ("BT",), "training_entropy")
-            assert_shape(log_probs, ("BT", "A"), "training_log_probs")
-            assert_shape(action, ("B", "T", 2), "training_output_action")
-
-        return action, action_log_prob, entropy, value, log_probs
-
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """
         Convert (action_type, action_param) pairs to discrete action indices
