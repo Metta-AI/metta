@@ -45,11 +45,8 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
 
     policy = instantiate(pytorch_cfg, env=env, policy=None)
     policy.load_state_dict(weights)
-
-    # Set hidden_size on the loaded policy for PytorchAgent to pick up
-    policy.hidden_size = hidden_size
-
-    return PytorchAgent(policy).to(device)
+    policy = PytorchAgent(policy).to(device)
+    return policy
 
 
 class PytorchAgent(nn.Module):
@@ -73,19 +70,9 @@ class PytorchAgent(nn.Module):
         logprob -> logprob_act
         hidden -> logits then, after sample_logits(), log_sftmx_logits
         """
-        result = self.policy(obs, state, action)
-
-        # Handle different return formats from PyTorch policies
-        if len(result) == 2 and result[0].dim() >= 2:
-            # Legacy format: (hidden, critic)
-            hidden, critic = result
-            action, logprob, logits_entropy = sample_logits(hidden, action)
-            return action, logprob, logits_entropy, critic, hidden
-        elif len(result) == 5:
-            # Already in correct format
-            return result
-        else:
-            raise ValueError(f"Unexpected return format from policy: {len(result)} values")
+        hidden, critic = self.policy(obs, state)  # using variable names from LSTMWrapper
+        action, logprob, logits_entropy = sample_logits(hidden, action)
+        return action, logprob, logits_entropy, critic, hidden
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Forward to wrapped policy if it has this method."""
