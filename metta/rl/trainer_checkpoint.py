@@ -15,12 +15,14 @@ class TrainerCheckpoint:
         epoch: int = 0,
         optimizer_state_dict: Optional[Dict[str, Any]] = None,
         policy_path: Optional[str] = None,
+        stopwatch_state: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
         self.agent_step = agent_step
         self.epoch = epoch
         self.optimizer_state_dict = optimizer_state_dict
         self.policy_path = policy_path
+        self.stopwatch_state = stopwatch_state
         self.extra_args = kwargs
 
     def save(self, run_dir: str) -> None:
@@ -29,6 +31,7 @@ class TrainerCheckpoint:
             "agent_step": self.agent_step,
             "epoch": self.epoch,
             "policy_path": self.policy_path,
+            "stopwatch_state": self.stopwatch_state,
             **self.extra_args,
         }
         state_path = os.path.join(run_dir, "trainer_state.pt")
@@ -42,8 +45,14 @@ class TrainerCheckpoint:
         logger.info(f"Loading trainer state from {trainer_path}")
         if not os.path.exists(trainer_path):
             logger.info("No trainer state found. Assuming new run")
-            return TrainerCheckpoint(0, 0, None, None)
+            return TrainerCheckpoint(0, 0, None, None, None)
 
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=FutureWarning)
-            return TrainerCheckpoint(**torch.load(trainer_path, weights_only=False))
+            state = torch.load(trainer_path, weights_only=False)
+
+            # handle backward compatibility
+            if "stopwatch_state" not in state:
+                state["stopwatch_state"] = None
+
+            return TrainerCheckpoint(**state)
