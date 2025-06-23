@@ -12,7 +12,7 @@ import pytest
 from omegaconf import OmegaConf
 
 from metta.mettagrid.char_encoder import CHAR_TO_NAME
-from metta.mettagrid.curriculum import SingleTaskCurriculum
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.renderer.nethack import NethackRenderer
 from metta.mettagrid.util.hydra import get_cfg

@@ -16,7 +16,7 @@ from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.stopwatch import Stopwatch, with_instance_timer
-from metta.mettagrid.curriculum import Curriculum
+from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_config import GameConfig
@@ -96,11 +96,11 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         if self._render_mode is not None:
             if self._render_mode == "human":
-                from .renderer.nethack import NethackRenderer
+                from metta.mettagrid.renderer.nethack import NethackRenderer
 
                 self._renderer = NethackRenderer(self.object_type_names)
             elif self._render_mode == "miniscope":
-                from .renderer.miniscope import MiniscopeRenderer
+                from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
 
                 self._renderer = MiniscopeRenderer(self.object_type_names)
 

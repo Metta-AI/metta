@@ -6,8 +6,8 @@ from typing import Optional
 
 from omegaconf import DictConfig, OmegaConf
 
-from .curriculum import Task
-from .sampling import SamplingCurriculum
+from metta.mettagrid.curriculum.core import Task
+from metta.mettagrid.curriculum.sampling import SamplingCurriculum
 
 logger = logging.getLogger(__name__)
 

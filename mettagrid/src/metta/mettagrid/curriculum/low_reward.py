@@ -5,7 +5,7 @@ from typing import Dict
 
 from omegaconf import DictConfig
 
-from .random import RandomCurriculum
+from metta.mettagrid.curriculum.random import RandomCurriculum
 
 logger = logging.getLogger(__name__)
 
