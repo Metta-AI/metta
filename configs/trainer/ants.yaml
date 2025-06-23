@@ -4,7 +4,7 @@
 _target_: metta.rl.trainer.MettaTrainer
 
 defaults:
-  - ants
+  - simple
   - _self_
 
 # Override agent to use the one with auxiliary decoders
@@ -13,7 +13,7 @@ agent: fast_with_auxiliary
 # Auxiliary losses for representation learning
 # Set to 0 to disable, >0 to enable with specified coefficient
 sensory_decoder_coef: 0.1      # Sensory reconstruction loss coefficient
-latent_decoder_coef: 0.1       # Latent prediction loss coefficient
+latent_decoder_coef: 0.0       # Latent prediction loss coefficient
 node_perturbation_coef: 0.01   # Node perturbation loss coefficient
 contrastive_coef: 0.1          # Contrastive learning loss coefficient
 
