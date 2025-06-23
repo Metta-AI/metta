@@ -116,6 +116,26 @@ class PolicyRecord:
             # Check if it's a wandb object
             if hasattr(v, "__module__") and v.__module__ and "wandb" in v.__module__:
                 return None  # Remove wandb objects
+            # Check if it's a pydantic BaseModel
+            elif hasattr(v, "__class__") and hasattr(v.__class__, "__module__"):
+                module = v.__class__.__module__
+                if module and "pydantic" in module:
+                    # Convert pydantic model to dict using model_dump if available
+                    if hasattr(v, "model_dump"):
+                        return clean_value(v.model_dump())
+                    elif hasattr(v, "dict"):
+                        return clean_value(v.dict())
+                    else:
+                        return clean_value(dict(v))
+            # Check if it's a Config object (from metta.util.config)
+            elif hasattr(v, "__class__") and v.__class__.__name__ == "Config":
+                # Convert to dict using model_dump method
+                if hasattr(v, "model_dump"):
+                    return clean_value(v.model_dump())
+                elif hasattr(v, "dict"):
+                    return clean_value(v.dict())
+                else:
+                    return str(v)
             elif isinstance(v, dict):
                 return {k: clean_value(val) for k, val in v.items() if clean_value(val) is not None}
             elif isinstance(v, list):
@@ -203,8 +223,9 @@ class PolicyRecord:
                 # Mock other modules
                 exporter.mock("pufferlib")
                 exporter.mock("pufferlib.**")
-                exporter.mock("pydantic")
-                exporter.mock("pydantic.**")
+                # Extern pydantic since we need it for Config objects
+                exporter.extern("pydantic")
+                exporter.extern("pydantic.**")
                 exporter.mock("typing_extensions")
                 exporter.mock("boto3")
                 exporter.mock("boto3.**")
@@ -391,20 +412,35 @@ class PolicyStore:
 
             # If more than 20% of the policies have no score, return the latest policy
             if len(policies_with_scores) < len(prs) * 0.8:
-                logger.warning("Too many invalid scores, returning latest policy")
-                return [prs[0]]
+                selected = [prs[0]]  # return latest if metric not found
+                logger.info(f"Selected latest policy (due to too many invalid scores): {selected[0].name}")
+                return selected
 
             # Sort by metric score (assuming higher is better)
-            def get_policy_score(policy: PolicyRecord) -> float:
+            def get_policy_score(policy: PolicyRecord) -> float:  # Explicitly return a comparable type
                 score = policy_scores.get(policy)
-                return float("-inf") if score is None else score
+                if score is None:
+                    return float("-inf")  # Or another appropriate default
+                return score
 
             top = sorted(policies_with_scores, key=get_policy_score)[-n:]
 
             if len(top) < n:
                 logger.warning(f"Only found {len(top)} policies matching criteria, requested {n}")
 
-            return top[-n:]
+            logger.info(f"Top {len(top)} policies by {metric}:")
+            logger.info(f"{'Policy':<40} | {metric:<20}")
+            logger.info("-" * 62)
+            for pr in top:
+                score = policy_scores[pr]
+                logger.info(f"{pr.name:<40} | {score:<20.4f}")
+
+            selected = top[-n:]
+            logger.info(f"Selected {len(selected)} top policies by {metric}")
+            for i, pr in enumerate(selected):
+                logger.info(f"  {i + 1}. {pr.name} (score: {policy_scores[pr]:.4f})")
+
+            return selected
         else:
             raise ValueError(f"Invalid selector type {selector_type}")
 
