@@ -13,6 +13,7 @@ import torch.distributed
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
+from torch import nn
 
 from app_backend.stats_client import StatsClient
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
@@ -162,11 +163,22 @@ class MettaTrainer:
 
         # validate that policy matches environment
         self.metta_agent: MettaAgent | DistributedMettaAgent = self.policy  # type: ignore
-        assert isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)), self.metta_agent
+
+        # Use duck typing instead of isinstance to handle torch.package loaded classes
+        # Check that the policy has the expected MettaAgent interface
+        required_attrs = ["components", "activate_actions", "policy"]
+        for attr in required_attrs:
+            if not hasattr(self.metta_agent, attr):
+                raise AttributeError(
+                    f"Policy is missing required attribute '{attr}'. "
+                    f"Expected a MettaAgent-like object but got {type(self.metta_agent).__name__}"
+                )
+
         _env_shape = metta_grid_env.single_observation_space.shape
         environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-        if isinstance(self.metta_agent, (MettaAgent, DistributedMettaAgent)):
+        # The rest of the validation logic continues to work with duck typing
+        if hasattr(self.metta_agent, "components"):
             found_match = False
             for component_name, component in self.metta_agent.components.items():
                 if hasattr(component, "_obs_shape"):
@@ -661,6 +673,31 @@ class MettaTrainer:
         )
         checkpoint.save(self.cfg.run_dir)
 
+    def _prepare_policy_for_save(self, policy: nn.Module, metta_grid_env: MettaGridEnv) -> nn.Module:
+        """Prepare a policy for saving, handling torch.package loaded models."""
+
+        # Quick check if this is from torch.package
+        def is_from_torch_package(obj):
+            return hasattr(obj, "__class__") and obj.__class__.__module__.startswith("<torch_package")
+
+        # Check both wrapper and inner policy
+        if not (is_from_torch_package(policy) or (hasattr(policy, "policy") and is_from_torch_package(policy.policy))):
+            return policy  # Not from torch.package, use as-is
+
+        logger.info("Creating fresh instance for torch.package loaded model")
+
+        # Create fresh model and activate actions
+        fresh_policy = self.policy_store.create(metta_grid_env).policy()
+        fresh_policy.activate_actions(metta_grid_env.action_names, metta_grid_env.max_action_args, self.device)
+
+        # Copy state_dict with strict=False to handle architecture changes
+        if hasattr(policy, "policy") and hasattr(fresh_policy, "policy"):
+            fresh_policy.policy.load_state_dict(policy.policy.state_dict(), strict=False)
+        else:
+            fresh_policy.load_state_dict(policy.state_dict(), strict=False)
+
+        return fresh_policy
+
     def _checkpoint_policy(self) -> PolicyRecord | None:
         if not self._master:
             return
@@ -681,10 +718,13 @@ class MettaTrainer:
         category_score_values = [v for k, v in category_scores_map.items()]
         overall_score = sum(category_score_values) / len(category_score_values) if category_score_values else 0
 
+        # Prepare policy for saving (handles torch.package loaded models)
+        policy_to_save = self._prepare_policy_for_save(self.uncompiled_policy, metta_grid_env)
+
         self.last_pr = self.policy_store.save(
             name,
             os.path.join(self.trainer_cfg.checkpoint_dir, name),
-            self.uncompiled_policy,
+            policy_to_save,
             metadata={
                 "agent_step": self.agent_step,
                 "epoch": self.epoch,

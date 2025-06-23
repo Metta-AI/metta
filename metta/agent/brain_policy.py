@@ -36,7 +36,6 @@ class BrainPolicy(nn.Module):
 
         logger.info(f"obs_space: {obs_space} ")
 
-        self.layerlayer = nn.LayerNorm(100)
         self.hidden_size = cfg.components._core_.output_size
         self.core_num_layers = cfg.components._core_.nn_params.num_layers
         self.clip_range = cfg.clip_range

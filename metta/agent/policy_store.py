@@ -302,33 +302,20 @@ class PolicyStore:
         except Exception as e:
             logger.debug(f"Not a torch.package file: {e}")
 
-            # Fall back to regular checkpoint
-            checkpoint = torch.load(path, map_location=self._device, weights_only=False)
+            # Try to load as a regular checkpoint
+            try:
+                checkpoint = torch.load(path, map_location=self._device, weights_only=False)
 
-            # Try to get PolicyRecord from checkpoint
-            if "policy_record" in checkpoint:
-                pr = checkpoint["policy_record"]
-                pr._policy_store = self
-            else:
-                # Create a minimal PolicyRecord for old checkpoints
-                metadata = checkpoint.get(
-                    "metadata",
-                    {
-                        "action_names": [],
-                        "agent_step": 0,
-                        "epoch": 0,
-                        "generation": 0,
-                        "train_time": 0,
-                    },
+                # For legacy checkpoints without torch.package, we can't load them
+                raise ValueError(
+                    f"Cannot load policy from {path}: This appears to be a legacy checkpoint "
+                    "without torch.package. Please ensure policies are saved using torch.package."
                 )
-                pr = PolicyRecord(self, name=os.path.basename(path), uri=f"file://{path}", metadata=metadata)
 
-            if not metadata_only:
-                pr._policy = pr.load(path, self._device)
-
-            pr._local_path = path
-            self._cached_prs[path] = pr
-            return pr
+            except Exception as e:
+                if "Cannot load" in str(e):
+                    raise  # Re-raise our custom errors
+                raise ValueError(f"Failed to load policy from {path}: {e}")
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")

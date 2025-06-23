@@ -3,6 +3,15 @@ PolicyRecord implementation using torch.package for robust save/load functionali
 
 This module implements PolicyRecord which tracks trained policies and uses torch.package
 to handle all dependency management and code packaging automatically.
+
+Key design decisions:
+1. We use torch.package for all saves to get automatic dependency management
+2. Models loaded from torch.package cannot be directly re-saved (due to package namespace issues)
+3. The trainer handles this by creating fresh model instances before saving when needed
+4. Once a fresh instance is created, it can be saved and loaded normally
+
+This approach gives us the benefits of torch.package (no dependency issues when loading)
+while the trainer handles the constraint that packaged models can't be re-packaged.
 """
 
 import logging
@@ -47,8 +56,16 @@ class PolicyRecord:
     def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent]:
         """Get the policy as a MettaAgent or DistributedMettaAgent."""
         policy = self.policy()
-        if not isinstance(policy, (MettaAgent, DistributedMettaAgent)):
-            raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
+
+        # Use duck typing instead of isinstance to handle torch.package loaded classes
+        required_attrs = ["components", "activate_actions", "policy"]
+        for attr in required_attrs:
+            if not hasattr(policy, attr):
+                raise TypeError(
+                    f"Expected MettaAgent or DistributedMettaAgent interface, "
+                    f"but policy is missing attribute '{attr}'. Got {type(policy).__name__}"
+                )
+
         return policy
 
     def num_params(self) -> int:
@@ -93,7 +110,15 @@ class PolicyRecord:
         self.uri = "file://" + path
 
         # Get the actual policy (unwrap MettaAgent if needed)
-        actual_policy = policy.policy if isinstance(policy, MettaAgent) else policy
+        # Check for .policy attribute instead of isinstance to handle torch.package loaded classes
+        if (
+            hasattr(policy, "policy")
+            and hasattr(policy.__class__, "__name__")
+            and "MettaAgent" in policy.__class__.__name__
+        ):
+            actual_policy = policy.policy
+        else:
+            actual_policy = policy
 
         try:
             # Use torch.package to save the policy with all dependencies
@@ -102,7 +127,6 @@ class PolicyRecord:
                 exporter.intern("metta.**")
 
                 # Check if the policy comes from __main__ (common in scripts/notebooks)
-                # For __main__ modules, we need to handle them specially since they don't have __file__
                 if actual_policy.__class__.__module__ == "__main__":
                     # Get the source code of the class
                     import inspect
@@ -188,24 +212,22 @@ class PolicyRecord:
 
         except Exception as e:
             logger.warning(f"torch.package save failed: {e}")
-            logger.info("Falling back to regular torch.save")
+            logger.info("Falling back to state_dict only save")
 
-            # Fallback to regular torch save
+            # Fallback to regular torch save with state_dict only
             checkpoint = {
                 "model_state_dict": actual_policy.state_dict(),
                 "metadata": self._clean_metadata_for_packaging(self.metadata),
-                "policy_record": PolicyRecord(
-                    None, self.name, self.uri, self._clean_metadata_for_packaging(self.metadata)
-                ),
+                "model_class_name": actual_policy.__class__.__name__,
             }
             torch.save(checkpoint, path)
-            logger.info(f"Saved policy with regular torch.save to {path}")
+            logger.info(f"Saved policy state_dict to {path}")
 
         return self
 
     def load(self, path: str, device: str = "cpu") -> nn.Module:
         """Load a policy from a torch.package file."""
-        logger.info(f"Loading policy from {path} using torch.package")
+        logger.info(f"Loading policy from {path}")
 
         try:
             # Use torch.package to load the policy
@@ -237,32 +259,14 @@ class PolicyRecord:
                     raise ValueError("PolicyRecord in package does not contain a policy")
 
         except Exception as e:
-            # Fallback for old checkpoints without torch.package
-            logger.info(f"torch.package load failed ({e}), trying legacy load")
+            # Not a torch.package file
+            logger.info(f"Not a torch.package file ({e})")
 
-            # For legacy checkpoints, they are just regular torch saves, not packages
-            checkpoint = torch.load(path, map_location=device, weights_only=False)
-
-            # Simple loading - just get state dict and create a minimal wrapper
-            if "model_state_dict" in checkpoint:
-                # Create a simple wrapper module
-                class LegacyPolicy(nn.Module):
-                    def __init__(self):
-                        super().__init__()
-                        # This will be populated by load_state_dict
-
-                policy = LegacyPolicy()
-                try:
-                    policy.load_state_dict(checkpoint["model_state_dict"])
-                except:
-                    # If that fails, just return a dummy policy
-                    pass
-
-                from metta.agent.metta_agent import MettaAgent
-
-                return MettaAgent(policy)
-            else:
-                raise ValueError(f"Cannot load checkpoint from {path}")
+            # We don't support non-torch.package files
+            raise ValueError(
+                f"Cannot load policy from {path}: This file is not a valid torch.package file. "
+                "All policies must be saved using torch.package."
+            )
 
     def key_and_version(self) -> tuple[str, int]:
         """
