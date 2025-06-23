@@ -17,7 +17,6 @@ while the trainer handles the constraint that packaged models can't be re-packag
 import logging
 from typing import TYPE_CHECKING, Optional
 
-import torch
 from torch import nn
 from torch.package import PackageExporter, PackageImporter
 
@@ -186,17 +185,8 @@ class PolicyRecord:
             logger.info(f"Saved policy with torch.package to {path}")
 
         except Exception as e:
-            logger.warning(f"torch.package save failed: {e}")
-            logger.info("Falling back to state_dict only save")
-
-            # Fallback to regular torch save with state_dict only
-            checkpoint = {
-                "model_state_dict": actual_policy.state_dict(),
-                "metadata": self._clean_metadata_for_packaging(self.metadata),
-                "model_class_name": actual_policy.__class__.__name__,
-            }
-            torch.save(checkpoint, path)
-            logger.info(f"Saved policy state_dict to {path}")
+            logger.error(f"torch.package save failed: {e}")
+            raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
 
         return self
 

@@ -17,13 +17,12 @@ from typing import List, Optional, Union
 import gymnasium as gym
 import hydra
 import numpy as np
-import torch
 import wandb
 from omegaconf import DictConfig, ListConfig
 from torch import nn
 
 from metta.agent.policy_record import PolicyRecord
-from metta.rl.policy import PytorchAgent, load_pytorch_policy
+from metta.rl.policy import load_pytorch_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
 
@@ -269,7 +268,7 @@ class PolicyStore:
         raise ValueError(f"Invalid URI: {uri}")
 
     def _load_from_pytorch(self, path: str, metadata_only: bool = False) -> PolicyRecord:
-        """Load a policy from a PyTorch checkpoint or JIT model."""
+        """Load a policy from a PyTorch checkpoint."""
         name = os.path.basename(path)
 
         # Common metadata for pytorch loads
@@ -281,19 +280,11 @@ class PolicyStore:
             "train_time": 0,
         }
 
-        # Try to load as a JIT model first
-        try:
-            jit_model = torch.jit.load(path, map_location=self._device)
-            pr = PolicyRecord(self, name, "pytorch://" + name, default_metadata)
-            # Wrap JIT model in PytorchAgent
-            pr._policy = PytorchAgent(jit_model)
-            return pr
-        except Exception:
-            # Fall back to regular PyTorch checkpoint loading
-            policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
-            pr = PolicyRecord(self, name, "pytorch://" + name, default_metadata)
-            pr._policy = policy
-            return pr
+        # Load PyTorch checkpoint using PytorchAgent wrapper
+        policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._cfg.get("pytorch"))
+        pr = PolicyRecord(self, name, "pytorch://" + name, default_metadata)
+        pr._policy = policy
+        return pr
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a policy from a file using PolicyRecord's load method."""

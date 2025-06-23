@@ -681,20 +681,11 @@ class MettaTrainer:
     def _prepare_policy_for_save(self, policy: nn.Module, metta_grid_env: MettaGridEnv) -> nn.Module:
         """Prepare a policy for saving, handling torch.package loaded models."""
 
-        # Quick check if this is from torch.package
+        # Check if this is from torch.package
         def is_from_torch_package(obj):
             return hasattr(obj, "__class__") and obj.__class__.__module__.startswith("<torch_package")
 
-        # For PytorchAgent, we can't re-save torch.package loaded models
-        if hasattr(policy, "is_pytorch_policy") and policy.is_pytorch_policy:
-            if hasattr(policy, "policy") and is_from_torch_package(policy.policy):
-                raise ValueError(
-                    "Cannot re-save PyTorch policies loaded from torch.package. "
-                    "Please load from the original checkpoint instead."
-                )
-            return policy
-
-        # For MettaAgent, check if it's from torch.package
+        # If it's from torch.package, we need to create a fresh instance
         if is_from_torch_package(policy):
             logger.info("Creating fresh instance for torch.package loaded model")
 
