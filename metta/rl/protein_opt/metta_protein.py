@@ -8,6 +8,41 @@ from metta.rl.protein_opt.wandb_protein import WandbProtein
 logger = logging.getLogger("metta_protein")
 
 
+def _add_missing_param_fields(parameters):
+    """Add default mean and scale fields to parameters if missing.
+
+    The new Protein format doesn't require mean/scale, but the underlying
+    Protein class expects them. This adds sensible defaults.
+    """
+    processed = {}
+    for param_name, param_config in parameters.items():
+        if isinstance(param_config, dict):
+            # Make a copy to avoid modifying the original
+            param = dict(param_config)
+
+            # Add mean if missing (default to midpoint of range)
+            if "mean" not in param and "min" in param and "max" in param:
+                if param.get("distribution") == "log_normal":
+                    # For log distributions, use geometric mean
+                    import math
+
+                    param["mean"] = math.sqrt(param["min"] * param["max"])
+                else:
+                    # For linear distributions, use arithmetic mean
+                    param["mean"] = (param["min"] + param["max"]) / 2
+
+            # Add scale if missing (default to 1)
+            if "scale" not in param:
+                param["scale"] = 1
+
+            processed[param_name] = param
+        else:
+            # Not a parameter config, pass through
+            processed[param_name] = param_config
+
+    return processed
+
+
 class MettaProtein(WandbProtein):
     def __init__(
         self,
@@ -53,6 +88,9 @@ class MettaProtein(WandbProtein):
             # Filter out metadata keys
             metadata_keys = {"metric", "goal", "num_random_samples", "protein"}
             parameters = {k: v for k, v in sweep_config.items() if k not in metadata_keys}
+
+        # Add missing mean/scale fields for compatibility with Protein class
+        parameters = _add_missing_param_fields(parameters)
 
         # Create clean config for Protein with parameters + metadata
         clean_config = dict(parameters)  # Copy actual parameters only
