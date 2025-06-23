@@ -61,7 +61,7 @@ def main(cfg: DictConfig | ListConfig) -> int:
             policy_pr = policy_store.policy("wandb://run/" + cfg.run)
         except Exception as e:
             logger.error(f"Error getting policy for run {cfg.run}: {e}")
-            MettaProtein._record_observation(wandb_run, 0.0, 0.0, allow_update=True)  # Record as failure
+            MettaProtein._record_failure(wandb_run)  # Record as failure
             return 1
 
         eval = SimulationSuite(
@@ -135,7 +135,12 @@ def main(cfg: DictConfig | ListConfig) -> int:
         total_time = train_time + eval_time
         logger.info(f"Evaluation Metric: {eval_metric}, Total Time: {total_time}")
 
-        MettaProtein._record_observation(wandb_run, eval_metric or 0.0, total_time, allow_update=True)
+        if eval_metric is None:
+            logger.error("Evaluation metric is None, skipping observation")
+            MettaProtein._record_failure(wandb_run)
+            return 1
+
+        MettaProtein._record_observation(wandb_run, eval_metric, total_time, allow_update=True)
 
         wandb_run.summary.update({"run_time": total_time})
         return 0

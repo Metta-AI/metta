@@ -11,22 +11,6 @@ if [ -z "$sweep" ]; then
   echo "[ERROR] 'run' argument is required (e.g., run=my_sweep_name)"
   exit 1
 fi
-
-# Extract rollout_count from arguments (optional)
-rollout_count=$(echo "$args" | grep -o '\-\-rollout-count=[^ ]*' | sed 's/--rollout-count=//')
-if [ -z "$rollout_count" ]; then
-  rollout_count=999999  # Default to very high number (effectively infinite)
-fi
-
-# Validate rollout_count is a number
-if ! [[ "$rollout_count" =~ ^[0-9]+$ ]]; then
-  echo "[ERROR] rollout_count must be a positive integer"
-  exit 1
-fi
-
-# Remove --rollout-count from args before passing to sweep_rollout.sh
-args=$(echo "$args" | sed 's/--rollout-count=[^ ]*//')
-
 source ./devops/setup.env
 
 echo "[INFO] Starting continuous sweep execution: $sweep"
@@ -38,8 +22,7 @@ MAX_CONSECUTIVE_FAILURES=3
 consecutive_failures=0
 rollout_number=0
 
-while [ $rollout_number -lt $rollout_count ]; do
-  rollout_number=$((rollout_number + 1))
+while true; do
   echo "[SWEEP:$sweep] Attempting rollout $rollout_number/$rollout_count (consecutive failures: $consecutive_failures/$MAX_CONSECUTIVE_FAILURES)"
 
   if ./devops/sweep_rollout.sh $sweep $args; then
@@ -58,5 +41,3 @@ while [ $rollout_number -lt $rollout_count ]; do
     sleep 5
   fi
 done
-
-echo "[SUCCESS] Sweep completed! Finished $rollout_count rollouts for: $sweep"

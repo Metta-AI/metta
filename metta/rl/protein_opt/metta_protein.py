@@ -36,37 +36,28 @@ class MettaProtein(WandbProtein):
         if not isinstance(sweep_config, dict) or sweep_config is None:
             raise ValueError("Sweep config must be a dict.")
 
-        # Extract metadata from protein namespace if it exists
-        protein_metadata = {}
-        if "protein" in sweep_config:
-            protein_metadata = sweep_config["protein"]
-            # Remove protein metadata from sweep_config to avoid conflicts
-            sweep_config = {k: v for k, v in sweep_config.items() if k != "protein"}
+        # Extract metadata from top level of sweep config
+        metric = sweep_config.get("metric", "reward")
+        goal = sweep_config.get("goal", "maximize")
 
-        # Add default metadata if not provided
-        if "metric" not in protein_metadata:
-            protein_metadata["metric"] = "reward"
-        if "goal" not in protein_metadata:
-            protein_metadata["goal"] = "maximize"
-
-        # Override num_random_samples if specified in protein metadata
-        if "num_random_samples" in protein_metadata:
-            num_random_samples = protein_metadata["num_random_samples"]
+        # Override num_random_samples if specified in sweep config
+        if "num_random_samples" in sweep_config:
+            num_random_samples = sweep_config["num_random_samples"]
 
         # Extract parameters from nested structure if present
         if "parameters" in sweep_config:
-            # Structure: parameters.param_name (extract parameters from nested structure)
+            # New structure: parameters are in a separate section
             parameters = sweep_config["parameters"]
         else:
-            # Structure: param_name (parameters at top level)
+            # Legacy structure: parameters at top level
             # Filter out metadata keys
-            metadata_keys = {"metric", "goal", "protein"}
+            metadata_keys = {"metric", "goal", "num_random_samples", "protein"}
             parameters = {k: v for k, v in sweep_config.items() if k not in metadata_keys}
 
         # Create clean config for Protein with parameters + metadata
         clean_config = dict(parameters)  # Copy actual parameters only
-        clean_config["metric"] = protein_metadata["metric"]
-        clean_config["goal"] = protein_metadata["goal"]
+        clean_config["metric"] = metric
+        clean_config["goal"] = goal
 
         sweep_config = clean_config
 

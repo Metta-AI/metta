@@ -26,14 +26,6 @@ class TrainJob(Config):
 
 
 def train(cfg, wandb_run, logger: Logger):
-    # If dist_cfg_path is provided, load run information from it
-    if hasattr(cfg, "dist_cfg_path") and cfg.dist_cfg_path and os.path.exists(cfg.dist_cfg_path):
-        dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
-        if "run" in dist_cfg:
-            cfg.run = dist_cfg.run
-            cfg.run_dir = os.path.join(cfg.data_dir, cfg.run)
-            logger.info(f"Loaded run information from dist config: run={cfg.run}, run_dir={cfg.run_dir}")
-
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
     if os.path.exists(overrides_path):
         logger.info(f"Loading train config overrides from {overrides_path}")
