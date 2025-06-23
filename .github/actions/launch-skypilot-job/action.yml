@@ -32,9 +32,9 @@ runs:
   using: "composite"
   steps:
     - name: Setup Python and uv
-      uses: ./.github/actions/setup-uv # Assuming this action is in the repo root
+      uses: ./.github/actions/setup-uv
       with:
-        include-dev: true # Assuming dev dependencies might be needed by launch.py or related scripts
+        include-dev: true
 
     - name: Determine Git Ref
       id: determine_git_ref
