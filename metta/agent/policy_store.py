@@ -22,21 +22,29 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.package import PackageExporter, PackageImporter
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
-from metta.rl.policy import PytorchAgent, load_pytorch_policy
-from metta.util.config import Config
-from metta.util.wandb.wandb_context import WandbRun
+from metta.rl.policy import load_pytorch_policy
+
+# Import wandb types directly to avoid pydantic dependency
+try:
+    import wandb.sdk.wandb_run
+
+    WandbRun = wandb.sdk.wandb_run.Run
+except ImportError:
+    WandbRun = None
 
 logger = logging.getLogger("policy_store")
 
 
-class PolicySelectorConfig(Config):
-    type: str = "top"
-    metric: str = "score"
+class PolicySelectorConfig:
+    """Simple config class for policy selection without pydantic dependency."""
+
+    def __init__(self, type: str = "top", metric: str = "score"):
+        self.type = type
+        self.metric = metric
 
 
 class PolicyRecord:
-    def __init__(self, policy_store: "PolicyStore", name: str, uri: str, metadata: dict):
+    def __init__(self, policy_store: Optional["PolicyStore"], name: str, uri: str, metadata: dict):
         self._policy_store = policy_store
         self.name = name
         self.uri = uri
@@ -49,16 +57,20 @@ class PolicyRecord:
 
     def policy(self) -> nn.Module:
         if self._policy is None:
+            if self._policy_store is None:
+                raise ValueError("PolicyStore is required to load policy")
             pr = self._policy_store.load_from_uri(self.uri)
             self._policy = pr.policy()
             self._local_path = pr.local_path()
         return self._policy
 
-    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent, PytorchAgent]:
-        """Get the policy as a MettaAgent or DistributedMettaAgent."""
+    def policy_as_metta_agent(self):
+        """Get the policy as a MettaAgent, DistributedMettaAgent, or PytorchAgent."""
         policy = self.policy()
-        if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PytorchAgent)):
-            raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
+        # Check by class name to avoid importing at module level
+        valid_types = {"MettaAgent", "DistributedMettaAgent", "PytorchAgent"}
+        if type(policy).__name__ not in valid_types:
+            raise TypeError(f"Expected MettaAgent, DistributedMettaAgent, or PytorchAgent, got {type(policy).__name__}")
         return policy
 
     def num_params(self) -> int:
@@ -116,26 +128,6 @@ class PolicyRecord:
             # Check if it's a wandb object
             if hasattr(v, "__module__") and v.__module__ and "wandb" in v.__module__:
                 return None  # Remove wandb objects
-            # Check if it's a pydantic BaseModel
-            elif hasattr(v, "__class__") and hasattr(v.__class__, "__module__"):
-                module = v.__class__.__module__
-                if module and "pydantic" in module:
-                    # Convert pydantic model to dict using model_dump if available
-                    if hasattr(v, "model_dump"):
-                        return clean_value(v.model_dump())
-                    elif hasattr(v, "dict"):
-                        return clean_value(v.dict())
-                    else:
-                        return clean_value(dict(v))
-            # Check if it's a Config object (from metta.util.config)
-            elif hasattr(v, "__class__") and v.__class__.__name__ == "Config":
-                # Convert to dict using model_dump method
-                if hasattr(v, "model_dump"):
-                    return clean_value(v.model_dump())
-                elif hasattr(v, "dict"):
-                    return clean_value(v.dict())
-                else:
-                    return str(v)
             elif isinstance(v, dict):
                 return {k: clean_value(val) for k, val in v.items() if clean_value(val) is not None}
             elif isinstance(v, list):
@@ -167,6 +159,9 @@ class PolicyRecord:
         try:
             # Use torch.package to save the policy with all dependencies
             with PackageExporter(path, debug=False) as exporter:
+                # Extern metta.util.config first since it depends on pydantic
+                exporter.extern("metta.util.config")
+
                 # Intern all metta modules to include them in the package
                 exporter.intern("metta.**")
 
@@ -223,9 +218,8 @@ class PolicyRecord:
                 # Mock other modules
                 exporter.mock("pufferlib")
                 exporter.mock("pufferlib.**")
-                # Extern pydantic since we need it for Config objects
-                exporter.extern("pydantic")
-                exporter.extern("pydantic.**")
+                exporter.mock("pydantic")
+                exporter.mock("pydantic.**")
                 exporter.mock("typing_extensions")
                 exporter.mock("boto3")
                 exporter.mock("boto3.**")
@@ -329,7 +323,7 @@ class PolicyRecord:
 
 
 class PolicyStore:
-    def __init__(self, cfg: ListConfig | DictConfig, wandb_run: WandbRun | None):
+    def __init__(self, cfg: ListConfig | DictConfig, wandb_run: Optional["WandbRun"]):
         self._cfg = cfg
         self._device = cfg.device
         self._wandb_run = wandb_run
