@@ -325,21 +325,7 @@ class PolicyStore:
 
         except Exception as e:
             logger.debug(f"Not a torch.package file: {e}")
-
-            # Try to load as a regular checkpoint
-            try:
-                checkpoint = torch.load(path, map_location=self._device, weights_only=False)
-
-                # For legacy checkpoints without torch.package, we can't load them
-                raise ValueError(
-                    f"Cannot load policy from {path}: This appears to be a legacy checkpoint "
-                    "without torch.package. Please ensure policies are saved using torch.package."
-                )
-
-            except Exception as e:
-                if "Cannot load" in str(e):
-                    raise  # Re-raise our custom errors
-                raise ValueError(f"Failed to load policy from {path}: {e}")
+            raise ValueError(f"Failed to load policy from {path}: {e}")
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")

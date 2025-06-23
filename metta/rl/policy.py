@@ -67,11 +67,6 @@ class PytorchAgent(nn.Module):
         self.lstm = getattr(policy, "lstm", None)  # Point to the actual LSTM module if it exists
         self.components = nn.ModuleDict()  # Empty for compatibility
 
-    @property
-    def is_pytorch_policy(self):
-        """Always True for PytorchAgent."""
-        return True
-
     def forward(self, obs: torch.Tensor, state: PolicyState, action=None):
         """Uses variable names from LSTMWrapper. Translating for Metta:
         critic -> value

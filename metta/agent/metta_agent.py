@@ -230,10 +230,12 @@ class MettaAgent(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass for training mode - evaluates the policy on provided actions.
+
         Args:
             value: Value estimate tensor, shape (BT, 1)
             logits: Action logits tensor, shape (BT, A)
             action: Action tensor for evaluation, shape (B, T, 2)
+
         Returns:
             Tuple of (action, action_log_prob, entropy, value, log_probs)
             - action: Same as input action, shape (B, T, 2)
@@ -269,10 +271,12 @@ class MettaAgent(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward pass of the MettaAgent - delegates to appropriate specialized method.
+
         Args:
             x: Input observation tensor
             state: Policy state containing LSTM hidden and cell states
             action: Optional action tensor for BPTT
+
         Returns:
             Tuple of (action, action_log_prob, entropy, value, log_probs)
         """
