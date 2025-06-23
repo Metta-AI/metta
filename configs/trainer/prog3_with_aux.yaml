@@ -18,7 +18,7 @@ node_perturbation_coef: 0.01   # Node perturbation loss coefficient
 contrastive_coef: 0.1          # Contrastive learning loss coefficient
 
 # Environment configuration
-curriculum: /env/mettagrid/prog3
+curriculum: /env/mettagrid/prog_3
 
 # Training parameters (inherited from simple.yaml)
 ent_coef: 0.00209
