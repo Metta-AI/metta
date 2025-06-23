@@ -15,7 +15,6 @@ game:
 
     objects:
       altar: 1
-      converter: 3
       generator: 15
       wall: 40
 
@@ -43,9 +42,6 @@ game:
       max_output: 100
       conversion_ticks: 1
       initial_items: 100
-
-    converter:
-      cooldown: 2
 
     generator.red:
       cooldown: 5
