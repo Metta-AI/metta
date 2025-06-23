@@ -126,11 +126,8 @@ def make_app(cfg: DictConfig):
         CustomStaticFiles(directory="mettascope/dist", no_cache_extensions={".js", ".json", ".css"}),
         name="dist",
     )
-    app.mount("/local", StaticFiles(directory="mettascope/local"), name="local")
     app.mount(
-        "/train_dir",
-        CustomStaticFiles(directory="train_dir", custom_content_types={".z": "application/x-compress"}),
-        name="train_dir",
+        "/local", CustomStaticFiles(directory=".", custom_content_types={".z": "application/x-compress"}), name="local"
     )
 
     # Direct favicon.ico to the data/ui dir.

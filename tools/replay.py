@@ -61,8 +61,10 @@ def main(cfg):
 
         # Only on macos open a browser to the replay
         if platform.system() == "Darwin":
-            if replay_url.startswith("./train_dir"):
-                local_url = replay_url.replace("./train_dir/", "http://localhost:8000/train_dir/")
+            if not replay_url.startswith("http"):
+                # Remove ./ prefix if it exists
+                clean_path = replay_url.removeprefix("./")
+                local_url = f"http://localhost:8000/local/{clean_path}"
                 full_url = f"/?replayUrl={quote(local_url)}"
 
                 # Run a metascope server that serves the replay
