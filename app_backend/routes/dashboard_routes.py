@@ -46,13 +46,38 @@ class GroupDataRow:
 
 def get_group_data(con: Connection, suite: str, metric: str, group: str) -> List[GroupDataRow]:
     query_template: SQL = SQL("""
-        WITH episode_agent_metrics_with_group_id AS (
+        WITH
+        episode_agent_metrics_with_group_id AS (
             SELECT
                 eam.*,
                 CAST ((e.attributes->'agent_groups')[eam.agent_id] AS INTEGER) as group_id
             FROM episode_agent_metrics eam
             JOIN episodes e ON e.id = eam.episode_id
             WHERE e.simulation_suite = %s AND eam.metric = %s
+        ),
+        latest_epoch_per_training_run AS (
+          SELECT
+              run_id,
+              id as epoch_id
+          FROM epochs e1
+          WHERE end_training_epoch = (
+              SELECT MAX(end_training_epoch)
+              FROM epochs e2
+              WHERE e2.run_id = e1.run_id
+          )
+        ),
+        relevant_policies AS (
+          SELECT
+            p1.id,
+            p1.name
+          FROM policies p1
+          JOIN latest_epoch_per_training_run e ON p1.epoch_id = e.epoch_id
+          UNION
+          SELECT
+            p2.id,
+            p2.name
+          FROM policies p2
+          WHERE p2.epoch_id IS NULL
         )
 
         SELECT
@@ -63,7 +88,7 @@ def get_group_data(con: Connection, suite: str, metric: str, group: str) -> List
           SUM(eam.value) AS total_value
         FROM episode_agent_metrics_with_group_id eam
         JOIN episodes e ON e.id = eam.episode_id
-        JOIN policies p ON e.primary_policy_id = p.id
+        JOIN relevant_policies p ON e.primary_policy_id = p.id
         {}
         GROUP BY p.name, e.eval_name
     """)
