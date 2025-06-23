@@ -22,7 +22,6 @@ from omegaconf import DictConfig, ListConfig
 from torch import nn
 from torch.package import PackageExporter, PackageImporter
 
-from metta.agent.policy_record import PolicyRecord
 from metta.rl.policy import load_pytorch_policy
 from metta.util.config import Config
 from metta.util.wandb.wandb_context import WandbRun
