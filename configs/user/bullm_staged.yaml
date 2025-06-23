@@ -17,7 +17,7 @@ run_dir: ${data_dir}/${run}
 
 trainer:
   # Use the new staged progressive curriculum
-  curriculum: env/mettagrid/curriculum/staged_progressive_example
+  curriculum: env/mettagrid/curriculum/staged_progressive
   evaluate_interval: 100
   total_timesteps: 2000000  # Longer training to allow for stage transitions
   num_workers: 4
