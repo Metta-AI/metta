@@ -35,7 +35,7 @@ You need to install Node.js (v23.11.0) and typescript (Version 5.8.3), this migh
 ```bash
 cd mettascope
 npm install
-tsc
+npm run build
 python tools/gen_atlas.py
 python -m http.server 2000
 ```
