@@ -123,8 +123,13 @@ class StagedProgressiveCurriculum(Curriculum):
             self._transition_to_next_stage()
 
         # Complete task in current stage curriculum
+        # Extract original task ID if this is a stage ID (e.g., "stage_0:task_id" -> "task_id")
         current_curriculum = self._stage_curricula[self._current_stage]
-        current_curriculum.complete_task(id, score)
+        if id.startswith(f"stage_{self._current_stage}:"):
+            original_task_id = id.split(":", 1)[1]
+        else:
+            original_task_id = id
+        current_curriculum.complete_task(original_task_id, score)
 
     def _should_transition_to_next_stage(self) -> bool:
         """Determine if we should transition to the next stage."""
