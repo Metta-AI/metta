@@ -1,6 +1,5 @@
 from omegaconf import OmegaConf
 
-import mettagrid.room.random
 from metta.mettagrid.curriculum import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.hydra import get_cfg

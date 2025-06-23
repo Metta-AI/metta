@@ -6,7 +6,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import TypedDict
 
-import mettagrid.util.file
 from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
 from metta.util.mettagrid_cfgs import (
     CfgKind,

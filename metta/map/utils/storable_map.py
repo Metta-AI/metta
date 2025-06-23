@@ -8,7 +8,6 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import TypedDict
 
-import mettagrid.util.file
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import grid_to_lines, lines_to_grid
 from metta.map.utils.s3utils import list_objects
