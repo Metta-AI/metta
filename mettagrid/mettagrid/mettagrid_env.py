@@ -8,10 +8,10 @@ import gymnasium as gym
 import numpy as np
 import pufferlib
 from omegaconf import OmegaConf
-from pufferlib.utils import unroll_nested_dict
 from typing_extensions import override
 
 from metta.util import validate_arg_types
+from metta.util.pufferlib_utils import unroll_nested_dict
 from mettagrid.curriculum import Curriculum
 from mettagrid.level_builder import Level
 from mettagrid.mettagrid_c import MettaGrid

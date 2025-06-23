@@ -10,7 +10,6 @@ import torch
 import wandb
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, ListConfig
-from pufferlib.utils import profile, unroll_nested_dict
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent
 from metta.agent.policy_state import PolicyState
@@ -30,6 +29,7 @@ from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulati
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sim.vecenv import make_vecenv
 from metta.util.config import config_from_path
+from metta.util.pufferlib_utils import profile, unroll_nested_dict
 from mettagrid.curriculum import SamplingCurriculum
 from mettagrid.mettagrid_env import MettaGridEnv
 

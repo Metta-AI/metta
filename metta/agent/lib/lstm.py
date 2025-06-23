@@ -72,19 +72,26 @@ class LSTM(LayerBase):
         else:
             raise ValueError("Invalid input tensor shape", x.shape)
 
+        # Minimal production check for state batch size
         if state is not None:
-            assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
-        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0]), (
-            f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self._in_tensor_shapes[0][0])}"
-        )
+            if state[0].shape[1] != B or state[1].shape[1] != B:
+                raise ValueError(
+                    f"LSTM state batch size mismatch: expected {B}, got h={state[0].shape[1]}, c={state[1].shape[1]}"
+                )
 
-        # Debug prints
-        print("[LEGACY LSTM] Input x shape:", x.shape, "sample:", x.flatten()[:5])
-        if state is not None:
-            print("[LEGACY LSTM] State[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
-            print("[LEGACY LSTM] State[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
-        else:
-            print("[LEGACY LSTM] State: None")
+        # Minimal production check for hidden shape
+        expected_hidden_shape = (B * TT, self._in_tensor_shapes[0][0])
+        if hidden.shape != expected_hidden_shape:
+            raise ValueError(f"Hidden state shape {hidden.shape} does not match expected {expected_hidden_shape}")
+
+        # Debug-only verbose logging
+        if __debug__:
+            print("[LEGACY LSTM] Input x shape:", x.shape, "sample:", x.flatten()[:5])
+            if state is not None:
+                print("[LEGACY LSTM] State[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
+                print("[LEGACY LSTM] State[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
+            else:
+                print("[LEGACY LSTM] State: None")
 
         # These are the important ones
         B = td["_B_"]
@@ -93,12 +100,13 @@ class LSTM(LayerBase):
 
         hidden, state = self._net(hidden, state)
 
-        print("[LEGACY LSTM] Output hidden shape:", hidden.shape, "sample:", hidden.flatten()[:5])
-        if state is not None:
-            print("[LEGACY LSTM] Output state[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
-            print("[LEGACY LSTM] Output state[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
-        else:
-            print("[LEGACY LSTM] Output state: None")
+        if __debug__:
+            print("[LEGACY LSTM] Output hidden shape:", hidden.shape, "sample:", hidden.flatten()[:5])
+            if state is not None:
+                print("[LEGACY LSTM] Output state[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
+                print("[LEGACY LSTM] Output state[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
+            else:
+                print("[LEGACY LSTM] Output state: None")
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
@@ -151,41 +159,55 @@ class MettaEncodedLSTM(UniqueInKeyMixin, UniqueOutKeyMixin, MettaModule):
         B = md.data["global"]["batch_size"]
         TT = md.data["global"]["tt"]
         encoded_features = md.td[self.input_key]
-        # Enforce [B * TT, H] shape
+
+        # Minimal production check for encoded features shape
         if encoded_features.shape[0] != B * TT:
             raise ValueError(
                 f"encoded_features shape {encoded_features.shape} does not match expected [{B * TT}, H] with B={B}, TT={TT}"
             )
+
         # Namespace state under output_key
         state_dict = md.data.get(self.output_key, {})
         state = state_dict.get("state", None)
         if state is not None:
             split_size = self.num_layers
             state = (state[:split_size], state[split_size:])
-        # Debug prints
-        print(
-            "[METTA LSTM] Input encoded_features shape:",
-            encoded_features.shape,
-            "sample:",
-            encoded_features.flatten()[:5],
-        )
-        if state is not None:
-            print("[METTA LSTM] State[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
-            print("[METTA LSTM] State[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
-        else:
-            print("[METTA LSTM] State: None")
+            # Minimal production check for state shape
+            if state[0].shape[1] != B or state[1].shape[1] != B:
+                raise ValueError(
+                    f"LSTM state batch size mismatch: expected {B}, got h={state[0].shape[1]}, c={state[1].shape[1]}"
+                )
+
+        # Debug-only verbose logging
+        if __debug__:
+            print(
+                "[METTA LSTM] Input encoded_features shape:",
+                encoded_features.shape,
+                "sample:",
+                encoded_features.flatten()[:5],
+            )
+            if state is not None:
+                print("[METTA LSTM] State[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
+                print("[METTA LSTM] State[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
+            else:
+                print("[METTA LSTM] State: None")
+
         encoded_features = rearrange(encoded_features, "(b t) h -> t b h", b=B, t=TT)
         output, state = self._net(encoded_features, state)
-        print("[METTA LSTM] Output shape:", output.shape, "sample:", output.flatten()[:5])
-        if state is not None:
-            print("[METTA LSTM] Output state[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
-            print("[METTA LSTM] Output state[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
-        else:
-            print("[METTA LSTM] Output state: None")
+
+        if __debug__:
+            print("[METTA LSTM] Output shape:", output.shape, "sample:", output.flatten()[:5])
+            if state is not None:
+                print("[METTA LSTM] Output state[0] shape:", state[0].shape, "sample:", state[0].flatten()[:5])
+                print("[METTA LSTM] Output state[1] shape:", state[1].shape, "sample:", state[1].flatten()[:5])
+            else:
+                print("[METTA LSTM] Output state: None")
+
         output = rearrange(output, "t b h -> (b t) h")
         if state is not None:
             state = tuple(s.detach() for s in state)
             state = torch.cat(state, dim=0)
+
         # Store state under output_key
         if self.output_key not in md.data or not isinstance(md.data[self.output_key], dict):
             md.data[self.output_key] = {}
