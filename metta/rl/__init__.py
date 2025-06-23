@@ -1,42 +1,51 @@
-"""Core RL training components."""
+"""Modular RL components for flexible training."""
 
-# Experience and data storage
+# Core components
 from metta.rl.checkpointer import AutoCheckpointer, TrainingCheckpointer
-
-# Training components
-from metta.rl.collectors import AsyncRolloutCollector, RolloutCollector
-from metta.rl.evaluator import AsyncPolicyEvaluator, PolicyEvaluator
+from metta.rl.collectors import RolloutCollector
+from metta.rl.configs import ExperienceConfig, PPOConfig, TrainerConfig
+from metta.rl.evaluator import PolicyEvaluator
 from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
+
+# Functional training
+from metta.rl.functional_trainer import (
+    TrainingState,
+    create_training_components,
+    default_training_step,
+    functional_training_loop,
+)
+
+# Utilities
 from metta.rl.losses import Losses
 from metta.rl.optimizers import PPOOptimizer
 from metta.rl.stats_logger import StatsLogger
 
-# Trainer and utilities
-from metta.rl.trainer import AbortingTrainer, MettaTrainer
+# Legacy trainer (for backward compatibility)
+from metta.rl.trainer import LegacyMettaTrainer, MettaTrainer
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
-# Vectorized environments
-from metta.rl.vecenv import make_vecenv
-
 __all__ = [
-    # Experience and data
-    "Experience",
-    "Losses",
     # Core components
     "RolloutCollector",
-    "AsyncRolloutCollector",
     "PPOOptimizer",
     "PolicyEvaluator",
-    "AsyncPolicyEvaluator",
     "TrainingCheckpointer",
     "AutoCheckpointer",
     "StatsLogger",
-    # Trainer
+    "Experience",
+    # Configs
+    "PPOConfig",
+    "TrainerConfig",
+    "ExperienceConfig",
+    # Functional training
+    "TrainingState",
+    "create_training_components",
+    "default_training_step",
+    "functional_training_loop",
+    # Legacy
     "MettaTrainer",
-    "AbortingTrainer",
+    "LegacyMettaTrainer",
+    # Utilities
+    "Losses",
     "TrainerCheckpoint",
-    "Kickstarter",
-    # Environments
-    "make_vecenv",
 ]
