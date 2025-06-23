@@ -35,9 +35,7 @@ class PolicySelectorConfig(Config):
 
 
 class PolicyRecord:
-    """Represents a trained policy with metadata and torch.package-based persistence."""
-
-    def __init__(self, policy_store: Optional["PolicyStore"], name: str, uri: str, metadata: dict):
+    def __init__(self, policy_store: "PolicyStore", name: str, uri: str, metadata: dict):
         self._policy_store = policy_store
         self.name = name
         self.uri = uri
@@ -48,23 +46,37 @@ class PolicyRecord:
         if self.uri.startswith("file://"):
             self._local_path = self.uri[len("file://") :]
 
+    def policy_as_metta_agent(self) -> Union[MettaAgent, DistributedMettaAgent, PytorchAgent]:
+        """Get the policy as a MettaAgent or DistributedMettaAgent."""
+        policy = self.policy()
+        if not isinstance(policy, (MettaAgent, DistributedMettaAgent, PytorchAgent)):
+            raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
+        return policy
+
     def policy(self) -> nn.Module:
-        """Get the policy, loading it if necessary."""
         if self._policy is None:
-            if self._policy_store is None:
-                raise ValueError("PolicyStore is required to load policy")
             pr = self._policy_store.load_from_uri(self.uri)
             self._policy = pr.policy()
             self._local_path = pr.local_path()
         return self._policy
 
     def num_params(self) -> int:
-        """Get the number of trainable parameters."""
         return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
 
     def local_path(self) -> Optional[str]:
-        """Get the local file path if available."""
         return self._local_path
+
+    def __repr__(self):
+        """Generate a detailed representation of the PolicyRecord with weight shapes."""
+        # Basic policy record info
+        lines = [f"PolicyRecord(name={self.name}, uri={self.uri})"]
+
+        # Add key metadata if available
+        important_keys = ["epoch", "agent_step", "generation", "score"]
+        metadata_items = []
+        for k in important_keys:
+            if k in self.metadata:
+                metadata_items.append(f"{k}={self.metadata[k]}")
 
     def _clean_metadata_for_packaging(self, metadata: dict) -> dict:
         """Clean metadata to remove any objects that can't be packaged."""
