@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import TypedDict
 
 from metta.map.utils.storable_map import StorableMap, StorableMapDict, StorableMapIndex, map_builder_cfg_to_storable_map
+from metta.mettagrid.util.file import read
 from metta.util.mettagrid_cfgs import (
     CfgKind,
     MettagridCfgFile,
@@ -74,7 +75,7 @@ def make_app():
 
     @app.get("/stored-maps/get-index")
     async def route_stored_maps_get_index(dir: str) -> dict:
-        return json.loads(mettagrid.util.file.read(f"{dir}/index.json").decode("utf-8"))
+        return json.loads(read(f"{dir}/index.json").decode("utf-8"))
 
     @app.get("/mettagrid-cfgs")
     async def route_mettagrid_cfgs() -> dict[CfgKind, list[dict]]:

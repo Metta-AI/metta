@@ -11,6 +11,7 @@ requires-python = "==3.11.7"
 license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
+
 dependencies = [
   "pytest>=8.3.3",
   "pytest-cov>=6.1.1",
