@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field, RootModel
 
-from mettagrid.mettagrid_config import GameConfig as GameConfig_py
+from metta.mettagrid.mettagrid_config import GameConfig as GameConfig_py
 
 
 class BaseModelWithForbidExtra(BaseModel):
@@ -31,6 +31,7 @@ class AgentConfig_cpp(BaseModelWithForbidExtra):
     default_item_max: int = Field(ge=0)
     freeze_duration: int = Field(ge=0)
     group_id: int
+    item_max: Dict[str, int] = Field(default_factory=dict)
     rewards: AgentRewards_cpp
 
 
@@ -126,8 +127,7 @@ class GameConfig_cpp(BaseModelWithForbidExtra):
     obs_width: int = Field(ge=1)
     obs_height: int = Field(ge=1)
     num_observation_tokens: int = Field(ge=1)
-    agent: AgentConfig_cpp
-    groups: Dict[str, GroupConfig_cpp] = Field(min_length=1)
+    agent_groups: Dict[str, AgentConfig_cpp] = Field(min_length=1)
     actions: ActionsConfig_cpp
     objects: ObjectsConfig_cpp
     reward_sharing: Optional[RewardSharingConfig_cpp] = None
@@ -174,7 +174,7 @@ def agent_rewards_dict_from_flat_dict(flat_rewards_dict: Dict[str, float]) -> Di
 def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
     """Convert a mettagrid_config.GameConfig to a mettagrid_c_config.GameConfig."""
 
-    agent_configs = {}
+    agent_group_configs = {}
 
     # these are the baseline settings for all agents
     agent_default_config_dict = mettagrid_config.agent.model_dump(by_alias=True, exclude_unset=True)
@@ -190,17 +190,22 @@ def from_mettagrid_config(mettagrid_config: GameConfig_py) -> GameConfig_cpp:
                 agent_group_config[key] = value
             else:
                 agent_group_config[key] = value
+
+        # We've now merged in the group. Next, convert this merged config into the format expected by the C++ code.
         agent_group_config["group_id"] = group_config.id
         agent_group_config["rewards"] = agent_rewards_dict_from_flat_dict(agent_group_config["rewards"])
+        item_maxes = dict(
+            (k, v) for k, v in agent_group_config.items() if k.endswith("_max") and k != "default_item_max"
+        )
+        for k in item_maxes:
+            del agent_group_config[k]
+        agent_group_config["item_max"] = item_maxes
 
-        agent_configs["agent." + group_name] = AgentConfig_cpp(**agent_group_config)
+        agent_group_configs["agent." + group_name] = AgentConfig_cpp(**agent_group_config)
 
-    return GameConfig_cpp(
-        num_agents=mettagrid_config.num_agents,
-        max_steps=mettagrid_config.max_steps,
-        obs_width=mettagrid_config.obs_width,
-        obs_height=mettagrid_config.obs_height,
-        num_observation_tokens=mettagrid_config.num_observation_tokens,
-        agent=agent_configs,
-        groups=mettagrid_config.groups,
-    )
+    game_config = mettagrid_config.model_dump(by_alias=True, exclude_unset=True)
+    game_config["agent_groups"] = agent_group_configs
+    del game_config["agent"]
+    del game_config["groups"]
+
+    return GameConfig_cpp(**game_config)
