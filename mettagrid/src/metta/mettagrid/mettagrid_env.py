@@ -281,12 +281,13 @@ class MettaGridEnv(PufferEnv, GymEnv):
             with self.timer("_stats_writer"):
                 assert self._episode_id is not None, "Episode ID must be set before writing stats"
 
-                attributes: dict[str, str] = {
-                    "seed": str(self._current_seed),
-                    "map_w": str(self.map_width),
-                    "map_h": str(self.map_height),
-                    "initial_grid_hash": self.initial_grid_hash,
-                }
+                # not using this for now as it is breaking things
+                attributes: dict[str, str] = {}
+                #     "seed": str(self._current_seed),
+                #     "map_w": str(self.map_width),
+                #     "map_h": str(self.map_height),
+                #     "initial_grid_hash": self.initial_grid_hash,
+                # }
 
                 container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
                 for k, v in unroll_nested_dict(cast(dict[str, Any], container)):
