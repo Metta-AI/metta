@@ -1,23 +1,51 @@
-# Example sweep configuration with new structure
-# This file contains sweep metadata and parameter search space
+# Example sweep configuration demonstrating the new Protein structure
+# This file shows how to define hyperparameter search spaces
+
+# Parameters section defines the hyperparameter search space
+parameters:
+  # Learning rate with log-normal distribution
+  trainer.learning_rate:
+    min: 0.0001
+    max: 0.01
+    distribution: log_normal
+
+  # Batch size with uniform distribution
+  trainer.batch_size:
+    min: 2048
+    max: 8192
+    distribution: uniform
+
+  # Discount factor with uniform distribution
+  trainer.gamma:
+    min: 0.95
+    max: 0.999
+    distribution: uniform
+
+  # GAE lambda with uniform distribution
+  trainer.gae_lambda:
+    min: 0.9
+    max: 0.99
+    distribution: uniform
+
+  # Minibatch size with power-of-2 constraint
+  trainer.minibatch_size:
+    min: 128
+    max: 512
+    distribution: uniform_pow2
+
+  # Hidden size with power-of-2 distribution
+  agent.components._core_.output_size:
+    min: 64
+    max: 256
+    distribution: uniform_pow2
+
+  # Observation attribute embedding dimension
+  agent.components._obs_.atr_embed_dim:
+    min: 16
+    max: 64
+    distribution: uniform_pow2
 
 # Sweep metadata - used by Protein optimizer
 metric: "episode/reward.mean"  # Metric to optimize
 goal: maximize                 # Direction of optimization
 num_random_samples: 10         # Number of random samples before Bayesian optimization
-
-# Parameter search space - these are the hyperparameters being swept
-parameters:
-  # Trainer parameters
-  trainer.gamma: ${ss:logit, 0.9, 0.999}
-  trainer.gae_lambda: ${ss:logit, 0.9, 0.99}
-  trainer.learning_rate: ${ss:log, 1e-5, 1e-3}
-  trainer.batch_size: ${ss:pow2, 2048, 8192}
-  trainer.minibatch_size: ${ss:pow2, 128, 512}
-
-  # Agent parameters
-  agent.components._core_.hidden_size: ${ss:pow2, 128, 512}
-  agent.components._obs_.atr_embed_dim: ${ss:pow2, 16, 64}
-
-  # Environment parameters (if needed)
-  # trainer.env_overrides.game.max_steps: ${ss:int, 100, 500}
