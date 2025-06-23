@@ -110,26 +110,25 @@ class StagedProgressiveCurriculum(Curriculum):
 
     def complete_task(self, id: str, score: float):
         """Complete a task and potentially transition to next stage."""
-        # Update performance for current stage
-        self._stage_performance[self._current_stage] = (
-            (1 - self.transition_smoothing) * self._stage_performance[self._current_stage] +
-            self.transition_smoothing * score
-        )
+        # Check if this is the staged curriculum's own stage ID
+        if id == f"stage_{self._current_stage}":
+            # This is the staged curriculum being called with its own stage ID
+            # Update performance for current stage
+            self._stage_performance[self._current_stage] = (
+                (1 - self.transition_smoothing) * self._stage_performance[self._current_stage] +
+                self.transition_smoothing * score
+            )
 
-        # Check for stage transition
-        should_transition = self._should_transition_to_next_stage()
+            # Check for stage transition
+            should_transition = self._should_transition_to_next_stage()
 
-        if should_transition and self._current_stage < len(self.stages) - 1:
-            self._transition_to_next_stage()
-
-        # Complete task in current stage curriculum
-        # Extract original task ID if this is a stage ID (e.g., "stage_0:task_id" -> "task_id")
-        current_curriculum = self._stage_curricula[self._current_stage]
-        if id.startswith(f"stage_{self._current_stage}:"):
-            original_task_id = id.split(":", 1)[1]
+            if should_transition and self._current_stage < len(self.stages) - 1:
+                self._transition_to_next_stage()
         else:
-            original_task_id = id
-        current_curriculum.complete_task(original_task_id, score)
+            # This is a task ID from the underlying curriculum
+            # Pass it through to the underlying curriculum
+            current_curriculum = self._stage_curricula[self._current_stage]
+            current_curriculum.complete_task(id, score)
 
     def _should_transition_to_next_stage(self) -> bool:
         """Determine if we should transition to the next stage."""
