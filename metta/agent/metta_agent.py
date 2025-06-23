@@ -21,79 +21,55 @@ from metta.util.omegaconf import convert_to_dict
 logger = logging.getLogger("metta_agent")
 
 
-class PytorchAgent(nn.Module):
-    """Adapter to make torch.nn.Module-based policies compatible with MettaAgent interface.
+def make_policy(env, cfg: Union[DictConfig, ListConfig]) -> "MettaAgent":
+    """Create a MettaAgent policy from environment and configuration.
 
-    This adapter wraps policies loaded from checkpoints and translates their
-    outputs to match the expected MettaAgent interface, handling naming
-    differences like critic→value, hidden→logits, etc.
+    Here's where we create MettaAgent. We're including the term MettaAgent here for better
+    searchability. Otherwise you might only find yaml files.
+
+    Args:
+        env: The environment with observation/action space information
+        cfg: Configuration dict containing agent parameters
+
+    Returns:
+        MettaAgent instance
     """
+    obs_space = gym.spaces.Dict(
+        {
+            "grid_obs": env.single_observation_space,
+            "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
+        }
+    )
 
-    def __init__(self, policy: nn.Module):
-        super().__init__()
-        self.policy = policy
-        self.hidden_size = getattr(policy, "hidden_size", 256)
-        self.lstm = getattr(policy, "lstm", None)  # Point to the actual LSTM module if it exists
-        self.components = nn.ModuleDict()  # Empty for compatibility
+    return hydra.utils.instantiate(
+        cfg.agent,
+        obs_space=obs_space,
+        obs_width=env.obs_width,
+        obs_height=env.obs_height,
+        action_space=env.single_action_space,
+        feature_normalizations=env.feature_normalizations,
+        device=cfg.device,
+        _target_="metta.agent.metta_agent.MettaAgent",
+        _recursive_=False,
+    )
 
-    @property
-    def is_pytorch_policy(self):
-        """Always True for PytorchAgent."""
-        return True
 
-    def forward(self, obs: torch.Tensor, state: PolicyState, action=None):
-        """Uses variable names from LSTMWrapper. Translating for Metta:
-        critic -> value
-        logprob -> logprob_act
-        hidden -> logits then, after sample_logits(), log_sftmx_logits
-        """
-        result = self.policy(obs, state, action)
+class DistributedMettaAgent(DistributedDataParallel):
+    """A distributed wrapper for MettaAgent that preserves the MettaAgent interface."""
 
-        # Handle different return formats from PyTorch policies
-        if len(result) == 2 and result[0].dim() >= 2:
-            # Legacy format: (hidden, critic)
-            hidden, critic = result
-            action, logprob, logits_entropy = sample_logits(hidden, action)
-            return action, logprob, logits_entropy, critic, hidden
-        elif len(result) == 5:
-            # Already in correct format
-            return result
-        else:
-            raise ValueError(f"Unexpected return format from policy: {len(result)} values")
+    def __init__(self, agent, device):
+        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
+        super().__init__(agent, device_ids=[device], output_device=device)
 
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Forward to wrapped policy if it has this method."""
-        if hasattr(self.policy, "activate_actions"):
-            self.policy.activate_actions(action_names, action_max_params, device)
-        self.device = device
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
 
-    def l2_reg_loss(self) -> torch.Tensor:
-        """L2 regularization loss."""
-        if hasattr(self.policy, "l2_reg_loss"):
-            return self.policy.l2_reg_loss()
-        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
-
-    def l2_init_loss(self) -> torch.Tensor:
-        """L2 initialization loss."""
-        if hasattr(self.policy, "l2_init_loss"):
-            return self.policy.l2_init_loss()
-        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
-
-    def update_l2_init_weight_copy(self):
-        """Update L2 initialization weight copy."""
-        if hasattr(self.policy, "update_l2_init_weight_copy"):
-            self.policy.update_l2_init_weight_copy()
-
-    def clip_weights(self):
-        """Clip weights."""
-        if hasattr(self.policy, "clip_weights"):
-            self.policy.clip_weights()
-
-    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics for analysis."""
-        if hasattr(self.policy, "compute_weight_metrics"):
-            return self.policy.compute_weight_metrics(delta)
-        return []
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
+        return self.module.activate_actions(action_names, action_max_params, device)
 
 
 class MettaAgent(nn.Module):
@@ -231,6 +207,63 @@ class MettaAgent(nn.Module):
     def total_params(self):
         return self._total_params
 
+    def forward(
+        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Forward pass of the MettaAgent - delegates to appropriate specialized method.
+
+        Args:
+            x: Input observation tensor
+            state: Policy state containing LSTM hidden and cell states
+            action: Optional action tensor for BPTT
+
+        Returns:
+            Tuple of (action, action_log_prob, entropy, value, log_probs)
+        """
+        # Initialize dictionary for TensorDict
+        td = {"x": x, "state": None}
+
+        # Safely handle LSTM state
+        if state.lstm_h is not None and state.lstm_c is not None:
+            # Ensure states are on the same device as input
+            lstm_h = state.lstm_h.to(x.device)
+            lstm_c = state.lstm_c.to(x.device)
+            # Concatenate LSTM states along dimension 0
+            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
+
+        # Forward pass through value network
+        self.components["_value_"](td)
+        value = td["_value_"]
+
+        # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
+        # This design supports potential future extensions like distributional value functions
+        # or multi-head value networks which would require more than a scalar per state
+        if __debug__:
+            assert_shape(value, ("BT", 1), "value")
+
+        # Forward pass through action network
+        self.components["_action_"](td)
+        logits = td["_action_"]
+
+        if __debug__:
+            # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
+            assert_shape(logits, ("BT", "A"), "logits")
+
+        # NOTE: Both value and logits always have shape (BT, *) regardless of input mode:
+        # - Training input: (B, T, *obs_shape) gets internally reshaped to (BT, *) by LSTM
+        # - Inference input: (BT, *obs_shape) stays as (BT, *)
+
+        # Update LSTM states
+        split_size = self.core_num_layers
+        state.lstm_h = td["state"][:split_size]
+        state.lstm_c = td["state"][split_size:]
+
+        if action is None:
+            return self.forward_inference(value, logits)
+        else:
+            return self.forward_training(value, logits, action)
+
     def forward_inference(
         self, value: torch.Tensor, logits: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -310,63 +343,6 @@ class MettaAgent(nn.Module):
             assert_shape(action, ("B", "T", 2), "training_output_action")
 
         return action, action_log_prob, entropy, value, log_probs
-
-    def forward(
-        self, x: torch.Tensor, state: PolicyState, action: Optional[torch.Tensor] = None
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """
-        Forward pass of the MettaAgent - delegates to appropriate specialized method.
-
-        Args:
-            x: Input observation tensor
-            state: Policy state containing LSTM hidden and cell states
-            action: Optional action tensor for BPTT
-
-        Returns:
-            Tuple of (action, action_log_prob, entropy, value, log_probs)
-        """
-        # Initialize dictionary for TensorDict
-        td = {"x": x, "state": None}
-
-        # Safely handle LSTM state
-        if state.lstm_h is not None and state.lstm_c is not None:
-            # Ensure states are on the same device as input
-            lstm_h = state.lstm_h.to(x.device)
-            lstm_c = state.lstm_c.to(x.device)
-            # Concatenate LSTM states along dimension 0
-            td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
-
-        # Forward pass through value network
-        self.components["_value_"](td)
-        value = td["_value_"]
-
-        # Value shape is (BT, 1) - keeping the final dimension explicit (instead of squeezing)
-        # This design supports potential future extensions like distributional value functions
-        # or multi-head value networks which would require more than a scalar per state
-        if __debug__:
-            assert_shape(value, ("BT", 1), "value")
-
-        # Forward pass through action network
-        self.components["_action_"](td)
-        logits = td["_action_"]
-
-        if __debug__:
-            # here A is the size of the flattened action space (i.e. all valid (type, arg) combinations)
-            assert_shape(logits, ("BT", "A"), "logits")
-
-        # NOTE: Both value and logits always have shape (BT, *) regardless of input mode:
-        # - Training input: (B, T, *obs_shape) gets internally reshaped to (BT, *) by LSTM
-        # - Inference input: (BT, *obs_shape) stays as (BT, *)
-
-        # Update LSTM states
-        split_size = self.core_num_layers
-        state.lstm_h = td["state"][:split_size]
-        state.lstm_c = td["state"][split_size:]
-
-        if action is None:
-            return self.forward_inference(value, logits)
-        else:
-            return self.forward_training(value, logits, action)
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """
@@ -497,56 +473,79 @@ class MettaAgent(nn.Module):
         return metrics_list
 
 
-class DistributedMettaAgent(DistributedDataParallel):
-    """A distributed wrapper for MettaAgent that preserves the MettaAgent interface."""
+class PytorchAgent(nn.Module):
+    """Adapter to make torch.nn.Module-based policies compatible with MettaAgent interface.
 
-    def __init__(self, agent, device):
-        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-        super().__init__(agent, device_ids=[device], output_device=device)
-
-    def __getattr__(self, name):
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
-        return self.module.activate_actions(action_names, action_max_params, device)
-
-
-# Factory functions
-def make_policy(env, cfg: Union[DictConfig, ListConfig]) -> MettaAgent:
-    """Create a MettaAgent policy from environment and configuration.
-
-    Here's where we create MettaAgent. We're including the term MettaAgent here for better
-    searchability. Otherwise you might only find yaml files.
-
-    Args:
-        env: The environment with observation/action space information
-        cfg: Configuration dict containing agent parameters
-
-    Returns:
-        MettaAgent instance
+    This adapter wraps policies loaded from checkpoints and translates their
+    outputs to match the expected MettaAgent interface, handling naming
+    differences like critic→value, hidden→logits, etc.
     """
-    obs_space = gym.spaces.Dict(
-        {
-            "grid_obs": env.single_observation_space,
-            "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=[0], dtype=np.int32),
-        }
-    )
 
-    return hydra.utils.instantiate(
-        cfg.agent,
-        obs_space=obs_space,
-        obs_width=env.obs_width,
-        obs_height=env.obs_height,
-        action_space=env.single_action_space,
-        feature_normalizations=env.feature_normalizations,
-        device=cfg.device,
-        _target_="metta.agent.metta_agent.MettaAgent",
-        _recursive_=False,
-    )
+    def __init__(self, policy: nn.Module):
+        super().__init__()
+        self.policy = policy
+        self.hidden_size = getattr(policy, "hidden_size", 256)
+        self.lstm = getattr(policy, "lstm", None)  # Point to the actual LSTM module if it exists
+        self.components = nn.ModuleDict()  # Empty for compatibility
+
+    @property
+    def is_pytorch_policy(self):
+        """Always True for PytorchAgent."""
+        return True
+
+    def forward(self, obs: torch.Tensor, state: PolicyState, action=None):
+        """Uses variable names from LSTMWrapper. Translating for Metta:
+        critic -> value
+        logprob -> logprob_act
+        hidden -> logits then, after sample_logits(), log_sftmx_logits
+        """
+        result = self.policy(obs, state, action)
+
+        # Handle different return formats from PyTorch policies
+        if len(result) == 2 and result[0].dim() >= 2:
+            # Legacy format: (hidden, critic)
+            hidden, critic = result
+            action, logprob, logits_entropy = sample_logits(hidden, action)
+            return action, logprob, logits_entropy, critic, hidden
+        elif len(result) == 5:
+            # Already in correct format
+            return result
+        else:
+            raise ValueError(f"Unexpected return format from policy: {len(result)} values")
+
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
+        """Forward to wrapped policy if it has this method."""
+        if hasattr(self.policy, "activate_actions"):
+            self.policy.activate_actions(action_names, action_max_params, device)
+        self.device = device
+
+    def l2_reg_loss(self) -> torch.Tensor:
+        """L2 regularization loss."""
+        if hasattr(self.policy, "l2_reg_loss"):
+            return self.policy.l2_reg_loss()
+        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
+
+    def l2_init_loss(self) -> torch.Tensor:
+        """L2 initialization loss."""
+        if hasattr(self.policy, "l2_init_loss"):
+            return self.policy.l2_init_loss()
+        return torch.tensor(0.0, device=getattr(self, "device", "cpu"))
+
+    def update_l2_init_weight_copy(self):
+        """Update L2 initialization weight copy."""
+        if hasattr(self.policy, "update_l2_init_weight_copy"):
+            self.policy.update_l2_init_weight_copy()
+
+    def clip_weights(self):
+        """Clip weights."""
+        if hasattr(self.policy, "clip_weights"):
+            self.policy.clip_weights()
+
+    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
+        """Compute weight metrics for analysis."""
+        if hasattr(self.policy, "compute_weight_metrics"):
+            return self.policy.compute_weight_metrics(delta)
+        return []
 
 
 def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig = None) -> PytorchAgent:
