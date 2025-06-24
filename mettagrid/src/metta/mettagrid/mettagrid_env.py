@@ -73,6 +73,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
         self.timer = Stopwatch(logger)
         self.timer.start()
         self.timer.start("thread_idle")
+        self._steps = 0
 
         self._render_mode = render_mode
         self._curriculum = curriculum
@@ -212,6 +213,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         with self.timer("_c_env.step"):
             self._c_env.step(actions)
+            self._steps += 1
 
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
@@ -267,6 +269,15 @@ class MettaGridEnv(PufferEnv, GymEnv):
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self._c_env.num_agents
 
+        attributes: dict[str, Any] = {
+            "seed": self._current_seed,
+            "map_w": self.map_width,
+            "map_h": self.map_height,
+            "initial_grid_hash": self.initial_grid_hash,
+            "steps": self._steps,
+        }
+        infos["attributes"].update(attributes)
+
         replay_url = None
 
         if self._replay_writer:
@@ -278,13 +289,6 @@ class MettaGridEnv(PufferEnv, GymEnv):
         if self._stats_writer:
             with self.timer("_stats_writer"):
                 assert self._episode_id is not None, "Episode ID must be set before writing stats"
-
-                attributes: dict[str, str] = {
-                    "seed": str(self._current_seed),
-                    "map_w": str(self.map_width),
-                    "map_h": str(self.map_height),
-                    "initial_grid_hash": self.initial_grid_hash,
-                }
 
                 container = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
                 for k, v in unroll_nested_dict(cast(dict[str, Any], container)):
