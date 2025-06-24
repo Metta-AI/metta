@@ -28,6 +28,7 @@ from torch import nn
 from torch.package import PackageExporter, PackageImporter
 
 from metta.agent.metta_agent import make_policy
+from metta.agent.policy_record import PolicyRecord
 from metta.rl.policy import load_pytorch_policy
 
 logger = logging.getLogger("policy_store")
@@ -39,326 +40,6 @@ class PolicySelectorConfig:
     def __init__(self, type: str = "top", metric: str = "score"):
         self.type = type
         self.metric = metric
-
-
-class PolicyRecord:
-    def __init__(self, policy_store: Optional["PolicyStore"], name: str, uri: str, metadata: dict):
-        self._policy_store = policy_store
-        self.name = name
-        self.uri = uri
-        self.metadata = metadata
-        self._policy = None
-        self._local_path = None
-
-        if self.uri.startswith("file://"):
-            self._local_path = self.uri[len("file://") :]
-
-    def policy(self) -> nn.Module:
-        if self._policy is None:
-            pr = self._policy_store.load_from_uri(self.uri)
-            self._policy = pr.policy()
-            self._local_path = pr.local_path()
-        return self._policy
-
-    def policy_as_metta_agent(self):
-        policy = self.policy()
-        if type(policy).__name__ not in {"MettaAgent", "DistributedMettaAgent", "PytorchAgent"}:
-            raise TypeError(f"Expected MettaAgent, DistributedMettaAgent, or PytorchAgent, got {type(policy).__name__}")
-        return policy
-
-    def num_params(self) -> int:
-        return sum(p.numel() for p in self.policy().parameters() if p.requires_grad)
-
-    def local_path(self) -> Optional[str]:
-        return self._local_path
-
-    def __repr__(self):
-        """Generate a detailed representation of the PolicyRecord with weight shapes.."""
-        # Basic policy record info
-        lines = [f"PolicyRecord(name={self.name}, uri={self.uri})"]
-
-        # Add key metadata if available
-        important_keys = ["epoch", "agent_step", "generation", "score"]
-        metadata_items = []
-        for k in important_keys:
-            if k in self.metadata:
-                metadata_items.append(f"{k}={self.metadata[k]}")
-
-        if metadata_items:
-            lines.append(f"Metadata: {', '.join(metadata_items)}")
-
-        # Load policy if not already loaded
-        policy = None
-        if self._policy is None:
-            try:
-                policy = self.policy()
-            except Exception as e:
-                lines.append(f"Error loading policy: {str(e)}")
-                return "\n".join(lines)
-        else:
-            policy = self._policy
-
-        # Add total parameter count
-        total_params = sum(p.numel() for p in policy.parameters())
-        trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
-        lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
-
-        # Add module structure with detailed weight shapes
-        lines.append("\nModule Structure with Weight Shapes:")
-
-        for name, module in policy.named_modules():
-            # Skip top-level module
-            if name == "":
-                continue
-
-            # Create indentation based on module hierarchy
-            indent = "  " * name.count(".")
-
-            # Get module type
-            module_type = module.__class__.__name__
-
-            # Start building the module info line
-            module_info = f"{indent}{name}: {module_type}"
-
-            # Get parameters for this module (non-recursive)
-            params = list(module.named_parameters(recurse=False))
-
-            # Add detailed parameter information
-            if params:
-                # For common layer types, add specialized shape information
-                if isinstance(module, torch.nn.Conv2d):
-                    weight = next((p for name, p in params if name == "weight"), None)
-                    if weight is not None:
-                        out_channels, in_channels, kernel_h, kernel_w = weight.shape
-                        module_info += " ["
-                        module_info += f"out_channels={out_channels}, "
-                        module_info += f"in_channels={in_channels}, "
-                        module_info += f"kernel=({kernel_h}, {kernel_w})"
-                        module_info += "]"
-
-                elif isinstance(module, torch.nn.Linear):
-                    weight = next((p for name, p in params if name == "weight"), None)
-                    if weight is not None:
-                        out_features, in_features = weight.shape
-                        module_info += f" [in_features={in_features}, out_features={out_features}]"
-
-                elif isinstance(module, torch.nn.LSTM):
-                    module_info += " ["
-                    module_info += f"input_size={module.input_size}, "
-                    module_info += f"hidden_size={module.hidden_size}, "
-                    module_info += f"num_layers={module.num_layers}"
-                    module_info += "]"
-
-                elif isinstance(module, torch.nn.Embedding):
-                    weight = next((p for name, p in params if name == "weight"), None)
-                    if weight is not None:
-                        num_embeddings, embedding_dim = weight.shape
-                        module_info += f" [num_embeddings={num_embeddings}, embedding_dim={embedding_dim}]"
-
-                # Add all parameter shapes
-                param_shapes = []
-                for param_name, param in params:
-                    param_shapes.append(f"{param_name}={list(param.shape)}")
-
-                if param_shapes and not any(
-                    x in module_info for x in ["out_channels", "in_features", "hidden_size", "num_embeddings"]
-                ):
-                    module_info += f" ({', '.join(param_shapes)})"
-
-            # Add formatted module info to output
-            lines.append(module_info)
-
-        # Add section for buffer shapes (non-parameter tensors like running_mean in BatchNorm)
-        buffers = list(policy.named_buffers())
-        if buffers:
-            lines.append("\nBuffer Shapes:")
-            for name, buffer in buffers:
-                lines.append(f"  {name}: {list(buffer.shape)}")
-
-        return "\n".join(lines)
-
-    def _clean_metadata_for_packaging(self, metadata: dict) -> dict:
-        def clean_value(v):
-            if hasattr(v, "__module__") and v.__module__ and "wandb" in v.__module__:
-                return None
-            elif isinstance(v, dict):
-                return {k: clean_value(val) for k, val in v.items() if clean_value(val) is not None}
-            elif isinstance(v, list):
-                return [clean_value(item) for item in v if clean_value(item) is not None]
-            elif isinstance(v, (str, int, float, bool, type(None))):
-                return v
-            elif hasattr(v, "__dict__"):
-                try:
-                    return str(v)
-                except Exception:
-                    return None
-            else:
-                return v
-
-        return clean_value(copy.deepcopy(metadata))
-
-    def _apply_packaging_rules(self, exporter, policy_module: Optional[str], policy_class: type) -> None:
-        """Apply packaging rules to the exporter based on a configuration."""
-        # Define packaging rules using a more robust "opt-out" strategy
-        rules = [
-            # Extern rules: Third-party libs and modules with pydantic dependencies
-            (
-                "extern",
-                [
-                    # Core Python and ML frameworks
-                    "sys",
-                    "torch.**",
-                    "numpy.**",
-                    "scipy.**",
-                    "sklearn.**",
-                    "matplotlib.**",
-                    "gymnasium.**",
-                    "gym.**",
-                    "tensordict.**",
-                    "einops.**",
-                    "hydra.**",
-                    "omegaconf.**",
-                    # Torch extensions (no recursive glob needed)
-                    "torch_scatter",
-                    "torch_geometric",
-                    "torch_sparse",
-                    # Extern all of mettagrid and its C extensions (contains pydantic)
-                    "mettagrid.**",
-                    "metta.mettagrid.**",
-                    # Extern specific metta modules that have pydantic dependencies (opt-out)
-                    "metta.util.config",
-                    "metta.rl.vecenv",
-                    "metta.eval.dashboard_data",
-                    "metta.sim.simulation_config",
-                ],
-            ),
-            # Intern rules: All our code, except for the externed modules above
-            (
-                "intern",
-                [
-                    "metta.agent.**",
-                    "metta.map.**",
-                    "metta.rl.**",
-                    "metta.eval.**",
-                    "metta.sim.**",
-                    "metta.util.**",
-                ],
-            ),
-            # Mock rules: Libraries to completely exclude from the package
-            (
-                "mock",
-                [
-                    "wandb",
-                    "wandb.**",
-                    "pufferlib",
-                    "pufferlib.**",
-                    "pydantic",
-                    "pydantic.**",
-                    "boto3",
-                    "boto3.**",
-                    "botocore",
-                    "botocore.**",
-                    "duckdb",
-                    "duckdb.**",
-                    "pandas",
-                    "pandas.**",
-                    "typing_extensions",
-                    "seaborn",
-                    "plotly",
-                ],
-            ),
-        ]
-
-        # Apply rules from the configuration
-        for action, patterns in rules:
-            for pattern in patterns:
-                getattr(exporter, action)(pattern)
-
-        # Handle special cases for the policy's own module
-        if policy_module:
-            if policy_module == "__main__":
-                import inspect
-
-                try:
-                    source = inspect.getsource(policy_class)
-                    exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
-                except Exception:
-                    exporter.extern("__main__")
-            elif "test" in policy_module:
-                # Extern test modules to prevent them from being packaged
-                exporter.extern(policy_module)
-
-    def save(self, path: str, policy: nn.Module) -> "PolicyRecord":
-        logger.info(f"Saving policy to {path} using torch.package")
-        self._local_path = path
-        self.uri = "file://" + path
-
-        try:
-            with PackageExporter(path, debug=False) as exporter:
-                # Apply all packaging rules
-                self._apply_packaging_rules(exporter, policy.__class__.__module__, policy.__class__)
-
-                # Save the policy and metadata
-                clean_metadata = self._clean_metadata_for_packaging(self.metadata)
-                exporter.save_pickle(
-                    "policy_record", "data.pkl", PolicyRecord(None, self.name, self.uri, clean_metadata)
-                )
-                exporter.save_pickle("policy", "model.pkl", policy)
-
-        except Exception as e:
-            logger.error(f"torch.package save failed: {e}")
-            raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
-
-        return self
-
-    def load(self, path: str, device: str = "cpu") -> nn.Module:
-        logger.info(f"Loading policy from {path}")
-        try:
-            importer = PackageImporter(path)
-            try:
-                return importer.load_pickle("policy", "model.pkl", map_location=device)
-            except Exception as e:
-                logger.warning(f"Could not load policy directly: {e}")
-                pr = importer.load_pickle("policy_record", "data.pkl", map_location=device)
-                if hasattr(pr, "_policy") and pr._policy is not None:
-                    return pr._policy
-                raise ValueError("PolicyRecord in package does not contain a policy") from e
-        except Exception as e:
-            logger.info(f"Not a torch.package file ({e})")
-            raise ValueError(f"Cannot load policy from {path}: This file is not a valid torch.package file.") from e
-
-    def key_and_version(self) -> tuple[str, int]:
-        """
-        Extract the policy key and version from the URI.
-        TODO: store these on the metadata for new policies,
-        eventually read them from the metadata instead of parsing the URI.
-        Returns:
-            tuple: (policy_key, version)
-                - policy_key is the clean name without path or version
-                - version is the numeric version or 0 if not present
-        """
-        # Get the last part after splitting by slash
-        base_name = self.uri.split("/")[-1]
-
-        # Check if it has a version number in format ":vNUM"
-        if ":" in base_name and ":v" in base_name:
-            parts = base_name.split(":v")
-            try:
-                version = int(parts[1])
-            except ValueError:
-                version = 0
-        else:
-            # No version, use the whole thing as key and version = 0
-            key = base_name
-            version = 0
-
-        return key, version
-
-    def key(self) -> str:
-        return self.key_and_version()[0]
-
-    def version(self) -> int:
-        return self.key_and_version()[1]
 
 
 class PolicyStore:
@@ -499,12 +180,38 @@ class PolicyStore:
                 "train_time": 0,
             },
         )
-        pr.save(path, policy)
+        self.save_policy(path, policy, pr)
         pr._policy = policy
         return pr
 
-    def save(self, name: str, path: str, policy: nn.Module, metadata: dict):
-        return PolicyRecord(self, name, "file://" + path, metadata).save(path, policy)
+    def save(self, name: str, path: str, policy: nn.Module, metadata: dict) -> PolicyRecord:
+        """Convenience method to create and save a policy in one step."""
+        pr = PolicyRecord(self, name, "file://" + path, metadata)
+        return self.save_policy(path, policy, pr)
+
+    def save_policy(self, path: str, policy: nn.Module, pr: PolicyRecord) -> PolicyRecord:
+        """Save a policy and its metadata using torch.package."""
+        logger.info(f"Saving policy to {path} using torch.package")
+
+        try:
+            with PackageExporter(path, debug=False) as exporter:
+                # Apply all packaging rules
+                self._apply_packaging_rules(exporter, policy.__class__.__module__, policy.__class__)
+
+                # Save the policy and metadata
+                clean_metadata = pr._clean_metadata_for_packaging(pr.metadata)
+                exporter.save_pickle(
+                    "policy_record", "data.pkl", PolicyRecord(None, pr.name, pr.uri, clean_metadata)
+                )
+                exporter.save_pickle("policy", "model.pkl", policy)
+
+        except Exception as e:
+            logger.error(f"torch.package save failed: {e}")
+            raise RuntimeError(f"Failed to save policy using torch.package: {e}") from e
+
+        pr._local_path = path
+        pr.uri = "file://" + path
+        return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files=None):
         local_path = pr.local_path()
@@ -753,3 +460,104 @@ class PolicyStore:
 
         self._cached_prs[path] = pr
         return pr
+
+    def _apply_packaging_rules(self, exporter, policy_module: Optional[str], policy_class: type) -> None:
+        """Apply packaging rules to the exporter based on a configuration."""
+        # Define packaging rules using a more robust "opt-out" strategy
+        rules = [
+            # Extern rules: Third-party libs and modules with pydantic dependencies
+            (
+                "extern",
+                [
+                    # Core Python and ML frameworks
+                    "sys",
+                    "torch.**",
+                    "numpy.**",
+                    "scipy.**",
+                    "sklearn.**",
+                    "matplotlib.**",
+                    "gymnasium.**",
+                    "gym.**",
+                    "tensordict.**",
+                    "einops.**",
+                    "hydra.**",
+                    "omegaconf.**",
+                    # Torch extensions (no recursive glob needed)
+                    "torch_scatter",
+                    "torch_geometric",
+                    "torch_sparse",
+                    # Extern all of mettagrid and its C extensions (contains pydantic)
+                    "mettagrid.**",
+                    "metta.mettagrid.**",
+                    # Extern specific metta modules that have pydantic dependencies (opt-out)
+                    "metta.util.config",
+                    "metta.rl.vecenv",
+                    "metta.eval.dashboard_data",
+                    "metta.sim.simulation_config",
+                    # Extern PolicyStore itself (we only need PolicyRecord in the package)
+                    "metta.agent.policy_store",
+                ],
+            ),
+            # Intern rules: Only the minimal code needed for loading policies
+            (
+                "intern",
+                [
+                    # Just intern the policy record - this is all we need for loading
+                    "metta.agent.policy_record",
+                    # Include other agent modules that policies might need
+                    "metta.agent.lib.**",
+                    "metta.agent.util.**",
+                    "metta.agent.metta_agent",
+                    "metta.agent.brain_policy",
+                    "metta.agent.policy_state",
+                    # Include utility modules that agent code depends on
+                    "metta.util.omegaconf",
+                    "metta.util.runtime_configuration",
+                    "metta.util.logger",
+                    "metta.util.decorators",
+                    "metta.util.resolvers",
+                ],
+            ),
+            # Mock rules: Libraries to completely exclude from the package
+            (
+                "mock",
+                [
+                    "wandb",
+                    "wandb.**",
+                    "pufferlib",
+                    "pufferlib.**",
+                    "pydantic",
+                    "pydantic.**",
+                    "boto3",
+                    "boto3.**",
+                    "botocore",
+                    "botocore.**",
+                    "duckdb",
+                    "duckdb.**",
+                    "pandas",
+                    "pandas.**",
+                    "typing_extensions",
+                    "seaborn",
+                    "plotly",
+                ],
+            ),
+        ]
+
+        # Apply rules from the configuration
+        for action, patterns in rules:
+            for pattern in patterns:
+                getattr(exporter, action)(pattern)
+
+        # Handle special cases for the policy's own module
+        if policy_module:
+            if policy_module == "__main__":
+                import inspect
+
+                try:
+                    source = inspect.getsource(policy_class)
+                    exporter.save_source_string("__main__", f"import torch\nimport torch.nn as nn\n\n{source}")
+                except Exception:
+                    exporter.extern("__main__")
+            elif "test" in policy_module:
+                # Extern test modules to prevent them from being packaged
+                exporter.extern(policy_module)

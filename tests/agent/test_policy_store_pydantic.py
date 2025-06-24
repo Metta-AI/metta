@@ -3,43 +3,37 @@
 
 import os
 import tempfile
-
 import torch
 import torch.nn as nn
 from omegaconf import OmegaConf
-
 
 # Create a minimal policy class that mimics MettaAgent structure
 class MinimalPolicy(nn.Module):
     def __init__(self):
         super().__init__()
         self.fc = nn.Linear(10, 10)
-        self.components = nn.ModuleDict(
-            {
-                "_core_": nn.LSTM(10, 10),
-                "_value_": nn.Linear(10, 1),
-                "_action_": nn.Linear(10, 5),
-            }
-        )
+        self.components = nn.ModuleDict({
+            "_core_": nn.LSTM(10, 10),
+            "_value_": nn.Linear(10, 1),
+            "_action_": nn.Linear(10, 5),
+        })
 
     def forward(self, x):
         return self.fc(x)
 
-
 def test_policy_save_load_without_pydantic():
     """Test that we can save and load a policy without pydantic errors"""
 
-    # Import PolicyStore after the fixes
-    from metta.agent.policy_store import PolicyRecord, PolicyStore
+    # Import PolicyStore and PolicyRecord from their respective modules
+    from metta.agent.policy_store import PolicyStore
+    from metta.agent.policy_record import PolicyRecord
 
     # Create minimal config
-    cfg = OmegaConf.create(
-        {
-            "device": "cpu",
-            "trainer": {"checkpoint_dir": tempfile.mkdtemp()},
-            "data_dir": tempfile.mkdtemp(),
-        }
-    )
+    cfg = OmegaConf.create({
+        "device": "cpu",
+        "trainer": {"checkpoint_dir": tempfile.mkdtemp()},
+        "data_dir": tempfile.mkdtemp(),
+    })
 
     # Create PolicyStore (without wandb_run for simplicity)
     policy_store = PolicyStore(cfg, wandb_run=None)
@@ -61,9 +55,8 @@ def test_policy_save_load_without_pydantic():
         temp_path = f.name
 
     try:
-        # Save using PolicyRecord
-        pr = PolicyRecord(policy_store, "test_policy", f"file://{temp_path}", metadata)
-        pr.save(temp_path, policy)
+        # Save using the convenience method
+        pr = policy_store.save("test_policy", temp_path, policy, metadata)
 
         # Try to load it back
         loaded_pr = policy_store.load_from_uri(f"file://{temp_path}")
@@ -80,17 +73,16 @@ def test_policy_save_load_without_pydantic():
         assert output.shape == torch.Size([1, 10])
 
         # Verify the loaded policy has the expected structure
-        assert hasattr(loaded_policy, "fc")
-        assert hasattr(loaded_policy, "components")
-        assert "_core_" in loaded_policy.components
-        assert "_value_" in loaded_policy.components
-        assert "_action_" in loaded_policy.components
+        assert hasattr(loaded_policy, 'fc')
+        assert hasattr(loaded_policy, 'components')
+        assert '_core_' in loaded_policy.components
+        assert '_value_' in loaded_policy.components
+        assert '_action_' in loaded_policy.components
 
     finally:
         # Cleanup
         if os.path.exists(temp_path):
             os.remove(temp_path)
-
 
 if __name__ == "__main__":
     test_policy_save_load_without_pydantic()
