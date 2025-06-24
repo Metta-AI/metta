@@ -2,7 +2,7 @@ import numpy as np
 from omegaconf import DictConfig
 
 from metta.map.utils.storable_map import StorableMap
-from mettagrid.util import file as file_utils
+from metta.mettagrid.util import file as file_utils
 
 
 def simple_map():

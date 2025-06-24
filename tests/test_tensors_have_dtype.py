@@ -91,6 +91,7 @@ def test_tensors_have_dtype():
     exclude_dirs = {
         ".venv",
         "build",
+        "build-debug",
         "metta.egg-info",
         ".git",
         "__pycache__",
