@@ -20,7 +20,7 @@ class Curriculum:
 
     def get_completion_rates(self):
         """Return a dictionary of completion rates for each task."""
-        pass
+        return {}
 
 
 class Task:
