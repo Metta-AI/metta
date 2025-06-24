@@ -53,6 +53,251 @@ local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
 
 
+def get_size_mb(obj):
+    """Get approximate size of object in MB, handling various types."""
+    import sys
+    import gc
+
+    if isinstance(obj, torch.Tensor):
+        # For tensors, use element count * bytes per element
+        return obj.element_size() * obj.nelement() / (1024 * 1024)
+    elif isinstance(obj, np.ndarray):
+        return obj.nbytes / (1024 * 1024)
+    else:
+        # For other objects, try to get recursive size
+        try:
+            size = sys.getsizeof(obj)
+            # Try to account for containers
+            if isinstance(obj, (list, tuple)):
+                size += sum(sys.getsizeof(item) for item in obj)
+            elif isinstance(obj, dict):
+                size += sum(sys.getsizeof(k) + sys.getsizeof(v) for k, v in obj.items())
+            return size / (1024 * 1024)
+        except:
+            return 0.0
+
+
+def profile_memory(local_vars, prefix="", min_size_mb=1.0, device=None):
+    """Profile memory usage of local variables.
+
+    Args:
+        local_vars: Dict of local variables (typically locals())
+        prefix: Prefix for logging
+        min_size_mb: Only show variables larger than this (in MB)
+        device: torch device for GPU memory tracking
+    """
+    import gc
+
+    # Skip some internal variables
+    skip_vars = {'__builtins__', '__name__', '__doc__', '__package__',
+                 '__loader__', '__spec__', '__annotations__', '__cached__'}
+
+    # Collect variable sizes
+    var_sizes = []
+    total_size = 0
+    tensor_count = 0
+    tensor_size = 0
+
+    for name, obj in local_vars.items():
+        if name in skip_vars or name.startswith('_'):
+            continue
+
+        try:
+            size_mb = get_size_mb(obj)
+            if size_mb >= min_size_mb:
+                type_name = type(obj).__name__
+                if isinstance(obj, torch.Tensor):
+                    tensor_count += 1
+                    tensor_size += size_mb
+                    shape = str(tuple(obj.shape))
+                    dtype = str(obj.dtype)
+                    device_str = str(obj.device)
+                    var_sizes.append((size_mb, f"{name} ({type_name}, shape={shape}, dtype={dtype}, device={device_str})", obj))
+                else:
+                    var_sizes.append((size_mb, f"{name} ({type_name})", obj))
+                total_size += size_mb
+        except Exception as e:
+            # Skip variables that can't be sized
+            pass
+
+    # Sort by size
+    var_sizes.sort(reverse=True)
+
+    # Print summary
+    logger.info(f"\n{'='*60}")
+    logger.info(f"{prefix} Memory Profile")
+    logger.info(f"{'='*60}")
+    logger.info(f"Total tracked memory: {total_size:.2f} MB")
+    logger.info(f"Tensor count: {tensor_count}, Tensor memory: {tensor_size:.2f} MB")
+
+    # GPU memory if available
+    if device and str(device).startswith('cuda') and torch.cuda.is_available():
+        gpu_allocated = torch.cuda.memory_allocated(device) / (1024**2)
+        gpu_reserved = torch.cuda.memory_reserved(device) / (1024**2)
+        logger.info(f"GPU allocated: {gpu_allocated:.2f} MB, reserved: {gpu_reserved:.2f} MB")
+
+    logger.info(f"\nTop variables (>= {min_size_mb} MB):")
+    for size_mb, desc, obj in var_sizes[:20]:  # Show top 20
+        logger.info(f"  {size_mb:8.2f} MB - {desc}")
+
+        # Extra details for Experience objects
+        if hasattr(obj, '__class__') and 'Experience' in obj.__class__.__name__:
+            for attr in ['obs', 'actions', 'rewards', 'values', 'logprobs', 'dones', 'lstm_h', 'lstm_c']:
+                if hasattr(obj, attr):
+                    attr_val = getattr(obj, attr)
+                    if isinstance(attr_val, torch.Tensor):
+                        attr_size = get_size_mb(attr_val)
+                        logger.info(f"    └─ {attr}: {attr_size:.2f} MB, shape={attr_val.shape}")
+
+    # Check for gradient accumulation
+    grad_count = 0
+    grad_size = 0
+    for name, obj in local_vars.items():
+        if isinstance(obj, torch.Tensor) and obj.grad is not None:
+            grad_count += 1
+            grad_size += get_size_mb(obj.grad)
+
+    if grad_count > 0:
+        logger.info(f"\nGradients: {grad_count} tensors with gradients, {grad_size:.2f} MB total")
+
+    # Garbage collection info
+    gc_counts = gc.get_count()
+    logger.info(f"\nGarbage collector: gen0={gc_counts[0]}, gen1={gc_counts[1]}, gen2={gc_counts[2]}")
+    logger.info(f"{'='*60}\n")
+
+
+class MemoryTracker:
+    """Track memory usage over time to identify leaks."""
+
+    def __init__(self, device=None, log_interval=10):
+        self.device = device
+        self.log_interval = log_interval
+        self.history = []
+        self.step_count = 0
+        self.start_memory = None
+
+    def track(self, step_name="step"):
+        """Record current memory usage."""
+        import gc
+        import psutil
+        import os
+
+        self.step_count += 1
+
+        # Get process memory
+        process = psutil.Process(os.getpid())
+        mem_info = process.memory_info()
+        rss_mb = mem_info.rss / (1024 * 1024)
+        vms_mb = mem_info.vms / (1024 * 1024)
+
+        # Get GPU memory if available
+        gpu_allocated = 0
+        gpu_reserved = 0
+        if self.device and str(self.device).startswith('cuda') and torch.cuda.is_available():
+            gpu_allocated = torch.cuda.memory_allocated(self.device) / (1024**2)
+            gpu_reserved = torch.cuda.memory_reserved(self.device) / (1024**2)
+
+        # Count objects
+        gc_counts = gc.get_count()
+        tensor_count = len([obj for obj in gc.get_objects() if isinstance(obj, torch.Tensor)])
+
+        # Store data
+        data = {
+            'step': self.step_count,
+            'name': step_name,
+            'rss_mb': rss_mb,
+            'vms_mb': vms_mb,
+            'gpu_allocated_mb': gpu_allocated,
+            'gpu_reserved_mb': gpu_reserved,
+            'gc_objects': sum(gc_counts),
+            'tensor_count': tensor_count,
+        }
+
+        self.history.append(data)
+
+        # Store initial memory
+        if self.start_memory is None:
+            self.start_memory = data
+
+        # Log if interval reached
+        if self.step_count % self.log_interval == 0:
+            self.log_summary()
+
+    def log_summary(self):
+        """Log memory growth summary."""
+        if not self.history or not self.start_memory:
+            return
+
+        current = self.history[-1]
+        start = self.start_memory
+
+        # Calculate growth
+        rss_growth = current['rss_mb'] - start['rss_mb']
+        gpu_growth = current['gpu_allocated_mb'] - start['gpu_allocated_mb']
+        tensor_growth = current['tensor_count'] - start['tensor_count']
+
+        # Calculate rate of growth
+        steps = current['step'] - start['step']
+        if steps > 0:
+            rss_rate = rss_growth / steps
+            gpu_rate = gpu_growth / steps
+        else:
+            rss_rate = gpu_rate = 0
+
+        logger.info(f"\n{'='*60}")
+        logger.info(f"Memory Growth Summary (Step {current['step']} - {current['name']})")
+        logger.info(f"{'='*60}")
+        logger.info(f"RSS Memory: {start['rss_mb']:.1f} MB → {current['rss_mb']:.1f} MB ({rss_growth:+.1f} MB)")
+        logger.info(f"GPU Memory: {start['gpu_allocated_mb']:.1f} MB → {current['gpu_allocated_mb']:.1f} MB ({gpu_growth:+.1f} MB)")
+        logger.info(f"Tensor Count: {start['tensor_count']} → {current['tensor_count']} ({tensor_growth:+d})")
+        logger.info(f"Growth Rate: RSS={rss_rate:.3f} MB/step, GPU={gpu_rate:.3f} MB/step")
+
+        # Check for potential leak
+        if rss_rate > 1.0:  # More than 1MB per step
+            logger.warning(f"⚠️  High memory growth rate detected: {rss_rate:.3f} MB/step")
+
+        # Show recent trend
+        if len(self.history) > 5:
+            logger.info("\nRecent trend:")
+            for i in range(-5, 0):
+                h = self.history[i]
+                logger.info(f"  Step {h['step']:4d}: RSS={h['rss_mb']:7.1f} MB, GPU={h['gpu_allocated_mb']:7.1f} MB, Tensors={h['tensor_count']:5d}")
+
+        logger.info(f"{'='*60}\n")
+
+    def get_leak_candidates(self, threshold_mb=100):
+        """Identify potential memory leaks by finding growing objects."""
+        import gc
+        import sys
+        from collections import defaultdict
+
+        # Track object types and their total size
+        type_sizes = defaultdict(lambda: {'count': 0, 'size': 0})
+
+        for obj in gc.get_objects():
+            try:
+                obj_type = type(obj).__name__
+                obj_size = sys.getsizeof(obj)
+                type_sizes[obj_type]['count'] += 1
+                type_sizes[obj_type]['size'] += obj_size
+            except:
+                pass
+
+        # Find types using significant memory
+        candidates = []
+        for type_name, info in type_sizes.items():
+            size_mb = info['size'] / (1024 * 1024)
+            if size_mb >= threshold_mb:
+                candidates.append((size_mb, type_name, info['count']))
+
+        candidates.sort(reverse=True)
+
+        if candidates:
+            logger.info("\nPotential leak candidates (>= {threshold_mb} MB):")
+            for size_mb, type_name, count in candidates[:10]:
+                logger.info(f"  {type_name}: {count} objects, {size_mb:.1f} MB total")
+
+
 class MettaTrainer:
     def __init__(
         self,
@@ -238,7 +483,10 @@ class MettaTrainer:
             for metric_name, step_metric in metric_overrides:
                 wandb_run.define_metric(metric_name, step_metric=step_metric)
 
-        logger.info(f"MettaTrainer initialization complete on device: {self.device}")
+                logger.info(f"MettaTrainer initialization complete on device: {self.device}")
+
+        # Initialize memory tracker - uncomment to enable
+        self.memory_tracker = MemoryTracker(device=self.device, log_interval=10)
 
     def train(self) -> None:
         logger.info("Starting training")
@@ -260,6 +508,14 @@ class MettaTrainer:
             with self.torch_profiler:
                 self._rollout()
                 self._train()
+
+            # Memory tracking - uncomment to enable
+            if hasattr(self, 'memory_tracker'):
+                self.memory_tracker.track(f"epoch_{self.epoch}")
+
+                # Check for memory leak candidates every 50 epochs
+                if self.epoch % 50 == 0 and self.epoch > 0:
+                    self.memory_tracker.get_leak_candidates(threshold_mb=50)
 
             # Processing stats
             self._process_stats()
@@ -374,10 +630,14 @@ class MettaTrainer:
         trainer_cfg = self.trainer_cfg
         device = self.device
 
-        policy = self.policy
+                policy = self.policy
         infos = defaultdict(list)
         raw_infos = []  # Collect raw info for batch processing later
         experience.reset_for_rollout()
+
+        # Memory profiling - uncomment to enable
+        if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
+            profile_memory(locals(), prefix="ROLLOUT START", device=self.device)
 
         while not experience.ready_for_training:
             with self.timer("_rollout.env"):
@@ -458,6 +718,19 @@ class MettaTrainer:
             with self.timer("_rollout.env"):
                 self.vecenv.send(actions.cpu().numpy().astype(dtype_actions))
 
+            # Memory profiling - uncomment to track memory growth per step
+            # Enable detailed profiling if we detect rapid memory growth
+            if hasattr(self, 'memory_tracker') and self.memory_tracker.history:
+                if len(self.memory_tracker.history) >= 2:
+                    recent_growth = self.memory_tracker.history[-1]['rss_mb'] - self.memory_tracker.history[-2]['rss_mb']
+                    if recent_growth > 100:  # More than 100MB growth in one epoch
+                        if self.agent_step % 100 == 0:  # Check every 100 steps when leak detected
+                            profile_memory(locals(), prefix=f"LEAK DETECTED - ROLLOUT STEP {self.agent_step}", device=self.device)
+
+        # Memory profiling - uncomment to check at end of rollout
+        if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
+            profile_memory(locals(), prefix="ROLLOUT END", device=self.device)
+
         # Batch process info dictionaries after rollout
         for i in raw_infos:
             for k, v in unroll_nested_dict(i):
@@ -487,7 +760,11 @@ class MettaTrainer:
         experience = self.experience
         trainer_cfg = self.trainer_cfg
 
-        self.losses.zero()
+                self.losses.zero()
+
+        # Memory profiling - uncomment to enable
+        if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
+            profile_memory(locals(), prefix="TRAIN START", device=self.device)
 
         prio_cfg = trainer_cfg.get("prioritized_experience_replay", {})
         vtrace_cfg = trainer_cfg.get("vtrace", {})
@@ -643,6 +920,10 @@ class MettaTrainer:
                         torch.cuda.synchronize()
 
                 minibatch_idx += 1
+
+                # Memory profiling - uncomment to track memory per minibatch
+                # if minibatch_idx % 10 == 0:  # Check every 10 minibatches
+                #     profile_memory(locals(), prefix=f"TRAIN MINIBATCH {minibatch_idx}", device=self.device)
                 # end loop over minibatches
 
             self.epoch += 1
@@ -657,12 +938,16 @@ class MettaTrainer:
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
-        # Calculate explained variance
+                # Calculate explained variance
         y_pred = experience.values.flatten()
         y_true = advantages.flatten() + experience.values.flatten()
         var_y = y_true.var()
         explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
         self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
+
+        # Memory profiling - uncomment to check at end of training
+        if self.epoch % 5 == 0:  # Profile every 5 epochs to reduce log spam
+            profile_memory(locals(), prefix="TRAIN END", device=self.device)
 
     def _checkpoint_trainer(self):
         if not self._master:
