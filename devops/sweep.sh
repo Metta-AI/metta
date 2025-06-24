@@ -11,18 +11,19 @@ if [ -z "$sweep" ]; then
   echo "[ERROR] 'run' argument is required (e.g., run=my_sweep_name)"
   exit 1
 fi
-
 source ./devops/setup.env
 
 echo "[INFO] Starting continuous sweep execution: $sweep"
+echo "[INFO] Rollout limit: $rollout_count"
 mkdir -p "${DATA_DIR}/sweep/$sweep"
 
 # Retry configuration
 MAX_CONSECUTIVE_FAILURES=3
 consecutive_failures=0
+rollout_number=0
 
 while true; do
-  echo "[SWEEP:$sweep] Attempting rollout (consecutive failures: $consecutive_failures/$MAX_CONSECUTIVE_FAILURES)"
+  echo "[SWEEP:$sweep] Attempting rollout $rollout_number/$rollout_count (consecutive failures: $consecutive_failures/$MAX_CONSECUTIVE_FAILURES)"
 
   if ./devops/sweep_rollout.sh $sweep $args; then
     echo "[SUCCESS] Sweep rollout completed successfully: $sweep"
