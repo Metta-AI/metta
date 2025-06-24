@@ -2,27 +2,13 @@ from __future__ import annotations
 
 import copy
 import logging
-<<<<<<< HEAD
-from typing import Optional
+from typing import Optional, Dict
 
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid.curriculum.core import Task
 from metta.mettagrid.curriculum.sampling import SamplingCurriculum
-=======
-from typing import Dict, Optional
-
-from omegaconf import DictConfig, OmegaConf
-
-<<<<<<<< HEAD:mettagrid/src/metta/mettagrid/curriculum/progressive.py
-from metta.mettagrid.curriculum.core import Task
-from metta.mettagrid.curriculum.sampling import SamplingCurriculum
-========
-from .curriculum import Task
-from .random import RandomCurriculum
-from .sampling import SamplingCurriculum
->>>>>>>> 2ae302112f4d2dc5180dd8637a2ed5508a576325:mettagrid/mettagrid/curriculum/progressive.py
->>>>>>> 2ae302112f4d2dc5180dd8637a2ed5508a576325
+from metta.mettagrid.curriculum.random import RandomCurriculum
 
 logger = logging.getLogger(__name__)
 
