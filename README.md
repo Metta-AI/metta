@@ -100,33 +100,70 @@ This README provides only a brief overview of research explorations. Visit the [
 
 ## Installation
 
-Install uv (a fast Python package installer and resolver):
+### 1. Install uv
+
+First, install uv (a fast Python package installer and resolver):
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Optional: run the script which will configure the development environment (the script might fail if you're not on the Metta dev team and don't have permissions):
+After git updates, run `uv sync` to reinstall all necessary dependencies.
+
+### 2. Install system dependencies
+
+Choose the appropriate setup method for your platform:
+
+**macOS:**
+```bash
+./devops/macos/setup_machine.py
+```
+
+**Linux:**
+```bash
+./devops/mettabox/setup_machine.sh
+```
+
+**Other platforms or manual setup:**
+Install the packages listed in `devops/macos/Brewfile`.
+
+### 3. Configure the development environment
 
 ```bash
 ./devops/setup_dev.sh
 ```
 
-After git updates, you might need to run `uv sync` to reinstall all necessary dependencies.
+This script will:
+- Install Python dependencies with `uv sync`
+- Set up MettaScope (visualization tools)
+- Configure AWS access profiles
+- Install Skypilot (cloud compute management)
 
-## Training a Model
 
-### Run the training
+**Note:** Some setup scripts may fail if you're not on the Metta dev team and don't have permissions for certain cloud resources. This shouldn't prevent most forms of local development, but if it causes you to be blocked, please contact us or raise a Github Issue.
 
+
+## Usage
+
+The repository contains command-line through `tools/*.py` scripts. Most of these tools use [Hydra](https://hydra.cc/) for configuration management, which allows flexible parameter overrides and composition.
+
+
+- **Override parameters**: `param=value` sets configuration values directly
+- **Compose configs**: `+group=option` loads additional configuration files from `configs/group/option.yaml`
+- **Use config groups**: Load user-specific settings with `+user=<name>` from `configs/user/<name>.yaml`
+
+### Training a Model
+
+
+```bash
+./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=<name>
 ```
-./tools/train.py run=my_experiment +hardware=macbook wandb=off
-```
 
-`run` names your experiment and controls where checkpoints are saved under
-`train_dir/<run>`. Hardware presets such as `+hardware=macbook` tune the trainer
-for your machine. You can pass `+user=<name>` to load defaults from
-`configs/user/<name>.yaml`. Use `wandb=off` to disable Weights & Biases logging
-if you don't have access.
+Parameters:
+- `run=my_experiment` - Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
+- `+hardware=macbook` - Loads hardware-specific settings from `configs/hardware/macbook.yaml`
+- `wandb=off` - Disables Weights & Biases logging
+- `+user=<n>` - Loads your personal settings from `configs/user/<n>.yaml`
 
 ### Setting up Weights & Biases for Personal Use
 
@@ -151,7 +188,9 @@ Now you can run training with your personal WandB config:
 
 ## Visualizing a Model
 
-### Run the interactive simulation
+### Visualizing a Model
+
+#### Run the interactive simulation
 
 ```
 ./tools/play.py run=my_experiment +hardware=macbook wandb=off
@@ -161,20 +200,20 @@ This launches a human-controlled session using the same configuration flags as
 training. It is useful for quickly testing maps or policies on your local
 hardware.
 
-### Run the terminal simulation
+#### Run the terminal simulation
 
 ```
 ./tools/renderer.py run=demo_obstacles \
 renderer_job.environment.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
-## Evaluating a Model
+### Evaluating a Model
 
 When you run training, if you have WandB enabled, then you will be able to see in your WandB run page results for the eval suites.
 
 However, this will not apply for anything trained before April 8th.
 
-### Post Hoc Evaluation
+#### Post Hoc Evaluation
 
 If you want to run evaluation post-training to compare different policies, you can do the following:
 
