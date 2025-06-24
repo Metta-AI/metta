@@ -298,12 +298,12 @@ class MettaTrainer:
             record_heartbeat()
 
             # Interval periodic tasks
-            self.maybe_save_policy()
-            self.maybe_save_training_state()
-            self.maybe_evaluate_policy()
-            self.maybe_upload_policy_to_wandb()
-            self.maybe_generate_replay()
-            self.maybe_update_l2_weights()
+            self._maybe_save_policy()
+            self._maybe_save_training_state()
+            self._maybe_evaluate_policy()
+            self._maybe_upload_policy_to_wandb()
+            self._maybe_generate_replay()
+            self._maybe_update_l2_weights()
 
             self._on_train_step()
             # end loop over total_timesteps
@@ -315,9 +315,9 @@ class MettaTrainer:
             logger.info(f"  {name}: {self.timer.format_time(summary['total_elapsed'])}")
 
         # Force final saves
-        self.maybe_save_policy(force=True)
-        self.maybe_save_training_state(force=True)
-        self.maybe_upload_policy_to_wandb(force=True)
+        self._maybe_save_policy(force=True)
+        self._maybe_save_training_state(force=True)
+        self._maybe_upload_policy_to_wandb(force=True)
 
         self.system_monitor.stop()
 
@@ -620,15 +620,19 @@ class MettaTrainer:
         explained_var = torch.nan if var_y == 0 else 1 - (y_true - y_pred).var() / var_y
         self.losses.explained_variance = explained_var.item() if torch.is_tensor(explained_var) else float("nan")
 
-    def maybe_save_training_state(self, force=False):
+    def _should_run(self, interval: int, force: bool = False) -> bool:
+        """Check if a periodic task should run based on interval and force flag."""
+        if not self._master or not interval:
+            return False
+
+        if force:
+            return True
+
+        return self.epoch % interval == 0
+
+    def _maybe_save_training_state(self, force=False):
         """Save training state if on checkpoint interval"""
-        if not self._master:
-            return
-
-        if not self.trainer_cfg.checkpoint_interval:
-            return
-
-        if not force and self.epoch % self.trainer_cfg.checkpoint_interval != 0:
+        if not self._should_run(self.trainer_cfg.checkpoint_interval, force):
             return
 
         extra_args = {}
@@ -647,15 +651,9 @@ class MettaTrainer:
         checkpoint.save(self.cfg.run_dir)
         logger.info(f"Saved training state at epoch {self.epoch}")
 
-    def maybe_save_policy(self, force=False):
+    def _maybe_save_policy(self, force=False):
         """Save policy locally if on checkpoint interval"""
-        if not self._master:
-            return
-
-        if not self.trainer_cfg.checkpoint_interval:
-            return
-
-        if not force and self.epoch % self.trainer_cfg.checkpoint_interval != 0:
+        if not self._should_run(self.trainer_cfg.checkpoint_interval, force):
             return
 
         name = self.policy_store.make_model_name(self.epoch)
@@ -686,28 +684,17 @@ class MettaTrainer:
         logger.info(f"Saved policy locally: {name}")
         return self.latest_saved_policy
 
-    def maybe_evaluate_policy(self, force=False):
+    def _maybe_evaluate_policy(self, force=False):
         """Evaluate policy if on evaluation interval"""
-        if not self._master:
-            return
+        if self._should_run(self.trainer_cfg.evaluate_interval, force):
+            self._evaluate_policy()
 
-        if not self.trainer_cfg.evaluate_interval:
-            return
-
-        if not force and self.epoch % self.trainer_cfg.evaluate_interval != 0:
-            return
-
-        self._evaluate_policy()
-
-    def maybe_upload_policy_to_wandb(self, force=False):
+    def _maybe_upload_policy_to_wandb(self, force=False):
         """Upload policy to wandb if on wandb interval"""
-        if not self._master or not self.wandb_run:
+        if not self._should_run(self.trainer_cfg.wandb_checkpoint_interval, force):
             return
 
-        if not self.trainer_cfg.wandb_checkpoint_interval:
-            return
-
-        if not force and self.epoch % self.trainer_cfg.wandb_checkpoint_interval != 0:
+        if not self.wandb_run:
             return
 
         if not self.latest_saved_policy:
@@ -721,28 +708,15 @@ class MettaTrainer:
         self.policy_store.add_to_wandb_run(self.wandb_run.name, self.latest_saved_policy)
         logger.info(f"Uploaded policy to wandb at epoch {self.epoch}")
 
-    def maybe_generate_replay(self, force=False):
+    def _maybe_generate_replay(self, force=False):
         """Generate replay if on replay interval"""
-        if not self._master:
-            return
+        if self._should_run(self.trainer_cfg.replay_interval, force):
+            self._generate_and_upload_replay()
 
-        if not self.trainer_cfg.replay_interval:
-            return
-
-        if not force and self.epoch % self.trainer_cfg.replay_interval != 0:
-            return
-
-        self._generate_and_upload_replay()
-
-    def maybe_update_l2_weights(self, force=False):
+    def _maybe_update_l2_weights(self, force=False):
         """Update L2 init weights if on update interval"""
-        if not self.cfg.agent.l2_init_weight_update_interval:
-            return
-
-        if not force and self.epoch % self.cfg.agent.l2_init_weight_update_interval != 0:
-            return
-
-        self.policy.update_l2_init_weight_copy()
+        if self._should_run(self.cfg.agent.l2_init_weight_update_interval, force):
+            self.policy.update_l2_init_weight_copy()
 
     @with_instance_timer("_evaluate_policy", log_level=logging.INFO)
     def _evaluate_policy(self):
