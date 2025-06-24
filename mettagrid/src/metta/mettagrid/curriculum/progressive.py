@@ -42,7 +42,7 @@ class ProgressiveMultiTaskCurriculum(RandomCurriculum):
         tasks: Dict[str, float],
         env_overrides: DictConfig,
         progression_rate: float = 0.001,
-        initial_skew: float = 2.0,
+        initial_skew: float = 6.0,
     ):
         super().__init__(tasks, env_overrides)
         self._task_order = list(tasks.keys())  # Preserve order from dict
