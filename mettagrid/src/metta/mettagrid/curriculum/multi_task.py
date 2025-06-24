@@ -3,8 +3,8 @@ from typing import Dict
 
 from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from .core import Curriculum
+from .util import curriculum_from_config_path
 
 logger = logging.getLogger(__name__)
 
@@ -25,3 +25,12 @@ class MultiTaskCurriculum(Curriculum):
                 assert cfg_num_agents == num_agents, (
                     f"Task {task_id} has num_agents {cfg_num_agents}, expected {num_agents}"
                 )
+
+    def get_task_probs(self) -> dict[str, float]:
+        """Return the current task probabilities for logging purposes."""
+        total = sum(self._task_weights.values())
+        if total == 0:
+            # Avoid division by zero, assign uniform probability
+            n = len(self._task_weights)
+            return {k: 1.0 / n for k in self._task_weights}
+        return {k: v / total for k, v in self._task_weights.items()}
