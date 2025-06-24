@@ -13,4 +13,4 @@ game:
       battery.red: 1
   map_builder:
     objects:
-      generator.red: 1
+      generator_red: 1
