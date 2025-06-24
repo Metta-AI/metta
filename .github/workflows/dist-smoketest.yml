@@ -9,7 +9,7 @@ on:
       timeout_hours:
         description: "Job timeout in hours for each run (auto-termination)"
         required: false
-        default: "3" # Default to 3 hours for a 1-hour run + buffer
+        default: "3"
         type: string
       trainer_env:
         description: "Training environment configuration (e.g., env/mettagrid/simple)"
