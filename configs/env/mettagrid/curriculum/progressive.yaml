@@ -1,0 +1,10 @@
+_target_: metta.mettagrid.curriculum.progressive.ProgressiveMultiTaskCurriculum
+
+tasks:
+  /env/mettagrid/curriculum/navigation: 1
+  /env/mettagrid/curriculum/sequence: 1
+  /env/mettagrid/curriculum/nav_memory_sequence: 1
+
+env_overrides:
+  game:
+    num_agents: 24
